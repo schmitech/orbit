@@ -75,13 +75,14 @@ def with_retry(
 class ChatHistoryService:
     """Service for managing chat history and conversations"""
 
-    def __init__(self, config: Dict[str, Any], database_service=None):
+    def __init__(self, config: Dict[str, Any], database_service=None, thread_dataset_service=None):
         """
         Initialize the Chat History Service
 
         Args:
             config: Application configuration
             database_service: Database service instance
+            thread_dataset_service: Thread dataset service instance (optional)
         """
         self.config = config
         # Use provided database service or create a new one using factory
@@ -90,6 +91,12 @@ class ChatHistoryService:
             database_service = create_database_service(config)
         self.database_service = database_service
         self.api_key_service = None
+
+        # Initialize thread dataset service for proper dataset deletion
+        if thread_dataset_service is None:
+            from services.thread_dataset_service import ThreadDatasetService
+            thread_dataset_service = ThreadDatasetService(config)
+        self.thread_dataset_service = thread_dataset_service
         
         # Initialize verbose first since it's used in calculation methods
         self.verbose = config.get('general', {}).get('verbose', False)
@@ -305,7 +312,11 @@ class ChatHistoryService:
             # Ensure database service is available
             if not self.database_service:
                 raise ValueError("Database service is required for chat history")
-                
+
+            # Initialize thread dataset service for proper dataset handling
+            if self.thread_dataset_service:
+                await self.thread_dataset_service.initialize()
+
             # Create indexes for efficient querying
             await self._create_indexes()
             
@@ -882,16 +893,13 @@ class ChatHistoryService:
                     {"parent_session_id": session_id}
                 )
 
-                # Delete thread datasets (from thread_datasets collection)
+                # Delete thread datasets using ThreadDatasetService (handles Redis/database)
                 if threads:
                     for thread in threads:
                         dataset_key = thread.get('dataset_key')
                         if dataset_key:
                             try:
-                                await self.database_service.delete_one(
-                                    "thread_datasets",
-                                    {"id": dataset_key}
-                                )
+                                await self.thread_dataset_service.delete_dataset(dataset_key)
                             except Exception:
                                 pass  # Dataset might not exist or already deleted
 
@@ -991,17 +999,14 @@ class ChatHistoryService:
                     {"parent_session_id": session_id}
                 )
 
-                # Delete thread datasets (from thread_datasets collection)
+                # Delete thread datasets using ThreadDatasetService (handles Redis/database)
                 datasets_deleted = 0
                 if threads:
                     for thread in threads:
                         dataset_key = thread.get('dataset_key')
                         if dataset_key:
                             try:
-                                result = await self.database_service.delete_one(
-                                    "thread_datasets",
-                                    {"id": dataset_key}
-                                )
+                                result = await self.thread_dataset_service.delete_dataset(dataset_key)
                                 if result:
                                     datasets_deleted += 1
                             except Exception:

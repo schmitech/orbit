@@ -30,6 +30,11 @@ class ContextRetrievalStep(PipelineStep):
         """Initialize the step and load adapter capabilities."""
         super().__init__(container)
         self._capability_registry = get_capability_registry()
+
+        # Get verbose setting from config if available
+        config = container.get('config') if container.has('config') else {}
+        self.verbose = config.get('general', {}).get('verbose', False) if isinstance(config, dict) else False
+
         self._initialize_capabilities()
 
     def _initialize_capabilities(self) -> None:

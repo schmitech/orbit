@@ -52,25 +52,25 @@ class ThreadDatasetService:
                 if self.redis_service.enabled:
                     logger.info(f"✓ ThreadDatasetService: Redis storage enabled (key prefix: {self.redis_key_prefix})")
                 else:
-                    logger.warning(f"ThreadDatasetService: Redis service initialized but not enabled. Falling back to database storage.")
-                    self.storage_backend = 'database'
+                    logger.warning(f"ThreadDatasetService: Redis service created but not yet enabled (will be initialized later)")
             except Exception as e:
-                logger.warning(f"Failed to initialize Redis service: {e}. Falling back to database storage.")
-                self.storage_backend = 'database'
-        
-        # Initialize database service as fallback
-        if self.storage_backend == 'database':
-            try:
-                self.database_service = create_database_service(config)
-            except Exception as e:
-                logger.error(f"Failed to initialize database service: {e}")
-                self.database_service = None
+                logger.warning(f"Failed to initialize Redis service: {e}. Will fall back to database storage if Redis doesn't become available.")
+
+        # Always initialize database service as fallback (even when using Redis)
+        # This ensures we can fall back if Redis becomes unavailable
+        try:
+            self.database_service = create_database_service(config)
+        except Exception as e:
+            logger.error(f"Failed to initialize database service: {e}")
+            self.database_service = None
         
         # Always log initialization status for verification
-        if self.storage_backend == 'redis' and self.redis_service and self.redis_service.enabled:
-            logger.info(f"ThreadDatasetService initialized: storage_backend=redis, ttl={self.dataset_ttl_hours}h, key_prefix={self.redis_key_prefix}")
+        db_fallback_status = f", database_fallback={'available' if self.database_service else 'unavailable'}"
+        if self.storage_backend == 'redis':
+            redis_status = 'enabled' if (self.redis_service and self.redis_service.enabled) else 'not yet enabled'
+            logger.info(f"ThreadDatasetService initialized: storage_backend=redis ({redis_status}), ttl={self.dataset_ttl_hours}h{db_fallback_status}")
         else:
-            logger.info(f"ThreadDatasetService initialized: storage_backend={self.storage_backend}, ttl={self.dataset_ttl_hours}h")
+            logger.info(f"ThreadDatasetService initialized: storage_backend={self.storage_backend}, ttl={self.dataset_ttl_hours}h{db_fallback_status}")
 
     async def initialize(self) -> None:
         """Initialize the service and its dependencies."""
@@ -267,26 +267,37 @@ class ThreadDatasetService:
             return False
 
         try:
+            # Debug logging to identify why Redis path is not being used (INFO level for troubleshooting)
+            logger.info(f"delete_dataset: storage_backend={self.storage_backend}, redis_service={'exists' if self.redis_service else 'None'}, redis_enabled={self.redis_service.enabled if self.redis_service else 'N/A'}")
+
+            # Match the storage logic: try Redis first if configured and enabled, otherwise use database
             if self.storage_backend == 'redis' and self.redis_service and self.redis_service.enabled:
                 # Delete from Redis
-                deleted = await self.redis_service.delete(dataset_key)
-                if self.verbose and deleted > 0:
-                    logger.debug(f"Deleted dataset {dataset_key} from Redis")
-                return deleted > 0
+                deleted_count = await self.redis_service.delete(dataset_key)
+                deleted = deleted_count > 0
+
+                # Always log deletion result for verification
+                if deleted:
+                    logger.info(f"✓ Deleted dataset {dataset_key} from Redis (deleted_count: {deleted_count})")
+                else:
+                    logger.warning(f"Dataset {dataset_key} not found in Redis (deleted_count: {deleted_count})")
+
+                return deleted
             else:
-                # Delete from database
+                # Fallback to database (matches store_dataset behavior)
                 if not self.database_service:
+                    logger.warning(f"Cannot delete dataset {dataset_key}: database service not available")
                     return False
-                
+
                 collection_name = 'thread_datasets'
                 result = await self.database_service.delete_one(
                     collection_name,
                     {'id': dataset_key}
                 )
-                
+
                 if self.verbose and result:
                     logger.debug(f"Deleted dataset {dataset_key} from database")
-                
+
                 return result
 
         except Exception as e:
