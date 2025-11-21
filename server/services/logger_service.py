@@ -351,7 +351,7 @@ class LoggerService:
                 index=self.config["internal_services"]["elasticsearch"]["index"],
                 id=index_result["_id"]
             )
-            logger.info(f"Document verification: {verify_doc}")
+            logger.debug(f"Document verification: {verify_doc}")
         except ApiError as e:
             # Handle specific Elasticsearch API errors
             logger.error(f"Elasticsearch API error: {e.info if hasattr(e, 'info') else e}", exc_info=True)

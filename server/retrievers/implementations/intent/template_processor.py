@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import re
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -146,7 +147,12 @@ class TemplateProcessor:
             value, found, _ = self._resolve_variable(token, context, parameters)
             if not found:
                 return match.group(0) if preserve_unknown else ""
-            return str(value) if value is not None else ""
+            if value is None:
+                return ""
+            # JSON-encode lists and dicts to ensure valid JSON output
+            if isinstance(value, (list, dict)):
+                return json.dumps(value)
+            return str(value)
 
         return _VARIABLE_PATTERN.sub(replace_var, processed)
 
