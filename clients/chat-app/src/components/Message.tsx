@@ -99,6 +99,20 @@ export function Message({
     ? 'markdown-content prose prose-slate dark:prose-invert max-w-none'
     : 'markdown-content prose prose-invert max-w-none';
 
+  const avatarClasses = isAssistant
+    ? 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-900 dark:from-[#1f2a36] dark:to-[#1a2230] dark:text-[#c5d7ff]'
+    : 'bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-900 dark:from-[#0f1f17] dark:to-[#0b1712] dark:text-[#c7f5df]';
+
+  const bubbleClasses = `message-bubble min-w-0 break-words leading-relaxed ${
+    isAssistant
+      ? 'border border-blue-100/80 bg-transparent text-[#0f172a] shadow-[0_15px_35px_-20px_rgba(15,23,42,0.25)] dark:border-[#1f2a36] dark:bg-transparent dark:text-[#e5edff]'
+      : 'border border-emerald-100 bg-transparent text-[#1c3226] shadow-[0_12px_30px_-18px_rgba(15,52,33,0.25)] dark:border-[#1a2b21] dark:bg-transparent dark:text-[#dffbea]'
+  } rounded-2xl px-4 py-3`;
+
+  const attachmentClasses = isAssistant
+    ? 'border-blue-100 bg-white/80 dark:border-[#1f2a36] dark:bg-white/5'
+    : 'border-emerald-100 bg-white/80 dark:border-[#1a2b21] dark:bg-white/5';
+
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(message.content);
@@ -219,11 +233,7 @@ export function Message({
   return (
     <div className="group flex items-start gap-3 px-1 animate-fadeIn min-w-0 sm:px-0">
       <div
-        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full self-start -mt-2 ml-1 sm:-mt-3 sm:ml-2 ${
-          isAssistant
-            ? 'bg-gray-100 text-gray-700 dark:bg-[#4a4b54] dark:text-white'
-            : 'bg-gray-100 text-gray-700 dark:bg-[#4a4b54] dark:text-white'
-        }`}
+        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full self-start -mt-2 ml-1 shadow-sm ring-2 ring-white/50 dark:ring-white/10 sm:-mt-3 sm:ml-2 ${avatarClasses}`}
       >
         {isAssistant ? <Bot className="h-5 w-5" /> : <User2 className="h-5 w-5" />}
       </div>
@@ -236,26 +246,13 @@ export function Message({
           <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">{timestamp}</span>
         </div>
 
-        <div
-          className={`message-bubble min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1] ${
-            isAssistant
-              ? 'assistant-bubble dark:rounded-lg dark:border-[#4a4b54] dark:bg-[#202123] dark:px-4 dark:py-3'
-              : ''
-          }`}
-        >
+        <div className={bubbleClasses}>
           <div className={contentClass}>{renderedMessageContent}</div>
 
           {message.attachments && message.attachments.length > 0 && (
             <div className="mt-3 space-y-2">
               {message.attachments.map(file => (
-                <div
-                  key={file.file_id}
-                  className={`flex items-center gap-3 rounded-md border p-3 ${
-                    isAssistant
-                      ? 'border-gray-300 bg-white dark:border-[#4a4b54] dark:bg-[#343541]'
-                      : 'border-gray-300 bg-white dark:border-[#4a4b54] dark:bg-[#343541]'
-                  }`}
-                >
+                <div key={file.file_id} className={`flex items-center gap-3 rounded-xl border p-3 ${attachmentClasses}`}>
                   <File className="h-4 w-4 text-gray-500 dark:text-[#bfc2cd]" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-[#353740] dark:text-[#ececf1]">{file.filename}</p>

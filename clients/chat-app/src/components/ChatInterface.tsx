@@ -355,7 +355,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     {currentConversation && (
                       <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-[#bfc2cd]">
                         <span className="font-medium">{currentConversation.messages.length}</span>
-                        <span className="text-gray-400 dark:text-[#6b6f7a]">•</span>
                         <span>Updated {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     )}
