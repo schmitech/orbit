@@ -195,6 +195,23 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
     });
   };
 
+  const formatConversationTimestamp = (date: Date) => {
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' · ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getConversationPreview = (conversation: Conversation) => {
+    if (conversation.messages.length === 0) {
+      return 'No messages yet';
+    }
+    const lastMessage = conversation.messages[conversation.messages.length - 1];
+    const sanitized = lastMessage.content.replace(/\s+/g, ' ').trim();
+    const maxLength = 90;
+    if (sanitized.length <= maxLength) {
+      return sanitized;
+    }
+    return `${sanitized.slice(0, maxLength)}…`;
+  };
+
   return (
     <>
       <div className="flex h-full w-full md:w-72 flex-col border-r border-b border-gray-200 bg-gray-50 dark:border-[#4a4b54] dark:bg-[#202123]">
@@ -259,18 +276,18 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
                 <div
                   key={conversation.id}
                   onClick={() => handleSelectConversation(conversation.id)}
-                  className={`group flex cursor-pointer items-center gap-3 rounded-md border px-3 py-3 text-left ${
+                  className={`group flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-left transition ${
                     currentConversationId === conversation.id
-                      ? 'border-[#343541] bg-white dark:border-[#6b6f7a] dark:bg-[#343541]'
-                      : 'border-transparent bg-gray-100 hover:border-gray-300 hover:bg-white dark:bg-[#2c2f36] dark:hover:border-[#4a4b54] dark:hover:bg-[#343541]'
+                      ? 'border-[#343541] bg-white shadow-sm dark:border-[#6b6f7a] dark:bg-[#2c2f36]'
+                      : 'border-transparent bg-gray-100/70 hover:border-gray-300 hover:bg-white dark:bg-[#252830] dark:hover:border-[#4a4b54] dark:hover:bg-[#2f323c]'
                   }`}
                 >
                   <div
-                    className={`rounded-md p-2 ${
-                    currentConversationId === conversation.id
-                      ? 'bg-[#f0f0f5] text-[#353740] dark:bg-[#3c3f4a] dark:text-[#ececf1]'
-                      : 'bg-white text-gray-500 dark:bg-[#3c3f4a] dark:text-[#bfc2cd]'
-                  }`}
+                    className={`rounded-xl p-2 shadow-sm ${
+                      currentConversationId === conversation.id
+                        ? 'bg-[#eceefc] text-[#1d2559] dark:bg-[#3b4055] dark:text-white'
+                        : 'bg-white text-gray-500 dark:bg-[#3a3d46] dark:text-[#bfc2cd]'
+                    }`}
                   >
                     <MessageSquare className="h-4 w-4" />
                   </div>
@@ -290,41 +307,50 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
                       autoFocus
                     />
                   ) : (
-                    <div className="flex-1 min-w-0">
-                      <h3 className={`truncate text-sm font-medium ${
-                        currentConversationId === conversation.id
-                          ? 'text-[#353740] dark:text-[#ececf1]'
-                          : 'text-gray-700 dark:text-[#ececf1]'
-                      }`}>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <h3
+                        className={`truncate text-sm font-semibold ${
+                          currentConversationId === conversation.id ? 'text-[#1f2937] dark:text-white' : 'text-gray-700 dark:text-[#d4d7e2]'
+                        }`}
+                      >
                         {conversation.title}
                       </h3>
-                      <p className="mt-1 truncate text-xs text-gray-500 dark:text-[#bfc2cd]">
-                        {conversation.messages.length} messages
+                      <span className="text-[11px] text-gray-500 dark:text-[#a6acc5]">
+                        {formatConversationTimestamp(conversation.updatedAt)}
+                      </span>
+                      <p className="truncate text-xs text-gray-500 dark:text-[#bfc2cd]">{getConversationPreview(conversation)}</p>
+                      <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-[#9ca3c1]">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4]">
+                          <MessageSquare className="h-3 w-3" />
+                          {conversation.messages.length}
+                        </span>
                         {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
-                          <span className="ml-2">
-                            · {conversation.attachedFiles.length} file{conversation.attachedFiles.length !== 1 ? 's' : ''}
+                          <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4]">
+                            {conversation.attachedFiles.length} file{conversation.attachedFiles.length > 1 ? 's' : ''}
                           </span>
                         )}
-                      </p>
+                      </div>
                     </div>
                   )}
 
-                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button
-                      onClick={(e) => handleEditStart(e, conversation)}
-                      className="rounded p-2 text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
-                      title="Edit title"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteConversation(e, conversation)}
-                      className="rounded p-2 text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
-                      title="Delete conversation"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  {editingId !== conversation.id && (
+                    <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        onClick={(e) => handleEditStart(e, conversation)}
+                        className="rounded-full p-2 text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
+                        title="Rename conversation"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteConversation(e, conversation)}
+                        className="rounded-full p-2 text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
+                        title="Delete conversation"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
