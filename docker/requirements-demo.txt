@@ -1,0 +1,72 @@
+# Minimal dependencies for ORBIT Demo Image
+# Only includes what's needed for:
+# - FastAPI server
+# - llama-cpp-python inference
+# - Basic utilities
+
+# Core web server
+fastapi>=0.119.0
+uvicorn==0.38.0
+pydantic>=2.12.3
+python-multipart>=0.0.14
+websockets>=15.0.1
+
+# Configuration and environment
+python-dotenv==1.0.1
+PyYAML>=6.0.2
+
+# HTTP and async
+requests==2.32.5
+aiohttp>=3.13.1
+aiodns>=3.4.0
+
+# Logging
+python-json-logger>=2.0.7
+
+# System utilities
+psutil==7.0.0
+
+# Progress bars (for model download)
+tqdm>=4.66.2
+
+# LLM inference (local GGUF models)
+llama-cpp-python==0.3.16
+
+# NumPy (dependency of llama-cpp-python)
+numpy<2.0.0
+
+# CLI utilities
+rich>=14.1.0
+keyring>=25.6.0
+
+# ORBIT client (for CLI)
+schmitech-orbit-client==1.1.4
+
+# FastAPI MCP support
+fastapi-mcp==0.4.0
+
+# SSE support (for streaming)
+sseclient-py==1.8.0
+
+# Regex (used by various components)
+regex==2024.11.6
+
+# Setuptools
+setuptools>=77.0.3,<80
+
+# BSON support (required by routes even with SQLite backend)
+# Using minimal pymongo for bson module only
+pymongo>=4.13.0
+
+# Redis support (required by some services even if not using Redis)
+redis>=6.2.0
+
+# Elasticsearch support (required by some services even if not using Elasticsearch)
+elasticsearch==9.1.1
+
+# Prometheus client (required by monitoring/metrics service)
+prometheus-client>=0.22.1
+
+# Pillow (PIL) - required by vision service imports even if not using vision
+Pillow>=10.0.0
+

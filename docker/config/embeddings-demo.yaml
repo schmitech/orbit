@@ -1,0 +1,32 @@
+# Embeddings Configuration - Demo
+# All embedding providers disabled since simple-chat adapter doesn't need embeddings
+
+embedding:
+  provider: null  # No default provider
+  enabled: false  # Disable embeddings globally (not needed for simple-chat)
+
+embeddings:
+  # Disable all embedding providers (not needed for simple-chat)
+  ollama:
+    enabled: false
+  openai:
+    enabled: false
+  cohere:
+    enabled: false
+  huggingface:
+    enabled: false
+  sentence_transformers:
+    enabled: false
+  llama_cpp:
+    enabled: false
+  voyage:
+    enabled: false
+  jina:
+    enabled: false
+  together:
+    enabled: false
+  mistral:
+    enabled: false
+  nomic:
+    enabled: false
+

@@ -1,0 +1,116 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    gcc \
+    g++ \
+    make \
+    libssl-dev \
+    libffi-dev \
+    bc \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies (minimal set for demo)
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Copy and install minimal requirements for demo
+COPY docker/requirements-demo.txt /tmp/requirements-demo.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-demo.txt && \
+    rm /tmp/requirements-demo.txt
+
+# Copy GGUF model download script
+COPY install/download_hf_gguf_model.py /app/install/
+COPY install/gguf-models.json /app/install/
+RUN chmod +x /app/install/download_hf_gguf_model.py
+
+# Download granite4-micro GGUF model during build
+# (dependencies already installed from requirements-demo.txt)
+RUN mkdir -p /app/models && \
+    python3 /app/install/download_hf_gguf_model.py \
+        # --repo-id "ibm-granite/granite-4.0-micro-GGUF" \
+        # --filename "granite-4.0-micro-Q4_0.gguf" \
+        --repo-id "unsloth/gemma-3-270m-it-GGUF" \
+        --filename "gemma-3-270m-it-Q8_0.gguf" \
+        --output-dir /app/models && \
+    ls -lh /app/models/
+
+
+
+# Copy the application code
+COPY server/ /app/server/
+COPY bin/ /app/bin/
+COPY LICENSE* /app/
+
+# Copy all config files from config directory (for completeness)
+COPY config/ /app/config/
+
+# Override with demo-specific config files
+COPY docker/config-demo.yaml /app/config/config.yaml
+COPY docker/config/adapters-demo.yaml /app/config/adapters.yaml
+COPY docker/config/inference-demo.yaml /app/config/inference.yaml
+COPY docker/config/embeddings-demo.yaml /app/config/embeddings.yaml
+COPY docker/config/adapters/passthrough-demo.yaml /app/config/adapters/passthrough.yaml
+
+# Copy prompt file (for better key setup)
+RUN mkdir -p /app/examples/prompts/examples
+COPY examples/prompts/examples/default-conversational-adapter-prompt.txt /app/examples/prompts/examples/
+
+# Make scripts executable
+RUN chmod +x /app/bin/orbit.py /app/bin/orbit.sh
+
+# Copy initialization script
+COPY docker/init-demo-keys.sh /app/init-demo-keys.sh
+RUN chmod +x /app/init-demo-keys.sh
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/data /app/uploads
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PATH="/app/bin:${PATH}"
+ENV CONFIG_PATH=/app/config/config.yaml
+ENV ORBIT_DEFAULT_ADMIN_PASSWORD=admin123
+
+# Expose the server port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
+# Create entrypoint script that starts server and initializes keys
+RUN printf '#!/bin/bash\n\
+set -e\n\
+\n\
+# Start server in background\n\
+echo "Starting ORBIT server..."\n\
+python /app/server/main.py --config ${CONFIG_PATH:-/app/config/config.yaml} &\n\
+SERVER_PID=$!\n\
+\n\
+# Function to cleanup on exit\n\
+cleanup() {\n\
+    echo "Shutting down..."\n\
+    kill $SERVER_PID 2>/dev/null || true\n\
+    wait $SERVER_PID 2>/dev/null || true\n\
+    exit 0\n\
+}\n\
+\n\
+trap cleanup SIGTERM SIGINT\n\
+\n\
+# Wait a bit for server to start, then initialize keys\n\
+sleep 5\n\
+/app/init-demo-keys.sh || echo "Warning: Key initialization failed, continuing anyway"\n\
+\n\
+# Wait for server process\n\
+wait $SERVER_PID\n\
+' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+# Use entrypoint script
+ENTRYPOINT ["/app/entrypoint.sh"]
+

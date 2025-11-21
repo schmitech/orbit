@@ -1,0 +1,88 @@
+# Inference Configuration - Demo
+# Only llama_cpp provider enabled for self-contained GGUF model inference
+
+inference:
+  # Disable all cloud providers
+  ollama:
+    enabled: false
+  ollama_cloud:
+    enabled: false
+  vllm:
+    enabled: false
+  gemini:
+    enabled: false
+  groq:
+    enabled: false
+  deepseek:
+    enabled: false
+  vertex:
+    enabled: false
+  aws:
+    enabled: false
+  azure:
+    enabled: false
+  openai:
+    enabled: false
+  mistral:
+    enabled: false
+  anthropic:
+    enabled: false
+  together:
+    enabled: false
+  xai:
+    enabled: false
+  huggingface:
+    enabled: false
+  openrouter:
+    enabled: false
+  cohere:
+    enabled: false
+  watson:
+    enabled: false
+  perplexity:
+    enabled: false
+  fireworks:
+    enabled: false
+  replicate:
+    enabled: false
+  nvidia:
+    enabled: false
+  bitnet:
+    enabled: false
+  zai:
+    enabled: false
+
+  # Only llama_cpp enabled for local GGUF model
+  llama_cpp:
+    enabled: true
+    mode: "direct"
+
+    # Direct mode configuration - uses granite4-micro model
+    # model_path: "models/granite-4.0-micro-Q4_0.gguf"
+    model_path: "models/gemma-3-270m-it-Q8_0.gguf"
+    chat_format: "chatml"
+    verbose: false
+
+    # Generation parameters
+    temperature: 1.0
+    top_p: 0.95
+    top_k: 64
+    max_tokens: 1024
+    repeat_penalty: 1.2
+
+    # Context and threading
+    n_ctx: 4096
+    n_threads: 4  # Reduced for demo
+    stream: true
+
+    # GPU settings (CPU only for demo)
+    n_gpu_layers: 0
+    main_gpu: 0
+    tensor_split: null
+
+    # Stop tokens
+    stop_tokens: [
+      "<start_of_turn>",
+      "<end_of_turn>"
+    ]
+

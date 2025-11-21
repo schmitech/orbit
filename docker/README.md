@@ -4,6 +4,7 @@ This guide will help you get ORBIT up and running with Docker in minutes. ORBIT 
 
 ## Table of Contents
 - [Quick Start](#quick-start)
+- [Demo Image (Recommended for Testing)](#demo-image-recommended-for-testing)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Configuration](#configuration)
@@ -27,6 +28,32 @@ Verify your installation:
 docker --version
 docker compose version  # or docker-compose --version
 ```
+
+## Demo Image (Recommended for Testing)
+
+**New to ORBIT?** Start with our pre-built demo image - no setup required!
+
+The demo image is a self-contained Docker image that includes everything you need to test ORBIT in minutes:
+
+- ✅ **No API keys needed** - uses local GGUF model (granite4-micro)
+- ✅ **Pre-configured** - API key automatically created on startup
+- ✅ **Ready to use** - just pull and run
+- ✅ **Minimal** - only includes `simple-chat` adapter for conversational AI
+
+### Quick Start with Demo Image
+
+```bash
+# Pull and run
+docker pull schmitech/orbit:demo
+docker run -d --name orbit-demo -p 3000:3000 schmitech/orbit:demo
+
+# Test it
+curl http://localhost:3000/health
+```
+
+**Full documentation**: See [README-DEMO.md](README-DEMO.md) for complete demo image guide.
+
+---
 
 ## Installation
 

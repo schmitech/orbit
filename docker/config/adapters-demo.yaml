@@ -1,0 +1,8 @@
+# Demo Adapter Configuration
+# Only simple-chat adapter enabled for self-contained demo
+
+adapters: []
+
+import:
+  - "adapters/passthrough-demo.yaml"
+
