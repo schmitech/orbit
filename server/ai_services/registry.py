@@ -275,8 +275,23 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
 
     Args:
         config: Optional configuration dictionary. If provided, only enabled providers
-                will be registered based on config['sound'][provider]['enabled']
+                will be registered based on config['sound']['enabled'] and config['sounds'][provider]['enabled']
     """
+    # Check global sound.enabled flag first
+    if config:
+        sound_config = config.get('sound', {})
+        sound_enabled = sound_config.get('enabled', True)
+
+        # If sound is globally disabled, skip all audio service registration
+        if sound_enabled is False or (isinstance(sound_enabled, str) and sound_enabled.lower() == 'false'):
+            logger.info(
+                "Sound services are globally disabled (sound.enabled: false) - "
+                "skipping all audio service registration. "
+                "TTS and STT functionality will not be available. "
+                "Adapters with audio_provider configured will load but audio features will be inactive."
+            )
+            return
+
     # Define services to register with their import paths
     services = [
         ("openai", "OpenAIAudioService", "OpenAI"),

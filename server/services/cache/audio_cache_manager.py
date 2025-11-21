@@ -49,7 +49,7 @@ class AudioCacheManager:
             Cache key string
         """
         # Audio services can have separate TTS and STT models
-        sound_config = self.config.get('sound', {}).get(provider_name, {})
+        sound_config = self.config.get('sounds', {}).get(provider_name, {})
         # Use TTS model as primary identifier, fall back to STT model
         model = sound_config.get('tts_model', sound_config.get('stt_model', ''))
         return f"{provider_name}:{model}" if model else provider_name
@@ -165,7 +165,7 @@ class AudioCacheManager:
 
         try:
             adapter_context = f" for adapter '{adapter_name}'" if adapter_name else ""
-            sound_config = self.config.get('sound', {}).get(provider_name, {})
+            sound_config = self.config.get('sounds', {}).get(provider_name, {})
             tts_model = sound_config.get('tts_model', '')
             stt_model = sound_config.get('stt_model', '')
 
@@ -187,7 +187,27 @@ class AudioCacheManager:
                 from ai_services.services.audio_service import create_audio_service
 
             # Create the audio service
-            audio_service = create_audio_service(provider_name, self.config)
+            try:
+                audio_service = create_audio_service(provider_name, self.config)
+            except ValueError as e:
+                # Check if audio is globally disabled
+                sound_config = self.config.get('sound', {})
+                is_audio_disabled = sound_config.get('enabled', True) is False or \
+                                   (isinstance(sound_config.get('enabled'), str) and
+                                    sound_config.get('enabled').lower() == 'false')
+
+                if is_audio_disabled:
+                    # This is expected - audio is globally disabled
+                    logger.info(
+                        f"Audio service '{provider_name}' not available{adapter_context} - "
+                        f"audio is globally disabled (sound.enabled: false)"
+                    )
+                else:
+                    # Provider not registered for another reason
+                    logger.warning(
+                        f"Audio service '{provider_name}' not available{adapter_context}: {str(e)}"
+                    )
+                raise
 
             # Initialize if needed
             if hasattr(audio_service, 'initialize'):
@@ -204,6 +224,9 @@ class AudioCacheManager:
             logger.info(f"Successfully cached audio service: {cache_key}{adapter_context}")
             return audio_service
 
+        except ValueError:
+            # ValueError already logged above, just re-raise
+            raise
         except Exception as e:
             logger.error(f"Failed to load audio service {provider_name}: {str(e)}")
             raise

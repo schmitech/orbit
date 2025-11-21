@@ -101,6 +101,25 @@ class AdapterLoader:
             audio_provider = adapter_config['audio_provider']
             try:
                 await self.audio_cache.create_service(audio_provider, adapter_name)
+            except ValueError as e:
+                # Check if audio is globally disabled
+                sound_config = self.config.get('sound', {})
+                is_audio_disabled = sound_config.get('enabled', True) is False or \
+                                   (isinstance(sound_config.get('enabled'), str) and
+                                    sound_config.get('enabled').lower() == 'false')
+
+                if is_audio_disabled:
+                    # This is expected - audio is globally disabled
+                    logger.debug(
+                        f"Skipping audio service preload for adapter '{adapter_name}' "
+                        f"(provider: {audio_provider}) - audio is globally disabled"
+                    )
+                else:
+                    # Provider not registered for another reason
+                    logger.warning(
+                        f"Failed to preload audio service for adapter '{adapter_name}' "
+                        f"(provider: {audio_provider}): {str(e)}"
+                    )
             except Exception as e:
                 logger.warning(f"Failed to preload audio service for adapter {adapter_name}: {str(e)}")
 

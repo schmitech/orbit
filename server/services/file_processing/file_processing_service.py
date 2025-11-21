@@ -501,11 +501,16 @@ class FileProcessingService:
             audio_provider = await self._get_audio_provider_for_api_key(api_key)
 
             # Get audio service
-            audio_service = AIServiceFactory.create_service(
-                ServiceType.AUDIO,
-                audio_provider,
-                {'sound': self.audio_config}
-            )
+            try:
+                audio_service = AIServiceFactory.create_service(
+                    ServiceType.AUDIO,
+                    audio_provider,
+                    {'sound': self.audio_config}
+                )
+            except ValueError as e:
+                # This happens when sound is globally disabled or provider is not registered
+                self.logger.error(f"Failed to create audio service: {str(e)}")
+                raise Exception(f"Audio transcription is not available. Please check that audio services are enabled in the configuration.")
 
             # Initialize if needed
             if not audio_service.initialized:

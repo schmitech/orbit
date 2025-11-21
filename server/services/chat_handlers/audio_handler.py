@@ -186,11 +186,16 @@ class AudioHandler:
         register_all_services(self.config)
 
         # Create audio service
-        audio_service = AIServiceFactory.create_service(
-            ServiceType.AUDIO,
-            provider,
-            self.config
-        )
+        try:
+            audio_service = AIServiceFactory.create_service(
+                ServiceType.AUDIO,
+                provider,
+                self.config
+            )
+        except ValueError as e:
+            # This happens when sound is globally disabled or provider is not registered
+            logger.warning(f"Failed to create audio service for provider '{provider}': {str(e)}")
+            return None
 
         if not audio_service:
             logger.warning(f"Failed to create audio service for provider: {provider}")
