@@ -404,16 +404,20 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           {!currentConversation || currentConversation.messages.length === 0 ? (
             // Empty state: Center the input in the middle (ChatGPT-style)
             <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-4">
-              <div className="w-full max-w-3xl mx-auto text-center space-y-2">
-                <h2 className="text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
-                  How can I assist you today?
-                </h2>
-                <MessageInput
-                  onSend={handleSendMessage}
-                  disabled={isLoading || !currentConversation || !currentConversation.apiKey}
-                  placeholder="Ask anything"
-                  isCentered
-                />
+              <div className="w-full max-w-3xl mx-auto text-center space-y-3">
+                <div className="space-y-1.5">
+                  <h2 className="text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
+                    How can I assist you today?
+                  </h2>
+                </div>
+                <div className="w-full">
+                  <MessageInput
+                    onSend={handleSendMessage}
+                    disabled={isLoading || !currentConversation || !currentConversation.apiKey}
+                    placeholder="Message ORBIT..."
+                    isCentered
+                  />
+                </div>
               </div>
             </div>
           ) : (
