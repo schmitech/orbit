@@ -194,18 +194,18 @@ export function Message({
       );
 
       return (
-        <div key={reply.id} className="flex items-start gap-2">
+        <div key={reply.id} className="flex items-start gap-3">
           <div
             className={`mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full ${
               replyIsAssistant
-                ? 'bg-gray-200 text-gray-600 dark:bg-[#4a4b54] dark:text-white'
-                : 'bg-blue-100 text-blue-700 dark:bg-[#4a4b54] dark:text-white'
+                ? 'bg-blue-100 text-blue-700 dark:bg-[#1f2a36] dark:text-[#c5d7ff]'
+                : 'bg-emerald-100 text-emerald-700 dark:bg-[#1f2a36] dark:text-[#9ef0d5]'
             }`}
           >
             {replyIsAssistant ? <Bot className="h-3.5 w-3.5" /> : <User2 className="h-3.5 w-3.5" />}
           </div>
-          <div className="flex-1 rounded-lg border border-gray-200 bg-white/80 p-2 text-sm dark:border-[#3c3f4a] dark:bg-[#181920]">
-            <div className="mb-1 flex items-center justify-between text-[11px] uppercase tracking-wide text-gray-500 dark:text-[#bfc2cd]">
+          <div className="flex-1 rounded-2xl border border-white/70 bg-white/90 px-4 py-3 text-sm shadow-sm dark:border-white/5 dark:bg-white/5 backdrop-blur">
+            <div className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-blue-900/70 dark:text-[#c5d7ff]">
               <span>{replyIsAssistant ? 'Assistant' : 'You'}</span>
               <span>{formatThreadTimestamp(reply.timestamp)}</span>
             </div>
@@ -328,9 +328,9 @@ export function Message({
         )}
 
         {threadsEnabled && message.threadInfo && (
-          <div className="ml-12 mt-4 rounded-lg border border-gray-200 bg-gray-50/70 p-3 text-sm shadow-sm dark:border-[#3a3a46] dark:bg-[#202123]">
-            <div className="flex items-center justify-between text-xs text-gray-600 dark:text-[#bfc2cd]">
-              <div className="inline-flex items-center gap-1.5 font-semibold">
+          <div className="ml-12 mt-4 rounded-xl border border-blue-100/80 bg-blue-50/70 p-4 text-sm shadow-sm ring-1 ring-blue-100/60 dark:border-[#1f2a36] dark:bg-[#0f1821] dark:ring-[#1f2a36]">
+            <div className="flex items-center justify-between text-sm font-semibold text-blue-900 dark:text-[#c5d7ff]">
+              <div className="inline-flex items-center gap-2 uppercase tracking-wide">
                 <MessageSquare className="h-3.5 w-3.5" />
                 <span>
                   Thread replies
@@ -339,7 +339,7 @@ export function Message({
               </div>
               <button
                 onClick={() => setIsThreadOpen(prev => !prev)}
-                className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 dark:text-[#ececf1] dark:hover:bg-[#3c3f4a]"
+                className="inline-flex items-center gap-2 rounded-full border border-blue-200/80 px-3 py-1.5 text-xs uppercase tracking-wide text-blue-900 transition hover:bg-white/70 dark:border-[#233449] dark:text-[#c5d7ff] dark:hover:bg-white/10"
               >
                 {isThreadOpen ? (
                   <>
@@ -357,7 +357,7 @@ export function Message({
               <>
                 <div className="mt-3 space-y-3">{renderedThreadReplies}</div>
 
-                <div className="mt-3 rounded-lg border border-gray-200 bg-white/80 p-2 dark:border-[#3c3f4a] dark:bg-[#181920]">
+                <div className="mt-3 rounded-xl border border-white/80 bg-white/95 p-3 shadow-sm dark:border-white/10 dark:bg-white/10">
                   <div className="flex flex-wrap items-center gap-3">
                     <textarea
                       ref={threadTextareaRef}
