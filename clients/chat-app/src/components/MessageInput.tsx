@@ -7,7 +7,7 @@ import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
-import { getDefaultKey, resolveApiUrl } from '../utils/runtimeConfig';
+import { getDefaultKey, getEnableAudioOutput, getEnableUploadButton, resolveApiUrl } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
 
@@ -145,6 +145,10 @@ export function MessageInput({
     });
   }, handleVoiceCompletion);
 
+  const audioFeatureEnabled = getEnableAudioOutput();
+  const voiceRecordingAvailable = audioFeatureEnabled && voiceSupported;
+  const uploadFeatureEnabled = getEnableUploadButton();
+
   // Check if any files are currently uploading or processing
   const conversationFiles = currentConversation?.attachedFiles || [];
   
@@ -180,8 +184,9 @@ export function MessageInput({
   // Disable input if files are uploading, processing, or if already disabled
   const isInputDisabled = disabled || hasProcessingFiles || isUploading;
   
-  // Disable file upload button if adapter doesn't support files or input is disabled
-  const isFileUploadDisabled = !isFileSupported || isInputDisabled;
+  const canUseFileUploads = uploadFeatureEnabled && isFileSupported;
+  // Disable file upload button if feature disabled, adapter doesn't support files, or input is disabled
+  const isFileUploadDisabled = !canUseFileUploads || isInputDisabled;
 
   // Auto-resize textarea with maximum height limit
   useEffect(() => {
@@ -220,6 +225,10 @@ export function MessageInput({
 
   // Auto-send message when voice recording completes
   useEffect(() => {
+    if (!voiceRecordingAvailable) {
+      return;
+    }
+
     if (voiceCompletionCount > lastProcessedVoiceCompletionRef.current) {
       pendingVoiceAutoSendRef.current = true;
       lastProcessedVoiceCompletionRef.current = voiceCompletionCount;
@@ -267,7 +276,7 @@ export function MessageInput({
     }, 400);
 
     return () => clearTimeout(timeoutId);
-  }, [voiceCompletionCount, isInputDisabled, isComposing, onSend]);
+  }, [voiceRecordingAvailable, voiceCompletionCount, isInputDisabled, isComposing, onSend]);
 
   // Close upload area when upload starts (hide upload widget, show only progress)
   useEffect(() => {
@@ -534,7 +543,7 @@ export function MessageInput({
   };
 
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (!isFocused || !isFileSupported || isInputDisabled) {
+    if (!uploadFeatureEnabled || !isFocused || !isFileSupported || isInputDisabled) {
       return;
     }
 
@@ -715,27 +724,28 @@ export function MessageInput({
     } finally {
       setConversationUploading(pasteConversationId, false);
     }
-  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, settings.soundEnabled, syncFilesWithConversation]);
+  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, settings.soundEnabled, syncFilesWithConversation, uploadFeatureEnabled]);
 
   const effectivePlaceholder = (hasProcessingFiles || isUploading)
     ? 'Files are uploading/processing, please wait...'
-    : isFileSupported
+    : canUseFileUploads
     ? 'Message ORBIT or drop files here'
     : placeholder;
 
   // Play sound when voice error appears
   useEffect(() => {
-    if (voiceError) {
-      playSoundEffect('error', settings.soundEnabled);
+    if (!audioFeatureEnabled || !voiceError) {
+      return;
     }
-  }, [voiceError, settings.soundEnabled]);
+    playSoundEffect('error', settings.soundEnabled);
+  }, [audioFeatureEnabled, settings.soundEnabled, voiceError]);
 
   const contentMaxWidth = isCentered ? 'max-w-3xl' : 'max-w-5xl';
   const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
 
   return (
     <div className={`bg-white px-3 py-4 dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
-      {voiceError && (
+      {voiceError && audioFeatureEnabled && (
         <div className={`mx-auto mb-3 w-full ${contentMaxWidth} rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200`}>
           {voiceError}
         </div>
@@ -766,40 +776,42 @@ export function MessageInput({
               : 'border-gray-300 dark:border-[#40414f]'
           } bg-gray-50 dark:bg-[#2d2f39]`}
         >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              if (!isFileUploadDisabled) {
-                setShowFileUpload(!showFileUpload);
+          {uploadFeatureEnabled && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                if (!isFileUploadDisabled) {
+                  setShowFileUpload(!showFileUpload);
+                }
+              }}
+              disabled={isFileUploadDisabled}
+              onMouseEnter={() => setIsHoveringUpload(true)}
+              onMouseLeave={() => setIsHoveringUpload(false)}
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                showFileUpload || attachedFiles.length > 0
+                  ? 'bg-gray-100 text-[#353740] dark:bg-[#565869] dark:text-[#ececf1]'
+                  : isFileUploadDisabled
+                  ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
+              }`}
+              title={
+                !isFileSupported
+                  ? 'File upload not supported by this adapter'
+                  : isInputDisabled
+                  ? 'Files are uploading/processing. Please wait...'
+                  : attachedFiles.length > 0
+                  ? `${attachedFiles.length} file(s) attached`
+                  : 'Attach files'
               }
-            }}
-            disabled={isFileUploadDisabled}
-            onMouseEnter={() => setIsHoveringUpload(true)}
-            onMouseLeave={() => setIsHoveringUpload(false)}
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-              showFileUpload || attachedFiles.length > 0
-                ? 'bg-gray-100 text-[#353740] dark:bg-[#565869] dark:text-[#ececf1]'
-                : isFileUploadDisabled
-                ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
-                : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
-            }`}
-            title={
-              !isFileSupported
-                ? 'File upload not supported by this adapter'
-                : isInputDisabled
-                ? 'Files are uploading/processing. Please wait...'
-                : attachedFiles.length > 0
-                ? `${attachedFiles.length} file(s) attached`
-                : 'Attach files'
-            }
-          >
-            {isFileUploadDisabled && isHoveringUpload ? (
-              <X className="h-4 w-4" />
-            ) : (
-              <Paperclip className="h-4 w-4" />
-            )}
-          </button>
+            >
+              {isFileUploadDisabled && isHoveringUpload ? (
+                <X className="h-4 w-4" />
+              ) : (
+                <Paperclip className="h-4 w-4" />
+              )}
+            </button>
+          )}
 
           <textarea
             ref={textareaRef}
@@ -838,7 +850,7 @@ export function MessageInput({
               </div>
             )}
 
-            {voiceSupported && (
+            {audioFeatureEnabled && (
               <>
                 <button
                   type="button"
@@ -860,33 +872,35 @@ export function MessageInput({
                     <VolumeX className="h-5 w-5" />
                   )}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleVoiceToggle}
-                  disabled={isInputDisabled}
-                  onMouseEnter={() => setIsHoveringMic(true)}
-                  onMouseLeave={() => setIsHoveringMic(false)}
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                    isListening
-                      ? 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300'
-                      : isInputDisabled
-                      ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
-                      : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
-                  }`}
-                  title={
-                    isInputDisabled
-                      ? 'Files are uploading/processing. Please wait...'
-                      : isListening
-                      ? 'Stop recording'
-                      : 'Start voice input'
-                  }
-                >
-                  {isListening || (isInputDisabled && isHoveringMic) ? (
-                    <MicOff className="h-5 w-5" />
-                  ) : (
-                    <Mic className="h-5 w-5" />
-                  )}
-                </button>
+                {voiceRecordingAvailable && (
+                  <button
+                    type="button"
+                    onClick={handleVoiceToggle}
+                    disabled={isInputDisabled}
+                    onMouseEnter={() => setIsHoveringMic(true)}
+                    onMouseLeave={() => setIsHoveringMic(false)}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                      isListening
+                        ? 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300'
+                        : isInputDisabled
+                        ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
+                        : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
+                    }`}
+                    title={
+                      isInputDisabled
+                        ? 'Files are uploading/processing. Please wait...'
+                        : isListening
+                        ? 'Stop recording'
+                        : 'Start voice input'
+                    }
+                  >
+                    {isListening || (isInputDisabled && isHoveringMic) ? (
+                      <MicOff className="h-5 w-5" />
+                    ) : (
+                      <Mic className="h-5 w-5" />
+                    )}
+                  </button>
+                )}
               </>
             )}
 
@@ -948,7 +962,7 @@ export function MessageInput({
           </div>
         )}
 
-        {(isFileSupported || hasAnyUploadingConversations) && (
+        {uploadFeatureEnabled && (isFileSupported || hasAnyUploadingConversations) && (
           <div
             className={`rounded-md border border-gray-200 bg-white p-3 dark:border-[#4a4b54] dark:bg-[#2d2f39] ${
               !showFileUpload && !isUploading && pasteUploadingFiles.size === 0 && !hasAnyUploadingConversations
@@ -1019,7 +1033,7 @@ export function MessageInput({
         )}
 
         <div className="h-4">
-          {isListening && (
+          {voiceRecordingAvailable && isListening && (
             <span className="flex items-center gap-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
               <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
               Listening...

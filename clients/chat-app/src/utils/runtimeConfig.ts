@@ -20,6 +20,7 @@ interface RuntimeConfig {
   
   // Feature Flags
   enableUploadButton: boolean;
+  enableAudioOutput: boolean;
   enableFeedbackButtons: boolean;
   enableConversationThreads: boolean;
   showGitHubStats: boolean;
@@ -57,6 +58,7 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
   localApiPath: 'VITE_LOCAL_API_PATH',
   consoleDebug: 'VITE_CONSOLE_DEBUG',
   enableUploadButton: 'VITE_ENABLE_UPLOAD_BUTTON',
+  enableAudioOutput: 'VITE_ENABLE_AUDIO_OUTPUT',
   enableFeedbackButtons: 'VITE_ENABLE_FEEDBACK_BUTTONS',
   enableConversationThreads: 'VITE_ENABLE_CONVERSATION_THREADS',
   showGitHubStats: 'VITE_SHOW_GITHUB_STATS',
@@ -181,6 +183,7 @@ export const runtimeConfig: RuntimeConfig = {
   
   // Feature Flags
   enableUploadButton: getConfigValue('enableUploadButton', false, 'boolean'),
+  enableAudioOutput: getConfigValue('enableAudioOutput', false, 'boolean'),
   enableFeedbackButtons: getConfigValue('enableFeedbackButtons', false, 'boolean'),
   enableConversationThreads: getConfigValue('enableConversationThreads', true, 'boolean'),
   showGitHubStats: getConfigValue('showGitHubStats', true, 'boolean'),
@@ -258,6 +261,10 @@ export function getConsoleDebug(): boolean {
 
 export function getEnableUploadButton(): boolean {
   return runtimeConfig.enableUploadButton;
+}
+
+export function getEnableAudioOutput(): boolean {
+  return runtimeConfig.enableAudioOutput;
 }
 
 export function getEnableFeedbackButtons(): boolean {

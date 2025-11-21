@@ -102,7 +102,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     }
 
     cleanupGestureListeners();
-    audioStreamManager.stop();
+    audioStreamManager.disableAudio();
     debugLog('[ChatInterface] Audio streaming disabled via settings');
 
     return cleanupGestureListeners;

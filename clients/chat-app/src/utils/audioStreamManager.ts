@@ -60,6 +60,18 @@ class AudioStreamManager {
   }
 
   /**
+   * Disable all audio playback and drop queued chunks
+   */
+  public disableAudio(): void {
+    if (!this.isEnabled && !this.isPlaying) {
+      return;
+    }
+    this.isEnabled = false;
+    this.stop();
+    debugLog('[AudioStreamManager] Audio playback disabled');
+  }
+
+  /**
    * Initialize AudioContext lazily when needed (during user gesture)
    * This is called from playNextChunk to ensure it's within a user gesture context
    */
@@ -121,6 +133,11 @@ class AudioStreamManager {
    * Add an audio chunk to the queue and start playing if not already
    */
   public async addChunk(chunk: AudioChunk): Promise<void> {
+    if (!this.isEnabled) {
+      debugLog(`[AudioStreamManager] Audio disabled, dropping chunk ${chunk.chunkIndex}`);
+      return;
+    }
+
     debugLog(`[AudioStreamManager] Adding chunk ${chunk.chunkIndex} to queue`);
 
     // Add to queue (maintain order)
@@ -128,7 +145,7 @@ class AudioStreamManager {
     this.audioQueue.sort((a, b) => a.chunkIndex - b.chunkIndex);
 
     // Start playing if not already
-    if (!this.isPlaying && this.isEnabled) {
+    if (!this.isPlaying) {
       this.playNextChunk();
     }
   }
@@ -148,8 +165,13 @@ class AudioStreamManager {
 
     if (!this.isEnabled) {
       debugLog('[AudioStreamManager] Audio not enabled, skipping playback');
+      this.audioQueue = [];
+      this.isPlaying = false;
       return;
     }
+
+    // Safe to allow errors again for new playback
+    this.suppressPlaybackErrors = false;
 
     // Initialize AudioContext lazily when we actually need to play audio
     // This ensures it's created within a user gesture context (when user interacts)
@@ -358,10 +380,6 @@ class AudioStreamManager {
     this.blobUrls.forEach(url => URL.revokeObjectURL(url));
     this.blobUrls = [];
 
-    // Allow normal error handling on next playback tick
-    setTimeout(() => {
-      this.suppressPlaybackErrors = false;
-    }, 0);
   }
 
   /**

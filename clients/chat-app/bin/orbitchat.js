@@ -26,6 +26,7 @@ const DEFAULT_CONFIG = {
   localApiPath: undefined,
   consoleDebug: false,
   enableUploadButton: false,
+  enableAudioOutput: false,
   enableFeedbackButtons: false,
   maxFilesPerConversation: 5,
   maxFileSizeMB: 50,
@@ -71,6 +72,9 @@ function parseArgs() {
         break;
       case '--enable-upload-button':
         config.enableUploadButton = args[++i] === 'true';
+        break;
+      case '--enable-audio':
+        config.enableAudioOutput = args[++i] === 'true';
         break;
       case '--enable-feedback-buttons':
         config.enableFeedbackButtons = args[++i] === 'true';
@@ -157,6 +161,7 @@ function loadConfigFromEnv() {
     VITE_LOCAL_API_PATH: 'localApiPath',
     VITE_CONSOLE_DEBUG: 'consoleDebug',
     VITE_ENABLE_UPLOAD_BUTTON: 'enableUploadButton',
+    VITE_ENABLE_AUDIO_OUTPUT: 'enableAudioOutput',
     VITE_ENABLE_FEEDBACK_BUTTONS: 'enableFeedbackButtons',
     VITE_MAX_FILES_PER_CONVERSATION: 'maxFilesPerConversation',
     VITE_MAX_FILE_SIZE_MB: 'maxFileSizeMB',
@@ -171,7 +176,8 @@ function loadConfigFromEnv() {
     const value = process.env[envKey];
     if (value !== undefined) {
       if (configKey === 'useLocalApi' || configKey === 'consoleDebug' || 
-          configKey === 'enableUploadButton' || configKey === 'enableFeedbackButtons') {
+          configKey === 'enableUploadButton' || configKey === 'enableAudioOutput' ||
+          configKey === 'enableFeedbackButtons') {
         envConfig[configKey] = value === 'true';
       } else if (configKey.includes('max') && configKey !== 'maxFileSizeMB') {
         const parsed = parseInt(value, 10);
@@ -368,6 +374,7 @@ Options:
   --local-api-path PATH            Path to local API
   --console-debug BOOLEAN          Enable console debug (default: false)
   --enable-upload-button BOOLEAN   Enable upload button (default: false)
+  --enable-audio BOOLEAN           Enable audio button (default: false)
   --enable-feedback-buttons BOOLEAN Enable feedback buttons (default: false)
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
@@ -464,4 +471,3 @@ if (isMainModule) {
 }
 
 export { main, parseArgs, mergeConfig };
-
