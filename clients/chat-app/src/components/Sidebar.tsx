@@ -318,18 +318,20 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
                       <span className="text-[11px] text-gray-500 dark:text-[#a6acc5]">
                         {formatConversationTimestamp(conversation.updatedAt)}
                       </span>
-                      <p className="truncate text-xs text-gray-500 dark:text-[#bfc2cd]">{getConversationPreview(conversation)}</p>
-                      <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-[#9ca3c1]">
+                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
+                        <p className="flex-1 truncate">{getConversationPreview(conversation)}</p>
                         <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4]">
                           <MessageSquare className="h-3 w-3" />
                           {conversation.messages.length}
                         </span>
-                        {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
-                          <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4]">
+                      </div>
+                      {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
+                        <div className="text-[11px] text-gray-500 dark:text-[#9ca3c1]">
+                          <span className="rounded-full bg-white/80 px-2 py-0.5 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4]">
                             {conversation.attachedFiles.length} file{conversation.attachedFiles.length > 1 ? 's' : ''}
                           </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
