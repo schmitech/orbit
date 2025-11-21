@@ -317,16 +317,16 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
                       >
                         {conversation.title}
                       </h3>
-                      <span className="text-[11px] text-gray-500 dark:text-[#a6acc5] whitespace-nowrap">
-                        {formatConversationTimestamp(conversation.updatedAt)}
-                      </span>
-                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4]">
+                      <div className="flex items-center gap-1.5 pr-1 text-[11px] text-gray-500 dark:text-[#a6acc5]">
+                        <span className="whitespace-nowrap leading-none">
+                          {formatConversationTimestamp(conversation.updatedAt)}
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4] leading-none">
                           <MessageSquare className="h-3 w-3" />
                           {conversation.messages.length}
                         </span>
                         {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4]">
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4] leading-none">
                             <Paperclip className="h-3 w-3" />
                             {conversation.attachedFiles.length}
                           </span>
