@@ -363,11 +363,6 @@ export function Message({
                     </button>
                   </div>
 
-                  {(threadHasStreaming || isThreadSendDisabled) && (
-                    <p className="mt-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
-                      Please wait for the assistant to finish before asking another follow-up.
-                    </p>
-                  )}
                 </div>
               </>
             )}
