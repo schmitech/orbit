@@ -19,6 +19,7 @@ import { debugError } from '../utils/debug';
 import { getEnableFeedbackButtons, getEnableConversationThreads } from '../utils/runtimeConfig';
 import { AudioPlayer } from './AudioPlayer';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
+import { AppConfig } from '../utils/config';
 
 interface MessageProps {
   message: MessageType;
@@ -47,6 +48,7 @@ export function Message({
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
+  const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isAssistant = message.role === 'assistant';
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
@@ -54,6 +56,7 @@ export function Message({
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
   const locale = (import.meta.env as any).VITE_LOCALE || 'en-US';
   const threadsEnabled = getEnableConversationThreads();
+  const threadCharLimit = AppConfig.maxMessageLength;
 
   useEffect(() => {
     if (!prevThreadIdRef.current && message.threadInfo?.thread_id) {
@@ -150,6 +153,17 @@ export function Message({
     isThreadSendDisabled ||
     threadHasStreaming ||
     isSendingThreadMessage;
+
+  useEffect(() => {
+    if (threadTextareaRef.current) {
+      const maxHeight = 120;
+      const textarea = threadTextareaRef.current;
+      textarea.style.height = 'auto';
+      const scrollHeight = textarea.scrollHeight;
+      textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+      textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+    }
+  }, [threadInput]);
 
   const renderedMessageContent = useMemo(() => {
     if (message.isStreaming && (!message.content || message.content === '…')) {
@@ -344,25 +358,51 @@ export function Message({
                 <div className="mt-3 space-y-3">{renderedThreadReplies}</div>
 
                 <div className="mt-3 rounded-lg border border-gray-200 bg-white/80 p-2 dark:border-[#3c3f4a] dark:bg-[#181920]">
-                  <div className="flex items-end gap-2">
+                  <div className="flex flex-wrap items-center gap-3">
                     <textarea
-                      className="min-h-[46px] flex-1 resize-none rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm text-[#353740] outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-400 disabled:opacity-60 dark:border-[#3c3f4a] dark:bg-[#1f2027] dark:text-[#ececf1] dark:focus:border-[#8e8ea0] dark:focus:ring-[#8e8ea0]"
+                      ref={threadTextareaRef}
+                      className="flex-1 min-w-0 resize-none rounded-md border border-transparent bg-transparent px-3 py-1.5 text-sm text-[#353740] placeholder-gray-600 outline-none transition focus:border-gray-400 focus:ring-1 focus:ring-gray-300 disabled:opacity-60 dark:text-[#ececf1] dark:placeholder-[#bfc2cd] dark:focus:border-[#8e8ea0] dark:focus:ring-[#8e8ea0]"
                       placeholder={threadReplyCount > 0 ? 'Reply in thread...' : 'Ask a follow-up...'}
                       value={threadInput}
                       onChange={e => setThreadInput(e.target.value)}
                       onKeyDown={handleThreadKeyDown}
                       disabled={threadComposerDisabled}
+                      rows={1}
+                      maxLength={threadCharLimit}
+                      style={{
+                        minHeight: '38px',
+                        maxHeight: '120px',
+                        border: 'none',
+                        outline: 'none',
+                        boxShadow: 'none',
+                        WebkitAppearance: 'none',
+                        MozAppearance: 'none',
+                        appearance: 'none'
+                      }}
                     />
-                    <button
-                      type="button"
-                      onClick={handleThreadSubmit}
-                      disabled={threadComposerDisabled || threadInput.trim().length === 0}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-[#10a37f] text-white transition hover:bg-[#0f8f6f] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-[#2f313a]"
-                    >
-                      {isSendingThreadMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {threadInput.length > 0 && (
+                        <div className="text-xs text-gray-500 dark:text-[#bfc2cd] whitespace-nowrap">
+                          <span className={threadInput.length >= threadCharLimit ? 'text-red-600 font-semibold' : ''}>
+                            {threadInput.length}/{threadCharLimit}
+                          </span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleThreadSubmit}
+                        disabled={threadComposerDisabled || threadInput.trim().length === 0}
+                        className={`flex h-9 w-9 items-center justify-center rounded-full transition ${
+                          threadInput.trim().length > 0 && !threadComposerDisabled
+                            ? 'bg-[#10a37f] text-white hover:bg-[#0f8f6f]'
+                            : 'bg-gray-200 text-gray-400 dark:bg-[#2f313a] dark:text-[#6b6f7a]'
+                        } disabled:cursor-not-allowed`}
+                        title="Send thread message"
+                      >
+                        {isSendingThreadMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
-
                 </div>
               </>
             )}
