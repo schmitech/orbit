@@ -2,9 +2,6 @@
 .env
 .api_keys
 
-# Docker related files
-/docker/config
-
 # Python related
 __pycache__
 *.py[cod]
