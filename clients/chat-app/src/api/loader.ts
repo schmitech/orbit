@@ -240,12 +240,11 @@ export async function loadApi(): Promise<ApiFunctions> {
       const npmApi = await import('@schmitech/chatbot-api');
       
       // Create a wrapper for streamChat to match our interface signature
-      // The npm package may have a different parameter order (without threadId)
       const streamChatWrapper = async function* (
         message: string,
         stream?: boolean,
         fileIds?: string[],
-        _threadId?: string, // Unused if npm package doesn't support it
+        threadId?: string,
         audioInput?: string,
         audioFormat?: string,
         language?: string,
@@ -254,12 +253,12 @@ export async function loadApi(): Promise<ApiFunctions> {
         sourceLanguage?: string,
         targetLanguage?: string
       ): AsyncGenerator<StreamResponse> {
-        // Call npm package's streamChat with parameters in its expected order
-        // If npm package doesn't support threadId, it will be ignored
+        // Call npm package's streamChat with all parameters (same signature as local API)
         yield* npmApi.streamChat(
           message,
           stream,
           fileIds,
+          threadId,
           audioInput,
           audioFormat,
           language,
@@ -282,7 +281,7 @@ export async function loadApi(): Promise<ApiFunctions> {
           message: string,
           stream?: boolean,
           fileIds?: string[],
-          _threadId?: string, // Unused if npm package doesn't support it
+          threadId?: string,
           audioInput?: string,
           audioFormat?: string,
           language?: string,
@@ -291,12 +290,12 @@ export async function loadApi(): Promise<ApiFunctions> {
           sourceLanguage?: string,
           targetLanguage?: string
         ): AsyncGenerator<StreamResponse> {
-          // Call npm package's streamChat with parameters in its expected order
-          // threadId is ignored if npm package doesn't support it
+          // Call npm package's streamChat with all parameters (same signature as local API)
           yield* this.client.streamChat(
             message,
             stream,
             fileIds,
+            threadId,
             audioInput,
             audioFormat,
             language,
@@ -345,7 +344,7 @@ export async function loadApi(): Promise<ApiFunctions> {
           message: string,
           stream?: boolean,
           fileIds?: string[],
-          _threadId?: string, // Unused if npm package doesn't support it
+          threadId?: string,
           audioInput?: string,
           audioFormat?: string,
           language?: string,
@@ -354,11 +353,12 @@ export async function loadApi(): Promise<ApiFunctions> {
           sourceLanguage?: string,
           targetLanguage?: string
         ): AsyncGenerator<StreamResponse> {
-          // Call npm package's streamChat with parameters in its expected order
+          // Call npm package's streamChat with all parameters (same signature as local API)
           yield* npmApi.streamChat(
             message,
             stream,
             fileIds,
+            threadId,
             audioInput,
             audioFormat,
             language,
@@ -381,7 +381,7 @@ export async function loadApi(): Promise<ApiFunctions> {
             message: string,
             stream?: boolean,
             fileIds?: string[],
-            _threadId?: string, // Unused if npm package doesn't support it
+            threadId?: string,
             audioInput?: string,
             audioFormat?: string,
             language?: string,
@@ -390,12 +390,12 @@ export async function loadApi(): Promise<ApiFunctions> {
             sourceLanguage?: string,
             targetLanguage?: string
           ): AsyncGenerator<StreamResponse> {
-            // Call npm package's streamChat with parameters in its expected order
-            // threadId is ignored if npm package doesn't support it
+            // Call npm package's streamChat with all parameters (same signature as local API)
             yield* this.client.streamChat(
               message,
               stream,
               fileIds,
+              threadId,
               audioInput,
               audioFormat,
               language,

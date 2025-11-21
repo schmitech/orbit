@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp,
   Bot,
@@ -30,6 +30,8 @@ interface MessageProps {
   isThreadSendDisabled?: boolean;
 }
 
+const EMPTY_THREAD_REPLIES: MessageType[] = [];
+
 export function Message({
   message,
   onRegenerate,
@@ -47,7 +49,7 @@ export function Message({
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
 
   const isAssistant = message.role === 'assistant';
-  const threadReplies = threadMessages || [];
+  const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
   const threadReplyCount = threadReplies.length;
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
   const locale = (import.meta.env as any).VITE_LOCALE || 'en-US';
@@ -108,13 +110,13 @@ export function Message({
     setFeedback(feedback === type ? null : type);
   };
 
-  const formatThreadTimestamp = (value: Date | string) => {
+  const formatThreadTimestamp = useCallback((value: Date | string) => {
     const dateValue = value instanceof Date ? value : new Date(value);
     return dateValue.toLocaleTimeString(locale, {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
+  }, [locale]);
 
   const handleThreadSubmit = async () => {
     if (!onSendThreadMessage || !message.threadInfo) {
@@ -149,6 +151,57 @@ export function Message({
     threadHasStreaming ||
     isSendingThreadMessage;
 
+  const renderedMessageContent = useMemo(() => {
+    if (message.isStreaming && (!message.content || message.content === '…')) {
+      return (
+        <div className="flex items-center gap-1.5 py-1">
+          <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '0ms' }} />
+          <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '150ms' }} />
+          <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
+        </div>
+      );
+    }
+
+    return <MarkdownRenderer content={truncateLongContent(sanitizeMessageContent(message.content || ''))} />;
+  }, [message.content, message.isStreaming]);
+
+  const renderedThreadReplies = useMemo(() => {
+    return threadReplies.map(reply => {
+      const replyIsAssistant = reply.role === 'assistant';
+
+      const replyContent = reply.isStreaming && (!reply.content || reply.content === '…') ? (
+        <div className="flex items-center gap-1.5 py-1">
+          <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '0ms' }} />
+          <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '150ms' }} />
+          <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
+        </div>
+      ) : (
+        <MarkdownRenderer content={truncateLongContent(sanitizeMessageContent(reply.content || ''))} />
+      );
+
+      return (
+        <div key={reply.id} className="flex items-start gap-2">
+          <div
+            className={`mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full ${
+              replyIsAssistant
+                ? 'bg-gray-200 text-gray-600 dark:bg-[#4a4b54] dark:text-white'
+                : 'bg-blue-100 text-blue-700 dark:bg-[#4a4b54] dark:text-white'
+            }`}
+          >
+            {replyIsAssistant ? <Bot className="h-3.5 w-3.5" /> : <User2 className="h-3.5 w-3.5" />}
+          </div>
+          <div className="flex-1 rounded-lg border border-gray-200 bg-white/80 p-2 text-sm dark:border-[#3c3f4a] dark:bg-[#181920]">
+            <div className="mb-1 flex items-center justify-between text-[11px] uppercase tracking-wide text-gray-500 dark:text-[#bfc2cd]">
+              <span>{replyIsAssistant ? 'Assistant' : 'You'}</span>
+              <span>{formatThreadTimestamp(reply.timestamp)}</span>
+            </div>
+            <div className="prose prose-slate max-w-none text-sm text-[#353740] dark:prose-invert dark:text-[#ececf1]">{replyContent}</div>
+          </div>
+        </div>
+      );
+    });
+  }, [formatThreadTimestamp, threadReplies]);
+
   return (
     <div className="group flex items-start gap-3 px-1 animate-fadeIn min-w-0 sm:px-0">
       <div
@@ -176,17 +229,7 @@ export function Message({
               : ''
           }`}
         >
-          <div className={contentClass}>
-            {message.isStreaming && (!message.content || message.content === '…') ? (
-              <div className="flex items-center gap-1.5 py-1">
-                <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '0ms' }} />
-                <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '150ms' }} />
-                <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
-              </div>
-            ) : (
-              <MarkdownRenderer content={truncateLongContent(sanitizeMessageContent(message.content || ''))} />
-            )}
-          </div>
+          <div className={contentClass}>{renderedMessageContent}</div>
 
           {message.attachments && message.attachments.length > 0 && (
             <div className="mt-3 space-y-2">
@@ -298,41 +341,7 @@ export function Message({
 
             {isThreadOpen && (
               <>
-                <div className="mt-3 space-y-3">
-                  {threadReplies.map(reply => {
-                    const replyIsAssistant = reply.role === 'assistant';
-                    return (
-                      <div key={reply.id} className="flex items-start gap-2">
-                        <div
-                          className={`mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full ${
-                            replyIsAssistant
-                              ? 'bg-gray-200 text-gray-600 dark:bg-[#4a4b54] dark:text-white'
-                              : 'bg-blue-100 text-blue-700 dark:bg-[#4a4b54] dark:text-white'
-                          }`}
-                        >
-                          {replyIsAssistant ? <Bot className="h-3.5 w-3.5" /> : <User2 className="h-3.5 w-3.5" />}
-                        </div>
-                        <div className="flex-1 rounded-lg border border-gray-200 bg-white/80 p-2 text-sm dark:border-[#3c3f4a] dark:bg-[#181920]">
-                          <div className="mb-1 flex items-center justify-between text-[11px] uppercase tracking-wide text-gray-500 dark:text-[#bfc2cd]">
-                            <span>{replyIsAssistant ? 'Assistant' : 'You'}</span>
-                            <span>{formatThreadTimestamp(reply.timestamp)}</span>
-                          </div>
-                          <div className="prose prose-slate max-w-none text-sm text-[#353740] dark:prose-invert dark:text-[#ececf1]">
-                            {reply.isStreaming && (!reply.content || reply.content === '…') ? (
-                              <div className="flex items-center gap-1.5 py-1">
-                                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '0ms' }} />
-                                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '150ms' }} />
-                                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
-                              </div>
-                            ) : (
-                              <MarkdownRenderer content={truncateLongContent(sanitizeMessageContent(reply.content || ''))} />
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <div className="mt-3 space-y-3">{renderedThreadReplies}</div>
 
                 <div className="mt-3 rounded-lg border border-gray-200 bg-white/80 p-2 dark:border-[#3c3f4a] dark:bg-[#181920]">
                   <div className="flex items-end gap-2">

@@ -25,7 +25,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@schmitech/chatbot-api": "^2.0.0",
+    "@schmitech/chatbot-api": "^2.1.1",
     "@schmitech/markdown-renderer": "^0.4.1",
     "@types/markdown-it": "^14.1.2",
     "lucide-react": "^0.344.0",
