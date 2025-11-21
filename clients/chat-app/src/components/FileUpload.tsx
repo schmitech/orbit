@@ -21,6 +21,7 @@ interface FileUploadProps {
   onUploadError?: (error: string) => void;
   onClose?: () => void;
   onUploadingChange?: (conversationId: string | null, isUploading: boolean) => void;
+  onUploadSuccess?: (conversationId: string, newFiles: FileAttachment[]) => void;
   maxFiles?: number;
   disabled?: boolean;
 }
@@ -31,6 +32,7 @@ export function FileUpload({
   onUploadError,
   onClose,
   onUploadingChange,
+  onUploadSuccess,
   maxFiles = AppConfig.maxFilesPerConversation,
   disabled = false 
 }: FileUploadProps) {
@@ -153,10 +155,17 @@ export function FileUpload({
     }
     const previous = uploadedFilesStoreRef.current.get(targetConversationId) || [];
     const next = updater([...(previous || [])]);
+    const previousIds = new Set(previous.map(f => f.file_id));
     uploadedFilesStoreRef.current.set(targetConversationId, next);
     onFilesSelected(targetConversationId, next);
+    if (onUploadSuccess) {
+      const newFiles = next.filter(file => !previousIds.has(file.file_id));
+      if (newFiles.length > 0) {
+        onUploadSuccess(targetConversationId, newFiles);
+      }
+    }
     setGlobalUploadRevision(prev => prev + 1);
-  }, [onFilesSelected]);
+  }, [onFilesSelected, onUploadSuccess]);
   
   const removeFileFromConversation = useChatStore(state => state.removeFileFromConversation);
   const addFileToConversation = useChatStore(state => state.addFileToConversation);

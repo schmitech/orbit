@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, MessageSquare, Trash2, Edit2, Trash } from 'lucide-react';
+import { Plus, Search, MessageSquare, Trash2, Edit2, Trash, Paperclip } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -196,7 +196,9 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
   };
 
   const formatConversationTimestamp = (date: Date) => {
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' · ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const formattedDate = date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+    const formattedTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `${formattedDate} · ${formattedTime}`;
   };
 
   const getConversationPreview = (conversation: Conversation) => {
@@ -315,23 +317,21 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
                       >
                         {conversation.title}
                       </h3>
-                      <span className="text-[11px] text-gray-500 dark:text-[#a6acc5]">
+                      <span className="text-[11px] text-gray-500 dark:text-[#a6acc5] whitespace-nowrap">
                         {formatConversationTimestamp(conversation.updatedAt)}
                       </span>
                       <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
-                        <p className="flex-1 truncate">{getConversationPreview(conversation)}</p>
                         <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4]">
                           <MessageSquare className="h-3 w-3" />
                           {conversation.messages.length}
                         </span>
-                      </div>
-                      {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
-                        <div className="text-[11px] text-gray-500 dark:text-[#9ca3c1]">
-                          <span className="rounded-full bg-white/80 px-2 py-0.5 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4]">
-                            {conversation.attachedFiles.length} file{conversation.attachedFiles.length > 1 ? 's' : ''}
+                        {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4]">
+                            <Paperclip className="h-3 w-3" />
+                            {conversation.attachedFiles.length}
                           </span>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   )}
 

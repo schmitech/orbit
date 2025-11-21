@@ -96,7 +96,7 @@ export function MessageInput({
   const [isHoveringUpload, setIsHoveringUpload] = useState(false);
   const [isHoveringMic, setIsHoveringMic] = useState(false);
   const [pasteError, setPasteError] = useState<string | null>(null);
-  const [pasteSuccess, setPasteSuccess] = useState<string | null>(null);
+  const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
   const [removeFileSuccess, setRemoveFileSuccess] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
@@ -474,6 +474,23 @@ export function MessageInput({
     }
   };
 
+  const showUploadSuccessToast = useCallback((uploadedFiles: FileAttachment[]) => {
+    if (!uploadedFiles || uploadedFiles.length === 0) {
+      return;
+    }
+
+    const successMessage =
+      uploadedFiles.length === 1
+        ? `File "${uploadedFiles[0].filename}" uploaded successfully`
+        : `${uploadedFiles.length} files uploaded successfully`;
+
+    playSoundEffect('success', settings.soundEnabled);
+    setUploadSuccessMessage(successMessage);
+    setTimeout(() => {
+      setUploadSuccessMessage(null);
+    }, 6000);
+  }, [settings.soundEnabled]);
+
   const handleFilesSelected = useCallback((conversationId: string | null, files: FileAttachment[]) => {
     debugLog(`[MessageInput] handleFilesSelected called with ${files.length} files for conversation ${conversationId}:`, files);
     if (!conversationId) {
@@ -484,6 +501,13 @@ export function MessageInput({
     }
     syncFilesWithConversation(files, conversationId);
   }, [currentConversationId, syncFilesWithConversation]);
+
+  const handleUploadSuccessToast = useCallback((conversationId: string, newFiles: FileAttachment[]) => {
+    if (conversationId !== currentConversationId) {
+      return;
+    }
+    showUploadSuccessToast(newFiles);
+  }, [currentConversationId, showUploadSuccessToast]);
 
   const handleRemoveFile = async (fileId: string) => {
     // Get filename before removing for success message
@@ -573,7 +597,7 @@ export function MessageInput({
 
     e.preventDefault();
     setPasteError(null);
-    setPasteSuccess(null);
+    setUploadSuccessMessage(null);
 
     let pasteConversationId: string | null = null;
 
@@ -699,18 +723,8 @@ export function MessageInput({
           syncFilesWithConversation(filesForSync, pasteConversationId);
         }
 
-        const successMessage =
-          uploadedAttachments.length === 1
-            ? `File "${uploadedAttachments[0].filename}" uploaded successfully`
-            : `${uploadedAttachments.length} files uploaded successfully`;
-
         await Promise.all(completionPromises);
-
-        playSoundEffect('success', settings.soundEnabled);
-        setPasteSuccess(successMessage);
-        setTimeout(() => {
-          setPasteSuccess(null);
-        }, 6000);
+        showUploadSuccessToast(uploadedAttachments);
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to paste file';
@@ -724,7 +738,7 @@ export function MessageInput({
     } finally {
       setConversationUploading(pasteConversationId, false);
     }
-  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, settings.soundEnabled, syncFilesWithConversation, uploadFeatureEnabled]);
+  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled]);
 
   const effectivePlaceholder = (hasProcessingFiles || isUploading)
     ? 'Files are uploading/processing, please wait...'
@@ -745,30 +759,31 @@ export function MessageInput({
 
   return (
     <div className={`bg-white px-3 py-4 dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
-      {voiceError && audioFeatureEnabled && (
-        <div className={`mx-auto mb-3 w-full ${contentMaxWidth} rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200`}>
-          {voiceError}
-        </div>
-      )}
-      {pasteError && (
-        <div className={`mx-auto mb-3 w-full ${contentMaxWidth} rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200`}>
-          {pasteError}
-        </div>
-      )}
-      {pasteSuccess && (
-        <div className={`mx-auto mb-3 w-full ${contentMaxWidth} flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200`}>
-          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-          <span>{pasteSuccess}</span>
-        </div>
-      )}
-      {removeFileSuccess && (
-        <div className={`mx-auto mb-3 w-full ${contentMaxWidth} flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200`}>
-          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-          <span>{removeFileSuccess}</span>
-        </div>
-      )}
+      <div className={`mx-auto w-full ${contentMaxWidth}`}>
+        {voiceError && audioFeatureEnabled && (
+          <div className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
+            {voiceError}
+          </div>
+        )}
+        {pasteError && (
+          <div className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
+            {pasteError}
+          </div>
+        )}
+        {uploadSuccessMessage && (
+          <div className="mb-3 w-full flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200">
+            <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+            <span>{uploadSuccessMessage}</span>
+          </div>
+        )}
+        {removeFileSuccess && (
+          <div className="mb-3 w-full flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200">
+            <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+            <span>{removeFileSuccess}</span>
+          </div>
+        )}
 
-      <form onSubmit={handleSubmit} className={`mx-auto flex w-full ${contentMaxWidth} flex-col gap-3`}>
+        <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3">
         <div
           className={`flex flex-wrap gap-2 rounded-lg border px-3 py-3 shadow-sm transition-all sm:flex-nowrap sm:px-4 ${
             isFocused
@@ -1026,6 +1041,7 @@ export function MessageInput({
                 debugError('File upload error:', error);
               }}
               onUploadingChange={setConversationUploading}
+              onUploadSuccess={handleUploadSuccessToast}
               maxFiles={AppConfig.maxFilesPerConversation}
               disabled={isFileUploadDisabled}
             />
@@ -1042,5 +1058,6 @@ export function MessageInput({
         </div>
       </form>
     </div>
+  </div>
   );
 }
