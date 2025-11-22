@@ -95,18 +95,22 @@ async def test_insert_and_find_one(mongodb_service: MongoDBService):
         "age": 30,
         "created_at": datetime.now(UTC)
     }
-    
-    # Insert document
+
+    # Insert document - should return string ID (not ObjectId)
     inserted_id = await mongodb_service.insert_one(TEST_COLLECTION, test_doc)
     assert inserted_id is not None
-    assert isinstance(inserted_id, ObjectId)
-    
-    # Find the document by ID
+    assert isinstance(inserted_id, str)  # Changed: now returns string
+    assert len(inserted_id) == 24  # ObjectId string format is 24 characters
+
+    # Find the document by ID (can query with string)
     found_doc = await mongodb_service.find_one(TEST_COLLECTION, {"_id": inserted_id})
     assert found_doc is not None
     assert found_doc["name"] == test_doc["name"]
     assert found_doc["email"] == test_doc["email"]
     assert found_doc["age"] == test_doc["age"]
+    # Verify _id is also a string in returned document
+    assert isinstance(found_doc["_id"], str)
+    assert found_doc["_id"] == inserted_id
 
 @pytest.mark.asyncio
 async def test_find_many(mongodb_service: MongoDBService):
@@ -116,26 +120,34 @@ async def test_find_many(mongodb_service: MongoDBService):
         {"name": f"User {i}", "age": 20 + i, "category": "test"}
         for i in range(5)
     ]
-    
+
     for doc in docs:
         await mongodb_service.insert_one(TEST_COLLECTION, doc)
-    
+
     # Find all documents with category "test"
     found_docs = await mongodb_service.find_many(TEST_COLLECTION, {"category": "test"})
     assert len(found_docs) == 5
-    
+    # Verify all _id fields are strings
+    for doc in found_docs:
+        assert isinstance(doc["_id"], str)
+        assert len(doc["_id"]) == 24
+
     # Test with limit
     limited_docs = await mongodb_service.find_many(TEST_COLLECTION, {"category": "test"}, limit=3)
     assert len(limited_docs) == 3
-    
+    for doc in limited_docs:
+        assert isinstance(doc["_id"], str)
+
     # Test with sorting
     sorted_docs = await mongodb_service.find_many(
-        TEST_COLLECTION, 
-        {"category": "test"}, 
+        TEST_COLLECTION,
+        {"category": "test"},
         sort=[("age", -1)]  # Sort by age descending
     )
     assert sorted_docs[0]["age"] == 24  # Oldest user
     assert sorted_docs[-1]["age"] == 20  # Youngest user
+    for doc in sorted_docs:
+        assert isinstance(doc["_id"], str)
 
 @pytest.mark.asyncio
 async def test_update_one(mongodb_service: MongoDBService):
@@ -327,14 +339,60 @@ async def test_sparse_index(mongodb_service: MongoDBService):
         "optional_field",
         sparse=True
     )
-    
+
     # Insert documents with and without the field
     doc_with_field = {"name": "Has Field", "optional_field": "value"}
     doc_without_field = {"name": "No Field"}
-    
+
     await mongodb_service.insert_one(TEST_COLLECTION, doc_with_field)
     await mongodb_service.insert_one(TEST_COLLECTION, doc_without_field)
-    
+
     # Both documents should exist
     assert await mongodb_service.find_one(TEST_COLLECTION, {"name": "Has Field"}) is not None
     assert await mongodb_service.find_one(TEST_COLLECTION, {"name": "No Field"}) is not None
+
+@pytest.mark.asyncio
+async def test_objectid_to_string_conversion(mongodb_service: MongoDBService):
+    """Test that ObjectIds are properly converted to strings for JSON serialization"""
+    # Insert a document with nested structure
+    test_doc = {
+        "name": "Conversion Test",
+        "metadata": {
+            "created_by": "admin",
+            "tags": ["test", "conversion"]
+        },
+        "items": [
+            {"item_name": "Item 1", "value": 100},
+            {"item_name": "Item 2", "value": 200}
+        ]
+    }
+
+    # Insert and get the ID (should be string)
+    inserted_id = await mongodb_service.insert_one(TEST_COLLECTION, test_doc)
+    assert isinstance(inserted_id, str)
+    assert len(inserted_id) == 24  # ObjectId string format
+
+    # Find the document
+    found_doc = await mongodb_service.find_one(TEST_COLLECTION, {"_id": inserted_id})
+    assert found_doc is not None
+
+    # Verify _id is a string (not ObjectId) for JSON serialization
+    assert isinstance(found_doc["_id"], str)
+    assert found_doc["_id"] == inserted_id
+
+    # Verify nested structures are preserved
+    assert found_doc["metadata"]["created_by"] == "admin"
+    assert len(found_doc["items"]) == 2
+
+    # Test find_many also returns string IDs
+    many_docs = await mongodb_service.find_many(TEST_COLLECTION, {"name": "Conversion Test"})
+    assert len(many_docs) == 1
+    assert isinstance(many_docs[0]["_id"], str)
+
+    # Verify JSON serialization works (this would fail with ObjectId)
+    import json
+    try:
+        json_str = json.dumps(found_doc)
+        assert inserted_id in json_str  # ID should be in JSON as string
+    except TypeError as e:
+        pytest.fail(f"Failed to serialize document to JSON: {e}")

@@ -9,8 +9,8 @@ Handles thread creation, lifecycle, and dataset linking.
 import logging
 import json
 from typing import Dict, Any, Optional, Tuple
-from datetime import datetime, timedelta
-from utils.id_utils import generate_id
+from datetime import datetime, timedelta, UTC
+from utils.id_utils import generate_id, id_to_string
 
 from services.database_service import create_database_service
 from services.thread_dataset_service import ThreadDatasetService
@@ -115,32 +115,34 @@ class ThreadService:
         backend_config = self.config.get('internal_services', {}).get('backend', {})
         backend_type = backend_config.get('type', 'mongodb')
         thread_id = generate_id(backend_type)
+        # Convert to string immediately for consistent handling
+        thread_id_str = id_to_string(thread_id)
         thread_session_id = self._generate_thread_session_id()
 
         # Calculate expiration time
-        expires_at = datetime.utcnow() + timedelta(hours=self.dataset_ttl_hours)
+        expires_at = datetime.now(UTC) + timedelta(hours=self.dataset_ttl_hours)
 
         try:
             # Store dataset (will use Redis if configured, otherwise database)
             dataset_key = await self.dataset_service.store_dataset(
-                thread_id=thread_id,
+                thread_id=thread_id_str,
                 query_context=query_context,
                 raw_results=raw_results
             )
-            
+
             # Log dataset storage confirmation
-            logger.debug(f"Dataset stored with key: {dataset_key} for thread {thread_id} ({len(raw_results)} results)")
+            logger.debug(f"Dataset stored with key: {dataset_key} for thread {thread_id_str} ({len(raw_results)} results)")
 
             # Create thread document
             thread_doc = {
-                'id': thread_id,
+                'id': thread_id_str,
                 'parent_message_id': parent_message_id,
                 'parent_session_id': parent_session_id,
                 'thread_session_id': thread_session_id,
                 'adapter_name': adapter_name,
                 'query_context': json.dumps(query_context, default=str),
                 'dataset_key': dataset_key,
-                'created_at': datetime.utcnow().isoformat(),
+                'created_at': datetime.now(UTC).isoformat(),
                 'expires_at': expires_at.isoformat(),
                 'metadata_json': json.dumps({}, default=str)
             }
@@ -148,10 +150,10 @@ class ThreadService:
             # Store thread metadata
             await self.database_service.insert_one(self.collection_name, thread_doc)
 
-            logger.debug(f"Created thread {thread_id} for message {parent_message_id} (session: {thread_session_id})")
+            logger.debug(f"Created thread {thread_id_str} for message {parent_message_id} (session: {thread_session_id})")
 
             return {
-                'thread_id': thread_id,
+                'thread_id': thread_id_str,
                 'thread_session_id': thread_session_id,
                 'parent_message_id': parent_message_id,
                 'parent_session_id': parent_session_id,
@@ -305,8 +307,8 @@ class ThreadService:
             return 0
 
         try:
-            now = datetime.utcnow().isoformat()
-            
+            now = datetime.now(UTC).isoformat()
+
             # Find expired threads
             expired = await self.database_service.find_many(
                 self.collection_name,

@@ -18,6 +18,7 @@ from datetime import datetime
 from bson import ObjectId
 
 from services.database_service import DatabaseService
+from utils.id_utils import id_to_string
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +216,25 @@ class MongoDBService(DatabaseService):
                 converted_query[key] = value
         return converted_query
 
+    def _convert_objectids_to_string(self, data: Any) -> Any:
+        """
+        Convert ObjectId instances to strings for JSON serialization
+
+        Args:
+            data: Data to convert (dict, list, or any value)
+
+        Returns:
+            Data with ObjectIds converted to strings
+        """
+        if isinstance(data, dict):
+            return {key: self._convert_objectids_to_string(value) for key, value in data.items()}
+        elif isinstance(data, list):
+            return [self._convert_objectids_to_string(item) for item in data]
+        elif isinstance(data, ObjectId):
+            return id_to_string(data)
+        else:
+            return data
+
     async def find_one(self, collection_name: str, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Find a single document in a collection
@@ -224,7 +244,7 @@ class MongoDBService(DatabaseService):
             query: MongoDB query
 
         Returns:
-            The document if found, None otherwise
+            The document if found, None otherwise (with ObjectIds converted to strings)
         """
         if not self._initialized:
             await self.initialize()
@@ -233,35 +253,37 @@ class MongoDBService(DatabaseService):
             collection = self.get_collection(collection_name)
             # Convert string IDs to ObjectId for MongoDB compatibility
             converted_query = self._convert_string_ids_to_objectid(query)
-            return await collection.find_one(converted_query)
+            result = await collection.find_one(converted_query)
+            # Convert ObjectIds to strings for JSON serialization
+            return self._convert_objectids_to_string(result) if result else None
         except Exception as e:
             logger.error(f"Error finding document in {collection_name}: {str(e)}")
             return None
     
     async def find_many(
-        self, 
-        collection_name: str, 
-        query: Dict[str, Any], 
+        self,
+        collection_name: str,
+        query: Dict[str, Any],
         limit: int = 100,
         sort: Optional[List[Tuple[str, int]]] = None,
         skip: int = 0
     ) -> List[Dict[str, Any]]:
         """
         Find multiple documents in a collection
-        
+
         Args:
             collection_name: Name of the collection
             query: MongoDB query
             limit: Maximum number of documents to return
             sort: List of (field, direction) tuples for sorting
             skip: Number of documents to skip
-            
+
         Returns:
-            List of matching documents
+            List of matching documents (with ObjectIds converted to strings)
         """
         if not self._initialized:
             await self.initialize()
-            
+
         try:
             collection = self.get_collection(collection_name)
             # Convert string IDs to ObjectId for MongoDB compatibility
@@ -275,29 +297,32 @@ class MongoDBService(DatabaseService):
             # Apply skip and limit
             cursor = cursor.skip(skip).limit(limit)
 
-            return await cursor.to_list(length=limit)
+            results = await cursor.to_list(length=limit)
+            # Convert ObjectIds to strings for JSON serialization
+            return self._convert_objectids_to_string(results)
         except Exception as e:
             logger.error(f"Error finding documents in {collection_name}: {str(e)}")
             return []
     
-    async def insert_one(self, collection_name: str, document: Dict[str, Any]) -> Optional[ObjectId]:
+    async def insert_one(self, collection_name: str, document: Dict[str, Any]) -> Optional[str]:
         """
         Insert a document into a collection
-        
+
         Args:
             collection_name: Name of the collection
             document: Document to insert
-            
+
         Returns:
-            ObjectId of the inserted document, or None if insertion failed
+            String ID of the inserted document, or None if insertion failed
         """
         if not self._initialized:
             await self.initialize()
-            
+
         try:
             collection = self.get_collection(collection_name)
             result = await collection.insert_one(document)
-            return result.inserted_id
+            # Convert ObjectId to string for JSON serialization
+            return id_to_string(result.inserted_id)
         except Exception as e:
             logger.error(f"Error inserting document into {collection_name}: {str(e)}")
             return None
@@ -431,21 +456,23 @@ class MongoDBService(DatabaseService):
     ) -> List[Dict[str, Any]]:
         """
         Execute an aggregation pipeline within a transaction
-        
+
         Args:
             collection_name: Name of the collection
             pipeline: Aggregation pipeline
             session: MongoDB session from transaction
-            
+
         Returns:
-            List of documents from aggregation
+            List of documents from aggregation (with ObjectIds converted to strings)
         """
         if not self._initialized:
             await self.initialize()
-            
+
         collection = self.get_collection(collection_name)
         cursor = collection.aggregate(pipeline, session=session)
-        return await cursor.to_list(length=None)
+        results = await cursor.to_list(length=None)
+        # Convert ObjectIds to strings for JSON serialization
+        return self._convert_objectids_to_string(results)
 
     async def delete_many_with_transaction(
         self,

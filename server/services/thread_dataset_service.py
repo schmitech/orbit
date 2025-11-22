@@ -12,7 +12,7 @@ import logging
 import json
 import gzip
 from typing import Dict, Any, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from utils.id_utils import generate_id
 
 from services.redis_service import RedisService
@@ -128,11 +128,11 @@ class ThreadDatasetService:
             'thread_id': thread_id,
             'query_context': query_context,
             'raw_results': raw_results,
-            'stored_at': datetime.utcnow().isoformat()
+            'stored_at': datetime.now(UTC).isoformat()
         }
 
         # Calculate expiration time
-        expires_at = datetime.utcnow() + timedelta(hours=self.dataset_ttl_hours)
+        expires_at = datetime.now(UTC) + timedelta(hours=self.dataset_ttl_hours)
         ttl_seconds = int(self.dataset_ttl_hours * 3600)
 
         try:
@@ -145,7 +145,7 @@ class ThreadDatasetService:
                 await self.redis_service.set(dataset_key, encoded, ttl=ttl_seconds)
                 
                 # Always log Redis storage for verification
-                logger.info(f"✓ Stored dataset for thread {thread_id} in Redis (key: {dataset_key}, TTL: {ttl_seconds}s, results: {len(raw_results)} items)")
+                logger.debug(f"✓ Stored dataset for thread {thread_id} in Redis (key: {dataset_key}, TTL: {ttl_seconds}s, results: {len(raw_results)} items)")
                 
                 logger.debug(f"Dataset structure: query_context keys={list(query_context.keys())}, raw_results count={len(raw_results)}")
             else:
@@ -160,7 +160,7 @@ class ThreadDatasetService:
                     'thread_id': str(thread_id),  # Convert to string for SQLite compatibility
                     'dataset_json': json.dumps(dataset, default=str),
                     'expires_at': expires_at.isoformat(),
-                    'created_at': datetime.utcnow().isoformat()
+                    'created_at': datetime.now(UTC).isoformat()
                 }
                 
                 await self.database_service.insert_one(collection_name, document)
@@ -221,7 +221,7 @@ class ThreadDatasetService:
                 expires_at_str = document.get('expires_at')
                 if expires_at_str:
                     expires_at = datetime.fromisoformat(expires_at_str)
-                    if datetime.utcnow() > expires_at:
+                    if datetime.now(UTC) > expires_at:
                         logger.debug(f"Dataset {dataset_key} has expired")
                         # Delete expired dataset
                         await self.delete_dataset(dataset_key)
@@ -270,7 +270,7 @@ class ThreadDatasetService:
 
                 # Always log deletion result for verification
                 if deleted:
-                    logger.info(f"✓ Deleted dataset {dataset_key} from Redis (deleted_count: {deleted_count})")
+                    logger.debug(f"✓ Deleted dataset {dataset_key} from Redis (deleted_count: {deleted_count})")
                 else:
                     logger.warning(f"Dataset {dataset_key} not found in Redis (deleted_count: {deleted_count})")
 
@@ -309,8 +309,8 @@ class ThreadDatasetService:
 
         try:
             collection_name = 'thread_datasets'
-            now = datetime.utcnow().isoformat()
-            
+            now = datetime.now(UTC).isoformat()
+
             # Find expired datasets
             expired = await self.database_service.find_many(
                 collection_name,

@@ -541,5 +541,64 @@ async def test_thread_session_id_uniqueness(test_services):
     assert len(thread_session_ids) == 3
 
 
+@pytest.mark.asyncio
+async def test_thread_id_string_serialization(test_services):
+    """Test that thread IDs are strings and JSON-serializable"""
+    services = test_services
+
+    # Create test conversation
+    session_id = f"session_{generate_id()}"
+    metadata = {
+        "adapter_name": "intent-test",
+        "retrieved_docs": [{"content": "Test doc", "metadata": {}}],
+        "original_query": "Test query"
+    }
+
+    user_msg_id, assistant_msg_id = await services['chat_history'].add_conversation_turn(
+        session_id=session_id,
+        user_message="Test query",
+        assistant_response="Test response",
+        metadata=metadata
+    )
+
+    # Create thread
+    query_context = {'original_query': metadata['original_query']}
+    thread_info = await services['thread'].create_thread(
+        parent_message_id=assistant_msg_id,
+        parent_session_id=session_id,
+        adapter_name=metadata['adapter_name'],
+        query_context=query_context,
+        raw_results=metadata['retrieved_docs']
+    )
+
+    # Verify thread_id is a string (not ObjectId or other type)
+    assert isinstance(thread_info['thread_id'], str), \
+        f"thread_id should be string, got {type(thread_info['thread_id'])}"
+    assert isinstance(thread_info['thread_session_id'], str), \
+        f"thread_session_id should be string, got {type(thread_info['thread_session_id'])}"
+
+    # Verify the response can be JSON serialized
+    # This would fail if ObjectIds weren't converted to strings
+    try:
+        json_str = json.dumps(thread_info)
+        assert thread_info['thread_id'] in json_str
+    except TypeError as e:
+        pytest.fail(f"Failed to serialize thread_info to JSON: {e}")
+
+    # Retrieve thread and verify its IDs are also strings
+    retrieved_thread = await services['thread'].get_thread(thread_info['thread_id'])
+    assert retrieved_thread is not None
+    assert isinstance(retrieved_thread['thread_id'], str)
+    assert isinstance(retrieved_thread['thread_session_id'], str)
+
+    # Verify retrieved thread can also be JSON serialized
+    # Use default=str to handle datetime objects (FastAPI does this automatically)
+    try:
+        json_str = json.dumps(retrieved_thread, default=str)
+        assert retrieved_thread['thread_id'] in json_str
+    except TypeError as e:
+        pytest.fail(f"Failed to serialize retrieved_thread to JSON: {e}")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
