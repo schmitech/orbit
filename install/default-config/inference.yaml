@@ -1,0 +1,392 @@
+inference:
+  ollama:
+    enabled: true
+    base_url: "http://localhost:11434"
+    model: "granite4:micro"
+    stream: true
+    think: false  # Enable/disable think mode (shows reasoning in <think> tags)
+    # Generation parameters - Optimized for large SQL result sets
+    temperature: 0.3  # Lower for more factual, deterministic outputs
+    top_p: 0.8  # More focused outputs for data analysis
+    top_k: 40
+    min_p: 0.0
+    typical_p: 0.7
+    num_predict: 2048  # Increased to handle analysis of hundreds of records
+    repeat_penalty: 1.1
+    repeat_last_n: 33
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
+    mirostat: 0
+    mirostat_tau: 0.8
+    mirostat_eta: 0.6
+    # Context and memory - Optimized for hundreds of SQL records
+    num_ctx: 16384  # Large context window to fit hundreds of records + analysis
+    num_keep: 200  # Keep prompt instructions and query context
+    penalize_newline: false
+    # Stop sequences
+    stop: []
+    # Threading and performance
+    num_threads: 8
+    num_batch: 2
+    # GPU settings
+    num_gpu: 0
+    main_gpu: 0
+    low_vram: false
+    # Memory management
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    # Random seed for reproducible outputs
+    seed: null
+    # Retry configuration for handling cold starts
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000  # Start with 2 seconds
+      max_wait_ms: 30000     # Max 30 seconds per retry
+      exponential_base: 2    # Exponential backoff multiplier
+    # Timeout configuration
+    timeout:
+      connect: 10000         # 10 seconds for connection
+      total: 120000          # 2 minutes total timeout
+      warmup: 60000          # 1 minute for initial warmup
+  ollama_cloud:
+    enabled: true
+    api_key: ${OLLAMA_CLOUD_API_KEY}
+    model: "qwen3-coder:480b-cloud" # Supported models: https://docs.ollama.com/cloud
+    stream: true
+    think: false  # Enable/disable think mode (shows reasoning in <think> tags)
+    # Generation parameters - Optimized for large SQL result sets
+    temperature: 0.3  # Lower for more factual, deterministic outputs
+    top_p: 0.8  # More focused outputs for data analysis
+    top_k: 40
+    min_p: 0.0
+    typical_p: 0.7
+    num_predict: 4096  # Increased to handle comprehensive analysis of hundreds of records
+    repeat_penalty: 1.1
+    repeat_last_n: 32
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
+    mirostat: 0
+    mirostat_tau: 0.8
+    mirostat_eta: 0.6
+    # Context and memory - Optimized for hundreds of SQL records
+    num_ctx: 16384  # Large context window to fit hundreds of records + analysis
+    num_keep: 200  # Keep prompt instructions and query context
+    penalize_newline: false
+    # Stop sequences
+    stop: []
+    # Cloud service - these settings are managed by Ollama Cloud infrastructure
+    # num_threads, num_batch, use_mmap, use_mlock, vocab_only, numa are not applicable
+    # Random seed for reproducible outputs
+    seed: null
+  vllm:
+    enabled: false
+    host: "localhost"
+    port: 8000
+    model: "Qwen/Qwen2.5-1.5B-Instruct"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 2048
+    stream: true
+  llama_cpp:
+    enabled: true
+    # Mode: "direct" (load model locally with Python bindings) or "api" (connect to llama.cpp server)
+    mode: "direct"
+
+    # Direct mode configuration
+    model_path: "models/granite-4.0-micro-Q4_0.gguf"
+    chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
+    verbose: false
+
+    # API mode configuration
+    base_url: "http://localhost:8080"  # llama.cpp server URL (OpenAI-compatible API)
+    model: "model"  # Model name to request from the server (for API mode)
+    api_key: null  # Optional API key for secured servers
+
+    # Generation parameters
+    temperature: 1.0
+    top_p: 0.95
+    top_k: 64
+    max_tokens: 1024
+    repeat_penalty: 1.2
+
+    # Context and threading
+    n_ctx: 4096
+    n_threads: 8
+    stream: true
+
+    # GPU settings (direct mode only)
+    n_gpu_layers: 0  # For GPU/Metal support
+    main_gpu: 0
+    tensor_split: null
+
+    # Stop tokens
+    stop_tokens: [
+      "<start_of_turn>",
+      "<end_of_turn>"
+    ]
+  gemini:
+    enabled: true
+    api_key: ${GOOGLE_API_KEY}
+    model: "gemini-3-pro-preview"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    stream: true
+    transport: "rest"
+  groq:
+    enabled: true
+    api_key: ${GROQ_API_KEY}
+    model: "llama-3.1-8b-instant"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 32000
+    stream: true
+  deepseek:
+    enabled: true
+    api_key: ${DEEPSEEK_API_KEY}
+    api_base: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  vertex:
+    enabled: false
+    project_id: "your-project-id"
+    location: "us-central1"
+    model: "gemini-1.5-pro"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    credentials_path: ""
+    stream: true
+  aws:
+    enabled: false
+    access_key: ${AWS_BEDROCK_ACCESS_KEY}
+    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+    region: "ca-central-1"
+    model: "claude-sonnet-4-5-20250929"
+    content_type: "application/json"
+    accept: "application/json"
+    max_tokens: 1024
+  azure:
+    enabled: false
+    base_url: http://azure-ai.endpoint.microsoft.com
+    deployment: "azure-ai-deployment"
+    api_key: ${AZURE_ACCESS_KEY}
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    verbose: true
+  openai:
+    enabled: true
+    api_key: ${OPENAI_API_KEY}
+    model: "gpt-5"
+    temperature: 1
+    top_p: 0.8
+    max_tokens: 16000
+    stream: true
+  mistral:
+    enabled: true
+    api_key: ${MISTRAL_API_KEY}
+    api_base: "https://api.mistral.ai/v1"
+    model: "mistral-small-latest"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  anthropic:
+    enabled: true
+    api_key: ${ANTHROPIC_API_KEY}
+    api_base: "https://api.anthropic.com/v1"
+    model: "claude-sonnet-4-20250514"
+    temperature: 0.1
+    max_tokens: 1024
+    stream: true
+  together:
+    enabled: false
+    api_key: ${TOGETHER_API_KEY}
+    api_base: "https://api.together.xyz/v1"
+    model: "Qwen/Qwen3-235B-A22B-fp8-tput"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    show_thinking: false
+  xai:
+    enabled: true
+    api_key: ${XAI_API_KEY}
+    api_base: "https://api.x.ai/v1"
+    model: "grok-3-mini-beta"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 16000
+    stream: true
+    show_thinking: false
+  huggingface:
+    enabled: false
+    model_name: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+    device: "cpu"
+    max_length: 1024
+    temperature: 0.7
+    top_p: 0.9
+    stream: false
+  openrouter:
+    enabled: true
+    api_key: ${OPENROUTER_API_KEY}
+    base_url: "https://openrouter.ai/api/v1"
+    model: "meta-llama/llama-3.1-8b-instruct"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    verbose: false
+  cohere:
+    enabled: true
+    api_key: ${COHERE_API_KEY}
+    api_base: "https://api.cohere.ai/v2"
+    model: "command-r7b-12-2024"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  watson:
+    enabled: false
+    api_key: ${WATSON_API_KEY}
+    api_base: "https://domain.region.cloud.ibm.com"
+    project_id: "your-project_id"
+    instance_id: "openshift"
+    model: "ibm/granite-3-8b-instruct"
+    temperature: 0.1
+    top_k: 20
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    show_thinking: false
+    space_id: ""
+    region: "your-region"
+    auth_type: "iam"
+    time_limit: 10000
+    verify: false
+  perplexity:
+    enabled: false
+    api_key: ${PERPLEXITY_API_KEY}
+    api_base: "https://api.perplexity.ai"
+    model: "llama-3-sonar-small-32k-online"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  fireworks:
+    enabled: false
+    api_key: ${FIREWORKS_API_KEY}
+    api_base: "https://api.fireworks.ai/inference/v1"
+    model: "accounts/fireworks/models/firellava-13b"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  replicate:
+    enabled: false
+    api_key: ${REPLICATE_API_KEY}
+    model: "meta/llama-2-70b-chat:02e509c789964a7ea8736978a43525956ef40397be9033abf9fd2badfe68c9e3"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  nvidia:
+    enabled: false
+    api_key: ${NVIDIA_API_KEY}
+    api_base: "http://localhost:8000/v1"
+    model: "meta/llama3-8b-instruct"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  bitnet:
+    enabled: false
+    # Mode: "direct" (load model locally) or "api" (connect to BitNet server)
+    mode: "direct"
+    
+    # Direct mode configuration
+    model_path: "models/bitnet-b1.58-3B/ggml-model-i2_s.gguf"
+    quant_type: "i2_s"  # Quantization type: i2_s or tl1
+    use_pretuned: true  # Use pretuned kernel parameters
+    quant_embd: false   # Quantize embeddings to f16
+    
+    # API mode configuration
+    base_url: "http://localhost:8080"
+    api_key: null  # Optional API key for secured servers
+    
+    # Generation parameters
+    temperature: 0.7
+    top_p: 0.9
+    top_k: 40
+    max_tokens: 1024
+    
+    # Context and threading
+    n_ctx: 2048
+    n_threads: 8
+    n_batch: 2
+    
+    # GPU settings
+    n_gpu_layers: 0  # Number of layers to offload to GPU (0 = CPU only, -1 = all)
+    main_gpu: 0      # Main GPU device
+    low_vram: false  # Enable for systems with limited VRAM
+    
+    # BitNet-specific optimizations
+    kernel_params:
+      enable_custom: false  # Use custom kernel parameters
+      # Custom kernel parameters can be added here
+    
+    # Memory management
+    use_mmap: true
+    use_mlock: false
+    
+    # Streaming
+    stream: true
+    
+    # Stop sequences
+    stop: []
+    
+    # Timeout configuration
+    timeout:
+      connect: 10000   # 10 seconds
+      total: 120000    # 2 minutes
+    
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+  zai:
+    enabled: false
+    api_key: ${ZAI_API_KEY}
+    base_url: "https://api.z.ai/api/paas/v4/"
+    model: "glm-4.6"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 2000
+    stream: true
+    # Timeout configuration
+    timeout:
+      connect: 10000   # 10 seconds
+      total: 120000    # 2 minutes
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2

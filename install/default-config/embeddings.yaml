@@ -1,0 +1,70 @@
+# Global embedding configuration
+embedding:
+  provider: "openai"  # Default embedding provider: ollama, openai, cohere, mistral, jina, llama_cpp
+  enabled: true       # Whether embeddings are enabled globally
+
+# Provider-specific configurations
+embeddings:
+  llama_cpp:
+    model_path: "gguf/nomic-embed-text-v1.5-Q4_0.gguf"
+    model: "nomic-embed-text-v1.5-Q4_0"
+    n_ctx: 1024 
+    n_threads: 4
+    n_gpu_layers: 0
+    main_gpu: 0 
+    tensor_split: null  # Optional: GPU memory split for multi-GPU setups
+    batch_size: 8
+    dimensions: 768
+    embed_type: "llama_embedding"
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "nomic-embed-text"
+    dimensions: 768
+    # Retry configuration for handling cold starts
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000  # Start with 2 seconds
+      max_wait_ms: 30000     # Max 30 seconds per retry
+      exponential_base: 2    # Exponential backoff multiplier
+    # Timeout configuration
+    timeout:
+      connect: 10000         # 10 seconds for connection
+      total: 60000           # 1 minute total timeout
+      warmup: 45000          # 45 seconds for initial warmup
+  jina:
+    api_key: ${JINA_API_KEY}
+    base_url: "https://api.jina.ai/v1"
+    model: "jina-embeddings-v3"
+    task: "text-matching"
+    dimensions: 1024
+    batch_size: 10
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: "text-embedding-3-small"
+    dimensions: 1536
+    batch_size: 10
+  cohere:
+    api_key: ${COHERE_API_KEY}
+    model: "embed-english-v3.0"
+    input_type: "search_document"
+    dimensions: 1024
+    batch_size: 32
+    truncate: "NONE"
+    embedding_types: ["float"]
+  mistral:
+    api_key: ${MISTRAL_API_KEY}
+    api_base: "https://api.mistral.ai/v1"
+    model: "mistral-embed"
+    dimensions: 1024
+  sentence_transformers:
+    mode: "local"  # "local" for model inference, "remote" for HF API
+    model: "BAAI/bge-m3"
+    device: "auto"  # auto-detect GPU, or "cuda"/"mps"/"cpu"
+    cache_folder: null  # Use default ~/.cache/huggingface
+    normalize_embeddings: true
+    dimensions: 1024  # bge-m3 uses 1024
+    batch_size: 32
+    # For remote mode only:
+    api_key: ${HUGGINGFACE_API_KEY}
+    base_url: "https://api-inference.huggingface.co/models"

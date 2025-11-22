@@ -1,0 +1,345 @@
+import:
+  - "adapters.yaml"
+  - "inference.yaml"
+  - "datasources.yaml"
+  - "embeddings.yaml"
+  - "rerankers.yaml"
+  - "stores.yaml"
+  - "moderators.yaml"
+  - "guardrails.yaml"
+  - "vision.yaml"
+  - "sound.yaml"
+
+general:
+  port: 3000
+  https:
+    enabled: false
+    port: 3443
+    cert_file: "./cert.pem"
+    key_file: "./key.pem"
+  session_id:
+    header_name: "X-Session-ID"
+    required: true
+  inference_provider: "llama_cpp"
+
+language_detection:
+  enabled: false
+  backends:
+    - "langdetect"
+    - "langid"
+    - "pycld2"
+  backend_weights:
+    langdetect: 1.0
+    langid: 1.2
+    pycld2: 1.5
+  min_confidence: 0.5
+  min_margin: 0.1
+  prefer_english_for_ascii: false
+  enable_stickiness: false
+  fallback_language: "en"
+
+performance:
+  workers: 4
+  keep_alive_timeout: 30
+  
+  thread_pools:
+    io_workers: 50              # Up from 10
+    cpu_workers: 30             # CPU-bound tasks
+    inference_workers: 20       # Model inference
+    embedding_workers: 15       # Embedding generation
+    db_workers: 25              # Database operations
+
+fault_tolerance:
+  circuit_breaker:
+    failure_threshold: 5
+    recovery_timeout: 30
+    success_threshold: 3
+    timeout: 30
+    max_recovery_timeout: 300.0
+    enable_exponential_backoff: true
+  execution:
+    strategy: "all"  # "all", "first_success", "best_effort"
+    timeout: 35 
+    max_retries: 3
+    retry_delay: 1
+  
+messages:
+  no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
+  collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
+
+auth:
+  session_duration_hours: 12
+  default_admin_username: admin
+  default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
+  pbkdf2_iterations: 600000
+  # Credential storage method: "keyring" (default) or "file"
+  # - keyring: Uses system keychain (macOS Keychain, Linux Secret Service)
+  # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
+  credential_storage: file
+
+# Embedding configuration moved to embeddings.yaml
+
+api_keys:
+  header_name: "X-API-Key"
+  prefix: "orbit_"
+
+prompt_service:
+  cache:
+    ttl_seconds: 3600  # 1 hour - how long to cache prompts in Redis
+
+logging:
+  level: "INFO"
+  handlers:
+    file:
+      enabled: true
+      directory: "logs"
+      filename: "orbit.log"
+      max_size_mb: 10
+      backup_count: 30
+      rotation: "midnight"
+      format: "text"
+    console:
+      enabled: false
+      format: "text"
+  capture_warnings: true
+  propagate: false
+  loggers:
+    # Suppress all Python warnings (ResourceWarnings, DeprecationWarnings, etc.)
+    py.warnings:
+      level: "ERROR"
+      propagate: false
+      disabled: true
+    inference.clients.llama_cpp:
+      level: "ERROR"
+    llama_cpp:
+      level: "ERROR"
+    llama_cpp.llama:
+      level: "ERROR"
+    ggml:
+      level: "ERROR"
+    metal:
+      level: "ERROR"
+    httpx:
+      level: "WARNING"
+    httpcore:
+      level: "WARNING"
+    hpack:
+      level: "WARNING"
+    docling:
+      level: "WARNING"
+    docling.datamodel.document:
+      level: "WARNING"
+    docling.document_converter:
+      level: "WARNING"
+    docling.pipeline.base_pipeline:
+      level: "WARNING"
+    docling.backend.msexcel_backend:
+      level: "WARNING"
+    docling.backend.pypdfium2_backend:
+      level: "WARNING"
+    docling.backend.docling_parse_backend:
+      level: "WARNING"
+
+clock_service:
+  enabled: false
+  default_timezone: "America/Toronto"
+  format: "%A, %B %d, %Y at %I:%M:%S %p %Z"
+
+internal_services:
+  # Backend database configuration
+  # Choose between 'sqlite' (no installation required) or 'mongodb' (requires MongoDB server)
+  backend:
+    type: "sqlite" # sqlite or mongodb
+    sqlite:
+      database_path: "orbit.db"  # Path to SQLite database file (relative to project root)
+  
+  elasticsearch:
+    enabled: false
+    node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}
+    index: 'orbit'
+    username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
+    password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
+
+  mongodb:
+    host: ${INTERNAL_SERVICES_MONGODB_HOST}
+    port: ${INTERNAL_SERVICES_MONGODB_PORT}
+    username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
+    password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
+    database: ${INTERNAL_SERVICES_MONGODB_DB}
+    users_collection: users
+    sessions_collection: sessions
+    apikey_collection: api_keys
+    prompts_collection: system_prompts
+
+  redis:
+    enabled: false
+    host: ${INTERNAL_SERVICES_REDIS_HOST}
+    port: ${INTERNAL_SERVICES_REDIS_PORT}
+    db: 0
+    username: ${INTERNAL_SERVICES_REDIS_USERNAME}
+    password: ${INTERNAL_SERVICES_REDIS_PASSWORD}
+    use_ssl: false
+    ttl: 3600  # 1 hour, matching temp_key_expiry
+
+chat_history:
+  enabled: true
+  collection_name: "chat_history"
+  store_metadata: true
+  retention_days: 90
+  max_tracked_sessions: 10000
+  session:
+    auto_generate: false
+    required: true
+    header_name: "X-Session-ID"
+  user:
+    header_name: "X-User-ID"
+    required: false
+
+conversation_threading:
+  enabled: false
+  dataset_ttl_hours: 24  # Global default TTL for stored datasets
+  storage_backend: "redis"  # redis, sqlite, mongodb (fallback order: redis -> sqlite/mongodb)
+  redis_key_prefix: "thread_dataset:"
+
+files:
+  # Global defaults for all file adapters
+  # Individual adapters in adapters.yaml can override these settings
+  
+  metadata_db_path: "files.db"  # Path to SQLite database for file metadata (relative to project root)
+  
+  # Default storage configuration (can be overridden per adapter)
+  storage_root: "./uploads"  # Default root directory for storing uploaded files
+  
+  # Default processing settings (can be overridden per adapter)
+  default_chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive"
+  # Recommended: "recursive" - works best for all file types (PDF, DOCX, CSV, TXT, HTML, JSON, images, audio)
+  # Respects document structure (paragraphs → sentences → words) while handling structured data
+  default_chunk_size: 2048  # Default chunk size (characters for fixed/semantic, tokens for token/recursive)
+  default_chunk_overlap: 200  # Default overlap (characters for fixed/semantic, tokens for token/recursive)
+  
+  # Tokenizer configuration (optional)
+  # If not specified, uses character-based tokenization
+  # Options: "character" (default), "gpt2", "tiktoken", or custom tokenizer identifier
+  # Requires chonkie library for advanced tokenizers
+  tokenizer: null  # e.g., "gpt2", "tiktoken", or null for character-based
+  
+  # Token-based chunking option for fixed strategy
+  # If true, uses token-based chunking instead of character-based
+  use_tokens: false
+  
+  # Strategy-specific chunking options
+  chunking_options:
+    # Semantic chunking options
+    model_name: null  # Optional sentence-transformer model name (e.g., "all-MiniLM-L6-v2")
+    use_advanced: false  # Enable advanced semantic chunking with similarity calculations (requires sentence-transformers)
+    chunk_size_tokens: null  # Optional token-based chunk size limit for semantic chunks
+    
+    # Recursive chunking options
+    min_characters_per_chunk: 24  # Minimum characters per chunk for recursive chunking
+    
+    # Advanced semantic chunking options (when use_advanced: true)
+    threshold: 0.8  # Similarity threshold (0-1) for semantic boundary detection
+    similarity_window: 3  # Number of sentences to consider for similarity calculation
+    min_sentences_per_chunk: 1  # Minimum sentences per chunk
+    min_characters_per_sentence: 24  # Minimum characters per sentence
+    skip_window: 0  # Number of groups to skip when merging (0=disabled)
+    filter_window: 5  # Window length for Savitzky-Golay filter (requires scipy)
+    filter_polyorder: 3  # Polynomial order for Savitzky-Golay filter
+    filter_tolerance: 0.2  # Tolerance for Savitzky-Golay filter
+  
+  # Default vector store settings (can be overridden per adapter)
+  default_vector_store: "chroma"  # Default vector store to use
+  default_collection_prefix: "files_"  # Default prefix for collection names
+
+reranker:
+  provider: "ollama"
+  enabled: false
+
+monitoring:
+  enabled: true                    # Enable/disable monitoring dashboard
+  metrics:
+    collection_interval: 5         # Seconds between metric collections
+    time_window: 300              # Seconds of historical data to keep (5 minutes)
+    prometheus:
+      enabled: true               # Enable Prometheus endpoint at /metrics
+    dashboard:
+      enabled: true               # Enable web dashboard at /dashboard
+      websocket_update_interval: 5 # Seconds between WebSocket updates
+  alerts:                         # Alert thresholds (future use)
+    cpu_threshold: 90             # Alert when CPU > 90%
+    memory_threshold: 85          # Alert when memory > 85%
+    error_rate_threshold: 5       # Alert when error rate > 5%
+    response_time_threshold: 5000 # Alert when avg response time > 5000ms
+
+security:
+  # CORS (Cross-Origin Resource Sharing) configuration
+  cors:
+    # Allowed origins - MUST be explicitly configured for production
+    # Use specific origins like ["https://app.example.com", "https://admin.example.com"]
+    # Use ["*"] ONLY for development (credentials will be automatically disabled)
+    allowed_origins: ["*"]  # WARNING: Wildcard only for development
+
+    # Allow credentials (cookies, authorization headers)
+    # IMPORTANT: Cannot be true when allowed_origins contains "*"
+    # Set to true only when using specific origin list
+    allow_credentials: false
+
+    # Allowed HTTP methods
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+
+    # Allowed request headers
+    allowed_headers:
+      - "Authorization"
+      - "Content-Type"
+      - "X-API-Key"
+      - "X-Session-ID"
+      - "X-User-ID"
+      - "X-Request-ID"
+
+    # Headers exposed to the browser
+    expose_headers:
+      - "X-Request-ID"
+      - "X-RateLimit-Limit"
+      - "X-RateLimit-Remaining"
+      - "X-RateLimit-Reset"
+
+    # Max age for preflight request caching (seconds)
+    max_age: 600
+
+  # Security headers configuration
+  headers:
+    enabled: true
+
+    # Content Security Policy - restricts resource loading
+    # Adjust based on your frontend requirements
+    # Allows dashboard external resources: Chart.js CDN and Google Fonts
+    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; frame-ancestors 'self'"
+
+    # HTTP Strict Transport Security - enforce HTTPS
+    # Only effective when served over HTTPS
+    strict_transport_security: "max-age=31536000; includeSubDomains"
+
+    # Prevent MIME type sniffing
+    x_content_type_options: "nosniff"
+
+    # Clickjacking protection
+    x_frame_options: "SAMEORIGIN"
+
+    # XSS protection (legacy, but still useful)
+    x_xss_protection: "1; mode=block"
+
+    # Referrer policy - control referrer information
+    referrer_policy: "strict-origin-when-cross-origin"
+
+    # Permissions policy - control browser features
+    permissions_policy: "geolocation=(), microphone=(), camera=()"
+
+  # Request size limits
+  request_limits:
+    max_body_size_mb: 10  # Maximum request body size in MB
+
+  # Error handling security
+  error_handling:
+    # Never expose detailed errors in production
+    # Set to true only for development/debugging
+    expose_details: false

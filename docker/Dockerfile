@@ -51,8 +51,8 @@ COPY server/ /app/server/
 COPY bin/ /app/bin/
 COPY LICENSE* /app/
 
-# Copy config directory
-COPY config/ /app/config/
+# Copy default-config as config directory
+COPY install/default-config/ /app/config/
 
 # Make scripts executable
 RUN chmod +x /app/bin/orbit.py /app/bin/orbit.sh

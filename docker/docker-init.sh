@@ -170,14 +170,20 @@ else
     # Check for config directory structure
     if [ ! -d "config" ]; then
         if [ "$CREATE_DEFAULT_CONFIG" = true ]; then
-            if [ -d "../config" ]; then
+            # Prefer default-config from install directory
+            if [ -d "../install/default-config" ]; then
+                echo -e "${YELLOW}⚠️  config directory not found. Copying from ../install/default-config...${NC}"
+                cp -r ../install/default-config config
+                echo -e "${GREEN}✅ Created config directory from ../install/default-config${NC}"
+                echo -e "${BLUE}ℹ️  You may want to review and customize the configuration files${NC}"
+            elif [ -d "../config" ]; then
                 echo -e "${YELLOW}⚠️  config directory not found. Copying from ../config...${NC}"
                 cp -r ../config .
                 echo -e "${GREEN}✅ Created config directory from ../config${NC}"
                 echo -e "${BLUE}ℹ️  You may want to review and customize the configuration files${NC}"
             else
-                echo -e "${RED}❌ No config directory found${NC}"
-                echo -e "${YELLOW}ℹ️  Please ensure config directory exists in the parent directory${NC}"
+                echo -e "${RED}❌ No config directory or default-config found${NC}"
+                echo -e "${YELLOW}ℹ️  Please ensure install/default-config or config directory exists${NC}"
                 exit 1
             fi
         else

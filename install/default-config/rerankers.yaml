@@ -1,0 +1,88 @@
+# Global reranker configuration
+reranker:
+  provider: "ollama"  # Default reranker provider (options: ollama, cohere, jina, openai, anthropic, voyage)
+  enabled: true       # Whether reranking is enabled globally
+
+# Provider-specific configurations
+# Choose the provider that best fits your needs:
+# - ollama: Local, free, good quality (recommended for local deployments)
+# - cohere: API-based, excellent quality, multilingual (best overall quality)
+# - jina: API-based, fast, good quality (good balance)
+# - openai: API-based, GPT-powered, complex queries (higher cost)
+# - anthropic: API-based, Claude-powered, nuanced judgments (higher cost)
+# - voyage: API-based, cost-effective, good performance
+
+rerankers:
+  # Local Reranker - Free, requires Ollama running locally
+  ollama:
+    enabled: false
+    base_url: "http://localhost:11434"
+    model: "qllama/bge-reranker-v2-m3:latest"
+    temperature: 0.0
+    batch_size: 5
+    top_n: null  # Optional default top_n
+    # Retry configuration for handling cold starts
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    # Timeout configuration
+    timeout:
+      connect: 10000
+      total: 60000
+      warmup: 45000
+
+  # Cohere Rerank API - Excellent quality, multilingual
+  cohere:
+    enabled: true
+    api_key: ${COHERE_API_KEY}
+    api_base: "https://api.cohere.ai/v1"
+    model: "rerank-english-v3.0"  # or "rerank-multilingual-v3.0"
+    batch_size: 5
+    top_n: null
+    max_chunks_per_doc: 10  # Split long documents into chunks
+    return_documents: true
+
+  # Jina AI Reranker - Fast, good quality
+  jina:
+    enabled: false
+    api_key: ${JINA_API_KEY}
+    api_base: "https://api.jina.ai/v1"
+    model: "jina-reranker-v2-base-multilingual"
+    batch_size: 5
+    top_n: null
+    return_documents: true
+
+  # OpenAI Reranker - Uses GPT models via prompt engineering
+  openai:
+    enabled: true
+    api_key: ${OPENAI_API_KEY}
+    api_base: "https://api.openai.com/v1"
+    model: "gpt-4o-mini"  # Fast and cost-effective
+    temperature: 0.0
+    max_tokens: 10
+    batch_size: 3  # Smaller batch due to token limits
+    top_n: null
+
+  # Anthropic Reranker - Uses Claude models via prompt engineering
+  anthropic:
+    enabled: true
+    api_key: ${ANTHROPIC_API_KEY}
+    api_base: "https://api.anthropic.com/v1"
+    model: "claude-haiku-4-5"
+    temperature: 0.0
+    max_tokens: 100
+    batch_size: 3  # Smaller batch due to token limits
+    top_n: null
+
+  # Voyage AI Reranker - Good performance/cost ratio
+  voyage:
+    enabled: false
+    api_key: ${VOYAGE_API_KEY}
+    api_base: "https://api.voyageai.com/v1"
+    model: "rerank-lite-1"
+    batch_size: 5
+    top_n: null
+    truncation: true  # Auto-truncate long documents 

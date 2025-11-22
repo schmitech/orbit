@@ -1,0 +1,115 @@
+# QA (Question-Answering) Retriever Adapters
+# These adapters retrieve context from databases or vector stores for Q&A tasks
+
+adapters:
+  # This is an example of a QA adapter for a SQL database.
+  # It is used as an example of how to create a QA adapter for a SQL database.
+  # Run /examples/sample-db-setup.sh sqlite to create a sample database and api key before using this adapter.
+  - name: "qa-sql"
+    enabled: false
+    type: "retriever"
+    datasource: "sqlite"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QASSQLRetriever"
+
+    # Provider overrides (optional - use when you want different providers than global defaults)
+    inference_provider: "cohere"    # Override default inference provider
+    model: "command-r7b-12-2024"            # Specific model for this adapter
+    reranker_provider: "cohere"     # Override default reranker provider (improves accuracy)
+    reranker_model: "rerank-english-v3.0"     # Specific model for this adapter
+
+    # Capabilities: Standard QA retriever
+    capabilities:
+      retrieval_behavior: "always"       # Always retrieves context from database
+      formatting_style: "standard"       # Standard format with citations and confidence scores
+      supports_file_ids: false           # Does not support file filtering
+      supports_session_tracking: false   # Does not need session tracking
+      requires_api_key_validation: false # API key used for access control, not ownership validation
+      optional_parameters:
+        - "api_key"
+
+    config:
+      # QA-specific settings
+      confidence_threshold: 0.3
+      max_results: 5         # Retrieve up to 5 documents
+      return_results: 3      # Return top 3 after retrieval
+      reranker_top_n: 5      # Optional: limit reranked results (overrides return_results)
+      
+      # Unified retriever features (available for all SQL adapters)
+      use_connection_pool: false  # SQLite doesn't support traditional pooling (file-based)
+      pool_size: 1  # Not applicable for SQLite
+      connection_timeout: 30  # Connection timeout in seconds
+      
+      # Query monitoring (automatically provided by unified base)
+      enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds
+      
+      # Security and access control (recommended)
+      table: "city"  # Specify the exact table for single-table access
+      allowed_columns: ["id", "question", "answer", "category", "confidence"]  # Limit accessible columns
+      security_filter: "active = 1"  # Only return active Q&A pairs
+      
+      # Performance optimization
+      cache_ttl: 1800  # Cache results for 30 minutes
+      
+    # Fault tolerance settings for this adapter. This overrides the default settings in config.yaml
+    # Use this as example for other adapters if you need to override the default settings.
+    fault_tolerance:
+      operation_timeout: 15.0          # Lower timeout for local database operations
+      failure_threshold: 10            # Higher threshold for local operations (more reliable)
+      recovery_timeout: 30.0           # Short base timeout for local DB
+      success_threshold: 5             # Multiple successes to close circuit
+      max_recovery_timeout: 120.0      # Max 2 minutes for local DB
+      enable_exponential_backoff: true # Enable backoff for local DB
+      enable_thread_isolation: false   # No isolation needed for local SQLite operations
+      enable_process_isolation: false  # SQLite is lightweight, no process isolation needed
+      max_retries: 3                   # Retry failed queries
+      retry_delay: 0.5                 # Short delay between retries for local DB
+      cleanup_interval: 3600.0         # Clean up stats every hour
+      retention_period: 86400.0        # Keep stats for 24 hours
+      event_handler:
+        type: "default"                # Use default filesystem logger
+      
+  # This is an example of a QA adapter for a ChromaDB database. (Disabled by default)
+  # It is used as an example of how to create a QA adapter for a ChromaDB database.
+  - name: "qa-vector-chroma"
+    enabled: false
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QAChromaRetriever"
+
+    # Provider overrides - this example shows using different providers
+    inference_provider: "ollama_cloud"
+    embedding_provider: "ollama"
+    
+    config:
+      collection: "city"
+      confidence_threshold: 0.3
+      distance_scaling_factor: 2.0
+      max_results: 5         # Retrieve 5 documents from vector store
+      return_results: 3      # Return top 3 to LLM
+      # reranker_top_n: 3    # Optional: rerank and keep top 3 (improves quality)
+      timezone: "America/Toronto"
+
+  - name: "qa-vector-qdrant-demo"
+    enabled: false
+    type: "retriever"
+    datasource: "qdrant"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QAQdrantRetriever"
+
+    # Provider overrides
+    inference_provider: "ollama"      # Use Ollama for inference
+    embedding_provider: "openai"      # Use Ollama for embeddings
+    reranker_provider: "ollama"       # Use Ollama for reranking
+
+    config:
+      collection: "demo"
+      confidence_threshold: 0.3
+      score_scaling_factor: 1.0
+      max_results: 5         # Retrieve 5 documents from Qdrant
+      return_results: 3      # Return top 3 to LLM
+      reranker_top_n: 3    # Optional: rerank top 3 for best quality
+      timezone: "America/Toronto"
+

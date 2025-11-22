@@ -186,12 +186,23 @@ else
     echo "⚠️ Warning: examples/prompts/examples/default-conversational-adapter-prompt.txt not found"
 fi
 
-# Copy config files
-echo "Copying configuration files..."
-find config -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
-    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
-    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
-done
+# Copy default-config files as config directory
+echo "Copying default configuration files..."
+if [ -d "install/default-config" ]; then
+    find install/default-config -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
+        # Remove 'install/default-config' prefix and replace with 'config'
+        rel_path="${file#install/default-config/}"
+        mkdir -p "dist/build/${PACKAGE_NAME}/config/$(dirname "$rel_path")"
+        cp "$file" "dist/build/${PACKAGE_NAME}/config/$rel_path"
+    done
+    echo "✅ Default config files copied successfully"
+else
+    echo "⚠️ Warning: install/default-config directory not found, falling back to config directory"
+    find config -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
+        mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
+        cp "$file" "dist/build/${PACKAGE_NAME}/$file"
+    done
+fi
 
 # Copy utils files (excluding build-tarball.sh)
 echo "Copying utils files..."
