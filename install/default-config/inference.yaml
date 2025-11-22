@@ -99,8 +99,8 @@ inference:
     mode: "direct"
 
     # Direct mode configuration
-    model_path: "models/granite-4.0-micro-Q4_0.gguf"
-    chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
+    model_path: "models/gemma-3-270m-it-Q8_0.gguf"
+    chat_format: "gemma"  # Chat format for Gemma models (uses <start_of_turn>/<end_of_turn> tokens)
     verbose: false
 
     # API mode configuration
@@ -108,16 +108,16 @@ inference:
     model: "model"  # Model name to request from the server (for API mode)
     api_key: null  # Optional API key for secured servers
 
-    # Generation parameters
+    # Generation parameters (optimized for gemma-3-270m small model)
     temperature: 1.0
     top_p: 0.95
     top_k: 64
-    max_tokens: 1024
-    repeat_penalty: 1.2
+    max_tokens: 512
+    repeat_penalty: 1.0
 
-    # Context and threading
-    n_ctx: 4096
-    n_threads: 8
+    # Context and threading (optimized for small model)
+    n_ctx: 2048  # Reduced from 4096 - sufficient for small model, saves memory
+    n_threads: 4  # Reduced for small model - 4 threads is optimal for 270M parameter model
     stream: true
 
     # GPU settings (direct mode only)

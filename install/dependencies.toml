@@ -41,6 +41,8 @@ dependencies = [
     "schmitech-orbit-client==1.1.4",
     "tqdm>=4.66.2",
     "pymongo>=4.13.0",
+    "redis>=6.2.0",  # Redis support for caching and sessions
+    "elasticsearch==9.1.1",  # Elasticsearch support for intent adapters
 ]
 
 # ============================================================================
@@ -113,24 +115,6 @@ dependencies = [
     "pymssql>=2.3.8",
     "cassandra-driver>=3.29.2",
     "duckdb>=1.4.1",
-]
-
-# ============================================================================
-# REDIS - Redis support (for caching, sessions, etc.)
-# ============================================================================
-[profiles.redis]
-description = "Redis support for caching and sessions"
-dependencies = [
-    "redis>=6.2.0",
-]
-
-# ============================================================================
-# ELASTICSEARCH - Elasticsearch support
-# ============================================================================
-[profiles.elasticsearch]
-description = "Elasticsearch support for intent adapters"
-dependencies = [
-    "elasticsearch==9.1.1",
 ]
 
 # ============================================================================
@@ -263,8 +247,6 @@ extends = [
     "ollama",
     "vector-stores",
     "databases",
-    "redis",
-    "elasticsearch",
     "files",
     "embeddings",
     "audio",
@@ -321,12 +303,6 @@ dependencies = [
 # With databases (if using SQL/NoSQL adapters):
 #   ./setup.sh --profile databases
 #
-# With Redis (if using Redis for caching):
-#   ./setup.sh --profile redis
-#
-# With Elasticsearch (if using intent-elasticsearch adapters):
-#   ./setup.sh --profile elasticsearch
-#
 # Full installation (everything):
 #   ./setup.sh --profile all
 #
@@ -338,7 +314,7 @@ dependencies = [
 #   - simple-chat (direct GGUF): default + llama-cpp
 #   - simple-chat-with-files: default + llama-cpp + files + embeddings + vector-stores
 #   - qa-sql: default + databases
-#   - intent-elasticsearch: default + elasticsearch
+#   - intent-elasticsearch: default (elasticsearch included)
 #   - file-document-qa: default + llama-cpp + files + embeddings + vector-stores
 #
 # Alternative to llama-cpp profile:

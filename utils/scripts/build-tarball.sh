@@ -157,7 +157,7 @@ done
 
 # Copy install files (excluding build-tarball.sh)
 echo "Copying install files..."
-find install -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" -not -name "build-tarball.sh" | while read file; do
+find install -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" -not -name "build-tarball.sh" -not -path "*/install/default-config/*" | while read file; do
     mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
@@ -210,13 +210,13 @@ else
     echo "⚠️ Warning: Config directory not found in build"
 fi
 
-# Create env.example file
-echo "Creating env.example..."
+# Create .env file from env.example
+echo "Creating .env from env.example..."
 if [ -f "env.example" ]; then
-    cp env.example dist/build/${PACKAGE_NAME}/env.example
+    cp env.example dist/build/${PACKAGE_NAME}/.env
 else
-    echo "Warning: env.example not found, creating empty env.example..."
-    touch dist/build/${PACKAGE_NAME}/env.example
+    echo "Warning: env.example not found, creating empty .env..."
+    touch dist/build/${PACKAGE_NAME}/.env
 fi
 
 # Download and include gemma3-270m model for quick start
