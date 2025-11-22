@@ -228,8 +228,8 @@ class ServerService:
                         return False
                     
                     # Wait a bit more and check if server is responding
-                    # Server might need more time to fully start
-                    max_wait = 10  # Wait up to 10 seconds
+                    # Server might need more time to fully start, especially when loading adapters
+                    max_wait = 30  # Wait up to 30 seconds for server to fully initialize
                     waited = 2
                     server_responding = False
                     
@@ -239,6 +239,13 @@ class ServerService:
                             break
                         time.sleep(1)
                         waited += 1
+                    
+                    # If process is still running but not responding yet, give it one more check
+                    # Sometimes the server needs a few extra seconds to fully initialize
+                    if process.poll() is None and not server_responding:
+                        # Wait a bit more and do a final check
+                        time.sleep(3)
+                        server_responding = self.is_running()
                     
                     # Check if process is still running and server is responding
                     if process.poll() is None and server_responding:
@@ -254,7 +261,21 @@ class ServerService:
                             exit_code = process.poll()
                             self.formatter.error(f"Server process exited with code {exit_code}")
                         else:
-                            self.formatter.error("Server process is running but not responding to HTTP requests")
+                            # Process is running but not responding - might still be starting
+                            # Check one more time after a brief wait
+                            time.sleep(2)
+                            if self.is_running():
+                                info = self.get_server_info()
+                                pid = info.get('pid', process.pid) if info else process.pid
+                                self.formatter.success(f"Server started successfully with PID {pid}")
+                                self.formatter.info(f"Logs are being written to {self.log_file}")
+                                return True
+                            else:
+                                self.formatter.warning("Server process is running but not yet responding to HTTP requests")
+                                self.formatter.info("The server may still be initializing. Check logs at: " + str(self.log_file))
+                                self.formatter.info("You can check server status with: orbit status")
+                                # Don't return False - the server is running, just not ready yet
+                                return True
                         self.formatter.info(f"Check logs at: {self.log_file}")
                         return False
                         

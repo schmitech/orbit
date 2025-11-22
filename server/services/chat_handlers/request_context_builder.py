@@ -129,6 +129,14 @@ class RequestContextBuilder:
         inference_provider = self.get_inference_provider(adapter_name)
         timezone = self.get_timezone(adapter_name)
 
+        # Get tts_voice from adapter config if not provided in request
+        if tts_voice is None:
+            adapter_config = self.get_adapter_config(adapter_name)
+            custom_config = adapter_config.get('config') or {}
+            tts_voice = custom_config.get('tts_voice')
+            if tts_voice:
+                logger.debug(f"Using adapter config tts_voice: {tts_voice} for adapter: {adapter_name}")
+
         # Create and return processing context
         return ProcessingContext(
             message=message,
