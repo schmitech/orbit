@@ -38,6 +38,10 @@ class ApiService:
         return {"Authorization": f"Bearer {self.auth_service.token}"}
     
     # Authentication methods
+    @handle_api_errors(operation_name="Login", custom_errors={
+        401: "Invalid username or password",
+        400: "Invalid login request"
+    })
     def login(self, username: str, password: str) -> Dict[str, Any]:
         """Authenticate a user and return a bearer token."""
         data = {"username": username, "password": password}

@@ -469,6 +469,15 @@ Report issues at: https://github.com/schmitech/orbit/issues
             
             return 1
             
+        except AuthenticationError as e:
+            self.formatter.error(str(e))
+            logger.debug(f"AuthenticationError: {e}", exc_info=True)
+            return 1
+        except NetworkError as e:
+            self.formatter.error(f"Network error: {str(e)}")
+            self.formatter.info("Please check that the server is running and accessible")
+            logger.debug(f"NetworkError: {e}", exc_info=True)
+            return 1
         except OrbitError as e:
             self.formatter.error(str(e))
             logger.debug(f"OrbitError: {e}", exc_info=True)
