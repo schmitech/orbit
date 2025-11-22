@@ -4,16 +4,16 @@
 # This script creates keys for each adapter and renames them to easier-to-remember names
 #
 # Usage:
-#   ./bin/generate-sample-api-keys.sh                    # Create keys for all adapters
-#   ./bin/generate-sample-api-keys.sh --adapter <name>   # Create key for a single adapter
+#   ./utils/scripts/generate-sample-api-keys.sh                    # Create keys for all adapters
+#   ./utils/scripts/generate-sample-api-keys.sh --adapter <name>   # Create key for a single adapter
 #
 # Examples:
-#   ./bin/generate-sample-api-keys.sh --adapter simple-chat
-#   ./bin/generate-sample-api-keys.sh --adapter file-document-qa
+#   ./utils/scripts/generate-sample-api-keys.sh --adapter simple-chat
+#   ./utils/scripts/generate-sample-api-keys.sh --adapter file-document-qa
 #
 # Prerequisites:
 #   - ORBIT server must be running
-#   - You must be authenticated (run: ./bin/orbit.sh auth login)
+#   - You must be authenticated (run: ./bin/orbit.sh login)
 #   - Database should be empty or you're okay with creating duplicate keys
 #
 # What this script does:
@@ -89,8 +89,8 @@ done
 
 # Get the script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-ORBIT_SCRIPT="$SCRIPT_DIR/orbit.sh"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ORBIT_SCRIPT="$PROJECT_ROOT/bin/orbit.sh"
 
 # Check if orbit.sh exists
 if [ ! -f "$ORBIT_SCRIPT" ]; then
@@ -251,7 +251,7 @@ check_admin_auth() {
     if ! echo "$auth_output" | grep -qiE "(✓ authenticated|authenticated)"; then
         echo -e "${RED}✗ Not authenticated${NC}"
         echo -e "${YELLOW}Please login as admin first using:${NC}"
-        echo -e "${YELLOW}  $ORBIT_SCRIPT auth login${NC}"
+        echo -e "${YELLOW}  $ORBIT_SCRIPT login${NC}"
         return 1
     fi
     
@@ -259,7 +259,7 @@ check_admin_auth() {
     if ! echo "$auth_output" | grep -qiE "Role:\s*admin"; then
         echo -e "${RED}✗ User is not an admin${NC}"
         echo -e "${YELLOW}Please login as admin first using:${NC}"
-        echo -e "${YELLOW}  $ORBIT_SCRIPT auth login${NC}"
+        echo -e "${YELLOW}  $ORBIT_SCRIPT login${NC}"
         return 1
     fi
     

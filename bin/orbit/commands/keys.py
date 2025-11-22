@@ -43,25 +43,29 @@ class KeyCreateCommand(BaseCommand):
         parser.add_argument('--prompt-file', help='Path to file containing system prompt')
     
     def execute(self, args: argparse.Namespace) -> int:
-        result = self.api_service.create_api_key(
-            args.name,
-            args.notes,
-            args.prompt_id,
-            args.prompt_name,
-            args.prompt_file,
-            args.adapter
-        )
-        if getattr(args, 'output', None) == 'json':
-            self.formatter.format_json(result)
-        else:
-            self.formatter.success("API key created successfully")
-            console.print(f"[bold]API Key:[/bold] {result.get('api_key', 'N/A')}")
-            console.print(f"[bold]Client:[/bold] {result.get('client_name', 'N/A')}")
-            if result.get('adapter_name'):
-                console.print(f"[bold]Adapter:[/bold] {result['adapter_name']}")
-            if result.get('system_prompt_id'):
-                console.print(f"[bold]Prompt ID:[/bold] {result['system_prompt_id']}")
-        return 0
+        try:
+            result = self.api_service.create_api_key(
+                args.name,
+                args.notes,
+                args.prompt_id,
+                args.prompt_name,
+                args.prompt_file,
+                args.adapter
+            )
+            if getattr(args, 'output', None) == 'json':
+                self.formatter.format_json(result)
+            else:
+                self.formatter.success("API key created successfully")
+                console.print(f"[bold]API Key:[/bold] {result.get('api_key', 'N/A')}")
+                console.print(f"[bold]Client:[/bold] {result.get('client_name', 'N/A')}")
+                if result.get('adapter_name'):
+                    console.print(f"[bold]Adapter:[/bold] {result['adapter_name']}")
+                if result.get('system_prompt_id'):
+                    console.print(f"[bold]Prompt ID:[/bold] {result['system_prompt_id']}")
+            return 0
+        except Exception as e:
+            self.formatter.error(f"Failed to create API key: {str(e)}")
+            return 1
 
 
 class KeyListCommand(BaseCommand):

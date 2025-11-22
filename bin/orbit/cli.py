@@ -267,51 +267,51 @@ Report issues at: https://github.com/schmitech/orbit/issues
         
         # Create command
         create_parser = key_subparsers.add_parser('create', help='Create a new API key')
-        cmd = KeyCreateCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(create_parser)
-        create_parser.set_defaults(func=lambda args: cmd.execute(args))
+        create_cmd = KeyCreateCommand(self._get_api_service(), self.formatter)
+        create_cmd.add_arguments(create_parser)
+        create_parser.set_defaults(func=lambda args, cmd=create_cmd: cmd.execute(args))
         
         # List command
         list_parser = key_subparsers.add_parser('list', help='List all API keys')
-        cmd = KeyListCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(list_parser)
-        list_parser.set_defaults(func=lambda args: cmd.execute(args))
+        list_cmd = KeyListCommand(self._get_api_service(), self.formatter)
+        list_cmd.add_arguments(list_parser)
+        list_parser.set_defaults(func=lambda args, cmd=list_cmd: cmd.execute(args))
         
         # Test command
         test_parser = key_subparsers.add_parser('test', help='Test an API key')
-        cmd = KeyTestCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(test_parser)
-        test_parser.set_defaults(func=lambda args: cmd.execute(args))
+        test_cmd = KeyTestCommand(self._get_api_service(), self.formatter)
+        test_cmd.add_arguments(test_parser)
+        test_parser.set_defaults(func=lambda args, cmd=test_cmd: cmd.execute(args))
         
         # Status command
         status_parser = key_subparsers.add_parser('status', help='Get API key status')
-        cmd = KeyStatusCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(status_parser)
-        status_parser.set_defaults(func=lambda args: cmd.execute(args))
+        status_cmd = KeyStatusCommand(self._get_api_service(), self.formatter)
+        status_cmd.add_arguments(status_parser)
+        status_parser.set_defaults(func=lambda args, cmd=status_cmd: cmd.execute(args))
         
         # Rename command
         rename_parser = key_subparsers.add_parser('rename', help='Rename an API key')
-        cmd = KeyRenameCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(rename_parser)
-        rename_parser.set_defaults(func=lambda args: cmd.execute(args))
+        rename_cmd = KeyRenameCommand(self._get_api_service(), self.formatter)
+        rename_cmd.add_arguments(rename_parser)
+        rename_parser.set_defaults(func=lambda args, cmd=rename_cmd: cmd.execute(args))
         
         # Deactivate command
         deactivate_parser = key_subparsers.add_parser('deactivate', help='Deactivate an API key')
-        cmd = KeyDeactivateCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(deactivate_parser)
-        deactivate_parser.set_defaults(func=lambda args: cmd.execute(args))
+        deactivate_cmd = KeyDeactivateCommand(self._get_api_service(), self.formatter)
+        deactivate_cmd.add_arguments(deactivate_parser)
+        deactivate_parser.set_defaults(func=lambda args, cmd=deactivate_cmd: cmd.execute(args))
         
         # Delete command
         delete_parser = key_subparsers.add_parser('delete', help='Delete an API key')
-        cmd = KeyDeleteCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(delete_parser)
-        delete_parser.set_defaults(func=lambda args: cmd.execute(args))
+        delete_cmd = KeyDeleteCommand(self._get_api_service(), self.formatter)
+        delete_cmd.add_arguments(delete_parser)
+        delete_parser.set_defaults(func=lambda args, cmd=delete_cmd: cmd.execute(args))
         
         # List adapters command
         list_adapters_parser = key_subparsers.add_parser('list-adapters', help='List available adapters')
-        cmd = KeyListAdaptersCommand(self.config_service, self.formatter)
-        cmd.add_arguments(list_adapters_parser)
-        list_adapters_parser.set_defaults(func=lambda args: cmd.execute(args))
+        list_adapters_cmd = KeyListAdaptersCommand(self.config_service, self.formatter)
+        list_adapters_cmd.add_arguments(list_adapters_parser)
+        list_adapters_parser.set_defaults(func=lambda args, cmd=list_adapters_cmd: cmd.execute(args))
     
     def _add_prompt_commands(self, subparsers):
         """Add system prompt management commands."""
@@ -320,39 +320,39 @@ Report issues at: https://github.com/schmitech/orbit/issues
         
         # Create command
         create_parser = prompt_subparsers.add_parser('create', help='Create a new system prompt')
-        cmd = PromptCreateCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(create_parser)
-        create_parser.set_defaults(func=lambda args: cmd.execute(args))
+        create_cmd = PromptCreateCommand(self._get_api_service(), self.formatter)
+        create_cmd.add_arguments(create_parser)
+        create_parser.set_defaults(func=lambda args, cmd=create_cmd: cmd.execute(args))
         
         # List command
         list_parser = prompt_subparsers.add_parser('list', help='List all system prompts')
-        cmd = PromptListCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(list_parser)
-        list_parser.set_defaults(func=lambda args: cmd.execute(args))
+        list_cmd = PromptListCommand(self._get_api_service(), self.formatter)
+        list_cmd.add_arguments(list_parser)
+        list_parser.set_defaults(func=lambda args, cmd=list_cmd: cmd.execute(args))
         
         # Get command
         get_parser = prompt_subparsers.add_parser('get', help='Get a system prompt')
-        cmd = PromptGetCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(get_parser)
-        get_parser.set_defaults(func=lambda args: cmd.execute(args))
+        get_cmd = PromptGetCommand(self._get_api_service(), self.formatter)
+        get_cmd.add_arguments(get_parser)
+        get_parser.set_defaults(func=lambda args, cmd=get_cmd: cmd.execute(args))
         
         # Update command
         update_parser = prompt_subparsers.add_parser('update', help='Update a system prompt')
-        cmd = PromptUpdateCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(update_parser)
-        update_parser.set_defaults(func=lambda args: cmd.execute(args))
+        update_cmd = PromptUpdateCommand(self._get_api_service(), self.formatter)
+        update_cmd.add_arguments(update_parser)
+        update_parser.set_defaults(func=lambda args, cmd=update_cmd: cmd.execute(args))
         
         # Delete command
         delete_parser = prompt_subparsers.add_parser('delete', help='Delete a system prompt')
-        cmd = PromptDeleteCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(delete_parser)
-        delete_parser.set_defaults(func=lambda args: cmd.execute(args))
+        delete_cmd = PromptDeleteCommand(self._get_api_service(), self.formatter)
+        delete_cmd.add_arguments(delete_parser)
+        delete_parser.set_defaults(func=lambda args, cmd=delete_cmd: cmd.execute(args))
         
         # Associate command
         associate_parser = prompt_subparsers.add_parser('associate', help='Associate prompt with API key')
-        cmd = PromptAssociateCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(associate_parser)
-        associate_parser.set_defaults(func=lambda args: cmd.execute(args))
+        associate_cmd = PromptAssociateCommand(self._get_api_service(), self.formatter)
+        associate_cmd.add_arguments(associate_parser)
+        associate_parser.set_defaults(func=lambda args, cmd=associate_cmd: cmd.execute(args))
     
     def _add_user_commands(self, subparsers):
         """Add user management commands."""
@@ -361,39 +361,39 @@ Report issues at: https://github.com/schmitech/orbit/issues
         
         # List command
         list_parser = user_subparsers.add_parser('list', help='List all users')
-        cmd = UserListCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(list_parser)
-        list_parser.set_defaults(func=lambda args: cmd.execute(args))
+        list_cmd = UserListCommand(self._get_api_service(), self.formatter)
+        list_cmd.add_arguments(list_parser)
+        list_parser.set_defaults(func=lambda args, cmd=list_cmd: cmd.execute(args))
         
         # Reset password command
         reset_parser = user_subparsers.add_parser('reset-password', help='Reset user password')
-        cmd = UserResetPasswordCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(reset_parser)
-        reset_parser.set_defaults(func=lambda args: cmd.execute(args))
+        reset_cmd = UserResetPasswordCommand(self._get_api_service(), self.formatter)
+        reset_cmd.add_arguments(reset_parser)
+        reset_parser.set_defaults(func=lambda args, cmd=reset_cmd: cmd.execute(args))
         
         # Delete command
         delete_parser = user_subparsers.add_parser('delete', help='Delete a user')
-        cmd = UserDeleteCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(delete_parser)
-        delete_parser.set_defaults(func=lambda args: cmd.execute(args))
+        delete_cmd = UserDeleteCommand(self._get_api_service(), self.formatter)
+        delete_cmd.add_arguments(delete_parser)
+        delete_parser.set_defaults(func=lambda args, cmd=delete_cmd: cmd.execute(args))
         
         # Deactivate command
         deactivate_parser = user_subparsers.add_parser('deactivate', help='Deactivate a user')
-        cmd = UserDeactivateCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(deactivate_parser)
-        deactivate_parser.set_defaults(func=lambda args: cmd.execute(args))
+        deactivate_cmd = UserDeactivateCommand(self._get_api_service(), self.formatter)
+        deactivate_cmd.add_arguments(deactivate_parser)
+        deactivate_parser.set_defaults(func=lambda args, cmd=deactivate_cmd: cmd.execute(args))
         
         # Activate command
         activate_parser = user_subparsers.add_parser('activate', help='Activate a user')
-        cmd = UserActivateCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(activate_parser)
-        activate_parser.set_defaults(func=lambda args: cmd.execute(args))
+        activate_cmd = UserActivateCommand(self._get_api_service(), self.formatter)
+        activate_cmd.add_arguments(activate_parser)
+        activate_parser.set_defaults(func=lambda args, cmd=activate_cmd: cmd.execute(args))
         
         # Change password command
         change_password_parser = user_subparsers.add_parser('change-password', help='Change your password')
-        cmd = UserChangePasswordCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(change_password_parser)
-        change_password_parser.set_defaults(func=lambda args: cmd.execute(args))
+        change_password_cmd = UserChangePasswordCommand(self._get_api_service(), self.formatter)
+        change_password_cmd.add_arguments(change_password_parser)
+        change_password_parser.set_defaults(func=lambda args, cmd=change_password_cmd: cmd.execute(args))
     
     def _add_config_commands(self, subparsers):
         """Add configuration commands."""
@@ -402,27 +402,27 @@ Report issues at: https://github.com/schmitech/orbit/issues
         
         # Show command
         show_parser = config_subparsers.add_parser('show', help='Show CLI configuration')
-        cmd = ConfigShowCommand(self.config_service, self.formatter)
-        cmd.add_arguments(show_parser)
-        show_parser.set_defaults(func=lambda args: cmd.execute(args))
+        show_cmd = ConfigShowCommand(self.config_service, self.formatter)
+        show_cmd.add_arguments(show_parser)
+        show_parser.set_defaults(func=lambda args, cmd=show_cmd: cmd.execute(args))
         
         # Effective command
         effective_parser = config_subparsers.add_parser('effective', help='Show effective CLI configuration')
-        cmd = ConfigEffectiveCommand(self.config_service, self.formatter)
-        cmd.add_arguments(effective_parser)
-        effective_parser.set_defaults(func=lambda args: cmd.execute(args))
+        effective_cmd = ConfigEffectiveCommand(self.config_service, self.formatter)
+        effective_cmd.add_arguments(effective_parser)
+        effective_parser.set_defaults(func=lambda args, cmd=effective_cmd: cmd.execute(args))
         
         # Set command
         set_parser = config_subparsers.add_parser('set', help='Set CLI configuration value')
-        cmd = ConfigSetCommand(self.config_service, self.formatter)
-        cmd.add_arguments(set_parser)
-        set_parser.set_defaults(func=lambda args: cmd.execute(args))
+        set_cmd = ConfigSetCommand(self.config_service, self.formatter)
+        set_cmd.add_arguments(set_parser)
+        set_parser.set_defaults(func=lambda args, cmd=set_cmd: cmd.execute(args))
         
         # Reset command
         reset_parser = config_subparsers.add_parser('reset', help='Reset CLI configuration to defaults')
-        cmd = ConfigResetCommand(self.config_service, self.formatter)
-        cmd.add_arguments(reset_parser)
-        reset_parser.set_defaults(func=lambda args: cmd.execute(args))
+        reset_cmd = ConfigResetCommand(self.config_service, self.formatter)
+        reset_cmd.add_arguments(reset_parser)
+        reset_parser.set_defaults(func=lambda args, cmd=reset_cmd: cmd.execute(args))
     
     def _add_admin_commands(self, subparsers):
         """Add admin management commands."""
@@ -431,9 +431,9 @@ Report issues at: https://github.com/schmitech/orbit/issues
         
         # Reload adapters command
         reload_parser = admin_subparsers.add_parser('reload-adapters', help='Reload adapter configurations without server restart')
-        cmd = AdminReloadAdaptersCommand(self._get_api_service(), self.formatter)
-        cmd.add_arguments(reload_parser)
-        reload_parser.set_defaults(func=lambda args: cmd.execute(args))
+        reload_cmd = AdminReloadAdaptersCommand(self._get_api_service(), self.formatter)
+        reload_cmd.add_arguments(reload_parser)
+        reload_parser.set_defaults(func=lambda args, cmd=reload_cmd: cmd.execute(args))
     
     def execute(self, args):
         """Execute the parsed command."""
