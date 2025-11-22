@@ -13,29 +13,30 @@
 #   - Internet connection (for downloading dependencies and models)
 #
 # Usage:
+#   Quick start (recommended for newcomers):
+#     ./setup.sh --profile default --download-gguf gemma3-270m
+#
 #   List available profiles:
 #     ./setup.sh --list-profiles
 #
-#   Install default dependencies only:
+#   Install default dependencies only (minimal server, use API mode or Ollama):
 #     ./setup.sh
 #
 #   Install with specific profile(s):
-#     ./setup.sh --profile torch
-#     ./setup.sh --profile cloud
-#     ./setup.sh --profile all
+#     ./setup.sh --profile llama-cpp              # Direct GGUF model loading
+#     ./setup.sh --profile default                # Recommended default (llama-cpp + providers + ollama)
+#     ./setup.sh --profile providers              # Cloud providers (OpenAI, Anthropic, etc.)
+#     ./setup.sh --profile all                    # Everything
 #
 #   Install multiple profiles:
-#     ./setup.sh --profile torch --profile cloud
+#     ./setup.sh --profile llama-cpp --profile providers
+#     ./setup.sh --profile llama-cpp --profile files --profile embeddings
 #
-#   With GGUF model:
-#     ./setup.sh --download-gguf gemma3-1b.gguf  # Default dependencies + GGUF download
-#     ./setup.sh --profile torch --download-gguf gemma3-1b.gguf
-#     ./setup.sh --download-gguf gemma3-1b.gguf  # Download only, no dependency installation
-#     ./setup.sh --download-gguf tinyllama-1b.gguf --gguf-models-config ./gguf-models.json
-#     ./setup.sh --download-gguf gemma3-1b.gguf --download-gguf mistral-7b.gguf
-#
-#   Custom profile from TOML:
-#     ./setup.sh --profile custom_example
+#   With GGUF model download:
+#     ./setup.sh --profile llama-cpp --download-gguf gemma3-270m
+#     ./setup.sh --profile default --download-gguf gemma3-270m
+#     ./setup.sh --download-gguf gemma3-270m      # Download only, no dependency installation
+#     ./setup.sh --download-gguf gemma3-270m --gguf-models-config ./gguf-models.json
 #
 # GGUF Model Download Options:
 #   --download-gguf [model]    Download GGUF model(s) by name (can be used multiple times)
@@ -51,7 +52,7 @@
 #     }
 #   }
 #
-# If --download-gguf is used without a value, it defaults to gemma3-1b.gguf if present in the config.
+# If --download-gguf is used without a value, it defaults to gemma3-270m if present in the config.
 # =============================================================================
 
 # Exit on error
@@ -362,8 +363,8 @@ download_gguf_model() {
     fi
 
     if [ ${#GGUF_MODELS_TO_DOWNLOAD[@]} -eq 0 ]; then
-        # Default to gemma3-1b.gguf if present in config
-        GGUF_MODELS_TO_DOWNLOAD+=("gemma3-1b.gguf")
+        # Default to gemma3-270m if present in config
+        GGUF_MODELS_TO_DOWNLOAD+=("gemma3-270m")
     fi
 
     print_message "yellow" "Downloading GGUF model(s) using download_hf_gguf_model.py..."
@@ -461,19 +462,23 @@ while [[ $# -gt 0 ]]; do
             echo "  --profile, -p <name>    Install dependencies for specified profile"
             echo "                          Can be used multiple times"
             echo "  --list-profiles, --list List available dependency profiles"
-            echo "  --download-gguf         Download GGUF model(s) as specified by --gguf-model"
+            echo "  --download-gguf [model] Download GGUF model(s) by name (optional model name)"
             echo "  --gguf-models-config <f>Path to GGUF models .json config (default: ./gguf-models.json)"
             echo "  --python-cmd <cmd>      Python executable to use (skips interactive selection)"
             echo "  --help, -h              Show this help message"
             echo ""
+            echo "Quick Start (Recommended for Newcomers):"
+            echo "  $0 --profile default --download-gguf gemma3-270m"
+            echo ""
             echo "Examples:"
-            echo "  $0                                    # Install default dependencies only"
-            echo "  $0 --list-profiles"
-            echo "  $0 --profile torch"
-            echo "  $0 --profile torch --profile cloud"
-            echo "  $0 --profile all --download-gguf gemma3-1b.gguf"
-            echo "  $0 --download-gguf gemma3-1b.gguf     # Download only, no dependency installation"
-            echo "  $0 --download-gguf tinyllama-1b.gguf --gguf-models-config ./gguf-models.json"
+            echo "  $0                                    # Minimal server (use API mode or Ollama)"
+            echo "  $0 --profile llama-cpp                # Direct GGUF model loading"
+            echo "  $0 --profile default                  # Recommended default setup"
+            echo "  $0 --list-profiles                    # List all available profiles"
+            echo "  $0 --profile llama-cpp --download-gguf gemma3-270m"
+            echo "  $0 --profile default --download-gguf gemma3-270m"
+            echo "  $0 --download-gguf gemma3-270m        # Download only, no dependency installation"
+            echo "  $0 --profile llama-cpp --profile providers --profile files"
             exit 0
             ;;
         *)

@@ -67,16 +67,18 @@ def main():
         with open(args.toml_file, 'rb') as f:
             config = tomllib.load(f)
         
-        # If no profile specified, use default dependencies only
+        # Always start with default dependencies
+        if 'default' not in config:
+            print('Error: No default section found', file=sys.stderr)
+            sys.exit(1)
+        dependencies = config['default'].get('dependencies', [])
+        
+        # If profile specified, add profile dependencies
         profile = args.profile.strip() if args.profile else ''
-        if not profile:
-            if 'default' not in config:
-                print('Error: No profile specified and no default section found', file=sys.stderr)
-                sys.exit(1)
-            dependencies = config['default'].get('dependencies', [])
-        else:
+        if profile:
             # Resolve dependencies for the specified profile
-            dependencies = resolve_profile(config, args.profile)
+            profile_deps = resolve_profile(config, args.profile)
+            dependencies = dependencies + profile_deps
         
         # Remove duplicates while preserving order
         seen = set()

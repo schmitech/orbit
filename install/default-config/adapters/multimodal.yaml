@@ -4,7 +4,7 @@
 
 adapters:
   - name: "simple-chat-with-files"
-    enabled: true
+    enabled: false
     type: "passthrough"  # Passthrough adapter with file retrieval capabilities
     datasource: "none"  # No actual datasource needed (files managed separately)
     adapter: "multimodal"

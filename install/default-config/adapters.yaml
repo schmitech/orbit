@@ -56,7 +56,3 @@ adapters: []
 import:
   - "adapters/passthrough.yaml"
   - "adapters/multimodal.yaml"
-  - "adapters/audio.yaml"
-  - "adapters/qa.yaml"
-  - "adapters/intent.yaml"
-  - "adapters/file.yaml"

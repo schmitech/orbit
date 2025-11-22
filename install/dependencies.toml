@@ -1,13 +1,64 @@
 # Orbit Server Dependencies Configuration
 # This file defines dependency profiles for different use cases
-# Default dependencies are always installed, profiles add additional dependencies
+# Start with minimal/basic and add profiles based on enabled adapters
+#
+# Usage:
+#   Minimal server (default, use API mode or Ollama): ./setup.sh
+#   Direct GGUF loading: ./setup.sh --profile llama-cpp
+#   With cloud providers: ./setup.sh --profile providers
+#   With file support: ./setup.sh --profile providers --profile files --profile embeddings
+#   Recommended default: ./setup.sh --profile default
+#   Full installation: ./setup.sh --profile all
 
+# ============================================================================
+# MINIMAL - Minimal server (supports API mode and Ollama, no direct GGUF loading)
+# ============================================================================
 [default]
-description = "Core dependencies (always installed)"
+description = "Minimal server dependencies (always installed - use API mode or Ollama for chat)"
 dependencies = [
-    "numpy<2.0.0",  # Pin to NumPy 1.x for compatibility with PyTorch and transformers
     "setuptools>=77.0.3,<80",
-    "ollama==0.6.0",
+    "pydantic>=2.12.3",
+    "jinja2>=3.1.6",
+    "PyYAML>=6.0.2",
+    "fastapi>=0.119.0",
+    "uvicorn==0.38.0",
+    "python-dotenv==1.0.1",
+    "requests==2.32.5",
+    "python-multipart>=0.0.14",
+    "python-json-logger>=2.0.7",
+    "aiohttp>=3.13.1",
+    "aiodns>=3.4.0",
+    "regex==2024.11.6",
+    "sseclient-py==1.8.0",
+    "psutil==7.0.0",
+    "websockets>=15.0.1",
+    "fastapi-mcp==0.4.0",
+    "toml>=0.10.2",
+    "rich>=14.1.0",
+    "environs>=14.3.0",
+    "prometheus-client>=0.22.1",
+    "opentelemetry-proto==1.28.0",
+    "schmitech-orbit-client==1.1.4",
+    "tqdm>=4.66.2",
+    "pymongo>=4.13.0",
+]
+
+# ============================================================================
+# LLAMA-CPP - Direct GGUF model loading with Python bindings
+# ============================================================================
+[profiles.llama-cpp]
+description = "Direct GGUF model loading (llama-cpp-python for simple-chat adapter)"
+dependencies = [
+    "llama-cpp-python==0.3.16",
+    "numpy<2.0.0",  # Required by llama-cpp-python
+]
+
+# ============================================================================
+# PROVIDERS - Cloud inference providers (OpenAI, Anthropic, etc.)
+# ============================================================================
+[profiles.providers]
+description = "Cloud inference providers (OpenAI, Anthropic, Cohere, etc.)"
+dependencies = [
     "openai==2.6.1",
     "anthropic==0.71.0",
     "cohere==5.20.0",
@@ -18,61 +69,76 @@ dependencies = [
     "mistralai==1.9.11",
     "google-generativeai==0.8.5",
     "together==1.5.29",
-    "motor>=3.7.1",
-    "pymongo>=4.13.0",
-    "redis>=6.2.0",
+    "google-genai>=1.51.0",
+]
+
+# ============================================================================
+# OLLAMA - Local Ollama support
+# ============================================================================
+[profiles.ollama]
+description = "Ollama local inference support"
+dependencies = [
+    "ollama==0.6.0",
+    "langchain-ollama>=1.0.0",
+    "langchain-community>=0.4",
+]
+
+# ============================================================================
+# VECTOR-STORES - Vector database clients
+# ============================================================================
+[profiles.vector-stores]
+description = "Vector store backends (ChromaDB, Pinecone, Qdrant, etc.)"
+dependencies = [
     "chromadb>=1.2.0",
     "pinecone>=7.3.0",
     "qdrant-client>=1.14.2",
-    "langchain-ollama>=1.0.0",
-    "langchain-community>=0.4",
-    "pydantic>=2.12.3",
-    "jinja2>=3.1.6",
-    "PyYAML>=6.0.2",
-    "fastapi>=0.119.0",
-    "uvicorn==0.38.0",
-    "python-dotenv==1.0.1",
-    "requests==2.32.5",
-    "python-multipart>=0.0.14",
-    "pytest>=8.3.5",
-    "python-json-logger>=2.0.7",
-    "tqdm>=4.66.2",
-    "aiohttp>=3.13.1",
-    "aiodns>=3.4.0",
-    "regex==2024.11.6",
-    "sseclient-py==1.8.0",
-    "psutil==7.0.0",
-    "pycountry>=24.6.1",
-    "llama-cpp-python==0.3.16",
-    "elasticsearch==9.1.1",
-    "keyring>=25.6.0",
-    "langdetect>=1.0.9",
-    "langid>=1.1.6",
-    "pycld2>=0.42",
+    "faiss-cpu==1.12.0",
+    "weaviate-client==4.17.0",
+    "pymilvus>=2.6.2",
+    "marqo==3.18.0",
+    "pgvector==0.4.1",
+]
+
+# ============================================================================
+# DATABASES - SQL and NoSQL database connectors
+# ============================================================================
+[profiles.databases]
+description = "Database connectors (PostgreSQL, MongoDB, MySQL, etc.)"
+dependencies = [
+    "motor>=3.7.1",
+    "pymongo>=4.13.0",
     "psycopg2-binary>=2.9.10",
     "oracledb>=3.4.0",
     "mysql-connector-python>=9.4.0",
     "pymssql>=2.3.8",
     "cassandra-driver>=3.29.2",
-    "schmitech-orbit-client==1.1.4",
-    "markdown>=3.9",
-    "nh3>=0.3.0",
-    "ftfy>=6.3.1",
-    "unidecode>=1.3.8",
-    "prometheus-client>=0.22.1",
-    "websockets>=15.0.1",
-    "fastapi-mcp==0.4.0",
-    "toml>=0.10.2",
-    "rich>=14.1.0",
-    "faiss-cpu==1.12.0",
-    "weaviate-client==4.17.0",
-    "pymilvus>=2.6.2",
-    "environs>=14.3.0",
-    "marqo==3.18.0",
-    "pgvector==0.4.1",
-    "opentelemetry-proto==1.28.0",
-    "firecrawl==4.5.0",
     "duckdb>=1.4.1",
+]
+
+# ============================================================================
+# REDIS - Redis support (for caching, sessions, etc.)
+# ============================================================================
+[profiles.redis]
+description = "Redis support for caching and sessions"
+dependencies = [
+    "redis>=6.2.0",
+]
+
+# ============================================================================
+# ELASTICSEARCH - Elasticsearch support
+# ============================================================================
+[profiles.elasticsearch]
+description = "Elasticsearch support for intent adapters"
+dependencies = [
+    "elasticsearch==9.1.1",
+]
+
+# ============================================================================
+# FILES - File processing (PDF, DOCX, images, etc.)
+# ============================================================================
+[profiles.files]
+description = "File processing for document Q&A (PDF, DOCX, CSV, images)"
+dependencies = [
     "pypdf>=6.0.0",
     "python-docx>=1.2.0",
     "pandas>=2.3.3",
@@ -80,16 +146,69 @@ dependencies = [
     "python-magic>=0.4.27",
     "filetype>=1.2.0",
     "docling>=2.58.0",
-    "sentence-transformers>=5.1.2",
     "pyarrow>=22.0.0",
-    "openai-whisper>=20250625",
-    "google-genai>=1.51.0",
-    "snac>=1.2.1"  # SNAC codec for Orpheus TTS audio token decoding
+    "markdown>=3.9",
+    "nh3>=0.3.0",
+    "ftfy>=6.3.1",
+    "unidecode>=1.3.8",
 ]
 
-[profiles.torch]
-description = "Torch-related dependencies. Best suited for GPU with CUDA support."
+# ============================================================================
+# EMBEDDINGS - Embedding models (sentence-transformers, etc.)
+# ============================================================================
+[profiles.embeddings]
+description = "Embedding models for vector search"
 dependencies = [
+    "sentence-transformers>=5.1.2",
+]
+
+# ============================================================================
+# AUDIO - Audio processing (Whisper, TTS, etc.)
+# ============================================================================
+[profiles.audio]
+description = "Audio processing (Whisper transcription, TTS)"
+dependencies = [
+    "openai-whisper>=20250625",
+    "snac>=1.2.1",  # SNAC codec for Orpheus TTS audio token decoding
+]
+
+# ============================================================================
+# LANGUAGE-DETECTION - Language detection backends
+# ============================================================================
+[profiles.language-detection]
+description = "Language detection backends (langdetect, langid, pycld2)"
+dependencies = [
+    "langdetect>=1.0.9",
+    "langid>=1.1.6",
+    "pycld2>=0.42",
+    "pycountry>=24.6.1",
+]
+
+# ============================================================================
+# KEYRING - Keyring support for secure credential storage
+# ============================================================================
+[profiles.keyring]
+description = "Keyring support for secure API key storage"
+dependencies = [
+    "keyring>=25.6.0",
+]
+
+# ============================================================================
+# FIRECRAWL - Firecrawl web scraping support
+# ============================================================================
+[profiles.firecrawl]
+description = "Firecrawl web scraping for intent adapters"
+dependencies = [
+    "firecrawl==4.5.0",
+]
+
+# ============================================================================
+# TORCH - PyTorch and local model inference (GPU recommended)
+# ============================================================================
+[profiles.torch]
+description = "PyTorch and local model inference (GPU recommended)"
+dependencies = [
+    "numpy<2.0.0",  # Pin to NumPy 1.x for compatibility with PyTorch
     "torch==2.7.0",
     "vllm>=0.9.1",
     "transformers>=4.52.4",
@@ -98,21 +217,25 @@ dependencies = [
     "protobuf>=5.27.2,<6.0.0"
 ]
 
+# ============================================================================
+# BITNET - BitNet 1.58-bit LLM inference framework
+# ============================================================================
 [profiles.bitnet]
-description = "BitNet 1.58-bit LLM inference framework. Requires building from source."
+description = "BitNet 1.58-bit LLM inference framework (requires building from source)"
 dependencies = [
-    # BitNet requires building from source - see docs/bitnet-setup.md for installation
-    # The following are build dependencies for BitNet
+    # BitNet requires building from source - see docs/bitnet-setup.md
     "cmake>=3.15.0",
     "ninja>=1.10.0",
     "pybind11>=2.10.0",
-    # BitNet Python bindings (built from source)
     # Note: bitnet-cpp package is not available on PyPI yet
     # Users must build from: https://github.com/microsoft/BitNet
 ]
 
-[profiles.cloud]
-description = "Dependencies for commercial/cloud inference providers"
+# ============================================================================
+# CLOUD-SERVICES - Cloud platform services (AWS, Azure, GCP, IBM)
+# ============================================================================
+[profiles.cloud-services]
+description = "Cloud platform services (AWS, Azure, GCP, IBM Watson)"
 dependencies = [
     "boto3==1.40.55",
     "azure-ai-inference==1.0.0b9",
@@ -120,11 +243,41 @@ dependencies = [
     "ibm-watsonx-ai==1.4.1"
 ]
 
-[profiles.all]
-description = "All available dependencies"
-extends = ["torch", "cloud", "bitnet"]
+# ============================================================================
+# DEFAULT - Recommended default for basic installation
+# Includes minimal + llama-cpp + common providers
+# ============================================================================
+[profiles.default]
+description = "Recommended default (minimal + llama-cpp + providers + ollama)"
+extends = ["llama-cpp", "providers", "ollama"]
 dependencies = []
 
+# ============================================================================
+# ALL - Everything (full installation)
+# ============================================================================
+[profiles.all]
+description = "All available dependencies (full installation)"
+extends = [
+    "llama-cpp",
+    "providers",
+    "ollama",
+    "vector-stores",
+    "databases",
+    "redis",
+    "elasticsearch",
+    "files",
+    "embeddings",
+    "audio",
+    "language-detection",
+    "keyring",
+    "firecrawl",
+    "bitnet"
+]
+dependencies = []
+
+# ============================================================================
+# DEVELOPMENT - Development and testing tools
+# ============================================================================
 [profiles.development]
 description = "Development and testing dependencies"
 dependencies = [
@@ -142,11 +295,54 @@ dependencies = [
     "build>=1.3.0"
 ]
 
-# Custom profile example - users can add their own
-[profiles.custom_example]
-description = "Example custom profile with specific providers"
-dependencies = [
-    "openai==1.76",
-    "anthropic==0.50.0",
-    # Add only the providers you need
-]
+# ============================================================================
+# PROFILE USAGE EXAMPLES
+# ============================================================================
+# 
+# Minimal server (default, use API mode or Ollama for chat):
+#   ./setup.sh
+#   Note: For direct GGUF loading, add --profile llama-cpp
+#
+# Direct GGUF loading (for simple-chat adapter with local models):
+#   ./setup.sh --profile llama-cpp
+#
+# Recommended default (minimal + llama-cpp + providers + ollama):
+#   ./setup.sh --profile default
+#
+# Minimal + cloud providers:
+#   ./setup.sh --profile providers
+#
+# Minimal + file support (for simple-chat-with-files adapter):
+#   ./setup.sh --profile llama-cpp --profile providers --profile files --profile embeddings --profile vector-stores
+#
+# With vector stores (if using ChromaDB, Pinecone, etc.):
+#   ./setup.sh --profile vector-stores
+#
+# With databases (if using SQL/NoSQL adapters):
+#   ./setup.sh --profile databases
+#
+# With Redis (if using Redis for caching):
+#   ./setup.sh --profile redis
+#
+# With Elasticsearch (if using intent-elasticsearch adapters):
+#   ./setup.sh --profile elasticsearch
+#
+# Full installation (everything):
+#   ./setup.sh --profile all
+#
+# Custom combination example:
+#   ./setup.sh --profile llama-cpp --profile providers --profile files --profile vector-stores
+#
+# Profile selection based on enabled adapters in default-config:
+#   - simple-chat (API mode): default (no additional profiles needed)
+#   - simple-chat (direct GGUF): default + llama-cpp
+#   - simple-chat-with-files: default + llama-cpp + files + embeddings + vector-stores
+#   - qa-sql: default + databases
+#   - intent-elasticsearch: default + elasticsearch
+#   - file-document-qa: default + llama-cpp + files + embeddings + vector-stores
+#
+# Alternative to llama-cpp profile:
+#   - Use Ollama: ./setup.sh --profile ollama (simpler, handles model management)
+#   - Use API mode: Run llama.cpp server separately, no Python bindings needed
+#
+# ============================================================================

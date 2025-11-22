@@ -93,7 +93,7 @@ check_requirements() {
 check_required_directories() {
     local missing_dirs=()
     
-    for dir in server bin install docker examples config utils; do
+    for dir in server bin install examples config; do
         if [ ! -d "$dir" ]; then
             missing_dirs+=("$dir")
         fi
@@ -146,7 +146,7 @@ mkdir -p dist/build/${PACKAGE_NAME}
 
 # Create directory structure
 echo "Creating directory structure..."
-mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,docker,config,utils,prompts}
+mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,config,utils,prompts,models}
 
 # Copy core server files (excluding tests directory)
 echo "Copying server files..."
@@ -162,12 +162,8 @@ find install -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name 
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
 
-# Copy docker files
-echo "Copying docker files..."
-find docker -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
-    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
-    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
-done
+# Skip docker files (not needed in installation package)
+echo "Skipping docker files (excluded from installation package)..."
 
 # Copy bin files (CLI tools)
 echo "Copying CLI tools..."
@@ -204,13 +200,6 @@ else
     done
 fi
 
-# Copy utils files (excluding build-tarball.sh)
-echo "Copying utils files..."
-find utils -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" -not -name "build-tarball.sh" | while read file; do
-    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
-    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
-done
-
 # Verify config files were copied
 echo "Verifying configuration files..."
 if [ -d "dist/build/${PACKAGE_NAME}/config" ]; then
@@ -221,16 +210,6 @@ else
     echo "⚠️ Warning: Config directory not found in build"
 fi
 
-# Verify utils files were copied
-echo "Verifying utils files..."
-if [ -d "dist/build/${PACKAGE_NAME}/utils" ]; then
-    echo "✅ Utils directory created successfully"
-    echo "📁 Utils files:"
-    ls -la dist/build/${PACKAGE_NAME}/utils/
-else
-    echo "⚠️ Warning: Utils directory not found in build"
-fi
-
 # Create env.example file
 echo "Creating env.example..."
 if [ -f "env.example" ]; then
@@ -238,6 +217,70 @@ if [ -f "env.example" ]; then
 else
     echo "Warning: env.example not found, creating empty env.example..."
     touch dist/build/${PACKAGE_NAME}/env.example
+fi
+
+# Download and include gemma3-270m model for quick start
+echo "Downloading gemma3-270m model for quick start..."
+GGUF_MODELS_CONFIG="install/gguf-models.json"
+MODEL_NAME="gemma3-270m"
+MODELS_DIR="models"
+
+# Function to get model info from JSON config
+get_model_info() {
+    local model_name="$1"
+    local config_file="$2"
+    if [ ! -f "$config_file" ]; then
+        return 1
+    fi
+    python3 -c "
+import json
+import sys
+try:
+    with open('$config_file', 'r') as f:
+        config = json.load(f)
+    if '$model_name' in config['models']:
+        model_info = config['models']['$model_name']
+        print(f\"{model_info['repo_id']}\")
+        print(f\"{model_info['filename']}\")
+    else:
+        sys.exit(1)
+except Exception as e:
+    sys.exit(1)
+"
+}
+
+if [ -f "$GGUF_MODELS_CONFIG" ]; then
+    model_info=$(get_model_info "$MODEL_NAME" "$GGUF_MODELS_CONFIG")
+    if [ $? -eq 0 ]; then
+        repo_id=$(echo "$model_info" | head -n 1)
+        filename=$(echo "$model_info" | tail -n 1)
+        
+        # Check if model already exists locally
+        if [ ! -f "$MODELS_DIR/$filename" ]; then
+            echo "Downloading $MODEL_NAME from $repo_id..."
+            if python3 install/download_hf_gguf_model.py \
+                --repo-id "$repo_id" \
+                --filename "$filename" \
+                --output-dir "$MODELS_DIR"; then
+                echo "✅ $MODEL_NAME downloaded successfully"
+            else
+                echo "⚠️ Warning: Failed to download $MODEL_NAME, continuing without it"
+            fi
+        else
+            echo "✅ $MODEL_NAME already exists locally"
+        fi
+        
+        # Copy model to tarball if it exists
+        if [ -f "$MODELS_DIR/$filename" ]; then
+            echo "Copying $MODEL_NAME to tarball..."
+            cp "$MODELS_DIR/$filename" "dist/build/${PACKAGE_NAME}/models/$filename"
+            echo "✅ Model included in tarball: models/$filename"
+        fi
+    else
+        echo "⚠️ Warning: $MODEL_NAME not found in $GGUF_MODELS_CONFIG"
+    fi
+else
+    echo "⚠️ Warning: $GGUF_MODELS_CONFIG not found, skipping model download"
 fi
 
 # Create metadata file
