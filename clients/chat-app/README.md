@@ -38,8 +38,8 @@ Options:
   --use-local-api BOOLEAN          Use local API build (default: false)
   --local-api-path PATH            Path to local API
   --console-debug BOOLEAN          Enable console debug (default: false)
-  --enable-upload-button BOOLEAN   Enable upload button (default: false)
-  --enable-feedback-buttons BOOLEAN Enable feedback buttons (default: false)
+  --enable-upload BOOLEAN          Enable upload button (default: false)
+  --enable-feedback BOOLEAN        Enable feedback buttons (default: false)
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
   --max-total-files N              Max total files (default: 100, 0 = unlimited)
@@ -106,7 +106,7 @@ You can also set configuration via environment variables (for development):
 ```bash
 VITE_API_URL=http://localhost:3000
 VITE_DEFAULT_KEY=default-key
-VITE_ENABLE_UPLOAD_BUTTON=false
+VITE_ENABLE_UPLOAD=false
 VITE_CONSOLE_DEBUG=false
 # ... etc
 ```

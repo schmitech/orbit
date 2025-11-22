@@ -70,13 +70,13 @@ function parseArgs() {
       case '--console-debug':
         config.consoleDebug = args[++i] === 'true';
         break;
-      case '--enable-upload-button':
+      case '--enable-upload':
         config.enableUploadButton = args[++i] === 'true';
         break;
       case '--enable-audio':
         config.enableAudioOutput = args[++i] === 'true';
         break;
-      case '--enable-feedback-buttons':
+      case '--enable-feedback':
         config.enableFeedbackButtons = args[++i] === 'true';
         break;
       case '--max-files-per-conversation':
@@ -160,9 +160,9 @@ function loadConfigFromEnv() {
     VITE_USE_LOCAL_API: 'useLocalApi',
     VITE_LOCAL_API_PATH: 'localApiPath',
     VITE_CONSOLE_DEBUG: 'consoleDebug',
-    VITE_ENABLE_UPLOAD_BUTTON: 'enableUploadButton',
+    VITE_ENABLE_UPLOAD: 'enableUploadButton',
     VITE_ENABLE_AUDIO_OUTPUT: 'enableAudioOutput',
-    VITE_ENABLE_FEEDBACK_BUTTONS: 'enableFeedbackButtons',
+    VITE_ENABLE_FEEDBACK: 'enableFeedbackButtons',
     VITE_MAX_FILES_PER_CONVERSATION: 'maxFilesPerConversation',
     VITE_MAX_FILE_SIZE_MB: 'maxFileSizeMB',
     VITE_MAX_TOTAL_FILES: 'maxTotalFiles',
@@ -373,9 +373,9 @@ Options:
   --use-local-api BOOLEAN          Use local API build (default: false)
   --local-api-path PATH            Path to local API
   --console-debug BOOLEAN          Enable console debug (default: false)
-  --enable-upload-button BOOLEAN   Enable upload button (default: false)
+  --enable-upload BOOLEAN          Enable upload button (default: false)
   --enable-audio BOOLEAN           Enable audio button (default: false)
-  --enable-feedback-buttons BOOLEAN Enable feedback buttons (default: false)
+  --enable-feedback BOOLEAN        Enable feedback buttons (default: false)
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
   --max-total-files N              Max total files (default: 100, 0 = unlimited)

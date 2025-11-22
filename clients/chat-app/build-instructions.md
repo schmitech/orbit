@@ -80,8 +80,8 @@ Options:
   --use-local-api BOOLEAN          Use local API build (default: false)
   --local-api-path PATH            Path to local API
   --console-debug BOOLEAN          Enable console debug (default: false)
-  --enable-upload-button BOOLEAN   Enable upload button (default: false)
-  --enable-feedback-buttons BOOLEAN Enable feedback buttons (default: false)
+  --enable-upload BOOLEAN          Enable upload button (default: false)
+  --enable-feedback BOOLEAN        Enable feedback buttons (default: false)
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
   --max-total-files N              Max total files (default: 100, 0 = unlimited)
@@ -275,8 +275,8 @@ VITE_DEFAULT_KEY=default-key
 VITE_USE_LOCAL_API=true
 VITE_LOCAL_API_PATH=./local/api.mjs
 VITE_CONSOLE_DEBUG=false
-VITE_ENABLE_UPLOAD_BUTTON=false
-VITE_ENABLE_FEEDBACK_BUTTONS=false
+VITE_ENABLE_UPLOAD=false
+VITE_ENABLE_FEEDBACK=false
 VITE_SHOW_GITHUB_STATS=true
 VITE_GITHUB_OWNER=schmitech
 VITE_GITHUB_REPO=orbit
@@ -400,4 +400,3 @@ Apache 2.0 License - See [LICENSE](../../LICENSE).
 - [@schmitech/chatbot-api](https://www.npmjs.com/package/@schmitech/chatbot-api) - Core API package
 - [@schmitech/chatbot-widget](https://www.npmjs.com/package/@schmitech/chatbot-widget) - Embeddable widget
 - [@schmitech/markdown-renderer](https://www.npmjs.com/package/@schmitech/markdown-renderer) - Markdown rendering
-

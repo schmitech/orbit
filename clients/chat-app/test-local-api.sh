@@ -36,7 +36,7 @@ echo "🔧 Setting up environment for local API testing..."
 cat > .env.local << EOF
 VITE_API_URL=http://localhost:3000
 VITE_DEFAULT_KEY=default-key
-VITE_ENABLE_UPLOAD_BUTTON=false
+VITE_ENABLE_UPLOAD=false
 VITE_USE_LOCAL_API=true
 VITE_LOCAL_API_PATH=/api
 EOF
