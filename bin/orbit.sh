@@ -103,8 +103,10 @@ check_dependencies() {
     return 0
 }
 
-# Set up Python path to include the server directory
-export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}"
+# Set up Python path to include the project root (parent of bin directory)
+# This allows imports like "from bin.orbit.cli import main" to work
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+export PYTHONPATH="${PROJECT_ROOT}:${PYTHONPATH:-}"
 
 # Check if we're in a virtual environment, if not try to activate one
 if [[ -z "${VIRTUAL_ENV:-}" ]]; then

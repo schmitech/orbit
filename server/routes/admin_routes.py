@@ -873,3 +873,71 @@ async def delete_conversation_with_files(
         "file_deletion_errors": file_deletion_errors if file_deletion_errors else None,
         "timestamp": datetime.now().isoformat()
     }
+
+
+@admin_router.get("/info")
+async def get_server_info(
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Get server information including PID and status.
+    
+    This endpoint provides information about the running server instance,
+    including process ID for process management.
+    
+    Returns:
+        Dictionary containing server information (PID, version, etc.)
+    """
+    import os
+    
+    return {
+        "pid": os.getpid(),
+        "version": "2.0.2",
+        "status": "running"
+    }
+
+
+@admin_router.post("/shutdown")
+async def shutdown_server(
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Gracefully shutdown the server.
+    
+    This endpoint initiates a graceful shutdown of the server. The shutdown
+    is performed asynchronously to allow the response to be sent before
+    the server stops accepting new requests.
+    
+    Security considerations:
+    - This is an admin-only endpoint
+    - Should be protected by additional authentication
+    - Only accessible to authenticated admin users
+    
+    Returns:
+        Dictionary confirming shutdown initiation
+    """
+    import asyncio
+    import signal
+    
+    logger.info("Graceful shutdown initiated via /admin/shutdown endpoint")
+    
+    # Schedule shutdown in background to allow response to be sent
+    async def shutdown_background():
+        await asyncio.sleep(0.5)  # Small delay to ensure response is sent
+        # Try to get the uvicorn server instance
+        # The server is stored in the app's lifespan context
+        # We'll use signal-based shutdown as a reliable method
+        import os
+        # Send SIGTERM to current process for graceful shutdown
+        os.kill(os.getpid(), signal.SIGTERM)
+    
+    # Schedule the shutdown
+    asyncio.create_task(shutdown_background())
+    
+    return {
+        "status": "success",
+        "message": "Server shutdown initiated",
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
