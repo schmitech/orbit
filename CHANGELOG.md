@@ -1,5 +1,51 @@
 # Changelog
 
+## [2.1.0] - 2025-11-22
+
+### Core System Updates
+- Conversation Threading: Implemented conversation threading support enabling follow-up questions on retrieved datasets without re-querying the database
+- Audio Services: Added global audio service gating with sound.enabled flag, new TTS providers (CoquiTTS, Gemini Audio Service, vLLM TTS)
+- Authentication: Authentication now enabled by default, removed auth.enabled setting
+- Adapter Refactoring: Split adapters.yaml into separate files, refactored DynamicAdapterManager (57% code reduction, 121 unit tests)
+- Configuration: Configured install/default-config as default, only enable simple-chat adapters by default
+
+### Chat-app & UI Improvements
+- Threaded Replies UI: Implemented Slack-style nested thread panels with inline composers
+- Mobile Layout: Added slide-in sidebar drawer and responsive mobile controls
+- Audio/Upload UI: Added enableAudioOutput flag with UI gating for mic/voice buttons and file upload controls
+- Sidebar & Input: Improved sidebar metadata, centered input field, moved voice toggle inline, updated MarkdownRenderer to v0.4.2
+
+### Bug Fixes & Technical Improvements
+- Thread Dataset Deletion: Fixed cascade deletion bug when Redis storage enabled
+- MongoDB Fixes: Resolved ObjectId JSON serialization errors and datetime deprecation warnings, fixed template rendering for arrays/dicts
+- Audio Providers: Fixed issues with Eleven Labs, Whisper adapter, and TTS voice handling
+- Security: Fixed critical CORS misconfiguration and implemented security headers middleware
+- SQL & Database: Fixed SQL template parametrization for DuckDB/Postgres, added missing token_count field to SQLite schema
+- HTTP Intent: Fixed URL parameter substitution causing 404 errors
+- Logging: Replaced verbose config checks with Python standard logging levels
+
+### API & Client Updates
+- Node API 2.1.0: Published new NPM package version
+- orbitchat v2.1.2: Published with UI improvements and bug fixes
+- MarkdownRenderer: Updated to v0.4.2
+
+### Audio & Voice Features
+- Sound Adapter: Added new TTS/STT capabilities with real-time audio streaming
+- Voice Recognition: Improved voice recognition with auto-send after silence, fixed voice input hijacking text input
+- Audio Optimization: Optimized audio processing for NVIDIA GPU/CUDA hardware
+
+### Conversation & Threading
+- Thread Implementation: Added Redis storage for thread datasets with cascade cleanup
+- History Optimization: Implemented intelligent fetch limits reducing database queries by 98%
+
+### CLI & Tools
+- CLI Redesign: Full refactoring of ORBIT admin CLI, renamed flags to --enable-upload / --enable-feedback
+
+### Other Changes
+- File Upload: Conversation uploads scoped per chat, titles capped at 100 characters, added paste screenshots support
+- Dashboard: Improved dashboard with basic authentication enabled
+- Documentation: Updated conversation history docs, added sample API keys script
+
 ## [2.0.2] - 2025-11-11
 
 ### Chat-app & Adapter API Updates
@@ -114,7 +160,7 @@
 - Roadmap Updates: Update roadmap plans, add reranking new design, add roadmap item (SQLite)
 - Update logs_templates.yaml: Refine DSL queries
 - Documentation Cleanup: Reorganized documentation structure
-- Documentation and Scripts Updates: Updated scripts and docs to reflect latest release v2.0.2
+- Documentation and Scripts Updates: Updated scripts and docs to reflect latest release v2.1.0
 
 ## [1.6.0] - 2025-10-25
 
@@ -751,4 +797,4 @@
 
 ## Guidelines
 
-All notable changes to the ORBIT project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.2.html).
+All notable changes to the ORBIT project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). This project adheres to [Semantic Versioning](https://semver.org/spec/v2.1.0.html).
