@@ -105,7 +105,7 @@ inference:
 
     # API mode configuration
     base_url: "http://localhost:8080"  # llama.cpp server URL (OpenAI-compatible API)
-    model: "model"  # Model name to request from the server (for API mode)
+    model: "granite4-micro"  # Model name to request from the server (for API mode)
     api_key: null  # Optional API key for secured servers
 
     # Generation parameters
@@ -129,7 +129,7 @@ inference:
     stop_tokens: [
       "<start_of_turn>",
       "<end_of_turn>"
-    ]
+    ]   
   gemini:
     enabled: true
     api_key: ${GOOGLE_API_KEY}
