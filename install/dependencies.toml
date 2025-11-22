@@ -242,6 +242,7 @@ dependencies = []
 [profiles.all]
 description = "All available dependencies (full installation)"
 extends = [
+    "development",
     "llama-cpp",
     "providers",
     "ollama",
