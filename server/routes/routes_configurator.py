@@ -345,6 +345,10 @@ class RouteConfigurator:
             source_language = chat_request.source_language
             target_language = chat_request.target_language
 
+            # Debug logging for tts_voice
+            if return_audio and tts_voice:
+                logger.info(f"API Request received tts_voice: {tts_voice} for adapter: {adapter_name}")
+
             if chat_request.stream:
                 async def stream_generator():
                     async for chunk in chat_service.process_chat_stream(

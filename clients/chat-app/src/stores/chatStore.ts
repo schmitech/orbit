@@ -1050,7 +1050,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         const audioSettings = conversation?.audioSettings;
         const globalVoiceEnabled = getGlobalVoiceEnabled();
         const returnAudio = audioSettings?.enabled ?? globalVoiceEnabled ?? isVoiceAdapter;
-        const ttsVoice = audioSettings?.ttsVoice || 'alloy';
+        const ttsVoice = audioSettings?.ttsVoice || undefined; // Let backend use adapter/config defaults
         const language = audioSettings?.language || 'en-US';
         const audioFormat = audioSettings?.audioFormat;
 
@@ -1456,7 +1456,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         const audioSettings = regeneratingConv?.audioSettings;
         const globalVoiceEnabled = getGlobalVoiceEnabled();
         const returnAudio = audioSettings?.enabled ?? globalVoiceEnabled ?? isVoiceAdapter;
-        const ttsVoice = audioSettings?.ttsVoice || 'alloy';
+        const ttsVoice = audioSettings?.ttsVoice || undefined; // Let backend use adapter/config defaults
         const language = audioSettings?.language || 'en-US';
 
         for await (const response of api.streamChat(
