@@ -220,6 +220,11 @@ class QdrantStore(BaseVectorStore):
 
             collection_name = collection_name or self._default_collection
 
+            # Verify client is initialized
+            if self._client is None:
+                logger.error("Qdrant client is not initialized")
+                return []
+
             # Build filter if metadata filters provided
             search_filter = None
             if filter_metadata:
@@ -234,32 +239,79 @@ class QdrantStore(BaseVectorStore):
                 search_filter = Filter(must=conditions) if conditions else None
 
             # Perform search
-            search_results = self._client.search(
-                collection_name=collection_name,
-                query_vector=query_vector,
-                limit=limit,
-                query_filter=search_filter,
-                with_payload=True
-            )
+            # Note: API changed in qdrant-client v1.16+: search() -> query_points()
+            #       and query_vector -> query
+            try:
+                # Try new API (qdrant-client v1.16+)
+                search_results = self._client.query_points(
+                    collection_name=collection_name,
+                    query=query_vector,  # Changed from query_vector to query
+                    limit=limit,
+                    query_filter=search_filter,
+                    with_payload=True
+                )
+                # Extract points from QueryResponse (v1.16+ returns QueryResponse object)
+                if hasattr(search_results, 'points'):
+                    search_results = search_results.points
+            except AttributeError:
+                # Fall back to old API (qdrant-client < v1.16)
+                logger.debug("Falling back to legacy search() method")
+                search_params = {
+                    'collection_name': collection_name,
+                    'query_vector': query_vector,
+                    'limit': limit,
+                    'with_payload': True
+                }
+                if search_filter:
+                    search_params['query_filter'] = search_filter
+                search_results = self._client.search(**search_params)
 
             # Format results
             results = []
             for result in search_results:
                 # Extract the original ID from payload
                 original_id = result.payload.get('_original_id', str(result.id))
-                # Remove internal fields from metadata
-                metadata = {k: v for k, v in result.payload.items() if not k.startswith('_')}
+
+                # Extract document content (try multiple field names)
+                document_text = (
+                    result.payload.get('content') or
+                    result.payload.get('document') or
+                    result.payload.get('text') or
+                    ''
+                )
+
+                # Remove internal fields and content fields from metadata
+                # (content should be in separate field, not metadata)
+                metadata = {
+                    k: v for k, v in result.payload.items()
+                    if not k.startswith('_') and k not in ['content', 'document', 'text']
+                }
 
                 results.append({
                     'id': original_id,
                     'score': result.score,
-                    'metadata': metadata
+                    'metadata': metadata,
+                    'text': document_text,  # Include document text
+                    'content': document_text  # Also include as 'content' for compatibility
                 })
 
             return results
 
+        except AttributeError as e:
+            logger.error(f"Qdrant client attribute error: {e}")
+            logger.error(f"Client type: {type(self._client)}, Client is None: {self._client is None}")
+            if self._client:
+                all_methods = [m for m in dir(self._client) if not m.startswith('_')]
+                logger.error(f"Available methods ({len(all_methods)} total): {all_methods}")
+                # Check for common search-related methods
+                search_methods = [m for m in all_methods if 'search' in m.lower() or 'query' in m.lower() or 'recommend' in m.lower()]
+                logger.error(f"Search-related methods: {search_methods}")
+            return []
         except Exception as e:
             logger.error(f"Error searching vectors in Qdrant: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(traceback.format_exc())
             return []
 
     async def get_vector(self,

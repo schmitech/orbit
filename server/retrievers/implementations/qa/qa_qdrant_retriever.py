@@ -121,13 +121,26 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
                 return []
                 
             logger.debug(f"Querying Qdrant collection: {collection_name}")
-                
-            return self.qdrant_client.search(
-                collection_name=collection_name,
-                query_vector=query_embedding,
-                limit=max_results,
-                with_payload=True
-            )
+
+            # Note: API changed in qdrant-client v1.16+: search() -> query_points()
+            try:
+                # Try new API (qdrant-client v1.16+)
+                result = self.qdrant_client.query_points(
+                    collection_name=collection_name,
+                    query=query_embedding,  # Changed from query_vector to query
+                    limit=max_results,
+                    with_payload=True
+                )
+                # Extract points from QueryResponse
+                return result.points if hasattr(result, 'points') else result
+            except AttributeError:
+                # Fall back to old API (qdrant-client < v1.16)
+                return self.qdrant_client.search(
+                    collection_name=collection_name,
+                    query_vector=query_embedding,
+                    limit=max_results,
+                    with_payload=True
+                )
         except UnexpectedResponse as e:
             # Handle specific Qdrant HTTP exceptions gracefully
             if e.status_code == 404:

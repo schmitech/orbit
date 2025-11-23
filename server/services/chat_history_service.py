@@ -1053,12 +1053,102 @@ class ChatHistoryService:
             # Delete any associated threads (cascade delete)
             threads_deleted = 0
             thread_messages_deleted = 0
+            files_deleted = 0
             try:
                 # First, get all threads for this session to clean up their datasets
                 threads = await self.database_service.find_many(
                     "conversation_threads",
                     {"parent_session_id": session_id}
                 )
+
+                # Extract and delete uploaded files from thread datasets BEFORE deleting the datasets
+                # This prevents orphaned chunks in vector stores (Qdrant, ChromaDB, etc.)
+                if threads:
+                    logger.debug(
+                        "Extracting file_ids from %s thread(s) for session %s",
+                        len(threads),
+                        session_id
+                    )
+                    file_ids_to_delete = set()  # Use set to avoid duplicates
+
+                    for thread in threads:
+                        dataset_key = thread.get('dataset_key')
+                        if dataset_key:
+                            try:
+                                # Get dataset to extract file_ids
+                                dataset = await self.thread_dataset_service.get_dataset(dataset_key)
+                                if dataset:
+                                    query_context, raw_results = dataset
+                                    logger.debug(
+                                        "Processing dataset %s with %s results",
+                                        dataset_key,
+                                        len(raw_results) if raw_results else 0
+                                    )
+
+                                    # Extract file_ids from raw_results metadata
+                                    for result in raw_results:
+                                        if isinstance(result, dict):
+                                            metadata = result.get('metadata', {})
+                                            file_id = metadata.get('file_id')
+                                            if file_id:
+                                                logger.debug("Found file_id in metadata: %s", file_id)
+                                                file_ids_to_delete.add(file_id)
+
+                                            # Also check file_metadata (nested structure)
+                                            file_metadata = result.get('file_metadata', {})
+                                            if file_metadata and isinstance(file_metadata, dict):
+                                                file_id = file_metadata.get('file_id')
+                                                if file_id:
+                                                    logger.debug("Found file_id in file_metadata: %s", file_id)
+                                                    file_ids_to_delete.add(file_id)
+                                else:
+                                    logger.debug("No dataset found for key %s", dataset_key)
+                            except Exception as extract_error:
+                                logger.warning(
+                                    "Failed to extract file_ids from dataset %s: %s",
+                                    dataset_key,
+                                    extract_error
+                                )
+
+                    # Delete files using FileProcessingService (handles vector store cleanup)
+                    if file_ids_to_delete:
+                        logger.debug(
+                            "Found %s unique file(s) to delete for session %s: %s",
+                            len(file_ids_to_delete),
+                            session_id,
+                            list(file_ids_to_delete)
+                        )
+                        logger.debug("Starting file deletion from vector stores and storage...")
+
+                        # Get file_processing_service from app_state if available
+                        file_processing_service = None
+                        if hasattr(self, 'database_service') and hasattr(self.database_service, 'app_state'):
+                            file_processing_service = getattr(self.database_service.app_state, 'file_processing_service', None)
+
+                        if file_processing_service:
+                            for file_id in file_ids_to_delete:
+                                try:
+                                    # Delete file and its chunks from vector store
+                                    deleted = await file_processing_service.delete_file(file_id, api_key)
+                                    if deleted:
+                                        files_deleted += 1
+                                        logger.debug("✓ Deleted file %s and its chunks from vector store", file_id)
+                                    else:
+                                        logger.warning("✗ Failed to delete file %s (may not exist)", file_id)
+                                except Exception as file_delete_error:
+                                    logger.warning(
+                                        "✗ Error deleting file %s: %s",
+                                        file_id,
+                                        file_delete_error
+                                    )
+                            logger.debug("Completed file deletion: %s/%s files successfully deleted", files_deleted, len(file_ids_to_delete))
+                        else:
+                            logger.warning(
+                                "FileProcessingService not available - files will not be deleted. "
+                                "This may leave orphaned chunks in vector stores."
+                            )
+                    else:
+                        logger.debug("No uploaded files found for session %s", session_id)
 
                 # Delete thread datasets using ThreadDatasetService (handles Redis/database)
                 datasets_deleted = 0
@@ -1096,9 +1186,10 @@ class ChatHistoryService:
                 )
                 if threads_deleted > 0:
                     logger.debug(
-                        "Deleted %s associated threads, %s datasets, and %s thread messages for session %s",
+                        "Deleted %s associated threads, %s datasets, %s files, and %s thread messages for session %s",
                         threads_deleted,
                         datasets_deleted,
+                        files_deleted,
                         thread_messages_deleted,
                         session_id,
                     )
@@ -1109,10 +1200,11 @@ class ChatHistoryService:
             self._session_token_counts.pop(session_id, None)
 
             logger.debug(
-                "Cleared conversation history for session %s: %s messages deleted, %s threads deleted",
+                "Cleared conversation history for session %s: %s messages deleted, %s threads deleted, %s files deleted",
                 session_id,
                 deleted_count,
                 threads_deleted,
+                files_deleted,
             )
 
             return {
@@ -1120,6 +1212,7 @@ class ChatHistoryService:
                 "session_id": session_id,
                 "deleted_count": deleted_count,
                 "deleted_threads": threads_deleted,
+                "deleted_files": files_deleted,
                 "deleted_thread_messages": thread_messages_deleted,
                 "api_key_validated": True,
                 "adapter_name": adapter_name,

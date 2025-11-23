@@ -93,7 +93,7 @@ description = "Vector store backends (ChromaDB, Pinecone, Qdrant, etc.)"
 dependencies = [
     "chromadb>=1.2.0",
     "pinecone>=7.3.0",
-    "qdrant-client>=1.14.2",
+    "qdrant-client>=1.16.0",
     "faiss-cpu==1.12.0",
     "weaviate-client==4.17.0",
     "pymilvus>=2.6.2",

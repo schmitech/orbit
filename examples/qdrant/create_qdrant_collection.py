@@ -298,13 +298,15 @@ async def ingest_to_qdrant(
     try:
         test_embedding = await embedding_service.embed_query(test_query)
         
-        # Perform search
-        search_results = client.search(
+        # Perform search (using v1.16+ API)
+        result = client.query_points(
             collection_name=collection_name,
-            query_vector=test_embedding,
+            query=test_embedding,  # Changed from query_vector to query
             limit=3,
             with_payload=True
         )
+        # Extract points from QueryResponse (v1.16+ returns QueryResponse object)
+        search_results = result.points if hasattr(result, 'points') else result
         
         print(f"Query: {test_query}")
         for i, result in enumerate(search_results):

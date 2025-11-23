@@ -252,13 +252,27 @@ class QdrantRetriever(AbstractVectorRetriever):
             await self._ensure_connection()
             
             # Perform the search
-            search_results = self.qdrant_client.search(
-                collection_name=self.collection_name,
-                query_vector=query_embedding,
-                limit=top_k,
-                with_payload=True,
-                with_vectors=False  # We don't need the vectors, just the payload
-            )
+            # Note: API changed in qdrant-client v1.16+: search() -> query_points()
+            try:
+                # Try new API (qdrant-client v1.16+)
+                result = self.qdrant_client.query_points(
+                    collection_name=self.collection_name,
+                    query=query_embedding,  # Changed from query_vector to query
+                    limit=top_k,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                # Extract points from QueryResponse
+                search_results = result.points if hasattr(result, 'points') else result
+            except AttributeError:
+                # Fall back to old API (qdrant-client < v1.16)
+                search_results = self.qdrant_client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_embedding,
+                    limit=top_k,
+                    with_payload=True,
+                    with_vectors=False
+                )
             
             # Convert Qdrant results to our standard format
             formatted_results = []

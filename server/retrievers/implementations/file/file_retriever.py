@@ -83,19 +83,19 @@ class FileVectorRetriever(AbstractVectorRetriever):
             # First try to get existing store
             self._default_store = await self.store_manager.get_store(vector_store_name)
             
-            # If not found, try to create it (will use default Chroma config if available)
+            # If not found, try to create it (will use config from stores.yaml)
             if not self._default_store:
                 try:
                     logger.debug(f"Store '{vector_store_name}' not found, attempting to create it...")
                     self._default_store = await self.store_manager.get_or_create_store(
                         name=vector_store_name,
-                        store_type='chroma'  # Default type
+                        store_type=vector_store_name  # Use the configured store type (e.g., 'qdrant', 'chroma')
                     )
                     logger.info(f"Created vector store: {vector_store_name}")
                 except Exception as create_error:
                     logger.warning(f"Could not create vector store '{vector_store_name}': {create_error}. "
                                  f"File adapter will operate in limited mode without vector search. "
-                                 f"Ensure Chroma is configured in config/stores.yaml")
+                                 f"Ensure '{vector_store_name}' is enabled and configured in config/stores.yaml")
                     self._default_store = None
             else:
                 logger.info(f"Initialized vector store: {vector_store_name}")
@@ -370,14 +370,35 @@ class FileVectorRetriever(AbstractVectorRetriever):
                     **chunk.metadata
                 })
             
-            # Add to vector store with chunk texts as documents
-            success = await self._default_store.add_vectors(
-                vectors=embeddings,
-                ids=ids,
-                metadata=metadata,
-                collection_name=collection_name,
-                documents=chunk_texts  # Pass chunk texts as documents for ChromaDB
-            )
+            # Add to vector store
+            # Note: ChromaDB supports 'documents' parameter, but it's not in the base interface
+            # Try with documents first (for ChromaDB), fall back to standard interface if not supported
+            try:
+                success = await self._default_store.add_vectors(
+                    vectors=embeddings,
+                    ids=ids,
+                    metadata=metadata,
+                    collection_name=collection_name,
+                    documents=chunk_texts  # ChromaDB-specific parameter
+                )
+            except TypeError as e:
+                # Vector store doesn't support 'documents' parameter (e.g., Qdrant, Pinecone)
+                # For these stores, add content to metadata
+                logger.debug(f"Vector store doesn't support 'documents' parameter, adding content to metadata: {e}")
+
+                # Add content to metadata for non-ChromaDB stores
+                metadata_with_content = []
+                for i, meta in enumerate(metadata):
+                    meta_copy = meta.copy()
+                    meta_copy['content'] = chunk_texts[i]  # Store content in metadata
+                    metadata_with_content.append(meta_copy)
+
+                success = await self._default_store.add_vectors(
+                    vectors=embeddings,
+                    ids=ids,
+                    metadata=metadata_with_content,  # Use metadata with content included
+                    collection_name=collection_name
+                )
             
             # Note: Chunks are already recorded in FileProcessingService.process_file()
             # before indexing, so we don't need to record them again here.
@@ -443,10 +464,29 @@ class FileVectorRetriever(AbstractVectorRetriever):
 
                 if deletion_errors:
                     logger.warning(f"Failed to delete {len(deletion_errors)} chunks from vector store for file {file_id}")
-                logger.debug(f"Successfully deleted all {len(chunk_ids)} chunks from vector store for file {file_id}")
+                logger.debug(f"✓ Successfully deleted all {len(chunk_ids)} chunks from vector store for file {file_id}")
+
+                # Check if collection is now empty and delete it if so
+                try:
+                    collection_info = await self._default_store.get_collection_info(collection_name)
+                    points_count = collection_info.get('count', -1)
+
+                    if points_count == 0:
+                        logger.debug(f"Collection {collection_name} is now empty, deleting collection...")
+                        delete_success = await self._default_store.delete_collection(collection_name)
+                        if delete_success:
+                            logger.debug(f"✓ Deleted empty collection {collection_name}")
+                        else:
+                            logger.warning(f"✗ Failed to delete empty collection {collection_name}")
+                    elif points_count > 0:
+                        logger.debug(f"Collection {collection_name} still has {points_count} points, keeping collection")
+                    else:
+                        logger.debug(f"Could not determine point count for collection {collection_name}, skipping collection deletion")
+                except Exception as e:
+                    logger.warning(f"Error checking/deleting empty collection {collection_name}: {e}")
             else:
                 logger.warning(f"No vector store available, skipping vector store deletion for file {file_id}")
-            
+
             # Delete from metadata store (always do this, even if vector store deletion failed)
             metadata_delete_success = await self.metadata_store.delete_file_chunks(file_id)
 

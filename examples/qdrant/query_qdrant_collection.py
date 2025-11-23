@@ -200,14 +200,16 @@ async def test_qdrant_query(test_query: str, collection_name: str = None):
         print(f"\nGenerating embedding for query: '{test_query}'")
         query_embedding = await embedding_service.embed_query(test_query)
         
-        # Perform search
+        # Perform search (using v1.16+ API)
         print("\nExecuting query...")
-        search_results = client.search(
+        result = client.query_points(
             collection_name=collection_name,
-            query_vector=query_embedding,
+            query=query_embedding,  # Changed from query_vector to query
             limit=3,
             with_payload=True
         )
+        # Extract points from QueryResponse (v1.16+ returns QueryResponse object)
+        search_results = result.points if hasattr(result, 'points') else result
         
         # Print results
         print(f"\nQuery: '{test_query}'")
