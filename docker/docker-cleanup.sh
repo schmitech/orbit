@@ -8,7 +8,6 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default values
-CLEAN_DEMO_ONLY=false
 CLEAN_ALL=false
 CLEAN_UNUSED=false
 FORCE=false
@@ -17,10 +16,6 @@ NO_CONFIRM=false
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --demo-only)
-            CLEAN_DEMO_ONLY=true
-            shift
-            ;;
         --all)
             CLEAN_ALL=true
             shift
@@ -41,7 +36,6 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --demo-only    Clean up only orbit-demo container and image"
             echo "  --unused       Remove unused containers, images, volumes, and networks"
             echo "  --all          Remove ALL containers, images, volumes, and networks (DANGEROUS)"
             echo "  --force        Force removal without confirmation (use with caution)"
@@ -49,7 +43,6 @@ while [[ $# -gt 0 ]]; do
             echo "  --help, -h     Show this help message"
             echo ""
             echo "Examples:"
-            echo "  $0 --demo-only              # Clean up only orbit-demo"
             echo "  $0 --unused                 # Remove unused Docker resources"
             echo "  $0 --all --yes              # Remove everything (no confirmation)"
             exit 0
@@ -62,9 +55,11 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# If no options specified, default to demo-only
-if [ "$CLEAN_DEMO_ONLY" = false ] && [ "$CLEAN_ALL" = false ] && [ "$CLEAN_UNUSED" = false ]; then
-    CLEAN_DEMO_ONLY=true
+# If no options specified, show help
+if [ "$CLEAN_ALL" = false ] && [ "$CLEAN_UNUSED" = false ]; then
+    echo -e "${YELLOW}No cleanup option specified.${NC}"
+    echo "Use --help for usage information"
+    exit 1
 fi
 
 echo -e "${BLUE}=== Docker Cleanup Script ===${NC}"
@@ -77,31 +72,6 @@ confirm() {
     read -p "$1 (y/N): " -n 1 -r
     echo
     [[ $REPLY =~ ^[Yy]$ ]]
-}
-
-# Clean up orbit-demo only
-clean_demo() {
-    echo -e "${YELLOW}Cleaning up orbit-demo container and image...${NC}"
-    
-    # Stop and remove container
-    if docker ps -a --format '{{.Names}}' | grep -q "^orbit-demo$"; then
-        echo "Stopping orbit-demo container..."
-        docker stop orbit-demo 2>/dev/null || true
-        echo "Removing orbit-demo container..."
-        docker rm orbit-demo 2>/dev/null || true
-        echo -e "${GREEN}✓ orbit-demo container removed${NC}"
-    else
-        echo -e "${YELLOW}orbit-demo container not found${NC}"
-    fi
-    
-    # Remove image
-    if docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^schmitech/orbit:demo$"; then
-        echo "Removing schmitech/orbit:demo image..."
-        docker rmi schmitech/orbit:demo 2>/dev/null || true
-        echo -e "${GREEN}✓ orbit-demo image removed${NC}"
-    else
-        echo -e "${YELLOW}schmitech/orbit:demo image not found${NC}"
-    fi
 }
 
 # Clean unused resources
@@ -158,10 +128,6 @@ clean_all() {
 } 
 
 # Execute cleanup based on options
-if [ "$CLEAN_DEMO_ONLY" = true ]; then
-    clean_demo
-fi
-
 if [ "$CLEAN_UNUSED" = true ]; then
     if confirm "Remove unused containers, images, volumes, and networks?"; then
         clean_unused
@@ -174,7 +140,7 @@ if [ "$CLEAN_ALL" = true ]; then
     clean_all
 fi
 
-# Check for open ports (useful for orbit-demo)
+# Check for open ports
 echo ""
 echo -e "${BLUE}Checking for open Docker-related ports (3000, 5432, 6379, 8000, 8080, 9000)...${NC}"
 PORTS=(3000 5432 6379 8000 8080 9000)
