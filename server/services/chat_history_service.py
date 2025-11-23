@@ -1232,6 +1232,64 @@ class ChatHistoryService:
             logger.error(f"Error getting session token count: {str(e)}")
             return 0
     
+    async def _get_rolling_window_token_count(self, session_id: str) -> int:
+        """
+        Get token count for messages that would be included in rolling window query.
+        
+        This calculates the tokens that would actually be included in context,
+        not the total tokens in the session. Uses the same logic as get_context_messages.
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            Token count for messages that fit within token budget
+        """
+        if not self.enabled:
+            return 0
+        
+        token_budget = self.max_token_budget
+        
+        try:
+            # Calculate intelligent fetch limit based on token budget
+            # Assume conservative minimum of 50 tokens per message
+            # Add 20% buffer to account for variation in message sizes
+            estimated_messages_needed = int((token_budget / 50) * 1.2)
+            # Cap at reasonable maximum to prevent excessive memory usage
+            fetch_limit = min(max(estimated_messages_needed, 20), 1000)
+            
+            # Fetch messages for session, ordered by timestamp DESC (newest first)
+            all_messages = await self.database_service.find_many(
+                self.collection_name,
+                {"session_id": session_id},
+                sort=[("timestamp", -1)],  # Newest first
+                limit=fetch_limit
+            )
+            
+            # Rolling window: accumulate messages from newest to oldest until token budget reached
+            accumulated_tokens = 0
+            
+            for msg in all_messages:
+                # Get token count (use actual if available, otherwise estimate)
+                token_count = msg.get("token_count")
+                if token_count is None:
+                    # Fallback to estimate if token_count not yet calculated
+                    content = msg.get("content", "")
+                    token_count = self._estimate_token_count(content)
+                
+                # Check if adding this message would exceed budget
+                if accumulated_tokens + token_count > token_budget:
+                    # Stop here - we've reached the token budget
+                    break
+                
+                accumulated_tokens += token_count
+            
+            return accumulated_tokens
+            
+        except Exception as e:
+            logger.error(f"Error getting rolling window token count: {str(e)}")
+            return 0
+    
     async def _cleanup_old_conversations(self) -> None:
         """Background task to clean up old conversations"""
         while True:

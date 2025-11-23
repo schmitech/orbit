@@ -72,7 +72,7 @@ def mock_chat_history_service():
     service.add_conversation_turn = AsyncMock()
     service._session_token_counts = {'session123': 3600}
     service.max_token_budget = 4000
-    service._get_session_token_count = AsyncMock(return_value=3600)
+    service._get_rolling_window_token_count = AsyncMock(return_value=3600)
     return service
 
 

@@ -180,19 +180,9 @@ class ConversationHistoryHandler:
             return None
 
         try:
-            # Use token-based limits instead of message counts
-            # Check cache first, but query database if cache is empty (e.g., after restart)
-            session_tokens = getattr(self.chat_history_service, "_session_token_counts", {})
-            current_tokens = session_tokens.get(session_id) if isinstance(session_tokens, dict) else None
-            
-            if current_tokens is None:
-                # Cache miss - query database for accurate count
-                current_tokens = await self.chat_history_service._get_session_token_count(session_id)
-                # Update cache for future use (ensure dict-like)
-                if isinstance(session_tokens, dict):
-                    session_tokens[session_id] = current_tokens
-                else:
-                    self.chat_history_service._session_token_counts = {session_id: current_tokens}
+            # Use token-based limits - calculate tokens that would actually be included
+            # in the rolling window query, not total session tokens
+            current_tokens = await self.chat_history_service._get_rolling_window_token_count(session_id)
             
             max_tokens = getattr(self.chat_history_service, "max_token_budget", 0) or 0
             if max_tokens <= 0:
