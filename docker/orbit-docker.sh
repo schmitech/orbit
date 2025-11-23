@@ -1,8 +1,53 @@
 #!/bin/bash
 
 # ORBIT Docker Run Helper Script
-# This script helps run ORBIT in Docker with different configurations
-# Includes authentication commands that delegate to the orbit CLI inside the container
+# ===============================
+# This script helps run ORBIT in Docker with different configurations.
+# It acts as a proxy to the orbit CLI inside any Docker container.
+#
+# QUICK START EXAMPLES:
+# --------------------
+#
+# Basic Usage (default container 'orbit-server'):
+#   ./orbit-docker.sh status                    # Check container status
+#   ./orbit-docker.sh logs --follow             # View logs
+#   ./orbit-docker.sh cli key list              # List API keys
+#   ./orbit-docker.sh login --username admin    # Login to ORBIT
+#
+# Using Specific Container (--container option):
+#   ./orbit-docker.sh --container demo status        # Check 'demo' container status
+#   ./orbit-docker.sh --container demo logs          # View logs from 'demo' container
+#   ./orbit-docker.sh --container demo cli key list  # List keys in 'demo' container
+#   ./orbit-docker.sh --container demo login --username admin  # Login to 'demo' container
+#
+# Container Management:
+#   ./orbit-docker.sh start                     # Start ORBIT (docker-compose)
+#   ./orbit-docker.sh stop                      # Stop ORBIT (docker-compose)
+#   ./orbit-docker.sh restart                   # Restart ORBIT (docker-compose)
+#   ./orbit-docker.sh exec bash                  # Open shell in container
+#   ./orbit-docker.sh --container demo exec bash     # Open shell in 'demo' container
+#
+# CLI Commands (proxy to orbit CLI):
+#   ./orbit-docker.sh cli key create --name myapp
+#   ./orbit-docker.sh cli key list
+#   ./orbit-docker.sh cli key delete --key orbit_xxxxx
+#   ./orbit-docker.sh cli prompt list
+#   ./orbit-docker.sh cli user list
+#
+# Authentication Commands:
+#   ./orbit-docker.sh login --username admin
+#   ./orbit-docker.sh logout
+#   ./orbit-docker.sh auth-status
+#   ./orbit-docker.sh me
+#   ./orbit-docker.sh register --username newuser --role user
+#
+# Advanced Usage:
+#   ./orbit-docker.sh start --config configs/prod.yaml --profile cloud
+#   ./orbit-docker.sh start --port 8080
+#   ./orbit-docker.sh logs --tail 100 --follow
+#   ./orbit-docker.sh --container orbit-basic status
+#
+# For more details, run: ./orbit-docker.sh --help
 
 set -e
 
@@ -68,43 +113,53 @@ print_help() {
     echo "  --port <port>     Port to expose (default: 3000)"
     echo "  --env <file>      Path to .env file (default: .env)"
     echo "  --attach          Run in foreground (default: detached)"
-    echo "  --name <name>     Container name (default: orbit-server)"
+    echo "  --container <name> Container name to target (default: orbit-server)"
+    echo "                    Use this to work with any ORBIT container, not just docker-compose ones"
     echo ""
     echo "Examples:"
-    echo "  # Start with custom config"
-    echo "  ./orbit-docker.sh start --config configs/production.yaml"
-    echo "  # Start with config directory (default)"
-    echo "  ./orbit-docker.sh start"
     echo ""
-    echo "  # Start with commercial profile"
-    echo "  ./orbit-docker.sh start --profile cloud"
+    echo "Container Management (docker-compose):"
+    echo "  ./orbit-docker.sh start                    # Start ORBIT"
+    echo "  ./orbit-docker.sh start --profile cloud    # Start with cloud profile"
+    echo "  ./orbit-docker.sh stop                     # Stop ORBIT"
+    echo "  ./orbit-docker.sh restart                  # Restart ORBIT"
     echo ""
-    echo "  # View logs"
-    echo "  ./orbit-docker.sh logs --follow"
+    echo "Working with Any Container (--container option):"
+    echo "  ./orbit-docker.sh --container demo status       # Check 'demo' container status"
+    echo "  ./orbit-docker.sh --container demo logs         # View logs from 'demo' container"
+    echo "  ./orbit-docker.sh --container demo logs --follow # Follow logs from 'demo' container"
+    echo "  ./orbit-docker.sh --container orbit-basic exec bash  # Open shell in 'orbit-basic' container"
     echo ""
-    echo "  # Authentication"
-    echo "  ./orbit-docker.sh login --username admin"
-    echo "  ./orbit-docker.sh auth-status"
-    echo "  ./orbit-docker.sh me"
-    echo "  ./orbit-docker.sh logout"
-    echo ""
-    echo "  # Run CLI command"
+    echo "CLI Commands (proxy to orbit CLI):"
+    echo "  ./orbit-docker.sh cli key list            # List API keys (default container)"
+    echo "  ./orbit-docker.sh --container demo cli key list # List keys in 'demo' container"
     echo "  ./orbit-docker.sh cli key create --name myapp"
+    echo "  ./orbit-docker.sh cli prompt list"
+    echo "  ./orbit-docker.sh cli user list"
     echo ""
-    echo "  # Execute shell in container"
-    echo "  ./orbit-docker.sh exec bash"
+    echo "Authentication:"
+    echo "  ./orbit-docker.sh login --username admin   # Login (default container)"
+    echo "  ./orbit-docker.sh --container demo login --username admin  # Login to 'demo' container"
+    echo "  ./orbit-docker.sh auth-status             # Check auth status"
+    echo "  ./orbit-docker.sh me                       # Show current user"
+    echo "  ./orbit-docker.sh logout                   # Logout"
+    echo ""
+    echo "Advanced:"
+    echo "  ./orbit-docker.sh start --config configs/prod.yaml"
+    echo "  ./orbit-docker.sh start --port 8080"
+    echo "  ./orbit-docker.sh logs --tail 100 --follow"
     exit 0
 }
 
-# Parse command
+# Parse command and options (options can come before or after command)
 if [ $# -eq 0 ]; then
     print_help
 fi
 
-COMMAND=$1
-shift
+COMMAND=""
+REMAINING_ARGS=()
 
-# Parse options
+# First pass: parse options and find the command
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --config)
@@ -127,7 +182,13 @@ while [[ "$#" -gt 0 ]]; do
             DETACHED=false
             shift
             ;;
+        --container)
+            CONTAINER_NAME="$2"
+            shift 2
+            ;;
         --name)
+            # Deprecated: use --container instead
+            echo -e "${YELLOW}⚠️  --name is deprecated, use --container instead${NC}" >&2
             CONTAINER_NAME="$2"
             shift 2
             ;;
@@ -135,11 +196,26 @@ while [[ "$#" -gt 0 ]]; do
             print_help
             ;;
         *)
-            # Keep remaining args for commands
-            break
+            # First non-option argument is the command
+            if [ -z "$COMMAND" ]; then
+                COMMAND="$1"
+            else
+                # Remaining args for the command
+                REMAINING_ARGS+=("$1")
+            fi
+            shift
             ;;
     esac
 done
+
+# If no command found, show help
+if [ -z "$COMMAND" ]; then
+    echo -e "${RED}❌ No command specified${NC}"
+    print_help
+fi
+
+# Set remaining args for commands that need them
+set -- "${REMAINING_ARGS[@]}"
 
 # Export environment variables for docker-compose
 export ORBIT_PORT=$PORT
@@ -160,12 +236,43 @@ if [ -n "$CONFIG_FILE" ]; then
     echo -e "${BLUE}Using config: $CONFIG_FILE${NC}"
 fi
 
-# Check env file
-if [ ! -f "$ENV_FILE" ]; then
-    echo -e "${RED}❌ Environment file not found: $ENV_FILE${NC}"
-    echo -e "${YELLOW}Create one with: cp env.example .env${NC}"
-    exit 1
+# Check env file (only for docker-compose commands that actually need it)
+# Skip check if using --container with status/logs (using direct docker commands)
+NEEDS_ENV_FILE=false
+if [[ "$COMMAND" =~ ^(start|stop|restart)$ ]]; then
+    NEEDS_ENV_FILE=true
+elif [[ "$COMMAND" =~ ^(status|logs)$ ]] && [ "$CONTAINER_NAME" = "orbit-server" ]; then
+    # Only need env file for docker-compose commands (default container)
+    NEEDS_ENV_FILE=true
 fi
+
+if [ "$NEEDS_ENV_FILE" = true ]; then
+    # Resolve env file path relative to script directory
+    if [[ "$ENV_FILE" != /* ]]; then
+        ENV_FILE="$SCRIPT_DIR/$ENV_FILE"
+    fi
+    
+    if [ ! -f "$ENV_FILE" ]; then
+        echo -e "${RED}❌ Environment file not found: $ENV_FILE${NC}"
+        echo -e "${YELLOW}Note: The .env file is only needed for docker-compose commands (start, stop, restart)${NC}"
+        echo -e "${YELLOW}When using --container with status/logs, the .env file is not required${NC}"
+        echo ""
+        echo -e "${YELLOW}To create the .env file:${NC}"
+        echo -e "  cp ../env.example $ENV_FILE"
+        echo -e "  # Or from docker directory: cp env.example .env"
+        exit 1
+    fi
+fi
+
+# Function to check if container exists
+check_container_exists() {
+    if ! docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        echo -e "${RED}❌ Container '$CONTAINER_NAME' not found${NC}"
+        echo -e "${YELLOW}Available containers:${NC}"
+        docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | head -10
+        exit 1
+    fi
+}
 
 # Execute commands
 case $COMMAND in
@@ -195,11 +302,17 @@ case $COMMAND in
         ;;
         
     logs)
-        # If no extra args, default to orbit-server logs
-        if [ $# -eq 0 ]; then
-            $DOCKER_COMPOSE --env-file "$ENV_FILE" logs orbit-server
+        # If --container is specified, use docker logs directly
+        if [ "$CONTAINER_NAME" != "orbit-server" ]; then
+            check_container_exists
+            docker logs "$CONTAINER_NAME" "$@"
         else
-            $DOCKER_COMPOSE --env-file "$ENV_FILE" logs "$@"
+            # Use docker-compose for default container
+            if [ $# -eq 0 ]; then
+                $DOCKER_COMPOSE --env-file "$ENV_FILE" logs orbit-server
+            else
+                $DOCKER_COMPOSE --env-file "$ENV_FILE" logs "$@"
+            fi
         fi
         ;;
         
@@ -208,49 +321,74 @@ case $COMMAND in
             echo -e "${RED}❌ No command specified${NC}"
             exit 1
         fi
+        check_container_exists
         docker exec -it $CONTAINER_NAME "$@"
         ;;
         
     status)
-        echo -e "${BLUE}📊 ORBIT Status:${NC}"
-        $DOCKER_COMPOSE --env-file "$ENV_FILE" ps
-        echo ""
-        echo -e "${BLUE}Health Check:${NC}"
-        if curl -f http://localhost:$PORT/health > /dev/null 2>&1; then
-            echo -e "${GREEN}✅ ORBIT is healthy${NC}"
+        # If --container is specified, check that specific container
+        if [ "$CONTAINER_NAME" != "orbit-server" ]; then
+            check_container_exists
+            echo -e "${BLUE}📊 Container Status:${NC}"
+            docker ps --filter "name=^${CONTAINER_NAME}$" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+            echo ""
+            echo -e "${BLUE}Health Check:${NC}"
+            # Try to get port from container (compatible with both GNU and BSD grep)
+            CONTAINER_PORT=$(docker port "$CONTAINER_NAME" 2>/dev/null | grep '3000/tcp' | sed -E 's/.*:([0-9]+).*/\1/' | head -1 || echo "$PORT")
+            if curl -f http://localhost:${CONTAINER_PORT:-$PORT}/health > /dev/null 2>&1; then
+                echo -e "${GREEN}✅ Container '$CONTAINER_NAME' is healthy${NC}"
+            else
+                echo -e "${YELLOW}⚠️  Container '$CONTAINER_NAME' is running but health check failed${NC}"
+                echo -e "${YELLOW}   (This is normal if the container just started)${NC}"
+            fi
         else
-            echo -e "${RED}❌ ORBIT is not responding${NC}"
+            # Use docker-compose for default
+            echo -e "${BLUE}📊 ORBIT Status:${NC}"
+            $DOCKER_COMPOSE --env-file "$ENV_FILE" ps
+            echo ""
+            echo -e "${BLUE}Health Check:${NC}"
+            if curl -f http://localhost:$PORT/health > /dev/null 2>&1; then
+                echo -e "${GREEN}✅ ORBIT is healthy${NC}"
+            else
+                echo -e "${RED}❌ ORBIT is not responding${NC}"
+            fi
         fi
         ;;
         
     cli)
         # Run orbit CLI command in container
-        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py "$@"
+        check_container_exists
+        docker exec -it $CONTAINER_NAME python /orbit/bin/orbit.py "$@"
         ;;
         
     login)
         echo -e "${BLUE}🔐 Logging in to ORBIT...${NC}"
-        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py login "$@"
+        check_container_exists
+        docker exec -it $CONTAINER_NAME python /orbit/bin/orbit.py login "$@"
         ;;
         
     logout)
         echo -e "${YELLOW}🔓 Logging out from ORBIT...${NC}"
-        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py logout "$@"
+        check_container_exists
+        docker exec -it $CONTAINER_NAME python /orbit/bin/orbit.py logout "$@"
         ;;
         
     auth-status)
         echo -e "${BLUE}🔍 Checking authentication status...${NC}"
-        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py auth-status "$@"
+        check_container_exists
+        docker exec -it $CONTAINER_NAME python /orbit/bin/orbit.py auth-status "$@"
         ;;
         
     me)
         echo -e "${BLUE}👤 Getting current user info...${NC}"
-        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py me "$@"
+        check_container_exists
+        docker exec -it $CONTAINER_NAME python /orbit/bin/orbit.py me "$@"
         ;;
         
     register)
         echo -e "${BLUE}👥 Registering new user...${NC}"
-        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py register "$@"
+        check_container_exists
+        docker exec -it $CONTAINER_NAME python /orbit/bin/orbit.py register "$@"
         ;;
         
     *)

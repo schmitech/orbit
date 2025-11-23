@@ -1,0 +1,93 @@
+FROM python:3.12-slim
+
+WORKDIR /orbit
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    gcc \
+    g++ \
+    make \
+    libssl-dev \
+    libffi-dev \
+    libpq-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency configuration first (for better caching)
+COPY install/dependencies.toml /orbit/install/
+COPY install/generate_requirements.py /orbit/install/
+
+# Copy setup script and make it executable
+COPY install/setup.sh /orbit/install/
+RUN chmod +x /orbit/install/setup.sh
+
+# Install Python dependencies (llama-cpp profile for local GGUF model inference)
+# This includes llama-cpp-python and numpy which are required for the gemma3-1b model
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir tomli && \
+    cd /orbit/install && \
+    python3 generate_requirements.py llama-cpp --output /tmp/requirements.txt && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
+
+# Install dependencies needed for model download script
+RUN pip install --no-cache-dir requests tqdm pyyaml
+
+# Copy model download script and config
+COPY install/download_hf_gguf_model.py /orbit/install/
+COPY install/gguf-models.json /orbit/install/
+
+# Copy the application code
+COPY server/ /orbit/server/
+COPY bin/ /orbit/bin/
+COPY LICENSE* /orbit/
+
+# Copy default-config as config directory (same as tarball approach)
+# This matches exactly how build-tarball.sh copies config files
+COPY install/default-config/ /orbit/config/
+
+# Override passthrough adapter config to only enable simple-chat
+COPY docker/config/adapters/passthrough-basic.yaml /orbit/config/adapters/passthrough.yaml
+
+# Create .env file from env.example (same as tarball approach)
+COPY env.example /orbit/.env
+
+# Make scripts executable
+RUN chmod +x /orbit/bin/orbit.py /orbit/bin/orbit.sh
+
+# Create necessary directories
+RUN mkdir -p /orbit/logs /orbit/data /orbit/models /orbit/gguf
+
+# Copy model download script
+COPY docker/download-model.py /orbit/download-model.py
+RUN chmod +x /orbit/download-model.py
+
+# Copy models directory if it exists in build context (allows pre-downloaded models)
+# This allows testing builds without re-downloading large model files
+# The build script ensures models/ exists (even if empty) before building
+COPY models/ /orbit/models/
+
+# Download and include gemma3-1b model during build (only if not already present)
+RUN python3 /orbit/download-model.py
+
+# Set environment variables
+ENV PYTHONPATH=/orbit
+ENV PATH="/orbit/bin:${PATH}"
+
+# Expose the server port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
+# Copy entrypoint script
+COPY docker/docker-entrypoint-basic.sh /orbit/docker-entrypoint-basic.sh
+RUN chmod +x /orbit/docker-entrypoint-basic.sh
+
+# Run the entrypoint script
+ENTRYPOINT ["/orbit/docker-entrypoint-basic.sh"]
+

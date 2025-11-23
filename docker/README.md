@@ -4,6 +4,7 @@ This guide will help you get ORBIT up and running with Docker in minutes. ORBIT 
 
 ## Table of Contents
 - [Prerequisites](#prerequisites)
+- [Quick Start with Basic Image](#quick-start-with-basic-image)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Running ORBIT](#running-orbit)
@@ -26,6 +27,37 @@ Verify your installation:
 docker --version
 docker compose version  # or docker-compose --version
 ```
+
+## Quick Start with Basic Image
+
+New to ORBIT? Try the basic image first! It's a minimal, self-contained image perfect for testing and onboarding.
+
+The basic image includes:
+- ORBIT server with simple-chat adapter
+- Pre-downloaded gemma3-1b model (ready to use)
+- No API keys or external services required
+
+### Pull and Run
+
+```bash
+# Pull the image
+docker pull schmitech/orbit:basic
+
+# Run it
+docker run -d \
+  --name orbit-basic \
+  -p 3000:3000 \
+  schmitech/orbit:basic
+
+# Test it
+curl http://localhost:3000/health
+```
+
+That's it! The server is running and ready to use. 
+
+See [README-BASIC.md](README-BASIC.md) for detailed quick start instructions, API examples, and troubleshooting.
+
+For full functionality (file uploads, multiple adapters, custom configurations), continue with the standard installation below.
 
 ## Installation
 
