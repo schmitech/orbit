@@ -194,9 +194,9 @@ curl -X POST http://localhost:3000/v1/chat -H "Content-Type: application/json" -
 
 ### Other sanity checks
 ```bash
-docker exec orbit-server ls -la /app/models/
+docker exec orbit-server ls -la /orbit/models/
 # Check SQLite database (default backend)
-docker exec orbit-server ls -la /app/data/
+docker exec orbit-server ls -la /orbit/data/
 ```
 
 ### Viewing Logs
@@ -212,7 +212,7 @@ docker exec orbit-server ls -la /app/data/
 docker compose logs -f orbit-server
 
 # Check application logs:
-docker exec orbit-server cat /app/logs/orbit.log
+docker exec orbit-server cat /orbit/logs/orbit.log
 ```
 
 ### Stopping ORBIT
@@ -346,7 +346,7 @@ The `cli` command is a passthrough that executes any orbit CLI command inside th
 
 This translates to:
 ```bash
-docker exec -it orbit-server python /app/bin/orbit.py <command> [options]
+docker exec -it orbit-server python /orbit/bin/orbit.py <command> [options]
 ```
 
 **Key Points:**
@@ -363,7 +363,7 @@ docker exec -it orbit-server python /app/bin/orbit.py <command> [options]
 ./orbit-docker.sh exec bash
 
 # Run specific commands
-./orbit-docker.sh exec ls -la /app/logs
+./orbit-docker.sh exec ls -la /orbit/logs
 ```
 
 ## Advanced Usage
@@ -388,17 +388,17 @@ ORBIT stores data in mounted volumes:
 - `../models`: Downloaded models
 - `./config`: Configuration files
 
-The default SQLite database is stored in the container's `/app/data/` directory. To persist it, you can add a volume mount:
+The default SQLite database is stored in the container's `/orbit/data/` directory. To persist it, you can add a volume mount:
 
 ```yaml
 volumes:
-  - ./data:/app/data  # Add this to persist SQLite database
+  - ./data:/orbit/data  # Add this to persist SQLite database
 ```
 
 To backup data:
 ```bash
 # Backup SQLite database (if using default backend)
-docker exec orbit-server tar czf /tmp/orbit-backup.tar.gz -C /app/data .
+docker exec orbit-server tar czf /tmp/orbit-backup.tar.gz -C /orbit/data .
 docker cp orbit-server:/tmp/orbit-backup.tar.gz ./orbit-backup.tar.gz
 
 # Backup logs
@@ -552,10 +552,10 @@ docker compose logs -f orbit-server
 **Check SQLite database (default backend):**
 ```bash
 # Check if database file exists
-docker exec orbit-server ls -la /app/data/
+docker exec orbit-server ls -la /orbit/data/
 
 # Check database permissions
-docker exec orbit-server ls -l /app/data/
+docker exec orbit-server ls -l /orbit/data/
 ```
 
 **Identify port conflicts:**
@@ -598,7 +598,7 @@ docker compose ps
 curl http://localhost:3000/health
 
 # Check SQLite database (default backend)
-docker exec orbit-server ls -la /app/data/
+docker exec orbit-server ls -la /orbit/data/
 ```
 
 ### Resetting Everything

@@ -67,65 +67,53 @@ Have a story or feature request? [Open an issue](https://github.com/schmitech/or
 
 ---
 
-## How to Use
+## 🚀 Quick Start
 
-### Prerequisites
+There are three ways to get started with ORBIT.
 
-- Python 3.12+ (for running the server or CLI locally)
-- Node.js 18+ and npm (for the React chat app)
-- Docker 20.10+ and Docker Compose 2.0+ (if you prefer containers)
-- Optional: MongoDB (only needed if using MongoDB backend instead of default SQLite)
-- Optional: Redis cache and vector DB (Chroma, Qdrant, Pinecone, Milvus, etc.)
+### Option 1: Docker (Recommended)
 
-### Installation Instructions
+This is the fastest way to get ORBIT running. The demo image includes a self-contained server with a local model, so no additional API keys are needed.
 
 ```bash
-# Download the latest release archive
-curl -L https://github.com/schmitech/orbit/releases/download/v2.1.0/orbit-2.1.0.tar.gz -o orbit-2.1.0.tar.gz
-tar -xzf orbit-2.1.0.tar.gz
-cd orbit-2.1.0
+# Pull the ORBIT basic image
+docker pull schmitech/orbit:basic
 
-# Add API keys if using proprietary services like OpenAI, Cohere, Anthropic, etc
-cp env.example .env
-
-# Install packages
-./install/setup.sh
-
-# Activate Python environment
-source venv/bin/activate
-
-# Get a local GGUF model (models are downloaded from Hugging Face)
-# You can select a different model from the list below
-# Available GGUF models: gemma3-270m, gemma3-1b, tinyllama-1b, phi-2, mistral-7b, granite4-micro, embeddinggemma-300m
-# You can add your own models by editing install/gguf-models.json
-./install/setup.sh --download-gguf granite4-micro
-
-# Alternative: Use Ollama if llama.cpp fails due to native library issues
-# If you encounter errors with llama.cpp (e.g., missing native libraries, compilation issues), 
-# you can use Ollama instead:
-# 
-# Step 1: Install Ollama (if not already installed)
-#   macOS/Linux: curl -fsSL https://ollama.com/install.sh | sh
-#   Windows: Download from https://ollama.com/download
-#
-# Step 2: Pull the granite4 model
-#   ollama pull granite4:micro
-#
-# Step 3: Update config/adapters.yaml to use Ollama
-#   Find the "simple-chat" adapter and change:
-#     inference_provider: "ollama"  # Change from "llama_cpp" to "ollama"
-#     model: "granite4:micro"              # Change to the Ollama model name
-#
-# Step 4: Make sure Ollama is enabled in config/inference.yaml
-#   Verify that the "ollama" provider has enabled: true
-
-# Start the ORBIT server
-./bin/orbit.sh start 
-
-# Check the logs
-cat ./logs/orbit.log
+# Run the container
+docker run -d \
+  --name orbit-basic \
+  -p 3000:3000 \
+  schmitech/orbit:basic
 ```
-Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server:
+
+The ORBIT server will be running at `http://localhost:3000`. You can monitor it by browsing to the dashboard at `http://localhost:3000/dashboard`.
+
+### Create Your First API Key
+
+Once the container is running, create a default API key to start chatting:
+
+```bash
+# Login as admin (default password: admin123). You can change it later.
+docker exec -it orbit-basic python /orbit/bin/orbit.py login --username admin --password admin123
+
+# Create a default API key with a simple prompt
+docker exec -it orbit-basic python /orbit/bin/orbit.py key create \
+  --adapter simple-chat \
+  --name "Default Chat Key" \
+  --prompt-name "Default Assistant" \
+  --prompt-text "You are a helpful assistant. Be concise and friendly."
+```
+
+The command will output your API key (starts with `orbit_`). Save it for use with the chat clients below.
+```bash
+✓ API key created successfully
+API Key: orbit_123456789ABCDEFGabcdefg
+Client: Default Chat Key
+Adapter: simple-chat
+Prompt ID: 12345-abcdefg
+```
+
+Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server.
 
 <div align="center">
   <video src="https://github.com/user-attachments/assets/d12135d9-b827-49df-8725-1350df175aed" controls>
@@ -135,38 +123,167 @@ Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server:
   <i>ORBIT Dashboard running during unit tests. Some errors shown are expected and are part of negative test coverage.</i>
 </div>
 
-### Talk to ORBIT from the CLI
+**Note:** The basic image includes the `simple-chat` adapter and the `gemma3-1b` model pre-configured, running natively via llama.cpp. No API keys from cloud or commercial AI platforms or external services are needed. For more details, see the [Docker Basic Image Guide](docker/README-BASIC.md).
+
+Quick test of the chat endpoint:
 
 ```bash
-# Step 1: Login to ORBIT with default admin credentials (admin / admin123):
-./bin/orbit.sh login
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: orbit_123456789ABCDEFGabcdefg' \
+  -H 'X-Session-ID: test-session' \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Hello, what is 2+2?"}
+    ],
+    "stream": false
+  }'
+```
 
-# Step 2: Generate an API key (copy the key that's output)
-# For basic chat, use simple-chat adapter:
-./bin/orbit.sh key create \
-  --adapter simple-chat \
-  --name "Conversational Chatbot" \
-  --prompt-file ./prompts/default-conversational-adapter-prompt.txt \
-  --prompt-name "Conversational Prompt"
+Example response:
 
-# For file upload and multimodal support, use conversational-multimodal adapter instead:
-# Note: This adapter must be enabled in config/adapters.yaml first (set enabled: true for "simple-chat-with-files")
-# ./bin/orbit.sh key create \
-#   --adapter simple-chat-with-files \
-#   --name "Multimodal Chatbot" \
-#   --prompt-file ./prompts/default-conversational-adapter-prompt.txt \
-#   --prompt-name "Conversational Prompt"
+```json
+{
+  "response": "2 + 2 = 4 Let me know if you'd like to try another math problem!",
+  "sources": [],
+  "metadata": {
+    "processing_time": 0.0,
+    "pipeline_used": true
+  }
+}
+```
 
-# This will output something like: orbit_0sXJhNsK7FT9HCGEUS7GpkhtXvVOEMX6
+### Option 2: Manual Installation
 
-# Step 3 (Optional): Rename the API key for easier reference
-# Replace YOUR_ACTUAL_KEY with the key from Step 2
-./bin/orbit.sh key rename --old-key YOUR_ACTUAL_KEY --new-key default-key
+For more control, you can install and run ORBIT locally from the source.
 
-# Step 4: Start chatting
-# Replace YOUR_ACTUAL_KEY below with the API key you copied from Step 2
-# Note: On first run, you will see a prompt asking to create a config file. Type 'y' to proceed.
-orbit-chat --url "http://localhost:3000" --api-key YOUR_ACTUAL_KEY
+#### Prerequisites
+
+- Python 3.12+
+- Node.js 18+ and npm
+- Docker 20.10+ and Docker Compose 2.0+
+- Optional: MongoDB, Redis, and a vector DB (Chroma, Qdrant, etc.)
+
+#### 1. Install ORBIT Server
+
+```bash
+# Clone the repository
+git clone https://github.com/schmitech/orbit.git
+cd orbit
+
+# Add API keys if using proprietary services like OpenAI, Cohere, etc.
+cp env.example .env
+
+# Install packages
+./install/setup.sh
+
+# Activate Python environment
+source venv/bin/activate
+
+# Start the ORBIT server
+./bin/orbit.sh start 
+
+# Check the logs
+tail -f ./logs/orbit.log
+```
+
+**Note:** After starting the server, you'll need to create an API key using `./bin/orbit.sh key create` before you can use the chat clients.
+
+### Option 3: Download Latest Release
+
+Download and install the latest stable release without cloning the repository.
+
+#### Prerequisites
+
+- Python 3.12+
+- Node.js 18+ and npm
+- Optional: MongoDB, Redis, and a vector DB (Chroma, Qdrant, etc.)
+
+#### 1. Download and Extract Release
+
+```bash
+# Download the latest release archive
+# Replace v2.1.0 with the latest version from https://github.com/schmitech/orbit/releases
+curl -L https://github.com/schmitech/orbit/releases/download/v2.1.0/orbit-2.1.0.tar.gz -o orbit-2.1.0.tar.gz
+
+tar -xzf orbit-2.1.0.tar.gz
+
+cd orbit-2.1.0
+```
+
+#### 2. Configure and Install
+
+```bash
+# Add API keys if using proprietary services like OpenAI, Cohere, Anthropic, etc.
+cp env.example .env
+
+# Install packages
+./install/setup.sh
+
+# Activate Python environment
+source venv/bin/activate
+```
+
+#### 3. Download a Local Model (Optional)
+
+Get a local GGUF model for offline inference. Models are downloaded from Hugging Face.
+
+```bash
+# Available GGUF models: gemma3-270m, gemma3-1b, tinyllama-1b, phi-2, mistral-7b, granite4-micro, embeddinggemma-300m
+# You can add your own models by editing install/gguf-models.json
+./install/setup.sh --download-gguf granite4-micro
+```
+
+**Alternative: Using Ollama**
+
+If you encounter errors with llama.cpp (e.g., missing native libraries, compilation issues), you can use Ollama instead:
+
+1. **Install Ollama** (if not already installed):
+   ```bash
+   # macOS/Linux
+   curl -fsSL https://ollama.com/install.sh | sh
+   
+   # Windows: Download from https://ollama.com/download
+   ```
+
+2. **Pull the model**:
+   ```bash
+   ollama pull granite4:micro
+   ```
+
+3. **Update configuration**:
+   - Edit `config/adapters.yaml` and find the `simple-chat` adapter
+   - Change `inference_provider: "ollama"` (from `"llama_cpp"`)
+   - Change `model: "granite4:micro"` to match the Ollama model name
+   - Verify that `ollama` provider has `enabled: true` in `config/inference.yaml`
+
+#### 4. Start the Server
+
+```bash
+# Start the ORBIT server
+./bin/orbit.sh start 
+
+# Check the logs
+cat ./logs/orbit.log
+```
+
+**Note:** After starting the server, you'll need to create an API key using `./bin/orbit.sh key create` before you can use the chat clients.
+
+---
+
+## 💬 Chat Clients
+
+Once your ORBIT server is running (via Docker or manual installation), you can interact with it using one of these clients:
+
+### Using the Python CLI Client
+
+The `orbit-chat` python CLI provides a terminal-based chat interface.
+
+```bash
+# Install the client from PyPI
+pip install schmitech-orbit-client
+
+orbit-chat --api-key YOUR_API_KEY
 ```
 
 <div align="center">
@@ -177,43 +294,32 @@ orbit-chat --url "http://localhost:3000" --api-key YOUR_ACTUAL_KEY
   <i>Using the <code>orbit-chat</code> CLI. Run <code>orbit-chat -h</code> for options.</i>
 </div>
 
-### Spin up the React Chat app
+### Using the React Web App
 
 ```bash
-# Step 1: Install the ORBIT chat app globally
 npm install -g orbitchat
-
-# Step 2: Run the chat app
-# The app will start at http://localhost:5173 by default
-orbitchat
-
-# Step 3 (Optional): Configure with CLI options
-# Replace YOUR_ACTUAL_KEY with your API key from earlier
-orbitchat --api-url http://localhost:3000 --api-key YOUR_ACTUAL_KEY --open
-
-# Note: File upload functionality only works with the 'simple-chat-with-files' adapter.
-# Make sure your API key is created with --adapter 'simple-chat-with-files' (not simple-chat).
+orbitchat --api-url http://localhost:3000 --api-key YOUR_API_KEY --open
 ```
 
-**Available CLI options:**
-- `--api-url URL` - ORBIT server URL (default: http://localhost:3000)
-- `--api-key KEY` - Default API key to use
-- `--port PORT` - Server port (default: 5173)
-- `--open` - Open browser automatically
-- `--enable-upload-button` - Enable file upload button
-- `--help` - Show all available options
-
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/9b61911e-f0c3-464e-a3a5-79c4645415c2" controls>
+  <video src="https://github.com/user-attachments/assets/c8a4523d-82fe-4d32-93b8-acb6c97820dc" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
   <i>Chatting with ORBIT using the React client.</i>
 </div>
 
-### Chatting with a DB
+---
 
-#### Quick Setup (SQLite Example)
+## 🗃️ Chat with Your Data
+
+ORBIT can connect to your databases and other data sources. Here's a quick example using a local SQLite database.
+
+**Note:** This example requires cloning the repository or using the release version. The basic Docker image (`schmitech/orbit:basic`) does not include database adapters or examples. A Docker image with database examples will be available in a future release.
+
+### Quick Setup (SQLite Example)
+
+**Prerequisites:** Clone the repository or download the release version. See [Option 2: Manual Installation](#option-2-manual-installation) above.
 
 ```bash
 # 1. Set up the database and test data
@@ -224,32 +330,19 @@ python utils/sql-intent-template/examples/sqlite/contact/generate_contact_data.p
 # 2. Restart ORBIT to load pre-generated templates
 ./bin/orbit.sh restart
 
-# 3. Create an API key for the postgres adapter
+# 3. Create an API key for the SQLite adapter
 ./bin/orbit.sh key create \
   --adapter intent-sql-sqlite-contact \
   --name "Contacts Chatbot" \
   --prompt-file ./examples/prompts/contact-assistant-prompt.txt \
   --prompt-name "Contacts Chatbot"
-
-# 4. Rename API Key (Optional, just for convenience when testing)
-./bin/orbit.sh key rename --old-key YOUR_ACTUAL_KEY --new-key contact
 ```
 
-**Note:** SQL templates are pre-generated for this contacts example. You can use this script as example:
+**Note:** The `intent-sql-sqlite-contact` adapter is enabled by pre-generated templates for this example. To connect your own database, you'll need to generate templates from your database schema. See the [`README.md`](utils/sql-intent-template/README.md) and [`tutorial.md`](utils/sql-intent-template/docs/tutorial.md) for a detailed guide.
 
-```bash
-cd utils/sql-intent-template
+### Test with the React application:
 
-# This script uses utils/sql-intent-template/template_generator.py to automatically generate
-# a semantic SQL intent template. See documentation for template_generator.py for usage and options.
-./run_contact_example.sh --generate
-```
-
-This script generates the templates from your schema and queries. For custom databases, edit the script to point to your schema and queries files.
-
-For more details, see: [`README.md`](utils/sql-intent-template/README.md) and [`tutorial.md`](utils/sql-intent-template/docs/tutorial.md)
-
-#### Test with the React application:
+You can now use the API key you created with the React app (`orbitchat`) to have a conversation with your database.
 
 <div align="center">
   <video src="https://github.com/user-attachments/assets/68190983-d996-458f-8024-c9c15272d1c3" controls>
@@ -259,10 +352,9 @@ For more details, see: [`README.md`](utils/sql-intent-template/README.md) and [`
   <i>Chatting with a database using the React client.</i>
 </div>
 
-#### Next steps
+### Next steps
 
-- Create an API key tied to the adapter you want to expose (`./bin/orbit.sh key create`). A default prompt file is available at `./prompts/default-conversational-adapter-prompt.txt`.
-- Enable or customize adapters in `config/adapters.yaml` and redeploy to connect new datasources.
+- Explore `config/adapters.yaml` to enable or customize adapters for different data sources.
 - Skim the [docs](#documentation) for deep dives on auth, configuration, and deployment patterns.
 
 ---

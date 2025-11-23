@@ -9,13 +9,13 @@ services:
     ports:
       - "${ORBIT_PORT:-3000}:${ORBIT_PORT:-3000}"
     volumes:
-      - ./config:/app/config
-      - ../logs:/app/logs
-      - ../models:/app/models
+      - ./config:/orbit/config
+      - ../logs:/orbit/logs
+      - ../models:/orbit/models
     env_file:
       - ./.env
     environment:
-      - CONFIG_PATH=/app/config/config.yaml
+      - CONFIG_PATH=/orbit/config/config.yaml
     restart: unless-stopped
     networks:
       - orbit-network

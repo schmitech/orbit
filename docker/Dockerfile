@@ -4,7 +4,7 @@ FROM python:3.12-slim
 # Empty means default dependencies only, specify profile (e.g., torch, cloud) to add additional dependencies
 ARG DEPENDENCY_PROFILE=
 
-WORKDIR /app
+WORKDIR /orbit
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -21,12 +21,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency configuration first (for better caching)
-COPY install/dependencies.toml /app/install/
-COPY install/generate_requirements.py /app/install/
+COPY install/dependencies.toml /orbit/install/
+COPY install/generate_requirements.py /orbit/install/
 
 # Copy setup script and make it executable
-COPY install/setup.sh /app/install/
-RUN chmod +x /app/install/setup.sh
+COPY install/setup.sh /orbit/install/
+RUN chmod +x /orbit/install/setup.sh
 
 # Install Python dependencies based on profile
 # First install core dependencies that are always needed
@@ -37,7 +37,7 @@ RUN pip install --no-cache-dir tomli
 
 # Generate requirements file from TOML and install dependencies
 # If DEPENDENCY_PROFILE is empty, use default dependencies only
-RUN cd /app/install && \
+RUN cd /orbit/install && \
     if [ -z "${DEPENDENCY_PROFILE}" ]; then \
         python3 generate_requirements.py --output /tmp/requirements.txt; \
     else \
@@ -47,22 +47,22 @@ RUN cd /app/install && \
     rm /tmp/requirements.txt
 
 # Copy the application code
-COPY server/ /app/server/
-COPY bin/ /app/bin/
-COPY LICENSE* /app/
+COPY server/ /orbit/server/
+COPY bin/ /orbit/bin/
+COPY LICENSE* /orbit/
 
 # Copy default-config as config directory
-COPY install/default-config/ /app/config/
+COPY install/default-config/ /orbit/config/
 
 # Make scripts executable
-RUN chmod +x /app/bin/orbit.py /app/bin/orbit.sh
+RUN chmod +x /orbit/bin/orbit.py /orbit/bin/orbit.sh
 
 # Create necessary directories
-RUN mkdir -p /app/logs /app/data /app/gguf
+RUN mkdir -p /orbit/logs /orbit/data /orbit/models /orbit/gguf
 
 # Set environment variables
-ENV PYTHONPATH=/app
-ENV PATH="/app/bin:${PATH}"
+ENV PYTHONPATH=/orbit
+ENV PATH="/orbit/bin:${PATH}"
 
 # Expose the server port
 EXPOSE 3000
@@ -72,4 +72,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
 # Run the server with configurable config path
-CMD ["sh", "-c", "python /app/server/main.py --config ${CONFIG_PATH:-/app/config/config.yaml}"]
+CMD ["sh", "-c", "python /orbit/server/main.py --config ${CONFIG_PATH:-/orbit/config/config.yaml}"]

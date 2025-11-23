@@ -64,7 +64,9 @@ curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
   -H 'X-Session-ID: test-session' \
   -d '{
-    "message": "Hello, what is 2+2?",
+    "messages": [
+      {"role": "user", "content": "Hello, what is 2+2?"}
+    ],
     "stream": false
   }'
 ```
@@ -168,7 +170,9 @@ curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
   -H 'X-Session-ID: my-session' \
   -d '{
-    "message": "Explain quantum computing in simple terms",
+    "messages": [
+      {"role": "user", "content": "Explain quantum computing in simple terms"}
+    ],
     "stream": false
   }'
 ```
@@ -180,7 +184,9 @@ curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
   -H 'X-Session-ID: my-session' \
   -d '{
-    "message": "Tell me a short story",
+    "messages": [
+      {"role": "user", "content": "Tell me a short story"}
+    ],
     "stream": true
   }' \
   --no-buffer
@@ -196,7 +202,9 @@ curl -X POST http://localhost:3000/v1/chat \
   -H 'X-API-Key: orbit_your-key-here' \
   -H 'X-Session-ID: my-session' \
   -d '{
-    "message": "What is ORBIT?",
+    "messages": [
+      {"role": "user", "content": "What is ORBIT?"}
+    ],
     "stream": false
   }'
 ```
@@ -241,7 +249,7 @@ Increase Docker's memory limit in Docker Desktop settings, or ensure you have at
 
 The model should be included in the image. If you see errors about missing models, check:
 ```bash
-docker exec orbit-basic ls -la /app/models/
+docker exec orbit-basic ls -la /orbit/models/
 ```
 
 You should see `gemma-3-1b-it-Q4_0.gguf` in the output.
@@ -340,12 +348,23 @@ sleep 10
 # Test the health endpoint
 curl http://localhost:3000/health
 
-# Test a chat request
+# (Optional) Create an API key first for authenticated requests
+# docker exec -it orbit-basic-test python /orbit/bin/orbit.py login --username admin --password admin123
+# docker exec -it orbit-basic-test python /orbit/bin/orbit.py key create \
+#   --adapter simple-chat \
+#   --name "Test Key" \
+#   --prompt-text "You are a helpful assistant."
+
+# Test a chat request (replace 'orbit_your-key-here' with your actual API key)
+# Note: API key is optional for simple-chat adapter, but recommended
 curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
+  -H 'X-API-Key: orbit_your-key-here' \
   -H 'X-Session-ID: test-session' \
   -d '{
-    "message": "Hello, what is 2+2?",
+    "messages": [
+      {"role": "user", "content": "Hello, what is 2+2?"}
+    ],
     "stream": false
   }'
 
