@@ -58,6 +58,9 @@ COPY docker/config/adapters/passthrough-basic.yaml /orbit/config/adapters/passth
 # Replace relative model_path with absolute path
 RUN sed -i 's|model_path: "models/gemma-3-1b-it-Q4_0.gguf"|model_path: "/orbit/models/gemma-3-1b-it-Q4_0.gguf"|g' /orbit/config/inference.yaml
 
+# Enable console logging for Docker (logs to stdout/stderr for docker logs command)
+RUN sed -i '/console:/,/format:/ s/enabled: false/enabled: true/' /orbit/config/config.yaml
+
 # Create .env file from env.example (same as tarball approach)
 COPY env.example /orbit/.env
 

@@ -98,7 +98,8 @@ clean_unused() {
 
 # Clean everything (DANGEROUS)
 clean_all() {
-    if ! confirm "${RED}WARNING: This will remove ALL containers, images, volumes, and networks. Continue?${NC}"; then
+    echo -e "${RED}WARNING: This will remove ALL containers, images, volumes, and networks.${NC}"
+    if ! confirm "Continue?"; then
         echo -e "${YELLOW}Aborted${NC}"
         exit 0
     fi
