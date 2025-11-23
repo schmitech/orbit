@@ -61,13 +61,27 @@ class CLITester:
         full_command = ["python", str(ORBIT_CLI)] + command
         logger.info(f"Running: {' '.join(full_command)}")
         
+        # Set PYTHONPATH to include project root so bin.orbit module can be found
+        # This allows 'from bin.orbit.cli import main' to work in bin/orbit.py
+        env = os.environ.copy()
+        current_pythonpath = env.get("PYTHONPATH", "")
+        project_root_str = str(PROJECT_ROOT)
+        
+        # Use os.pathsep for cross-platform compatibility (':' on Unix, ';' on Windows)
+        if current_pythonpath:
+            # Preserve existing PYTHONPATH and prepend project root
+            env["PYTHONPATH"] = f"{project_root_str}{os.pathsep}{current_pythonpath}"
+        else:
+            env["PYTHONPATH"] = project_root_str
+        
         try:
             result = subprocess.run(
                 full_command,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                cwd=PROJECT_ROOT
+                cwd=PROJECT_ROOT,
+                env=env
             )
             
             return {
@@ -199,7 +213,7 @@ class CLITester:
             for username in self.test_users:
                 try:
                     # First, try to get the list of users to find the user ID
-                    result = self.run_command(["user", "list", "--output", "json"])
+                    result = self.run_command(["--output", "json", "user", "list"])
                     if result["success"]:
                         # Parse the JSON output to find the user
                         users_data = self.extract_json_from_output(result["stdout"])
@@ -228,7 +242,7 @@ class CLITester:
         try:
             if self.logged_in:
                 logger.info("Cleaning up any remaining test users with test patterns...")
-                result = self.run_command(["user", "list", "--output", "json"])
+                result = self.run_command(["--output", "json", "user", "list"])
                 if result["success"]:
                     users_data = self.extract_json_from_output(result["stdout"])
                     if users_data and isinstance(users_data, list):
@@ -668,6 +682,180 @@ class CLITester:
             logger.error(f"✗ API key with prompt creation failed: {result['stderr']}")
             return False
     
+    def test_api_key_create_with_prompt_text(self) -> bool:
+        """Test creating API key with --prompt-text (new feature)"""
+        logger.info("\n=== Testing API Key Creation with --prompt-text ===")
+        adapter_name = "qa-sql"
+        prompt_name = f"CLI Test Prompt Text {int(time.time())}"
+        prompt_text = "You are a helpful assistant created using --prompt-text feature."
+        
+        result = self.run_command([
+            "key", "create",
+            "--adapter", adapter_name,
+            "--name", "CLI Test Client Prompt Text",
+            "--prompt-name", prompt_name,
+            "--prompt-text", prompt_text
+        ])
+        
+        if result["success"]:
+            if "api key" in result["stdout"].lower() and "created" in result["stdout"].lower():
+                logger.info("✓ API key with --prompt-text created successfully")
+                return True
+            else:
+                logger.error("✗ API key with --prompt-text creation output format unexpected")
+                return False
+        else:
+            if "503" in result["stderr"] or "not available" in result["stderr"]:
+                logger.info("✓ API key with --prompt-text creation not available (inference-only mode)")
+                return True
+            logger.error(f"✗ API key with --prompt-text creation failed: {result['stderr']}")
+            return False
+    
+    def test_api_key_create_with_both_prompt_options_error(self) -> bool:
+        """Test that providing both --prompt-text and --prompt-file results in an error"""
+        logger.info("\n=== Testing API Key Creation with Both Prompt Options (Error Case) ===")
+        adapter_name = "qa-sql"
+        prompt_name = f"CLI Test Prompt Both {int(time.time())}"
+        prompt_text = "You are a helpful assistant."
+        prompt_file = self.create_temp_prompt_file("Different prompt content.")
+        
+        result = self.run_command([
+            "key", "create",
+            "--adapter", adapter_name,
+            "--name", "CLI Test Client Both Options",
+            "--prompt-name", prompt_name,
+            "--prompt-text", prompt_text,
+            "--prompt-file", prompt_file
+        ])
+        
+        # Should fail with an error message
+        if not result["success"]:
+            error_output = result["stdout"].lower() + " " + result["stderr"].lower()
+            if "cannot specify both" in error_output or "both --prompt-text and --prompt-file" in error_output:
+                logger.info("✓ Correctly rejected both --prompt-text and --prompt-file")
+                return True
+            else:
+                logger.error(f"✗ Unexpected error message: stdout: {result['stdout']}, stderr: {result['stderr']}")
+                return False
+        else:
+            logger.error("✗ Should have failed when both options are provided")
+            return False
+    
+    def test_prompt_create_with_prompt_text(self) -> bool:
+        """Test system prompt creation with --prompt-text (new feature)"""
+        logger.info("\n=== Testing System Prompt Creation with --prompt-text ===")
+        prompt_text = "You are a helpful assistant created using --prompt-text feature."
+        prompt_name = f"CLI Test Prompt Text {int(time.time())}"
+        
+        result = self.run_command([
+            "prompt", "create",
+            "--name", prompt_name,
+            "--prompt-text", prompt_text,
+            "--version", "1.0"
+        ])
+        
+        if result["success"]:
+            if "prompt created successfully" in result["stdout"].lower() or "id:" in result["stdout"].lower():
+                logger.info(f"✓ System prompt created with --prompt-text: {prompt_name}")
+                return True
+            else:
+                logger.error("✗ System prompt creation with --prompt-text output format unexpected")
+                return False
+        else:
+            if "503" in result["stderr"] or "not available" in result["stderr"]:
+                logger.info("✓ System prompt creation with --prompt-text not available (inference-only mode)")
+                return True
+            logger.error(f"✗ System prompt creation with --prompt-text failed: {result['stderr']}")
+            return False
+    
+    def test_prompt_create_with_both_options_error(self) -> bool:
+        """Test that providing both --prompt-text and --file results in an error"""
+        logger.info("\n=== Testing Prompt Creation with Both Options (Error Case) ===")
+        prompt_name = f"CLI Test Prompt Both {int(time.time())}"
+        prompt_text = "You are a helpful assistant."
+        prompt_file = self.create_temp_prompt_file("Different prompt content.")
+        
+        result = self.run_command([
+            "prompt", "create",
+            "--name", prompt_name,
+            "--prompt-text", prompt_text,
+            "--file", prompt_file,
+            "--version", "1.0"
+        ])
+        
+        # Should fail with an error message
+        if not result["success"]:
+            error_output = result["stdout"].lower() + " " + result["stderr"].lower()
+            if "cannot specify both" in error_output or "both --file and --prompt-text" in error_output:
+                logger.info("✓ Correctly rejected both --prompt-text and --file")
+                return True
+            else:
+                logger.error(f"✗ Unexpected error message: stdout: {result['stdout']}, stderr: {result['stderr']}")
+                return False
+        else:
+            logger.error("✗ Should have failed when both options are provided")
+            return False
+    
+    def test_prompt_update_with_prompt_text(self) -> bool:
+        """Test system prompt update with --prompt-text (new feature)"""
+        logger.info("\n=== Testing System Prompt Update with --prompt-text ===")
+        
+        # First create a prompt to update
+        initial_prompt_text = "Initial prompt content."
+        initial_prompt_file = self.create_temp_prompt_file(initial_prompt_text)
+        prompt_name = f"CLI Test Prompt Update {int(time.time())}"
+        
+        create_result = self.run_command([
+            "prompt", "create",
+            "--name", prompt_name,
+            "--file", initial_prompt_file,
+            "--version", "1.0"
+        ])
+        
+        if not create_result["success"]:
+            if "503" in create_result["stderr"] or "not available" in create_result["stderr"]:
+                logger.info("✓ Prompt update with --prompt-text not available (inference-only mode)")
+                return True
+            logger.info(f"⚠ Could not create initial prompt for update test: {create_result['stderr']}")
+            return True  # Skip if we can't create the initial prompt
+        
+        # Extract prompt ID from output (format: "ID: <id>")
+        prompt_id = None
+        for line in create_result["stdout"].split("\n"):
+            if "id:" in line.lower():
+                # Extract ID from line like "ID: 507f1f77bcf86cd799439011"
+                parts = line.split(":")
+                if len(parts) > 1:
+                    prompt_id = parts[1].strip()
+                    break
+        
+        if not prompt_id:
+            logger.info("⚠ Could not extract prompt ID from create output")
+            return True  # Skip if we can't get the ID
+        
+        # Now update with --prompt-text
+        updated_prompt_text = "Updated prompt content using --prompt-text feature."
+        update_result = self.run_command([
+            "prompt", "update",
+            "--id", prompt_id,
+            "--prompt-text", updated_prompt_text,
+            "--version", "1.1"
+        ])
+        
+        if update_result["success"]:
+            if "prompt updated successfully" in update_result["stdout"].lower():
+                logger.info(f"✓ System prompt updated with --prompt-text: {prompt_id}")
+                return True
+            else:
+                logger.error("✗ System prompt update with --prompt-text output format unexpected")
+                return False
+        else:
+            if "503" in update_result["stderr"] or "not available" in update_result["stderr"]:
+                logger.info("✓ Prompt update with --prompt-text not available (inference-only mode)")
+                return True
+            logger.error(f"✗ System prompt update with --prompt-text failed: {update_result['stderr']}")
+            return False
+    
     def test_api_key_test(self) -> bool:
         """Test API key testing command"""
         logger.info("\n=== Testing API Key Test ===")
@@ -706,8 +894,8 @@ class CLITester:
             (["user", "list", "--limit", "5"], "Limit results"),
             (["user", "list", "--offset", "0"], "Offset results"),
             (["user", "list", "--role", "admin", "--active-only", "--limit", "10"], "Combined filters"),
-            (["user", "list", "--output", "json"], "JSON output format"),
-            (["user", "list", "--no-color"], "No color output")
+            (["--output", "json", "user", "list"], "JSON output format"),
+            (["--no-color", "user", "list"], "No color output")
         ]
         
         passed = 0
@@ -715,7 +903,7 @@ class CLITester:
             result = self.run_command(command)
             if result["success"]:
                 # Check if this is JSON output format
-                if "--output" in command and "json" in command:
+                if "json" in command:
                     # For JSON output, check if output is valid JSON or contains reasonable content
                     if result["stdout"].strip().startswith(('[', '{')):
                         logger.info(f"✓ {description}: Successful (JSON format)")
@@ -757,8 +945,8 @@ class CLITester:
             (["key", "list", "--limit", "5"], "Limit results"),
             (["key", "list", "--offset", "0"], "Offset results"),
             (["key", "list", "--active-only", "--limit", "10"], "Combined filters"),
-            (["key", "list", "--output", "json"], "JSON output format"),
-            (["key", "list", "--no-color"], "No color output")
+            (["--output", "json", "key", "list"], "JSON output format"),
+            (["--no-color", "key", "list"], "No color output")
         ]
         
         passed = 0
@@ -766,7 +954,7 @@ class CLITester:
             result = self.run_command(command)
             if result["success"]:
                 # Check if this is JSON output format
-                if "--output" in command and "json" in command:
+                if "json" in command:
                     # For JSON output, check if output is valid JSON or contains reasonable content
                     if result["stdout"].strip().startswith(('[', '{')):
                         logger.info(f"✓ {description}: Successful (JSON format)")
@@ -811,8 +999,8 @@ class CLITester:
             (["prompt", "list", "--limit", "5"], "Limit results"),
             (["prompt", "list", "--offset", "0"], "Offset results"),
             (["prompt", "list", "--name-filter", "test", "--limit", "10"], "Combined filters"),
-            (["prompt", "list", "--output", "json"], "JSON output format"),
-            (["prompt", "list", "--no-color"], "No color output")
+            (["--output", "json", "prompt", "list"], "JSON output format"),
+            (["--no-color", "prompt", "list"], "No color output")
         ]
         
         passed = 0
@@ -820,7 +1008,7 @@ class CLITester:
             result = self.run_command(command)
             if result["success"]:
                 # Check if this is JSON output format
-                if "--output" in command and "json" in command:
+                if "json" in command:
                     # For JSON output, check if output is valid JSON or contains reasonable content
                     if result["stdout"].strip().startswith(('[', '{')):
                         logger.info(f"✓ {description}: Successful (JSON format)")
@@ -1046,11 +1234,11 @@ class CLITester:
             return True
         
         format_tests = [
-            (["user", "list", "--output", "json"], "JSON output format"),
-            (["user", "list", "--output", "table"], "Table output format"),
-            (["user", "list", "--no-color"], "No color output"),
-            (["key", "list", "--output", "json"], "API keys JSON output"),
-            (["prompt", "list", "--output", "json"], "Prompts JSON output")
+            (["--output", "json", "user", "list"], "JSON output format"),
+            (["--output", "table", "user", "list"], "Table output format"),
+            (["--no-color", "user", "list"], "No color output"),
+            (["--output", "json", "key", "list"], "API keys JSON output"),
+            (["--output", "json", "prompt", "list"], "Prompts JSON output")
         ]
         
         passed = 0
@@ -1463,7 +1651,7 @@ class CLITester:
         time.sleep(1)
         
         # Get user ID for activation/deactivation
-        list_result = self.run_command(["user", "list", "--output", "json"])
+        list_result = self.run_command(["--output", "json", "user", "list"])
         if not list_result["success"]:
             logger.error(f"✗ Failed to get user list: {list_result['stderr']}")
             return False
@@ -1926,6 +2114,8 @@ async def test_cli_api_key_operations():
         tester.test_authentication_login()
         assert tester.test_api_key_list(), "CLI API key list test failed"
         assert tester.test_api_key_create(), "CLI API key create test failed"
+        assert tester.test_api_key_create_with_prompt_text(), "CLI API key create with --prompt-text test failed"
+        assert tester.test_api_key_create_with_both_prompt_options_error(), "CLI API key create with both options error test failed"
         assert tester.test_api_key_test(), "CLI API key test failed"
         tester.test_authentication_logout()
 
@@ -1938,6 +2128,9 @@ async def test_cli_prompt_operations():
         tester.test_authentication_login()
         assert tester.test_prompt_list(), "CLI prompt list test failed"
         assert tester.test_prompt_create(), "CLI prompt create test failed"
+        assert tester.test_prompt_create_with_prompt_text(), "CLI prompt create with --prompt-text test failed"
+        assert tester.test_prompt_create_with_both_options_error(), "CLI prompt create with both options error test failed"
+        assert tester.test_prompt_update_with_prompt_text(), "CLI prompt update with --prompt-text test failed"
         tester.test_authentication_logout()
 
 

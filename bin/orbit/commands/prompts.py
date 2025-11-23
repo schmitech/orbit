@@ -34,11 +34,26 @@ class PromptCreateCommand(BaseCommand):
     
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('--name', required=True, help='Unique name for the prompt')
-        parser.add_argument('--file', required=True, help='Path to file containing prompt text')
+        parser.add_argument('--file', help='Path to file containing prompt text')
+        parser.add_argument('--prompt-text', help='Prompt text as a string (alternative to --file)')
         parser.add_argument('--version', default='1.0', help='Version string (default: 1.0)')
     
     def execute(self, args: argparse.Namespace) -> int:
-        prompt_text = self.api_service.api_client.read_file_content(args.file)
+        # Validate that either file or prompt-text is provided
+        if not args.file and not args.prompt_text:
+            self.formatter.error("Either --file or --prompt-text must be provided")
+            return 1
+        
+        if args.file and args.prompt_text:
+            self.formatter.error("Cannot specify both --file and --prompt-text. Use only one.")
+            return 1
+        
+        # Get prompt text from either source
+        if args.prompt_text:
+            prompt_text = args.prompt_text
+        else:
+            prompt_text = self.api_service.api_client.read_file_content(args.file)
+        
         result = self.api_service.create_prompt(args.name, prompt_text, args.version)
         if getattr(args, 'output', None) == 'json':
             self.formatter.format_json(result)
@@ -173,11 +188,26 @@ class PromptUpdateCommand(BaseCommand):
     
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('--id', required=True, help='Prompt ID to update')
-        parser.add_argument('--file', required=True, help='Path to file with updated prompt text')
+        parser.add_argument('--file', help='Path to file with updated prompt text')
+        parser.add_argument('--prompt-text', help='Prompt text as a string (alternative to --file)')
         parser.add_argument('--version', help='New version string')
     
     def execute(self, args: argparse.Namespace) -> int:
-        prompt_text = self.api_service.api_client.read_file_content(args.file)
+        # Validate that either file or prompt-text is provided
+        if not args.file and not args.prompt_text:
+            self.formatter.error("Either --file or --prompt-text must be provided")
+            return 1
+        
+        if args.file and args.prompt_text:
+            self.formatter.error("Cannot specify both --file and --prompt-text. Use only one.")
+            return 1
+        
+        # Get prompt text from either source
+        if args.prompt_text:
+            prompt_text = args.prompt_text
+        else:
+            prompt_text = self.api_service.api_client.read_file_content(args.file)
+        
         result = self.api_service.update_prompt(args.id, prompt_text, args.version)
         if getattr(args, 'output', None) == 'json':
             self.formatter.format_json(result)

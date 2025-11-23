@@ -178,15 +178,25 @@ class ApiService:
     # API Key methods
     def create_api_key(self, client_name: str, notes: Optional[str] = None,
                       prompt_id: Optional[str] = None, prompt_name: Optional[str] = None,
-                      prompt_file: Optional[str] = None, adapter_name: Optional[str] = None) -> Dict[str, Any]:
+                      prompt_file: Optional[str] = None, adapter_name: Optional[str] = None,
+                      prompt_text: Optional[str] = None) -> Dict[str, Any]:
         """Create a new API key."""
         # Handle prompt if needed
-        if prompt_file and (prompt_name or prompt_id):
-            prompt_text = self.api_client.read_file_content(prompt_file)
+        # Priority: prompt_text > prompt_file
+        if prompt_text and (prompt_name or prompt_id):
+            # Use prompt text directly
             if prompt_id:
                 self.update_prompt(prompt_id, prompt_text)
             elif prompt_name:
                 prompt_result = self.create_prompt(prompt_name, prompt_text)
+                prompt_id = prompt_result.get("id")
+        elif prompt_file and (prompt_name or prompt_id):
+            # Read prompt from file
+            prompt_text_from_file = self.api_client.read_file_content(prompt_file)
+            if prompt_id:
+                self.update_prompt(prompt_id, prompt_text_from_file)
+            elif prompt_name:
+                prompt_result = self.create_prompt(prompt_name, prompt_text_from_file)
                 prompt_id = prompt_result.get("id")
         
         headers = self._get_auth_headers()

@@ -86,8 +86,8 @@ To persist data across container restarts, mount volumes:
 docker run -d \
   --name orbit-basic \
   -p 3000:3000 \
-  -v orbit-data:/app/data \
-  -v orbit-logs:/app/logs \
+  -v orbit-data:/orbit/data \
+  -v orbit-logs:/orbit/logs \
   schmitech/orbit:basic
 ```
 
@@ -97,25 +97,67 @@ docker run -d \
   --name orbit-basic \
   -p 3000:3000 \
   -e ORBIT_DEFAULT_ADMIN_PASSWORD=your-secure-password \
-  -v orbit-data:/app/data \
-  -v orbit-logs:/app/logs \
+  -v orbit-data:/orbit/data \
+  -v orbit-logs:/orbit/logs \
   schmitech/orbit:basic
 ```
 
 ## Using the CLI
 
-Access the ORBIT CLI inside the container:
+### Using the Helper Script (Recommended)
+
+The easiest way to use the CLI is with the `orbit-docker.sh` helper script:
+
+```bash
+# Login as admin (will prompt for password, default: admin123)
+./docker/orbit-docker.sh --container orbit-basic login
+
+# Create a default API key with a simple prompt (using --prompt-text)
+./docker/orbit-docker.sh --container orbit-basic cli key create \
+  --adapter simple-chat \
+  --name "Default Chat Key" \
+  --prompt-name "Default Assistant Prompt" \
+  --prompt-text "You are a helpful assistant. Be concise and friendly."
+
+# Or create a key with a prompt from a file
+./docker/orbit-docker.sh --container orbit-basic cli key create \
+  --adapter simple-chat \
+  --name "My App Key" \
+  --prompt-name "Custom Prompt" \
+  --prompt-file /path/to/prompt.txt
+
+# List API keys
+./docker/orbit-docker.sh --container orbit-basic cli key list
+
+# Check status
+./docker/orbit-docker.sh --container orbit-basic status
+```
+
+### Direct Docker Exec
+
+You can also access the CLI directly:
 
 ```bash
 # Login as admin
-docker exec -it orbit-basic python /app/bin/orbit.py login --username admin
+docker exec -it orbit-basic python /orbit/bin/orbit.py login --username admin
 
-# Create an API key
-docker exec -it orbit-basic python /app/bin/orbit.py key create --name "my-app"
+# Create an API key with a simple prompt (using --prompt-text)
+docker exec -it orbit-basic python /orbit/bin/orbit.py key create \
+  --adapter simple-chat \
+  --name "Default Key" \
+  --prompt-name "Default Prompt" \
+  --prompt-text "You are a helpful assistant. Be concise and friendly."
+
+# Create an API key without a prompt
+docker exec -it orbit-basic python /orbit/bin/orbit.py key create \
+  --adapter simple-chat \
+  --name "My App"
 
 # List API keys
-docker exec -it orbit-basic python /app/bin/orbit.py key list
+docker exec -it orbit-basic python /orbit/bin/orbit.py key list
 ```
+
+**Note:** The CLI supports both `--prompt-text` (direct string) and `--prompt-file` (file path). Use `--prompt-text` for simple prompts, and `--prompt-file` for longer prompts stored in files.
 
 ## API Examples
 

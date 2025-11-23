@@ -41,16 +41,23 @@ class KeyCreateCommand(BaseCommand):
         parser.add_argument('--prompt-id', help='Existing system prompt ID to associate')
         parser.add_argument('--prompt-name', help='Name for a new system prompt')
         parser.add_argument('--prompt-file', help='Path to file containing system prompt')
+        parser.add_argument('--prompt-text', help='Prompt text as a string (alternative to --prompt-file)')
     
     def execute(self, args: argparse.Namespace) -> int:
         try:
+            # Validate that both prompt-text and prompt-file are not provided
+            if args.prompt_text and args.prompt_file:
+                self.formatter.error("Cannot specify both --prompt-text and --prompt-file. Use only one.")
+                return 1
+            
             result = self.api_service.create_api_key(
                 args.name,
                 args.notes,
                 args.prompt_id,
                 args.prompt_name,
                 args.prompt_file,
-                args.adapter
+                args.adapter,
+                args.prompt_text
             )
             if getattr(args, 'output', None) == 'json':
                 self.formatter.format_json(result)
