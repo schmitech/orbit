@@ -31,10 +31,12 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     cd /orbit/install && \
     python3 generate_requirements.py llama-cpp --output /tmp/requirements.txt && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
-    rm /tmp/requirements.txt
+    rm /tmp/requirements.txt && \
+    python3 -c "import llama_cpp; import numpy; print('✓ llama-cpp-python and numpy imported successfully')"
 
-# Install dependencies needed for model download script
-RUN pip install --no-cache-dir requests tqdm pyyaml
+# Install dependencies needed for model download script and basic server functionality
+# Pillow is required by ai_services/vision_service (imported even if not used)
+RUN pip install --no-cache-dir requests tqdm pyyaml Pillow
 
 # Copy model download script and config
 COPY install/download_hf_gguf_model.py /orbit/install/
@@ -51,6 +53,10 @@ COPY install/default-config/ /orbit/config/
 
 # Override passthrough adapter config to only enable simple-chat
 COPY docker/config/adapters/passthrough-basic.yaml /orbit/config/adapters/passthrough.yaml
+
+# Override inference.yaml to use absolute path for model (required for Docker)
+# Replace relative model_path with absolute path
+RUN sed -i 's|model_path: "models/gemma-3-1b-it-Q4_0.gguf"|model_path: "/orbit/models/gemma-3-1b-it-Q4_0.gguf"|g' /orbit/config/inference.yaml
 
 # Create .env file from env.example (same as tarball approach)
 COPY env.example /orbit/.env
@@ -74,7 +80,7 @@ COPY models/ /orbit/models/
 RUN python3 /orbit/download-model.py
 
 # Set environment variables
-ENV PYTHONPATH=/orbit
+ENV PYTHONPATH=/orbit:/orbit/server
 ENV PATH="/orbit/bin:${PATH}"
 
 # Expose the server port
