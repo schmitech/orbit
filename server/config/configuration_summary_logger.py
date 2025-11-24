@@ -16,6 +16,8 @@ from fastapi import FastAPI
 from utils import is_true_value
 
 
+
+logger = logging.getLogger(__name__)
 class ConfigurationSummaryLogger:
     """
     Handles comprehensive configuration summary logging for the inference server.
@@ -52,11 +54,11 @@ class ConfigurationSummaryLogger:
         
         # Log to the configured logger
         if level == 'warning':
-            self.logger.warning(formatted_message)
+            logger.warning(formatted_message)
         elif level == 'error':
-            self.logger.error(formatted_message)
+            logger.error(formatted_message)
         else:
-            self.logger.info(formatted_message)
+            logger.info(formatted_message)
     
     def log_configuration_summary(self, app: Optional[FastAPI] = None) -> None:
         """

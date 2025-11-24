@@ -7,10 +7,13 @@ the new unified AI services architecture.
 Compare with: server/embeddings/cohere.py (old implementation)
 """
 
+import logging
 from typing import List, Dict, Any
 
 from ..providers import CohereBaseService
 from ..services import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 
 class CohereEmbeddingService(EmbeddingService, CohereBaseService):
@@ -113,12 +116,12 @@ class CohereEmbeddingService(EmbeddingService, CohereBaseService):
 
                 # Log progress for large batches
                 if len(texts) > 50 and (i + self.batch_size) % 50 == 0:
-                    self.logger.debug(
+                    logger.debug(
                         f"Processed {min(i + self.batch_size, len(texts))}/{len(texts)} documents"
                     )
 
             except Exception as e:
-                self.logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
+                logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
                 self._handle_cohere_error(e, "batch embedding")
                 raise
 
@@ -143,7 +146,7 @@ class CohereEmbeddingService(EmbeddingService, CohereBaseService):
             return self.dimensions
 
         except Exception as e:
-            self.logger.error(f"Failed to determine embedding dimensions: {str(e)}")
+            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
 
             # Fallback based on common Cohere models
             if self.model and ("embed-english-v3.0" in self.model or "embed-multilingual-v3.0" in self.model):

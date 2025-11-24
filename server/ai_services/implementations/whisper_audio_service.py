@@ -2,7 +2,10 @@
 Direct Whisper audio service implementation using OpenAI's open-source Whisper.
 
 This implementation provides local, offline speech-to-text using the Whisper model
+import logging
 from https://github.com/openai/whisper
+
+logger = logging.getLogger(__name__)
 
 Installation:
     pip install openai-whisper
@@ -74,7 +77,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
         self.model = None
         self.model_loaded = False
 
-        self.logger.debug(
+        logger.debug(
                 f"🎙️  WhisperAudioService initialized (LOCAL/OFFLINE transcription) "
                 f"- model={self.model_size}, device={self.device}, task={self.task}"
             )
@@ -101,20 +104,20 @@ class WhisperAudioService(AudioService, ProviderAIService):
             else:
                 device = self.device
 
-            self.logger.debug(f"🔧 Loading LOCAL Whisper model '{self.model_size}' on device '{device}'...")
-            self.logger.debug(f"   This is OpenAI's open-source Whisper running locally (NOT the API)")
+            logger.debug(f"🔧 Loading LOCAL Whisper model '{self.model_size}' on device '{device}'...")
+            logger.debug(f"   This is OpenAI's open-source Whisper running locally (NOT the API)")
 
             # Load the model
             # This downloads the model on first use (cached in ~/.cache/whisper/)
             self.model = whisper.load_model(self.model_size, device=device)
             self.model_loaded = True
 
-            self.logger.debug(f"✅ LOCAL Whisper model '{self.model_size}' loaded successfully on {device}")
-            self.logger.debug(f"   Ready for offline speech-to-text transcription!")
+            logger.debug(f"✅ LOCAL Whisper model '{self.model_size}' loaded successfully on {device}")
+            logger.debug(f"   Ready for offline speech-to-text transcription!")
             self.initialized = True
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize Whisper service: {str(e)}")
+            logger.error(f"Failed to initialize Whisper service: {str(e)}")
             raise
 
     async def speech_to_text(
@@ -151,7 +154,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
             audio_size_mb = len(audio_data) / (1024 * 1024)
 
             # Log transcription start with Whisper details
-            self.logger.debug(
+            logger.debug(
                     f"🎤 Starting LOCAL Whisper transcription "
                     f"(model: {self.model_size}, device: {self.device}, audio: {audio_size_mb:.2f}MB)"
                 )
@@ -176,7 +179,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
                 # Remove None values
                 transcribe_options = {k: v for k, v in transcribe_options.items() if v is not None}
 
-                self.logger.debug(f"Whisper transcribe options: {transcribe_options}")
+                logger.debug(f"Whisper transcribe options: {transcribe_options}")
 
                 # Transcribe
                 result = self.model.transcribe(temp_path, **transcribe_options)
@@ -187,7 +190,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
 
                 # Log detected language
                 detected_language = result.get('language', 'unknown')
-                self.logger.debug(
+                logger.debug(
                         f"✅ LOCAL Whisper transcription complete! "
                         f"Language: {detected_language}, Text length: {text_length} chars"
                     )
@@ -202,7 +205,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
                     pass
 
         except Exception as e:
-            self.logger.error(f"Whisper transcription error: {str(e)}")
+            logger.error(f"Whisper transcription error: {str(e)}")
             raise
 
     async def transcribe(
@@ -242,7 +245,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
         if target_language != 'en':
             # Whisper can only translate to English
             # Fall back to transcription
-            self.logger.warning(
+            logger.warning(
                 f"Whisper can only translate to English. "
                 f"Requested target: {target_language}. Falling back to transcription."
             )
@@ -285,7 +288,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
         """
         try:
             if not WHISPER_AVAILABLE:
-                self.logger.error("Whisper library not available")
+                logger.error("Whisper library not available")
                 return False
 
             # If already initialized, we're good
@@ -297,13 +300,13 @@ class WhisperAudioService(AudioService, ProviderAIService):
             return self.initialized and self.model_loaded
 
         except Exception as e:
-            self.logger.error(f"Whisper connection verification failed: {str(e)}")
+            logger.error(f"Whisper connection verification failed: {str(e)}")
             return False
 
     async def cleanup(self) -> None:
         """Clean up resources."""
         if self.model is not None:
-            self.logger.debug("🧹 Cleaning up LOCAL Whisper service...")
+            logger.debug("🧹 Cleaning up LOCAL Whisper service...")
 
             # Clear model from memory
             del self.model
@@ -315,4 +318,4 @@ class WhisperAudioService(AudioService, ProviderAIService):
                 torch.cuda.empty_cache()
 
         self.initialized = False
-        self.logger.debug("✅ Whisper service cleaned up")
+        logger.debug("✅ Whisper service cleaned up")

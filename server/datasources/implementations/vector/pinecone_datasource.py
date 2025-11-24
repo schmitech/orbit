@@ -2,8 +2,11 @@
 Pinecone Datasource Implementation
 """
 
+import logging
 from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
+
+logger = logging.getLogger(__name__)
 
 
 class PineconeDatasource(BaseDatasource):
@@ -19,7 +22,7 @@ class PineconeDatasource(BaseDatasource):
         try:
             from pinecone import Pinecone
         except ImportError:
-            self.logger.error("pinecone not available. Install with: pip install pinecone-client")
+            logger.error("pinecone not available. Install with: pip install pinecone-client")
             raise
 
         pinecone_config = self.config.get('datasources', {}).get('pinecone', {})
@@ -28,13 +31,13 @@ class PineconeDatasource(BaseDatasource):
         if not api_key:
             raise ValueError("Pinecone API key is required")
 
-        self.logger.info("Initializing Pinecone client...")
+        logger.info("Initializing Pinecone client...")
 
         # Initialize Pinecone client (new SDK v3+ API)
         self._client = Pinecone(api_key=api_key)
 
         self._initialized = True
-        self.logger.info("Pinecone client initialized successfully")
+        logger.info("Pinecone client initialized successfully")
 
     async def health_check(self) -> bool:
         """Perform a health check on the Pinecone connection."""
@@ -46,7 +49,7 @@ class PineconeDatasource(BaseDatasource):
             indexes = self._client.list_indexes()
             return True
         except Exception as e:
-            self.logger.error(f"Pinecone health check failed: {e}")
+            logger.error(f"Pinecone health check failed: {e}")
             return False
 
     async def close(self) -> None:
@@ -55,4 +58,4 @@ class PineconeDatasource(BaseDatasource):
             # Pinecone client doesn't have explicit close method
             self._client = None
             self._initialized = False
-            self.logger.info("Pinecone client closed")
+            logger.info("Pinecone client closed")

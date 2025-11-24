@@ -76,6 +76,6 @@ class CSVProcessor(FileProcessor):
             })
         
         except Exception as e:
-            self.logger.warning(f"Error extracting CSV metadata: {e}")
+            logger.warning(f"Error extracting CSV metadata: {e}")
         
         return metadata

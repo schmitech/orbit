@@ -7,10 +7,13 @@ the new unified AI services architecture.
 Compare with: server/embeddings/mistral.py (old implementation)
 """
 
+import logging
 from typing import List, Dict, Any
 
 from ..providers import MistralBaseService
 from ..services import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 
 class MistralEmbeddingService(EmbeddingService, MistralBaseService):
@@ -105,12 +108,12 @@ class MistralEmbeddingService(EmbeddingService, MistralBaseService):
 
                 # Log progress for large batches
                 if len(texts) > 50 and (i + self.batch_size) % 50 == 0:
-                    self.logger.debug(
+                    logger.debug(
                         f"Processed {min(i + self.batch_size, len(texts))}/{len(texts)} documents"
                     )
 
             except Exception as e:
-                self.logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
+                logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
                 self._handle_mistral_error(e, "batch embedding")
                 raise
 
@@ -135,7 +138,7 @@ class MistralEmbeddingService(EmbeddingService, MistralBaseService):
             return self.dimensions
 
         except Exception as e:
-            self.logger.error(f"Failed to determine embedding dimensions: {str(e)}")
+            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
 
             # Fallback: mistral-embed is 1024 dimensions
             self.dimensions = 1024

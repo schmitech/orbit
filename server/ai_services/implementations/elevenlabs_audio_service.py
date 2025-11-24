@@ -13,6 +13,8 @@ from ..base import ProviderAIService, ServiceType
 from ..services import AudioService
 
 
+
+logger = logging.getLogger(__name__)
 class ElevenLabsAudioService(AudioService, ProviderAIService):
     """
     ElevenLabs audio service using unified architecture.
@@ -82,11 +84,11 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
             )
 
             self.initialized = True
-            self.logger.info(f"ElevenLabs audio service initialized with model: {self.tts_model}")
+            logger.info(f"ElevenLabs audio service initialized with model: {self.tts_model}")
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize ElevenLabs audio service: {str(e)}")
+            logger.error(f"Failed to initialize ElevenLabs audio service: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -169,7 +171,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
                 return audio_data
 
         except Exception as e:
-            self.logger.error(f"ElevenLabs TTS error: {str(e)}")
+            logger.error(f"ElevenLabs TTS error: {str(e)}")
             raise
 
     async def speech_to_text(
@@ -242,7 +244,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
                 return response.status == 200
 
         except Exception as e:
-            self.logger.error(f"ElevenLabs connection verification failed: {str(e)}")
+            logger.error(f"ElevenLabs connection verification failed: {str(e)}")
             return False
 
     async def list_voices(self) -> Dict[str, Any]:
@@ -266,7 +268,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
                 return await response.json()
 
         except Exception as e:
-            self.logger.error(f"Failed to list ElevenLabs voices: {str(e)}")
+            logger.error(f"Failed to list ElevenLabs voices: {str(e)}")
             raise
 
     async def get_voice_info(self, voice_id: str) -> Dict[str, Any]:
@@ -293,5 +295,5 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
                 return await response.json()
 
         except Exception as e:
-            self.logger.error(f"Failed to get ElevenLabs voice info: {str(e)}")
+            logger.error(f"Failed to get ElevenLabs voice info: {str(e)}")
             raise

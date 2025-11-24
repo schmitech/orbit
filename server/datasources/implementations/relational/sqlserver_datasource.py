@@ -2,8 +2,11 @@
 SQL Server Database Datasource Implementation
 """
 
+import logging
 from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
+
+logger = logging.getLogger(__name__)
 
 
 class SQLServerDatasource(BaseDatasource):
@@ -21,7 +24,7 @@ class SQLServerDatasource(BaseDatasource):
         try:
             import pymssql
         except ImportError:
-            self.logger.warning("pymssql not available. Install with: pip install pymssql")
+            logger.warning("pymssql not available. Install with: pip install pymssql")
             self._client = None
             self._initialized = True
             return
@@ -34,7 +37,7 @@ class SQLServerDatasource(BaseDatasource):
         password = sqlserver_config.get('password', '')
         
         try:
-            self.logger.info(f"Initializing SQL Server connection to {host}:{port}/{database}")
+            logger.info(f"Initializing SQL Server connection to {host}:{port}/{database}")
             
             # Create connection
             self._client = pymssql.connect(
@@ -53,13 +56,13 @@ class SQLServerDatasource(BaseDatasource):
             cursor.close()
             
             if version:
-                self.logger.info(f"SQL Server connection successful: {version[0][:50]}...")
+                logger.info(f"SQL Server connection successful: {version[0][:50]}...")
             
             self._initialized = True
             
         except Exception as e:
-            self.logger.error(f"Failed to connect to SQL Server database: {str(e)}")
-            self.logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
+            logger.error(f"Failed to connect to SQL Server database: {str(e)}")
+            logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
             raise
     
     async def health_check(self) -> bool:
@@ -74,7 +77,7 @@ class SQLServerDatasource(BaseDatasource):
             cursor.close()
             return True
         except Exception as e:
-            self.logger.error(f"SQL Server health check failed: {e}")
+            logger.error(f"SQL Server health check failed: {e}")
             return False
     
     async def close(self) -> None:
@@ -83,4 +86,4 @@ class SQLServerDatasource(BaseDatasource):
             self._client.close()
             self._client = None
             self._initialized = False
-            self.logger.info("SQL Server connection closed")
+            logger.info("SQL Server connection closed")

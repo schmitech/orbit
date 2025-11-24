@@ -5,6 +5,7 @@ This is a migrated version of the Anthropic moderator that uses
 the new unified AI services architecture.
 """
 
+import logging
 from typing import Dict, Any, List
 import asyncio
 import json
@@ -12,6 +13,8 @@ import json
 from ..providers import AnthropicBaseService
 from ..services import ModerationService, ModerationResult
 from ..base import ServiceType
+
+logger = logging.getLogger(__name__)
 
 
 class AnthropicModerationService(ModerationService, AnthropicBaseService):
@@ -99,7 +102,7 @@ Only respond with a valid JSON object. Do not include any other text or explanat
 
             # Handle incomplete JSON by providing default values
             if not response_text.endswith("}"):
-                self.logger.warning(f"Received incomplete JSON from Anthropic: {response_text}")
+                logger.warning(f"Received incomplete JSON from Anthropic: {response_text}")
                 # Allow content through on parse errors (likely config issue, not security)
                 return ModerationResult(
                     is_flagged=False,
@@ -115,11 +118,11 @@ Only respond with a valid JSON object. Do not include any other text or explanat
 
                 # Check for required fields
                 if "is_flagged" not in result:
-                    self.logger.warning(f"Anthropic response missing 'is_flagged' field: {response_text}")
+                    logger.warning(f"Anthropic response missing 'is_flagged' field: {response_text}")
                     result["is_flagged"] = True  # Default to flagged if missing
 
                 if "categories" not in result:
-                    self.logger.warning(f"Anthropic response missing 'categories' field: {response_text}")
+                    logger.warning(f"Anthropic response missing 'categories' field: {response_text}")
                     result["categories"] = {}
 
                 is_flagged = result["is_flagged"]
@@ -129,12 +132,12 @@ Only respond with a valid JSON object. Do not include any other text or explanat
                 if self.logger.isEnabledFor(10):  # DEBUG level
                     high_confidence_categories = {k: v for k, v in categories.items() if v > 0.5}
                     if high_confidence_categories:
-                        self.logger.debug(f"Content flagged for: {high_confidence_categories}")
+                        logger.debug(f"Content flagged for: {high_confidence_categories}")
 
                     if is_flagged:
-                        self.logger.debug("Anthropic flagged content as unsafe")
+                        logger.debug("Anthropic flagged content as unsafe")
                     else:
-                        self.logger.debug("Anthropic determined content is safe")
+                        logger.debug("Anthropic determined content is safe")
 
                 return ModerationResult(
                     is_flagged=is_flagged,
@@ -144,8 +147,8 @@ Only respond with a valid JSON object. Do not include any other text or explanat
                 )
 
             except json.JSONDecodeError as json_error:
-                self.logger.error(f"Failed to parse Anthropic response as JSON: {response_text}")
-                self.logger.error(f"JSON error: {str(json_error)}")
+                logger.error(f"Failed to parse Anthropic response as JSON: {response_text}")
+                logger.error(f"JSON error: {str(json_error)}")
                 # Allow content through on parse errors (likely config issue, not security)
                 return ModerationResult(
                     is_flagged=False,
@@ -157,7 +160,7 @@ Only respond with a valid JSON object. Do not include any other text or explanat
 
         except Exception as e:
             self._handle_anthropic_error(e, "content moderation")
-            self.logger.warning(f"Moderation check failed, allowing content through: {str(e)}")
+            logger.warning(f"Moderation check failed, allowing content through: {str(e)}")
             return ModerationResult(
                 is_flagged=False,  # Allow on error - better UX
                 provider="anthropic",

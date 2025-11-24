@@ -19,7 +19,7 @@ class ConversationalAdapter(DocumentAdapter):
 
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Return a minimal payload preserving any metadata provided."""
-        self.logger.debug("format_document called on conversational adapter; returning metadata only")
+        logger.debug("format_document called on conversational adapter; returning metadata only")
         return {
             "content": raw_doc or "",
             "metadata": metadata.copy() if metadata else {},
@@ -51,7 +51,7 @@ class MultimodalAdapter(DocumentAdapter):
         
         Preserves file metadata (file_id, chunk_index, filename) for context.
         """
-        self.logger.debug("format_document called on multimodal adapter; preserving file metadata")
+        logger.debug("format_document called on multimodal adapter; preserving file metadata")
         return {
             "content": raw_doc or "",
             "metadata": metadata.copy() if metadata else {},

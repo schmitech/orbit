@@ -135,8 +135,8 @@ class FileProcessingService:
         if self.enable_vision:
             provider_config = self.vision_config.get(self.default_vision_provider, {})
             model = provider_config.get('model', 'default')
-            self.logger.info(f"Default vision service configured: provider={self.default_vision_provider}, model={model}")
-            self.logger.info("Vision provider can be overridden per-upload based on API key's adapter configuration")
+            logger.info(f"Default vision service configured: provider={self.default_vision_provider}, model={model}")
+            logger.info("Vision provider can be overridden per-upload based on API key's adapter configuration")
 
         # Audio service configuration - follows same pattern as vision/embeddings/inference
         # Priority: adapter config > global sound config > default
@@ -158,8 +158,8 @@ class FileProcessingService:
         if self.enable_audio:
             provider_config = self.audio_config.get(self.default_audio_provider, {})
             model = provider_config.get('stt_model', 'default')
-            self.logger.info(f"Default audio service configured: provider={self.default_audio_provider}, model={model}")
-            self.logger.info("Audio provider can be overridden per-upload based on API key's adapter configuration")
+            logger.info(f"Default audio service configured: provider={self.default_audio_provider}, model={model}")
+            logger.info("Audio provider can be overridden per-upload based on API key's adapter configuration")
     
     def _init_storage(self) -> FilesystemStorage:
         """Initialize storage backend."""
@@ -187,7 +187,7 @@ class FileProcessingService:
         chunking_options = self.config.get('chunking_options', {}) or files_config.get('chunking_options', {})
         
         # Log chunking strategy initialization
-        self.logger.debug(f"Initializing chunking strategy: '{strategy}' (chunk_size={chunk_size}, overlap={overlap})")
+        logger.debug(f"Initializing chunking strategy: '{strategy}' (chunk_size={chunk_size}, overlap={overlap})")
         
         if strategy == 'semantic':
             # Semantic chunking options
@@ -219,7 +219,7 @@ class FileProcessingService:
                 tokenizer=tokenizer,
                 chunk_size_tokens=chunk_size_tokens
             )
-            self.logger.debug(f"  Semantic chunker configured: use_advanced={use_advanced}, model={model_name or 'none'}")
+            logger.debug(f"  Semantic chunker configured: use_advanced={use_advanced}, model={model_name or 'none'}")
             return chunker
         elif strategy == 'token':
             # Token-based chunking
@@ -228,7 +228,7 @@ class FileProcessingService:
                 overlap=overlap,
                 tokenizer=tokenizer or 'character'
             )
-            self.logger.debug(f"  Token chunker configured: tokenizer={tokenizer or 'character'}")
+            logger.debug(f"  Token chunker configured: tokenizer={tokenizer or 'character'}")
             return chunker
         elif strategy == 'recursive':
             # Recursive chunking
@@ -238,7 +238,7 @@ class FileProcessingService:
                 min_characters_per_chunk=min_characters,
                 tokenizer=tokenizer
             )
-            self.logger.debug(f"  Recursive chunker configured: min_characters_per_chunk={min_characters}")
+            logger.debug(f"  Recursive chunker configured: min_characters_per_chunk={min_characters}")
             return chunker
         else:
             # Fixed-size chunking (default)
@@ -249,7 +249,7 @@ class FileProcessingService:
                 tokenizer=tokenizer
             )
             mode = "token-based" if use_tokens else "character-based"
-            self.logger.debug(f"  Fixed-size chunker configured: mode={mode}")
+            logger.debug(f"  Fixed-size chunker configured: mode={mode}")
             return chunker
 
     async def _get_vision_provider_for_api_key(self, api_key: str) -> str:
@@ -285,14 +285,14 @@ class FileProcessingService:
                             vision_provider = adapter_config.get('vision_provider')
 
                             if vision_provider:
-                                self.logger.info(f"Using adapter-specific vision provider '{vision_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
+                                logger.info(f"Using adapter-specific vision provider '{vision_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
                                 return vision_provider
 
         except Exception as e:
-            self.logger.warning(f"Could not lookup adapter-specific vision provider for API key: {e}")
+            logger.warning(f"Could not lookup adapter-specific vision provider for API key: {e}")
 
         # Fall back to default vision provider
-        self.logger.debug(f"Using default vision provider '{self.default_vision_provider}' for api_key: {api_key[:8]}...")
+        logger.debug(f"Using default vision provider '{self.default_vision_provider}' for api_key: {api_key[:8]}...")
         return self.default_vision_provider
 
     async def _get_audio_provider_for_api_key(self, api_key: str) -> str:
@@ -328,14 +328,14 @@ class FileProcessingService:
                             audio_provider = adapter_config.get('audio_provider')
 
                             if audio_provider:
-                                self.logger.info(f"Using adapter-specific audio provider '{audio_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
+                                logger.info(f"Using adapter-specific audio provider '{audio_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
                                 return audio_provider
 
         except Exception as e:
-            self.logger.warning(f"Could not lookup adapter-specific audio provider for API key: {e}")
+            logger.warning(f"Could not lookup adapter-specific audio provider for API key: {e}")
 
         # Fall back to default audio provider
-        self.logger.debug(f"Using default audio provider '{self.default_audio_provider}' for api_key: {api_key[:8]}...")
+        logger.debug(f"Using default audio provider '{self.default_audio_provider}' for api_key: {api_key[:8]}...")
         return self.default_audio_provider
 
     async def quick_upload(
@@ -457,11 +457,11 @@ class FileProcessingService:
                 embedding_dimensions=embedding_dimensions
             )
 
-            self.logger.debug(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
+            logger.debug(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
             
         except Exception as e:
             error_message = str(e)
-            self.logger.error(f"Error processing file content for {file_id}: {error_message}")
+            logger.error(f"Error processing file content for {file_id}: {error_message}")
 
             # Update status to failed with error details
             await self.metadata_store.update_processing_status(
@@ -479,7 +479,7 @@ class FileProcessingService:
                 )
                 self.metadata_store.connection.commit()
             except Exception as meta_error:
-                self.logger.warning(f"Failed to store error metadata for {file_id}: {meta_error}")
+                logger.warning(f"Failed to store error metadata for {file_id}: {meta_error}")
 
             # Don't raise - let background task complete gracefully
             # The file is now marked as "failed" so users can see the error
@@ -509,14 +509,14 @@ class FileProcessingService:
                 )
             except ValueError as e:
                 # This happens when sound is globally disabled or provider is not registered
-                self.logger.error(f"Failed to create audio service: {str(e)}")
+                logger.error(f"Failed to create audio service: {str(e)}")
                 raise Exception(f"Audio transcription is not available. Please check that audio services are enabled in the configuration.")
 
             # Initialize if needed
             if not audio_service.initialized:
                 await audio_service.initialize()
 
-            self.logger.info(f"Starting audio transcription for {filename} (provider: {audio_provider})")
+            logger.info(f"Starting audio transcription for {filename} (provider: {audio_provider})")
 
             # Transcribe audio to text
             try:
@@ -525,13 +525,13 @@ class FileProcessingService:
                     language=transcription_language
                 )
             except asyncio.TimeoutError as e:
-                self.logger.error(f"Audio transcription API timeout for {filename}: {e}")
+                logger.error(f"Audio transcription API timeout for {filename}: {e}")
                 raise Exception(f"Audio transcription API request timed out. The audio file may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
             except Exception as e:
-                self.logger.error(f"Audio transcription API error for {filename}: {e}")
+                logger.error(f"Audio transcription API error for {filename}: {e}")
                 raise Exception(f"Audio transcription failed: {str(e)}")
 
-            self.logger.info(f"Audio transcription completed for {filename}")
+            logger.info(f"Audio transcription completed for {filename}")
 
             metadata = {
                 'filename': filename,
@@ -547,7 +547,7 @@ class FileProcessingService:
 
             # Validate that we got meaningful content
             if not text.strip():
-                self.logger.warning(f"Audio service returned empty transcription for {filename}")
+                logger.warning(f"Audio service returned empty transcription for {filename}")
                 raise Exception("Audio service did not transcribe any content from the audio file")
 
             return text, metadata
@@ -555,7 +555,7 @@ class FileProcessingService:
         except Exception as e:
             # Don't swallow exceptions - let them bubble up
             # This ensures files are marked as "failed" instead of "completed with 0 chunks"
-            self.logger.error(f"Failed to process audio file {filename}: {e}")
+            logger.error(f"Failed to process audio file {filename}: {e}")
             raise
     
     async def process_file(
@@ -668,7 +668,7 @@ class FileProcessingService:
             }
         
         except Exception as e:
-            self.logger.error(f"Error processing file {filename}: {e}")
+            logger.error(f"Error processing file {filename}: {e}")
             
             # Update status to failed
             await self.metadata_store.update_processing_status(file_id, 'failed')
@@ -753,12 +753,12 @@ class FileProcessingService:
 
             # PERFORMANCE FIX: Make both API calls concurrently instead of sequentially
             # This reduces total processing time from ~120s to ~60s
-            self.logger.info(f"Starting vision processing for {filename} (provider: {vision_provider})")
+            logger.info(f"Starting vision processing for {filename} (provider: {vision_provider})")
 
             # Use custom prompt if provided, otherwise use default describe_image
             try:
                 if vision_prompt:
-                    self.logger.info(f"Using custom prompt for vision analysis: {vision_prompt[:50]}...")
+                    logger.info(f"Using custom prompt for vision analysis: {vision_prompt[:50]}...")
                     # Use analyze_image with custom prompt instead of describe_image
                     extracted_text, description = await asyncio.gather(
                         vision_service.extract_text_from_image(file_data),
@@ -770,13 +770,13 @@ class FileProcessingService:
                         vision_service.describe_image(file_data)
                     )
             except asyncio.TimeoutError as e:
-                self.logger.error(f"Vision API timeout for {filename}: {e}")
+                logger.error(f"Vision API timeout for {filename}: {e}")
                 raise Exception(f"Vision API request timed out. The image may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
             except Exception as e:
-                self.logger.error(f"Vision API error for {filename}: {e}")
+                logger.error(f"Vision API error for {filename}: {e}")
                 raise Exception(f"Vision processing failed: {str(e)}")
 
-            self.logger.info(f"Vision processing completed for {filename}")
+            logger.info(f"Vision processing completed for {filename}")
 
             metadata = {
                 'filename': filename,
@@ -793,7 +793,7 @@ class FileProcessingService:
 
             # Validate that we got meaningful content
             if not text.strip() or (not description and not extracted_text):
-                self.logger.warning(f"Vision service returned empty content for {filename}")
+                logger.warning(f"Vision service returned empty content for {filename}")
                 raise Exception("Vision service did not extract any content from the image")
 
             return text, metadata
@@ -801,7 +801,7 @@ class FileProcessingService:
         except Exception as e:
             # PRODUCTION FIX: Don't swallow exceptions - let them bubble up
             # This ensures files are marked as "failed" instead of "completed with 0 chunks"
-            self.logger.error(f"Failed to process image {filename}: {e}")
+            logger.error(f"Failed to process image {filename}: {e}")
             raise
     
     async def _chunk_content(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
@@ -817,15 +817,15 @@ class FileProcessingService:
             List of Chunk objects
         """
         strategy_name = self.chunker.__class__.__name__
-        self.logger.debug(f"Chunking content for file {file_id} using strategy: {strategy_name}")
-        self.logger.debug(f"  Text length: {len(text)} characters")
+        logger.debug(f"Chunking content for file {file_id} using strategy: {strategy_name}")
+        logger.debug(f"  Text length: {len(text)} characters")
 
         chunks = self.chunker.chunk_text(text, file_id, metadata)
 
-        self.logger.debug(f"  Created {len(chunks)} chunks from file {file_id}")
+        logger.debug(f"  Created {len(chunks)} chunks from file {file_id}")
         if chunks:
             avg_chunk_size = sum(len(c.text) for c in chunks) / len(chunks)
-            self.logger.debug(f"  Average chunk size: {avg_chunk_size:.0f} characters")
+            logger.debug(f"  Average chunk size: {avg_chunk_size:.0f} characters")
         
         return chunks
     
@@ -858,7 +858,7 @@ class FileProcessingService:
                         adapter_config = adapter_manager.get_adapter_config(adapter_name)
 
                         if adapter_config:
-                            self.logger.info(f"Using adapter-specific config for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
+                            logger.info(f"Using adapter-specific config for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
 
                             # Merge adapter config with global config
                             # Adapter config takes precedence for provider overrides
@@ -869,7 +869,7 @@ class FileProcessingService:
                                 if 'embedding' not in merged_config:
                                     merged_config['embedding'] = {}
                                 merged_config['embedding']['provider'] = adapter_config['embedding_provider']
-                                self.logger.info(f"Using adapter embedding provider: {adapter_config['embedding_provider']}")
+                                logger.info(f"Using adapter embedding provider: {adapter_config['embedding_provider']}")
 
                             # Pass adapter-specific config to retriever
                             merged_config['adapter_config'] = adapter_config.get('config', {})
@@ -877,10 +877,10 @@ class FileProcessingService:
                             return merged_config
 
         except Exception as e:
-            self.logger.warning(f"Could not lookup adapter-specific config for API key: {e}")
+            logger.warning(f"Could not lookup adapter-specific config for API key: {e}")
 
         # Fall back to global config
-        self.logger.debug(f"Using global config for api_key: {api_key[:8]}...")
+        logger.debug(f"Using global config for api_key: {api_key[:8]}...")
         return self.config
 
     async def _index_chunks_in_vector_store(
@@ -925,7 +925,7 @@ class FileProcessingService:
                     test_embedding = await retriever.embed_query("test")
                     embedding_dimensions = len(test_embedding)
             except Exception as e:
-                self.logger.warning(f"Could not determine embedding dimensions: {e}. Using default 768")
+                logger.warning(f"Could not determine embedding dimensions: {e}. Using default 768")
                 embedding_dimensions = 768
 
             # Generate collection name with provider and dimensions
@@ -936,7 +936,7 @@ class FileProcessingService:
             # Format: files_{provider}_{dimensions}_{apikey}_{timestamp}
             collection_name = f"{collection_prefix}{embedding_provider}_{embedding_dimensions}_{api_key}_{timestamp}"
 
-            self.logger.debug(f"Creating collection with provider-aware naming: {collection_name}")
+            logger.debug(f"Creating collection with provider-aware naming: {collection_name}")
 
             # Index chunks
             success = await retriever.index_file_chunks(
@@ -946,14 +946,14 @@ class FileProcessingService:
             )
 
             if success:
-                self.logger.debug(f"Indexed {len(chunks)} chunks into collection {collection_name}")
+                logger.debug(f"Indexed {len(chunks)} chunks into collection {collection_name}")
                 return (collection_name, embedding_provider, embedding_dimensions)
             else:
-                self.logger.warning(f"Failed to index chunks for file {file_id}")
+                logger.warning(f"Failed to index chunks for file {file_id}")
                 return None
 
         except Exception as e:
-            self.logger.error(f"Error indexing chunks into vector store: {e}")
+            logger.error(f"Error indexing chunks into vector store: {e}")
             # Don't fail the upload if indexing fails
             return None
     
@@ -994,29 +994,29 @@ class FileProcessingService:
             # Delete chunks from both vector store and metadata store
             chunks_deleted = await retriever.delete_file_chunks(file_id)
             if not chunks_deleted:
-                self.logger.warning(f"Failed to delete chunks for file {file_id}, continuing with file deletion")
+                logger.warning(f"Failed to delete chunks for file {file_id}, continuing with file deletion")
             else:
                 chunks_already_deleted = True  # Chunks successfully deleted from metadata store
         except Exception as e:
             # Log error but continue with file deletion
-            self.logger.error(f"Error deleting chunks from vector store for file {file_id}: {e}. Continuing with file deletion.")
+            logger.error(f"Error deleting chunks from vector store for file {file_id}: {e}. Continuing with file deletion.")
         
         # 2. Delete file from storage (filesystem)
         try:
             storage_key = file_info['storage_key']
             await self.storage.delete_file(storage_key)
-            self.logger.debug(f"Deleted file from storage: {storage_key}")
+            logger.debug(f"Deleted file from storage: {storage_key}")
         except Exception as e:
-            self.logger.error(f"Error deleting file from storage {storage_key}: {e}")
+            logger.error(f"Error deleting file from storage {storage_key}: {e}")
             # Continue even if storage deletion fails
 
         # 3. Delete from metadata store (skip chunk deletion if already done)
         metadata_deleted = await self.metadata_store.delete_file(file_id, skip_chunks=chunks_already_deleted)
 
         if metadata_deleted:
-            self.logger.debug(f"Successfully deleted file {file_id} and all associated data")
+            logger.debug(f"Successfully deleted file {file_id} and all associated data")
         else:
-            self.logger.error(f"Failed to delete file {file_id} from metadata store")
+            logger.error(f"Failed to delete file {file_id} from metadata store")
         
         return metadata_deleted
     

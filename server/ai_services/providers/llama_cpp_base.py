@@ -9,6 +9,8 @@ from ..connection import RetryHandler
 import logging
 
 # Configure logging to suppress Metal-related messages
+
+logger = logging.getLogger(__name__)
 logging.getLogger('ggml_metal').setLevel(logging.ERROR)
 
 
@@ -47,7 +49,7 @@ class LlamaCppBaseService(ProviderAIService):
 
         # If model_path is specified, force direct mode (backward compatibility)
         if self.model_path and self.mode != "direct":
-            self.logger.warning("model_path specified but mode is not 'direct'. Forcing direct mode.")
+            logger.warning("model_path specified but mode is not 'direct'. Forcing direct mode.")
             self.mode = "direct"
 
         if self.mode == "direct":
@@ -72,7 +74,7 @@ class LlamaCppBaseService(ProviderAIService):
         self.llama_model = None
         self.executor = None
 
-        self.logger.info(f"Configured Llama.cpp in API mode at {self.base_url}")
+        logger.info(f"Configured Llama.cpp in API mode at {self.base_url}")
 
     def _setup_direct_mode(self, llama_config: Dict[str, Any]) -> None:
         """Setup for direct mode (GGUF model loading)."""
@@ -122,7 +124,7 @@ class LlamaCppBaseService(ProviderAIService):
         self.client = None
         self.executor = ThreadPoolExecutor(max_workers=1)  # For running model inference in separate thread
 
-        self.logger.info(f"Configured Llama.cpp in direct mode with model: {self.model}")
+        logger.info(f"Configured Llama.cpp in direct mode with model: {self.model}")
 
     async def initialize(self) -> bool:
         try:
@@ -135,7 +137,7 @@ class LlamaCppBaseService(ProviderAIService):
             self.initialized = True
             return True
         except Exception as e:
-            self.logger.error(f"Failed to initialize Llama.cpp: {str(e)}")
+            logger.error(f"Failed to initialize Llama.cpp: {str(e)}")
             return False
 
     def _load_direct_model(self):
@@ -150,10 +152,10 @@ class LlamaCppBaseService(ProviderAIService):
             # Check if model path exists
             if not os.path.exists(self.model_path):
                 error_msg = f"Model file not found at: {self.model_path}"
-                self.logger.error(error_msg)
+                logger.error(error_msg)
                 raise FileNotFoundError(error_msg)
 
-            self.logger.info(f"Loading llama.cpp model from: {self.model_path}")
+            logger.info(f"Loading llama.cpp model from: {self.model_path}")
 
             # Initialize the model with specified parameters
             self.llama_model = Llama(
@@ -167,13 +169,13 @@ class LlamaCppBaseService(ProviderAIService):
                 embedding=True  # Enable embedding support
             )
 
-            self.logger.info(f"llama.cpp model {self.model} loaded successfully")
+            logger.info(f"llama.cpp model {self.model} loaded successfully")
         except ImportError:
             error_msg = "llama_cpp package not installed. Please install with: pip install llama-cpp-python"
-            self.logger.error(error_msg)
+            logger.error(error_msg)
             raise ImportError(error_msg)
         except Exception as e:
-            self.logger.error(f"Error loading llama.cpp model: {str(e)}")
+            logger.error(f"Error loading llama.cpp model: {str(e)}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -186,7 +188,7 @@ class LlamaCppBaseService(ProviderAIService):
                     await self.initialize()
                     return self.initialized
                 except Exception as e:
-                    self.logger.error(f"Failed to verify llama.cpp model: {str(e)}")
+                    logger.error(f"Failed to verify llama.cpp model: {str(e)}")
                     return False
             return True
 
@@ -199,7 +201,7 @@ class LlamaCppBaseService(ProviderAIService):
         self.initialized = False
 
     def _handle_llama_cpp_error(self, error: Exception, operation: str = "operation") -> None:
-        self.logger.error(f"Llama.cpp error during {operation}: {str(error)}")
+        logger.error(f"Llama.cpp error during {operation}: {str(error)}")
 
     def _get_batch_size(self, default: int = 8) -> int:
         """

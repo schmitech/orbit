@@ -11,6 +11,8 @@ import logging
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
 
+
+logger = logging.getLogger(__name__)
 # Handle imports from both server package and direct execution
 try:
     from server.utils.ollama_utils import (
@@ -113,7 +115,7 @@ class OllamaBaseService(ProviderAIService):
             logger=self.logger
         )
 
-        self.logger.debug(f"Configured Ollama service with model: {self.model}")
+        logger.debug(f"Configured Ollama service with model: {self.model}")
 
     def _get_service_type_name(self) -> str:
         """
@@ -153,7 +155,7 @@ class OllamaBaseService(ProviderAIService):
             # Verify connection
             if await self.verify_connection():
                 self.initialized = True
-                self.logger.info(
+                logger.info(
                     f"Initialized Ollama {self.service_type.value} service "
                     f"with model {self.model}"
                 )
@@ -161,7 +163,7 @@ class OllamaBaseService(ProviderAIService):
             return False
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize Ollama service: {str(e)}")
+            logger.error(f"Failed to initialize Ollama service: {str(e)}")
             return False
 
     def _get_warmup_endpoint(self) -> str:
@@ -191,7 +193,7 @@ class OllamaBaseService(ProviderAIService):
         try:
             return await self.connection_verifier.verify_connection(check_model=True)
         except Exception as e:
-            self.logger.error(f"Ollama connection verification failed: {str(e)}")
+            logger.error(f"Ollama connection verification failed: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -201,9 +203,9 @@ class OllamaBaseService(ProviderAIService):
         try:
             await self.session_manager.close()
             self.initialized = False
-            self.logger.debug("Closed Ollama service")
+            logger.debug("Closed Ollama service")
         except Exception as e:
-            self.logger.error(f"Error closing Ollama service: {str(e)}")
+            logger.error(f"Error closing Ollama service: {str(e)}")
 
     def _get_temperature(self, default: float = 0.1) -> float:
         """

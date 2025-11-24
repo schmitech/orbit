@@ -71,8 +71,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         self.max_templates = self.intent_config.get('max_templates', 5)
         
         # Debug configuration values
-        self.logger.debug(f"Intent config loaded - confidence_threshold: {self.confidence_threshold}, template_collection_name: {self.template_collection_name}, max_templates: {self.max_templates}")
-        self.logger.debug(f"Intent config keys: {list(self.intent_config.keys())}")
+        logger.debug(f"Intent config loaded - confidence_threshold: {self.confidence_threshold}, template_collection_name: {self.template_collection_name}, max_templates: {self.max_templates}")
+        logger.debug(f"Intent config keys: {list(self.intent_config.keys())}")
         
         # Initialize service clients
         self.embedding_client = None
@@ -159,7 +159,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             self.template_reranker = TemplateReranker(domain_config, domain_strategy)
             self.template_processor = TemplateProcessor(domain_config)
             
-            self.logger.debug(f"{self.__class__.__name__} initialization complete")
+            logger.debug(f"{self.__class__.__name__} initialization complete")
                 
         except Exception as e:
             logger.error(f"Failed to initialize {self.__class__.__name__}: {e}")

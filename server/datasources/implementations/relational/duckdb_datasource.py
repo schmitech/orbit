@@ -2,9 +2,12 @@
 DuckDB Datasource Implementation
 """
 
+import logging
 import duckdb
 from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
+
+logger = logging.getLogger(__name__)
 
 
 class DuckDBDatasource(BaseDatasource):
@@ -23,7 +26,7 @@ class DuckDBDatasource(BaseDatasource):
         access_mode = duckdb_config.get('access_mode', 'automatic')
         threads = duckdb_config.get('threads', None)
         
-        self.logger.info(f"Initializing DuckDB connection to {database}")
+        logger.info(f"Initializing DuckDB connection to {database}")
         
         try:
             # Configure connection parameters
@@ -43,22 +46,22 @@ class DuckDBDatasource(BaseDatasource):
             try:
                 self._client.execute("INSTALL httpfs;")
                 self._client.execute("LOAD httpfs;")
-                self.logger.debug("DuckDB httpfs extension loaded for remote file support")
+                logger.debug("DuckDB httpfs extension loaded for remote file support")
             except Exception as extension_error:
-                self.logger.warning(f"Failed to load DuckDB httpfs extension: {extension_error}")
+                logger.warning(f"Failed to load DuckDB httpfs extension: {extension_error}")
             
             # Test the connection with a simple query
             result = self._client.execute("SELECT version();").fetchone()
             
             if result:
                 version = result[0]
-                self.logger.info(f"DuckDB connection successful: {version}")
+                logger.info(f"DuckDB connection successful: {version}")
             
             self._initialized = True
-            self.logger.info("DuckDB connection established successfully")
+            logger.info("DuckDB connection established successfully")
             
         except Exception as e:
-            self.logger.error(f"Failed to connect to DuckDB database: {str(e)}")
+            logger.error(f"Failed to connect to DuckDB database: {str(e)}")
             raise
     
     async def health_check(self) -> bool:
@@ -70,7 +73,7 @@ class DuckDBDatasource(BaseDatasource):
             self._client.execute("SELECT 1")
             return True
         except Exception as e:
-            self.logger.error(f"DuckDB health check failed: {e}")
+            logger.error(f"DuckDB health check failed: {e}")
             return False
     
     async def close(self) -> None:
@@ -79,7 +82,7 @@ class DuckDBDatasource(BaseDatasource):
             try:
                 self._client.close()
             except Exception as e:
-                self.logger.warning(f"Error closing DuckDB connection: {e}")
+                logger.warning(f"Error closing DuckDB connection: {e}")
             self._client = None
             self._initialized = False
-            self.logger.info("DuckDB connection closed")
+            logger.info("DuckDB connection closed")

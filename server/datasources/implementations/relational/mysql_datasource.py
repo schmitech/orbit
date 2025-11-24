@@ -2,8 +2,11 @@
 MySQL Database Datasource Implementation
 """
 
+import logging
 from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
+
+logger = logging.getLogger(__name__)
 
 
 class MySQLDatasource(BaseDatasource):
@@ -22,7 +25,7 @@ class MySQLDatasource(BaseDatasource):
             import mysql.connector
             from mysql.connector import Error
         except ImportError:
-            self.logger.warning("mysql-connector-python not available. Install with: pip install mysql-connector-python")
+            logger.warning("mysql-connector-python not available. Install with: pip install mysql-connector-python")
             self._client = None
             self._initialized = True
             return
@@ -35,7 +38,7 @@ class MySQLDatasource(BaseDatasource):
         password = mysql_config.get('password', '')
         
         try:
-            self.logger.info(f"Initializing MySQL connection to {host}:{port}/{database}")
+            logger.info(f"Initializing MySQL connection to {host}:{port}/{database}")
             
             # Create connection
             self._client = mysql.connector.connect(
@@ -54,16 +57,16 @@ class MySQLDatasource(BaseDatasource):
             cursor.close()
             
             if version:
-                self.logger.info(f"MySQL connection successful: {version[0]}")
+                logger.info(f"MySQL connection successful: {version[0]}")
             
             self._initialized = True
             
         except Error as e:
-            self.logger.error(f"Failed to connect to MySQL database: {str(e)}")
-            self.logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
+            logger.error(f"Failed to connect to MySQL database: {str(e)}")
+            logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
             raise
         except Exception as e:
-            self.logger.error(f"Unexpected error connecting to MySQL: {str(e)}")
+            logger.error(f"Unexpected error connecting to MySQL: {str(e)}")
             raise
     
     async def health_check(self) -> bool:
@@ -78,7 +81,7 @@ class MySQLDatasource(BaseDatasource):
             cursor.close()
             return True
         except Exception as e:
-            self.logger.error(f"MySQL health check failed: {e}")
+            logger.error(f"MySQL health check failed: {e}")
             return False
     
     async def close(self) -> None:
@@ -87,4 +90,4 @@ class MySQLDatasource(BaseDatasource):
             self._client.close()
             self._client = None
             self._initialized = False
-            self.logger.info("MySQL connection closed")
+            logger.info("MySQL connection closed")

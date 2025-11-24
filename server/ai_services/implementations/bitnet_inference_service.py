@@ -2,10 +2,13 @@
 
 import os
 import asyncio
+import logging
 from typing import Dict, Any, AsyncGenerator
 from ..base import ServiceType, ProviderAIService
 from ..services import InferenceService
 from ..providers.bitnet_base import BitNetBaseService
+
+logger = logging.getLogger(__name__)
 
 
 class BitNetInferenceService(InferenceService, BitNetBaseService):
@@ -65,14 +68,14 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
             if self.mode == "direct":
                 # Direct mode: Load model using BitNet Python bindings
                 if not self.model_path:
-                    self.logger.error("BitNet model_path is required for direct mode")
+                    logger.error("BitNet model_path is required for direct mode")
                     return False
                     
                 if not os.path.exists(self.model_path):
-                    self.logger.error(f"Model file not found at: {self.model_path}")
+                    logger.error(f"Model file not found at: {self.model_path}")
                     return False
                 
-                self.logger.info(f"Loading BitNet model from: {self.model_path}")
+                logger.info(f"Loading BitNet model from: {self.model_path}")
                 
                 # Load model in a thread to avoid blocking
                 def _load_model():
@@ -95,7 +98,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                     )
                 
                 self.model = await asyncio.to_thread(_load_model)
-                self.logger.info("BitNet model loaded successfully")
+                logger.info("BitNet model loaded successfully")
                 
             else:
                 # API mode: Initialize OpenAI-compatible client
@@ -104,16 +107,16 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                     api_key=self.api_key or "not-needed",
                     base_url=self.base_url
                 )
-                self.logger.info(f"BitNet API client initialized for {self.base_url}")
+                logger.info(f"BitNet API client initialized for {self.base_url}")
             
             self.initialized = True
             return True
             
         except ImportError:
-            self.logger.error("BitNet package not installed. Please install with: pip install bitnet-cpp")
+            logger.error("BitNet package not installed. Please install with: pip install bitnet-cpp")
             return False
         except Exception as e:
-            self.logger.error(f"Failed to initialize BitNet model: {str(e)}")
+            logger.error(f"Failed to initialize BitNet model: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -122,7 +125,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
             await self.model.close()
         self.model = None
         self.initialized = False
-        self.logger.debug("BitNet model closed")
+        logger.debug("BitNet model closed")
 
     async def verify_connection(self) -> bool:
         """Verify the model is loaded or API is accessible."""
@@ -133,7 +136,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                     await self.model.models.list()
                     return True
             except Exception as e:
-                self.logger.error(f"Failed to verify BitNet API connection: {str(e)}")
+                logger.error(f"Failed to verify BitNet API connection: {str(e)}")
                 return False
         else:
             return self.model is not None
@@ -209,7 +212,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                 return self._clean_response_text(response_text)
                 
         except Exception as e:
-            self.logger.error(f"Error generating response with BitNet: {str(e)}")
+            logger.error(f"Error generating response with BitNet: {str(e)}")
             raise
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
@@ -279,5 +282,5 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                                     yield text
                     
         except Exception as e:
-            self.logger.error(f"Error generating streaming response with BitNet: {str(e)}")
+            logger.error(f"Error generating streaming response with BitNet: {str(e)}")
             yield f"Error: {str(e)}"

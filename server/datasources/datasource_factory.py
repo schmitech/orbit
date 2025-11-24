@@ -6,8 +6,11 @@ using a registry-based approach. It supports multiple datasource types including
 ChromaDB, SQLite, PostgreSQL, Oracle, MySQL, MariaDB, SQL Server, MongoDB, and Cassandra.
 """
 
+import logging
 from typing import Any, Dict, Optional
 from .registry import get_registry
+
+logger = logging.getLogger(__name__)
 
 
 class DatasourceFactory:
@@ -40,14 +43,14 @@ class DatasourceFactory:
         Returns:
             An initialized datasource client or None if initialization fails
         """
-        self.logger.info(f"Initializing datasource client using registry pattern: {provider}")
+        logger.info(f"Initializing datasource client using registry pattern: {provider}")
         
         try:
             # Create datasource instance using registry
             datasource = self.registry.create_datasource(provider, self.config, self.logger)
             
             if datasource is None:
-                self.logger.error(f"Failed to create datasource: {provider}")
+                logger.error(f"Failed to create datasource: {provider}")
                 return None
             
             # Initialize the datasource (this will be async in the future)
@@ -57,7 +60,7 @@ class DatasourceFactory:
                 if loop.is_running():
                     # If we're in an async context, we can't use run_until_complete
                     # For now, we'll handle this synchronously
-                    self.logger.warning(f"Async initialization not supported in sync context for {provider}")
+                    logger.warning(f"Async initialization not supported in sync context for {provider}")
                     return None
                 else:
                     loop.run_until_complete(datasource.initialize())
@@ -69,5 +72,5 @@ class DatasourceFactory:
             return datasource.get_client()
             
         except Exception as e:
-            self.logger.error(f"Failed to initialize datasource {provider}: {str(e)}")
+            logger.error(f"Failed to initialize datasource {provider}: {str(e)}")
             return None 

@@ -12,6 +12,8 @@ import logging
 from ..base import ProviderAIService, ServiceType
 
 
+
+logger = logging.getLogger(__name__)
 class EmbeddingService(ProviderAIService):
     """
     Base class for all embedding services.
@@ -168,7 +170,7 @@ class EmbeddingService(ProviderAIService):
         try:
             return await self.embed_query(text)
         except Exception as e:
-            self.logger.error(f"Failed to embed query, using fallback: {str(e)}")
+            logger.error(f"Failed to embed query, using fallback: {str(e)}")
             if fallback_value is not None:
                 return fallback_value
             raise
@@ -200,7 +202,7 @@ class EmbeddingService(ProviderAIService):
             if not retry_failed:
                 raise
 
-            self.logger.warning(
+            logger.warning(
                 f"Batch embedding failed, retrying individually: {str(e)}"
             )
 
@@ -213,7 +215,7 @@ class EmbeddingService(ProviderAIService):
                     embedding = await self.embed_query(text)
                     embeddings.append(embedding)
                 except Exception as e:
-                    self.logger.error(f"Failed to embed document: {str(e)}")
+                    logger.error(f"Failed to embed document: {str(e)}")
                     # Use zero vector as fallback
                     embeddings.append([0.0] * dimensions)
 

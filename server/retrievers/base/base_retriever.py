@@ -305,7 +305,7 @@ class VectorDBRetriever(BaseRetriever):
             if not self.embeddings.initialized:
                 await self.embeddings.initialize()
             else:
-                self.logger.debug(f"Embedding service already initialized, skipping initialization")
+                logger.debug(f"Embedding service already initialized, skipping initialization")
             self.using_new_embedding_service = True
         else:
             # Fall back to legacy Ollama embeddings
@@ -321,8 +321,8 @@ class VectorDBRetriever(BaseRetriever):
             )
             self.using_new_embedding_service = False
         
-        self.logger.debug(f"Initialized embeddings: {type(self.embeddings).__name__}")
-        self.logger.debug(f"Using new embedding service: {self.using_new_embedding_service}")
+        logger.debug(f"Initialized embeddings: {type(self.embeddings).__name__}")
+        logger.debug(f"Using new embedding service: {self.using_new_embedding_service}")
     
     async def close(self) -> None:
         """Close any open services including embedding service."""

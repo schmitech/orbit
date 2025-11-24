@@ -102,7 +102,7 @@ class FixedSizeChunker(TextChunker):
             start += self.chunk_size - self.overlap
             chunk_index += 1
         
-        self.logger.debug(f"Chunked text into {len(chunks)} chunks (character-based)")
+        logger.debug(f"Chunked text into {len(chunks)} chunks (character-based)")
         return chunks
     
     def _chunk_by_tokens(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
@@ -111,7 +111,7 @@ class FixedSizeChunker(TextChunker):
         try:
             tokens = self.tokenizer.encode(text)
         except Exception as e:
-            self.logger.warning(f"Token encoding failed, falling back to character-based: {e}")
+            logger.warning(f"Token encoding failed, falling back to character-based: {e}")
             return self._chunk_by_characters(text, file_id, metadata)
         
         if not tokens:
@@ -132,7 +132,7 @@ class FixedSizeChunker(TextChunker):
             try:
                 chunk_text = self.tokenizer.decode(token_slice)
             except Exception as e:
-                self.logger.warning(f"Token decoding failed: {e}")
+                logger.warning(f"Token decoding failed: {e}")
                 # Fallback: use character-based estimation for this chunk
                 # Average ~4 characters per token (heuristic for English text)
                 char_start = start_idx * 4  # Approximate character position
@@ -165,5 +165,5 @@ class FixedSizeChunker(TextChunker):
             start_idx += self.chunk_size - self.overlap
             chunk_index += 1
         
-        self.logger.debug(f"Chunked text into {len(chunks)} chunks (token-based)")
+        logger.debug(f"Chunked text into {len(chunks)} chunks (token-based)")
         return chunks

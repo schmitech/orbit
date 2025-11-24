@@ -12,6 +12,8 @@ import logging
 from ..base import ProviderAIService, ServiceType
 
 
+
+logger = logging.getLogger(__name__)
 class InferenceService(ProviderAIService):
     """
     Base class for all LLM inference services.
@@ -123,18 +125,18 @@ class InferenceService(ProviderAIService):
         try:
             # Basic validation
             if not self.model:
-                self.logger.error("Model not configured")
+                logger.error("Model not configured")
                 return False
 
             if not self.api_key and self.provider_name != "ollama":
-                self.logger.error("API key not configured")
+                logger.error("API key not configured")
                 return False
 
             # Verify connection
             return await self.verify_connection()
 
         except Exception as e:
-            self.logger.error(f"Configuration validation failed: {str(e)}")
+            logger.error(f"Configuration validation failed: {str(e)}")
             return False
 
     def _get_temperature(self, default: float = 0.7) -> float:
@@ -215,7 +217,7 @@ class InferenceService(ProviderAIService):
         try:
             return await self.generate(prompt, **kwargs)
         except Exception as e:
-            self.logger.error(f"Generation failed, using fallback: {str(e)}")
+            logger.error(f"Generation failed, using fallback: {str(e)}")
             if fallback_response is not None:
                 return fallback_response
             raise
@@ -251,12 +253,12 @@ class InferenceService(ProviderAIService):
             except Exception as e:
                 last_error = e
                 if attempt < max_retries - 1:
-                    self.logger.warning(
+                    logger.warning(
                         f"Generation attempt {attempt + 1} failed, retrying: {str(e)}"
                     )
                     await asyncio.sleep(2 ** attempt)  # Exponential backoff
 
-        self.logger.error(f"Generation failed after {max_retries} attempts")
+        logger.error(f"Generation failed after {max_retries} attempts")
         raise last_error
 
 

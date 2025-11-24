@@ -15,6 +15,8 @@ from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
 
 
+
+logger = logging.getLogger(__name__)
 class JinaBaseService(ProviderAIService):
     """
     Base class for all Jina AI services.
@@ -100,7 +102,7 @@ class JinaBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.debug(f"Configured Jina service with model: {self.model}")
+        logger.debug(f"Configured Jina service with model: {self.model}")
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """
@@ -139,14 +141,14 @@ class JinaBaseService(ProviderAIService):
             # Verify connection
             if await self.verify_connection():
                 self.initialized = True
-                self.logger.info(
+                logger.info(
                     f"Initialized Jina {self.service_type.value} service "
                     f"with model {self.model}"
                 )
                 return True
             return False
         except Exception as e:
-            self.logger.error(f"Failed to initialize Jina service: {str(e)}")
+            logger.error(f"Failed to initialize Jina service: {str(e)}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -171,12 +173,12 @@ class JinaBaseService(ProviderAIService):
                 "input": ["test connection"]
             }
 
-            self.logger.info(f"Verifying connection to Jina API with model {self.model}")
+            logger.info(f"Verifying connection to Jina API with model {self.model}")
 
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    self.logger.error(f"Error connecting to Jina API: {error_text}")
+                    logger.error(f"Error connecting to Jina API: {error_text}")
                     return False
 
                 data = await response.json()
@@ -184,14 +186,14 @@ class JinaBaseService(ProviderAIService):
                 # Verify the response structure
                 if "data" in data and len(data["data"]) > 0 and "embedding" in data["data"][0]:
                     embedding = data["data"][0]["embedding"]
-                    self.logger.info(f"Successfully verified connection to Jina API. Got embedding with {len(embedding)} dimensions.")
+                    logger.info(f"Successfully verified connection to Jina API. Got embedding with {len(embedding)} dimensions.")
                     return True
                 else:
-                    self.logger.error(f"Unexpected response structure from Jina API: {data}")
+                    logger.error(f"Unexpected response structure from Jina API: {data}")
                     return False
 
         except Exception as e:
-            self.logger.error(f"Jina connection verification failed: {str(e)}")
+            logger.error(f"Jina connection verification failed: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -206,7 +208,7 @@ class JinaBaseService(ProviderAIService):
             await self.connection_manager.close()
 
         self.initialized = False
-        self.logger.debug("Closed Jina service")
+        logger.debug("Closed Jina service")
 
     def _get_task(self, default: str = "text-matching") -> str:
         """
@@ -255,10 +257,10 @@ class JinaBaseService(ProviderAIService):
         error_str = str(error)
 
         if "api_key" in error_str.lower() or "unauthorized" in error_str.lower():
-            self.logger.error(f"Jina authentication failed during {operation}: Invalid API key")
+            logger.error(f"Jina authentication failed during {operation}: Invalid API key")
         elif "rate limit" in error_str.lower():
-            self.logger.warning(f"Jina rate limit exceeded during {operation}")
+            logger.warning(f"Jina rate limit exceeded during {operation}")
         elif "connection" in error_str.lower():
-            self.logger.error(f"Jina connection error during {operation}: {str(error)}")
+            logger.error(f"Jina connection error during {operation}: {str(error)}")
         else:
-            self.logger.error(f"Jina error during {operation}: {str(error)}")
+            logger.error(f"Jina error during {operation}: {str(error)}")

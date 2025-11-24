@@ -46,7 +46,7 @@ class DoclingProcessor(FileProcessor):
             try:
                 self._converter = DocumentConverter()
             except Exception as e:
-                self.logger.warning(f"Failed to initialize Docling converter: {e}")
+                logger.warning(f"Failed to initialize Docling converter: {e}")
     
     def supports_mime_type(self, mime_type: str) -> bool:
         """Check if this processor supports the MIME type."""
@@ -106,7 +106,7 @@ class DoclingProcessor(FileProcessor):
             return "\n\n".join(text_parts)
         
         except Exception as e:
-            self.logger.error(f"Error processing document with Docling: {e}")
+            logger.error(f"Error processing document with Docling: {e}")
             raise
     
     async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:
@@ -144,7 +144,7 @@ class DoclingProcessor(FileProcessor):
                     os.unlink(temp_path)
         
         except Exception as e:
-            self.logger.warning(f"Error extracting Docling metadata: {e}")
+            logger.warning(f"Error extracting Docling metadata: {e}")
         
         return metadata
     

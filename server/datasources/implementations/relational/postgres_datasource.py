@@ -2,8 +2,11 @@
 PostgreSQL Datasource Implementation
 """
 
+import logging
 from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
+
+logger = logging.getLogger(__name__)
 
 
 class PostgreSQLDatasource(BaseDatasource):
@@ -30,7 +33,7 @@ class PostgreSQLDatasource(BaseDatasource):
             password = postgres_config.get('password', '')
             sslmode = postgres_config.get('sslmode', 'prefer')
             
-            self.logger.info(f"Initializing PostgreSQL connection to {host}:{port}/{database}")
+            logger.info(f"Initializing PostgreSQL connection to {host}:{port}/{database}")
             
             # Create connection
             self._client = psycopg2.connect(
@@ -50,16 +53,16 @@ class PostgreSQLDatasource(BaseDatasource):
             cursor.close()
             
             if version:
-                self.logger.info(f"PostgreSQL connection successful: {version['version']}")
+                logger.info(f"PostgreSQL connection successful: {version['version']}")
             
             self._initialized = True
             
         except ImportError:
-            self.logger.error("psycopg2 not available. Install with: pip install psycopg2-binary")
+            logger.error("psycopg2 not available. Install with: pip install psycopg2-binary")
             raise
         except Exception as e:
-            self.logger.error(f"Failed to connect to PostgreSQL database: {str(e)}")
-            self.logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
+            logger.error(f"Failed to connect to PostgreSQL database: {str(e)}")
+            logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
             raise
     
     async def health_check(self) -> bool:
@@ -74,7 +77,7 @@ class PostgreSQLDatasource(BaseDatasource):
             cursor.close()
             return True
         except Exception as e:
-            self.logger.error(f"PostgreSQL health check failed: {e}")
+            logger.error(f"PostgreSQL health check failed: {e}")
             return False
     
     async def close(self) -> None:
@@ -83,4 +86,4 @@ class PostgreSQLDatasource(BaseDatasource):
             self._client.close()
             self._client = None
             self._initialized = False
-            self.logger.info("PostgreSQL connection closed")
+            logger.info("PostgreSQL connection closed")

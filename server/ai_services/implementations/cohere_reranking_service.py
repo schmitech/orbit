@@ -5,12 +5,15 @@ Cohere provides a dedicated Rerank API endpoint that offers industry-leading
 reranking quality with multilingual support.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 import asyncio
 import aiohttp
 
 from ..providers import CohereBaseService
 from ..services import RerankingService
+
+logger = logging.getLogger(__name__)
 
 
 class CohereRerankingService(RerankingService, CohereBaseService):
@@ -75,11 +78,11 @@ class CohereRerankingService(RerankingService, CohereBaseService):
             self.session = aiohttp.ClientSession(timeout=timeout)
 
             self.initialized = True
-            self.logger.info(f"Cohere reranking service initialized with model: {self.model}")
+            logger.info(f"Cohere reranking service initialized with model: {self.model}")
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize Cohere reranking service: {str(e)}")
+            logger.error(f"Failed to initialize Cohere reranking service: {str(e)}")
             return False
 
     async def rerank(
@@ -144,7 +147,7 @@ class CohereRerankingService(RerankingService, CohereBaseService):
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    self.logger.error(f"Cohere API error: {error_text}")
+                    logger.error(f"Cohere API error: {error_text}")
                     raise ValueError(f"Cohere rerank failed: {error_text}")
 
                 data = await response.json()
@@ -158,11 +161,11 @@ class CohereRerankingService(RerankingService, CohereBaseService):
                         'score': result['relevance_score']
                     })
 
-                self.logger.debug(f"Reranked {len(documents)} -> {len(results)} documents")
+                logger.debug(f"Reranked {len(documents)} -> {len(results)} documents")
                 return results
 
         except Exception as e:
-            self.logger.error(f"Error in Cohere reranking: {str(e)}")
+            logger.error(f"Error in Cohere reranking: {str(e)}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -181,14 +184,14 @@ class CohereRerankingService(RerankingService, CohereBaseService):
             results = await self.rerank(test_query, test_docs, top_n=1, _skip_init_check=True)
 
             if results and len(results) > 0:
-                self.logger.info("Successfully verified Cohere reranking connection")
+                logger.info("Successfully verified Cohere reranking connection")
                 return True
             else:
-                self.logger.error("Received empty results from Cohere")
+                logger.error("Received empty results from Cohere")
                 return False
 
         except Exception as e:
-            self.logger.error(f"Failed to verify Cohere reranking connection: {str(e)}")
+            logger.error(f"Failed to verify Cohere reranking connection: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -199,4 +202,4 @@ class CohereRerankingService(RerankingService, CohereBaseService):
             await self.session.close()
             self.session = None
         self.initialized = False
-        self.logger.info("Cohere reranking service closed")
+        logger.info("Cohere reranking service closed")

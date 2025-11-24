@@ -15,6 +15,8 @@ from services.auth_service import AuthService
 
 from ai_services.registry import register_all_services
 
+logger = logging.getLogger(__name__)
+
 
 class ServiceFactory:
     """
@@ -46,25 +48,25 @@ class ServiceFactory:
         register_all_services(config)
 
         # Log the mode detection for debugging
-        self.logger.debug(f"ServiceFactory initialized - chat_history_enabled={self.chat_history_enabled}")
+        logger.debug(f"ServiceFactory initialized - chat_history_enabled={self.chat_history_enabled}")
     
     async def initialize_all_services(self, app: FastAPI) -> None:
         """Initialize all services required by the application."""
         try:
-            self.logger.debug(f"Starting service initialization - chat_history_enabled={self.chat_history_enabled}")
+            logger.debug(f"Starting service initialization - chat_history_enabled={self.chat_history_enabled}")
 
             # Initialize core services (MongoDB, Redis)
             await self._initialize_core_services(app)
 
             # Initialize full mode services
-            self.logger.debug("Initializing full RAG mode services")
+            logger.debug("Initializing full RAG mode services")
             await self._initialize_full_mode_services(app)
             
             # Initialize shared services (Logger, LLM Guard, Reranker)
             await self._initialize_shared_services(app)
             
             # Initialize fault tolerance services (always enabled)
-            self.logger.debug("Initializing fault tolerance services")
+            logger.debug("Initializing fault tolerance services")
             # Fault tolerance is now handled by FaultTolerantAdapterManager directly
             
             # Initialize LLM client (after LLM Guard service)
@@ -73,10 +75,10 @@ class ServiceFactory:
             # Initialize dependent services (chat service and health service)
             await self._initialize_dependent_services(app)
             
-            self.logger.info("All services initialized successfully")
+            logger.info("All services initialized successfully")
             
         except Exception as e:
-            self.logger.error(f"Failed to initialize services: {str(e)}")
+            logger.error(f"Failed to initialize services: {str(e)}")
             raise
     
     async def _initialize_core_services(self, app: FastAPI) -> None:
@@ -116,7 +118,7 @@ class ServiceFactory:
 
             # Get backend type for logging
             backend_type = self.config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
-            self.logger.info(f"Database ({backend_type}) initialized for: {', '.join(reasons)}")
+            logger.info(f"Database ({backend_type}) initialized for: {', '.join(reasons)}")
     
     async def _initialize_auth_service_if_available(self, app: FastAPI, auth_enabled: bool) -> None:
         """Initialize authentication service if database is available. Auth is always enabled."""
@@ -124,9 +126,9 @@ class ServiceFactory:
             await self._initialize_auth_service(app)
         else:
             # Auth is always enabled - log error if database is not available
-            self.logger.error("Authentication is required but database service not available - server will not function properly")
+            logger.error("Authentication is required but database service not available - server will not function properly")
             if False:  # Keep old else branch for reference but never execute
-                self.logger.info("Auth service disabled in configuration")
+                logger.info("Auth service disabled in configuration")
     
     async def _initialize_auth_service(self, app: FastAPI) -> None:
         """Initialize the authentication service. Authentication is always enabled."""
@@ -140,10 +142,10 @@ class ServiceFactory:
             await auth_service.initialize()
 
             app.state.auth_service = auth_service
-            self.logger.info("Authentication service initialized successfully")
+            logger.info("Authentication service initialized successfully")
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize authentication service: {str(e)}")
+            logger.error(f"Failed to initialize authentication service: {str(e)}")
             # Don't fail the entire startup if auth fails, but log it prominently
             app.state.auth_service = None
     
@@ -194,7 +196,7 @@ class ServiceFactory:
         """Initialize and verify the LLM client."""
         # Pipeline mode is now the default - no need to create traditional LLM client
         app.state.llm_client = None
-        self.logger.info("Using pipeline architecture - traditional LLM client not needed")
+        logger.info("Using pipeline architecture - traditional LLM client not needed")
     
     async def _initialize_dependent_services(self, app: FastAPI) -> None:
         """Initialize services that depend on other services."""
@@ -220,7 +222,7 @@ class ServiceFactory:
         # Initialize the pipeline provider
         try:
             await app.state.chat_service.initialize()
-            self.logger.info("Initialized pipeline-based chat service")
+            logger.info("Initialized pipeline-based chat service")
         except ValueError as e:
             if "No service registered for inference with provider" in str(e):
                 # Extract available providers from the error message
@@ -229,32 +231,32 @@ class ServiceFactory:
                 # Get the configured provider
                 configured_provider = self.config.get('general', {}).get('inference_provider', 'unknown')
 
-                self.logger.warning("=" * 80)
-                self.logger.warning("CONFIGURATION WARNING: Main inference provider not available")
-                self.logger.warning("=" * 80)
-                self.logger.warning(f"The default inference provider '{configured_provider}' is not registered.")
-                self.logger.warning(f"This is likely because the provider is disabled in config/inference.yaml.")
-                self.logger.warning("")
-                self.logger.warning("The server will continue to start, but:")
-                self.logger.warning(f"  - Adapters WITHOUT their own inference_provider override will NOT work")
-                self.logger.warning(f"  - Adapters WITH their own inference_provider override WILL work normally")
-                self.logger.warning("")
-                self.logger.warning("To fix this warning:")
-                self.logger.warning(f"  1. Enable '{configured_provider}' in config/inference.yaml by setting 'enabled: true'")
-                self.logger.warning(f"  2. Change 'inference_provider' in config/config.yaml to an enabled provider")
-                self.logger.warning("")
+                logger.warning("=" * 80)
+                logger.warning("CONFIGURATION WARNING: Main inference provider not available")
+                logger.warning("=" * 80)
+                logger.warning(f"The default inference provider '{configured_provider}' is not registered.")
+                logger.warning(f"This is likely because the provider is disabled in config/inference.yaml.")
+                logger.warning("")
+                logger.warning("The server will continue to start, but:")
+                logger.warning(f"  - Adapters WITHOUT their own inference_provider override will NOT work")
+                logger.warning(f"  - Adapters WITH their own inference_provider override WILL work normally")
+                logger.warning("")
+                logger.warning("To fix this warning:")
+                logger.warning(f"  1. Enable '{configured_provider}' in config/inference.yaml by setting 'enabled: true'")
+                logger.warning(f"  2. Change 'inference_provider' in config/config.yaml to an enabled provider")
+                logger.warning("")
 
                 # Try to extract available providers from error message
                 if "Available services:" in error_msg:
                     available_inference = error_msg.split("'inference': [")[1].split("]")[0] if "'inference': [" in error_msg else "unknown"
-                    self.logger.warning(f"Available inference providers: [{available_inference}]")
+                    logger.warning(f"Available inference providers: [{available_inference}]")
 
-                self.logger.warning("=" * 80)
+                logger.warning("=" * 80)
 
                 # Mark chat service as initialized but without default provider
                 app.state.chat_service._pipeline_initialized = True
                 app.state.chat_service._default_provider_available = False
-                self.logger.warning("Chat service initialized WITHOUT default provider - only adapter overrides will work")
+                logger.warning("Chat service initialized WITHOUT default provider - only adapter overrides will work")
             else:
                 # Re-raise other ValueError exceptions
                 raise
@@ -267,7 +269,7 @@ class ServiceFactory:
             llm_client=getattr(app.state, 'llm_client', None)  # May be None in pipeline mode
         )
         
-        self.logger.info("Dependent services initialized successfully")
+        logger.info("Dependent services initialized successfully")
     
     async def _initialize_database_service(self, app: FastAPI) -> None:
         """Initialize database service using factory method."""
@@ -280,13 +282,13 @@ class ServiceFactory:
         app.state.mongodb_service = app.state.database_service
 
         backend_type = self.config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
-        self.logger.info(f"Initializing shared database service ({backend_type})...")
+        logger.info(f"Initializing shared database service ({backend_type})...")
 
         try:
             await app.state.database_service.initialize()
-            self.logger.info(f"Shared database service ({backend_type}) initialized successfully")
+            logger.info(f"Shared database service ({backend_type}) initialized successfully")
         except Exception as e:
-            self.logger.error(f"Failed to initialize shared database service: {str(e)}")
+            logger.error(f"Failed to initialize shared database service: {str(e)}")
             raise
     
     async def _initialize_redis_service(self, app: FastAPI) -> None:
@@ -299,90 +301,90 @@ class ServiceFactory:
             redis_config = self.config.get('internal_services', {}).get('redis', {})
             
             # Log Redis configuration details
-            self.logger.info("Redis configuration:")
-            self.logger.info(f"  Host: {redis_config.get('host', 'localhost')}")
-            self.logger.info(f"  Port: {redis_config.get('port', 6379)}")
-            self.logger.info(f"  SSL: {'enabled' if is_true_value(redis_config.get('use_ssl', False)) else 'disabled'}")
-            self.logger.info(f"  Username: {'set' if redis_config.get('username') else 'not set'}")
-            self.logger.info(f"  Password: {'set' if redis_config.get('password') else 'not set'}")
+            logger.info("Redis configuration:")
+            logger.info(f"  Host: {redis_config.get('host', 'localhost')}")
+            logger.info(f"  Port: {redis_config.get('port', 6379)}")
+            logger.info(f"  SSL: {'enabled' if is_true_value(redis_config.get('use_ssl', False)) else 'disabled'}")
+            logger.info(f"  Username: {'set' if redis_config.get('username') else 'not set'}")
+            logger.info(f"  Password: {'set' if redis_config.get('password') else 'not set'}")
             
             # Validate required Redis configuration
             if not redis_config.get('host'):
-                self.logger.error("Redis host is not configured")
+                logger.error("Redis host is not configured")
                 app.state.redis_service = None
             else:
                 app.state.redis_service = RedisService(self.config)
-                self.logger.info("Initializing Redis service...")
+                logger.info("Initializing Redis service...")
                 try:
                     if await app.state.redis_service.initialize():
-                        self.logger.info("Redis service initialized successfully")
+                        logger.info("Redis service initialized successfully")
                     else:
-                        self.logger.warning("Redis service initialization failed - service will be disabled")
+                        logger.warning("Redis service initialization failed - service will be disabled")
                         app.state.redis_service = None
                 except Exception as e:
-                    self.logger.error(f"Failed to initialize Redis service: {str(e)}")
+                    logger.error(f"Failed to initialize Redis service: {str(e)}")
                     app.state.redis_service = None
         else:
             app.state.redis_service = None
-            self.logger.info("Redis service is disabled in configuration")
+            logger.info("Redis service is disabled in configuration")
     
     async def _initialize_chat_history_service(self, app: FastAPI) -> None:
         """Initialize Chat History Service."""
-        self.logger.debug("Creating Chat History Service instance...")
+        logger.debug("Creating Chat History Service instance...")
         from services.chat_history_service import ChatHistoryService
         app.state.chat_history_service = ChatHistoryService(
             self.config,
             app.state.database_service
         )
-        self.logger.info("Initializing Chat History Service...")
+        logger.info("Initializing Chat History Service...")
         try:
             await app.state.chat_history_service.initialize()
-            self.logger.info("Chat History Service initialized successfully")
+            logger.info("Chat History Service initialized successfully")
 
             # Verify chat history service is working
-            self.logger.debug("Performing Chat History Service health check...")
+            logger.debug("Performing Chat History Service health check...")
             health = await app.state.chat_history_service.health_check()
             if health["status"] != "healthy":
-                self.logger.error(f"Chat History Service health check failed: {health}")
+                logger.error(f"Chat History Service health check failed: {health}")
                 app.state.chat_history_service = None
             else:
-                self.logger.debug(f"Chat History Service health check passed: {health}")
+                logger.debug(f"Chat History Service health check passed: {health}")
         except Exception as e:
-            self.logger.error(f"Failed to initialize Chat History Service: {str(e)}")
+            logger.error(f"Failed to initialize Chat History Service: {str(e)}")
             # Don't raise - chat history is optional
             app.state.chat_history_service = None
 
     async def _configure_chat_history_service(self, app: FastAPI) -> None:
         """Enable or disable chat history service based on configuration."""
         if self.chat_history_enabled:
-            self.logger.debug("Chat history is enabled - initializing Chat History Service")
+            logger.debug("Chat history is enabled - initializing Chat History Service")
             await self._initialize_chat_history_service(app)
         else:
             app.state.chat_history_service = None
-            self.logger.info("Chat history is disabled")
+            logger.info("Chat history is disabled")
     
     async def _initialize_api_key_service(self, app: FastAPI) -> None:
         """Initialize API Key Service."""
         from services.api_key_service import ApiKeyService
         app.state.api_key_service = ApiKeyService(self.config, app.state.database_service)
-        self.logger.info("Initializing API Key Service...")
+        logger.info("Initializing API Key Service...")
         try:
             await app.state.api_key_service.initialize()
-            self.logger.info("API Key Service initialized successfully")
+            logger.info("API Key Service initialized successfully")
         except Exception as e:
-            self.logger.error(f"Failed to initialize API Key Service: {str(e)}")
+            logger.error(f"Failed to initialize API Key Service: {str(e)}")
             raise
 
     async def _initialize_prompt_service(self, app: FastAPI) -> None:
         """Initialize Prompt Service."""
         from services.prompt_service import PromptService
         app.state.prompt_service = PromptService(self.config, app.state.database_service)
-        self.logger.info("Initializing Prompt Service...")
+        logger.info("Initializing Prompt Service...")
         try:
             await app.state.prompt_service.initialize()
-            self.logger.info("Prompt Service initialized successfully")
+            logger.info("Prompt Service initialized successfully")
         except Exception as e:
-            self.logger.error(f"Failed to initialize Prompt Service: {str(e)}")
+            logger.error(f"Failed to initialize Prompt Service: {str(e)}")
             raise
     
     async def _initialize_adapter_manager(self, app: FastAPI) -> None:
@@ -402,30 +404,30 @@ class ServiceFactory:
             app.state.adapter_manager = adapter_manager
             app.state.retriever = adapter_proxy  # LLM clients expect 'retriever'
             
-            self.logger.info("Fault Tolerant Adapter Manager initialized successfully")
+            logger.info("Fault Tolerant Adapter Manager initialized successfully")
             
             # Log available adapters - use the base adapter manager for both types
             base_adapter_manager = adapter_manager.base_adapter_manager if hasattr(adapter_manager, 'base_adapter_manager') else adapter_manager
             available_adapters = base_adapter_manager.get_available_adapters()
-            self.logger.info(f"Available adapters: {available_adapters}")
+            logger.info(f"Available adapters: {available_adapters}")
             
             # Preload all adapters in parallel to prevent sequential blocking
             if available_adapters:
-                self.logger.info("Starting parallel adapter preloading...")
+                logger.info("Starting parallel adapter preloading...")
                 preload_results = await base_adapter_manager.preload_all_adapters(timeout_per_adapter=60.0)
                 
                 # Log preloading results
                 successful_adapters = [name for name, result in preload_results.items() if result["success"]]
                 failed_adapters = [name for name, result in preload_results.items() if not result["success"]]
                 
-                self.logger.info(f"Adapter preloading completed: {len(successful_adapters)}/{len(available_adapters)} successful")
+                logger.info(f"Adapter preloading completed: {len(successful_adapters)}/{len(available_adapters)} successful")
                 if failed_adapters:
-                    self.logger.warning(f"Failed to preload adapters: {failed_adapters}")
+                    logger.warning(f"Failed to preload adapters: {failed_adapters}")
             
             # Health service registration is no longer needed with simplified fault tolerance system
             
         except Exception as e:
-            self.logger.error(f"Failed to initialize Dynamic Adapter Manager: {str(e)}")
+            logger.error(f"Failed to initialize Dynamic Adapter Manager: {str(e)}")
             raise
     
     # Fault tolerance services initialization removed - now handled by FaultTolerantAdapterManager directly
@@ -439,17 +441,17 @@ class ServiceFactory:
                     if app.state.fault_tolerant_adapter_manager.parallel_executor:
                         await app.state.fault_tolerant_adapter_manager.parallel_executor.cleanup()
                 
-            self.logger.info("Fault tolerance services shutdown successfully")
+            logger.info("Fault tolerance services shutdown successfully")
             
         except Exception as e:
-            self.logger.error(f"Error shutting down fault tolerance services: {str(e)}")
+            logger.error(f"Error shutting down fault tolerance services: {str(e)}")
     
     async def _initialize_logger_service(self, app: FastAPI) -> None:
         """Initialize Logger Service."""
         from services.logger_service import LoggerService
         app.state.logger_service = LoggerService(self.config)
         await app.state.logger_service.initialize_elasticsearch()
-        self.logger.info("Logger Service initialized successfully")
+        logger.info("Logger Service initialized successfully")
     
     async def _initialize_metrics_service(self, app: FastAPI) -> None:
         """Initialize Metrics Service for monitoring."""
@@ -460,15 +462,15 @@ class ServiceFactory:
             
             if not monitoring_enabled:
                 app.state.metrics_service = None
-                self.logger.info("Metrics Service disabled by configuration")
+                logger.info("Metrics Service disabled by configuration")
                 return
             
             from services.metrics_service import MetricsService
             app.state.metrics_service = MetricsService(self.config)
             await app.state.metrics_service.start_collection()
-            self.logger.info("Metrics Service initialized successfully")
+            logger.info("Metrics Service initialized successfully")
         except Exception as e:
-            self.logger.warning(f"Failed to initialize Metrics Service: {str(e)}")
+            logger.warning(f"Failed to initialize Metrics Service: {str(e)}")
             # Don't fail startup if metrics service fails
             app.state.metrics_service = None
     
@@ -478,10 +480,10 @@ class ServiceFactory:
         if clock_config.get('enabled'):
             from services.clock_service import ClockService
             app.state.clock_service = ClockService(clock_config)
-            self.logger.info("ClockService initialized successfully.")
+            logger.info("ClockService initialized successfully.")
         else:
             app.state.clock_service = None
-            self.logger.info("ClockService is disabled in configuration.")
+            logger.info("ClockService is disabled in configuration.")
     
     async def _initialize_moderator_service(self, app: FastAPI) -> None:
         """Initialize Moderator Service if enabled."""
@@ -494,18 +496,18 @@ class ServiceFactory:
         if safety_enabled:
             from services.moderator_service import ModeratorService
             app.state.moderator_service = ModeratorService(self.config)
-            self.logger.info("Initializing Moderator Service...")
+            logger.info("Initializing Moderator Service...")
             try:
                 await app.state.moderator_service.initialize()
-                self.logger.info("Moderator Service initialized successfully")
+                logger.info("Moderator Service initialized successfully")
             except Exception as e:
-                self.logger.error(f"Failed to initialize Moderator Service: {str(e)}")
+                logger.error(f"Failed to initialize Moderator Service: {str(e)}")
                 # Don't raise here - allow server to continue without Moderator
                 app.state.moderator_service = None
-                self.logger.warning("Continuing without Moderator Service")
+                logger.warning("Continuing without Moderator Service")
         else:
             app.state.moderator_service = None
-            self.logger.info("Safety is disabled, skipping Moderator Service initialization")
+            logger.info("Safety is disabled, skipping Moderator Service initialization")
     
     async def _initialize_llm_guard_service(self, app: FastAPI) -> None:
         """Initialize LLM Guard Service if enabled."""
@@ -527,18 +529,18 @@ class ServiceFactory:
             from services.llm_guard_service import LLMGuardService
             # Ensure singleton usage to avoid multiple instantiations
             app.state.llm_guard_service = LLMGuardService.get_instance(self.config)
-            self.logger.info("Initializing LLM Guard Service...")
+            logger.info("Initializing LLM Guard Service...")
             try:
                 await app.state.llm_guard_service.initialize()
-                self.logger.info("LLM Guard Service initialized successfully")
+                logger.info("LLM Guard Service initialized successfully")
             except Exception as e:
-                self.logger.error(f"Failed to initialize LLM Guard Service: {str(e)}")
+                logger.error(f"Failed to initialize LLM Guard Service: {str(e)}")
                 # Don't raise here - allow server to continue without LLM Guard
                 app.state.llm_guard_service = None
-                self.logger.warning("Continuing without LLM Guard Service")
+                logger.warning("Continuing without LLM Guard Service")
         else:
             app.state.llm_guard_service = None
-            self.logger.info("LLM Guard is disabled, skipping LLM Guard Service initialization")
+            logger.info("LLM Guard is disabled, skipping LLM Guard Service initialization")
     
     async def _initialize_file_processing_service(self, app: FastAPI) -> None:
         """Initialize File Processing Service for file upload API."""
@@ -550,19 +552,19 @@ class ServiceFactory:
                 config=self.config,
                 app_state=app.state
             )
-            self.logger.info("File Processing Service initialized successfully")
+            logger.info("File Processing Service initialized successfully")
         except Exception as e:
-            self.logger.error(f"Failed to initialize File Processing Service: {str(e)}")
+            logger.error(f"Failed to initialize File Processing Service: {str(e)}")
             # Don't raise - allow server to continue without file processing
             app.state.file_processing_service = None
-            self.logger.warning("Continuing without File Processing Service")
+            logger.warning("Continuing without File Processing Service")
     
     async def _initialize_reranker_service(self, app: FastAPI) -> None:
         """Initialize Reranker Service if enabled using the new unified architecture."""
         # Early return if reranker is disabled
         if not is_true_value(self.config.get('reranker', {}).get('enabled', False)):
             app.state.reranker_service = None
-            self.logger.info("Reranker is disabled, skipping initialization")
+            logger.info("Reranker is disabled, skipping initialization")
             return
 
         # Create reranker service using the new unified architecture
@@ -580,16 +582,16 @@ class ServiceFactory:
 
             # Initialize the reranker service
             if await app.state.reranker_service.initialize():
-                self.logger.info(f"Reranker Service initialized successfully (provider: {provider_name})")
+                logger.info(f"Reranker Service initialized successfully (provider: {provider_name})")
             else:
-                self.logger.error("Failed to initialize Reranker Service")
+                logger.error("Failed to initialize Reranker Service")
                 app.state.reranker_service = None
 
         except ValueError as e:
-            self.logger.warning(f"Reranker provider not available: {str(e)}")
+            logger.warning(f"Reranker provider not available: {str(e)}")
             app.state.reranker_service = None
         except Exception as e:
-            self.logger.error(f"Failed to initialize Reranker Service: {str(e)}")
+            logger.error(f"Failed to initialize Reranker Service: {str(e)}")
             app.state.reranker_service = None
     
     async def _initialize_vector_store_manager(self, app: FastAPI) -> None:
@@ -612,7 +614,7 @@ class ServiceFactory:
             if not vector_stores_enabled:
                 app.state.vector_store_manager = None
                 app.state.store_manager = None
-                self.logger.info("No vector stores enabled in configuration")
+                logger.info("No vector stores enabled in configuration")
                 return
             
             # Import and create the store manager
@@ -626,18 +628,18 @@ class ServiceFactory:
             app.state.vector_store_manager = store_manager  # Keep for backward compatibility
             app.state.store_manager = store_manager  # New unified name
             
-            self.logger.info("Store Manager initialized (lazy loading enabled)")
+            logger.info("Store Manager initialized (lazy loading enabled)")
             
             # Log available store types
             stats = app.state.vector_store_manager.get_statistics()
-            self.logger.info(f"Available vector store types: {stats.get('available_store_types', [])}")
+            logger.info(f"Available vector store types: {stats.get('available_store_types', [])}")
             
         except ImportError as e:
-            self.logger.warning(f"Vector stores module not available: {e}")
+            logger.warning(f"Vector stores module not available: {e}")
             app.state.vector_store_manager = None
             app.state.store_manager = None
         except Exception as e:
-            self.logger.warning(f"Failed to initialize Store Manager: {e}")
+            logger.warning(f"Failed to initialize Store Manager: {e}")
             # Don't fail startup if vector stores fail
             app.state.vector_store_manager = None
             app.state.store_manager = None

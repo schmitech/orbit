@@ -2,8 +2,11 @@
 Milvus Datasource Implementation
 """
 
+import logging
 from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
+
+logger = logging.getLogger(__name__)
 
 
 class MilvusDatasource(BaseDatasource):
@@ -21,8 +24,8 @@ class MilvusDatasource(BaseDatasource):
         try:
             from pymilvus import connections, utility
         except ImportError:
-            self.logger.warning("pymilvus not available. Install with: pip install pymilvus")
-            self.logger.info("Milvus datasource not yet implemented")
+            logger.warning("pymilvus not available. Install with: pip install pymilvus")
+            logger.info("Milvus datasource not yet implemented")
             self._client = None
             self._initialized = True
             return
@@ -37,15 +40,15 @@ class MilvusDatasource(BaseDatasource):
             
             # Test the connection
             if utility.has_connection("default"):
-                self.logger.info(f"Milvus connection successful to {host}:{port}")
+                logger.info(f"Milvus connection successful to {host}:{port}")
                 self._client = connections.get_connection_addr("default")
                 self._initialized = True
             else:
                 raise Exception("Failed to establish Milvus connection")
                 
         except Exception as e:
-            self.logger.error(f"Failed to connect to Milvus: {str(e)}")
-            self.logger.info("Milvus datasource not yet implemented")
+            logger.error(f"Failed to connect to Milvus: {str(e)}")
+            logger.info("Milvus datasource not yet implemented")
             self._client = None
             self._initialized = True
     
@@ -61,7 +64,7 @@ class MilvusDatasource(BaseDatasource):
             from pymilvus import utility
             return utility.has_connection("default")
         except Exception as e:
-            self.logger.error(f"Milvus health check failed: {e}")
+            logger.error(f"Milvus health check failed: {e}")
             return False
     
     async def close(self) -> None:
@@ -71,8 +74,8 @@ class MilvusDatasource(BaseDatasource):
                 from pymilvus import connections
                 connections.disconnect("default")
             except Exception as e:
-                self.logger.warning(f"Error disconnecting from Milvus: {e}")
+                logger.warning(f"Error disconnecting from Milvus: {e}")
             finally:
                 self._client = None
                 self._initialized = False
-                self.logger.info("Milvus connection closed")
+                logger.info("Milvus connection closed")

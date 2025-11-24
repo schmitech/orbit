@@ -10,6 +10,8 @@ from typing import Dict, Any
 from utils import is_true_value
 
 
+
+logger = logging.getLogger(__name__)
 class ConfigResolver:
     """
     Handles resolution of provider configurations and ensures backward compatibility.
@@ -89,11 +91,11 @@ class ConfigResolver:
         if 'internal_services' in self.config and 'elasticsearch' in self.config['internal_services']:
             self.config['elasticsearch'] = self.config['internal_services']['elasticsearch']
 
-        self.logger.info(f"Using inference provider: {inference_provider}")
-        self.logger.info(f"Using datasource provider: {datasource_provider}")
-        self.logger.info(f"Using embedding provider: {embedding_provider}")
-        self.logger.info(f"Using safety provider: {safety_provider}")
-        self.logger.info(f"Using reranker provider: {reranker_provider}")
+        logger.info(f"Using inference provider: {inference_provider}")
+        logger.info(f"Using datasource provider: {datasource_provider}")
+        logger.info(f"Using embedding provider: {embedding_provider}")
+        logger.info(f"Using safety provider: {safety_provider}")
+        logger.info(f"Using reranker provider: {reranker_provider}")
     
     def _resolve_component_provider(self, component_name: str) -> str:
         """
@@ -117,32 +119,32 @@ class ConfigResolver:
             moderator = component_config.get('moderator')
             if moderator:
                 # If a specific moderator is configured, use it
-                self.logger.info(f"{component_name.capitalize()} uses configured moderator: {moderator}")
+                logger.info(f"{component_name.capitalize()} uses configured moderator: {moderator}")
                 return moderator
             else:
                 # If no moderator specified, fall back to main provider
-                self.logger.info(f"{component_name.capitalize()} falls back to main provider: {main_provider}")
+                logger.info(f"{component_name.capitalize()} falls back to main provider: {main_provider}")
                 return main_provider
 
         # For reranker component, check for provider_override
         elif component_name == 'reranker':
             provider_override = component_config.get('provider_override')
             if provider_override and provider_override in self.config.get('inference', {}):
-                self.logger.info(f"{component_name.capitalize()} uses custom provider: {provider_override}")
+                logger.info(f"{component_name.capitalize()} uses custom provider: {provider_override}")
                 return provider_override
             else:
                 # If no override found, inherit from main provider
-                self.logger.info(f"{component_name.capitalize()} inherits provider from general: {main_provider}")
+                logger.info(f"{component_name.capitalize()} inherits provider from general: {main_provider}")
                 return main_provider
         
         # For any other component, use the default inheritance logic
         else:
             provider_override = component_config.get('provider_override')
             if provider_override and provider_override in self.config.get('inference', {}):
-                self.logger.info(f"{component_name.capitalize()} uses custom provider: {provider_override}")
+                logger.info(f"{component_name.capitalize()} uses custom provider: {provider_override}")
                 return provider_override
             else:
-                self.logger.info(f"{component_name.capitalize()} inherits provider from general: {main_provider}")
+                logger.info(f"{component_name.capitalize()} inherits provider from general: {main_provider}")
                 return main_provider
 
     def _resolve_component_model(self, component_name: str, provider: str) -> str:
@@ -180,7 +182,7 @@ class ConfigResolver:
         if model_suffix and model:
             model = f"{model}{model_suffix}"
         
-        self.logger.info(f"{component_name.capitalize()} using model: {model}")
+        logger.info(f"{component_name.capitalize()} using model: {model}")
         return model
 
     def resolve_datasource_embedding_provider(self, datasource_name: str) -> str:
@@ -218,9 +220,9 @@ class ConfigResolver:
         # If there's a valid override, use it; otherwise inherit from main provider
         if provider_override and provider_override in self.config.get('embeddings', {}):
             provider = provider_override
-            self.logger.info(f"{datasource_name.capitalize()} uses custom embedding provider: {provider}")
+            logger.info(f"{datasource_name.capitalize()} uses custom embedding provider: {provider}")
         else:
             provider = main_provider
-            self.logger.info(f"{datasource_name.capitalize()} inherits embedding provider from embedding config: {provider}")
+            logger.info(f"{datasource_name.capitalize()} inherits embedding provider from embedding config: {provider}")
         
         return provider

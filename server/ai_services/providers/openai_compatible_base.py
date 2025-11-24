@@ -21,6 +21,8 @@ from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
 
 
+
+logger = logging.getLogger(__name__)
 class OpenAICompatibleBaseService(ProviderAIService):
     """
     Base class for all OpenAI-compatible services.
@@ -160,7 +162,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.info(
+        logger.info(
             f"Configured {self.provider_name.title()} service with model: {self.model}"
         )
 
@@ -185,31 +187,31 @@ class OpenAICompatibleBaseService(ProviderAIService):
                 except RuntimeError:
                     await self._run_connection_verification()
             else:
-                self.logger.debug(
+                logger.debug(
                     "Skipping %s verification; already attempted during this lifecycle",
                     self.provider_name,
                 )
 
             if self.connection_verified:
-                self.logger.info(
+                logger.info(
                     f"Initialized {self.provider_name.title()} "
                     f"{self.service_type.value} service with model {self.model}"
                 )
             elif self._verification_inflight:
-                self.logger.info(
+                logger.info(
                     f"Initialized {self.provider_name.title()} "
                     f"{self.service_type.value} service with model {self.model} "
                     f"(verification running asynchronously)"
                 )
             else:
-                self.logger.info(
+                logger.info(
                     f"Initialized {self.provider_name.title()} "
                     f"{self.service_type.value} service with model {self.model} "
                     f"(verification skipped or failed)"
                 )
             return True
         except Exception as e:
-            self.logger.error(
+            logger.error(
                 f"Failed to initialize {self.provider_name.title()} service: {str(e)}"
             )
             return False
@@ -227,7 +229,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         try:
             # Check if client is initialized
             if not self.client:
-                self.logger.error(
+                logger.error(
                     f"{self.provider_name.title()} client is not initialized. Cannot verify connection."
                 )
                 return False
@@ -235,13 +237,13 @@ class OpenAICompatibleBaseService(ProviderAIService):
             # Try to list models (some providers support this)
             try:
                 await self.client.models.list()
-                self.logger.debug(
+                logger.debug(
                     f"{self.provider_name.title()} connection verified successfully"
                 )
                 return True
             except Exception as models_error:
                 # If models endpoint doesn't work, try a minimal test request
-                self.logger.debug(
+                logger.debug(
                     f"{self.provider_name.title()} models endpoint not available, "
                     f"trying test request"
                 )
@@ -255,7 +257,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
                 )
 
                 if response and response.choices:
-                    self.logger.debug(
+                    logger.debug(
                         f"{self.provider_name.title()} connection verified via test request"
                     )
                     return True
@@ -263,7 +265,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
                 return False
 
         except Exception as e:
-            self.logger.error(
+            logger.error(
                 f"{self.provider_name.title()} connection verification failed: {str(e)}"
             )
             return False
@@ -273,18 +275,18 @@ class OpenAICompatibleBaseService(ProviderAIService):
         try:
             self.connection_verified = await self.verify_connection()
             if self.connection_verified:
-                self.logger.debug(
+                logger.debug(
                     "%s verification completed successfully (async)",
                     self.provider_name.title(),
                 )
             else:
-                self.logger.debug(
+                logger.debug(
                     "%s verification completed with negative result (async)",
                     self.provider_name.title(),
                 )
         except Exception as verify_error:
             self.connection_verified = False
-            self.logger.warning(
+            logger.warning(
                 "%s verification raised an exception; continuing without health check: %s",
                 self.provider_name.title(),
                 str(verify_error),
@@ -307,7 +309,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         self._verification_attempted = False
         self.connection_verified = False
         self._verification_inflight = False
-        self.logger.debug(f"Closed {self.provider_name.title()} service")
+        logger.debug(f"Closed {self.provider_name.title()} service")
 
     def _get_max_tokens(self, default: int = 2000) -> int:
         """
@@ -384,30 +386,30 @@ class OpenAICompatibleBaseService(ProviderAIService):
             provider_title = self.provider_name.title()
 
             if isinstance(error, AuthenticationError):
-                self.logger.error(
+                logger.error(
                     f"{provider_title} authentication failed during {operation}: "
                     f"Invalid API key"
                 )
             elif isinstance(error, RateLimitError):
-                self.logger.warning(
+                logger.warning(
                     f"{provider_title} rate limit exceeded during {operation}"
                 )
             elif isinstance(error, APIConnectionError):
-                self.logger.error(
+                logger.error(
                     f"{provider_title} connection error during {operation}: {str(error)}"
                 )
             elif isinstance(error, APIError):
-                self.logger.error(
+                logger.error(
                     f"{provider_title} API error during {operation}: {str(error)}"
                 )
             else:
-                self.logger.error(
+                logger.error(
                     f"Unexpected error during {operation} with {provider_title}: "
                     f"{str(error)}"
                 )
         except ImportError:
             # If openai exceptions aren't available, just log the error
-            self.logger.error(
+            logger.error(
                 f"Error during {operation} with {self.provider_name.title()}: "
                 f"{str(error)}"
             )

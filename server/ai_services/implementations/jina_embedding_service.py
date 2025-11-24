@@ -8,11 +8,14 @@ of code consolidation and reusability.
 Compare with: server/embeddings/jina.py (old implementation)
 """
 
+import logging
 from typing import List, Dict, Any
 import asyncio
 
 from ..providers.jina_base import JinaBaseService
 from ..services import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 
 class JinaEmbeddingService(EmbeddingService, JinaBaseService):
@@ -79,12 +82,12 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
                 "input": [text]
             }
 
-            self.logger.debug(f"Sending embedding request to Jina API for text: {text[:50]}...")
+            logger.debug(f"Sending embedding request to Jina API for text: {text[:50]}...")
 
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    self.logger.error(f"Error from Jina API: {error_text}")
+                    logger.error(f"Error from Jina API: {error_text}")
                     raise ValueError(f"Failed to get embeddings: {error_text}")
 
                 data = await response.json()
@@ -94,7 +97,7 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
                     embedding = data["data"][0]["embedding"]
                     return embedding
                 else:
-                    self.logger.error(f"Unexpected response structure from Jina API: {data}")
+                    logger.error(f"Unexpected response structure from Jina API: {data}")
                     raise ValueError("Failed to extract embedding from response")
 
         except Exception as e:
@@ -133,7 +136,7 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
                     await asyncio.sleep(0.5)
 
             except Exception as e:
-                self.logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
+                logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
                 raise
 
         return all_embeddings
@@ -166,7 +169,7 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
         async with session.post(url, headers=headers, json=payload) as response:
             if response.status != 200:
                 error_text = await response.text()
-                self.logger.error(f"Error from Jina API: {error_text}")
+                logger.error(f"Error from Jina API: {error_text}")
                 raise ValueError(f"Failed to get batch embeddings: {error_text}")
 
             data = await response.json()
@@ -179,16 +182,16 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
                     if "embedding" in item:
                         embeddings.append(item["embedding"])
                     else:
-                        self.logger.error(f"Missing embedding in response item: {item}")
+                        logger.error(f"Missing embedding in response item: {item}")
                         raise ValueError("Failed to extract embedding from response")
 
                 # Verify we got the expected number of embeddings
                 if len(embeddings) != len(texts):
-                    self.logger.warning(f"Expected {len(texts)} embeddings but got {len(embeddings)}")
+                    logger.warning(f"Expected {len(texts)} embeddings but got {len(embeddings)}")
 
                 return embeddings
             else:
-                self.logger.error(f"Unexpected response structure from Jina API: {data}")
+                logger.error(f"Unexpected response structure from Jina API: {data}")
                 raise ValueError("Failed to extract embeddings from response")
 
     async def get_dimensions(self) -> int:
@@ -208,7 +211,7 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
             return self.dimensions
 
         except Exception as e:
-            self.logger.error(f"Failed to determine embedding dimensions: {str(e)}")
+            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
             # Default fallback dimensions for jina-embeddings-v3
             self.dimensions = 1024
             return self.dimensions

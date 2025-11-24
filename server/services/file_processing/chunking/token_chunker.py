@@ -130,6 +130,6 @@ class TokenChunker(TextChunker):
             chunks.append(chunk)
             chunk_index += 1
         
-        self.logger.debug(f"Chunked text into {len(chunks)} token-based chunks")
+        logger.debug(f"Chunked text into {len(chunks)} token-based chunks")
         return chunks
 

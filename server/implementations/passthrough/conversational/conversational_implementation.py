@@ -21,7 +21,7 @@ class ConversationalImplementation(BaseRetriever):
 
     def __init__(self, config: Dict[str, Any], domain_adapter: Optional[Any] = None, **kwargs: Any) -> None:
         super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
-        self.logger.debug("Initialized conversational passthrough implementation")
+        logger.debug("Initialized conversational passthrough implementation")
 
     def _get_datasource_name(self) -> str:
         """Return the synthetic datasource identifier used for passthrough mode."""
@@ -32,7 +32,7 @@ class ConversationalImplementation(BaseRetriever):
         if self.initialized:
             return
         await super().initialize()
-        self.logger.info("Conversational passthrough implementation ready (no datasource involved)")
+        logger.info("Conversational passthrough implementation ready (no datasource involved)")
 
     async def close(self) -> None:
         """Close BaseRetriever resources (no additional cleanup required)."""
@@ -41,7 +41,7 @@ class ConversationalImplementation(BaseRetriever):
     async def set_collection(self, collection_name: str) -> None:
         """Store the provided identifier for parity with retriever implementations."""
         self.collection = collection_name
-        self.logger.debug("Passthrough adapter set_collection called with %s", collection_name)
+        logger.debug("Passthrough adapter set_collection called with %s", collection_name)
 
     async def get_relevant_context(
         self,
@@ -52,5 +52,5 @@ class ConversationalImplementation(BaseRetriever):
     ) -> List[Dict[str, Any]]:
         """Return an empty context list to indicate no retrieval was performed."""
         await super().get_relevant_context(query, api_key, collection_name, **kwargs)
-        self.logger.debug("Passthrough adapter skipping retrieval for query: %s", query)
+        logger.debug("Passthrough adapter skipping retrieval for query: %s", query)
         return []

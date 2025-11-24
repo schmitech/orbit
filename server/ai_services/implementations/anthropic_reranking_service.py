@@ -5,12 +5,15 @@ Uses Anthropic's Claude models for reranking via prompt engineering.
 Claude excels at instruction following and nuanced relevance judgments.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 import asyncio
 import json
 
 from ..providers import AnthropicBaseService
 from ..services import RerankingService
+
+logger = logging.getLogger(__name__)
 
 
 class AnthropicRerankingService(RerankingService, AnthropicBaseService):
@@ -104,11 +107,11 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
             if top_n is not None:
                 all_results = all_results[:top_n]
 
-            self.logger.debug(f"Reranked {len(documents)} -> {len(all_results)} documents")
+            logger.debug(f"Reranked {len(documents)} -> {len(all_results)} documents")
             return all_results
 
         except Exception as e:
-            self.logger.error(f"Error in Anthropic reranking: {str(e)}")
+            logger.error(f"Error in Anthropic reranking: {str(e)}")
             raise
 
     async def _score_batch(
@@ -175,8 +178,8 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
             return results
 
         except (json.JSONDecodeError, KeyError, ValueError) as e:
-            self.logger.error(f"Failed to parse Anthropic response: {str(e)}")
-            self.logger.error(f"Response content: {content}")
+            logger.error(f"Failed to parse Anthropic response: {str(e)}")
+            logger.error(f"Response content: {content}")
             # Fallback: return documents with neutral scores
             return [
                 {
@@ -240,12 +243,12 @@ Only output the JSON, no other text."""
             results = await self.rerank(test_query, test_docs, top_n=1, _skip_init_check=True)
 
             if results and len(results) > 0:
-                self.logger.info("Successfully verified Anthropic reranking connection")
+                logger.info("Successfully verified Anthropic reranking connection")
                 return True
             else:
-                self.logger.error("Received empty results from Anthropic")
+                logger.error("Received empty results from Anthropic")
                 return False
 
         except Exception as e:
-            self.logger.error(f"Failed to verify Anthropic reranking connection: {str(e)}")
+            logger.error(f"Failed to verify Anthropic reranking connection: {str(e)}")
             return False

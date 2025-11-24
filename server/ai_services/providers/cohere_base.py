@@ -10,6 +10,8 @@ from typing import Dict, Any, Optional
 import warnings
 import logging
 
+
+logger = logging.getLogger(__name__)
 # Suppress Cohere Pydantic deprecation warnings before importing cohere
 warnings.filterwarnings("ignore", message=".*__fields__.*", category=DeprecationWarning)
 
@@ -108,7 +110,7 @@ class CohereBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.debug(f"Configured Cohere service with model: {self.model}")
+        logger.debug(f"Configured Cohere service with model: {self.model}")
 
     async def initialize(self) -> bool:
         """
@@ -121,14 +123,14 @@ class CohereBaseService(ProviderAIService):
             # Verify connection
             if await self.verify_connection():
                 self.initialized = True
-                self.logger.info(
+                logger.info(
                     f"Initialized Cohere {self.service_type.value} service "
                     f"with model {self.model}"
                 )
                 return True
             return False
         except Exception as e:
-            self.logger.error(f"Failed to initialize Cohere service: {str(e)}")
+            logger.error(f"Failed to initialize Cohere service: {str(e)}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -141,14 +143,14 @@ class CohereBaseService(ProviderAIService):
         try:
             # Basic validation: check if API key has the correct format
             if not self.api_key or len(self.api_key) < 10:
-                self.logger.error("Invalid Cohere API key format")
+                logger.error("Invalid Cohere API key format")
                 return False
 
-            self.logger.debug("Cohere connection verified successfully")
+            logger.debug("Cohere connection verified successfully")
             return True
 
         except Exception as e:
-            self.logger.error(f"Cohere connection verification failed: {str(e)}")
+            logger.error(f"Cohere connection verification failed: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -163,7 +165,7 @@ class CohereBaseService(ProviderAIService):
             await self.connection_manager.close()
 
         self.initialized = False
-        self.logger.debug("Closed Cohere service")
+        logger.debug("Closed Cohere service")
 
     def _get_input_type(self, default: str = "search_document") -> str:
         """
@@ -225,10 +227,10 @@ class CohereBaseService(ProviderAIService):
         error_str = str(error)
 
         if "api_key" in error_str.lower() or "unauthorized" in error_str.lower():
-            self.logger.error(f"Cohere authentication failed during {operation}: Invalid API key")
+            logger.error(f"Cohere authentication failed during {operation}: Invalid API key")
         elif "rate limit" in error_str.lower():
-            self.logger.warning(f"Cohere rate limit exceeded during {operation}")
+            logger.warning(f"Cohere rate limit exceeded during {operation}")
         elif "connection" in error_str.lower():
-            self.logger.error(f"Cohere connection error during {operation}: {str(error)}")
+            logger.error(f"Cohere connection error during {operation}: {str(error)}")
         else:
-            self.logger.error(f"Cohere error during {operation}: {str(error)}")
+            logger.error(f"Cohere error during {operation}: {str(error)}")

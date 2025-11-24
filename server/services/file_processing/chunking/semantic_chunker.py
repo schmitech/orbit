@@ -341,7 +341,7 @@ class SemanticChunker(TextChunker):
             start += self.chunk_size - self.overlap
             chunk_index += 1
         
-        self.logger.debug(f"Chunked text into {len(chunks)} semantic chunks (simple mode)")
+        logger.debug(f"Chunked text into {len(chunks)} semantic chunks (simple mode)")
         return chunks
     
     def _chunk_advanced(self, sentences: List[str], text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
@@ -404,7 +404,7 @@ class SemanticChunker(TextChunker):
             chunks.append(chunk)
             chunk_index += 1
         
-        self.logger.debug(f"Chunked text into {len(chunks)} semantic chunks (advanced mode)")
+        logger.debug(f"Chunked text into {len(chunks)} semantic chunks (advanced mode)")
         return chunks
     
     def _split_by_tokens(self, sentence_groups: List[List[str]]) -> List[List[str]]:

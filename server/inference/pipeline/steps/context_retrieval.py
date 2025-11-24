@@ -15,6 +15,8 @@ from adapters.capabilities import (
     RetrievalBehavior
 )
 
+logger = logging.getLogger(__name__)
+
 class ContextRetrievalStep(PipelineStep):
     """
     Retrieve relevant context documents.
@@ -43,7 +45,7 @@ class ContextRetrievalStep(PipelineStep):
         from the configuration, avoiding repeated config parsing.
         """
         if not self.container.has('adapter_manager'):
-            self.logger.debug(
+            logger.debug(
                 "Adapter manager not available, skipping capability initialization. "
                 "Capabilities will be inferred on-demand."
             )
@@ -68,7 +70,7 @@ class ContextRetrievalStep(PipelineStep):
                 capabilities = self._infer_capabilities(adapter_config)
                 self._capability_registry.register(adapter_name, capabilities)
 
-        self.logger.info(
+        logger.info(
             f"Initialized capabilities for {len(adapter_configs)} adapters"
         )
 
@@ -129,16 +131,16 @@ class ContextRetrievalStep(PipelineStep):
                     try:
                         capabilities = self._infer_capabilities(adapter_config, adapter_name)
                         self._capability_registry.register(adapter_name, capabilities)
-                        self.logger.debug(
+                        logger.debug(
                             f"Inferred and registered capabilities for adapter: {adapter_name}"
                         )
                     except Exception as e:
-                        self.logger.warning(
+                        logger.warning(
                             f"Failed to infer capabilities for adapter '{adapter_name}': {e}. "
                             "Using default behavior."
                         )
                 else:
-                    self.logger.warning(
+                    logger.warning(
                         f"Adapter configuration not found for '{adapter_name}'. "
                         "Capabilities cannot be inferred."
                     )
@@ -168,7 +170,7 @@ class ContextRetrievalStep(PipelineStep):
 
         if not capabilities:
             # No capabilities found - assume standard retrieval for backward compatibility
-            self.logger.warning(
+            logger.warning(
                 f"No capabilities found for adapter '{context.adapter_name}'. "
                 "This may indicate: "
                 "1) Adapter not registered in capability registry, "
@@ -194,7 +196,7 @@ class ContextRetrievalStep(PipelineStep):
         if context.is_blocked:
             return context
 
-        self.logger.debug(f"Retrieving context for adapter: {context.adapter_name}")
+        logger.debug(f"Retrieving context for adapter: {context.adapter_name}")
 
         # Check if this is a thread follow-up (use stored dataset instead of retrieval)
         if context.thread_id:
@@ -224,7 +226,7 @@ class ContextRetrievalStep(PipelineStep):
                     
                     context.retrieved_docs = docs
                     
-                    self.logger.debug(f"Loaded {len(docs)} documents from thread {context.thread_id}")
+                    logger.debug(f"Loaded {len(docs)} documents from thread {context.thread_id}")
                     
                     # Format context for LLM
                     capabilities = self._get_capabilities(context.adapter_name)
@@ -237,9 +239,9 @@ class ContextRetrievalStep(PipelineStep):
                     
                     return context
                 else:
-                    self.logger.warning(f"Thread {context.thread_id} dataset not found or expired, falling back to normal retrieval")
+                    logger.warning(f"Thread {context.thread_id} dataset not found or expired, falling back to normal retrieval")
             except Exception as e:
-                self.logger.error(f"Error loading thread dataset: {e}, falling back to normal retrieval")
+                logger.error(f"Error loading thread dataset: {e}, falling back to normal retrieval")
 
         # Get adapter capabilities
         capabilities = self._get_capabilities(context.adapter_name)
@@ -270,12 +272,12 @@ class ContextRetrievalStep(PipelineStep):
             if truncation_info:
                 shown = truncation_info['shown']
                 total = truncation_info['total']
-                self.logger.info(
+                logger.info(
                     f"Retrieved {len(docs)} documents "
                     f"(truncated from {total} total)"
                 )
             else:
-                self.logger.debug(f"Retrieved {len(docs)} documents")
+                logger.debug(f"Retrieved {len(docs)} documents")
 
             # Format context for LLM using capabilities
             context.formatted_context = self._format_context(
@@ -285,7 +287,7 @@ class ContextRetrievalStep(PipelineStep):
             )
 
         except Exception as e:
-            self.logger.error(f"Error during context retrieval: {str(e)}")
+            logger.error(f"Error during context retrieval: {str(e)}")
             context.set_error(f"Failed to retrieve context: {str(e)}")
 
         return context
@@ -304,12 +306,12 @@ class ContextRetrievalStep(PipelineStep):
         if self.container.has('adapter_manager'):
             adapter_manager = self.container.get('adapter_manager')
             retriever = await adapter_manager.get_adapter(context.adapter_name)
-            self.logger.debug(f"Using dynamic adapter: {context.adapter_name}")
+            logger.debug(f"Using dynamic adapter: {context.adapter_name}")
             return retriever
         else:
             # Fall back to static retriever
             retriever = self.container.get('retriever')
-            self.logger.debug(
+            logger.debug(
                 f"Using static retriever with adapter_name: {context.adapter_name}"
             )
             return retriever

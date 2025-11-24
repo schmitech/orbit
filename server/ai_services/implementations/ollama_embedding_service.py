@@ -8,11 +8,14 @@ ollama_utils for maximum compatibility.
 Compare with: server/embeddings/ollama.py (old implementation)
 """
 
+import logging
 from typing import List, Dict, Any
 import asyncio
 
 from ..providers import OllamaBaseService
 from ..services import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
@@ -80,7 +83,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
             async with session.post(url, json=payload) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    self.logger.error(f"Error from Ollama: {error_text}")
+                    logger.error(f"Error from Ollama: {error_text}")
                     raise ValueError(f"Failed to get embeddings: {error_text}")
 
                 data = await response.json()
@@ -136,12 +139,12 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
                 # Handle any exceptions in the batch
                 for j, result in enumerate(batch_embeddings):
                     if isinstance(result, Exception):
-                        self.logger.error(f"Failed to embed document {i+j}: {result}")
+                        logger.error(f"Failed to embed document {i+j}: {result}")
                         # Retry individually for failed embeddings
                         try:
                             result = await self.embed_query(batch[j])
                         except Exception as e:
-                            self.logger.error(f"Retry failed for document {i+j}: {e}")
+                            logger.error(f"Retry failed for document {i+j}: {e}")
                             # Use zero vector as fallback
                             result = [0.0] * (self.dimensions or 768)
 
@@ -149,17 +152,17 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
 
                 # Log progress for large batches
                 if len(texts) > 20 and (i + self.batch_size) % 20 == 0:
-                    self.logger.debug(f"Processed {min(i + self.batch_size, len(texts))}/{len(texts)} documents")
+                    logger.debug(f"Processed {min(i + self.batch_size, len(texts))}/{len(texts)} documents")
 
             except Exception as e:
-                self.logger.error(f"Batch processing failed: {e}")
+                logger.error(f"Batch processing failed: {e}")
                 # Fall back to sequential processing
                 for text in batch:
                     try:
                         embedding = await self.embed_query(text)
                         all_embeddings.append(embedding)
                     except Exception as e:
-                        self.logger.error(f"Failed to embed document: {e}")
+                        logger.error(f"Failed to embed document: {e}")
                         all_embeddings.append([0.0] * (self.dimensions or 768))
 
         return all_embeddings
@@ -188,7 +191,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
                 if response.status != 200:
                     # Use fallback if error
                     fallback = 768
-                    self.logger.warning(f"Using fallback dimensions: {fallback}")
+                    logger.warning(f"Using fallback dimensions: {fallback}")
                     self.dimensions = fallback
                     return self.dimensions
 
@@ -200,7 +203,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
         try:
             return await self.execute_with_retry(_get_dims)
         except Exception as e:
-            self.logger.error(f"Failed to determine dimensions: {str(e)}")
+            logger.error(f"Failed to determine dimensions: {str(e)}")
             fallback = 768
             self.dimensions = fallback
             return fallback

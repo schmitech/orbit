@@ -8,11 +8,14 @@ direct GGUF model loading.
 Compare with: server/embeddings/llama_cpp.py (old implementation)
 """
 
+import logging
 from typing import List, Dict, Any
 import asyncio
 
 from ..providers.llama_cpp_base import LlamaCppBaseService
 from ..services import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 
 class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
@@ -129,7 +132,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
 
             return embedding
         except Exception as e:
-            self.logger.error(f"Error in llama.cpp _generate_embedding: {str(e)}")
+            logger.error(f"Error in llama.cpp _generate_embedding: {str(e)}")
             raise
 
     async def embed_documents(self, texts: List[str]) -> List[List[float]]:
@@ -234,7 +237,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
                 embedding = self._generate_embedding(text)
                 batch_embeddings.append(embedding)
             except Exception as e:
-                self.logger.error(f"Error embedding text '{text[:30]}...': {str(e)}")
+                logger.error(f"Error embedding text '{text[:30]}...': {str(e)}")
                 raise
 
         return batch_embeddings
@@ -257,8 +260,8 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
             self.dimensions = len(embedding)
             return self.dimensions
         except Exception as e:
-            self.logger.error(f"Failed to determine embedding dimensions: {str(e)}")
+            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
             # Default fallback - many GGUF embedding models use 4096 dimensions
             self.dimensions = 4096
-            self.logger.warning(f"Using fallback embedding dimensions: {self.dimensions}")
+            logger.warning(f"Using fallback embedding dimensions: {self.dimensions}")
             return self.dimensions

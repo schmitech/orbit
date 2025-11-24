@@ -7,12 +7,15 @@ and direct mode (embedded GGUF model loading with llama-cpp-python).
 Compare with: server/ai_services/implementations/llama_cpp_embedding_service.py
 """
 
+import logging
 import os
 import asyncio
 from typing import Dict, Any, AsyncGenerator
 from ..base import ServiceType
 from ..services import InferenceService
 from ..providers.llama_cpp_base import LlamaCppBaseService
+
+logger = logging.getLogger(__name__)
 
 
 class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
@@ -63,14 +66,14 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                 from llama_cpp import Llama
 
                 if not self.model_path:
-                    self.logger.error("Llama.cpp model_path is required for direct mode")
+                    logger.error("Llama.cpp model_path is required for direct mode")
                     return False
 
                 if not os.path.exists(self.model_path):
-                    self.logger.error(f"Model file not found at: {self.model_path}")
+                    logger.error(f"Model file not found at: {self.model_path}")
                     return False
 
-                self.logger.info(f"Loading Llama.cpp model from: {self.model_path}")
+                logger.info(f"Loading Llama.cpp model from: {self.model_path}")
 
                 # Load model in a thread to avoid blocking
                 def _load_model():
@@ -88,20 +91,20 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                     )
 
                 self.llama_model = await asyncio.to_thread(_load_model)
-                self.logger.info("Llama.cpp model loaded successfully")
+                logger.info("Llama.cpp model loaded successfully")
 
             else:
                 # API mode: Already initialized by LlamaCppBaseService
-                self.logger.info(f"Llama.cpp API mode configured at {self.base_url}")
+                logger.info(f"Llama.cpp API mode configured at {self.base_url}")
 
             self.initialized = True
             return True
 
         except ImportError:
-            self.logger.error("llama-cpp-python package not installed (required for direct mode)")
+            logger.error("llama-cpp-python package not installed (required for direct mode)")
             return False
         except Exception as e:
-            self.logger.error(f"Failed to initialize Llama.cpp: {str(e)}")
+            logger.error(f"Failed to initialize Llama.cpp: {str(e)}")
             return False
 
     def _build_messages(self, prompt: str, messages: list = None) -> list:
@@ -172,7 +175,7 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                 return self._clean_response_text(response_text)
 
         except Exception as e:
-            self.logger.error(f"Error generating response with Llama.cpp: {str(e)}")
+            logger.error(f"Error generating response with Llama.cpp: {str(e)}")
             raise
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
@@ -242,5 +245,5 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                                     yield text
 
         except Exception as e:
-            self.logger.error(f"Error generating streaming response with Llama.cpp: {str(e)}")
+            logger.error(f"Error generating streaming response with Llama.cpp: {str(e)}")
             yield f"Error: {str(e)}"

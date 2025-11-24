@@ -14,6 +14,8 @@ from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
 
 
+
+logger = logging.getLogger(__name__)
 class AnthropicBaseService(ProviderAIService):
     """
     Base class for all Anthropic services.
@@ -95,7 +97,7 @@ class AnthropicBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.debug(f"Configured Anthropic service with model: {self.model}")
+        logger.debug(f"Configured Anthropic service with model: {self.model}")
 
     async def initialize(self) -> bool:
         """
@@ -108,14 +110,14 @@ class AnthropicBaseService(ProviderAIService):
             # Verify connection with a simple test
             if await self.verify_connection():
                 self.initialized = True
-                self.logger.info(
+                logger.info(
                     f"Initialized Anthropic {self.service_type.value} service "
                     f"with model {self.model}"
                 )
                 return True
             return False
         except Exception as e:
-            self.logger.error(f"Failed to initialize Anthropic service: {str(e)}")
+            logger.error(f"Failed to initialize Anthropic service: {str(e)}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -131,15 +133,15 @@ class AnthropicBaseService(ProviderAIService):
         try:
             # Basic validation: check if API key has the correct format
             if not self.api_key.startswith("sk-ant-"):
-                self.logger.error("Invalid Anthropic API key format")
+                logger.error("Invalid Anthropic API key format")
                 return False
 
             # Additional validation could be added here
-            self.logger.debug("Anthropic connection verified successfully")
+            logger.debug("Anthropic connection verified successfully")
             return True
 
         except Exception as e:
-            self.logger.error(f"Anthropic connection verification failed: {str(e)}")
+            logger.error(f"Anthropic connection verification failed: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -154,7 +156,7 @@ class AnthropicBaseService(ProviderAIService):
             await self.connection_manager.close()
 
         self.initialized = False
-        self.logger.debug("Closed Anthropic service")
+        logger.debug("Closed Anthropic service")
 
     def _get_max_tokens(self, default: int = 1024) -> int:
         """
@@ -211,12 +213,12 @@ class AnthropicBaseService(ProviderAIService):
         )
 
         if isinstance(error, AuthenticationError):
-            self.logger.error(f"Anthropic authentication failed during {operation}: Invalid API key")
+            logger.error(f"Anthropic authentication failed during {operation}: Invalid API key")
         elif isinstance(error, RateLimitError):
-            self.logger.warning(f"Anthropic rate limit exceeded during {operation}")
+            logger.warning(f"Anthropic rate limit exceeded during {operation}")
         elif isinstance(error, APIConnectionError):
-            self.logger.error(f"Anthropic connection error during {operation}: {str(error)}")
+            logger.error(f"Anthropic connection error during {operation}: {str(error)}")
         elif isinstance(error, APIError):
-            self.logger.error(f"Anthropic API error during {operation}: {str(error)}")
+            logger.error(f"Anthropic API error during {operation}: {str(error)}")
         else:
-            self.logger.error(f"Unexpected error during {operation}: {str(error)}")
+            logger.error(f"Unexpected error during {operation}: {str(error)}")

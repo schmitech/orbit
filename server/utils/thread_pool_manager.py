@@ -6,6 +6,8 @@ from typing import Dict, Optional, Any, Callable
 from concurrent.futures import ThreadPoolExecutor, Future
 from contextlib import contextmanager
 
+logger = logging.getLogger(__name__)
+
 
 class ThreadPoolManager:
     """
@@ -55,9 +57,9 @@ class ThreadPoolManager:
                     max_workers=worker_count,
                     thread_name_prefix=f"orbit-{pool_name}-"
                 )
-                self.logger.debug(f"ThreadPoolManager: Initialized {pool_name} pool with {worker_count} workers")
+                logger.debug(f"ThreadPoolManager: Initialized {pool_name} pool with {worker_count} workers")
             except Exception as e:
-                self.logger.error(f"Failed to initialize {pool_name} thread pool: {str(e)}")
+                logger.error(f"Failed to initialize {pool_name} thread pool: {str(e)}")
                 # Fallback to default pool size
                 self._pools[pool_name] = ThreadPoolExecutor(
                     max_workers=self._default_pool_size,
@@ -111,7 +113,7 @@ class ThreadPoolManager:
         }
 
         pool_stats = self._get_pool_info(pool)
-        self.logger.debug(
+        logger.debug(
             f"ThreadPool[{pool_type}] Task #{task_id}: Submitting '{func_name}' "
             f"(active_threads={pool_stats['active']}, queued={pool_stats['queued']})"
         )
@@ -127,7 +129,7 @@ class ThreadPoolManager:
             # Log completion
             elapsed = time.time() - start_time
             del self._active_tasks[task_id]
-            self.logger.debug(
+            logger.debug(
                 f"ThreadPool[{pool_type}] Task #{task_id}: Completed in {elapsed:.3f}s"
             )
 
@@ -137,7 +139,7 @@ class ThreadPoolManager:
             # Log error
             elapsed = time.time() - start_time
             del self._active_tasks[task_id]
-            self.logger.error(
+            logger.error(
                 f"ThreadPool[{pool_type}] Task #{task_id}: Failed after {elapsed:.3f}s - {str(e)}"
             )
             raise
@@ -218,27 +220,27 @@ class ThreadPoolManager:
         Args:
             wait: Whether to wait for pending tasks to complete
         """
-        self.logger.info("Shutting down thread pools...")
+        logger.info("Shutting down thread pools...")
         final_stats = self.get_pool_stats()
-        self.logger.debug("ThreadPoolManager final statistics:")
+        logger.debug("ThreadPoolManager final statistics:")
         for pool_name, stats in final_stats.items():
-            self.logger.debug(
+            logger.debug(
                 f"  {pool_name}: max_workers={stats['max_workers']}, "
                 f"active_threads={stats['active_threads']}, "
                 f"queued_tasks={stats['queued_tasks']}"
             )
             
             if self._active_tasks:
-                self.logger.warning(
+                logger.warning(
                     f"ThreadPoolManager: {len(self._active_tasks)} tasks still active at shutdown"
                 )
         
         for pool_name, pool in self._pools.items():
             try:
                 pool.shutdown(wait=wait)
-                self.logger.info(f"Shut down {pool_name} thread pool")
+                logger.info(f"Shut down {pool_name} thread pool")
             except Exception as e:
-                self.logger.error(f"Error shutting down {pool_name} thread pool: {str(e)}")
+                logger.error(f"Error shutting down {pool_name} thread pool: {str(e)}")
         self._pools.clear()
     
     def __enter__(self):
@@ -252,8 +254,8 @@ class ThreadPoolManager:
     def log_current_status(self):
         """Log current thread pool status - useful for monitoring."""
         stats = self.get_pool_stats()
-        self.logger.debug("ThreadPoolManager Current Status:")
-        self.logger.debug("=" * 60)
+        logger.debug("ThreadPoolManager Current Status:")
+        logger.debug("=" * 60)
         
         total_active = 0
         total_queued = 0
@@ -266,7 +268,7 @@ class ThreadPoolManager:
             # Calculate utilization
             utilization = (active / max_workers * 100) if max_workers > 0 else 0
             
-            self.logger.info(
+            logger.info(
                 f"  {pool_name:12} | Workers: {active:3}/{max_workers:3} ({utilization:5.1f}%) | "
                 f"Queued: {queued if queued != 'N/A' else 0:3}"
             )
@@ -280,13 +282,13 @@ class ThreadPoolManager:
             # Show active tasks if any
             if 'active_tasks' in pool_stats:
                 for task in pool_stats['active_tasks']:
-                    self.logger.info(
+                    logger.info(
                         f"    └─ Task #{task['task_id']}: {task['function']} "
                         f"(running for {task['duration']:.1f}s)"
                     )
         
-        self.logger.info("-" * 60)
-        self.logger.info(
+        logger.info("-" * 60)
+        logger.info(
             f"  Total: {total_active} active threads, {total_queued} queued tasks"
         )
-        self.logger.info("=" * 60)
+        logger.info("=" * 60)

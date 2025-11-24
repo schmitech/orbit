@@ -2,9 +2,12 @@
 SQLite Datasource Implementation
 """
 
+import logging
 import sqlite3
 from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
+
+logger = logging.getLogger(__name__)
 
 
 class SQLiteDatasource(BaseDatasource):
@@ -20,16 +23,16 @@ class SQLiteDatasource(BaseDatasource):
         sqlite_config = self.config.get('datasources', {}).get('sqlite', {})
         database = sqlite_config.get('database', 'sqlite_db.db')
         
-        self.logger.info(f"Initializing SQLite connection to {database}")
+        logger.info(f"Initializing SQLite connection to {database}")
 
         try:
             self._client = sqlite3.connect(database)
             # Configure row factory to enable dictionary-like row access
             self._client.row_factory = sqlite3.Row
             self._initialized = True
-            self.logger.info("SQLite connection established successfully")
+            logger.info("SQLite connection established successfully")
         except Exception as e:
-            self.logger.error(f"Failed to connect to SQLite database: {str(e)}")
+            logger.error(f"Failed to connect to SQLite database: {str(e)}")
             raise
     
     async def health_check(self) -> bool:
@@ -44,7 +47,7 @@ class SQLiteDatasource(BaseDatasource):
             cursor.close()
             return True
         except Exception as e:
-            self.logger.error(f"SQLite health check failed: {e}")
+            logger.error(f"SQLite health check failed: {e}")
             return False
     
     async def close(self) -> None:
@@ -53,4 +56,4 @@ class SQLiteDatasource(BaseDatasource):
             self._client.close()
             self._client = None
             self._initialized = False
-            self.logger.info("SQLite connection closed")
+            logger.info("SQLite connection closed")

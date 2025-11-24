@@ -14,6 +14,8 @@ from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
 
 
+
+logger = logging.getLogger(__name__)
 class ZaiBaseService(ProviderAIService):
     """
     Base class for all Z.AI services.
@@ -103,7 +105,7 @@ class ZaiBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.debug(f"Configured Z.AI service with model: {self.model}")
+        logger.debug(f"Configured Z.AI service with model: {self.model}")
 
     async def initialize(self) -> bool:
         """
@@ -116,14 +118,14 @@ class ZaiBaseService(ProviderAIService):
             # Verify connection
             if await self.verify_connection():
                 self.initialized = True
-                self.logger.info(
+                logger.info(
                     f"Initialized Z.AI {self.service_type.value} service "
                     f"with model {self.model}"
                 )
                 return True
             return False
         except Exception as e:
-            self.logger.error(f"Failed to initialize Z.AI service: {str(e)}")
+            logger.error(f"Failed to initialize Z.AI service: {str(e)}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -140,10 +142,10 @@ class ZaiBaseService(ProviderAIService):
                 messages=[{"role": "user", "content": "Hello"}],
                 max_tokens=1
             )
-            self.logger.debug("Z.AI connection verified successfully")
+            logger.debug("Z.AI connection verified successfully")
             return True
         except Exception as e:
-            self.logger.error(f"Z.AI connection verification failed: {str(e)}")
+            logger.error(f"Z.AI connection verification failed: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -158,7 +160,7 @@ class ZaiBaseService(ProviderAIService):
             await self.connection_manager.close()
 
         self.initialized = False
-        self.logger.debug("Closed Z.AI service")
+        logger.debug("Closed Z.AI service")
 
     def _get_max_tokens(self, default: int = 2000) -> int:
         """
@@ -224,12 +226,12 @@ class ZaiBaseService(ProviderAIService):
         error_str = str(error).lower()
         
         if "authentication" in error_str or "unauthorized" in error_str or "api key" in error_str:
-            self.logger.error(f"Z.AI authentication failed during {operation}: Invalid API key")
+            logger.error(f"Z.AI authentication failed during {operation}: Invalid API key")
         elif "rate limit" in error_str or "quota" in error_str:
-            self.logger.warning(f"Z.AI rate limit exceeded during {operation}")
+            logger.warning(f"Z.AI rate limit exceeded during {operation}")
         elif "connection" in error_str or "network" in error_str or "timeout" in error_str:
-            self.logger.error(f"Z.AI connection error during {operation}: {str(error)}")
+            logger.error(f"Z.AI connection error during {operation}: {str(error)}")
         elif "api" in error_str:
-            self.logger.error(f"Z.AI API error during {operation}: {str(error)}")
+            logger.error(f"Z.AI API error during {operation}: {str(error)}")
         else:
-            self.logger.error(f"Unexpected error during {operation}: {str(error)}")
+            logger.error(f"Unexpected error during {operation}: {str(error)}")

@@ -53,7 +53,7 @@ class HTMLProcessor(FileProcessor):
             return "\n".join(text_parts)
         
         except Exception as e:
-            self.logger.error(f"Error processing HTML: {e}")
+            logger.error(f"Error processing HTML: {e}")
             raise
     
     async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:
@@ -87,6 +87,6 @@ class HTMLProcessor(FileProcessor):
             })
         
         except Exception as e:
-            self.logger.warning(f"Error extracting HTML metadata: {e}")
+            logger.warning(f"Error extracting HTML metadata: {e}")
         
         return metadata

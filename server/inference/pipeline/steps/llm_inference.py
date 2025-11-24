@@ -8,6 +8,8 @@ import logging
 from typing import Dict, Any, AsyncGenerator, Optional, List
 from ..base import PipelineStep, ProcessingContext
 
+logger = logging.getLogger(__name__)
+
 class LLMInferenceStep(PipelineStep):
     """
     Generate response using LLM.
@@ -47,7 +49,7 @@ class LLMInferenceStep(PipelineStep):
         if context.is_blocked:
             return context
         
-        self.logger.debug("Generating LLM response")
+        logger.debug("Generating LLM response")
         debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
 
         try:
@@ -67,7 +69,7 @@ class LLMInferenceStep(PipelineStep):
             context.full_prompt = full_prompt
 
             if debug_enabled:
-                self.logger.debug("Sending prompt to LLM: %r", full_prompt)
+                logger.debug("Sending prompt to LLM: %r", full_prompt)
             
             # Generate response with message format support
             kwargs = {}
@@ -78,12 +80,12 @@ class LLMInferenceStep(PipelineStep):
             context.response = response
 
             if debug_enabled:
-                self.logger.debug("Full LLM response: %r", response)
+                logger.debug("Full LLM response: %r", response)
             else:
-                self.logger.debug("Generated response preview: %s...", response[:100])
+                logger.debug("Generated response preview: %s...", response[:100])
             
         except Exception as e:
-            self.logger.error(f"Error during LLM inference: {str(e)}")
+            logger.error(f"Error during LLM inference: {str(e)}")
             context.set_error(f"Failed to generate response: {str(e)}")
         
         return context
@@ -101,7 +103,7 @@ class LLMInferenceStep(PipelineStep):
         if context.is_blocked:
             return
         
-        self.logger.debug("Generating streaming LLM response")
+        logger.debug("Generating streaming LLM response")
         debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
 
         try:
@@ -121,7 +123,7 @@ class LLMInferenceStep(PipelineStep):
             context.full_prompt = full_prompt
 
             if debug_enabled:
-                self.logger.debug("Sending streaming prompt to LLM: %r", full_prompt)
+                logger.debug("Sending streaming prompt to LLM: %r", full_prompt)
             
             # Generate streaming response with message format support
             kwargs = {}
@@ -136,12 +138,12 @@ class LLMInferenceStep(PipelineStep):
             context.response = accumulated_response
             
             if debug_enabled:
-                self.logger.debug("Full streaming LLM response: %r", accumulated_response)
+                logger.debug("Full streaming LLM response: %r", accumulated_response)
             else:
-                self.logger.debug("Generated streaming response preview: %s...", accumulated_response[:100])
+                logger.debug("Generated streaming response preview: %s...", accumulated_response[:100])
             
         except Exception as e:
-            self.logger.error(f"Error during streaming LLM inference: {str(e)}")
+            logger.error(f"Error during streaming LLM inference: {str(e)}")
             error_chunk = f"Error: {str(e)}"
             yield error_chunk
             context.set_error(f"Failed to generate streaming response: {str(e)}")
@@ -362,7 +364,7 @@ class LLMInferenceStep(PipelineStep):
         # Check in-memory cache first (for cases where prompt_service is unavailable)
         cache_key = f"prompt:{context.system_prompt_id}"
         if cache_key in self._prompt_cache:
-            self.logger.debug(f"Using in-memory cached system prompt for {context.system_prompt_id}")
+            logger.debug(f"Using in-memory cached system prompt for {context.system_prompt_id}")
             return self._prompt_cache[cache_key]
 
         # Fetch from prompt service (which has its own Redis caching)
@@ -377,7 +379,7 @@ class LLMInferenceStep(PipelineStep):
                     self._prompt_cache[cache_key] = prompt_text
                     return prompt_text
             except Exception as e:
-                self.logger.warning(f"Failed to retrieve system prompt: {str(e)}")
+                logger.warning(f"Failed to retrieve system prompt: {str(e)}")
 
         return "You are a helpful assistant."
     
@@ -419,7 +421,7 @@ class LLMInferenceStep(PipelineStep):
         
         if not language_detection_enabled:
             if self.logger.isEnabledFor(logging.DEBUG):
-                self.logger.debug("Language detection disabled - no instruction added")
+                logger.debug("Language detection disabled - no instruction added")
             return ""
         
         detected_language = getattr(context, 'detected_language', None)
@@ -484,7 +486,7 @@ class LLMInferenceStep(PipelineStep):
             instruction = "\nIMPORTANT: Match the language of the user's message. If the user is writing in English, respond in English. If they're writing in another language, respond in that same language."
         
         if self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug("Using language instruction for %s (%s)", language_name, detected_language)
+            logger.debug("Using language instruction for %s (%s)", language_name, detected_language)
         
         return instruction
     

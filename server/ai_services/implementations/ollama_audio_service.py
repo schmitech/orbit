@@ -5,6 +5,7 @@ This implementation provides audio capabilities using Ollama's local audio model
 or speaches-compatible servers for speech-to-text and text-to-speech.
 """
 
+import logging
 from typing import Dict, Any, Optional, Union
 from io import BytesIO
 import base64
@@ -13,6 +14,8 @@ import json
 from ..base import ServiceType
 from ..providers import OllamaBaseService
 from ..services import AudioService
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaAudioService(AudioService, OllamaBaseService):
@@ -99,7 +102,7 @@ class OllamaAudioService(AudioService, OllamaBaseService):
                         raise ValueError("No audio data in Ollama response")
 
         except Exception as e:
-            self.logger.error(f"Ollama TTS error: {str(e)}")
+            logger.error(f"Ollama TTS error: {str(e)}")
             raise
 
     async def speech_to_text(
@@ -170,7 +173,7 @@ class OllamaAudioService(AudioService, OllamaBaseService):
                             raise ValueError("No transcription in Ollama response")
 
         except Exception as e:
-            self.logger.error(f"Ollama STT error: {str(e)}")
+            logger.error(f"Ollama STT error: {str(e)}")
             raise
 
     async def transcribe(
@@ -218,11 +221,11 @@ class OllamaAudioService(AudioService, OllamaBaseService):
                         return result["response"].strip()
                     else:
                         # Fallback: return original transcript if translation fails
-                        self.logger.warning("Translation failed, returning transcript")
+                        logger.warning("Translation failed, returning transcript")
                         return transcript
 
         except Exception as e:
-            self.logger.error(f"Ollama translation error: {str(e)}")
+            logger.error(f"Ollama translation error: {str(e)}")
             # Fallback: return transcript if translation fails
             try:
                 return await self.speech_to_text(audio, source_language, **kwargs)

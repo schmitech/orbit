@@ -19,6 +19,8 @@ from .pipeline.pipeline import InferencePipeline, InferencePipelineBuilder
 from .pipeline.service_container import ServiceContainer
 from .pipeline.providers import UnifiedProviderFactory as ProviderFactory
 
+
+logger = logging.getLogger(__name__)
 class PipelineFactory:
     """
     Factory for creating inference pipelines with clean services.
@@ -78,10 +80,10 @@ class PipelineFactory:
         # Register RAG services - prefer adapter manager over static retriever
         if adapter_manager:
             container.register_singleton('adapter_manager', adapter_manager)
-            self.logger.info("Registered dynamic adapter manager for retrieval")
+            logger.info("Registered dynamic adapter manager for retrieval")
         elif retriever:
             container.register_singleton('retriever', retriever)
-            self.logger.info("Registered static retriever")
+            logger.info("Registered static retriever")
         
         if reranker_service:
             container.register_singleton('reranker_service', reranker_service)
@@ -106,7 +108,7 @@ class PipelineFactory:
         if clock_service:
             container.register_singleton('clock_service', clock_service)
         
-        self.logger.info(f"Created service container with {len(container.list_services())} services")
+        logger.info(f"Created service container with {len(container.list_services())} services")
         return container
     
     async def initialize_provider(self, container: ServiceContainer) -> None:
@@ -124,7 +126,7 @@ class PipelineFactory:
         if llm_provider:
             try:
                 await llm_provider.initialize()
-                self.logger.info("LLM provider initialized")
+                logger.info("LLM provider initialized")
             except ValueError as e:
                 # Check if this is a "No service registered" error
                 if "No service registered for inference with provider" in str(e):
@@ -132,7 +134,7 @@ class PipelineFactory:
                     error_msg = str(e)
                     provider_name = error_msg.split("provider ")[1].split(".")[0] if "provider " in error_msg else "unknown"
 
-                    self.logger.warning(
+                    logger.warning(
                         f"LLM provider '{provider_name}' is not available (likely disabled in config/inference.yaml). "
                         f"Server will continue but this provider cannot be used."
                     )
@@ -159,7 +161,7 @@ class PipelineFactory:
         """
         # Always create standard pipeline (inference-only mode has been removed)
         pipeline = InferencePipelineBuilder.build_standard_pipeline(container)
-        self.logger.info("Created standard pipeline with RAG support")
+        logger.info("Created standard pipeline with RAG support")
 
         return pipeline
     

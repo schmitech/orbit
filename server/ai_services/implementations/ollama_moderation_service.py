@@ -6,6 +6,7 @@ the new unified AI services architecture and integrates with existing
 ollama_utils for maximum compatibility.
 """
 
+import logging
 from typing import Dict, Any, List
 import asyncio
 import json
@@ -13,6 +14,8 @@ import json
 from ..providers import OllamaBaseService
 from ..services import ModerationService, ModerationResult
 from ..base import ServiceType
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaModerationService(ModerationService, OllamaBaseService):
@@ -115,7 +118,7 @@ No other text or explanations.
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    self.logger.error(f"Ollama API error: {error_text}")
+                    logger.error(f"Ollama API error: {error_text}")
                     return ModerationResult(
                         is_flagged=True,
                         categories={},
@@ -141,14 +144,14 @@ No other text or explanations.
 
             # Handle incomplete JSON responses more intelligently
             if not response_text.endswith("}"):
-                self.logger.warning(f"Received incomplete JSON from Ollama: {response_text}")
+                logger.warning(f"Received incomplete JSON from Ollama: {response_text}")
 
                 # Try to interpret partial responses
                 response_lower = response_text.lower()
 
                 # If the model says "unsafe" or similar, treat as unsafe (check this first)
                 if any(word in response_lower for word in ["unsafe", "bad", "harmful", "dangerous", "inappropriate", "block"]):
-                    self.logger.info(f"Interpreting partial response '{response_text}' as unsafe")
+                    logger.info(f"Interpreting partial response '{response_text}' as unsafe")
                     return ModerationResult(
                         is_flagged=True,
                         categories={"interpreted": 0.8},
@@ -159,7 +162,7 @@ No other text or explanations.
 
                 # If the model just says "safe" or similar, treat as safe
                 if any(word in response_lower for word in ["safe", "ok", "good", "fine", "acceptable", "pass"]):
-                    self.logger.info(f"Interpreting partial response '{response_text}' as safe")
+                    logger.info(f"Interpreting partial response '{response_text}' as safe")
                     return ModerationResult(
                         is_flagged=False,
                         categories={"interpreted": 0.5},
@@ -183,11 +186,11 @@ No other text or explanations.
 
                 # Check for required fields
                 if "is_flagged" not in result:
-                    self.logger.warning(f"Ollama response missing 'is_flagged' field: {response_text}")
+                    logger.warning(f"Ollama response missing 'is_flagged' field: {response_text}")
                     result["is_flagged"] = True  # Default to flagged if missing
 
                 if "categories" not in result:
-                    self.logger.warning(f"Ollama response missing 'categories' field: {response_text}")
+                    logger.warning(f"Ollama response missing 'categories' field: {response_text}")
                     result["categories"] = {}
 
                 is_flagged = result["is_flagged"]
@@ -197,12 +200,12 @@ No other text or explanations.
                 if self.logger.isEnabledFor(10):  # DEBUG level
                     high_confidence_categories = {k: v for k, v in categories.items() if v > 0.5}
                     if high_confidence_categories:
-                        self.logger.debug(f"Content flagged for: {high_confidence_categories}")
+                        logger.debug(f"Content flagged for: {high_confidence_categories}")
 
                     if is_flagged:
-                        self.logger.debug("Ollama flagged content as unsafe")
+                        logger.debug("Ollama flagged content as unsafe")
                     else:
-                        self.logger.debug("Ollama determined content is safe")
+                        logger.debug("Ollama determined content is safe")
 
                 return ModerationResult(
                     is_flagged=is_flagged,
@@ -212,8 +215,8 @@ No other text or explanations.
                 )
 
             except json.JSONDecodeError as json_error:
-                self.logger.error(f"Failed to parse Ollama response as JSON: {response_text}")
-                self.logger.error(f"JSON error: {str(json_error)}")
+                logger.error(f"Failed to parse Ollama response as JSON: {response_text}")
+                logger.error(f"JSON error: {str(json_error)}")
                 # Allow content through on parse errors (likely config issue, not security)
                 return ModerationResult(
                     is_flagged=False,
@@ -228,8 +231,8 @@ No other text or explanations.
             return await self.execute_with_retry(_moderate)
 
         except Exception as e:
-            self.logger.error(f"Error in Ollama moderation: {str(e)}")
-            self.logger.warning(f"Moderation check failed, allowing content through: {str(e)}")
+            logger.error(f"Error in Ollama moderation: {str(e)}")
+            logger.warning(f"Moderation check failed, allowing content through: {str(e)}")
             return ModerationResult(
                 is_flagged=False,  # Allow on error - better UX
                 provider="ollama",

@@ -12,6 +12,8 @@ from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
 
 
+
+logger = logging.getLogger(__name__)
 class GoogleBaseService(ProviderAIService):
     """
     Base class for all Google Cloud AI services (Vertex AI, Gemini).
@@ -69,7 +71,7 @@ class GoogleBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.info(
+        logger.info(
             f"Configured {self.provider_name.title()} service with model: {self.model}"
         )
 
@@ -82,13 +84,13 @@ class GoogleBaseService(ProviderAIService):
         """
         try:
             self.initialized = True
-            self.logger.info(
+            logger.info(
                 f"Initialized {self.provider_name.title()} {self.service_type.value} service "
                 f"with model {self.model}"
             )
             return True
         except Exception as e:
-            self.logger.error(f"Failed to initialize {self.provider_name.title()} service: {str(e)}")
+            logger.error(f"Failed to initialize {self.provider_name.title()} service: {str(e)}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -101,19 +103,19 @@ class GoogleBaseService(ProviderAIService):
         try:
             # Basic validation
             if self.provider_name == "vertexai" and not self.project_id:
-                self.logger.error("Vertex AI requires project_id")
+                logger.error("Vertex AI requires project_id")
                 return False
 
-            self.logger.debug(f"{self.provider_name.title()} connection verified")
+            logger.debug(f"{self.provider_name.title()} connection verified")
             return True
         except Exception as e:
-            self.logger.error(f"{self.provider_name.title()} connection verification failed: {str(e)}")
+            logger.error(f"{self.provider_name.title()} connection verification failed: {str(e)}")
             return False
 
     async def close(self) -> None:
         """Close the Google Cloud service and release resources."""
         self.initialized = False
-        self.logger.debug(f"Closed {self.provider_name.title()} service")
+        logger.debug(f"Closed {self.provider_name.title()} service")
 
     def _get_max_tokens(self, default: int = 1024) -> int:
         """Get max_tokens configuration."""
@@ -146,18 +148,18 @@ class GoogleBaseService(ProviderAIService):
         error_str = str(error)
 
         if "authentication" in error_str.lower() or "credential" in error_str.lower():
-            self.logger.error(
+            logger.error(
                 f"{self.provider_name.title()} authentication failed during {operation}: Invalid credentials"
             )
         elif "quota" in error_str.lower():
-            self.logger.warning(
+            logger.warning(
                 f"{self.provider_name.title()} quota exceeded during {operation}"
             )
         elif "permission" in error_str.lower():
-            self.logger.error(
+            logger.error(
                 f"{self.provider_name.title()} permission error during {operation}: {error_str}"
             )
         else:
-            self.logger.error(
+            logger.error(
                 f"{self.provider_name.title()} error during {operation}: {error_str}"
             )

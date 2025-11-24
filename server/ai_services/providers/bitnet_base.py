@@ -9,6 +9,8 @@ from ..connection import RetryHandler
 import logging
 
 # Configure logging to suppress BitNet-related messages
+
+logger = logging.getLogger(__name__)
 logging.getLogger('bitnet').setLevel(logging.ERROR)
 
 
@@ -72,7 +74,7 @@ class BitNetBaseService(ProviderAIService):
         self.bitnet_model = None
         self.executor = None
 
-        self.logger.info(f"Configured BitNet in API mode at {self.base_url}")
+        logger.info(f"Configured BitNet in API mode at {self.base_url}")
 
     def _setup_direct_mode(self, bitnet_config: Dict[str, Any]) -> None:
         """Setup for direct mode (1.58-bit quantized model loading)."""
@@ -145,7 +147,7 @@ class BitNetBaseService(ProviderAIService):
         self.client = None
         self.executor = ThreadPoolExecutor(max_workers=1)  # For running model inference in separate thread
 
-        self.logger.info(f"Configured BitNet in direct mode with model: {self.model}")
+        logger.info(f"Configured BitNet in direct mode with model: {self.model}")
 
     async def initialize(self) -> bool:
         """Initialize the BitNet service."""
@@ -159,7 +161,7 @@ class BitNetBaseService(ProviderAIService):
             self.initialized = True
             return True
         except Exception as e:
-            self.logger.error(f"Failed to initialize BitNet: {str(e)}")
+            logger.error(f"Failed to initialize BitNet: {str(e)}")
             return False
 
     def _load_direct_model(self):
@@ -174,10 +176,10 @@ class BitNetBaseService(ProviderAIService):
             # Check if model path exists
             if not os.path.exists(self.model_path):
                 error_msg = f"Model file not found at: {self.model_path}"
-                self.logger.error(error_msg)
+                logger.error(error_msg)
                 raise FileNotFoundError(error_msg)
 
-            self.logger.info(f"Loading BitNet model from: {self.model_path}")
+            logger.info(f"Loading BitNet model from: {self.model_path}")
 
             # Initialize the BitNet model with specified parameters
             self.bitnet_model = BitNetInference(
@@ -197,13 +199,13 @@ class BitNetBaseService(ProviderAIService):
                 verbose=False  # Disable verbose output during initialization
             )
 
-            self.logger.info(f"BitNet model {self.model} loaded successfully")
+            logger.info(f"BitNet model {self.model} loaded successfully")
         except ImportError:
             error_msg = "BitNet package not installed. Please install with: pip install bitnet-cpp"
-            self.logger.error(error_msg)
+            logger.error(error_msg)
             raise ImportError(error_msg)
         except Exception as e:
-            self.logger.error(f"Error loading BitNet model: {str(e)}")
+            logger.error(f"Error loading BitNet model: {str(e)}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -216,7 +218,7 @@ class BitNetBaseService(ProviderAIService):
                     await self.client.models.list()
                     return True
             except Exception as e:
-                self.logger.error(f"Failed to verify BitNet API connection: {str(e)}")
+                logger.error(f"Failed to verify BitNet API connection: {str(e)}")
                 return False
         else:
             # For direct mode, check if model is loaded
@@ -225,7 +227,7 @@ class BitNetBaseService(ProviderAIService):
                     await self.initialize()
                     return self.initialized
                 except Exception as e:
-                    self.logger.error(f"Failed to verify BitNet model: {str(e)}")
+                    logger.error(f"Failed to verify BitNet model: {str(e)}")
                     return False
             return True
 
@@ -240,7 +242,7 @@ class BitNetBaseService(ProviderAIService):
 
     def _handle_bitnet_error(self, error: Exception, operation: str = "operation") -> None:
         """Handle BitNet-specific errors."""
-        self.logger.error(f"BitNet error during {operation}: {str(error)}")
+        logger.error(f"BitNet error during {operation}: {str(error)}")
 
     def _get_batch_size(self, default: int = 8) -> int:
         """

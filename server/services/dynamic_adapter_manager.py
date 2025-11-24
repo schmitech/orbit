@@ -66,7 +66,7 @@ class DynamicAdapterManager:
         self._init_loader()
         self._init_reloader()
 
-        self.logger.info("Dynamic Adapter Manager initialized")
+        logger.info("Dynamic Adapter Manager initialized")
 
     def _init_cache_managers(self) -> None:
         """Initialize cache manager components."""
@@ -130,7 +130,7 @@ class DynamicAdapterManager:
 
         # Check if adapter is in active configs (prevents disabled adapters from being used)
         if not self.config_manager.contains(adapter_name):
-            self.logger.warning(f"Attempted to access disabled or removed adapter: {adapter_name}")
+            logger.warning(f"Attempted to access disabled or removed adapter: {adapter_name}")
             raise ValueError(f"Adapter '{adapter_name}' is not available (may be disabled or removed)")
 
         # Check if adapter is already cached
@@ -161,7 +161,7 @@ class DynamicAdapterManager:
             self._handle_adapter_load_error(adapter_name, e)
             raise
         except Exception as e:
-            self.logger.error(f"Failed to load adapter {adapter_name}: {str(e)}")
+            logger.error(f"Failed to load adapter {adapter_name}: {str(e)}")
             raise
         finally:
             self.adapter_cache.release_initialization(adapter_name)
@@ -239,7 +239,7 @@ class DynamicAdapterManager:
         if adapter_config.get('database'):
             log_parts.append(f"database: {adapter_config['database']}")
 
-        self.logger.info(f"{log_parts[0]} ({', '.join(log_parts[1:])})")
+        logger.info(f"{log_parts[0]} ({', '.join(log_parts[1:])})")
 
     def _handle_adapter_load_error(self, adapter_name: str, error: ValueError) -> None:
         """Handle adapter loading errors with helpful messages."""
@@ -247,23 +247,23 @@ class DynamicAdapterManager:
             adapter_config = self.config_manager.get(adapter_name) or {}
             inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'unknown')
 
-            self.logger.warning("=" * 80)
-            self.logger.warning(f"SKIPPING ADAPTER '{adapter_name}': Inference provider not available")
-            self.logger.warning("=" * 80)
-            self.logger.warning(f"The adapter '{adapter_name}' specifies inference provider '{inference_provider}'")
-            self.logger.warning("which is not registered (likely disabled in config/inference.yaml).")
-            self.logger.warning("")
-            self.logger.warning("To fix this:")
-            self.logger.warning(f"  1. Enable '{inference_provider}' in config/inference.yaml, OR")
-            self.logger.warning(f"  2. Change the adapter's inference_provider in config/adapters.yaml, OR")
-            self.logger.warning(f"  3. Disable this adapter by setting 'enabled: false' in config/adapters.yaml")
-            self.logger.warning("")
-            self.logger.warning(f"The adapter '{adapter_name}' will NOT be available.")
-            self.logger.warning("=" * 80)
+            logger.warning("=" * 80)
+            logger.warning(f"SKIPPING ADAPTER '{adapter_name}': Inference provider not available")
+            logger.warning("=" * 80)
+            logger.warning(f"The adapter '{adapter_name}' specifies inference provider '{inference_provider}'")
+            logger.warning("which is not registered (likely disabled in config/inference.yaml).")
+            logger.warning("")
+            logger.warning("To fix this:")
+            logger.warning(f"  1. Enable '{inference_provider}' in config/inference.yaml, OR")
+            logger.warning(f"  2. Change the adapter's inference_provider in config/adapters.yaml, OR")
+            logger.warning(f"  3. Disable this adapter by setting 'enabled: false' in config/adapters.yaml")
+            logger.warning("")
+            logger.warning(f"The adapter '{adapter_name}' will NOT be available.")
+            logger.warning("=" * 80)
 
             raise ValueError(f"Adapter '{adapter_name}' cannot be loaded: provider '{inference_provider}' is disabled") from error
         else:
-            self.logger.error(f"Failed to load adapter {adapter_name}: {str(error)}")
+            logger.error(f"Failed to load adapter {adapter_name}: {str(error)}")
 
     async def get_overridden_provider(self, provider_name: str, adapter_name: str = None) -> Any:
         """
@@ -376,9 +376,9 @@ class DynamicAdapterManager:
         """
         try:
             await self.get_adapter(adapter_name)
-            self.logger.info(f"Preloaded adapter: {adapter_name}")
+            logger.info(f"Preloaded adapter: {adapter_name}")
         except Exception as e:
-            self.logger.error(f"Failed to preload adapter {adapter_name}: {str(e)}")
+            logger.error(f"Failed to preload adapter {adapter_name}: {str(e)}")
 
     async def preload_all_adapters(self, timeout_per_adapter: float = 30.0) -> Dict[str, Any]:
         """
@@ -394,7 +394,7 @@ class DynamicAdapterManager:
         if not available_adapters:
             return {}
 
-        self.logger.info(f"Preloading {len(available_adapters)} adapters in parallel...")
+        logger.info(f"Preloading {len(available_adapters)} adapters in parallel...")
 
         async def load_adapter_with_timeout(adapter_name: str):
             try:
@@ -448,7 +448,7 @@ class DynamicAdapterManager:
 
         for result in results:
             if isinstance(result, Exception):
-                self.logger.error(f"Unexpected exception in adapter preloading: {result}")
+                logger.error(f"Unexpected exception in adapter preloading: {result}")
                 continue
 
             adapter_name = result["adapter_name"]
@@ -456,11 +456,11 @@ class DynamicAdapterManager:
 
             if result["success"]:
                 successful_count += 1
-                self.logger.info(f"✅ {adapter_name}: {result['message']}")
+                logger.info(f"✅ {adapter_name}: {result['message']}")
             else:
-                self.logger.warning(f"❌ {adapter_name}: {result['error']}")
+                logger.warning(f"❌ {adapter_name}: {result['error']}")
 
-        self.logger.info(f"Adapter preloading completed: {successful_count}/{len(available_adapters)} successful")
+        logger.info(f"Adapter preloading completed: {successful_count}/{len(available_adapters)} successful")
 
         return preload_results
 
@@ -548,7 +548,7 @@ class DynamicAdapterManager:
     async def clear_cache(self) -> None:
         """Clear all cached adapters and clean up resources."""
         await self.adapter_cache.clear()
-        self.logger.info("Cleared all adapters from cache")
+        logger.info("Cleared all adapters from cache")
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -635,12 +635,12 @@ class DynamicAdapterManager:
             datasource_registry = get_datasource_registry()
             await datasource_registry.shutdown_pool(self.logger)
         except Exception as e:
-            self.logger.error(f"Error shutting down datasource pool: {e}")
+            logger.error(f"Error shutting down datasource pool: {e}")
 
         # Shutdown thread pool
         self._thread_pool.shutdown(wait=True)
 
-        self.logger.info("Dynamic Adapter Manager closed")
+        logger.info("Dynamic Adapter Manager closed")
 
     # Backward compatibility properties for internal state access
     @property
@@ -730,7 +730,7 @@ class AdapterProxy:
                 **kwargs
             )
         except Exception as e:
-            self.logger.error(f"Error getting context from adapter {adapter_name}: {str(e)}")
+            logger.error(f"Error getting context from adapter {adapter_name}: {str(e)}")
             return []
 
     async def initialize(self) -> None:

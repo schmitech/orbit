@@ -2,8 +2,11 @@
 Oracle Database Datasource Implementation
 """
 
+import logging
 from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
+
+logger = logging.getLogger(__name__)
 
 
 class OracleDatasource(BaseDatasource):
@@ -21,7 +24,7 @@ class OracleDatasource(BaseDatasource):
         try:
             import oracledb
         except ImportError:
-            self.logger.warning("oracledb not available. Install with: pip install oracledb")
+            logger.warning("oracledb not available. Install with: pip install oracledb")
             self._client = None
             self._initialized = True
             return
@@ -37,7 +40,7 @@ class OracleDatasource(BaseDatasource):
             # Create DSN using the modern oracledb syntax
             dsn = f"{host}:{port}/{service_name}"
             
-            self.logger.info(f"Initializing Oracle connection to {host}:{port}/{service_name}")
+            logger.info(f"Initializing Oracle connection to {host}:{port}/{service_name}")
             
             # Create connection using oracledb
             self._client = oracledb.connect(user=username, password=password, dsn=dsn)
@@ -48,12 +51,12 @@ class OracleDatasource(BaseDatasource):
             cursor.fetchone()
             cursor.close()
             
-            self.logger.info("Oracle connection successful")
+            logger.info("Oracle connection successful")
             self._initialized = True
             
         except Exception as e:
-            self.logger.error(f"Failed to connect to Oracle database: {str(e)}")
-            self.logger.error(f"Connection details: {host}:{port}/{service_name} (user: {username})")
+            logger.error(f"Failed to connect to Oracle database: {str(e)}")
+            logger.error(f"Connection details: {host}:{port}/{service_name} (user: {username})")
             raise
     
     async def health_check(self) -> bool:
@@ -68,7 +71,7 @@ class OracleDatasource(BaseDatasource):
             cursor.close()
             return True
         except Exception as e:
-            self.logger.error(f"Oracle health check failed: {e}")
+            logger.error(f"Oracle health check failed: {e}")
             return False
     
     async def close(self) -> None:
@@ -77,4 +80,4 @@ class OracleDatasource(BaseDatasource):
             self._client.close()
             self._client = None
             self._initialized = False
-            self.logger.info("Oracle connection closed")
+            logger.info("Oracle connection closed")

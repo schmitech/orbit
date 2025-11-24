@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from collections import defaultdict, deque
 import threading
 
+logger = logging.getLogger(__name__)
+
 @dataclass
 class StepMetrics:
     """Metrics for a single pipeline step."""
@@ -97,7 +99,7 @@ class PipelineMonitor:
             else:
                 self.pipeline_metrics['failed_executions'] += 1
             
-            self.logger.debug(f"Recorded execution for {step_name}: {execution_time:.3f}s, success={success}")
+            logger.debug(f"Recorded execution for {step_name}: {execution_time:.3f}s, success={success}")
     
     def record_step_metrics(self, step_name: str, execution_time: float, 
                            success: bool, error_message: Optional[str] = None) -> None:
@@ -230,7 +232,7 @@ class PipelineMonitor:
         with self._lock:
             self.step_metrics.clear()
             self.pipeline_metrics.clear()
-            self.logger.info("Reset all pipeline metrics")
+            logger.info("Reset all pipeline metrics")
     
     def export_metrics(self, format: str = "json") -> str:
         """

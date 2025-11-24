@@ -22,6 +22,8 @@ from utils import is_true_value
 from utils import is_true_value
 from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse
 
+logger = logging.getLogger(__name__)
+
 
 class RouteConfigurator:
     """
@@ -82,7 +84,7 @@ class RouteConfigurator:
         # Include admin router
         self._include_admin_routes(app)
         
-        self.logger.info("Routes configured successfully")
+        logger.info("Routes configured successfully")
     
     def _create_dependencies(self) -> Dict[str, Any]:
         """Create and return all FastAPI dependencies."""
@@ -178,7 +180,7 @@ class RouteConfigurator:
                         # Check if auto-generate is enabled
                         if chat_history_config.get('session', {}).get('auto_generate', True):
                             session_id = str(uuid.uuid4())
-                            self.logger.debug("Auto-generated session ID: %s", session_id)
+                            logger.debug("Auto-generated session ID: %s", session_id)
                         else:
                             raise HTTPException(
                                 status_code=400,
@@ -504,7 +506,7 @@ class RouteConfigurator:
                 )
                 return thread_info
             except Exception as e:
-                self.logger.error(f"Failed to create thread: {e}")
+                logger.error(f"Failed to create thread: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to create thread: {str(e)}")
         
         @app.get("/api/threads/{thread_id}", operation_id="get_thread")
@@ -543,30 +545,30 @@ class RouteConfigurator:
 
         # Authentication is always enabled - include auth router
         app.include_router(auth_router)
-        self.logger.info("Authentication routes registered")
+        logger.info("Authentication routes registered")
 
         # Include health routes (always enabled as core functionality)
         from routes.health_routes import create_health_router
         health_router = create_health_router()
         app.include_router(health_router)
-        self.logger.info("Health routes registered")
+        logger.info("Health routes registered")
         
         # Include dashboard routes for monitoring
         try:
             from routes.dashboard_routes import create_dashboard_router
             dashboard_router = create_dashboard_router()
             app.include_router(dashboard_router)
-            self.logger.info("Dashboard routes registered")
+            logger.info("Dashboard routes registered")
         except Exception as e:
-            self.logger.warning(f"Failed to register dashboard routes: {e}")
+            logger.warning(f"Failed to register dashboard routes: {e}")
         
         # Include file routes for file upload and management
         try:
             from routes.file_routes import create_file_router
             file_router = create_file_router()
             app.include_router(file_router)
-            self.logger.info("File routes registered")
+            logger.info("File routes registered")
         except Exception as e:
-            self.logger.warning(f"Failed to register file routes: {e}")
+            logger.warning(f"Failed to register file routes: {e}")
     
     

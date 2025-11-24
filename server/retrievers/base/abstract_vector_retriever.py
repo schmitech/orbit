@@ -85,7 +85,7 @@ class AbstractVectorRetriever(BaseRetriever):
             if not self._datasource.is_initialized:
                 await self._datasource.initialize()
             self._datasource_initialized = True
-            self.logger.debug(f"Datasource initialized for {self._get_datasource_name()}")
+            logger.debug(f"Datasource initialized for {self._get_datasource_name()}")
 
     async def initialize(self) -> None:
         """Initialize required services including embeddings and datasource."""
@@ -126,7 +126,7 @@ class AbstractVectorRetriever(BaseRetriever):
             if not self.embeddings.initialized:
                 await self.embeddings.initialize()
             else:
-                self.logger.debug(f"Embedding service already initialized, skipping initialization")
+                logger.debug(f"Embedding service already initialized, skipping initialization")
             self.using_new_embedding_service = True
         else:
             # Fall back to legacy Ollama embeddings
@@ -156,7 +156,7 @@ class AbstractVectorRetriever(BaseRetriever):
             await self._datasource.close()
             self._datasource_initialized = False
             self._vector_client = None
-            self.logger.debug(f"Datasource closed for {self._get_datasource_name()}")
+            logger.debug(f"Datasource closed for {self._get_datasource_name()}")
     
     async def embed_query(self, query: str) -> List[float]:
         """

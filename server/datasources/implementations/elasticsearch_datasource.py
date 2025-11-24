@@ -55,7 +55,7 @@ class ElasticsearchDatasource(BaseDatasource):
     async def initialize(self) -> None:
         """Initialize the Elasticsearch client connection."""
         if self._initialized:
-            self.logger.debug("Elasticsearch datasource already initialized")
+            logger.debug("Elasticsearch datasource already initialized")
             return
 
         try:
@@ -70,16 +70,16 @@ class ElasticsearchDatasource(BaseDatasource):
             # Add authentication if credentials are available
             if self.username and self.password:
                 client_kwargs["basic_auth"] = (self.username, self.password)
-                self.logger.info("Elasticsearch: Using basic authentication")
+                logger.info("Elasticsearch: Using basic authentication")
             else:
-                self.logger.warning("Elasticsearch: No credentials found, attempting unauthenticated connection")
+                logger.warning("Elasticsearch: No credentials found, attempting unauthenticated connection")
 
             # SSL/TLS configuration
             if self.node.startswith('https'):
                 client_kwargs["verify_certs"] = self.verify_certs
                 client_kwargs["ssl_show_warn"] = False
                 if not self.verify_certs:
-                    self.logger.warning("Elasticsearch: SSL certificate verification disabled")
+                    logger.warning("Elasticsearch: SSL certificate verification disabled")
 
             # Create the async Elasticsearch client
             self._client = AsyncElasticsearch(
@@ -89,13 +89,13 @@ class ElasticsearchDatasource(BaseDatasource):
 
             # Test connection
             cluster_info = await self._client.info()
-            self.logger.info(f"Connected to Elasticsearch cluster: {cluster_info.get('cluster_name', 'unknown')} "
+            logger.info(f"Connected to Elasticsearch cluster: {cluster_info.get('cluster_name', 'unknown')} "
                            f"(version: {cluster_info.get('version', {}).get('number', 'unknown')})")
 
             self._initialized = True
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize Elasticsearch datasource: {e}")
+            logger.error(f"Failed to initialize Elasticsearch datasource: {e}")
             self._client = None
             raise
 
@@ -104,9 +104,9 @@ class ElasticsearchDatasource(BaseDatasource):
         if self._client:
             try:
                 await self._client.close()
-                self.logger.info("Elasticsearch datasource connection closed")
+                logger.info("Elasticsearch datasource connection closed")
             except Exception as e:
-                self.logger.error(f"Error closing Elasticsearch client: {e}")
+                logger.error(f"Error closing Elasticsearch client: {e}")
             finally:
                 self._client = None
                 self._initialized = False
@@ -132,7 +132,7 @@ class ElasticsearchDatasource(BaseDatasource):
         """
         try:
             if not self._client:
-                self.logger.warning("Elasticsearch health check: client not initialized")
+                logger.warning("Elasticsearch health check: client not initialized")
                 return False
 
             # Ping the cluster
@@ -141,15 +141,15 @@ class ElasticsearchDatasource(BaseDatasource):
             if is_alive:
                 # Optionally get cluster health for logging
                 cluster_health = await self._client.cluster.health()
-                self.logger.debug(
+                logger.debug(
                     f"Elasticsearch cluster healthy: {cluster_health.get('cluster_name')} "
                     f"(status: {cluster_health.get('status')})"
                 )
                 return True
             else:
-                self.logger.warning("Elasticsearch health check: ping failed")
+                logger.warning("Elasticsearch health check: ping failed")
                 return False
 
         except Exception as e:
-            self.logger.error(f"Elasticsearch health check error: {e}")
+            logger.error(f"Elasticsearch health check error: {e}")
             return False

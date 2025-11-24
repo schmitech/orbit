@@ -2,10 +2,13 @@
 ChromaDB Datasource Implementation
 """
 
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
+
+logger = logging.getLogger(__name__)
 
 
 class ChromaDBDatasource(BaseDatasource):
@@ -21,7 +24,7 @@ class ChromaDBDatasource(BaseDatasource):
         try:
             import chromadb
         except ImportError:
-            self.logger.error("chromadb not available. Install with: pip install chromadb")
+            logger.error("chromadb not available. Install with: pip install chromadb")
             raise
             
         chroma_config = self.config.get('datasources', {}).get('chroma', {})
@@ -33,7 +36,7 @@ class ChromaDBDatasource(BaseDatasource):
             self._client = self._initialize_remote_client(chroma_config)
             
         self._initialized = True
-        self.logger.info("ChromaDB client initialized successfully")
+        logger.info("ChromaDB client initialized successfully")
     
     def _initialize_local_client(self, chroma_config: Dict[str, Any]):
         """Initialize a local ChromaDB PersistentClient."""
@@ -45,7 +48,7 @@ class ChromaDBDatasource(BaseDatasource):
         # Ensure the directory exists
         os.makedirs(db_path, exist_ok=True)
         
-        self.logger.info(f"Using local ChromaDB at path: {db_path}")
+        logger.info(f"Using local ChromaDB at path: {db_path}")
         return chromadb.PersistentClient(path=str(db_path))
     
     def _initialize_remote_client(self, chroma_config: Dict[str, Any]):
@@ -55,7 +58,7 @@ class ChromaDBDatasource(BaseDatasource):
         host = chroma_config['host']
         port = int(chroma_config['port'])
         
-        self.logger.info(f"Connecting to ChromaDB at {host}:{port}...")
+        logger.info(f"Connecting to ChromaDB at {host}:{port}...")
         return chromadb.HttpClient(host=host, port=port)
     
     async def health_check(self) -> bool:
@@ -68,7 +71,7 @@ class ChromaDBDatasource(BaseDatasource):
             version = self._client.get_version()
             return version is not None
         except Exception as e:
-            self.logger.error(f"ChromaDB health check failed: {e}")
+            logger.error(f"ChromaDB health check failed: {e}")
             return False
     
     async def close(self) -> None:
@@ -77,4 +80,4 @@ class ChromaDBDatasource(BaseDatasource):
             # ChromaDB clients don't have explicit close methods
             self._client = None
             self._initialized = False
-            self.logger.info("ChromaDB client closed")
+            logger.info("ChromaDB client closed")

@@ -5,12 +5,15 @@ Voyage AI provides purpose-built reranking models via their API,
 offering good performance and cost-effectiveness.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 import asyncio
 import aiohttp
 
 from ..services import RerankingService
 from ..base import ServiceType
+
+logger = logging.getLogger(__name__)
 
 
 class VoyageRerankingService(RerankingService):
@@ -59,11 +62,11 @@ class VoyageRerankingService(RerankingService):
             self.session = aiohttp.ClientSession(timeout=timeout)
 
             self.initialized = True
-            self.logger.info(f"Voyage AI reranking service initialized with model: {self.model}")
+            logger.info(f"Voyage AI reranking service initialized with model: {self.model}")
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize Voyage AI reranking service: {str(e)}")
+            logger.error(f"Failed to initialize Voyage AI reranking service: {str(e)}")
             return False
 
     async def rerank(
@@ -121,7 +124,7 @@ class VoyageRerankingService(RerankingService):
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    self.logger.error(f"Voyage AI API error: {error_text}")
+                    logger.error(f"Voyage AI API error: {error_text}")
                     raise ValueError(f"Voyage AI rerank failed: {error_text}")
 
                 data = await response.json()
@@ -135,11 +138,11 @@ class VoyageRerankingService(RerankingService):
                         'score': result['relevance_score']
                     })
 
-                self.logger.debug(f"Reranked {len(documents)} -> {len(results)} documents")
+                logger.debug(f"Reranked {len(documents)} -> {len(results)} documents")
                 return results
 
         except Exception as e:
-            self.logger.error(f"Error in Voyage AI reranking: {str(e)}")
+            logger.error(f"Error in Voyage AI reranking: {str(e)}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -157,14 +160,14 @@ class VoyageRerankingService(RerankingService):
             results = await self.rerank(test_query, test_docs, top_n=1, _skip_init_check=True)
 
             if results and len(results) > 0:
-                self.logger.info("Successfully verified Voyage AI reranking connection")
+                logger.info("Successfully verified Voyage AI reranking connection")
                 return True
             else:
-                self.logger.error("Received empty results from Voyage AI")
+                logger.error("Received empty results from Voyage AI")
                 return False
 
         except Exception as e:
-            self.logger.error(f"Failed to verify Voyage AI reranking connection: {str(e)}")
+            logger.error(f"Failed to verify Voyage AI reranking connection: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -175,4 +178,4 @@ class VoyageRerankingService(RerankingService):
             await self.session.close()
             self.session = None
         self.initialized = False
-        self.logger.info("Voyage AI reranking service closed")
+        logger.info("Voyage AI reranking service closed")

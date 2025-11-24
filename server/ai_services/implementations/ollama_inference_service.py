@@ -6,12 +6,15 @@ the new unified AI services architecture and integrates with existing
 ollama_utils for maximum compatibility.
 """
 
+import logging
 from typing import Dict, Any, AsyncGenerator
 import json
 
 from ..base import ServiceType
 from ..providers import OllamaBaseService
 from ..services import InferenceService
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaInferenceService(InferenceService, OllamaBaseService):
@@ -195,5 +198,5 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
                             continue  # Skip invalid JSON lines
 
         except Exception as e:
-            self.logger.error(f"Error in streaming generation: {str(e)}")
+            logger.error(f"Error in streaming generation: {str(e)}")
             yield f"Error: {str(e)}"

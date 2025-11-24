@@ -2,8 +2,11 @@
 MongoDB Datasource Implementation
 """
 
+import logging
 from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
+
+logger = logging.getLogger(__name__)
 
 
 class MongoDBDatasource(BaseDatasource):
@@ -21,7 +24,7 @@ class MongoDBDatasource(BaseDatasource):
         try:
             from motor.motor_asyncio import AsyncIOMotorClient
         except ImportError:
-            self.logger.warning("motor not available. Install with: pip install motor")
+            logger.warning("motor not available. Install with: pip install motor")
             self._client = None
             self._initialized = True
             return
@@ -35,7 +38,7 @@ class MongoDBDatasource(BaseDatasource):
             connection_string = mongodb_config.get('connection_string')
 
             if connection_string:
-                self.logger.info(f"Initializing MongoDB using connection string to database: {database}")
+                logger.info(f"Initializing MongoDB using connection string to database: {database}")
                 uri = connection_string
             else:
                 # Option 2: Build connection string from individual parameters
@@ -48,13 +51,13 @@ class MongoDBDatasource(BaseDatasource):
                 retry_writes = mongodb_config.get('retry_writes', True)
                 w = mongodb_config.get('w', 'majority')
 
-                self.logger.info(f"Initializing MongoDB connection to {host}:{port}/{database}")
+                logger.info(f"Initializing MongoDB connection to {host}:{port}/{database}")
 
                 # Build connection URI based on host format and authentication
                 if "mongodb.net" in host and username and password:
                     # MongoDB Atlas with authentication
                     uri = f"mongodb+srv://{username}:{password}@{host}/{database}?retryWrites={str(retry_writes).lower()}&w={w}"
-                    self.logger.debug("Using MongoDB Atlas connection string format")
+                    logger.debug("Using MongoDB Atlas connection string format")
                 elif username and password:
                     # Local or remote MongoDB with authentication
                     auth_params = f"?authSource={auth_source}"
@@ -63,11 +66,11 @@ class MongoDBDatasource(BaseDatasource):
                     if retry_writes:
                         auth_params += f"&retryWrites=true&w={w}"
                     uri = f"mongodb://{username}:{password}@{host}:{port}/{database}{auth_params}"
-                    self.logger.debug("Using MongoDB connection string with authentication")
+                    logger.debug("Using MongoDB connection string with authentication")
                 else:
                     # Local MongoDB without authentication
                     uri = f"mongodb://{host}:{port}/{database}"
-                    self.logger.debug("Using MongoDB connection string without authentication")
+                    logger.debug("Using MongoDB connection string without authentication")
 
             # Create client with timeout
             self._client = AsyncIOMotorClient(
@@ -78,15 +81,15 @@ class MongoDBDatasource(BaseDatasource):
             # Test the connection
             await self._client.admin.command('ping')
 
-            self.logger.info("MongoDB connection successful")
+            logger.info("MongoDB connection successful")
             self._initialized = True
 
         except Exception as e:
-            self.logger.error(f"Failed to connect to MongoDB: {str(e)}")
+            logger.error(f"Failed to connect to MongoDB: {str(e)}")
             if 'host' in locals():
-                self.logger.error(f"Connection details: {host}:{port}/{database}")
+                logger.error(f"Connection details: {host}:{port}/{database}")
             else:
-                self.logger.error(f"Database: {database}")
+                logger.error(f"Database: {database}")
             raise
     
     async def health_check(self) -> bool:
@@ -98,7 +101,7 @@ class MongoDBDatasource(BaseDatasource):
             await self._client.admin.command('ping')
             return True
         except Exception as e:
-            self.logger.error(f"MongoDB health check failed: {e}")
+            logger.error(f"MongoDB health check failed: {e}")
             return False
     
     async def close(self) -> None:
@@ -107,4 +110,4 @@ class MongoDBDatasource(BaseDatasource):
             self._client.close()
             self._client = None
             self._initialized = False
-            self.logger.info("MongoDB connection closed")
+            logger.info("MongoDB connection closed")

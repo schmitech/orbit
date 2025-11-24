@@ -5,12 +5,15 @@ This implementation provides audio capabilities using Google Cloud
 Speech-to-Text and Text-to-Speech APIs.
 """
 
+import logging
 from typing import Dict, Any, Optional, Union
 from io import BytesIO
 
 from ..base import ServiceType
 from ..providers import GoogleBaseService
 from ..services import AudioService
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleAudioService(AudioService, GoogleBaseService):
@@ -73,7 +76,7 @@ class GoogleAudioService(AudioService, GoogleBaseService):
             return await super().initialize()
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize Google audio service: {str(e)}")
+            logger.error(f"Failed to initialize Google audio service: {str(e)}")
             return False
 
     async def text_to_speech(
@@ -239,7 +242,7 @@ class GoogleAudioService(AudioService, GoogleBaseService):
                 return result['translatedText']
             except ImportError:
                 # Fallback: return transcript if translation library not available
-                self.logger.warning(
+                logger.warning(
                     "Google Cloud Translation library not available. "
                     "Returning transcript without translation. "
                     "Install with: pip install google-cloud-translate"

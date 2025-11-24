@@ -15,6 +15,7 @@ Note: This requires the 'google-genai' package, which is separate from
 native audio generation capabilities.
 """
 
+import logging
 from typing import Dict, Any, Optional, Union
 import asyncio
 import base64
@@ -24,6 +25,8 @@ from io import BytesIO
 from ..base import ServiceType
 from ..providers import GoogleBaseService
 from ..services import AudioService
+
+logger = logging.getLogger(__name__)
 
 
 class GeminiAudioService(AudioService, GoogleBaseService):
@@ -159,7 +162,7 @@ class GeminiAudioService(AudioService, GoogleBaseService):
         # Check if it's an OpenAI voice that needs mapping
         if voice_lower in self.VOICE_MAPPING:
             mapped_voice = self.VOICE_MAPPING[voice_lower]
-            self.logger.info(
+            logger.info(
                 f"Mapped OpenAI voice '{voice}' to Gemini voice '{mapped_voice}'"
             )
             return mapped_voice
@@ -170,7 +173,7 @@ class GeminiAudioService(AudioService, GoogleBaseService):
             return voice_lower.capitalize()
 
         # Voice not recognized - log warning and use default
-        self.logger.warning(
+        logger.warning(
             f"Voice '{voice}' not recognized. Using default voice '{self.tts_voice}'. "
             f"Valid Gemini voices: {', '.join(sorted(self.VALID_VOICES))}"
         )
@@ -226,18 +229,18 @@ class GeminiAudioService(AudioService, GoogleBaseService):
 
             # Extract audio data from response
             if not hasattr(response, 'candidates') or not response.candidates:
-                self.logger.error("No candidates returned from Gemini")
+                logger.error("No candidates returned from Gemini")
                 raise ValueError("No candidates returned from Gemini")
 
             candidate = response.candidates[0]
 
             # Check if response has audio content
             if not hasattr(candidate, 'content') or not candidate.content:
-                self.logger.error("No content in candidate response")
+                logger.error("No content in candidate response")
                 raise ValueError("No content in response")
 
             if not hasattr(candidate.content, 'parts') or not candidate.content.parts:
-                self.logger.error("No content parts in response")
+                logger.error("No content parts in response")
                 raise ValueError("No content parts in response")
 
             # Extract audio from the response parts
@@ -246,27 +249,27 @@ class GeminiAudioService(AudioService, GoogleBaseService):
                 if hasattr(part, 'inline_data') and part.inline_data:
                     # Audio is returned as inline data (raw PCM)
                     audio_data = part.inline_data.data
-                    self.logger.debug(f"Successfully extracted audio data: {len(audio_data)} bytes (raw PCM)")
+                    logger.debug(f"Successfully extracted audio data: {len(audio_data)} bytes (raw PCM)")
                     break
 
             if audio_data is None:
-                self.logger.error("No audio content found in response parts")
+                logger.error("No audio content found in response parts")
                 raise ValueError("No audio content in response")
 
             # Gemini returns raw 16-bit PCM audio at 24kHz
             # Wrap it in WAV format for browser compatibility
             if audio_format.lower() in ['wav', 'wave']:
                 wav_audio = self._wrap_in_wav(audio_data, sample_rate=24000)
-                self.logger.debug(f"Wrapped PCM in WAV format: {len(wav_audio)} bytes")
+                logger.debug(f"Wrapped PCM in WAV format: {len(wav_audio)} bytes")
                 return wav_audio
             else:
                 # Return raw PCM for other formats
                 # Note: Browser may not support raw PCM directly
-                self.logger.warning(f"Returning raw PCM audio (format: {audio_format}). Browser may not support this.")
+                logger.warning(f"Returning raw PCM audio (format: {audio_format}). Browser may not support this.")
                 return audio_data
 
         except ImportError as e:
-            self.logger.error(
+            logger.error(
                 "google-genai package is required for Gemini audio generation. "
                 "Install it with: pip install google-genai"
             )

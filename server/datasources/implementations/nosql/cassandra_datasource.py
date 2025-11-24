@@ -2,8 +2,11 @@
 Apache Cassandra Datasource Implementation
 """
 
+import logging
 from typing import Any, Dict, Optional, List
 from ...base.base_datasource import BaseDatasource
+
+logger = logging.getLogger(__name__)
 
 
 class CassandraDatasource(BaseDatasource):
@@ -22,7 +25,7 @@ class CassandraDatasource(BaseDatasource):
             from cassandra.cluster import Cluster
             from cassandra.auth import PlainTextAuthProvider
         except ImportError:
-            self.logger.warning("cassandra-driver not available. Install with: pip install cassandra-driver")
+            logger.warning("cassandra-driver not available. Install with: pip install cassandra-driver")
             self._client = None
             self._initialized = True
             return
@@ -38,7 +41,7 @@ class CassandraDatasource(BaseDatasource):
         password = cassandra_config.get('password')
         
         try:
-            self.logger.info(f"Initializing Cassandra connection to {contact_points}:{port}/{keyspace}")
+            logger.info(f"Initializing Cassandra connection to {contact_points}:{port}/{keyspace}")
             
             # Create authentication provider if credentials provided
             auth_provider = None
@@ -59,12 +62,12 @@ class CassandraDatasource(BaseDatasource):
             result = self._client.execute("SELECT now() FROM system.local")
             result.one()
             
-            self.logger.info("Cassandra connection successful")
+            logger.info("Cassandra connection successful")
             self._initialized = True
             
         except Exception as e:
-            self.logger.error(f"Failed to connect to Cassandra: {str(e)}")
-            self.logger.error(f"Connection details: {contact_points}:{port}/{keyspace}")
+            logger.error(f"Failed to connect to Cassandra: {str(e)}")
+            logger.error(f"Connection details: {contact_points}:{port}/{keyspace}")
             raise
     
     async def health_check(self) -> bool:
@@ -77,7 +80,7 @@ class CassandraDatasource(BaseDatasource):
             result.one()
             return True
         except Exception as e:
-            self.logger.error(f"Cassandra health check failed: {e}")
+            logger.error(f"Cassandra health check failed: {e}")
             return False
     
     async def close(self) -> None:
@@ -86,4 +89,4 @@ class CassandraDatasource(BaseDatasource):
             self._client.shutdown()
             self._client = None
             self._initialized = False
-            self.logger.info("Cassandra connection closed")
+            logger.info("Cassandra connection closed")

@@ -246,7 +246,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
             test_query = self.get_test_query()
             result = await self.execute_query(test_query)
 
-            self.logger.debug(f"Database connection test successful: {self._get_datasource_name()}")
+            logger.debug(f"Database connection test successful: {self._get_datasource_name()}")
 
             return True
         except Exception as e:
@@ -280,9 +280,9 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
             raise ValueError(f"{self._get_datasource_name()} connection not initialized")
 
         try:
-            self.logger.debug(f"Executing {self._get_datasource_name()} query: {query}")
+            logger.debug(f"Executing {self._get_datasource_name()} query: {query}")
             if params:
-                self.logger.debug(f"Parameters: {params}")
+                logger.debug(f"Parameters: {params}")
 
             # Execute query (implementation specific)
             raw_results = await self._execute_raw_query(query, params)
@@ -290,7 +290,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
             # Convert types using mixin
             results = [self.convert_row_types(row) for row in raw_results]
 
-            self.logger.debug(f"Query returned {len(results)} rows")
+            logger.debug(f"Query returned {len(results)} rows")
             if len(results) > 0:
                 self.dump_results_to_file(results)
 
@@ -314,7 +314,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
                     raw_results = await self._execute_raw_query(query, params)
                     results = [self.convert_row_types(row) for row in raw_results]
 
-                    self.logger.debug(f"Query retry successful, returned {len(results)} rows")
+                    logger.debug(f"Query retry successful, returned {len(results)} rows")
 
                     return results
 

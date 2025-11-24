@@ -6,12 +6,15 @@ This approach leverages the language understanding capabilities of GPT models
 to assess document relevance.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 import asyncio
 import json
 
 from ..providers import OpenAIBaseService
 from ..services import RerankingService
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIRerankingService(RerankingService, OpenAIBaseService):
@@ -105,11 +108,11 @@ class OpenAIRerankingService(RerankingService, OpenAIBaseService):
             if top_n is not None:
                 all_results = all_results[:top_n]
 
-            self.logger.debug(f"Reranked {len(documents)} -> {len(all_results)} documents")
+            logger.debug(f"Reranked {len(documents)} -> {len(all_results)} documents")
             return all_results
 
         except Exception as e:
-            self.logger.error(f"Error in OpenAI reranking: {str(e)}")
+            logger.error(f"Error in OpenAI reranking: {str(e)}")
             raise
 
     async def _score_batch(
@@ -173,7 +176,7 @@ class OpenAIRerankingService(RerankingService, OpenAIBaseService):
             return results
 
         except (json.JSONDecodeError, KeyError) as e:
-            self.logger.error(f"Failed to parse OpenAI response: {str(e)}")
+            logger.error(f"Failed to parse OpenAI response: {str(e)}")
             # Fallback: return documents with neutral scores
             return [
                 {
@@ -230,12 +233,12 @@ Example format: {{"scores": [0.9, 0.7, 0.3, ...]}}"""
             results = await self.rerank(test_query, test_docs, top_n=1, _skip_init_check=True)
 
             if results and len(results) > 0:
-                self.logger.info("Successfully verified OpenAI reranking connection")
+                logger.info("Successfully verified OpenAI reranking connection")
                 return True
             else:
-                self.logger.error("Received empty results from OpenAI")
+                logger.error("Received empty results from OpenAI")
                 return False
 
         except Exception as e:
-            self.logger.error(f"Failed to verify OpenAI reranking connection: {str(e)}")
+            logger.error(f"Failed to verify OpenAI reranking connection: {str(e)}")
             return False

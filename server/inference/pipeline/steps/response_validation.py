@@ -8,6 +8,8 @@ import logging
 from typing import Dict, Any
 from ..base import PipelineStep, ProcessingContext
 
+logger = logging.getLogger(__name__)
+
 class ResponseValidationStep(PipelineStep):
     """
     Perform safety check on the final generated response.
@@ -39,7 +41,7 @@ class ResponseValidationStep(PipelineStep):
         if context.is_blocked or not context.response:
             return context
         
-        self.logger.debug(f"Validating response: {context.response[:100]}...")
+        logger.debug(f"Validating response: {context.response[:100]}...")
         
         # Check with LLM Guard service first if available
         if self.container.has('llm_guard_service'):
@@ -60,13 +62,13 @@ class ResponseValidationStep(PipelineStep):
                 )
                 
                 if not security_result.get("is_safe", True):
-                    self.logger.warning(f"Response blocked by LLM Guard: {security_result.get('flagged_scanners', [])}")
+                    logger.warning(f"Response blocked by LLM Guard: {security_result.get('flagged_scanners', [])}")
                     context.set_error("Response blocked by security scanner", block=True)
                     context.response = ""  # Clear the unsafe response
                     return context
                     
             except Exception as e:
-                self.logger.error(f"Error during LLM Guard response check: {str(e)}")
+                logger.error(f"Error during LLM Guard response check: {str(e)}")
                 # Continue with other checks on error
         
         # Check with Moderator Service if available
@@ -76,14 +78,14 @@ class ResponseValidationStep(PipelineStep):
                 is_safe, refusal_message = await moderator.check_safety(context.response)
                 
                 if not is_safe:
-                    self.logger.warning(f"Response blocked by Moderator Service: {refusal_message}")
+                    logger.warning(f"Response blocked by Moderator Service: {refusal_message}")
                     context.set_error("Response blocked by content moderator", block=True)
                     context.response = ""  # Clear the unsafe response
                     return context
                     
             except Exception as e:
-                self.logger.error(f"Error during Moderator Service response check: {str(e)}")
+                logger.error(f"Error during Moderator Service response check: {str(e)}")
                 # Continue processing on error
         
-        self.logger.debug("Response passed validation checks")
+        logger.debug("Response passed validation checks")
         return context 

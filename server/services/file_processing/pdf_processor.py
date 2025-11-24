@@ -48,12 +48,12 @@ class PDFProcessor(FileProcessor):
                     if page_text:
                         text_parts.append(f"Page {page_num + 1}\n\n{page_text}")
                 except Exception as e:
-                    self.logger.warning(f"Error extracting text from page {page_num + 1}: {e}")
+                    logger.warning(f"Error extracting text from page {page_num + 1}: {e}")
             
             return "\n\n".join(text_parts)
         
         except Exception as e:
-            self.logger.error(f"Error processing PDF: {e}")
+            logger.error(f"Error processing PDF: {e}")
             raise
     
     async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:
@@ -78,6 +78,6 @@ class PDFProcessor(FileProcessor):
                     metadata[key.lower()] = value
         
         except Exception as e:
-            self.logger.warning(f"Error extracting PDF metadata: {e}")
+            logger.warning(f"Error extracting PDF metadata: {e}")
         
         return metadata

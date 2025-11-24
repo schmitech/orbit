@@ -1,3 +1,4 @@
+import logging
 import os
 import ssl
 import asyncio
@@ -13,6 +14,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from fastapi_mcp import FastApiMCP
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -139,7 +142,7 @@ class InferenceServer:
         self.route_configurator.configure_routes(self.app)
 
         # Initialize MCP server
-        self.logger.info("Initializing MCP server with fastapi-mcp")
+        logger.info("Initializing MCP server with fastapi-mcp")
         self.mcp_server = FastApiMCP(
             self.app,
             name="ORBIT",
@@ -147,7 +150,7 @@ class InferenceServer:
         )
         self.mcp_server.mount_http(mount_path="/mcp")
         
-        self.logger.info("InferenceServer initialized")
+        logger.info("InferenceServer initialized")
 
     def _find_default_config_path(self) -> str:
         """
@@ -195,7 +198,7 @@ class InferenceServer:
         """
         @asynccontextmanager
         async def lifespan(app: FastAPI):
-            self.logger.info("Starting up FastAPI application")
+            logger.info("Starting up FastAPI application")
             
             # Initialize services and clients
             try:
@@ -203,20 +206,20 @@ class InferenceServer:
                 app.state.thread_pool_manager = self.thread_pool_manager
                 await self._initialize_services(app)
                 self.configuration_summary_logger.log_configuration_summary(app)
-                self.logger.info("Startup complete")
+                logger.info("Startup complete")
             except Exception as e:
-                self.logger.error(f"Failed to initialize services: {str(e)}")
+                logger.error(f"Failed to initialize services: {str(e)}")
                 raise
             
             yield
             
             # Cleanup resources
             try:
-                self.logger.info("Shutting down services...")
+                logger.info("Shutting down services...")
                 await self._shutdown_services(app)
-                self.logger.info("Services shut down successfully")
+                logger.info("Services shut down successfully")
             except Exception as e:
-                self.logger.error(f"Error during shutdown: {str(e)}")
+                logger.error(f"Error during shutdown: {str(e)}")
         
         return lifespan
 
@@ -227,7 +230,7 @@ class InferenceServer:
         global RetrieverFactory, ADAPTER_REGISTRY
         from retrievers.base.base_retriever import RetrieverFactory
         from adapters.registry import ADAPTER_REGISTRY
-        self.logger.info("Initializing retrievers package for RAG mode")
+        logger.info("Initializing retrievers package for RAG mode")
 
     def _initialize_datasource_client(self, provider: str) -> Any:
         """
@@ -305,7 +308,7 @@ class InferenceServer:
         Args:
             app: The FastAPI application containing services
         """
-        self.logger.info("Shutting down services...")
+        logger.info("Shutting down services...")
         
         # Create a list to collect shutdown tasks
         shutdown_tasks = []
@@ -319,7 +322,7 @@ class InferenceServer:
                     else:
                         service.close()
                 except Exception as e:
-                    self.logger.error(f"Error preparing shutdown for {service_name}: {str(e)}")
+                    logger.error(f"Error preparing shutdown for {service_name}: {str(e)}")
         
         # Add services to shutdown tasks if they exist and have close methods
         if hasattr(app.state, 'llm_client'):
@@ -333,11 +336,11 @@ class InferenceServer:
             if hasattr(app.state.retriever, '_retriever') and app.state.retriever._retriever is not None:
                 add_shutdown_task(app.state.retriever._retriever, 'Retriever')
             else:
-                self.logger.info("Retriever was never initialized, no need to close")
+                logger.info("Retriever was never initialized, no need to close")
         
         if hasattr(app.state, 'prompt_service'):
             # PromptService doesn't have a close method, so we skip it
-            self.logger.info("Skipping PromptService shutdown (no close method)")
+            logger.info("Skipping PromptService shutdown (no close method)")
         
         if hasattr(app.state, 'reranker_service'):
             add_shutdown_task(app.state.reranker_service, 'Reranker Service')
@@ -384,7 +387,7 @@ class InferenceServer:
             try:
                 await self.service_factory._shutdown_fault_tolerance_services(app)
             except Exception as e:
-                self.logger.error(f"Error shutting down fault tolerance services: {str(e)}")
+                logger.error(f"Error shutting down fault tolerance services: {str(e)}")
         
         # Close all tracked aiohttp sessions
         shutdown_tasks.append(close_all_aiohttp_sessions())
@@ -393,22 +396,22 @@ class InferenceServer:
         if hasattr(self, 'thread_pool_manager'):
             try:
                 self.thread_pool_manager.shutdown(wait=True)
-                self.logger.info("Thread pool manager shut down successfully")
+                logger.info("Thread pool manager shut down successfully")
             except Exception as e:
-                self.logger.error(f"Error shutting down thread pool manager: {str(e)}")
+                logger.error(f"Error shutting down thread pool manager: {str(e)}")
         
         # Only run asyncio.gather if there are tasks to gather
         if shutdown_tasks:
             try:
                 # Wait for all shutdown tasks to complete with a timeout
                 await asyncio.wait_for(asyncio.gather(*shutdown_tasks, return_exceptions=True), timeout=30.0)
-                self.logger.info("Services shut down successfully")
+                logger.info("Services shut down successfully")
             except asyncio.TimeoutError:
-                self.logger.error("Timeout while shutting down services")
+                logger.error("Timeout while shutting down services")
             except Exception as e:
-                self.logger.error(f"Error during shutdown of services: {str(e)}")
+                logger.error(f"Error during shutdown of services: {str(e)}")
         else:
-            self.logger.info("No services to shut down")
+            logger.info("No services to shut down")
 
     def create_ssl_context(self) -> Optional[ssl.SSLContext]:
         """
@@ -428,7 +431,7 @@ class InferenceServer:
             )
             return ssl_context
         except Exception as e:
-            self.logger.error(f"Failed to create SSL context: {str(e)}")
+            logger.error(f"Failed to create SSL context: {str(e)}")
             raise
 
     def run(self) -> None:
@@ -505,11 +508,11 @@ class InferenceServer:
         try:
             # Start the server
             if https_enabled:
-                self.logger.info(f"Starting HTTPS server on {host}:{port_to_use}")
+                logger.info(f"Starting HTTPS server on {host}:{port_to_use}")
             else:
-                self.logger.info(f"Starting HTTP server on {host}:{port_to_use}")
+                logger.info(f"Starting HTTP server on {host}:{port_to_use}")
                 
             server.run()
         except KeyboardInterrupt:
-            self.logger.info("Received shutdown signal, initiating graceful shutdown...")
+            logger.info("Received shutdown signal, initiating graceful shutdown...")
             # The server will handle the graceful shutdown through its signal handlers

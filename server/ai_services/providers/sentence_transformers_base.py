@@ -12,6 +12,8 @@ from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
 
 
+
+logger = logging.getLogger(__name__)
 class SentenceTransformersBaseService(ProviderAIService):
     """
     Base class for Sentence Transformers embedding services.
@@ -92,7 +94,7 @@ class SentenceTransformersBaseService(ProviderAIService):
         retry_config = self._get_retry_config()
         self.retry_handler = RetryHandler(**retry_config)
 
-        self.logger.info(
+        logger.info(
             f"Configured Sentence Transformers service: "
             f"model={self.model}, mode={self.mode}, device={self.device}"
         )
@@ -115,16 +117,16 @@ class SentenceTransformersBaseService(ProviderAIService):
             import torch
 
             if torch.cuda.is_available():
-                self.logger.info("GPU (CUDA) detected and will be used for inference")
+                logger.info("GPU (CUDA) detected and will be used for inference")
                 return "cuda"
             elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-                self.logger.info("Apple Silicon GPU (MPS) detected and will be used for inference")
+                logger.info("Apple Silicon GPU (MPS) detected and will be used for inference")
                 return "mps"
             else:
-                self.logger.info("No GPU detected, using CPU for inference")
+                logger.info("No GPU detected, using CPU for inference")
                 return "cpu"
         except ImportError:
-            self.logger.warning("PyTorch not available, defaulting to CPU")
+            logger.warning("PyTorch not available, defaulting to CPU")
             return "cpu"
 
     async def initialize(self) -> bool:
@@ -145,7 +147,7 @@ class SentenceTransformersBaseService(ProviderAIService):
 
             if await self.verify_connection():
                 self.initialized = True
-                self.logger.info(
+                logger.info(
                     f"Initialized Sentence Transformers service "
                     f"(mode={self.mode}, model={self.model})"
                 )
@@ -153,7 +155,7 @@ class SentenceTransformersBaseService(ProviderAIService):
             return False
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize Sentence Transformers service: {str(e)}")
+            logger.error(f"Failed to initialize Sentence Transformers service: {str(e)}")
             return False
 
     async def _initialize_local_model(self) -> None:
@@ -172,9 +174,9 @@ class SentenceTransformersBaseService(ProviderAIService):
             if self.cache_folder:
                 model_kwargs['cache_folder'] = self.cache_folder
 
-            self.logger.info(f"Loading Sentence Transformers model: {self.model}")
+            logger.info(f"Loading Sentence Transformers model: {self.model}")
             self.model_instance = SentenceTransformer(self.model, **model_kwargs)
-            self.logger.info(f"Model loaded successfully on device: {self.device}")
+            logger.info(f"Model loaded successfully on device: {self.device}")
 
         except ImportError as e:
             raise ImportError(
@@ -196,7 +198,7 @@ class SentenceTransformersBaseService(ProviderAIService):
         # Use the connection manager from base class
         from aiohttp import ClientSession, ClientTimeout
 
-        self.logger.info(f"Configured remote API for model: {self.model}")
+        logger.info(f"Configured remote API for model: {self.model}")
 
     async def verify_connection(self) -> bool:
         """
@@ -215,7 +217,7 @@ class SentenceTransformersBaseService(ProviderAIService):
                 # For remote, we'll verify on first actual embedding call
                 return self.api_key is not None
         except Exception as e:
-            self.logger.error(f"Connection verification failed: {str(e)}")
+            logger.error(f"Connection verification failed: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -237,9 +239,9 @@ class SentenceTransformersBaseService(ProviderAIService):
                     pass
 
             self.initialized = False
-            self.logger.debug("Closed Sentence Transformers service")
+            logger.debug("Closed Sentence Transformers service")
         except Exception as e:
-            self.logger.error(f"Error closing Sentence Transformers service: {str(e)}")
+            logger.error(f"Error closing Sentence Transformers service: {str(e)}")
 
     def _get_batch_size(self, default: int = 32) -> int:
         """

@@ -7,6 +7,7 @@ This service supports text-to-speech through vLLM-served audio models.
 Compare with: server/ai_services/implementations/vllm_inference_service.py
 """
 
+import logging
 from typing import Dict, Any, Optional, Union, List
 from io import BytesIO
 import base64
@@ -21,6 +22,8 @@ import httpx
 from ..base import ServiceType
 from ..services import AudioService
 from ..connection import ConnectionManager, RetryHandler
+
+logger = logging.getLogger(__name__)
 
 # Optional SNAC import for audio token decoding
 try:
@@ -137,13 +140,13 @@ class VLLMAudioService(AudioService):
         # Auto-detect CUDA if available, otherwise use CPU
         if SNAC_AVAILABLE and torch is not None and torch.cuda.is_available():
             default_device = 'cuda'
-            self.logger.debug(f"CUDA available: {torch.cuda.get_device_name(0)}")
+            logger.debug(f"CUDA available: {torch.cuda.get_device_name(0)}")
         else:
             default_device = 'cpu'
         self.snac_device = provider_config.get('snac_device', default_device)
         self._snac_initialized = False
 
-        self.logger.info(
+        logger.info(
             f"Configured vLLM audio service with TTS model: {self.tts_model} "
             f"at {self.base_url} (max_concurrent_requests: {self.max_concurrent_requests})"
         )
@@ -163,7 +166,7 @@ class VLLMAudioService(AudioService):
         #   With FP8 quantization, you can typically run 8-12 concurrent sequences
         # - --gpu-memory-utilization: Increase from 0.7 to 0.85-0.9 for better throughput
         # - FP8 quantization reduces memory by ~50%, allowing more concurrent requests
-        self.logger.debug(
+        logger.debug(
                 f"vLLM optimization: Add --max-num-seqs {self.max_concurrent_requests}+ to your vLLM server command "
                 f"to enable parallel audio generation (currently missing, causing sequential processing)"
             )
@@ -190,7 +193,7 @@ class VLLMAudioService(AudioService):
         global _global_snac_model, _global_snac_device
 
         if not SNAC_AVAILABLE:
-            self.logger.warning(
+            logger.warning(
                 "SNAC library not available. Install with: pip install snac torch numpy"
             )
             return False
@@ -202,13 +205,13 @@ class VLLMAudioService(AudioService):
         if _global_snac_model is not None and _global_snac_device == self.snac_device:
             self.snac_model = _global_snac_model
             self._snac_initialized = True
-            self.logger.debug(f"Using cached SNAC model on device: {self.snac_device}")
+            logger.debug(f"Using cached SNAC model on device: {self.snac_device}")
             return True
 
         try:
-            self.logger.debug(f"Loading SNAC model on device: {self.snac_device}")
+            logger.debug(f"Loading SNAC model on device: {self.snac_device}")
             if self.snac_device.startswith('cuda') and torch.cuda.is_available():
-                self.logger.debug(f"GPU: {torch.cuda.get_device_name(0)}, "
+                logger.debug(f"GPU: {torch.cuda.get_device_name(0)}, "
                                    f"Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
             
             self.snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval()
@@ -228,7 +231,7 @@ class VLLMAudioService(AudioService):
                     _ = self.snac_model.decode(dummy_codes)
                     torch.cuda.synchronize()
                     torch.cuda.empty_cache()
-                self.logger.debug("GPU warm-up completed")
+                logger.debug("GPU warm-up completed")
             
             self._snac_initialized = True
 
@@ -236,14 +239,14 @@ class VLLMAudioService(AudioService):
             _global_snac_model = self.snac_model
             _global_snac_device = self.snac_device
 
-            self.logger.debug("SNAC model loaded and cached successfully")
+            logger.debug("SNAC model loaded and cached successfully")
             if self.snac_device.startswith('cuda'):
                 allocated = torch.cuda.memory_allocated(0) / 1024**2
                 reserved = torch.cuda.memory_reserved(0) / 1024**2
-                self.logger.debug(f"GPU memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
+                logger.debug(f"GPU memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
             return True
         except Exception as e:
-            self.logger.error(f"Failed to initialize SNAC model: {str(e)}")
+            logger.error(f"Failed to initialize SNAC model: {str(e)}")
             return False
 
     def _turn_token_into_id(self, token_string: str, index: int) -> int:
@@ -315,7 +318,7 @@ class VLLMAudioService(AudioService):
                 if 0 <= token_id <= 4096:
                     token_ids.append(token_id)
             except Exception as e:
-                self.logger.warning(f"Failed to parse token {i}: {str(e)}")
+                logger.warning(f"Failed to parse token {i}: {str(e)}")
                 continue
 
         if len(token_ids) < 7:
@@ -381,7 +384,7 @@ class VLLMAudioService(AudioService):
         audio_int16 = (audio_np * 32767).astype(np.int16)
         audio_bytes = audio_int16.tobytes()
 
-        self.logger.debug(f"Generated {len(audio_bytes)} bytes from {num_frames} frames ({len(audio_bytes) // 2 / 24000:.2f}s)")
+        logger.debug(f"Generated {len(audio_bytes)} bytes from {num_frames} frames ({len(audio_bytes) // 2 / 24000:.2f}s)")
 
         return audio_bytes
 
@@ -426,44 +429,44 @@ class VLLMAudioService(AudioService):
                 except RuntimeError:
                     await self._run_connection_verification()
             else:
-                self.logger.debug(
+                logger.debug(
                     "Skipping vLLM audio verification; already attempted during this lifecycle"
                 )
 
             if self.connection_verified:
-                self.logger.info(
+                logger.info(
                     f"Initialized vLLM audio service with model {self.tts_model}"
                 )
             elif self._verification_inflight:
-                self.logger.info(
+                logger.info(
                     f"Initialized vLLM audio service with model {self.tts_model} "
                     f"(verification running asynchronously)"
                 )
             else:
-                self.logger.info(
+                logger.info(
                     f"Initialized vLLM audio service with model {self.tts_model} "
                     f"(verification skipped or failed)"
                 )
             return True
         except Exception as e:
-            self.logger.error(f"Failed to initialize vLLM audio service: {str(e)}")
+            logger.error(f"Failed to initialize vLLM audio service: {str(e)}")
             return False
 
     async def verify_connection(self) -> bool:
         """Verify connection to the vLLM server."""
         try:
             if not self.client:
-                self.logger.error("vLLM client is not initialized")
+                logger.error("vLLM client is not initialized")
                 return False
 
             # Try to list models
             try:
                 await self.client.models.list()
-                self.logger.debug("vLLM audio connection verified successfully")
+                logger.debug("vLLM audio connection verified successfully")
                 return True
             except Exception:
                 # Fallback: make a minimal test request
-                self.logger.debug("vLLM models endpoint not available, trying test request")
+                logger.debug("vLLM models endpoint not available, trying test request")
                 response = await self.client.chat.completions.create(
                     model=self.tts_model,
                     messages=[{"role": "user", "content": "test"}],
@@ -472,13 +475,13 @@ class VLLMAudioService(AudioService):
                 )
 
                 if response and response.choices:
-                    self.logger.debug("vLLM audio connection verified via test request")
+                    logger.debug("vLLM audio connection verified via test request")
                     return True
 
                 return False
 
         except Exception as e:
-            self.logger.error(f"vLLM audio connection verification failed: {str(e)}")
+            logger.error(f"vLLM audio connection verification failed: {str(e)}")
             return False
 
     async def _run_connection_verification(self) -> None:
@@ -486,12 +489,12 @@ class VLLMAudioService(AudioService):
         try:
             self.connection_verified = await self.verify_connection()
             if self.connection_verified:
-                self.logger.debug("vLLM audio verification completed successfully (async)")
+                logger.debug("vLLM audio verification completed successfully (async)")
             else:
-                self.logger.debug("vLLM audio verification completed with negative result (async)")
+                logger.debug("vLLM audio verification completed with negative result (async)")
         except Exception as verify_error:
             self.connection_verified = False
-            self.logger.warning(
+            logger.warning(
                 f"vLLM audio verification raised an exception; continuing without health check: {str(verify_error)}"
             )
         finally:
@@ -514,14 +517,14 @@ class VLLMAudioService(AudioService):
                     del self.snac_model
                     self.snac_model = None
                 torch.cuda.empty_cache()
-                self.logger.debug("GPU memory cleared")
+                logger.debug("GPU memory cleared")
 
         self.initialized = False
         self._verification_attempted = False
         self.connection_verified = False
         self._verification_inflight = False
         self._snac_initialized = False
-        self.logger.debug("Closed vLLM audio service")
+        logger.debug("Closed vLLM audio service")
 
     async def text_to_speech(
         self,
@@ -561,11 +564,11 @@ class VLLMAudioService(AudioService):
             elif voice and voice.lower() in OPENAI_VOICES:
                 # Silently use configured default for OpenAI voices (common client default)
                 tts_voice = self.tts_voice
-                self.logger.debug(
+                logger.debug(
                     f"Using configured Orpheus voice '{self.tts_voice}' instead of OpenAI voice '{voice}'"
                 )
             elif voice and voice.lower() not in ORPHEUS_VOICES:
-                self.logger.warning(
+                logger.warning(
                     f"Voice '{voice}' is not a valid Orpheus voice. "
                     f"Using configured default: {self.tts_voice}"
                 )
@@ -630,7 +633,7 @@ class VLLMAudioService(AudioService):
             return audio_data
 
         except Exception as e:
-            self.logger.error(f"vLLM TTS error: {str(e)}")
+            logger.error(f"vLLM TTS error: {str(e)}")
             raise
 
     def _construct_tts_prompt(self, text: str, voice: str) -> str:
@@ -697,7 +700,7 @@ class VLLMAudioService(AudioService):
         tokens = self._extract_audio_tokens(response_text)
 
         if tokens:
-            self.logger.debug(f"Extracted {len(tokens)} audio tokens from model response")
+            logger.debug(f"Extracted {len(tokens)} audio tokens from model response")
 
             if not SNAC_AVAILABLE:
                 raise RuntimeError(
@@ -708,7 +711,7 @@ class VLLMAudioService(AudioService):
             try:
                 # Decode tokens to raw PCM audio
                 pcm_audio = self._convert_tokens_to_audio(tokens)
-                self.logger.debug(f"Decoded {len(pcm_audio)} bytes of PCM audio")
+                logger.debug(f"Decoded {len(pcm_audio)} bytes of PCM audio")
 
                 # Wrap in WAV format if requested
                 if audio_format.lower() in ['wav', 'wave']:
@@ -719,7 +722,7 @@ class VLLMAudioService(AudioService):
                     return pcm_audio
 
             except Exception as e:
-                self.logger.error(f"Failed to decode audio tokens: {str(e)}")
+                logger.error(f"Failed to decode audio tokens: {str(e)}")
                 raise
 
         # Try to decode as base64 (for models that return encoded audio)
@@ -737,7 +740,7 @@ class VLLMAudioService(AudioService):
             pass
 
         # If no audio tokens and not base64, raise an error
-        self.logger.error(
+        logger.error(
             f"TTS response does not contain audio tokens or valid audio data. "
             f"Response preview: {response_text[:200]}..."
         )
@@ -791,7 +794,7 @@ class VLLMAudioService(AudioService):
             return response.choices[0].message.content.strip()
 
         except Exception as e:
-            self.logger.error(f"vLLM STT error: {str(e)}")
+            logger.error(f"vLLM STT error: {str(e)}")
             raise
 
     async def transcribe(
@@ -845,7 +848,7 @@ class VLLMAudioService(AudioService):
             return response.choices[0].message.content.strip()
 
         except Exception as e:
-            self.logger.error(f"vLLM translation error: {str(e)}")
+            logger.error(f"vLLM translation error: {str(e)}")
             # Fallback: return transcript if translation fails
             try:
                 return await self.speech_to_text(audio, source_language, **kwargs)

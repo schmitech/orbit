@@ -8,10 +8,13 @@ Compare with: server/inference/pipeline/providers/openai_provider.py (old implem
 """
 
 from typing import Dict, Any, AsyncGenerator
+import logging
 
 from ..base import ServiceType
 from ..providers import OpenAIBaseService
 from ..services import InferenceService
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIInferenceService(InferenceService, OpenAIBaseService):
@@ -144,26 +147,26 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
 
             params.update(kwargs)  # Any other parameters
 
-            self.logger.debug(f"Creating OpenAI stream with params: model={params['model']}, stream={params['stream']}")
+            logger.debug(f"Creating OpenAI stream with params: model={params['model']}, stream={params['stream']}")
 
             stream = await self.client.chat.completions.create(**params)
 
-            self.logger.debug(f"Stream object created, starting iteration...")
+            logger.debug(f"Stream object created, starting iteration...")
 
             chunk_count = 0
             debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
             async for chunk in stream:
                 chunk_count += 1
                 if chunk_count == 1 and debug_enabled:
-                    self.logger.debug("First chunk received from OpenAI")
+                    logger.debug("First chunk received from OpenAI")
 
                 if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
                     content = chunk.choices[0].delta.content
                     if debug_enabled and chunk_count <= 3:
-                        self.logger.debug("Yielding chunk #%s: %r", chunk_count, content[:50])
+                        logger.debug("Yielding chunk #%s: %r", chunk_count, content[:50])
                     yield content
 
-            self.logger.debug(f"Streaming complete. Total chunks: {chunk_count}")
+            logger.debug(f"Streaming complete. Total chunks: {chunk_count}")
 
         except Exception as e:
             self._handle_openai_error(e, "streaming generation")

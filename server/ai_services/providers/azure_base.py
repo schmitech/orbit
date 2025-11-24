@@ -13,6 +13,8 @@ from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
 
 
+
+logger = logging.getLogger(__name__)
 class AzureBaseService(ProviderAIService):
     """
     Base class for all Azure AI services.
@@ -104,7 +106,7 @@ class AzureBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.info(
+        logger.info(
             f"Configured Azure AI service with deployment: {self.deployment}"
         )
 
@@ -119,14 +121,14 @@ class AzureBaseService(ProviderAIService):
             # Verify connection
             if await self.verify_connection():
                 self.initialized = True
-                self.logger.info(
+                logger.info(
                     f"Initialized Azure AI {self.service_type.value} service "
                     f"with deployment {self.deployment}"
                 )
                 return True
             return False
         except Exception as e:
-            self.logger.error(f"Failed to initialize Azure AI service: {str(e)}")
+            logger.error(f"Failed to initialize Azure AI service: {str(e)}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -145,13 +147,13 @@ class AzureBaseService(ProviderAIService):
             )
 
             if not response.choices:
-                self.logger.error("Azure AI connection test returned no responses")
+                logger.error("Azure AI connection test returned no responses")
                 return False
 
-            self.logger.debug("Azure AI connection verified successfully")
+            logger.debug("Azure AI connection verified successfully")
             return True
         except Exception as e:
-            self.logger.error(f"Azure AI connection verification failed: {str(e)}")
+            logger.error(f"Azure AI connection verification failed: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -162,7 +164,7 @@ class AzureBaseService(ProviderAIService):
         """
         self.client = None
         self.initialized = False
-        self.logger.debug("Closed Azure AI service")
+        logger.debug("Closed Azure AI service")
 
     def _get_max_tokens(self, default: int = 1024) -> int:
         """
@@ -255,22 +257,22 @@ class AzureBaseService(ProviderAIService):
         error_str = str(error)
 
         if "authentication" in error_str.lower() or "unauthorized" in error_str.lower():
-            self.logger.error(
+            logger.error(
                 f"Azure authentication failed during {operation}: Invalid credentials"
             )
         elif "rate limit" in error_str.lower() or "throttl" in error_str.lower():
-            self.logger.warning(
+            logger.warning(
                 f"Azure rate limit exceeded during {operation}"
             )
         elif "quota" in error_str.lower():
-            self.logger.error(
+            logger.error(
                 f"Azure quota exceeded during {operation}: {error_str}"
             )
         elif "deployment" in error_str.lower():
-            self.logger.error(
+            logger.error(
                 f"Azure deployment error during {operation}: {error_str}"
             )
         else:
-            self.logger.error(
+            logger.error(
                 f"Azure error during {operation}: {error_str}"
             )

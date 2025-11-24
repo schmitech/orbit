@@ -35,7 +35,7 @@ class HTTPDatasource(BaseDatasource):
 
         # HTTP adapters don't use centralized configuration
         # Each adapter has its own base_url, auth, timeout, etc.
-        self.logger.debug("HTTP datasource initialized (placeholder for registry pattern)")
+        logger.debug("HTTP datasource initialized (placeholder for registry pattern)")
 
     @property
     def datasource_name(self) -> str:
@@ -49,16 +49,16 @@ class HTTPDatasource(BaseDatasource):
         Since HTTP adapters manage their own clients, this is a no-op.
         """
         if self._initialized:
-            self.logger.debug("HTTP datasource already initialized")
+            logger.debug("HTTP datasource already initialized")
             return
 
         try:
             # No actual connection to initialize - HTTP adapters manage their own clients
-            self.logger.debug("HTTP datasource initialized (no centralized connection needed)")
+            logger.debug("HTTP datasource initialized (no centralized connection needed)")
             self._initialized = True
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize HTTP datasource: {e}")
+            logger.error(f"Failed to initialize HTTP datasource: {e}")
             raise
 
     async def close(self) -> None:
@@ -68,7 +68,7 @@ class HTTPDatasource(BaseDatasource):
         Since HTTP adapters manage their own clients, this is a no-op.
         """
         if self._initialized:
-            self.logger.debug("HTTP datasource closed (no centralized connection to close)")
+            logger.debug("HTTP datasource closed (no centralized connection to close)")
             self._initialized = False
 
     def get_cache_key(self) -> str:
@@ -93,7 +93,7 @@ class HTTPDatasource(BaseDatasource):
         Returns:
             True (always healthy since there's no connection to check)
         """
-        self.logger.debug("HTTP datasource health check (always healthy - placeholder datasource)")
+        logger.debug("HTTP datasource health check (always healthy - placeholder datasource)")
         return True
 
     @property
@@ -104,7 +104,7 @@ class HTTPDatasource(BaseDatasource):
         HTTP adapters create their own httpx.AsyncClient instances.
         This property exists for interface compatibility only.
         """
-        self.logger.warning(
+        logger.warning(
             "HTTP datasource has no centralized client. "
             "HTTP adapters manage their own httpx.AsyncClient instances via base_url."
         )

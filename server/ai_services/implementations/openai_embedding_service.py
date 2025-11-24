@@ -10,9 +10,12 @@ Compare with: server/embeddings/openai.py (old implementation)
 
 from typing import List, Dict, Any
 import asyncio
+import logging
 
 from ..providers import OpenAIBaseService
 from ..services import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
@@ -64,11 +67,11 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
 
         try:
             # Debug logging
-            self.logger.debug(f"OpenAIEmbeddingService.embed_query called")
-            self.logger.debug(f"  self.client = {self.client}")
-            self.logger.debug(f"  self.client is None: {self.client is None}")
+            logger.debug(f"OpenAIEmbeddingService.embed_query called")
+            logger.debug(f"  self.client = {self.client}")
+            logger.debug(f"  self.client is None: {self.client is None}")
             if self.client:
-                self.logger.debug(f"  hasattr(self.client, 'embeddings'): {hasattr(self.client, 'embeddings')}")
+                logger.debug(f"  hasattr(self.client, 'embeddings'): {hasattr(self.client, 'embeddings')}")
 
             # Use the AsyncOpenAI client provided by OpenAIBaseService
             response = await self.client.embeddings.create(
@@ -80,7 +83,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
             return response.data[0].embedding
 
         except Exception as e:
-            self.logger.error(f"Unexpected error during embedding query: {e}")
+            logger.error(f"Unexpected error during embedding query: {e}")
             self._handle_openai_error(e, "embedding query")
             raise
 
@@ -116,7 +119,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
                     await asyncio.sleep(0.5)
 
             except Exception as e:
-                self.logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
+                logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
                 raise
 
         return all_embeddings
@@ -163,7 +166,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
             return self.dimensions
 
         except Exception as e:
-            self.logger.error(f"Failed to determine embedding dimensions: {str(e)}")
+            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
 
             # Fallback to defaults based on model
             if self.model and "ada" in self.model:

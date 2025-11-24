@@ -103,7 +103,7 @@ class IntentHTTPRetriever(BaseRetriever):
         self.max_templates = self.intent_config.get('max_templates', 5)
 
         # Debug configuration
-        self.logger.debug(f"Intent HTTP config loaded - confidence_threshold: {self.confidence_threshold}, "
+        logger.debug(f"Intent HTTP config loaded - confidence_threshold: {self.confidence_threshold}, "
                           f"template_collection_name: {self.template_collection_name}, "
                           f"max_templates: {self.max_templates}")
 
@@ -210,7 +210,7 @@ class IntentHTTPRetriever(BaseRetriever):
             self.template_reranker = TemplateReranker(domain_config, domain_strategy)
             self.template_processor = TemplateProcessor(domain_config)
 
-            self.logger.debug(f"{self.__class__.__name__} initialization complete")
+            logger.debug(f"{self.__class__.__name__} initialization complete")
 
         except Exception as e:
             logger.error(f"Failed to initialize {self.__class__.__name__}: {e}")
@@ -350,7 +350,7 @@ class IntentHTTPRetriever(BaseRetriever):
 
             store_config = self._get_store_config()
 
-            self.logger.debug(f"Using store '{self.store_name}' with type '{store_config.get('type', 'chroma')}'")
+            logger.debug(f"Using store '{self.store_name}' with type '{store_config.get('type', 'chroma')}'")
 
             self.template_store = TemplateEmbeddingStore(
                 store_name=f'intent_http_templates_{self.store_name}',
@@ -498,16 +498,16 @@ class IntentHTTPRetriever(BaseRetriever):
             # Batch add templates
             if templates_with_embeddings:
                 try:
-                    self.logger.debug(f"Adding {len(templates_with_embeddings)} templates with embeddings to store")
+                    logger.debug(f"Adding {len(templates_with_embeddings)} templates with embeddings to store")
                     results = await self.template_store.batch_add_templates(templates_with_embeddings)
                     loaded_count = sum(1 for success in results.values() if success)
                     logger.info(f"Successfully loaded {loaded_count} templates into vector store")
 
                     try:
                         post_stats = await self.template_store.get_statistics()
-                        self.logger.debug(f"Vector store now contains {post_stats.get('total_templates', 0)} templates")
+                        logger.debug(f"Vector store now contains {post_stats.get('total_templates', 0)} templates")
                     except Exception as e:
-                        self.logger.debug(f"Could not get post-load stats: {e}")
+                        logger.debug(f"Could not get post-load stats: {e}")
 
                 except Exception as e:
                     logger.error(f"Failed to add templates to store: {e}")
@@ -554,7 +554,7 @@ class IntentHTTPRetriever(BaseRetriever):
                                    **kwargs) -> List[Dict[str, Any]]:
         """Process a natural language query using intent-based HTTP translation."""
         try:
-            self.logger.debug(f"Processing intent query: {query}")
+            logger.debug(f"Processing intent query: {query}")
 
             # Find best matching templates
             templates = await self._find_best_templates(query)
@@ -585,14 +585,14 @@ class IntentHTTPRetriever(BaseRetriever):
                     continue
 
                 template_attempts.append(template_id)
-                self.logger.info(f"Attempting template: {template_id} (similarity: {similarity:.2%})")
+                logger.info(f"Attempting template: {template_id} (similarity: {similarity:.2%})")
 
                 # Extract parameters
                 if self.parameter_extractor:
                     parameters = await self.parameter_extractor.extract_parameters(query, template)
                     validation_errors = self.parameter_extractor.validate_parameters(parameters)
                     if validation_errors:
-                        self.logger.warning(f"Template {template_id} parameter validation failed: {validation_errors}")
+                        logger.warning(f"Template {template_id} parameter validation failed: {validation_errors}")
                         failed_templates.append((template_id, f"Parameter validation failed: {validation_errors}"))
                         continue
                 else:
@@ -602,20 +602,20 @@ class IntentHTTPRetriever(BaseRetriever):
                 results, error = await self._execute_template(template, parameters)
 
                 if error:
-                    self.logger.warning(f"Template {template_id} execution failed: {error}")
+                    logger.warning(f"Template {template_id} execution failed: {error}")
                     failed_templates.append((template_id, error))
                     continue
 
                 # Dump results to file for debugging
                 if results:
                     result_count = len(results) if isinstance(results, list) else 1
-                    self.logger.info(f"Template {template_id} succeeded! HTTP query returned {result_count} result(s)")
+                    logger.info(f"Template {template_id} succeeded! HTTP query returned {result_count} result(s)")
                     
                     # Log summary if previous templates failed
                     if failed_templates:
                         failed_list = ", ".join([f"{tid} ({err[:50]}...)" if len(err) > 50 else f"{tid} ({err})" 
                                                 for tid, err in failed_templates])
-                        self.logger.info(f"Template retry summary: {len(failed_templates)} template(s) failed before success: {failed_list}")
+                        logger.info(f"Template retry summary: {len(failed_templates)} template(s) failed before success: {failed_list}")
                     
                     self.dump_results_to_file(results, prefix=f"http_{template.get('id', 'unknown')}")
 
@@ -651,7 +651,7 @@ class IntentHTTPRetriever(BaseRetriever):
 
                     content = "\n\n".join(content_parts)
                     
-                    self.logger.debug(f"Generated content for LLM context (length: {len(content)}):\n{content}")
+                    logger.debug(f"Generated content for LLM context (length: {len(content)}):\n{content}")
 
                     return [{
                         "content": content,
@@ -677,7 +677,7 @@ class IntentHTTPRetriever(BaseRetriever):
             # All templates failed - log summary
             if failed_templates:
                 failed_summary = "; ".join([f"{tid}: {err[:100]}" for tid, err in failed_templates])
-                self.logger.warning(f"All {len(template_attempts)} template(s) failed. Attempted: {', '.join(template_attempts)}. Errors: {failed_summary}")
+                logger.warning(f"All {len(template_attempts)} template(s) failed. Attempted: {', '.join(template_attempts)}. Errors: {failed_summary}")
             
             return [{
                 "content": "I found potential matches but couldn't extract the required information.",
@@ -709,16 +709,16 @@ class IntentHTTPRetriever(BaseRetriever):
             try:
                 stats = await self.template_store.get_statistics()
                 total_templates = stats.get('total_templates', 0)
-                self.logger.debug(f"Template store contains {total_templates} templates")
+                logger.debug(f"Template store contains {total_templates} templates")
             except Exception as e:
-                self.logger.debug(f"Could not get template store stats: {e}")
+                logger.debug(f"Could not get template store stats: {e}")
 
             query_embedding = await self.embedding_client.embed_query(query)
             if not query_embedding:
                 logger.error("Failed to get query embedding")
                 return []
 
-            self.logger.debug(f"Query embedding generated with {len(query_embedding)} dimensions")
+            logger.debug(f"Query embedding generated with {len(query_embedding)} dimensions")
 
             search_results = await self.template_store.search_similar_templates(
                 query_embedding=query_embedding,
@@ -728,9 +728,9 @@ class IntentHTTPRetriever(BaseRetriever):
 
             if search_results:
                 scores = [f"{result.get('score', 0):.3f}" for result in search_results]
-                self.logger.debug(f"Found {len(search_results)} results with scores: [{', '.join(scores)}]")
+                logger.debug(f"Found {len(search_results)} results with scores: [{', '.join(scores)}]")
             else:
-                self.logger.debug("Similarity search returned 0 results")
+                logger.debug("Similarity search returned 0 results")
 
             if not search_results:
                 return []
@@ -746,9 +746,9 @@ class IntentHTTPRetriever(BaseRetriever):
                         'embedding_text': result.get('description', '')
                     })
                 else:
-                    self.logger.warning(f"Template {template_id} not found in adapter")
+                    logger.warning(f"Template {template_id} not found in adapter")
 
-            self.logger.debug(f"Found {len(templates)} matching templates for query")
+            logger.debug(f"Found {len(templates)} matching templates for query")
             return templates
 
         except Exception as e:
@@ -797,7 +797,7 @@ JSON:"""
                     parameters[param['name']] is None) and 'default' in param:
                     parameters[param['name']] = param['default']
 
-            self.logger.debug(f"Extracted parameters: {parameters}")
+            logger.debug(f"Extracted parameters: {parameters}")
 
             return parameters
 
@@ -852,7 +852,7 @@ JSON:"""
         if not collection_name:
             raise ValueError("Collection name cannot be empty")
         self.collection = collection_name
-        self.logger.debug(f"{self.__class__.__name__} switched to collection: {collection_name}")
+        logger.debug(f"{self.__class__.__name__} switched to collection: {collection_name}")
 
     async def close(self) -> None:
         """Close all connections and services."""

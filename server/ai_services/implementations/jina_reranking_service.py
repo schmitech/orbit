@@ -5,12 +5,15 @@ Jina AI provides dedicated reranking models via their API, optimized for
 high-quality relevance scoring.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 import asyncio
 import aiohttp
 
 from ..providers import JinaBaseService
 from ..services import RerankingService
+
+logger = logging.getLogger(__name__)
 
 
 class JinaRerankingService(RerankingService, JinaBaseService):
@@ -69,11 +72,11 @@ class JinaRerankingService(RerankingService, JinaBaseService):
             await super().initialize()
 
             self.initialized = True
-            self.logger.info(f"Jina AI reranking service initialized with model: {self.model}")
+            logger.info(f"Jina AI reranking service initialized with model: {self.model}")
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize Jina AI reranking service: {str(e)}")
+            logger.error(f"Failed to initialize Jina AI reranking service: {str(e)}")
             return False
 
     async def rerank(
@@ -135,7 +138,7 @@ class JinaRerankingService(RerankingService, JinaBaseService):
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    self.logger.error(f"Jina AI API error: {error_text}")
+                    logger.error(f"Jina AI API error: {error_text}")
                     raise ValueError(f"Jina AI rerank failed: {error_text}")
 
                 data = await response.json()
@@ -149,11 +152,11 @@ class JinaRerankingService(RerankingService, JinaBaseService):
                         'score': result.get('relevance_score', result.get('score', 0.0))
                     })
 
-                self.logger.debug(f"Reranked {len(documents)} -> {len(results)} documents")
+                logger.debug(f"Reranked {len(documents)} -> {len(results)} documents")
                 return results
 
         except Exception as e:
-            self.logger.error(f"Error in Jina AI reranking: {str(e)}")
+            logger.error(f"Error in Jina AI reranking: {str(e)}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -172,14 +175,14 @@ class JinaRerankingService(RerankingService, JinaBaseService):
             results = await self.rerank(test_query, test_docs, top_n=1, _skip_init_check=True)
 
             if results and len(results) > 0:
-                self.logger.info("Successfully verified Jina AI reranking connection")
+                logger.info("Successfully verified Jina AI reranking connection")
                 return True
             else:
-                self.logger.error("Received empty results from Jina AI")
+                logger.error("Received empty results from Jina AI")
                 return False
 
         except Exception as e:
-            self.logger.error(f"Failed to verify Jina AI reranking connection: {str(e)}")
+            logger.error(f"Failed to verify Jina AI reranking connection: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -188,4 +191,4 @@ class JinaRerankingService(RerankingService, JinaBaseService):
         """
         # JinaBaseService manages the session, just mark as uninitialized
         self.initialized = False
-        self.logger.info("Jina AI reranking service closed")
+        logger.info("Jina AI reranking service closed")

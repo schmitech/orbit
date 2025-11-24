@@ -15,6 +15,8 @@ from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
 
 
+
+logger = logging.getLogger(__name__)
 class AWSBaseService(ProviderAIService):
     """
     Base class for all AWS Bedrock services.
@@ -97,7 +99,7 @@ class AWSBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.info(
+        logger.info(
             f"Configured AWS Bedrock service with model: {self.model} in region: {self.region}"
         )
 
@@ -112,14 +114,14 @@ class AWSBaseService(ProviderAIService):
             # Verify connection
             if await self.verify_connection():
                 self.initialized = True
-                self.logger.info(
+                logger.info(
                     f"Initialized AWS Bedrock {self.service_type.value} service "
                     f"with model {self.model}"
                 )
                 return True
             return False
         except Exception as e:
-            self.logger.error(f"Failed to initialize AWS Bedrock service: {str(e)}")
+            logger.error(f"Failed to initialize AWS Bedrock service: {str(e)}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -133,19 +135,19 @@ class AWSBaseService(ProviderAIService):
             # List foundation models to verify connection
             response = self.client.list_foundation_models()
             model_count = len(response.get('modelSummaries', []))
-            self.logger.debug(
+            logger.debug(
                 f"AWS Bedrock connection verified successfully. Found {model_count} models"
             )
             return True
         except ClientError as e:
             error_code = e.response['Error']['Code']
             error_msg = e.response['Error']['Message']
-            self.logger.error(
+            logger.error(
                 f"AWS Bedrock connection verification failed [{error_code}]: {error_msg}"
             )
             return False
         except Exception as e:
-            self.logger.error(f"AWS Bedrock connection verification failed: {str(e)}")
+            logger.error(f"AWS Bedrock connection verification failed: {str(e)}")
             return False
 
     async def close(self) -> None:
@@ -156,7 +158,7 @@ class AWSBaseService(ProviderAIService):
         """
         self.client = None
         self.initialized = False
-        self.logger.debug("Closed AWS Bedrock service")
+        logger.debug("Closed AWS Bedrock service")
 
     def _get_max_tokens(self, default: int = 1024) -> int:
         """
@@ -252,24 +254,24 @@ class AWSBaseService(ProviderAIService):
             error_message = error.response['Error']['Message']
 
             if error_code == 'UnrecognizedClientException':
-                self.logger.error(
+                logger.error(
                     f"AWS authentication failed during {operation}: Invalid credentials"
                 )
             elif error_code == 'ThrottlingException':
-                self.logger.warning(
+                logger.warning(
                     f"AWS rate limit exceeded during {operation}: {error_message}"
                 )
             elif error_code == 'ModelNotReadyException':
-                self.logger.error(
+                logger.error(
                     f"AWS model not ready during {operation}: {error_message}"
                 )
             elif error_code == 'ValidationException':
-                self.logger.error(
+                logger.error(
                     f"AWS validation error during {operation}: {error_message}"
                 )
             else:
-                self.logger.error(
+                logger.error(
                     f"AWS Bedrock error [{error_code}] during {operation}: {error_message}"
                 )
         else:
-            self.logger.error(f"Unexpected error during {operation}: {str(error)}")
+            logger.error(f"Unexpected error during {operation}: {str(error)}")

@@ -9,6 +9,8 @@ import re
 import math
 from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 try:
     from langdetect import detect_langs, LangDetectException, DetectorFactory
     LANGDETECT_AVAILABLE = True
@@ -106,7 +108,7 @@ class LanguageDetectionStep(PipelineStep):
         self.enable_stickiness = lang_config.get('enable_stickiness', True)
         self.fallback_language = lang_config.get('fallback_language', 'en')
         
-        self.logger.info(f"Initialized {len(self.backends)} language detection backends: {[b[0] for b in self.backends]}")
+        logger.info(f"Initialized {len(self.backends)} language detection backends: {[b[0] for b in self.backends]}")
     
     def should_execute(self, context: ProcessingContext) -> bool:
         """
@@ -136,7 +138,7 @@ class LanguageDetectionStep(PipelineStep):
         if context.is_blocked:
             return context
         
-        self.logger.debug("Detecting language of user message")
+        logger.debug("Detecting language of user message")
         
         try:
             # Detect language using ensemble method
@@ -156,14 +158,14 @@ class LanguageDetectionStep(PipelineStep):
             
             config = self.container.get_or_none('config') or {}
             if config.get('general', {}).get('verbose', False):
-                self.logger.info(
+                logger.info(
                     f"DEBUG: Detected language: {result.language} "
                     f"(confidence: {result.confidence:.2f}, method: {result.method}) "
                     f"for message: {context.message[:50]}..."
                 )
             
         except Exception as e:
-            self.logger.error(f"Error during language detection: {str(e)}")
+            logger.error(f"Error during language detection: {str(e)}")
             # Use configured fallback language
             context.detected_language = self.fallback_language
             if not hasattr(context, 'language_detection_meta'):
@@ -214,7 +216,7 @@ class LanguageDetectionStep(PipelineStep):
                     backend_results.append((result, weight, backend_name))
                     raw_results[backend_name] = result.__dict__ if hasattr(result, '__dict__') else str(result)
             except Exception as e:
-                self.logger.warning(f"Backend {backend_name} failed: {str(e)}")
+                logger.warning(f"Backend {backend_name} failed: {str(e)}")
                 raw_results[backend_name] = {'error': str(e)}
 
         if not backend_results:

@@ -1,8 +1,11 @@
 """NVIDIA NIM base class for NVIDIA AI services."""
 
+import logging
 from typing import Dict, Any
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
+
+logger = logging.getLogger(__name__)
 
 class NVIDIABaseService(ProviderAIService):
     """Base class for NVIDIA NIM services."""
@@ -41,14 +44,14 @@ class NVIDIABaseService(ProviderAIService):
 
         retry_config = self._get_retry_config()
         self.retry_handler = RetryHandler(**retry_config)
-        self.logger.info(f"Configured NVIDIA NIM with model: {self.model}")
+        logger.info(f"Configured NVIDIA NIM with model: {self.model}")
 
     async def initialize(self) -> bool:
         try:
             self.initialized = True
             return True
         except Exception as e:
-            self.logger.error(f"Failed to initialize NVIDIA service: {str(e)}")
+            logger.error(f"Failed to initialize NVIDIA service: {str(e)}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -60,4 +63,4 @@ class NVIDIABaseService(ProviderAIService):
         self.initialized = False
 
     def _handle_nvidia_error(self, error: Exception, operation: str = "operation") -> None:
-        self.logger.error(f"NVIDIA error during {operation}: {str(error)}")
+        logger.error(f"NVIDIA error during {operation}: {str(error)}")

@@ -8,11 +8,14 @@ AI services framework.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from ollama import AsyncClient
 
 from ..services import InferenceService
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaCloudInferenceService(InferenceService):
@@ -77,7 +80,7 @@ class OllamaCloudInferenceService(InferenceService):
             return True
 
         if not self.api_key:
-            self.logger.error("Ollama Cloud API key is not configured")
+            logger.error("Ollama Cloud API key is not configured")
             return False
 
         try:
@@ -88,17 +91,17 @@ class OllamaCloudInferenceService(InferenceService):
 
             if await self.verify_connection():
                 self.initialized = True
-                self.logger.info(
+                logger.info(
                     "Initialized Ollama Cloud inference service with model %s",
                     self.model,
                 )
                 return True
             else:
-                self.logger.warning("Ollama Cloud connection verification failed")
+                logger.warning("Ollama Cloud connection verification failed")
                 return False
 
         except Exception as exc:
-            self.logger.error(f"Failed to initialize Ollama Cloud client: {exc}")
+            logger.error(f"Failed to initialize Ollama Cloud client: {exc}")
             self.client = None
             return False
 
@@ -111,7 +114,7 @@ class OllamaCloudInferenceService(InferenceService):
         """Verify that the Ollama Cloud credentials and model are valid."""
         try:
             if not self.api_key:
-                self.logger.error("Ollama Cloud API key is not configured")
+                logger.error("Ollama Cloud API key is not configured")
                 return False
                 
             # Use the existing client if available, otherwise create a temporary one
@@ -127,10 +130,10 @@ class OllamaCloudInferenceService(InferenceService):
             try:
                 models = await temp_client.list()
                 if models and hasattr(models, 'models') and models.models:
-                    self.logger.debug("Ollama Cloud connection verified successfully")
+                    logger.debug("Ollama Cloud connection verified successfully")
                     return True
             except Exception as list_exc:
-                self.logger.debug(f"Model list failed, trying chat request: {list_exc}")
+                logger.debug(f"Model list failed, trying chat request: {list_exc}")
                 
                 # Fallback to a minimal chat request
                 await temp_client.chat(
@@ -141,7 +144,7 @@ class OllamaCloudInferenceService(InferenceService):
                 
             return True
         except Exception as exc:
-            self.logger.error("Failed to verify Ollama Cloud connection: %s", exc)
+            logger.error("Failed to verify Ollama Cloud connection: %s", exc)
             return False
         finally:
             if 'temp_client' in locals() and temp_client is not self.client:
@@ -173,7 +176,7 @@ class OllamaCloudInferenceService(InferenceService):
 
             return response.get("message", {}).get("content", "")
         except Exception as exc:
-            self.logger.error("Error generating response with Ollama Cloud: %s", exc)
+            logger.error("Error generating response with Ollama Cloud: %s", exc)
             raise
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
@@ -206,7 +209,7 @@ class OllamaCloudInferenceService(InferenceService):
                 if content:
                     yield content
         except Exception as exc:
-            self.logger.error("Error generating streaming response with Ollama Cloud: %s", exc)
+            logger.error("Error generating streaming response with Ollama Cloud: %s", exc)
             yield f"Error: {exc}"
 
     def _build_options(self, overrides: Dict[str, Any]) -> Dict[str, Any]:

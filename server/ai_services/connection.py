@@ -73,7 +73,7 @@ class ConnectionManager:
                 timeout=timeout
             )
 
-            self.logger.debug(f"Created new HTTP session for {self.base_url}")
+            logger.debug(f"Created new HTTP session for {self.base_url}")
 
         return self.session
 
@@ -82,7 +82,7 @@ class ConnectionManager:
         if self.session and not self.session.closed:
             await self.session.close()
             self.session = None
-            self.logger.debug("Closed HTTP session")
+            logger.debug("Closed HTTP session")
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -175,13 +175,13 @@ class RetryHandler:
 
                 # Don't retry on the last attempt
                 if attempt >= self.max_retries:
-                    self.logger.error(
+                    logger.error(
                         f"{error_message} after {attempt + 1} attempts: {str(e)}"
                     )
                     raise
 
                 wait_time = self._calculate_wait_time(attempt)
-                self.logger.warning(
+                logger.warning(
                     f"{error_message} (attempt {attempt + 1}/{self.max_retries + 1}): {str(e)}. "
                     f"Retrying in {wait_time:.2f}s..."
                 )
@@ -244,7 +244,7 @@ class ConnectionVerifier:
                 error_message="Connection verification failed"
             )
         except Exception as e:
-            self.logger.error(f"Failed to verify HTTP connection: {str(e)}")
+            logger.error(f"Failed to verify HTTP connection: {str(e)}")
             return False
 
     async def verify_api_key(
@@ -274,7 +274,7 @@ class ConnectionVerifier:
                     return 200 <= response.status < 300
 
         except Exception as e:
-            self.logger.error(f"API key verification failed: {str(e)}")
+            logger.error(f"API key verification failed: {str(e)}")
             return False
 
 

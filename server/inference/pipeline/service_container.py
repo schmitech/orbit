@@ -8,6 +8,8 @@ loose coupling between components in the pipeline architecture.
 from typing import Dict, Any, Type, Optional, Callable
 import logging
 
+logger = logging.getLogger(__name__)
+
 class ServiceContainer:
     """
     Dependency injection container for managing services.
@@ -32,7 +34,7 @@ class ServiceContainer:
             instance: The service instance
         """
         self._singletons[name] = instance
-        self.logger.debug(f"Registered singleton service: {name}")
+        logger.debug(f"Registered singleton service: {name}")
     
     def register_factory(self, name: str, factory: Callable) -> None:
         """
@@ -43,7 +45,7 @@ class ServiceContainer:
             factory: A callable that creates service instances
         """
         self._factories[name] = factory
-        self.logger.debug(f"Registered factory for service: {name}")
+        logger.debug(f"Registered factory for service: {name}")
     
     def get(self, name: str) -> Any:
         """
@@ -65,7 +67,7 @@ class ServiceContainer:
         # Create from factory
         if name in self._factories:
             service = self._factories[name]()
-            self.logger.debug(f"Created service from factory: {name}")
+            logger.debug(f"Created service from factory: {name}")
             return service
         
         raise KeyError(f"Service '{name}' not found in container")
@@ -102,7 +104,7 @@ class ServiceContainer:
         self._services.clear()
         self._factories.clear()
         self._singletons.clear()
-        self.logger.debug("Cleared all services from container")
+        logger.debug("Cleared all services from container")
     
     def list_services(self) -> Dict[str, str]:
         """

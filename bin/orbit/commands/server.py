@@ -6,6 +6,7 @@ Handles start, stop, restart, and status commands for the ORBIT server.
 
 import time
 import argparse
+import logging
 from datetime import datetime
 from typing import Any
 from rich.console import Console
@@ -15,6 +16,7 @@ from bin.orbit.commands import BaseCommand
 from bin.orbit.services.server_service import ServerService
 from bin.orbit.utils.output import OutputFormatter
 
+logger = logging.getLogger(__name__)
 console = Console()
 
 

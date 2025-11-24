@@ -60,7 +60,7 @@ class DOCXProcessor(FileProcessor):
             return "\n\n".join(text_parts)
         
         except Exception as e:
-            self.logger.error(f"Error processing DOCX: {e}")
+            logger.error(f"Error processing DOCX: {e}")
             raise
     
     async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:
@@ -84,6 +84,6 @@ class DOCXProcessor(FileProcessor):
             })
         
         except Exception as e:
-            self.logger.warning(f"Error extracting DOCX metadata: {e}")
+            logger.warning(f"Error extracting DOCX metadata: {e}")
         
         return metadata

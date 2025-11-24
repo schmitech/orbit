@@ -6,12 +6,15 @@ the new unified AI services architecture and integrates with existing
 ollama_utils for maximum compatibility.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 import asyncio
 import json
 
 from ..providers import OllamaBaseService
 from ..services import RerankingService
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaRerankingService(RerankingService, OllamaBaseService):
@@ -119,7 +122,7 @@ Scores:"""
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    self.logger.error(f"Ollama API error: {error_text}")
+                    logger.error(f"Ollama API error: {error_text}")
                     raise ValueError(f"Failed to rerank documents: {error_text}")
 
                 data = await response.json()
@@ -158,12 +161,12 @@ Scores:"""
                     if top_n is not None:
                         reranked_docs = reranked_docs[:top_n]
 
-                    self.logger.debug(f"Successfully reranked {len(reranked_docs)} documents")
+                    logger.debug(f"Successfully reranked {len(reranked_docs)} documents")
                     return reranked_docs
 
                 except json.JSONDecodeError as e:
-                    self.logger.error(f"Failed to parse scores from response: {str(e)}")
-                    self.logger.error(f"Raw response: {response_text}")
+                    logger.error(f"Failed to parse scores from response: {str(e)}")
+                    logger.error(f"Raw response: {response_text}")
                     raise ValueError(f"Failed to parse reranking scores: {str(e)}")
 
         try:
@@ -171,7 +174,7 @@ Scores:"""
             return await self.execute_with_retry(_rerank)
 
         except Exception as e:
-            self.logger.error(f"Error in Ollama reranking: {str(e)}")
+            logger.error(f"Error in Ollama reranking: {str(e)}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -190,12 +193,12 @@ Scores:"""
             results = await self.rerank(test_query, test_docs, top_n=1, _skip_init_check=True)
 
             if results and len(results) > 0:
-                self.logger.info("Successfully verified Ollama reranking connection")
+                logger.info("Successfully verified Ollama reranking connection")
                 return True
             else:
-                self.logger.error("Received empty reranking results from Ollama")
+                logger.error("Received empty reranking results from Ollama")
                 return False
 
         except Exception as e:
-            self.logger.error(f"Failed to verify Ollama reranking connection: {str(e)}")
+            logger.error(f"Failed to verify Ollama reranking connection: {str(e)}")
             return False

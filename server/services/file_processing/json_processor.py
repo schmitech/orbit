@@ -41,7 +41,7 @@ class JSONProcessor(FileProcessor):
                 return json.dumps(data, indent=2)
         
         except Exception as e:
-            self.logger.error(f"Error processing JSON: {e}")
+            logger.error(f"Error processing JSON: {e}")
             raise
     
     async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:
@@ -66,6 +66,6 @@ class JSONProcessor(FileProcessor):
             metadata['mime_type'] = 'application/json'
         
         except Exception as e:
-            self.logger.warning(f"Error extracting JSON metadata: {e}")
+            logger.warning(f"Error extracting JSON metadata: {e}")
         
         return metadata

@@ -11,11 +11,14 @@ Supported models:
 - And any sentence-transformers compatible model
 """
 
+import logging
 from typing import List, Dict, Any
 import asyncio
 
 from ..providers import SentenceTransformersBaseService
 from ..services import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 
 class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformersBaseService):
@@ -100,7 +103,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
 
             # Verify dimensions if configured
             if self.dimensions and len(embedding_list) != self.dimensions:
-                self.logger.warning(
+                logger.warning(
                     f"Expected {self.dimensions} dimensions but got {len(embedding_list)}"
                 )
 
@@ -138,7 +141,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
                 async with session.post(url, headers=headers, json=payload) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        self.logger.error(f"Error from Hugging Face API: {error_text}")
+                        logger.error(f"Error from Hugging Face API: {error_text}")
                         raise ValueError(f"Failed to get embeddings: {error_text}")
 
                     # HF API returns the embedding directly as array
@@ -216,12 +219,12 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
 
                 # Log progress for large batches
                 if len(texts) > 50 and (i + self.batch_size) % 50 == 0:
-                    self.logger.debug(
+                    logger.debug(
                         f"Processed {min(i + self.batch_size, len(texts))}/{len(texts)} documents"
                     )
 
             except Exception as e:
-                self.logger.error(f"Batch processing failed at index {i}: {e}")
+                logger.error(f"Batch processing failed at index {i}: {e}")
 
                 # Fall back to individual processing for this batch
                 for text in batch:
@@ -229,7 +232,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
                         embedding = await self._embed_query_local(text)
                         all_embeddings.append(embedding)
                     except Exception as e:
-                        self.logger.error(f"Failed to embed document: {e}")
+                        logger.error(f"Failed to embed document: {e}")
                         # Use zero vector as fallback
                         fallback_dims = self.dimensions or 768
                         all_embeddings.append([0.0] * fallback_dims)
@@ -260,12 +263,12 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
                 # Handle any exceptions in the batch
                 for j, result in enumerate(batch_embeddings):
                     if isinstance(result, Exception):
-                        self.logger.error(f"Failed to embed document {i+j}: {result}")
+                        logger.error(f"Failed to embed document {i+j}: {result}")
                         # Retry individually for failed embeddings
                         try:
                             result = await self._embed_query_remote(batch[j])
                         except Exception as e:
-                            self.logger.error(f"Retry failed for document {i+j}: {e}")
+                            logger.error(f"Retry failed for document {i+j}: {e}")
                             # Use zero vector as fallback
                             fallback_dims = self.dimensions or 768
                             result = [0.0] * fallback_dims
@@ -274,19 +277,19 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
 
                 # Log progress for large batches
                 if len(texts) > 50 and (i + self.batch_size) % 50 == 0:
-                    self.logger.debug(
+                    logger.debug(
                         f"Processed {min(i + self.batch_size, len(texts))}/{len(texts)} documents"
                     )
 
             except Exception as e:
-                self.logger.error(f"Batch processing failed: {e}")
+                logger.error(f"Batch processing failed: {e}")
                 # Fall back to sequential processing
                 for text in batch:
                     try:
                         embedding = await self._embed_query_remote(text)
                         all_embeddings.append(embedding)
                     except Exception as e:
-                        self.logger.error(f"Failed to embed document: {e}")
+                        logger.error(f"Failed to embed document: {e}")
                         fallback_dims = self.dimensions or 768
                         all_embeddings.append([0.0] * fallback_dims)
 
@@ -309,10 +312,10 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
             self.dimensions = len(test_embedding)
             return self.dimensions
         except Exception as e:
-            self.logger.error(f"Failed to determine dimensions: {str(e)}")
+            logger.error(f"Failed to determine dimensions: {str(e)}")
             # Use a reasonable fallback based on common models
             fallback = 768
-            self.logger.warning(f"Using fallback dimensions: {fallback}")
+            logger.warning(f"Using fallback dimensions: {fallback}")
             self.dimensions = fallback
             return fallback
 

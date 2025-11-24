@@ -8,6 +8,8 @@ import logging
 from typing import Dict, Any
 from ..base import PipelineStep, ProcessingContext
 
+logger = logging.getLogger(__name__)
+
 class SafetyFilterStep(PipelineStep):
     """
     Check message safety using guardrail service.
@@ -39,7 +41,7 @@ class SafetyFilterStep(PipelineStep):
         if context.is_blocked:
             return context
         
-        self.logger.debug(f"Checking safety for message: {context.message[:100]}...")
+        logger.debug(f"Checking safety for message: {context.message[:100]}...")
         
         # Check with LLM Guard service first if available
         if self.container.has('llm_guard_service'):
@@ -47,7 +49,7 @@ class SafetyFilterStep(PipelineStep):
                 llm_guard = self.container.get('llm_guard_service')
 
                 # Log the message being checked for debugging
-                self.logger.debug(f"LLM Guard checking message: '{context.message[:100]}...'")
+                logger.debug(f"LLM Guard checking message: '{context.message[:100]}...'")
 
                 # Prepare metadata for the security check
                 metadata = {}
@@ -63,23 +65,23 @@ class SafetyFilterStep(PipelineStep):
                 )
 
                 # Log the full result for debugging
-                self.logger.debug(f"LLM Guard result: is_safe={security_result.get('is_safe', True)}, "
+                logger.debug(f"LLM Guard result: is_safe={security_result.get('is_safe', True)}, "
                                 f"flagged={security_result.get('flagged_scanners', [])}, "
                                 f"scores={security_result.get('scanner_scores', {})}")
 
                 # Log the FULL raw response to see what the API is actually returning
-                self.logger.debug(f"LLM Guard RAW response: {security_result}")
+                logger.debug(f"LLM Guard RAW response: {security_result}")
 
                 if not security_result.get("is_safe", True):
-                    self.logger.warning(f"Message blocked by LLM Guard: {security_result.get('flagged_scanners', [])} "
+                    logger.warning(f"Message blocked by LLM Guard: {security_result.get('flagged_scanners', [])} "
                                       f"for message: '{context.message[:50]}...'")
                     context.set_error("Message blocked by security scanner", block=True)
                     return context
                 else:
-                    self.logger.debug(f"LLM Guard passed message: '{context.message[:50]}...'")
+                    logger.debug(f"LLM Guard passed message: '{context.message[:50]}...'")
 
             except Exception as e:
-                self.logger.error(f"Error during LLM Guard check: {str(e)}", exc_info=True)
+                logger.error(f"Error during LLM Guard check: {str(e)}", exc_info=True)
                 # Continue with other checks on error
         
         # Check with Moderator Service if available
@@ -88,21 +90,21 @@ class SafetyFilterStep(PipelineStep):
                 moderator = self.container.get('moderator_service')
 
                 # Log the message being checked
-                self.logger.debug(f"Moderator checking message: '{context.message[:100]}...'")
+                logger.debug(f"Moderator checking message: '{context.message[:100]}...'")
 
                 is_safe, refusal_message = await moderator.check_safety(context.message)
 
                 if not is_safe:
-                    self.logger.warning(f"Message blocked by Moderator Service: {refusal_message} "
+                    logger.warning(f"Message blocked by Moderator Service: {refusal_message} "
                                       f"for message: '{context.message[:50]}...'")
                     context.set_error("Message blocked by content moderator", block=True)
                     return context
                 else:
-                    self.logger.debug(f"Moderator passed message: '{context.message[:50]}...'")
+                    logger.debug(f"Moderator passed message: '{context.message[:50]}...'")
 
             except Exception as e:
-                self.logger.error(f"Error during Moderator Service check: {str(e)}", exc_info=True)
+                logger.error(f"Error during Moderator Service check: {str(e)}", exc_info=True)
                 # Continue processing on error
         
-        self.logger.debug("Message passed safety checks")
+        logger.debug("Message passed safety checks")
         return context 

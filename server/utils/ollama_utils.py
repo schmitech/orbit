@@ -11,6 +11,8 @@ import aiohttp
 from typing import Dict, Any, Optional, Callable, TypeVar, Union
 from functools import wraps
 
+logger = logging.getLogger(__name__)
+
 T = TypeVar('T')
 
 class OllamaConfig:
@@ -121,9 +123,9 @@ class OllamaSessionManager:
         try:
             if self.session and not self.session.closed:
                 await self.session.close()
-                self.logger.debug("Closed aiohttp session")
+                logger.debug("Closed aiohttp session")
         except Exception as e:
-            self.logger.error(f"Error closing session: {str(e)}")
+            logger.error(f"Error closing session: {str(e)}")
         finally:
             self.session = None
 
@@ -178,13 +180,13 @@ class OllamaRetryHandler:
                     ) / 1000  # Convert to seconds
                     
                     if attempt < self.config.max_retries - 1:
-                        self.logger.warning(
+                        logger.warning(
                             f"Request attempt {attempt + 1}/{self.config.max_retries} failed: {str(e)}. "
                             f"Retrying in {wait_time:.1f}s..."
                         )
                         await asyncio.sleep(wait_time)
                     else:
-                        self.logger.error(f"Request failed after {self.config.max_retries} attempts")
+                        logger.error(f"Request failed after {self.config.max_retries} attempts")
                         raise last_exception
                 else:
                     # Non-retryable error
@@ -234,7 +236,7 @@ class OllamaModelWarmer:
         if not self.retry_handler.config.retry_enabled:
             return True
         
-        self.logger.info(f"Warming up Ollama model {self.model}...")
+        logger.info(f"Warming up Ollama model {self.model}...")
         
         for attempt in range(self.retry_handler.config.max_retries):
             try:
@@ -270,10 +272,10 @@ class OllamaModelWarmer:
                         data = await response.json()
                         # Verify we got a valid response
                         if endpoint == "embeddings" and data.get('embedding'):
-                            self.logger.info(f"Model {self.model} warmed up successfully")
+                            logger.info(f"Model {self.model} warmed up successfully")
                             return True
                         elif endpoint in ["generate", "chat"] and (data.get('response') or data.get('message')):
-                            self.logger.info(f"Model {self.model} warmed up successfully")
+                            logger.info(f"Model {self.model} warmed up successfully")
                             return True
                     else:
                         raise Exception(f"Warmup failed with status {response.status}")
@@ -285,13 +287,13 @@ class OllamaModelWarmer:
                 ) / 1000  # Convert to seconds
                 
                 if attempt < self.retry_handler.config.max_retries - 1:
-                    self.logger.warning(
+                    logger.warning(
                         f"Model warmup attempt {attempt + 1}/{self.retry_handler.config.max_retries} failed: {str(e)}. "
                         f"Retrying in {wait_time:.1f}s..."
                     )
                     await asyncio.sleep(wait_time)
                 else:
-                    self.logger.warning(f"Model warmup failed after {self.retry_handler.config.max_retries} attempts")
+                    logger.warning(f"Model warmup failed after {self.retry_handler.config.max_retries} attempts")
                     return False
         
         return False
@@ -331,18 +333,18 @@ class OllamaConnectionVerifier:
             session = await self.session_manager.get_session()
             url = f"{self.base_url}/api/tags"
             
-            self.logger.info(f"Verifying connection to Ollama at {self.base_url}")
+            logger.info(f"Verifying connection to Ollama at {self.base_url}")
             
             async with session.get(url) as response:
                 if response.status != 200:
-                    self.logger.error(f"Failed to connect to Ollama: {response.status}")
+                    logger.error(f"Failed to connect to Ollama: {response.status}")
                     return False
                 
                 if check_model:
                     data = await response.json()
                     models = [model.get('name') for model in data.get('models', [])]
                     
-                    self.logger.info(f"Available models in Ollama: {models}")
+                    logger.info(f"Available models in Ollama: {models}")
                     
                     model_found = any(
                         m.startswith(self.model) or  # Exact match or starts with our model name
@@ -351,18 +353,18 @@ class OllamaConnectionVerifier:
                     )
                     
                     if not model_found:
-                        self.logger.warning(
+                        logger.warning(
                             f"Model {self.model} not found in Ollama. "
                             f"Available models: {models}"
                         )
-                        self.logger.warning(f"Please pull the model with: ollama pull {self.model}")
+                        logger.warning(f"Please pull the model with: ollama pull {self.model}")
                         return False
                 
-                self.logger.info(f"Successfully verified connection to Ollama with model {self.model}")
+                logger.info(f"Successfully verified connection to Ollama with model {self.model}")
                 return True
                 
         except Exception as e:
-            self.logger.error(f"Error verifying connection to Ollama: {str(e)}")
+            logger.error(f"Error verifying connection to Ollama: {str(e)}")
             return False
 
 
@@ -431,7 +433,7 @@ class OllamaBaseService:
             
             # Check if we're already in the process of initializing
             if self._initializing:
-                self.logger.debug("Already initializing, waiting for completion")
+                logger.debug("Already initializing, waiting for completion")
                 return self.initialized
             
             self._initializing = True
@@ -445,12 +447,12 @@ class OllamaBaseService:
                 
                 # Check if the model is available
                 if await self.connection_verifier.verify_connection():
-                    self.logger.info(f"Initialized {self.__class__.__name__} with model {self.config.model}")
+                    logger.info(f"Initialized {self.__class__.__name__} with model {self.config.model}")
                     self.initialized = True
                     return True
                 return False
             except Exception as e:
-                self.logger.error(f"Failed to initialize {self.__class__.__name__}: {str(e)}")
+                logger.error(f"Failed to initialize {self.__class__.__name__}: {str(e)}")
                 await self.close()
                 return False
             finally:
@@ -460,9 +462,9 @@ class OllamaBaseService:
         """Close the service and release any resources."""
         try:
             await self.session_manager.close()
-            self.logger.debug(f"Closed {self.__class__.__name__}")
+            logger.debug(f"Closed {self.__class__.__name__}")
         except Exception as e:
-            self.logger.error(f"Error closing {self.__class__.__name__}: {str(e)}")
+            logger.error(f"Error closing {self.__class__.__name__}: {str(e)}")
         finally:
             self.initialized = False
             self._initializing = False
