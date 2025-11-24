@@ -87,11 +87,20 @@ class CohereBaseService(ProviderAIService):
         # Get endpoint
         self.endpoint = self._get_endpoint("/v1/embed")  # Default
 
-        # Initialize Cohere client
-        self.client = cohere.AsyncClient(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        # Initialize Cohere client - use ClientV2 if base_url contains '/v2'
+        if '/v2' in self.base_url:
+            logger.debug("Using Cohere AsyncClientV2 for v2 API")
+            self.client = cohere.AsyncClientV2(
+                api_key=self.api_key
+            )
+            self.api_version = 'v2'
+        else:
+            logger.debug("Using Cohere AsyncClient for v1 API")
+            self.client = cohere.AsyncClient(
+                api_key=self.api_key,
+                base_url=self.base_url
+            )
+            self.api_version = 'v1'
 
         # Setup connection manager for additional HTTP operations
         self.connection_manager = ConnectionManager(

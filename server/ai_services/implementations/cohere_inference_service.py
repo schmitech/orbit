@@ -54,16 +54,38 @@ class CohereInferenceService(InferenceService, CohereBaseService):
             await self.initialize()
 
         try:
-            response = await self.client.chat(
-                model=self.model,
-                message=prompt,
-                temperature=kwargs.get('temperature', self.temperature),
-                max_tokens=kwargs.get('max_tokens', self.max_tokens),
-                p=kwargs.get('top_p', self.top_p),
-                **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens', 'top_p', 'messages']}
-            )
+            # Check API version and use appropriate format
+            if hasattr(self, 'api_version') and self.api_version == 'v2':
+                # v2 API uses messages format
+                messages = kwargs.pop('messages', None)
 
-            return response.text
+                if messages is None:
+                    # Traditional format - convert to messages
+                    messages = [{"role": "user", "content": prompt}]
+
+                response = await self.client.chat(
+                    model=self.model,
+                    messages=messages,
+                    temperature=kwargs.get('temperature', self.temperature),
+                    max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                    p=kwargs.get('top_p', self.top_p),
+                    **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens', 'top_p']}
+                )
+
+                # v2 API response structure: message.content is an array
+                return response.message.content[0].text
+            else:
+                # v1 API uses message (singular) format
+                response = await self.client.chat(
+                    model=self.model,
+                    message=prompt,
+                    temperature=kwargs.get('temperature', self.temperature),
+                    max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                    p=kwargs.get('top_p', self.top_p),
+                    **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens', 'top_p', 'messages']}
+                )
+
+                return response.text
 
         except Exception as e:
             self._handle_cohere_error(e, "text generation")
@@ -75,18 +97,41 @@ class CohereInferenceService(InferenceService, CohereBaseService):
             await self.initialize()
 
         try:
-            stream = self.client.chat_stream(
-                model=self.model,
-                message=prompt,
-                temperature=kwargs.get('temperature', self.temperature),
-                max_tokens=kwargs.get('max_tokens', self.max_tokens),
-                p=kwargs.get('top_p', self.top_p),
-                **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens', 'top_p', 'stream', 'messages']}
-            )
+            # Check API version and use appropriate format
+            if hasattr(self, 'api_version') and self.api_version == 'v2':
+                # v2 API uses messages format
+                messages = kwargs.pop('messages', None)
 
-            async for chunk in stream:
-                if chunk.event_type == "text-generation":
-                    yield chunk.text
+                if messages is None:
+                    # Traditional format - convert to messages
+                    messages = [{"role": "user", "content": prompt}]
+
+                stream = self.client.chat_stream(
+                    model=self.model,
+                    messages=messages,
+                    temperature=kwargs.get('temperature', self.temperature),
+                    max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                    p=kwargs.get('top_p', self.top_p),
+                    **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens', 'top_p', 'stream']}
+                )
+
+                async for event in stream:
+                    if event.type == "content-delta":
+                        yield event.delta.message.content.text
+            else:
+                # v1 API uses message (singular) format
+                stream = self.client.chat_stream(
+                    model=self.model,
+                    message=prompt,
+                    temperature=kwargs.get('temperature', self.temperature),
+                    max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                    p=kwargs.get('top_p', self.top_p),
+                    **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens', 'top_p', 'stream', 'messages']}
+                )
+
+                async for chunk in stream:
+                    if chunk.event_type == "text-generation":
+                        yield chunk.text
 
         except Exception as e:
             self._handle_cohere_error(e, "streaming generation")
