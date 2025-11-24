@@ -12,6 +12,7 @@ import subprocess
 import time
 import logging
 import shutil
+import yaml
 from pathlib import Path
 from typing import Any, Dict, Optional
 import psutil
@@ -123,6 +124,12 @@ class ServerService:
         Returns:
             True if the server was started successfully, False otherwise
         """
+        # Update API client URL based on config or provided port
+        # This ensures we check the correct port when determining if server is running
+        config_port = port if port else self._get_port_from_config(config_path)
+        if config_port:
+            self._update_api_client_url(config_port)
+        
         # Check if server is already running via HTTP
         if self.is_running():
             info = self.get_server_info()
@@ -295,6 +302,11 @@ class ServerService:
         Returns:
             True if the server was stopped successfully, False otherwise
         """
+        # Update API client URL based on config to ensure we check the correct port
+        config_port = self._get_port_from_config()
+        if config_port:
+            self._update_api_client_url(config_port)
+        
         # Check if server is running via HTTP
         if not self.is_running():
             self.formatter.info("Server is not running")
@@ -522,6 +534,93 @@ class ServerService:
                 self.formatter.error(f"Error stopping server: {e}")
                 return False
     
+    def _get_port_from_config(self, config_path: Optional[str] = None) -> Optional[int]:
+        """
+        Read the port from the server's config.yaml file.
+        
+        Args:
+            config_path: Optional path to the configuration file
+            
+        Returns:
+            Port number if found, None otherwise
+        """
+        # Determine config file path
+        if config_path:
+            if not os.path.isabs(config_path):
+                config_path = str(self.project_root / config_path)
+        else:
+            # Try to find config file in common locations
+            possible_configs = [
+                self.project_root / "config" / "config.yaml",
+                self.project_root / "server" / "config.yaml",
+                self.project_root / "config.yaml"
+            ]
+            for config in possible_configs:
+                if config.exists():
+                    config_path = str(config)
+                    break
+        
+        if not config_path or not os.path.exists(config_path):
+            return None
+        
+        try:
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Check for port in general.port
+            port = config.get('general', {}).get('port')
+            if port:
+                return int(port)
+            
+            # Check for HTTPS port if HTTPS is enabled
+            https_config = config.get('general', {}).get('https', {})
+            if https_config.get('enabled'):
+                https_port = https_config.get('port')
+                if https_port:
+                    return int(https_port)
+            
+        except Exception as e:
+            logger.debug(f"Failed to read port from config: {e}")
+        
+        return None
+    
+    def _update_api_client_url(self, port: Optional[int] = None) -> None:
+        """
+        Update the API client URL to use the correct port.
+        
+        Args:
+            port: Port number to use (if None, tries to read from config)
+        """
+        if port is None:
+            port = self._get_port_from_config()
+        
+        if port:
+            # Extract host from current URL
+            current_url = self.api_client.server_url
+            try:
+                # Parse the URL to extract protocol and host
+                if '://' in current_url:
+                    parts = current_url.split('://', 1)
+                    protocol = parts[0]
+                    # Remove any path and get just the host:port part
+                    host_port = parts[1].split('/')[0]
+                    # Extract host (remove port if present)
+                    if ':' in host_port:
+                        host = host_port.split(':')[0]
+                    else:
+                        host = host_port
+                    new_url = f"{protocol}://{host}:{port}"
+                else:
+                    # Fallback if URL format is unexpected
+                    new_url = f"http://localhost:{port}"
+            except Exception as e:
+                logger.debug(f"Error parsing URL, using default: {e}")
+                new_url = f"http://localhost:{port}"
+            
+            # Update API client URL
+            self.api_client.server_url = new_url
+            logger.debug(f"Updated API client URL to: {new_url}")
+    
     def restart(
         self,
         config_path: Optional[str] = None,
@@ -543,6 +642,12 @@ class ServerService:
         """
         self.formatter.info("Restarting server...")
         
+        # Update API client URL based on config or provided port
+        # This ensures we check the correct port when determining if server is running
+        config_port = self._get_port_from_config(config_path) if not port else port
+        if config_port:
+            self._update_api_client_url(config_port)
+        
         # Stop the server if it's running
         if self.is_running():
             if not self.stop(delete_logs=delete_logs):
@@ -562,6 +667,11 @@ class ServerService:
         Returns:
             A dictionary containing status information
         """
+        # Update API client URL based on config to ensure we check the correct port
+        config_port = self._get_port_from_config()
+        if config_port:
+            self._update_api_client_url(config_port)
+        
         if not self.is_running():
             return {
                 "status": "stopped",
