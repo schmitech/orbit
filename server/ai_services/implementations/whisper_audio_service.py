@@ -2,10 +2,7 @@
 Direct Whisper audio service implementation using OpenAI's open-source Whisper.
 
 This implementation provides local, offline speech-to-text using the Whisper model
-import logging
 from https://github.com/openai/whisper
-
-logger = logging.getLogger(__name__)
 
 Installation:
     pip install openai-whisper
@@ -16,6 +13,7 @@ Installation:
     pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 """
 
+import logging
 from typing import Dict, Any, Optional, Union
 import tempfile
 import os
@@ -30,6 +28,8 @@ except ImportError:
 
 from ..base import ProviderAIService, ServiceType
 from ..services import AudioService
+
+logger = logging.getLogger(__name__)
 
 
 class WhisperAudioService(AudioService, ProviderAIService):
