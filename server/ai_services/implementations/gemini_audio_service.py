@@ -300,7 +300,15 @@ class GeminiAudioService(AudioService, GoogleBaseService):
             audio_data = self._prepare_audio(audio)
 
             # Get audio format (MIME type)
-            audio_format = self._get_audio_format(audio) if isinstance(audio, str) else 'wav'
+            if isinstance(audio, str):
+                audio_format = self._get_audio_format(audio)
+            else:
+                # Raw bytes - assume raw PCM and wrap in WAV format
+                # WebSocket clients send raw 16-bit PCM at 24kHz
+                logger.debug(f"Wrapping raw PCM audio ({len(audio_data)} bytes) in WAV format for Gemini STT")
+                audio_data = self._wrap_in_wav(audio_data, sample_rate=24000)
+                audio_format = 'wav'
+
             mime_type = f"audio/{audio_format}"
 
             # Initialize model

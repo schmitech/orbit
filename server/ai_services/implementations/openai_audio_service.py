@@ -7,6 +7,7 @@ for speech-to-text and TTS-1 API for text-to-speech.
 
 from typing import Dict, Any, Optional, Union
 from io import BytesIO
+import wave
 
 from ..base import ServiceType
 from ..providers import OpenAIBaseService
@@ -88,6 +89,33 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
             self._handle_openai_error(e, "text-to-speech")
             raise
 
+    def _wrap_in_wav(self, pcm_bytes: bytes, sample_rate: int = 24000) -> bytes:
+        """
+        Wrap raw PCM bytes in WAV format.
+
+        WebSocket clients send raw 16-bit PCM audio at 24kHz.
+        This method wraps it in a proper WAV container for OpenAI Whisper API.
+
+        Args:
+            pcm_bytes: Raw 16-bit PCM audio data
+            sample_rate: Sample rate in Hz (default: 24000 for WebSocket clients)
+
+        Returns:
+            WAV file as bytes
+        """
+        num_channels = 1  # Mono
+        sample_width = 2  # 16-bit = 2 bytes
+
+        wav_buffer = BytesIO()
+        with wave.open(wav_buffer, 'wb') as wav_file:
+            wav_file.setnchannels(num_channels)
+            wav_file.setsampwidth(sample_width)
+            wav_file.setframerate(sample_rate)
+            wav_file.writeframes(pcm_bytes)
+
+        wav_buffer.seek(0)
+        return wav_buffer.read()
+
     async def speech_to_text(
         self,
         audio: Union[str, bytes],
@@ -101,9 +129,18 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
         try:
             # Prepare audio data
             audio_data = self._prepare_audio(audio)
-            
+
             # Get audio format
-            audio_format = self._get_audio_format(audio) if isinstance(audio, str) else 'mp3'
+            if isinstance(audio, str):
+                audio_format = self._get_audio_format(audio)
+            else:
+                # Raw bytes - assume raw PCM and wrap in WAV format
+                # WebSocket clients send raw 16-bit PCM at 24kHz
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Wrapping raw PCM audio ({len(audio_data)} bytes) in WAV format for OpenAI Whisper")
+                audio_data = self._wrap_in_wav(audio_data, sample_rate=24000)
+                audio_format = 'wav'
 
             # Create file-like object for OpenAI API
             audio_file = BytesIO(audio_data)

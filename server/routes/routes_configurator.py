@@ -570,5 +570,13 @@ class RouteConfigurator:
             logger.info("File routes registered")
         except Exception as e:
             logger.warning(f"Failed to register file routes: {e}")
+
+        # Include voice routes for real-time voice conversations
+        try:
+            from routes.voice_routes import router as voice_router
+            app.include_router(voice_router)
+            logger.info("Voice routes registered")
+        except Exception as e:
+            logger.warning(f"Failed to register voice routes: {e}")
     
     

@@ -401,6 +401,52 @@ class StreamingHandler:
             })
             yield f"data: {error_chunk}\n\n", state
 
+    async def process_stream_raw(
+        self,
+        pipeline_stream: AsyncIterator,
+        adapter_name: str,
+        tts_voice: Optional[str] = None,
+        language: Optional[str] = None,
+        return_audio: bool = False
+    ) -> AsyncIterator[Tuple[Dict[str, Any], StreamingState]]:
+        """
+        Process the pipeline stream, yielding structured data (no SSE formatting).
+
+        This method is intended for internal/WebSocket use where SSE formatting
+        is not needed. It yields raw dictionaries instead of formatted strings.
+
+        Args:
+            pipeline_stream: Async iterator of pipeline chunks
+            adapter_name: Adapter name for audio provider
+            tts_voice: Optional TTS voice
+            language: Optional language code
+            return_audio: Whether to generate streaming audio
+
+        Yields:
+            Tuple of (chunk_dict, streaming_state)
+        """
+        # Process through the existing method and parse the SSE format
+        async for formatted_chunk, state in self.process_stream(
+            pipeline_stream=pipeline_stream,
+            adapter_name=adapter_name,
+            tts_voice=tts_voice,
+            language=language,
+            return_audio=return_audio
+        ):
+            # Parse SSE format: "data: {...}\n\n"
+            if formatted_chunk.startswith("data: "):
+                chunk_json = formatted_chunk[6:].strip()
+                try:
+                    chunk_data = json.loads(chunk_json)
+                    yield chunk_data, state
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse chunk JSON: {chunk_json[:100]}")
+                    continue
+            else:
+                # Unexpected format, skip
+                logger.warning(f"Unexpected chunk format: {formatted_chunk[:100]}")
+                continue
+
     async def generate_remaining_audio(
         self,
         state: StreamingState,

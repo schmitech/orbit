@@ -13,7 +13,7 @@ adapters:
     model: "gpt-oss:120b"
     
     # Provider overrides
-    audio_provider: "openai"    # Use OpenAI Whisper for transcription
+    audio_provider: "gemini"    # Use Gemini for transcription (changed from openai)
     embedding_provider: "openai"
     
     # Capabilities: Audio file transcription
@@ -73,7 +73,7 @@ adapters:
     # Provider overrides
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    audio_provider: "openai"  # For both STT and TTS
+    audio_provider: "elevenlabs"  # For both STT and TTS
     
     # Capabilities: Voice-enabled chat
     capabilities:
@@ -95,8 +95,8 @@ adapters:
       audio_input_enabled: true
       audio_output_enabled: true
       stt_language: "en-US"     # Default language for speech-to-text
-      tts_voice: "alloy"        # Default voice for text-to-speech
-      tts_format: "mp3"         # Default output format
+      # tts_voice: "despina"      # Default voice
+      tts_format: "wav"         # Default output format (Gemini uses wav)
       return_text: true         # Also return text alongside audio
       return_audio: true        # Return audio response
 
@@ -111,7 +111,7 @@ adapters:
     # Provider overrides
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    audio_provider: "openai"  # Google supports many languages
+    audio_provider: "gemini"
     
     # Capabilities: Multilingual voice assistant
     capabilities:
@@ -179,7 +179,7 @@ adapters:
     config:
       # ElevenLabs TTS settings
       tts_model: "eleven_multilingual_v2"
-      tts_voice: "EXAVITQu4vr4xnSDxMaL"  # Default voice (Sarah)
+      tts_voice: "5opxviIE64D8KxYYJKpx"
       tts_format: "mp3_44100_128"
       tts_stability: 0.5
       tts_similarity_boost: 0.75
@@ -234,7 +234,7 @@ adapters:
   # Text input → High-quality audio output using Coqui TTS models
   # Runs completely locally - perfect for privacy-focused applications
   - name: "coqui-voice-chat"
-    enabled: true
+    enabled: false
     type: "passthrough"
     datasource: "none"
     adapter: "conversational"
@@ -280,7 +280,7 @@ adapters:
   # Complete voice-to-voice conversation using only open-source models
   # Perfect for: privacy, offline use, cost optimization, self-hosted deployments
   - name: "local-voice-chat-coqui-whisper"
-    enabled: true
+    enabled: false
     type: "passthrough"
     datasource: "none"
     adapter: "conversational"
@@ -382,3 +382,68 @@ adapters:
       # - TTS: Free (local Coqui)
       # - LLM: Pay only for cloud inference
       # - Typical savings: 70-90% vs full cloud pipeline
+
+  # Real-time voice chat - WebSocket-based bidirectional audio streaming
+  # Enables phone call-like conversations with AI using mixed audio providers
+  # Best for: Interactive voice assistants, customer service bots, voice-controlled apps
+  - name: "real-time-voice-chat"
+    enabled: false
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+
+    # Provider overrides
+    inference_provider: "gemini"
+    model: "gemini-3-pro-preview"
+
+    # Audio providers - separate STT and TTS for flexibility
+    stt_provider: "whisper"      # OpenAI Whisper for speech-to-text (reliable transcription)
+    audio_provider: "elevenlabs"  # ElevenLabs or vLLM
+    tts_provider: "elevenlabs"  # Explicit TTS provider (same as audio_provider)
+    # Alternative STT providers: "whisper" (local, free), "google", "gemini"
+
+    # Capabilities: Real-time WebSocket audio streaming
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      supports_interruption: true       # NEW: Supports user interruptions
+      supports_realtime_audio: true     # NEW: Supports WebSocket audio streaming
+      optional_parameters:
+        - "session_id"
+        - "user_id"
+
+    config:
+      # WebSocket settings
+      websocket_enabled: true
+      audio_chunk_size_ms: 100          # Audio chunk size in milliseconds
+      silence_threshold: 0.01           # VAD silence threshold
+      min_speech_duration_ms: 300       # Minimum speech duration to process
+      max_speech_duration_ms: 10000     # Maximum speech duration before forced processing
+      silence_duration_ms: 500          # Silence duration to trigger speech end detection
+
+      # Interruption settings
+      enable_interruption: false
+      interruption_timeout_ms: 500      # Time to wait for interruption
+
+      # Audio settings (uses adapter's stt_provider and audio_provider)
+      audio_input_enabled: true
+      audio_output_enabled: true
+      stt_language: "en"                # Language for speech-to-text (Gemini)
+      tts_voice: "pNInz6obpgDQGcFmaJgB"
+      # Popular ElevenLabs voices: pNInz6obpgDQGcFmaJgB (Adam), EXAVITQu4vr4xnSDxMaL (Bella),
+      #                           21m00Tcm4TlvDq8ikWAM (Rachel), AZnzlk1XvdvUeBnXmlld (Domi)
+      tts_format: "mp3_44100_128"       # ElevenLabs format (was "wav" for Gemini)
+      return_text: false                # WebSocket mode - audio only
+      return_audio: true
+
+      # Performance settings
+      max_concurrent_audio_tasks: 4     # Parallel TTS generation
+      audio_timeout_seconds: 45         # Timeout for audio generation
+
+      # Connection settings
+      max_connection_duration_seconds: 3600  # 1 hour max session
+      ping_interval_seconds: 30         # WebSocket keepalive ping interval
