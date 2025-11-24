@@ -489,16 +489,13 @@ templates:
     endpoint: "/{index}/_search"
 
     query_dsl: |
-      {% set slow_response_field = response_time_field | default("response_time") %}
-      {% set slow_min_response = min_response_time | default(1000) %}
-      {% set slow_max_response = max_response_time | default(None, true) %}
       {
         "query": {
           "bool": {
             "must": [
               {
                 "exists": {
-                  "field": "{{slow_response_field}}"
+                  "field": "{% if response_time_field %}{{response_time_field}}{% else %}response_time{% endif %}"
                 }
               }
             ],
@@ -513,10 +510,10 @@ templates:
               },
               {
                 "range": {
-                  "{{slow_response_field}}": {
-                    "gte": {{slow_min_response}}
-                    {% if slow_max_response is not none %}
-                    ,"lte": {{slow_max_response}}
+                  "{% if response_time_field %}{{response_time_field}}{% else %}response_time{% endif %}": {
+                    "gte": {% if min_response_time %}{{min_response_time}}{% else %}1000{% endif %}
+                    {% if max_response_time %}
+                    ,"lte": {{max_response_time}}
                     {% endif %}
                   }
                 }
@@ -541,12 +538,12 @@ templates:
         "size": {{limit}},
         "sort": [
           {
-            "{{slow_response_field}}": {
+            "{% if response_time_field %}{{response_time_field}}{% else %}response_time{% endif %}": {
               "order": "desc"
             }
           }
         ],
-        "_source": ["timestamp", "service_name", "endpoint", "{{slow_response_field}}", "status_code", "user_id", "request_id"]
+        "_source": ["timestamp", "service_name", "endpoint", "{% if response_time_field %}{{response_time_field}}{% else %}response_time{% endif %}", "status_code", "user_id", "request_id"]
       }
 
     parameters:
