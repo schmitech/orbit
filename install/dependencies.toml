@@ -20,7 +20,7 @@ dependencies = [
     "pydantic>=2.12.3",
     "jinja2>=3.1.6",
     "PyYAML>=6.0.2",
-    "fastapi>=0.119.0",
+    "fastapi>=0.122.0",
     "uvicorn==0.38.0",
     "python-dotenv==1.0.1",
     "requests==2.32.5",
@@ -36,13 +36,13 @@ dependencies = [
     "toml>=0.10.2",
     "rich>=14.1.0",
     "environs>=14.3.0",
-    "prometheus-client>=0.22.1",
+    "prometheus-client>=0.23.1",
     "opentelemetry-proto==1.28.0",
     "schmitech-orbit-client==1.1.4",
     "tqdm>=4.66.2",
-    "pymongo>=4.13.0",
-    "redis>=6.2.0",  # Redis support for caching and sessions
-    "elasticsearch==9.1.1",  # Elasticsearch support for intent adapters
+    "pymongo>=4.15.4",
+    "redis>=7.1.0",  # Redis support for caching and sessions
+    "elasticsearch==9.2.0",  # Elasticsearch support for intent adapters
 ]
 
 # ============================================================================
@@ -82,7 +82,7 @@ description = "Ollama local inference support"
 dependencies = [
     "ollama==0.6.0",
     "langchain-ollama>=1.0.0",
-    "langchain-community>=0.4",
+    "langchain-community>=0.4.1",
 ]
 
 # ============================================================================
@@ -91,7 +91,7 @@ dependencies = [
 [profiles.vector-stores]
 description = "Vector store backends (ChromaDB, Pinecone, Qdrant, etc.)"
 dependencies = [
-    "chromadb>=1.2.0",
+    "chromadb>=1.3.5",
     "pinecone>=7.3.0",
     "qdrant-client>=1.16.0",
     "faiss-cpu==1.12.0",
