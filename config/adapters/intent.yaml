@@ -491,3 +491,57 @@ adapters:
       recovery_timeout: 60.0
       max_retries: 3
       retry_delay: 1.0
+
+  # GraphQL Intent Adapter - NATO Classification Conversion API
+  # This adapter demonstrates GraphQL query generation from natural language
+  # Uses the NATO Classification Conversion API (authentication required)
+  - name: "intent-graphql-nato"
+    enabled: false
+    type: "retriever"
+    datasource: "http"  # Uses HTTP datasource placeholder
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentGraphQLRetriever"
+    inference_provider: "ollama"
+    model: "gpt-oss:120b"
+    embedding_provider: "ollama"
+    config:
+      # Domain and template configuration
+      domain_config_path: "utils/graphql-intent-template/examples/nato/templates/nato_domain.yaml"
+      template_library_path:
+        - "utils/graphql-intent-template/examples/nato/templates/nato_templates.yaml"
+
+      # Vector store configuration for template matching
+      template_collection_name: "graphql_nato_templates"
+      store_name: "chroma"  # References stores.yaml
+
+      # Intent matching configuration
+      confidence_threshold: 0.4
+      max_templates: 5
+      return_results: 20
+
+      # Template loading settings
+      reload_templates_on_start: true
+      force_reload_templates: true
+
+      # GraphQL-specific configuration
+      base_url: "https://security-converter.obrienlabs.dev"
+      graphql_endpoint: "/graphql"
+      supports_introspection: true
+      default_timeout: 30
+      enable_retries: true
+      max_retries: 3
+      retry_delay: 1.0
+
+      # Authentication configuration
+      # Note: This API requires JWT bearer token authentication
+      # The token should be obtained via the signIn mutation
+      # For adapter use, authentication should be handled at the adapter level
+      # or via API key configuration if supported
+
+    # Fault tolerance settings
+    fault_tolerance:
+      operation_timeout: 30.0
+      failure_threshold: 5
+      recovery_timeout: 60.0
+      max_retries: 3
+      retry_delay: 1.0
