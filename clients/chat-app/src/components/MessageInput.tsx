@@ -201,9 +201,16 @@ export function MessageInput({
     }
   }, [message]);
 
+  // Helper function to check if focus is in any textarea (including thread inputs)
+  const isFocusInTextarea = () => {
+    const activeElement = document.activeElement;
+    return activeElement && activeElement.tagName === 'TEXTAREA';
+  };
+
   // Auto-focus when not disabled (when AI response is complete)
   useEffect(() => {
-    if (!isInputDisabled && textareaRef.current) {
+    // Only auto-focus if no textarea is currently focused (to avoid stealing focus from thread inputs)
+    if (!isInputDisabled && textareaRef.current && !isFocusInTextarea()) {
       textareaRef.current.focus();
     }
   }, [isInputDisabled]);
@@ -212,10 +219,12 @@ export function MessageInput({
   const prevIsLoadingRef = useRef(isLoading);
   useEffect(() => {
     // If loading just finished (transitioned from true to false), focus the input
+    // But only if user is not currently focused on any textarea (including thread inputs)
     if (prevIsLoadingRef.current && !isLoading && !isInputDisabled && textareaRef.current) {
       // Small delay to ensure the UI has updated
       setTimeout(() => {
-        if (textareaRef.current) {
+        // Only focus main input if user is not already focused on a textarea
+        if (textareaRef.current && !isFocusInTextarea()) {
           textareaRef.current.focus();
         }
       }, 100);

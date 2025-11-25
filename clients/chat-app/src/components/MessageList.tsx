@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Message } from './Message';
 import { Message as MessageType } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
@@ -36,10 +36,11 @@ export function MessageList({
 
     messages.forEach(msg => {
       if (msg.isThreadMessage && msg.parentMessageId) {
-        if (msg.role === 'assistant') {
-          const existing = lookup.get(msg.parentMessageId) || [];
-          lookup.set(msg.parentMessageId, [...existing, msg]);
-        }
+        // Add all thread messages (both user and assistant) to the lookup
+        // They will be displayed in chronological order in the thread replies
+        const existing = lookup.get(msg.parentMessageId) || [];
+        lookup.set(msg.parentMessageId, [...existing, msg]);
+        // Filter out all thread messages (both user and assistant) from top-level
         return;
       }
       

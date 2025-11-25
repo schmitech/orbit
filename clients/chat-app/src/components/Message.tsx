@@ -52,7 +52,8 @@ export function Message({
 
   const isAssistant = message.role === 'assistant';
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
-  const threadReplyCount = threadReplies.length;
+  // Count only assistant responses, not user questions
+  const threadReplyCount = threadReplies.filter(msg => msg.role === 'assistant').length;
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
   const locale = (import.meta.env as any).VITE_LOCALE || 'en-US';
   const threadsEnabled = getEnableConversationThreads();
@@ -147,8 +148,20 @@ export function Message({
     try {
       await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed);
       setThreadInput('');
+      // Refocus the thread input field after sending
+      setTimeout(() => {
+        if (threadTextareaRef.current) {
+          threadTextareaRef.current.focus();
+        }
+      }, 100);
     } catch (error) {
       debugError('Failed to send thread message:', error);
+      // Refocus even on error so user can retry
+      setTimeout(() => {
+        if (threadTextareaRef.current) {
+          threadTextareaRef.current.focus();
+        }
+      }, 100);
     } finally {
       setIsSendingThreadMessage(false);
     }
@@ -186,7 +199,7 @@ export function Message({
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [isThreadOpen, threadComposerDisabled]);
+  }, [isThreadOpen, threadComposerDisabled, isSendingThreadMessage]);
 
   useEffect(() => {
     if (threadTextareaRef.current) {
@@ -214,7 +227,15 @@ export function Message({
   }, [message.content, message.isStreaming]);
 
   const renderedThreadReplies = useMemo(() => {
-    return threadReplies.map(reply => {
+    // Sort replies by timestamp to maintain chronological order
+    // Show all messages in order, just like the main conversation
+    const sortedReplies = [...threadReplies].sort((a, b) => {
+      const timeA = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+      const timeB = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+      return timeA - timeB;
+    });
+    
+    return sortedReplies.map(reply => {
       const replyIsAssistant = reply.role === 'assistant';
 
       const replyContent = reply.isStreaming && (!reply.content || reply.content === '…') ? (
