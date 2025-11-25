@@ -169,6 +169,26 @@ export function Message({
     isSendingThreadMessage;
 
   useEffect(() => {
+    if (!isThreadOpen || threadComposerDisabled) {
+      return;
+    }
+    const textarea = threadTextareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    // Wait for the textarea to be visible before focusing.
+    const frame = requestAnimationFrame(() => {
+      textarea.focus();
+      // Place the caret at the end so users can start typing immediately.
+      const caretPos = textarea.value.length;
+      textarea.setSelectionRange(caretPos, caretPos);
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [isThreadOpen, threadComposerDisabled]);
+
+  useEffect(() => {
     if (threadTextareaRef.current) {
       const maxHeight = 120;
       const textarea = threadTextareaRef.current;
