@@ -11,6 +11,8 @@ Datasets are stored separately from query context for efficient retrieval.
 import logging
 import json
 import gzip
+import threading
+import hashlib
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta, UTC
 from utils.id_utils import generate_id
@@ -22,7 +24,67 @@ logger = logging.getLogger(__name__)
 
 
 class ThreadDatasetService:
-    """Service for storing and retrieving thread datasets"""
+    """Service for storing and retrieving thread datasets with singleton pattern"""
+    
+    # Singleton pattern implementation
+    _instances: Dict[str, 'ThreadDatasetService'] = {}
+    _lock = threading.Lock()
+    
+    def __new__(cls, config: Dict[str, Any]):
+        """Create or return existing ThreadDatasetService instance based on configuration"""
+        cache_key = cls._create_cache_key(config)
+        
+        with cls._lock:
+            if cache_key not in cls._instances:
+                instance = super().__new__(cls)
+                cls._instances[cache_key] = instance
+                logger.debug(f"Created new ThreadDatasetService instance for: {cache_key}")
+            else:
+                logger.debug(f"Reusing existing ThreadDatasetService instance for: {cache_key}")
+            return cls._instances[cache_key]
+    
+    @classmethod
+    def _create_cache_key(cls, config: Dict[str, Any]) -> str:
+        """Create a cache key based on threading configuration"""
+        threading_config = config.get('conversation_threading', {})
+        
+        # Create key from configuration parameters
+        key_parts = [
+            str(threading_config.get('enabled', True)),
+            str(threading_config.get('dataset_ttl_hours', 24)),
+            threading_config.get('storage_backend', 'redis'),
+            threading_config.get('redis_key_prefix', 'thread_dataset:'),
+        ]
+        
+        # Include Redis config if using Redis backend
+        if threading_config.get('storage_backend', 'redis') == 'redis':
+            redis_config = config.get('internal_services', {}).get('redis', {})
+            key_parts.extend([
+                redis_config.get('host', 'localhost'),
+                str(redis_config.get('port', 6379)),
+                str(redis_config.get('db', 0)),
+            ])
+        
+        # Create hash of the key parts for consistency
+        key_string = '|'.join(key_parts)
+        return hashlib.md5(key_string.encode()).hexdigest()
+    
+    @classmethod
+    def get_cache_stats(cls) -> Dict[str, Any]:
+        """Get statistics about cached ThreadDatasetService instances"""
+        with cls._lock:
+            return {
+                'total_cached_instances': len(cls._instances),
+                'cached_configurations': list(cls._instances.keys()),
+                'memory_info': f"{len(cls._instances)} ThreadDatasetService instances cached"
+            }
+    
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear all cached instances (useful for testing)"""
+        with cls._lock:
+            cls._instances.clear()
+            logger.debug("Cleared all ThreadDatasetService cached instances")
 
     def __init__(self, config: Dict[str, Any]):
         """
@@ -49,7 +111,7 @@ class ThreadDatasetService:
             try:
                 self.redis_service = RedisService(config)
                 if self.redis_service.enabled:
-                    logger.info(f"✓ ThreadDatasetService: Redis storage enabled (key prefix: {self.redis_key_prefix})")
+                    logger.debug(f"✓ ThreadDatasetService: Redis storage enabled (key prefix: {self.redis_key_prefix})")
                 else:
                     logger.warning(f"ThreadDatasetService: Redis service created but not yet enabled (will be initialized later)")
             except Exception as e:
@@ -70,11 +132,21 @@ class ThreadDatasetService:
             logger.info(f"ThreadDatasetService initialized: storage_backend=redis ({redis_status}), ttl={self.dataset_ttl_hours}h{db_fallback_status}")
         else:
             logger.info(f"ThreadDatasetService initialized: storage_backend={self.storage_backend}, ttl={self.dataset_ttl_hours}h{db_fallback_status}")
+        
+        # Mark as initialized to prevent re-initialization
+        self._singleton_initialized = True
 
     async def initialize(self) -> None:
         """Initialize the service and its dependencies."""
         if not self.enabled:
             return
+        
+        # Prevent re-initialization of singleton instances
+        if hasattr(self, '_singleton_initialized') and self._singleton_initialized:
+            # Check if async initialization has been done
+            if hasattr(self, '_async_initialized'):
+                return
+            # Otherwise continue to async initialization
         
         # Initialize Redis if using it
         if self.redis_service:
@@ -83,6 +155,9 @@ class ThreadDatasetService:
         # Initialize database if using it
         if self.database_service:
             await self.database_service.initialize()
+        
+        # Mark async initialization as complete
+        self._async_initialized = True
 
     def _generate_dataset_key(self, thread_id: str) -> str:
         """Generate a unique dataset key for a thread."""

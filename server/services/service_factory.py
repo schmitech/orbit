@@ -92,6 +92,9 @@ class ServiceFactory:
         # Initialize Redis service if enabled
         await self._initialize_redis_service(app)
 
+        # Initialize thread dataset service (shared instance, requires Redis to be initialized first)
+        await self._initialize_thread_dataset_service(app)
+
         # Initialize authentication service (requires database to be initialized first)
         await self._initialize_auth_service_if_available(app, auth_enabled)
     
@@ -328,13 +331,35 @@ class ServiceFactory:
             app.state.redis_service = None
             logger.info("Redis service is disabled in configuration")
     
+    async def _initialize_thread_dataset_service(self, app: FastAPI) -> None:
+        """Initialize Thread Dataset Service (shared instance for all services)."""
+        threading_config = self.config.get('conversation_threading', {})
+        threading_enabled = is_true_value(threading_config.get('enabled', False))
+        
+        if threading_enabled:
+            from services.thread_dataset_service import ThreadDatasetService
+            logger.debug("Creating shared ThreadDatasetService instance...")
+            app.state.thread_dataset_service = ThreadDatasetService(self.config)
+            try:
+                await app.state.thread_dataset_service.initialize()
+                logger.debug("ThreadDatasetService initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize ThreadDatasetService: {str(e)}")
+                app.state.thread_dataset_service = None
+        else:
+            app.state.thread_dataset_service = None
+            logger.debug("ThreadDatasetService is disabled (conversation_threading not enabled)")
+    
     async def _initialize_chat_history_service(self, app: FastAPI) -> None:
         """Initialize Chat History Service."""
         logger.debug("Creating Chat History Service instance...")
         from services.chat_history_service import ChatHistoryService
+        # Use shared thread_dataset_service if available
+        thread_dataset_service = getattr(app.state, 'thread_dataset_service', None)
         app.state.chat_history_service = ChatHistoryService(
             self.config,
-            app.state.database_service
+            app.state.database_service,
+            thread_dataset_service=thread_dataset_service
         )
         logger.info("Initializing Chat History Service...")
         try:

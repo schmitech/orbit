@@ -140,7 +140,14 @@ class RouteConfigurator:
             if not hasattr(request.app.state, 'thread_service'):
                 # Initialize thread service if not already initialized
                 from services.thread_service import ThreadService
-                thread_service = ThreadService(request.app.state.config)
+                # Use shared thread_dataset_service if available
+                thread_dataset_service = getattr(request.app.state, 'thread_dataset_service', None)
+                database_service = getattr(request.app.state, 'database_service', None)
+                thread_service = ThreadService(
+                    request.app.state.config,
+                    database_service=database_service,
+                    dataset_service=thread_dataset_service
+                )
                 await thread_service.initialize()
                 request.app.state.thread_service = thread_service
             return request.app.state.thread_service
