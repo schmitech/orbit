@@ -1,0 +1,777 @@
+# SpaceX GraphQL API Templates
+# Intent-based templates for querying SpaceX data via GraphQL
+
+status: completed
+generated_at: '2024-01-01T00:00:00Z'
+generator_version: 1.0.0
+total_templates: 10
+
+templates:
+  # ============================================
+  # LAUNCH QUERIES
+  # ============================================
+
+  - id: get_launches
+    version: "1.0.0"
+    description: "Get SpaceX launches with optional limit"
+    category: launch_queries
+    complexity: simple
+
+    # GraphQL operation
+    graphql_type: query
+    operation_name: GetLaunches
+    graphql_template: |
+      query GetLaunches($limit: Int) {
+        launches(limit: $limit) {
+          id
+          mission_name
+          launch_date_utc
+          launch_success
+          rocket {
+            rocket_name
+          }
+          launch_site {
+            site_name_long
+          }
+        }
+      }
+
+    # Parameter definitions
+    parameters:
+      - name: limit
+        type: integer
+        graphql_type: Int
+        description: "Maximum number of launches to return"
+        required: false
+        default: 10
+        location: variable
+        min: 1
+        max: 100
+
+    # Natural language examples for intent matching
+    nl_examples:
+      - "Show me SpaceX launches"
+      - "Get the last 5 launches"
+      - "List recent SpaceX missions"
+      - "Display SpaceX launch history"
+      - "What launches has SpaceX done?"
+      - "Show me 10 SpaceX flights"
+
+    # Semantic tags for template matching
+    semantic_tags:
+      action: list
+      primary_entity: launch
+      qualifiers:
+        - recent
+        - multiple
+        - historical
+
+    # Response mapping
+    response_mapping:
+      items_path: "data.launches"
+      fields:
+        - name: mission
+          path: "$.mission_name"
+          type: string
+        - name: date
+          path: "$.launch_date_utc"
+          type: datetime
+        - name: success
+          path: "$.launch_success"
+          type: boolean
+        - name: rocket
+          path: "$.rocket.rocket_name"
+          type: string
+        - name: site
+          path: "$.launch_site.site_name_long"
+          type: string
+
+    display_fields: [mission, date, success, rocket]
+    result_format: table
+
+    tags:
+      - launch
+      - list
+      - history
+    approved: true
+
+  - id: get_launch_by_id
+    version: "1.0.0"
+    description: "Get details of a specific launch by ID"
+    category: launch_queries
+    complexity: simple
+
+    graphql_type: query
+    operation_name: GetLaunch
+    graphql_template: |
+      query GetLaunch($id: ID!) {
+        launch(id: $id) {
+          id
+          mission_name
+          launch_date_utc
+          launch_success
+          details
+          rocket {
+            rocket_name
+            rocket_type
+          }
+          launch_site {
+            site_name_long
+          }
+          links {
+            video_link
+            article_link
+            wikipedia
+          }
+        }
+      }
+
+    parameters:
+      - name: id
+        type: string
+        graphql_type: ID!
+        description: "Launch ID"
+        required: true
+        location: variable
+        example: "5eb87cd9ffd86e000604b32a"
+
+    nl_examples:
+      - "Get launch with ID 5eb87cd9ffd86e000604b32a"
+      - "Show me details for launch 5eb87cd9ffd86e000604b32a"
+      - "Find launch by ID 5eb87ce1ffd86e000604b32d"
+      - "What are the details of launch 5eb87cd9ffd86e000604b32a"
+
+    semantic_tags:
+      action: get
+      primary_entity: launch
+      qualifiers:
+        - single
+        - by_id
+        - detailed
+
+    response_mapping:
+      items_path: "data.launch"
+      fields:
+        - name: mission
+          path: "$.mission_name"
+        - name: date
+          path: "$.launch_date_utc"
+        - name: success
+          path: "$.launch_success"
+        - name: details
+          path: "$.details"
+        - name: rocket
+          path: "$.rocket.rocket_name"
+        - name: video
+          path: "$.links.video_link"
+
+    display_fields: [mission, date, success, rocket, details]
+    result_format: list
+
+    tags:
+      - launch
+      - single
+      - details
+    approved: true
+
+  - id: get_latest_launch
+    version: "1.0.0"
+    description: "Get the most recent SpaceX launch"
+    category: launch_queries
+    complexity: simple
+
+    graphql_type: query
+    operation_name: GetLatestLaunch
+    graphql_template: |
+      query GetLatestLaunch {
+        launchLatest {
+          id
+          mission_name
+          launch_date_utc
+          launch_success
+          details
+          rocket {
+            rocket_name
+          }
+          launch_site {
+            site_name_long
+          }
+          links {
+            video_link
+            article_link
+          }
+        }
+      }
+
+    parameters: []
+
+    nl_examples:
+      - "What was the latest SpaceX launch?"
+      - "Show me the most recent mission"
+      - "Get the newest launch"
+      - "What was the last SpaceX flight?"
+      - "Most recent SpaceX launch"
+      - "Latest SpaceX mission"
+
+    semantic_tags:
+      action: get
+      primary_entity: launch
+      qualifiers:
+        - latest
+        - single
+        - recent
+
+    response_mapping:
+      items_path: "data.launchLatest"
+      fields:
+        - name: mission
+          path: "$.mission_name"
+        - name: date
+          path: "$.launch_date_utc"
+        - name: success
+          path: "$.launch_success"
+        - name: details
+          path: "$.details"
+        - name: rocket
+          path: "$.rocket.rocket_name"
+
+    display_fields: [mission, date, success, rocket, details]
+    result_format: list
+
+    tags:
+      - launch
+      - latest
+      - recent
+    approved: true
+
+  - id: get_past_launches
+    version: "1.0.0"
+    description: "Get past SpaceX launches with optional limit"
+    category: launch_queries
+    complexity: simple
+
+    graphql_type: query
+    operation_name: GetPastLaunches
+    graphql_template: |
+      query GetPastLaunches($limit: Int) {
+        launchesPast(limit: $limit) {
+          id
+          mission_name
+          launch_date_utc
+          launch_success
+          rocket {
+            rocket_name
+          }
+          launch_site {
+            site_name_long
+          }
+        }
+      }
+
+    parameters:
+      - name: limit
+        type: integer
+        graphql_type: Int
+        description: "Maximum number of past launches to return"
+        required: false
+        default: 10
+        location: variable
+
+    nl_examples:
+      - "Show me past SpaceX launches"
+      - "Get historical launches"
+      - "List completed SpaceX missions"
+      - "What launches have already happened?"
+      - "Previous SpaceX flights"
+
+    semantic_tags:
+      action: list
+      primary_entity: launch
+      qualifiers:
+        - past
+        - historical
+        - completed
+
+    response_mapping:
+      items_path: "data.launchesPast"
+      fields:
+        - name: mission
+          path: "$.mission_name"
+        - name: date
+          path: "$.launch_date_utc"
+        - name: success
+          path: "$.launch_success"
+        - name: rocket
+          path: "$.rocket.rocket_name"
+
+    display_fields: [mission, date, success, rocket]
+    result_format: table
+
+    tags:
+      - launch
+      - past
+      - historical
+    approved: true
+
+  - id: get_upcoming_launches
+    version: "1.0.0"
+    description: "Get upcoming SpaceX launches"
+    category: launch_queries
+    complexity: simple
+
+    graphql_type: query
+    operation_name: GetUpcomingLaunches
+    graphql_template: |
+      query GetUpcomingLaunches($limit: Int) {
+        launchesUpcoming(limit: $limit) {
+          id
+          mission_name
+          launch_date_utc
+          rocket {
+            rocket_name
+          }
+          launch_site {
+            site_name_long
+          }
+          details
+        }
+      }
+
+    parameters:
+      - name: limit
+        type: integer
+        graphql_type: Int
+        description: "Maximum number of upcoming launches to return"
+        required: false
+        default: 5
+        location: variable
+
+    nl_examples:
+      - "What are the upcoming SpaceX launches?"
+      - "Show me future missions"
+      - "When is the next SpaceX launch?"
+      - "List scheduled launches"
+      - "Upcoming SpaceX flights"
+      - "What launches are planned?"
+
+    semantic_tags:
+      action: list
+      primary_entity: launch
+      qualifiers:
+        - upcoming
+        - future
+        - scheduled
+
+    response_mapping:
+      items_path: "data.launchesUpcoming"
+      fields:
+        - name: mission
+          path: "$.mission_name"
+        - name: date
+          path: "$.launch_date_utc"
+        - name: rocket
+          path: "$.rocket.rocket_name"
+        - name: site
+          path: "$.launch_site.site_name_long"
+
+    display_fields: [mission, date, rocket, site]
+    result_format: table
+
+    tags:
+      - launch
+      - upcoming
+      - future
+    approved: true
+
+  # ============================================
+  # ROCKET QUERIES
+  # ============================================
+
+  - id: get_rockets
+    version: "1.0.0"
+    description: "List all SpaceX rockets and their specifications"
+    category: rocket_queries
+    complexity: simple
+
+    graphql_type: query
+    operation_name: GetRockets
+    graphql_template: |
+      query GetRockets {
+        rockets {
+          id
+          name
+          type
+          active
+          stages
+          boosters
+          cost_per_launch
+          success_rate_pct
+          first_flight
+          company
+          description
+        }
+      }
+
+    parameters: []
+
+    nl_examples:
+      - "Show me all SpaceX rockets"
+      - "List all available rockets"
+      - "What rockets does SpaceX have?"
+      - "SpaceX rocket fleet"
+      - "All SpaceX launch vehicles"
+      - "Display all SpaceX rockets"
+      - "List the rockets"
+      - "Show rockets"
+      - "What are all the SpaceX rockets?"
+      - "Give me a list of rockets"
+
+    semantic_tags:
+      action: list
+      primary_entity: rocket
+      qualifiers:
+        - all
+        - fleet
+        - multiple
+
+    response_mapping:
+      items_path: "data.rockets"
+      fields:
+        - name: name
+          path: "$.name"
+        - name: type
+          path: "$.type"
+        - name: active
+          path: "$.active"
+        - name: success_rate
+          path: "$.success_rate_pct"
+        - name: cost
+          path: "$.cost_per_launch"
+        - name: first_flight
+          path: "$.first_flight"
+
+    display_fields: [name, type, active, success_rate, first_flight]
+    result_format: table
+
+    tags:
+      - rocket
+      - list
+      - fleet
+    approved: true
+
+  - id: get_rocket_by_id
+    version: "1.0.0"
+    description: "Get detailed specifications of a specific rocket by its ID or name"
+    category: rocket_queries
+    complexity: simple
+
+    graphql_type: query
+    operation_name: GetRocket
+    graphql_template: |
+      query GetRocket($id: ID!) {
+        rocket(id: $id) {
+          id
+          name
+          type
+          active
+          stages
+          boosters
+          cost_per_launch
+          success_rate_pct
+          first_flight
+          country
+          company
+          description
+          height {
+            meters
+            feet
+          }
+          diameter {
+            meters
+          }
+          mass {
+            kg
+          }
+          engines {
+            type
+            number
+            propellant_1
+            propellant_2
+            thrust_to_weight
+          }
+        }
+      }
+
+    parameters:
+      - name: id
+        type: string
+        graphql_type: ID!
+        description: "Rocket ID - must be one of: falcon9, falconheavy, falcon1, starship"
+        required: true
+        location: variable
+        example: "falcon9"
+        allowed_values:
+          - falcon9
+          - falconheavy
+          - falcon1
+          - starship
+        aliases:
+          - rocket_id
+          - rocket_name
+          - rocket
+          - name
+
+    nl_examples:
+      - "Get details for rocket falcon9"
+      - "Show me the falcon9 rocket specifications"
+      - "What are the specs of rocket falconheavy?"
+      - "Tell me about the starship rocket"
+      - "Get falcon9 rocket details"
+      - "Show specifications for falcon1"
+      - "Details about the falconheavy rocket"
+      - "Falcon 9 rocket info"
+      - "What is the Falcon Heavy rocket?"
+      - "Starship rocket specifications"
+
+    semantic_tags:
+      action: get
+      primary_entity: rocket
+      qualifiers:
+        - single
+        - by_id
+        - detailed
+        - specifications
+        - specific
+
+    response_mapping:
+      items_path: "data.rocket"
+      fields:
+        - name: name
+          path: "$.name"
+        - name: type
+          path: "$.type"
+        - name: active
+          path: "$.active"
+        - name: description
+          path: "$.description"
+        - name: height_m
+          path: "$.height.meters"
+        - name: mass_kg
+          path: "$.mass.kg"
+        - name: engines
+          path: "$.engines.number"
+
+    display_fields: [name, type, active, description, height_m, mass_kg]
+    result_format: list
+
+    tags:
+      - rocket
+      - single
+      - specifications
+    approved: true
+
+  # ============================================
+  # CAPSULE QUERIES
+  # ============================================
+
+  - id: get_capsules
+    version: "1.0.0"
+    description: "Get SpaceX capsules with optional status filter"
+    category: capsule_queries
+    complexity: simple
+
+    graphql_type: query
+    operation_name: GetCapsules
+    graphql_template: |
+      query GetCapsules {
+        capsules {
+          id
+          serial
+          type
+          status
+          original_launch
+          reuse_count
+          missions {
+            name
+            flight
+          }
+        }
+      }
+
+    parameters: []
+
+    nl_examples:
+      - "Show me all SpaceX capsules"
+      - "List Dragon capsules"
+      - "What capsules does SpaceX have?"
+      - "SpaceX Dragon fleet"
+      - "Display all capsules"
+
+    semantic_tags:
+      action: list
+      primary_entity: capsule
+      qualifiers:
+        - all
+        - fleet
+
+    response_mapping:
+      items_path: "data.capsules"
+      fields:
+        - name: serial
+          path: "$.serial"
+        - name: type
+          path: "$.type"
+        - name: status
+          path: "$.status"
+        - name: reuse_count
+          path: "$.reuse_count"
+        - name: original_launch
+          path: "$.original_launch"
+
+    display_fields: [serial, type, status, reuse_count]
+    result_format: table
+
+    tags:
+      - capsule
+      - dragon
+      - list
+    approved: true
+
+  # ============================================
+  # SHIP QUERIES
+  # ============================================
+
+  - id: get_ships
+    version: "1.0.0"
+    description: "Get SpaceX support ships and drone ships"
+    category: ship_queries
+    complexity: simple
+
+    graphql_type: query
+    operation_name: GetShips
+    graphql_template: |
+      query GetShips {
+        ships {
+          id
+          name
+          type
+          active
+          home_port
+          roles
+          year_built
+          successful_landings
+          attempted_landings
+        }
+      }
+
+    parameters: []
+
+    nl_examples:
+      - "Show me SpaceX ships"
+      - "List drone ships"
+      - "What ships does SpaceX have?"
+      - "SpaceX fleet of ships"
+      - "Display recovery vessels"
+      - "SpaceX support ships"
+
+    semantic_tags:
+      action: list
+      primary_entity: ship
+      qualifiers:
+        - all
+        - fleet
+        - support
+
+    response_mapping:
+      items_path: "data.ships"
+      fields:
+        - name: name
+          path: "$.name"
+        - name: type
+          path: "$.type"
+        - name: active
+          path: "$.active"
+        - name: home_port
+          path: "$.home_port"
+        - name: successful_landings
+          path: "$.successful_landings"
+
+    display_fields: [name, type, active, home_port, successful_landings]
+    result_format: table
+
+    tags:
+      - ship
+      - drone_ship
+      - support
+      - recovery
+    approved: true
+
+  # ============================================
+  # LAUNCHPAD QUERIES
+  # ============================================
+
+  - id: get_launchpads
+    version: "1.0.0"
+    description: "Get SpaceX launch pads and facilities"
+    category: launchpad_queries
+    complexity: simple
+
+    graphql_type: query
+    operation_name: GetLaunchpads
+    graphql_template: |
+      query GetLaunchpads {
+        launchpads {
+          id
+          name
+          full_name
+          status
+          location {
+            name
+            region
+          }
+          vehicles_launched
+          attempted_launches
+          successful_launches
+          details
+        }
+      }
+
+    parameters: []
+
+    nl_examples:
+      - "Show me SpaceX launch pads"
+      - "List launch facilities"
+      - "What launchpads does SpaceX use?"
+      - "SpaceX launch sites"
+      - "Where does SpaceX launch from?"
+      - "Display launch complexes"
+
+    semantic_tags:
+      action: list
+      primary_entity: launchpad
+      qualifiers:
+        - all
+        - facilities
+
+    response_mapping:
+      items_path: "data.launchpads"
+      fields:
+        - name: name
+          path: "$.name"
+        - name: full_name
+          path: "$.full_name"
+        - name: status
+          path: "$.status"
+        - name: region
+          path: "$.location.region"
+        - name: successful_launches
+          path: "$.successful_launches"
+
+    display_fields: [name, status, region, successful_launches]
+    result_format: table
+
+    tags:
+      - launchpad
+      - facility
+      - site
+    approved: true

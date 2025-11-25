@@ -36,11 +36,14 @@ export function MessageList({
 
     messages.forEach(msg => {
       if (msg.isThreadMessage && msg.parentMessageId) {
-        const existing = lookup.get(msg.parentMessageId) || [];
-        lookup.set(msg.parentMessageId, [...existing, msg]);
-      } else {
-        roots.push(msg);
+        if (msg.role === 'assistant') {
+          const existing = lookup.get(msg.parentMessageId) || [];
+          lookup.set(msg.parentMessageId, [...existing, msg]);
+        }
+        return;
       }
+      
+      roots.push(msg);
     });
 
     return { topLevelMessages: roots, threadLookup: lookup };

@@ -1,0 +1,390 @@
+# SpaceX GraphQL API Domain Configuration
+# This domain configuration defines the SpaceX API schema for intent-based retrieval
+
+domain_name: SpaceX API
+domain_type: graphql
+version: "1.0.0"
+description: SpaceX launch, rocket, and spacecraft data API
+
+api_config:
+  base_url: "https://spacex-production.up.railway.app"
+  graphql_endpoint: "/graphql"
+  protocol: "https"
+  supports_introspection: true
+  default_timeout: 30
+
+# Entity definitions for SpaceX API
+entities:
+  launch:
+    name: launch
+    entity_type: resource
+    graphql_type: Launch
+    primary_key: id
+    display_name_field: mission_name
+    description: "SpaceX rocket launches and missions"
+    searchable_fields:
+      - mission_name
+      - rocket.rocket_name
+      - launch_site.site_name
+    common_filters:
+      - field: launch_success
+        type: boolean
+        values: [true, false]
+      - field: upcoming
+        type: boolean
+        values: [true, false]
+    default_sort_field: launch_date_utc
+    default_sort_order: DESC
+
+  rocket:
+    name: rocket
+    entity_type: resource
+    graphql_type: Rocket
+    primary_key: id
+    display_name_field: name
+    description: "SpaceX rockets and launch vehicles"
+    searchable_fields:
+      - name
+      - type
+      - company
+    common_filters:
+      - field: active
+        type: boolean
+        values: [true, false]
+
+  capsule:
+    name: capsule
+    entity_type: resource
+    graphql_type: Capsule
+    primary_key: id
+    display_name_field: serial
+    description: "SpaceX Dragon capsules"
+    searchable_fields:
+      - serial
+      - type
+      - status
+    common_filters:
+      - field: status
+        type: string
+        values: [active, retired, unknown, destroyed]
+
+  ship:
+    name: ship
+    entity_type: resource
+    graphql_type: Ship
+    primary_key: id
+    display_name_field: name
+    description: "SpaceX support vessels and drone ships"
+    searchable_fields:
+      - name
+      - type
+      - home_port
+
+  launchpad:
+    name: launchpad
+    entity_type: resource
+    graphql_type: Launchpad
+    primary_key: id
+    display_name_field: name
+    description: "SpaceX launch facilities"
+    searchable_fields:
+      - name
+      - full_name
+      - region
+
+# Field definitions for detailed schema information
+fields:
+  launch:
+    id:
+      name: id
+      data_type: ID
+      graphql_type: ID
+      description: "Unique launch identifier"
+      required: true
+      searchable: false
+      filterable: true
+    mission_name:
+      name: mission_name
+      data_type: string
+      graphql_type: String
+      description: "Name of the mission"
+      required: true
+      searchable: true
+      filterable: true
+      summary_priority: 10
+    launch_date_utc:
+      name: launch_date_utc
+      data_type: datetime
+      graphql_type: Date
+      description: "Launch date in UTC"
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      summary_priority: 9
+    launch_success:
+      name: launch_success
+      data_type: boolean
+      graphql_type: Boolean
+      description: "Whether the launch was successful"
+      required: false
+      filterable: true
+      summary_priority: 8
+    details:
+      name: details
+      data_type: string
+      graphql_type: String
+      description: "Detailed description of the launch"
+      required: false
+      searchable: true
+
+  rocket:
+    id:
+      name: id
+      data_type: ID
+      graphql_type: ID
+      description: "Unique rocket identifier"
+      required: true
+    name:
+      name: name
+      data_type: string
+      graphql_type: String
+      description: "Rocket name"
+      required: true
+      searchable: true
+      summary_priority: 10
+    type:
+      name: type
+      data_type: string
+      graphql_type: String
+      description: "Rocket type"
+      required: false
+      filterable: true
+    active:
+      name: active
+      data_type: boolean
+      graphql_type: Boolean
+      description: "Whether the rocket is currently active"
+      required: false
+      filterable: true
+    success_rate_pct:
+      name: success_rate_pct
+      data_type: integer
+      graphql_type: Int
+      description: "Mission success rate percentage"
+      required: false
+      summary_priority: 8
+
+  capsule:
+    id:
+      name: id
+      data_type: ID
+      graphql_type: ID
+      description: "Unique capsule identifier"
+      required: true
+    serial:
+      name: serial
+      data_type: string
+      graphql_type: String
+      description: "Capsule serial number"
+      required: true
+      searchable: true
+      summary_priority: 10
+    type:
+      name: type
+      data_type: string
+      graphql_type: String
+      description: "Capsule type (Dragon 1, Dragon 2)"
+      required: false
+      filterable: true
+    status:
+      name: status
+      data_type: string
+      graphql_type: String
+      description: "Current capsule status"
+      required: false
+      filterable: true
+      summary_priority: 9
+    reuse_count:
+      name: reuse_count
+      data_type: integer
+      graphql_type: Int
+      description: "Number of times the capsule has been reused"
+      required: false
+
+# Relationships between entities
+relationships:
+  - name: launch_to_rocket
+    from_entity: launch
+    to_entity: rocket
+    relation_type: many_to_one
+    graphql_field: rocket
+    description: "Each launch uses one rocket"
+
+  - name: launch_to_capsule
+    from_entity: launch
+    to_entity: capsule
+    relation_type: many_to_many
+    graphql_field: ships
+    description: "Launches may deploy capsules"
+
+  - name: launch_to_launchpad
+    from_entity: launch
+    to_entity: launchpad
+    relation_type: many_to_one
+    graphql_field: launch_site
+    description: "Each launch occurs at one launch site"
+
+# Vocabulary for natural language understanding
+vocabulary:
+  entity_synonyms:
+    launch:
+      - launch
+      - mission
+      - flight
+      - liftoff
+      - takeoff
+      - blastoff
+    rocket:
+      - rocket
+      - booster
+      - vehicle
+      - spacecraft
+      - launcher
+      - falcon
+      - starship
+    capsule:
+      - capsule
+      - dragon
+      - crew dragon
+      - cargo dragon
+      - pod
+    ship:
+      - ship
+      - vessel
+      - drone ship
+      - barge
+      - boat
+    launchpad:
+      - launchpad
+      - launch site
+      - pad
+      - facility
+      - complex
+
+  # Value mappings for entity IDs (maps user-friendly names to API IDs)
+  value_mappings:
+    rocket_id:
+      "falcon 9": "falcon9"
+      "falcon9": "falcon9"
+      "falcon-9": "falcon9"
+      "f9": "falcon9"
+      "falcon heavy": "falconheavy"
+      "falconheavy": "falconheavy"
+      "falcon-heavy": "falconheavy"
+      "fh": "falconheavy"
+      "falcon 1": "falcon1"
+      "falcon1": "falcon1"
+      "falcon-1": "falcon1"
+      "f1": "falcon1"
+      "starship": "starship"
+      "starship prototype": "starship"
+      "sn": "starship"
+
+  action_synonyms:
+    find:
+      - find
+      - get
+      - show
+      - list
+      - display
+      - retrieve
+      - fetch
+      - lookup
+      - search
+    count:
+      - count
+      - how many
+      - total
+      - number of
+      - amount
+    latest:
+      - latest
+      - most recent
+      - newest
+      - last
+      - recent
+    next:
+      - next
+      - upcoming
+      - future
+      - scheduled
+    past:
+      - past
+      - previous
+      - historical
+      - old
+
+  qualifier_synonyms:
+    successful:
+      - successful
+      - succeeded
+      - success
+      - worked
+    failed:
+      - failed
+      - failure
+      - unsuccessful
+      - crashed
+    active:
+      - active
+      - operational
+      - in service
+      - working
+    retired:
+      - retired
+      - decommissioned
+      - inactive
+      - out of service
+
+  field_synonyms:
+    mission_name:
+      - mission
+      - name
+      - title
+    launch_date_utc:
+      - date
+      - time
+      - when
+      - launch date
+    launch_success:
+      - success
+      - successful
+      - outcome
+      - result
+
+# Query patterns specific to SpaceX domain
+query_patterns:
+  - pattern: "latest launch"
+    template_hint: get_latest_launch
+    description: "Get the most recent SpaceX launch"
+
+  - pattern: "upcoming launches"
+    template_hint: get_upcoming_launches
+    description: "Get scheduled future launches"
+
+  - pattern: "all rockets"
+    template_hint: get_rockets
+    description: "List all SpaceX rockets"
+
+  - pattern: "falcon 9 launches"
+    template_hint: get_launches_by_rocket
+    description: "Get launches for a specific rocket"
+
+# Metadata
+metadata:
+  generated_at: "2024-01-01T00:00:00Z"
+  generator_version: "1.0.0"
+  auto_generated: false
+  source: "SpaceX GraphQL API"
+  api_documentation: "https://studio.apollographql.com/public/SpaceX-pxxbxen/variant/current/home"

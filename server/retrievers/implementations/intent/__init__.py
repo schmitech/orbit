@@ -69,6 +69,15 @@ except ImportError:  # pragma: no cover - optional import guard
     _firecrawl_available = False
     logger.debug("HTTP client libraries not installed; IntentFirecrawlRetriever unavailable")
 
+# Import GraphQL retriever (requires httpx package)
+try:
+    from .intent_graphql_retriever import IntentGraphQLRetriever
+    _graphql_available = True
+except ImportError:  # pragma: no cover - optional import guard
+    IntentGraphQLRetriever = None
+    _graphql_available = False
+    logger.debug("HTTP client libraries not installed; IntentGraphQLRetriever unavailable")
+
 __all__ = [
     'DomainParameterExtractor',
     'DomainResponseGenerator',
@@ -96,3 +105,6 @@ if _http_json_available and IntentHTTPJSONRetriever is not None:
 
 if _firecrawl_available and IntentFirecrawlRetriever is not None:
     __all__.append('IntentFirecrawlRetriever')
+
+if _graphql_available and IntentGraphQLRetriever is not None:
+    __all__.append('IntentGraphQLRetriever')
