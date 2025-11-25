@@ -225,6 +225,11 @@ class QdrantStore(BaseVectorStore):
                 logger.error("Qdrant client is not initialized")
                 return []
 
+            # Check if collection exists before searching
+            if not await self.collection_exists(collection_name):
+                logger.warning(f"Collection {collection_name} does not exist in Qdrant. Returning empty results.")
+                return []
+
             # Build filter if metadata filters provided
             search_filter = None
             if filter_metadata:

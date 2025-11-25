@@ -230,18 +230,26 @@ class RedisService:
     async def get(self, key: str) -> Optional[str]:
         """
         Get a value from Redis
-        
+
         Args:
             key: The key to retrieve
-            
+
         Returns:
             The value or None if not found or Redis is disabled
         """
         if not self.enabled or not self.client:
             return None
-            
+
         try:
+            # Double-check client is still available (race condition protection)
+            if not self.client:
+                return None
             return await self.client.get(key)
+        except (AttributeError, TypeError) as e:
+            # Handle case where client became None during operation
+            logger.debug(f"Redis client unavailable for key {key}: {str(e)}")
+            self.enabled = False
+            return None
         except Exception as e:
             logger.error(f"Error getting key {key} from Redis: {str(e)}")
             return None
@@ -249,22 +257,30 @@ class RedisService:
     async def set(self, key: str, value: str, ttl: Optional[int] = None) -> bool:
         """
         Set a value in Redis
-        
+
         Args:
             key: The key to set
             value: The value to store
             ttl: Time-to-live in seconds, or None to use default TTL
-            
+
         Returns:
             True if successful, False otherwise
         """
         if not self.enabled or not self.client:
             return False
-            
+
         try:
+            # Double-check client is still available (race condition protection)
+            if not self.client:
+                return False
             ttl_to_use = ttl if ttl is not None else self.default_ttl
             await self.client.set(key, value, ex=ttl_to_use)
             return True
+        except (AttributeError, TypeError) as e:
+            # Handle case where client became None during operation
+            logger.debug(f"Redis client unavailable for key {key}: {str(e)}")
+            self.enabled = False
+            return False
         except Exception as e:
             logger.error(f"Error setting key {key} in Redis: {str(e)}")
             return False
@@ -273,9 +289,17 @@ class RedisService:
         """Delete one or more keys"""
         if not self.enabled or not self.client:
             return 0
-            
+
         try:
+            # Double-check client is still available (race condition protection)
+            if not self.client:
+                return 0
             return await self.client.delete(*keys)
+        except (AttributeError, TypeError) as e:
+            # Handle case where client became None during operation
+            logger.debug(f"Redis client unavailable for delete operation: {str(e)}")
+            self.enabled = False
+            return 0
         except Exception as e:
             logger.error(f"Error deleting keys {keys} from Redis: {str(e)}")
             return 0

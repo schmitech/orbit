@@ -50,14 +50,21 @@ class CohereRerankingService(RerankingService, CohereBaseService):
         # Get reranking-specific configuration
         provider_config = self._extract_provider_config()
 
-        # Get API base URL (e.g., "https://api.cohere.ai/v1")
-        # CohereBaseService sets base_url to "https://api.cohere.ai"
-        # but rerank API needs /v1 prefix, so get it from config
+        # Get API base URL - detect version from base_url
+        # CohereBaseService sets base_url to "https://api.cohere.ai" or "https://api.cohere.ai/v2"
         if 'api_base' in provider_config:
             self.api_base = provider_config.get('api_base')
         else:
-            # Fallback to base URL + /v1
-            self.api_base = f"{self.base_url}/v1"
+            # Detect API version from base_url and use appropriate endpoint
+            if hasattr(self, 'api_version') and self.api_version == 'v2':
+                # v2 API uses /v2 prefix
+                if '/v2' in self.base_url:
+                    self.api_base = self.base_url
+                else:
+                    self.api_base = f"{self.base_url}/v2"
+            else:
+                # v1 API uses /v1 prefix
+                self.api_base = f"{self.base_url}/v1"
 
         self.max_chunks_per_doc = provider_config.get('max_chunks_per_doc', 10)
         self.return_documents = provider_config.get('return_documents', True)

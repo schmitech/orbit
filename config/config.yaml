@@ -109,6 +109,10 @@ logging:
       level: "ERROR"
       propagate: false
       disabled: true
+    # Reduce WebSocket message spam from inference server
+    server.inference_server:
+      level: "INFO"
+      propagate: false
     inference.clients.llama_cpp:
       level: "ERROR"
     llama_cpp:
@@ -138,6 +142,8 @@ logging:
     docling.backend.pypdfium2_backend:
       level: "WARNING"
     docling.backend.docling_parse_backend:
+      level: "WARNING"
+    PIL.Image:
       level: "WARNING"
 
 clock_service:

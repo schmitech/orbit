@@ -61,6 +61,7 @@ Available Vision Services:
     - OllamaVisionService: Ollama vision (qwen3-vl, local multimodal)
     - VLLMVisionService: vLLM vision (LLaVA, local multimodal)
     - LlamaCppVisionService: Llama.cpp vision (LLaVA GGUF, local multimodal)
+    - CohereVisionService: Cohere vision (command-r-plus, multimodal)
 
 Available Audio Services:
     - OpenAIAudioService: OpenAI audio (Whisper STT, TTS-1)
@@ -142,6 +143,7 @@ _implementations = [
     ('ollama_vision_service', 'OllamaVisionService'),
     ('vllm_vision_service', 'VLLMVisionService'),
     ('llama_cpp_vision_service', 'LlamaCppVisionService'),
+    ('cohere_vision_service', 'CohereVisionService'),
     
     # Audio Services
     ('openai_audio_service', 'OpenAIAudioService'),
@@ -198,6 +200,7 @@ _required_packages = {
     'OpenAIVisionService': 'openai',
     'GeminiVisionService': 'google.generativeai',
     'AnthropicVisionService': 'anthropic',
+    'CohereVisionService': 'cohere',
     
     # Audio services
     'OpenAIAudioService': 'openai',

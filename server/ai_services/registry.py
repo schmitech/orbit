@@ -234,6 +234,7 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
         ("ollama", "OllamaVisionService", "Ollama"),
         ("vllm", "VLLMVisionService", "vLLM"),
         ("llama_cpp", "LlamaCppVisionService", "Llama.cpp"),
+        ("cohere", "CohereVisionService", "Cohere"),
     ]
 
     # Get vision config if available

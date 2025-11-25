@@ -79,6 +79,8 @@ class CohereBaseService(ProviderAIService):
             default_model = "command-r-plus"
         elif self.service_type == ServiceType.RERANKING:
             default_model = "rerank-english-v3.0"
+        elif self.service_type == ServiceType.VISION:
+            default_model = "c4ai-aya-vision-8b"  # Cohere's Aya Vision model for multimodal
         else:
             default_model = None
 

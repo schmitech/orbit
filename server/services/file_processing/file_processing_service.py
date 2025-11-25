@@ -7,6 +7,7 @@ Main service for processing uploaded files: extraction, chunking, and storage pr
 import logging
 import uuid
 import json
+import hashlib
 from typing import Dict, Any, List, Optional
 from datetime import datetime, UTC
 
@@ -929,12 +930,14 @@ class FileProcessingService:
                 embedding_dimensions = 768
 
             # Generate collection name with provider and dimensions
-            from datetime import datetime, UTC
-            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
             collection_prefix = adapter_aware_config.get('collection_prefix', 'files_')
 
-            # Format: files_{provider}_{dimensions}_{apikey}_{timestamp}
-            collection_name = f"{collection_prefix}{embedding_provider}_{embedding_dimensions}_{api_key}_{timestamp}"
+            # Hash API key with salt for collection naming (don't expose raw key)
+            salted_key = f"orbit_collection_{api_key}"
+            api_key_hash = hashlib.sha256(salted_key.encode()).hexdigest()[:16]
+
+            # Format: files_{provider}_{dimensions}_{apikey_hash}
+            collection_name = f"{collection_prefix}{embedding_provider}_{embedding_dimensions}_{api_key_hash}"
 
             logger.debug(f"Creating collection with provider-aware naming: {collection_name}")
 

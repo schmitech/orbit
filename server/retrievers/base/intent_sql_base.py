@@ -330,8 +330,16 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 logger.warning("No templates found in template library")
                 return
             
-            logger.info(f"Loading {len(templates)} templates into vector store")
-            
+            logger.debug(f"Loading {len(templates)} templates into vector store")
+            logger.debug(f"=== Template Loading Debug Info ===")
+            logger.debug(f"  Store name: {self.store_name}")
+            logger.debug(f"  Collection name: {self.template_collection_name}")
+            logger.debug(f"  Template store collection: {self.template_store.collection_name}")
+            logger.debug(f"  Template store name: {self.template_store.store_name}")
+            logger.debug(f"  Template library path: {self.intent_config.get('template_library_path')}")
+            logger.debug(f"  Template IDs (first 3): {[t.get('id', 'no-id') for t in templates[:3]]}")
+            logger.debug(f"===================================")
+
             # Check if we should reload templates
             force_reload = self.intent_config.get('force_reload_templates', False)
             reload_on_start = self.intent_config.get('reload_templates_on_start', True)
@@ -673,17 +681,28 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             except Exception as e:
                 logger.debug(f"Could not verify dimension compatibility: {e}")
             
+            # Debug logging for template collection isolation
+            logger.debug(f"=== Template Search Debug Info ===")
+            logger.debug(f"  Adapter config store_name: {self.store_name}")
+            logger.debug(f"  Template collection name: {self.template_collection_name}")
+            logger.debug(f"  Template store collection: {self.template_store.collection_name}")
+            logger.debug(f"  Template store name: {self.template_store.store_name}")
+            logger.debug(f"  Template store type: {self.template_store.store_type}")
+            logger.debug(f"==================================")
+
             # Search for similar templates
             search_results = await self.template_store.search_similar_templates(
                 query_embedding=query_embedding,
                 limit=self.max_templates,
                 threshold=self.confidence_threshold
             )
-            
+
             if search_results:
                 scores = [f"{result.get('score', 0):.3f}" for result in search_results]
                 scores_str = ", ".join(scores)
+                template_ids = [result.get('template_id', 'unknown') for result in search_results]
                 logger.debug(f"Similarity search with threshold {self.confidence_threshold} returned {len(search_results)} results with scores: [{scores_str}]")
+                logger.debug(f"Found template IDs: {template_ids[:3]}...")  # Show first 3 template IDs
             else:
                 logger.debug(f"Similarity search with threshold {self.confidence_threshold} returned 0 results")
             

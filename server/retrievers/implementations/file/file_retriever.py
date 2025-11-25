@@ -78,7 +78,13 @@ class FileVectorRetriever(AbstractVectorRetriever):
         files_config = self.config.get('files', {})
         vector_store_name = adapter_config.get('vector_store') or \
                            files_config.get('default_vector_store', 'chroma')
-        
+
+        # Debug logging to trace vector store selection
+        logger.debug(f"FileVectorRetriever.initialize() - Vector store selection:")
+        logger.debug(f"  adapter_config.get('vector_store') = {adapter_config.get('vector_store')}")
+        logger.debug(f"  files_config.get('default_vector_store') = {files_config.get('default_vector_store')}")
+        logger.debug(f"  Selected vector_store_name = {vector_store_name}")
+
         try:
             # First try to get existing store
             self._default_store = await self.store_manager.get_store(vector_store_name)
