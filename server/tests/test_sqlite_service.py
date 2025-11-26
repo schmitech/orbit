@@ -494,5 +494,176 @@ async def test_concurrent_operations(sqlite_service: SQLiteService):
     assert len(docs) >= 10
 
 
+# ============================================================================
+# Uploaded Files and File Chunks Table Tests
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_uploaded_files_crud(sqlite_service: SQLiteService):
+    """Test CRUD operations on uploaded_files table"""
+    from datetime import datetime, UTC
+
+    # Create test file record
+    file_doc = {
+        "api_key": "test_api_key_123",
+        "filename": "test_document.pdf",
+        "mime_type": "application/pdf",
+        "file_size": 1024,
+        "upload_timestamp": datetime.now(UTC).isoformat(),
+        "processing_status": "pending",
+        "storage_key": "test_api_key_123/file_123/test_document.pdf",
+        "storage_type": "vector",
+        "chunk_count": 0,
+        "metadata_json": '{"source": "upload"}',
+        "created_at": datetime.now(UTC).isoformat()
+    }
+
+    # Insert
+    file_id = await sqlite_service.insert_one("uploaded_files", file_doc)
+    assert file_id is not None
+
+    # Find by ID
+    found = await sqlite_service.find_one("uploaded_files", {"_id": file_id})
+    assert found is not None
+    assert found["filename"] == "test_document.pdf"
+    assert found["api_key"] == "test_api_key_123"
+    assert found["processing_status"] == "pending"
+
+    # Update processing status
+    update_result = await sqlite_service.update_one(
+        "uploaded_files",
+        {"_id": file_id},
+        {"$set": {"processing_status": "completed", "chunk_count": 5}}
+    )
+    assert update_result is True
+
+    # Verify update
+    updated = await sqlite_service.find_one("uploaded_files", {"_id": file_id})
+    assert updated["processing_status"] == "completed"
+    assert updated["chunk_count"] == 5
+
+    # Delete
+    delete_result = await sqlite_service.delete_one("uploaded_files", {"_id": file_id})
+    assert delete_result is True
+
+    # Verify deletion
+    deleted = await sqlite_service.find_one("uploaded_files", {"_id": file_id})
+    assert deleted is None
+
+
+@pytest.mark.asyncio
+async def test_file_chunks_crud(sqlite_service: SQLiteService):
+    """Test CRUD operations on file_chunks table"""
+    from datetime import datetime, UTC
+
+    # First create a parent file record
+    file_doc = {
+        "api_key": "test_api_key",
+        "filename": "chunked_doc.txt",
+        "mime_type": "text/plain",
+        "file_size": 5000,
+        "processing_status": "processing",
+        "storage_key": "test/key",
+        "created_at": datetime.now(UTC).isoformat()
+    }
+    file_id = await sqlite_service.insert_one("uploaded_files", file_doc)
+
+    # Create chunk records
+    chunks = []
+    for i in range(3):
+        chunk_doc = {
+            "file_id": file_id,
+            "chunk_index": i,
+            "vector_store_id": f"vec_{file_id}_{i}",
+            "collection_name": "test_collection",
+            "chunk_metadata": f'{{"position": {i}}}',
+            "created_at": datetime.now(UTC).isoformat()
+        }
+        chunk_id = await sqlite_service.insert_one("file_chunks", chunk_doc)
+        chunks.append(chunk_id)
+
+    assert len(chunks) == 3
+
+    # Find chunks by file_id
+    found_chunks = await sqlite_service.find_many(
+        "file_chunks",
+        {"file_id": file_id},
+        sort=[("chunk_index", 1)]
+    )
+    assert len(found_chunks) == 3
+    assert found_chunks[0]["chunk_index"] == 0
+    assert found_chunks[1]["chunk_index"] == 1
+    assert found_chunks[2]["chunk_index"] == 2
+
+    # Delete all chunks for file
+    deleted_count = await sqlite_service.delete_many("file_chunks", {"file_id": file_id})
+    assert deleted_count == 3
+
+    # Verify deletion
+    remaining = await sqlite_service.find_many("file_chunks", {"file_id": file_id})
+    assert len(remaining) == 0
+
+
+@pytest.mark.asyncio
+async def test_uploaded_files_api_key_filtering(sqlite_service: SQLiteService):
+    """Test filtering uploaded_files by api_key"""
+    from datetime import datetime, UTC
+
+    # Create files for different API keys
+    for i in range(3):
+        await sqlite_service.insert_one("uploaded_files", {
+            "api_key": "api_key_A",
+            "filename": f"file_a_{i}.txt",
+            "mime_type": "text/plain",
+            "file_size": 100,
+            "processing_status": "completed",
+            "created_at": datetime.now(UTC).isoformat()
+        })
+
+    for i in range(2):
+        await sqlite_service.insert_one("uploaded_files", {
+            "api_key": "api_key_B",
+            "filename": f"file_b_{i}.txt",
+            "mime_type": "text/plain",
+            "file_size": 100,
+            "processing_status": "completed",
+            "created_at": datetime.now(UTC).isoformat()
+        })
+
+    # Filter by api_key_A
+    files_a = await sqlite_service.find_many("uploaded_files", {"api_key": "api_key_A"})
+    assert len(files_a) == 3
+
+    # Filter by api_key_B
+    files_b = await sqlite_service.find_many("uploaded_files", {"api_key": "api_key_B"})
+    assert len(files_b) == 2
+
+
+@pytest.mark.asyncio
+async def test_uploaded_files_with_embedding_metadata(sqlite_service: SQLiteService):
+    """Test uploaded_files with embedding provider and dimensions"""
+    from datetime import datetime, UTC
+
+    file_doc = {
+        "api_key": "test_key",
+        "filename": "embedded.txt",
+        "mime_type": "text/plain",
+        "file_size": 500,
+        "processing_status": "completed",
+        "collection_name": "files_ollama_768_abc123",
+        "embedding_provider": "ollama",
+        "embedding_dimensions": 768,
+        "chunk_count": 10,
+        "created_at": datetime.now(UTC).isoformat()
+    }
+
+    file_id = await sqlite_service.insert_one("uploaded_files", file_doc)
+
+    found = await sqlite_service.find_one("uploaded_files", {"_id": file_id})
+    assert found["embedding_provider"] == "ollama"
+    assert found["embedding_dimensions"] == 768
+    assert found["collection_name"] == "files_ollama_768_abc123"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

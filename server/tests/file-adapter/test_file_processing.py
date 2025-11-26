@@ -30,6 +30,33 @@ from services.file_processing.file_processing_service import FileProcessingServi
 from services.file_processing.chunking import FixedSizeChunker, SemanticChunker
 
 
+def create_test_config(tmp_path, db_name="test_orbit.db", **extra_config):
+    """Helper to create test config with isolated SQLite database"""
+    test_db_path = str(tmp_path / db_name)
+    config = {
+        'storage_root': str(tmp_path / "uploads"),
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
+    }
+    config.update(extra_config)
+    return config, test_db_path
+
+
+def cleanup_metadata_store(test_db_path):
+    """Helper to cleanup metadata store after tests"""
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+    import os
+    if os.path.exists(test_db_path):
+        os.remove(test_db_path)
+
+
 # Sample file content
 SAMPLE_TEXT = "This is a test document with multiple lines.\nSecond line here.\nThird line."
 SAMPLE_PDF_CONTENT = b"%PDF-1.4\n%Test PDF content"
@@ -142,10 +169,11 @@ def test_processor_registry_register_custom():
 
 @pytest_asyncio.fixture
 async def processing_service(tmp_path):
-    """Fixture to provide file processing service"""
+    """Fixture to provide file processing service with isolated test database"""
     # Use temporary database for test isolation
     test_db_path = str(tmp_path / "test_orbit.db")
-    
+
+    # Config with SQLite backend pointing to temp database
     config = {
         'storage_root': str(tmp_path / "uploads"),
         'chunking_strategy': 'fixed',
@@ -157,18 +185,27 @@ async def processing_service(tmp_path):
             'text/markdown',
             'application/pdf',
             'text/csv',
-        ]
+        ],
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
     }
 
     service = FileProcessingService(config)
-    # Replace metadata_store with temporary database
+    # Reset singleton and create fresh instance with test config
     from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store.close()  # Close the default connection
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+    FileMetadataStore.reset_instance()
+    service.metadata_store = FileMetadataStore(config=config)
+
     yield service
     # Cleanup
     service.metadata_store.close()
+    FileMetadataStore.reset_instance()
     # Clean up temporary database
     import os
     if os.path.exists(test_db_path):
@@ -178,19 +215,19 @@ async def processing_service(tmp_path):
 @pytest.mark.asyncio
 async def test_file_processing_service_initialization(tmp_path):
     """Test file processing service initialization"""
-    test_db_path = str(tmp_path / "test_orbit_init.db")
-    config = {
-        'storage_root': str(tmp_path / "uploads"),
-        'chunking_strategy': 'semantic',
-        'chunk_size': 1000,
-        'chunk_overlap': 200
-    }
+    config, test_db_path = create_test_config(
+        tmp_path,
+        db_name="test_orbit_init.db",
+        chunking_strategy='semantic',
+        chunk_size=1000,
+        chunk_overlap=200
+    )
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
 
     service = FileProcessingService(config)
-    # Replace metadata_store with temporary database
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store.close()  # Close the default connection
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+    service.metadata_store = FileMetadataStore(config=config)
 
     assert service.storage is not None
     assert service.metadata_store is not None
@@ -198,9 +235,7 @@ async def test_file_processing_service_initialization(tmp_path):
     assert service.chunker is not None
 
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
@@ -391,19 +426,19 @@ async def test_list_files(processing_service):
 @pytest.mark.asyncio
 async def test_chunking_strategy_fixed(tmp_path):
     """Test fixed chunking strategy"""
-    test_db_path = str(tmp_path / "test_orbit_fixed.db")
-    config = {
-        'storage_root': str(tmp_path / "uploads"),
-        'chunking_strategy': 'fixed',
-        'chunk_size': 50,
-        'chunk_overlap': 10
-    }
+    config, test_db_path = create_test_config(
+        tmp_path,
+        db_name="test_orbit_fixed.db",
+        chunking_strategy='fixed',
+        chunk_size=50,
+        chunk_overlap=10
+    )
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
 
     service = FileProcessingService(config)
-    # Replace metadata_store with temporary database
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store.close()  # Close the default connection
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+    service.metadata_store = FileMetadataStore(config=config)
 
     # Verify fixed chunker was initialized
     from services.file_processing.chunking.fixed_chunker import FixedSizeChunker
@@ -412,27 +447,25 @@ async def test_chunking_strategy_fixed(tmp_path):
     assert service.chunker.overlap == 10
 
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
 async def test_chunking_strategy_semantic(tmp_path):
     """Test semantic chunking strategy"""
-    test_db_path = str(tmp_path / "test_orbit_semantic.db")
-    config = {
-        'storage_root': str(tmp_path / "uploads"),
-        'chunking_strategy': 'semantic',
-        'chunk_size': 10,
-        'chunk_overlap': 2
-    }
+    config, test_db_path = create_test_config(
+        tmp_path,
+        db_name="test_orbit_semantic.db",
+        chunking_strategy='semantic',
+        chunk_size=10,
+        chunk_overlap=2
+    )
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
 
     service = FileProcessingService(config)
-    # Replace metadata_store with temporary database
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store.close()  # Close the default connection
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+    service.metadata_store = FileMetadataStore(config=config)
 
     # Verify semantic chunker was initialized
     from services.file_processing.chunking.semantic_chunker import SemanticChunker
@@ -441,9 +474,7 @@ async def test_chunking_strategy_semantic(tmp_path):
     assert service.chunker.overlap == 2
 
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
@@ -605,26 +636,24 @@ async def test_file_processing_failure_status(tmp_path):
     """Test that processing failures are tracked correctly"""
     # This is a more complex test that would require mocking processor failures
     # For now, we'll create a basic version
-    test_db_path = str(tmp_path / "test_orbit_failure.db")
-    config = {
-        'storage_root': str(tmp_path / "uploads"),
-        'chunking_strategy': 'fixed',
-        'chunk_size': 100
-    }
+    config, test_db_path = create_test_config(
+        tmp_path,
+        db_name="test_orbit_failure.db",
+        chunking_strategy='fixed',
+        chunk_size=100
+    )
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
 
     service = FileProcessingService(config)
-    # Replace metadata_store with temporary database
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store.close()  # Close the default connection
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+    service.metadata_store = FileMetadataStore(config=config)
 
     # We'd need to mock a processor failure here
     # For now, just verify the service handles errors gracefully
 
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 # Configuration Handling Tests
@@ -633,90 +662,114 @@ async def test_file_processing_failure_status(tmp_path):
 async def test_config_uses_global_storage_root(tmp_path):
     """Test that FileProcessingService uses global files.storage_root when not in adapter config"""
     test_db_path = str(tmp_path / "test_config.db")
-    
-    # Global config with files.storage_root
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    # Global config with files.storage_root and backend config
     config = {
         'files': {
             'storage_root': str(tmp_path / "global_uploads")
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
         }
     }
-    
+
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+    service.metadata_store = FileMetadataStore(config=config)
+
     # Storage root should come from global config
     assert str(service.storage.storage_root) == str(tmp_path / "global_uploads")
-    
+
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
 async def test_config_adapter_overrides_global_storage_root(tmp_path):
     """Test that adapter config storage_root overrides global config"""
     test_db_path = str(tmp_path / "test_config.db")
-    
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     # Both global and adapter config
     config = {
         'storage_root': str(tmp_path / "adapter_uploads"),  # Adapter config (should win)
         'files': {
             'storage_root': str(tmp_path / "global_uploads")  # Global config
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
         }
     }
-    
+
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+    service.metadata_store = FileMetadataStore(config=config)
+
     # Storage root should come from adapter config (higher priority)
     assert str(service.storage.storage_root) == str(tmp_path / "adapter_uploads")
-    
+
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
 async def test_config_uses_global_chunking_settings(tmp_path):
     """Test that chunking uses global files.default_chunking_strategy defaults"""
     test_db_path = str(tmp_path / "test_config.db")
-    
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     # Global config with chunking defaults (flat structure as implemented)
     config = {
         'files': {
             'default_chunking_strategy': 'semantic',
             'default_chunk_size': 10,
             'default_chunk_overlap': 2
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
         }
     }
-    
+
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+    service.metadata_store = FileMetadataStore(config=config)
+
     # Should use semantic chunking from global config
     assert isinstance(service.chunker, SemanticChunker)
     assert service.chunker.chunk_size == 10  # From global config
     assert service.chunker.overlap == 2
-    
+
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
 async def test_config_adapter_overrides_global_chunking(tmp_path):
     """Test that adapter chunking config overrides global defaults"""
     test_db_path = str(tmp_path / "test_config.db")
-    
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     config = {
         'chunking_strategy': 'fixed',  # Adapter config
         'chunk_size': 200,  # Adapter config
@@ -725,75 +778,94 @@ async def test_config_adapter_overrides_global_chunking(tmp_path):
             'default_chunking_strategy': 'semantic',  # Global config (should be overridden)
             'default_chunk_size': 1000,  # Global config (should be overridden)
             'default_chunk_overlap': 200  # Global config (should be overridden)
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
         }
     }
-    
+
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+    service.metadata_store = FileMetadataStore(config=config)
+
     # Should use adapter config (higher priority)
     assert isinstance(service.chunker, FixedSizeChunker)
     assert service.chunker.chunk_size == 200  # From adapter config
     assert service.chunker.overlap == 50
-    
+
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
 async def test_config_fallback_to_hardcoded_defaults(tmp_path):
     """Test that hardcoded defaults are used when no config provided"""
     test_db_path = str(tmp_path / "test_config.db")
-    
-    # Minimal config
-    config = {}
-    
-    service = FileProcessingService(config)
-    service.metadata_store.close()
+
     from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+    FileMetadataStore.reset_instance()
+
+    # Minimal config - only backend required for metadata store
+    config = {
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
     # Should fall back to hardcoded defaults
     assert isinstance(service.chunker, FixedSizeChunker)
     assert service.chunker.chunk_size == 1000  # Hardcoded default
     assert service.chunker.overlap == 200  # Hardcoded default
     assert str(service.storage.storage_root).endswith('uploads')  # Hardcoded default
-    
+
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
 async def test_config_global_default_chunking_strategy(tmp_path):
     """Test using global default_chunking_strategy"""
     test_db_path = str(tmp_path / "test_config.db")
-    
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     config = {
         'files': {
             'default_chunking_strategy': 'semantic',
             'default_chunk_size': 10,
             'default_chunk_overlap': 2
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
         }
     }
-    
+
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+    service.metadata_store = FileMetadataStore(config=config)
+
     # Should use semantic chunking from global default
     assert isinstance(service.chunker, SemanticChunker)
-    
+
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
@@ -801,32 +873,42 @@ async def test_config_vision_settings_from_global_config(tmp_path):
     """Test that vision settings come from global vision config"""
     test_db_path = str(tmp_path / "test_config.db")
 
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     # Updated to use modern config structure: config['vision'] instead of config['files']['processing']['vision']
     config = {
         'vision': {
             'enabled': False,
             'provider': 'anthropic'
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
         }
     }
 
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+    service.metadata_store = FileMetadataStore(config=config)
 
     assert service.enable_vision is False
     assert service.default_vision_provider == 'anthropic'
-    
+
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
 async def test_config_adapter_overrides_global_vision(tmp_path):
     """Test that adapter vision config overrides global config"""
     test_db_path = str(tmp_path / "test_config.db")
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
 
     # Updated to use modern config structure
     config = {
@@ -835,82 +917,103 @@ async def test_config_adapter_overrides_global_vision(tmp_path):
         'vision': {
             'enabled': False,  # Global config (should be overridden)
             'provider': 'openai'  # Global config (should be overridden)
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
         }
     }
 
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+    service.metadata_store = FileMetadataStore(config=config)
+
     # Should use adapter config (top-level overrides)
     assert service.enable_vision is True
     assert service.default_vision_provider == 'custom'
-    
+
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
 async def test_config_max_file_size_from_global(tmp_path):
     """Test that max_file_size uses global files.processing.max_file_size when adapter config not provided"""
     test_db_path = str(tmp_path / "test_config.db")
-    
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     config = {
         'files': {
             'processing': {
                 'max_file_size': 104857600  # 100MB (global config)
             }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
         }
     }
-    
+
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+    service.metadata_store = FileMetadataStore(config=config)
+
     assert service.max_file_size == 104857600
-    
+
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
 async def test_config_max_file_size_adapter_overrides_global(tmp_path):
     """Test that adapter max_file_size overrides global config"""
     test_db_path = str(tmp_path / "test_config.db")
-    
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     config = {
         'max_file_size': 209715200,  # 200MB (adapter config, should win)
         'files': {
             'processing': {
                 'max_file_size': 104857600  # 100MB (global config)
             }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
         }
     }
-    
+
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+    service.metadata_store = FileMetadataStore(config=config)
+
     assert service.max_file_size == 209715200  # Adapter config should win
-    
+
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
 async def test_config_supported_types_from_global(tmp_path):
     """Test that supported_types uses global files.processing.supported_types"""
     test_db_path = str(tmp_path / "test_config.db")
-    
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     config = {
         'files': {
             'processing': {
@@ -920,22 +1023,26 @@ async def test_config_supported_types_from_global(tmp_path):
                     'image/png'
                 ]
             }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
         }
     }
-    
+
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+    service.metadata_store = FileMetadataStore(config=config)
+
     assert 'text/plain' in service.supported_types
     assert 'application/custom' in service.supported_types
     assert 'image/png' in service.supported_types
 
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 # ============================================================================
@@ -951,15 +1058,24 @@ async def test_file_processing_uses_retriever_cache(tmp_path):
 
     test_db_path = str(tmp_path / "test_cache.db")
 
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     config = {
         'embedding': {'provider': 'ollama', 'model': 'test'},
-        'files': {'default_vector_store': 'chroma'}
+        'files': {'default_vector_store': 'chroma'},
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
     }
 
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+    service.metadata_store = FileMetadataStore(config=config)
 
     # Clear the cache before test
     cache = get_retriever_cache()
@@ -1016,9 +1132,7 @@ async def test_file_processing_uses_retriever_cache(tmp_path):
         assert mock_retriever.index_file_chunks.call_count == 3
 
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
@@ -1029,28 +1143,42 @@ async def test_different_configs_create_separate_cached_retrievers(tmp_path):
 
     test_db_path = str(tmp_path / "test_cache_multi.db")
 
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     # Clear the cache before test
     cache = get_retriever_cache()
     cache.clear_cache()
 
+    backend_config = {
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
+    }
+
     config1 = {
         'embedding': {'provider': 'ollama', 'model': 'model1'},
-        'files': {'default_vector_store': 'chroma'}
+        'files': {'default_vector_store': 'chroma'},
+        **backend_config
     }
 
     config2 = {
         'embedding': {'provider': 'openai', 'model': 'model2'},
-        'files': {'default_vector_store': 'chroma'}
+        'files': {'default_vector_store': 'chroma'},
+        **backend_config
     }
 
     service1 = FileProcessingService(config1)
-    service1.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service1.metadata_store = FileMetadataStore(db_path=test_db_path)
+    service1.metadata_store = FileMetadataStore(config=config1)
 
+    FileMetadataStore.reset_instance()
     service2 = FileProcessingService(config2)
-    service2.metadata_store.close()
-    service2.metadata_store = FileMetadataStore(db_path=test_db_path)
+    service2.metadata_store = FileMetadataStore(config=config2)
 
     # Mock FileVectorRetriever
     with patch('services.retriever_cache.FileVectorRetriever') as mock_retriever_class:
@@ -1101,9 +1229,7 @@ async def test_different_configs_create_separate_cached_retrievers(tmp_path):
 
     service1.metadata_store.close()
     service2.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
@@ -1114,15 +1240,24 @@ async def test_delete_file_uses_cached_retriever(tmp_path):
 
     test_db_path = str(tmp_path / "test_delete_cache.db")
 
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     config = {
         'embedding': {'provider': 'ollama'},
-        'files': {'default_vector_store': 'chroma'}
+        'files': {'default_vector_store': 'chroma'},
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
     }
 
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+    service.metadata_store = FileMetadataStore(config=config)
 
     # Clear cache
     cache = get_retriever_cache()
@@ -1184,9 +1319,7 @@ async def test_delete_file_uses_cached_retriever(tmp_path):
         assert mock_retriever.delete_file_chunks.call_count == 2
 
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)
 
 
 @pytest.mark.asyncio
@@ -1197,6 +1330,9 @@ async def test_cache_stats_tracking(tmp_path):
 
     test_db_path = str(tmp_path / "test_stats.db")
 
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
     cache = get_retriever_cache()
     cache.clear_cache()
 
@@ -1206,13 +1342,19 @@ async def test_cache_stats_tracking(tmp_path):
 
     config = {
         'embedding': {'provider': 'ollama'},
-        'files': {'default_vector_store': 'chroma'}
+        'files': {'default_vector_store': 'chroma'},
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
     }
 
     service = FileProcessingService(config)
-    service.metadata_store.close()
-    from services.file_metadata.metadata_store import FileMetadataStore
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+    service.metadata_store = FileMetadataStore(config=config)
 
     with patch('services.retriever_cache.FileVectorRetriever') as mock_retriever_class:
         mock_retriever = Mock()
@@ -1247,6 +1389,4 @@ async def test_cache_stats_tracking(tmp_path):
         assert len(stats['cache_keys']) == 1
 
     service.metadata_store.close()
-    import os
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    cleanup_metadata_store(test_db_path)

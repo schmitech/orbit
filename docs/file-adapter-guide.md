@@ -371,7 +371,7 @@ storage_backend: "s3"  # instead of "filesystem"
 
 ## Metadata Store
 
-File metadata is tracked in SQLite (`files.db` by default, configurable via `config.yaml`):
+File metadata is stored in the main backend database (SQLite `orbit.db` or MongoDB, configured via `internal_services.backend` in `config.yaml`):
 
 - `uploaded_files`: File metadata and processing status
 - `file_chunks`: Chunk references and vector store mappings
@@ -381,6 +381,7 @@ This enables:
 - Chunk cleanup on file deletion
 - Multi-tenancy via API key isolation
 - Processing status monitoring
+- Unified database backend (no separate `files.db`)
 
 ## Installation Notes
 

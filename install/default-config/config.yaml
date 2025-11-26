@@ -204,9 +204,10 @@ conversation_threading:
 files:
   # Global defaults for all file adapters
   # Individual adapters in adapters.yaml can override these settings
-  
-  metadata_db_path: "files.db"  # Path to SQLite database for file metadata (relative to project root)
-  
+
+  # NOTE: File metadata (uploaded_files, file_chunks) is now stored in the main backend database
+  # configured in internal_services.backend (SQLite or MongoDB), not in a separate files.db
+
   # Default storage configuration (can be overridden per adapter)
   storage_root: "./uploads"  # Default root directory for storing uploaded files
   

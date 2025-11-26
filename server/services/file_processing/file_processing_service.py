@@ -473,12 +473,10 @@ class FileProcessingService:
 
             # Store error message in file metadata for user feedback
             try:
-                cursor = self.metadata_store.connection.cursor()
-                cursor.execute(
-                    "UPDATE uploaded_files SET metadata = ? WHERE file_id = ?",
-                    (json.dumps({'error': error_message, 'failed_at': datetime.now(UTC).isoformat()}), file_id)
+                await self.metadata_store.update_file_metadata(
+                    file_id,
+                    {'error': error_message, 'failed_at': datetime.now(UTC).isoformat()}
                 )
-                self.metadata_store.connection.commit()
             except Exception as meta_error:
                 logger.warning(f"Failed to store error metadata for {file_id}: {meta_error}")
 

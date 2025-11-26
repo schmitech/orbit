@@ -198,6 +198,38 @@ class SQLiteService(DatabaseService):
                     expires_at TEXT NOT NULL,
                     metadata_json TEXT
                 )
+            ''',
+            'uploaded_files': '''
+                CREATE TABLE IF NOT EXISTS uploaded_files (
+                    id TEXT PRIMARY KEY,
+                    api_key TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    mime_type TEXT,
+                    file_size INTEGER,
+                    upload_timestamp TEXT,
+                    processing_status TEXT,
+                    storage_key TEXT,
+                    chunk_count INTEGER DEFAULT 0,
+                    vector_store TEXT,
+                    collection_name TEXT,
+                    storage_type TEXT DEFAULT 'vector',
+                    metadata_json TEXT,
+                    embedding_provider TEXT,
+                    embedding_dimensions INTEGER,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            ''',
+            'file_chunks': '''
+                CREATE TABLE IF NOT EXISTS file_chunks (
+                    id TEXT PRIMARY KEY,
+                    file_id TEXT NOT NULL,
+                    chunk_index INTEGER,
+                    vector_store_id TEXT,
+                    collection_name TEXT,
+                    chunk_metadata TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (file_id) REFERENCES uploaded_files(id)
+                )
             '''
         }
 
@@ -228,6 +260,13 @@ class SQLiteService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_conversation_threads_parent_session ON conversation_threads(parent_session_id)',
                 'CREATE INDEX IF NOT EXISTS idx_conversation_threads_thread_session ON conversation_threads(thread_session_id)',
                 'CREATE INDEX IF NOT EXISTS idx_conversation_threads_expires_at ON conversation_threads(expires_at)',
+            ],
+            'uploaded_files': [
+                'CREATE INDEX IF NOT EXISTS idx_uploaded_files_api_key ON uploaded_files(api_key)',
+                'CREATE INDEX IF NOT EXISTS idx_uploaded_files_processing_status ON uploaded_files(processing_status)',
+            ],
+            'file_chunks': [
+                'CREATE INDEX IF NOT EXISTS idx_file_chunks_file_id ON file_chunks(file_id)',
             ],
         }
 
