@@ -513,7 +513,7 @@ class TestAudioCacheManager:
         """Setup test fixtures"""
         self.config = {
             'general': {},
-            'sound': {
+            'sounds': {
                 'openai': {'tts_model': 'tts-1', 'stt_model': 'whisper-1'},
                 'elevenlabs': {'tts_model': 'eleven_monolingual_v1'},
                 'whisper': {'stt_model': 'base'}

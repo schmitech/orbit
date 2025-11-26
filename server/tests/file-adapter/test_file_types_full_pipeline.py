@@ -228,7 +228,7 @@ async def wait_for_processing(
                 if status == 'completed':
                     return file_info
                 elif status == 'failed':
-                    error_msg = file_info.get('error', 'Unknown error')
+                    error_msg = file_info.get('error_message', file_info.get('error', 'Unknown error'))
                     logger.error(f"File processing failed: {error_msg}")
                     raise Exception(f"File processing failed: {error_msg}")
             else:
@@ -735,7 +735,8 @@ async def test_png_image_full_pipeline(http_client, server_health_check):
                 else:
                     logger.warning("PNG processed but no chunks created - vision service may not be configured")
             else:
-                logger.warning(f"PNG processing failed: {file_info.get('error', 'Unknown error')}")
+                error_msg = file_info.get('error_message', file_info.get('error', 'Unknown error'))
+                logger.warning(f"PNG processing failed: {error_msg}")
                 logger.warning("This may indicate vision service is not configured or API keys are missing")
 
         finally:
@@ -805,7 +806,8 @@ async def test_jpeg_image_full_pipeline(http_client, server_health_check):
                 else:
                     logger.warning("JPEG processed but no chunks created - vision service may not be configured")
             else:
-                logger.warning(f"JPEG processing failed: {file_info.get('error', 'Unknown error')}")
+                error_msg = file_info.get('error_message', file_info.get('error', 'Unknown error'))
+                logger.warning(f"JPEG processing failed: {error_msg}")
 
         finally:
             try:
