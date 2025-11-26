@@ -2,33 +2,33 @@ inference:
   ollama:
     enabled: true
     base_url: "http://localhost:11434"
-    model: "granite4:micro"
+    model: "granite4:1b"
     stream: true
     think: false  # Enable/disable think mode (shows reasoning in <think> tags)
-    # Generation parameters - Optimized for large SQL result sets
-    temperature: 0.3  # Lower for more factual, deterministic outputs
-    top_p: 0.8  # More focused outputs for data analysis
-    top_k: 40
+    # Generation parameters - Optimized for Granite 4.0-1B on CPU laptop
+    temperature: 0.4  # Balanced for creative yet factual outputs with 1B model
+    top_p: 0.9  # Good diversity while maintaining coherence
+    top_k: 50  # Slightly higher for better token selection with larger model
     min_p: 0.0
     typical_p: 0.7
-    num_predict: 2048  # Increased to handle analysis of hundreds of records
-    repeat_penalty: 1.1
-    repeat_last_n: 33
+    num_predict: 6144  # Longer responses leveraging 1B model's improved capabilities
+    repeat_penalty: 1.2  # Higher penalty to prevent repetition in longer contexts
+    repeat_last_n: 128  # Check more tokens for repetition in extended chat history
     presence_penalty: 0.0
     frequency_penalty: 0.0
     # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
     mirostat: 0
     mirostat_tau: 0.8
     mirostat_eta: 0.6
-    # Context and memory - Optimized for hundreds of SQL records
-    num_ctx: 16384  # Large context window to fit hundreds of records + analysis
-    num_keep: 200  # Keep prompt instructions and query context
+    # Context and memory - Optimized for Granite 4.0-1B (supports 128K, using 64K for laptop efficiency)
+    num_ctx: 65536  # 64K context - large enough for extensive chat history, practical for laptop CPU
+    num_keep: 1024  # Keep significant chat history and prompt context
     penalize_newline: false
     # Stop sequences
     stop: []
-    # Threading and performance
-    num_threads: 8
-    num_batch: 2
+    # Threading and performance - Optimized for 1.6B parameter model on CPU
+    num_threads: 8  # Optimal for 1B model on modern laptop CPUs
+    num_batch: 6  # Increased batch size for better throughput with 1B model
     # GPU settings
     num_gpu: 0
     main_gpu: 0
@@ -99,36 +99,36 @@ inference:
     mode: "direct"
 
     # Direct mode configuration
-    model_path: "models/granite-4.0-micro-Q4_0.gguf"
-    chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
+    model_path: "models/granite-4.0-1b-Q4_K_M.gguf"
+    chat_format: null  # Auto-detect chat format from model (Granite uses custom format)
     verbose: false
 
     # API mode configuration
     base_url: "http://localhost:8080"  # llama.cpp server URL (OpenAI-compatible API)
-    model: "granite4-micro"  # Model name to request from the server (for API mode)
+    model: "granite4:1b"  # Model name to request from the server (for API mode)
     api_key: null  # Optional API key for secured servers
 
-    # Generation parameters
-    temperature: 1.0
-    top_p: 0.95
-    top_k: 64
-    max_tokens: 1024
-    repeat_penalty: 1.2
+    # Generation parameters - Optimized for Granite 4.0-1B on CPU laptop
+    temperature: 0.4  # Balanced for creative yet factual outputs with 1B model
+    top_p: 0.9  # Good diversity while maintaining coherence
+    top_k: 50  # Slightly higher for better token selection with larger model
+    max_tokens: 4096  # Longer responses leveraging 1B model's improved capabilities
+    repeat_penalty: 1.2  # Higher penalty to prevent repetition in longer contexts
 
-    # Context and threading
-    n_ctx: 4096
-    n_threads: 8
+    # Context and threading - Optimized for Granite 4.0-1B (supports 128K, using 32K for llama.cpp CPU efficiency)
+    n_ctx: 32768  # 32K context - large enough for chat history, practical for llama.cpp on CPU
+    n_threads: 8  # Optimal for 1B model on modern laptop CPUs
     stream: true
 
     # GPU settings (direct mode only)
-    n_gpu_layers: 0  # For GPU/Metal support
+    n_gpu_layers: 0  # For GPU/Metal support (0 = CPU only)
     main_gpu: 0
     tensor_split: null
 
-    # Stop tokens
+    # Stop tokens - Granite uses <|end_of_text|> and role tokens
     stop_tokens: [
-      "<start_of_turn>",
-      "<end_of_turn>"
+      "<|end_of_text|>",
+      "<|end_of_role|>"
     ]   
   gemini:
     enabled: true
