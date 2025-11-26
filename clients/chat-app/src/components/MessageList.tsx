@@ -142,7 +142,7 @@ export function MessageList({
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto py-6"
+      className="message-list flex-1 overflow-y-auto py-6"
       onScroll={handleScroll}
     >
       <div className="space-y-6 px-3 sm:px-4">
