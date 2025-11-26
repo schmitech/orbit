@@ -194,7 +194,7 @@ class ConversationHistoryHandler:
                 warning_template = self.messages_config.get(
                     'conversation_limit_warning',
                     "⚠️ **WARNING**: This conversation is using {current_tokens}/{max_tokens} tokens. "
-                    "Older messages will be automatically excluded from context to stay within limits. "
+                    "Older messages will be automatically deleted to stay within limits. "
                     "Consider starting a new conversation if you want to preserve the full context."
                 )
 

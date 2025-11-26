@@ -125,7 +125,11 @@ class ChatHistoryService:
         # In-memory cache for active sessions (lightweight, temporary)
         self._active_sessions = {}  # session_id -> last_activity timestamp
         self._session_token_counts = {}  # session_id -> total token count
-        
+
+        # Per-session locks for thread-safe cleanup operations
+        self._session_locks: Dict[str, asyncio.Lock] = {}
+        self._locks_lock = asyncio.Lock()  # Lock for managing session locks
+
         self._initialized = False
         
         # Cleanup task handle
@@ -732,8 +736,163 @@ class ChatHistoryService:
                 idempotency_key=assistant_key
             )
         
+        # Trigger cleanup if session exceeds token budget threshold
+        await self._cleanup_excess_messages(session_id)
+
         return user_msg_id, assistant_msg_id
-    
+
+    async def _get_session_lock(self, session_id: str) -> asyncio.Lock:
+        """
+        Get or create a lock for a specific session.
+
+        This ensures thread-safe cleanup operations per session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            asyncio.Lock for the session
+        """
+        async with self._locks_lock:
+            if session_id not in self._session_locks:
+                self._session_locks[session_id] = asyncio.Lock()
+            return self._session_locks[session_id]
+
+    async def _cleanup_excess_messages(self, session_id: str) -> int:
+        """
+        Delete messages that fall outside the rolling window token budget.
+
+        This method is called after adding new messages to keep the session
+        within reasonable bounds. Messages are deleted from oldest to newest
+        until the session fits within the token budget.
+
+        Thread-safe: Uses per-session locking to prevent concurrent cleanup.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Number of messages deleted
+        """
+        if not self.enabled:
+            return 0
+
+        # Quick check before acquiring lock (avoid lock contention for normal case)
+        current_tokens = self._session_token_counts.get(session_id, 0)
+        cleanup_threshold = int(self.max_token_budget * 1.2)
+
+        if current_tokens <= cleanup_threshold:
+            return 0
+
+        # Acquire per-session lock to prevent concurrent cleanup
+        session_lock = await self._get_session_lock(session_id)
+
+        # Use try_lock pattern: if another coroutine is already cleaning up, skip
+        if session_lock.locked():
+            logger.debug(
+                "Session %s cleanup already in progress, skipping",
+                session_id,
+            )
+            return 0
+
+        async with session_lock:
+            try:
+                # Re-check after acquiring lock (another coroutine may have cleaned up)
+                current_tokens = self._session_token_counts.get(session_id, 0)
+
+                if current_tokens <= cleanup_threshold:
+                    return 0
+
+                logger.debug(
+                    "Session %s exceeds cleanup threshold (%s/%s tokens), starting cleanup",
+                    session_id,
+                    current_tokens,
+                    cleanup_threshold,
+                )
+
+                # Fetch all messages for session, ordered by timestamp ASC (oldest first)
+                all_messages = await self.database_service.find_many(
+                    self.collection_name,
+                    {"session_id": session_id},
+                    sort=[("timestamp", 1)],  # Oldest first
+                    limit=10000  # Reasonable upper bound
+                )
+
+                if not all_messages:
+                    return 0
+
+                # Calculate which messages to keep (from newest, within budget)
+                # Work backwards from newest to oldest
+                messages_reversed = list(reversed(all_messages))
+                accumulated_tokens = 0
+                keep_count = 0
+
+                for msg in messages_reversed:
+                    token_count = msg.get("token_count")
+                    if token_count is None:
+                        content = msg.get("content", "")
+                        token_count = self._estimate_token_count(content)
+
+                    if accumulated_tokens + token_count > self.max_token_budget:
+                        break
+
+                    accumulated_tokens += token_count
+                    keep_count += 1
+
+                # Calculate how many to delete (oldest messages)
+                delete_count = len(all_messages) - keep_count
+
+                if delete_count <= 0:
+                    return 0
+
+                # Get IDs of messages to delete (oldest ones)
+                messages_to_delete = all_messages[:delete_count]
+                deleted_ids = [msg.get("_id") for msg in messages_to_delete if msg.get("_id")]
+
+                # Calculate tokens being removed for cache update
+                tokens_removed = 0
+                for msg in messages_to_delete:
+                    token_count = msg.get("token_count")
+                    if token_count is None:
+                        content = msg.get("content", "")
+                        token_count = self._estimate_token_count(content)
+                    tokens_removed += token_count
+
+                # Delete messages in batches
+                actual_deleted = 0
+                for msg_id in deleted_ids:
+                    try:
+                        deleted = await self.database_service.delete_one(
+                            self.collection_name,
+                            {"_id": msg_id}
+                        )
+                        if deleted:
+                            actual_deleted += 1
+                    except Exception as e:
+                        logger.warning(f"Error deleting message {msg_id}: {str(e)}")
+
+                # Update cache atomically within the lock
+                if actual_deleted > 0:
+                    self._session_token_counts[session_id] = max(
+                        0,
+                        self._session_token_counts.get(session_id, 0) - tokens_removed
+                    )
+
+                    logger.debug(
+                        "Cleaned up %s old messages from session %s (freed %s tokens, now %s/%s)",
+                        actual_deleted,
+                        session_id,
+                        tokens_removed,
+                        self._session_token_counts.get(session_id, 0),
+                        self.max_token_budget,
+                    )
+
+                return actual_deleted
+
+            except Exception as e:
+                logger.error(f"Error cleaning up excess messages for session {session_id}: {str(e)}")
+                return 0
+
     @with_retry()
     async def get_conversation_history(
         self,
@@ -1617,7 +1776,8 @@ class ChatHistoryService:
             for sid in inactive:
                 self._active_sessions.pop(sid, None)
                 self._session_token_counts.pop(sid, None)
-                
+                self._session_locks.pop(sid, None)  # Clean up session locks
+
             if inactive:
                 logger.debug(
                     "Cleaned up %s inactive sessions from memory tracking",
@@ -1674,5 +1834,6 @@ class ChatHistoryService:
         # Clear tracking
         self._active_sessions.clear()
         self._session_token_counts.clear()
-        
+        self._session_locks.clear()
+
         logger.info("Chat history service closed")

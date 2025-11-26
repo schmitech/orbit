@@ -8,11 +8,13 @@ Orbit includes a conversation history system that automatically adapts to your c
 - [Overview](#overview)
 - [How It Works](#how-it-works)
 - [Rolling Window Memory](#rolling-window-memory)
+  - [Automatic Cleanup Mechanism](#-automatic-cleanup-mechanism)
 - [Dynamic Token Budget](#dynamic-token-budget)
 - [Provider-Specific Behavior](#provider-specific-behavior)
 - [Configuration](#configuration)
 - [Examples](#examples)
 - [Technical Details](#technical-details)
+  - [Thread Safety](#thread-safety)
 - [Monitoring and Troubleshooting](#monitoring-and-troubleshooting)
 - [Conversation Limit Warnings](#conversation-limit-warnings)
 
@@ -25,15 +27,18 @@ The conversation history system provides:
 - **Provider Awareness**: Adapts to different inference providers (llama.cpp, Ollama, OpenAI, etc.)
 - **Efficient Resource Utilization**: Uses available context window efficiently via rolling window queries
 - **Rolling Window Queries**: Automatically selects recent messages that fit within token budget
+- **🗑️ Automatic Cleanup**: Deletes old messages when session exceeds token budget threshold
 - **⚠️ Proactive Warnings**: Alerts users when conversation approaches token budget limits
+- **🔒 Thread-Safe**: Per-session locking ensures safe concurrent access
 
 ### Key Benefits
 
 1. **No Manual Configuration**: The system automatically determines the best settings
 2. **Model-Optimized**: Adapts to each model's context window size
 3. **Memory Efficient**: Prevents context overflow while maximizing conversation length
-4. **Provider Agnostic**: Works seamlessly across all supported inference providers
-5. **🔔 User-Friendly Warnings**: Never lose context unexpectedly
+4. **Storage Efficient**: Automatically cleans up old messages to save database space
+5. **Provider Agnostic**: Works seamlessly across all supported inference providers
+6. **🔔 User-Friendly Warnings**: Get notified before messages are deleted
 
 ## How It Works
 
@@ -87,19 +92,20 @@ The system then uses a **rolling window query** to select messages that fit with
 
 ### 🔄 How Memory Actually Works
 
-**IMPORTANT**: The system uses **token-based rolling window queries**, not message archiving. All messages remain in the database, but only recent messages that fit within the token budget are included in context.
+**IMPORTANT**: The system uses a **token-based rolling window** approach with **automatic cleanup**. Messages that fit within the token budget are included in context, and old messages that exceed the budget are automatically deleted from the database.
 
 ### ❌ **What It Does NOT Do** (Common Misconception):
 ```
 Conversation: [1,2,3,4,5,6,7,8,9,10] → DELETE ALL → Start fresh from 0
 ```
 
-### ✅ **What It Actually Does** (Rolling Window Query):
+### ✅ **What It Actually Does** (Rolling Window with Cleanup):
 ```
-All messages in DB: [1,2,3,4,5,6,7,8,9,10,11,12]
+Messages in DB: [1,2,3,4,5,6,7,8,9,10,11,12]
 Token budget: 1000 tokens
-Query result: [7,8,9,10,11,12]  ← Only messages that fit in token budget
-Next query: [8,9,10,11,12,13]    ← Automatically adjusts as new messages added
+Context query: [7,8,9,10,11,12]  ← Messages that fit in token budget
+Cleanup (at 120%): [1,2,3,4,5,6] ← Old messages deleted from database
+After cleanup: [7,8,9,10,11,12]  ← Only recent messages remain
 ```
 
 **The AI remembers information based on recency and token usage, not arbitrary cutoffs:**
@@ -110,10 +116,10 @@ Next query: [8,9,10,11,12,13]    ← Automatically adjusts as new messages added
 - ✅ **Context-relevant**: Information that connects to recent conversations
 - ✅ **Within token budget**: Messages that fit within the available token budget
 
-#### **Information Gets Excluded When:**
-- ❌ **Old and unreferenced**: Early topics not mentioned recently fall outside token budget
+#### **Information Gets Deleted When:**
+- ❌ **Old and unreferenced**: Early topics not mentioned recently are deleted when budget is exceeded
 - ❌ **No recent reinforcement**: Details from beginning that haven't come up again
-- ❌ **Outside token window**: Messages exceed the token budget for context retrieval
+- ❌ **Outside token window**: Messages exceeding 120% of token budget are permanently removed
 
 ### 📊 **Real Example Scenarios**
 
@@ -128,51 +134,52 @@ Message 26: "Your name is Sarah"               → [In token window]
 Result: AI remembers "Sarah" because recent exchanges are within token budget
 ```
 
-#### **Scenario 2: Early Details** (Why they're excluded)
+#### **Scenario 2: Early Details** (Why they're deleted)
 ```
-Message 2:  "I work at Microsoft"              → [Outside token budget]
-Message 3:  "I have a dog named Buddy"         → [Outside token budget]  
+Message 2:  "I work at Microsoft"              → [Deleted when budget exceeded]
+Message 3:  "I have a dog named Buddy"         → [Deleted when budget exceeded]
 [... 20 messages about other topics ...]
-Message 25: "Where do I work?"                 → [Recent, but context lost]
-Message 26: "I don't see that information     → [Can't access messages
-             in our recent conversation"           outside token budget]
+Message 25: "Where do I work?"                 → [Recent, but early messages gone]
+Message 26: "I don't see that information     → [Messages were deleted from
+             in our recent conversation"           the database]
 
-Result: AI can't access early details that fall outside the token budget
+Result: AI can't access early details because they were permanently deleted
 ```
 
 #### **Scenario 3: Natural Conversation Flow**
 ```
-Messages 1-5:   Discuss weekend plans          → [Outside token budget]
-Messages 6-10:  Talk about work projects       → [Outside token budget]
-Messages 11-15: Conversation about cooking     → [May be outside budget]
-Messages 16-20: Return to work discussion      → [In token window]
-Messages 21-25: More work-related topics       → [In token window]
+Messages 1-5:   Discuss weekend plans          → [Deleted at cleanup]
+Messages 6-10:  Talk about work projects       → [Deleted at cleanup]
+Messages 11-15: Conversation about cooking     → [May be deleted at cleanup]
+Messages 16-20: Return to work discussion      → [In token window, retained]
+Messages 21-25: More work-related topics       → [In token window, retained]
 
-Result: AI remembers recent work discussion, can't access weekend plans
+Result: AI remembers recent work discussion, weekend plans permanently deleted
 ```
 
 ### 🔍 **Testing Memory Behavior**
 
 To verify the rolling window works correctly, try:
 
-#### **Test Excluded Information:**
+#### **Test Deleted Information:**
 - Ask about topics from your **first few messages** that you haven't mentioned recently
 - Example: "What was the first thing I told you about myself?"
-- **Expected**: AI won't remember if those messages fall outside the token budget
+- **Expected**: AI won't remember because those messages were deleted from the database
 
 #### **Test Remembered Information:**
-- Ask about topics you've discussed **recently or repeatedly**  
+- Ask about topics you've discussed **recently or repeatedly**
 - Example: "What's my name?" (if asked multiple times recently)
-- **Expected**: AI remembers because those messages are within the token budget
+- **Expected**: AI remembers because those messages are within the token budget and retained
 
 ### 🚀 **Why This Design is Optimal**
 
 1. **🧠 Natural Conversation Flow**: Like human memory, recent topics stay accessible
-2. **⚡ Optimal Performance**: Always uses maximum available context efficiently  
+2. **⚡ Optimal Performance**: Always uses maximum available context efficiently
 3. **🔄 Continuous Context**: No jarring "memory wipes" that break conversation flow
 4. **🎯 Relevance-Based**: Important information naturally stays through reinforcement
 5. **📈 Scalable**: Works identically across tiny to massive models
-6. **💾 Data Preservation**: All messages remain in database, only query results are limited
+6. **💾 Storage Efficient**: Old messages are automatically cleaned up to save database space
+7. **🔒 Thread-Safe**: Per-session locking prevents race conditions during cleanup
 
 ### 🔧 **How Rolling Window Query Works**
 
@@ -186,13 +193,37 @@ To verify the rolling window works correctly, try:
 5. Returns messages in chronological order (oldest to newest)
 6. Generate response using context within token budget
 7. Store new user question + AI response
+8. Cleanup triggered if session exceeds 120% of token budget
 ```
 
 **This ensures:**
 - ✅ **Fresh context**: AI always sees most relevant recent messages within token budget
 - ✅ **No overflow**: Context never exceeds model limits
 - ✅ **Smooth experience**: No mid-conversation memory loss
-- ✅ **Data integrity**: All messages preserved in database
+- ✅ **Automatic cleanup**: Old messages deleted when budget is significantly exceeded
+
+### 🗑️ **Automatic Cleanup Mechanism**
+
+**Cleanup triggers when session exceeds 120% of token budget:**
+
+```
+Token budget: 7,842 tokens
+Cleanup threshold: 9,410 tokens (120% of budget)
+
+Session at 8,000 tokens → No cleanup (under 120%)
+Session at 10,000 tokens → Cleanup triggered
+    ↓
+Delete oldest messages until session fits within budget
+    ↓
+Session now at ~7,800 tokens
+```
+
+**Cleanup behavior:**
+- **Threshold**: 120% of token budget (prevents cleanup on every message)
+- **Warning**: Users warned at 90% before cleanup occurs
+- **Thread-safe**: Per-session locking prevents race conditions
+- **Non-blocking**: Cleanup happens asynchronously after storing messages
+- **Permanent**: Deleted messages cannot be recovered
 
 ## Dynamic Token Budget
 
@@ -516,21 +547,39 @@ Response generation buffer:              ~100 tokens
 Total reserved:                          ~350 tokens
 ```
 
-### Rolling Window Query
+### Rolling Window Query with Cleanup
 
-The system uses a token-based rolling window query approach:
+The system uses a token-based rolling window query approach with automatic cleanup:
 
 1. **Query Strategy**: Fetches messages from newest to oldest
 2. **Token Accumulation**: Adds messages until token budget is reached
 3. **Natural Limiting**: Query automatically stops when budget would be exceeded
 4. **Chronological Order**: Results are reversed to oldest-to-newest for LLM context
-5. **No Archiving**: All messages remain in database, only query results are limited
+5. **Automatic Cleanup**: Messages exceeding 120% of budget are permanently deleted
 
 **Example**: If token budget is 7,842 tokens:
 - Query fetches messages starting from most recent
 - Accumulates: Message 1 (150 tokens), Message 2 (200 tokens), ...
 - Stops when adding next message would exceed 7,842 tokens
 - Returns selected messages in chronological order
+- If session reaches 9,410 tokens (120%), oldest messages are deleted
+
+### Thread Safety
+
+The cleanup mechanism uses per-session locking to ensure thread safety:
+
+1. **Per-Session Locks**: Each session has its own asyncio.Lock
+2. **Double-Check Pattern**: Quick pre-check before acquiring lock, re-check after
+3. **Skip if Locked**: If another coroutine is already cleaning, the request skips cleanup
+4. **Atomic Updates**: Cache updates happen within the lock to prevent race conditions
+
+**Concurrency Behavior**:
+```
+Request A: Triggers cleanup → Acquires lock → Deletes messages → Releases lock
+Request B: Triggers cleanup → Lock already held → Skips cleanup → Continues
+```
+
+This prevents duplicate cleanup operations and ensures data consistency.
 
 ### Safety Bounds
 
@@ -644,23 +693,24 @@ The system will seamlessly transition to dynamic token budget calculation withou
 
 ### 🔔 Proactive Memory Alerts
 
-The system automatically warns users when their conversation approaches the token budget limit, preventing unexpected context exclusion. Users receive clear notifications when it's time to consider starting a new conversation.
+The system automatically warns users when their conversation approaches the token budget limit, alerting them before old messages are permanently deleted. Users receive clear notifications when it's time to consider starting a new conversation.
 
-### Warning Thresholds
+### Warning and Cleanup Thresholds
 
-The system uses a **single warning threshold** based on token usage:
+The system uses **two thresholds** based on token usage:
 
 | Threshold | Calculation | Purpose |
 |-----------|-------------|---------|
-| **Warning** | 90% of token budget | Early notice before older messages are excluded |
+| **Warning** | 90% of token budget | Early notice before deletion occurs |
+| **Cleanup** | 120% of token budget | Triggers automatic deletion of oldest messages |
 
 ### Example Warning Messages
 
 **⚠️ Memory Warning** (at 90% token threshold):
 ```
-⚠️ **WARNING**: This conversation is using 7057/7842 tokens. Older messages 
-will be automatically excluded from context to stay within limits. Consider 
-starting a new conversation if you want to preserve the full context.
+⚠️ **WARNING**: This conversation is using 7057/7842 tokens. Older messages
+will be automatically deleted to stay within limits. Consider starting a new
+conversation if you want to preserve the full context.
 ```
 
 The warning message can be customized via the `messages.conversation_limit_warning` configuration option, which supports `{current_tokens}` and `{max_tokens}` placeholders.
@@ -669,12 +719,15 @@ The warning message can be customized via the `messages.conversation_limit_warni
 
 **Small Models** (e.g., TinyLLama with 1K context → 674 token budget):
 - Warning at 607 tokens (90% of 674)
+- Cleanup at 809 tokens (120% of 674)
 - Tight limits require immediate action
 
 **Medium Models** (e.g., Ollama with 8K context → 7,842 token budget):
 - Warning at 7,058 tokens (90% of 7,842)
-- "Older messages will be automatically excluded from context"
+- Cleanup at 9,410 tokens (120% of 7,842)
+- "Older messages will be automatically deleted"
 
 **Large Models** (e.g., GPT-4 with 32K context → 32,418 token budget):
 - Warning at 29,176 tokens (90% of 32,418)
+- Cleanup at 38,902 tokens (120% of 32,418)
 - "Consider starting a new conversation if you want to preserve the full context"

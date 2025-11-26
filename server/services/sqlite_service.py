@@ -185,20 +185,6 @@ class SQLiteService(DatabaseService):
                     token_count INTEGER
                 )
             ''',
-            'chat_history_archive': '''
-                CREATE TABLE IF NOT EXISTS chat_history_archive (
-                    id TEXT PRIMARY KEY,
-                    session_id TEXT NOT NULL,
-                    role TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    timestamp TEXT NOT NULL,
-                    user_id TEXT,
-                    api_key TEXT,
-                    metadata_json TEXT,
-                    message_hash TEXT,
-                    token_count INTEGER
-                )
-            ''',
             'conversation_threads': '''
                 CREATE TABLE IF NOT EXISTS conversation_threads (
                     id TEXT PRIMARY KEY,
@@ -236,11 +222,6 @@ class SQLiteService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_chat_history_timestamp ON chat_history(timestamp)',
                 'CREATE INDEX IF NOT EXISTS idx_chat_history_api_key ON chat_history(api_key)',
                 'CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_history_hash ON chat_history(session_id, message_hash)',
-            ],
-            'chat_history_archive': [
-                'CREATE INDEX IF NOT EXISTS idx_chat_history_archive_session ON chat_history_archive(session_id, timestamp)',
-                'CREATE INDEX IF NOT EXISTS idx_chat_history_archive_user ON chat_history_archive(user_id, timestamp)',
-                'CREATE INDEX IF NOT EXISTS idx_chat_history_archive_timestamp ON chat_history_archive(timestamp)',
             ],
             'conversation_threads': [
                 'CREATE INDEX IF NOT EXISTS idx_conversation_threads_parent_message ON conversation_threads(parent_message_id)',
@@ -634,7 +615,7 @@ class SQLiteService(DatabaseService):
             document['id'] = id_to_string(document.pop('_id'))
 
         # Handle metadata field for chat_history
-        if collection_name in ['chat_history', 'chat_history_archive'] and 'metadata' in document:
+        if collection_name == 'chat_history' and 'metadata' in document:
             # Sanitize metadata to handle non-serializable objects (e.g., Elasticsearch ObjectApiResponse)
             metadata = document.pop('metadata')
             sanitized_metadata = _make_json_serializable(metadata)
@@ -1015,7 +996,7 @@ class SQLiteService(DatabaseService):
             doc['_id'] = doc.pop('id')
 
         # Convert metadata_json back to metadata
-        if collection_name in ['chat_history', 'chat_history_archive'] and 'metadata_json' in doc:
+        if collection_name == 'chat_history' and 'metadata_json' in doc:
             if doc['metadata_json']:
                 try:
                     doc['metadata'] = json.loads(doc['metadata_json'])

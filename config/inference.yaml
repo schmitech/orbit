@@ -21,7 +21,8 @@ inference:
     mirostat_tau: 0.8
     mirostat_eta: 0.6
     # Context and memory - Optimized for Granite 4.0-1B (supports 128K, using 64K for laptop efficiency)
-    num_ctx: 65536  # 64K context - large enough for extensive chat history, practical for laptop CPU
+    # num_ctx: 65536  # 64K context - large enough for extensive chat history, practical for laptop CPU
+    num_ctx: 2048  # 64K context - large enough for extensive chat history, practical for laptop CPU
     num_keep: 1024  # Keep significant chat history and prompt context
     penalize_newline: false
     # Stop sequences
@@ -134,6 +135,7 @@ inference:
     enabled: true
     api_key: ${GOOGLE_API_KEY}
     model: "gemini-3-pro-preview"
+    context_window: 1000000  # Gemini supports up to 1M tokens
     temperature: 0.1
     top_p: 0.8
     top_k: 20
@@ -144,6 +146,7 @@ inference:
     enabled: true
     api_key: ${GROQ_API_KEY}
     model: "llama-3.1-8b-instant"
+    context_window: 131072  # Llama 3.1 supports 128K context on Groq
     temperature: 0.1
     top_p: 0.8
     max_tokens: 32000
@@ -153,6 +156,7 @@ inference:
     api_key: ${DEEPSEEK_API_KEY}
     api_base: "https://api.deepseek.com/v1"
     model: "deepseek-chat"
+    context_window: 65536  # DeepSeek Chat supports 64K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -162,6 +166,7 @@ inference:
     project_id: "your-project-id"
     location: "us-central1"
     model: "gemini-1.5-pro"
+    context_window: 1000000  # Gemini 1.5 Pro on Vertex supports up to 1M tokens
     temperature: 0.1
     top_p: 0.8
     top_k: 20
@@ -174,6 +179,7 @@ inference:
     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
     region: "ca-central-1"
     model: "claude-sonnet-4-5-20250929"
+    context_window: 200000  # Claude on Bedrock supports 200K context
     content_type: "application/json"
     accept: "application/json"
     max_tokens: 1024
@@ -182,6 +188,7 @@ inference:
     base_url: http://azure-ai.endpoint.microsoft.com
     deployment: "azure-ai-deployment"
     api_key: ${AZURE_ACCESS_KEY}
+    context_window: 128000  # Azure OpenAI GPT-4 Turbo supports 128K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -191,6 +198,7 @@ inference:
     enabled: true
     api_key: ${OPENAI_API_KEY}
     model: "gpt-5"
+    context_window: 128000  # GPT-4 Turbo/GPT-4o supports 128K context
     temperature: 1
     top_p: 0.8
     max_tokens: 16000
@@ -200,6 +208,7 @@ inference:
     api_key: ${MISTRAL_API_KEY}
     api_base: "https://api.mistral.ai/v1"
     model: "mistral-small-latest"
+    context_window: 32768  # Mistral Small supports 32K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -209,6 +218,7 @@ inference:
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
     model: "claude-sonnet-4-20250514"
+    context_window: 200000  # Claude 3/4 supports 200K context
     temperature: 0.1
     max_tokens: 1024
     stream: true
@@ -217,6 +227,7 @@ inference:
     api_key: ${TOGETHER_API_KEY}
     api_base: "https://api.together.xyz/v1"
     model: "Qwen/Qwen3-235B-A22B-fp8-tput"
+    context_window: 32768  # Varies by model, Qwen supports 32K+
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -227,6 +238,7 @@ inference:
     api_key: ${XAI_API_KEY}
     api_base: "https://api.x.ai/v1"
     model: "grok-3-mini-beta"
+    context_window: 131072  # Grok supports 128K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 16000
@@ -245,6 +257,7 @@ inference:
     api_key: ${OPENROUTER_API_KEY}
     base_url: "https://openrouter.ai/api/v1"
     model: "meta-llama/llama-3.1-8b-instruct"
+    context_window: 131072  # Llama 3.1 supports 128K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -255,6 +268,7 @@ inference:
     api_key: ${COHERE_API_KEY}
     api_base: "https://api.cohere.ai/v2"
     model: "command-r7b-12-2024"
+    context_window: 128000  # Command R supports 128K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -266,6 +280,7 @@ inference:
     project_id: "your-project_id"
     instance_id: "openshift"
     model: "ibm/granite-3-8b-instruct"
+    context_window: 8192  # Granite 3 8B supports 8K context
     temperature: 0.1
     top_k: 20
     top_p: 0.8
@@ -282,6 +297,7 @@ inference:
     api_key: ${PERPLEXITY_API_KEY}
     api_base: "https://api.perplexity.ai"
     model: "llama-3-sonar-small-32k-online"
+    context_window: 32768  # Sonar 32K model
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -291,6 +307,7 @@ inference:
     api_key: ${FIREWORKS_API_KEY}
     api_base: "https://api.fireworks.ai/inference/v1"
     model: "accounts/fireworks/models/firellava-13b"
+    context_window: 4096  # FireLLaVA 13B context (varies by model)
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -299,6 +316,7 @@ inference:
     enabled: false
     api_key: ${REPLICATE_API_KEY}
     model: "meta/llama-2-70b-chat:02e509c789964a7ea8736978a43525956ef40397be9033abf9fd2badfe68c9e3"
+    context_window: 4096  # Llama 2 70B supports 4K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -308,6 +326,7 @@ inference:
     api_key: ${NVIDIA_API_KEY}
     api_base: "http://localhost:8000/v1"
     model: "meta/llama3-8b-instruct"
+    context_window: 8192  # Llama 3 8B supports 8K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -375,6 +394,7 @@ inference:
     api_key: ${ZAI_API_KEY}
     base_url: "https://api.z.ai/api/paas/v4/"
     model: "glm-4.6"
+    context_window: 128000  # GLM-4 supports 128K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 2000
