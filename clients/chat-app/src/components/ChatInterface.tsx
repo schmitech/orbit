@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, FormEvent, MouseEvent } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
@@ -164,7 +164,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     }
   };
 
-  const handleConfigureApi = async () => {
+  const handleConfigureApi = async (event?: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement>) => {
+    if (event) {
+      event.preventDefault();
+    }
     if (apiUrl && apiKey) {
       setIsValidating(true);
       setValidationError(null);
@@ -201,7 +204,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           {/* API Configuration Modal */}
           {showConfig && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-              <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]">
+              <form
+                onSubmit={handleConfigureApi}
+                className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]"
+              >
                 <h2 className="text-lg font-medium text-[#353740] dark:text-[#ececf1] mb-4">
                   Configure API Settings
                 </h2>
@@ -252,6 +258,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   )}
                   <div className="flex justify-end gap-3 pt-2">
                     <button
+                      type="button"
                       onClick={() => {
                         // Reset to current conversation's values when canceling (or defaults if none)
                         // Read dynamically to ensure we get the latest runtime config
@@ -269,15 +276,15 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       Cancel
                     </button>
                     <button
-                      onClick={handleConfigureApi}
+                      type="submit"
                       disabled={!apiUrl || !apiKey || isValidating}
                       className="rounded-md bg-[#343541] px-4 py-2 text-sm font-medium text-white hover:bg-[#282b32] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
                     >
-                      {isValidating ? 'Validating...' : 'Configure'}
+                      {isValidating ? 'Validating...' : 'Update'}
                     </button>
                   </div>
                 </div>
-              </div>
+              </form>
             </div>
           )}
 
