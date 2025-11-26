@@ -1372,6 +1372,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
       const userMessage = currentConv.messages[messageIndex - 1];
       if (!userMessage || userMessage.role !== 'user') return;
+      const attachmentIds = (userMessage.attachments || [])
+        .map(file => file.file_id)
+        .filter((fileId): fileId is string => typeof fileId === 'string' && fileId.length > 0);
 
       // Remove the old assistant message and add a new streaming one
       const newAssistantMessageId = generateUniqueMessageId('assistant');
@@ -1462,7 +1465,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         for await (const response of api.streamChat(
           userMessage.content,
           true,
-          undefined, // fileIds
+          attachmentIds.length > 0 ? attachmentIds : undefined, // Preserve files from original question
           undefined, // threadId
           undefined, // audioInput
           undefined, // audioFormat for input
