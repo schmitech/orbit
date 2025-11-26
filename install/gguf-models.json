@@ -24,6 +24,10 @@
       "repo_id": "ibm-granite/granite-4.0-micro-GGUF",
       "filename": "granite-4.0-micro-Q4_0.gguf"
     },
+    "granite4-1b": {
+      "repo_id": "ibm-granite/granite-4.0-1b-GGUF",
+      "filename": "granite-4.0-1b-Q4_K_M.gguf"
+    },
     "embeddinggemma-300m": {
       "repo_id": "unsloth/embeddinggemma-300m-GGUF",
       "filename": "embeddinggemma-300m-Q4_0.gguf"
