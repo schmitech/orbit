@@ -275,7 +275,7 @@ def _process_imports(config: Dict[str, Any], config_dir: str) -> Dict[str, Any]:
         try:
             with open(import_path, 'r') as file:
                 imported_config = yaml.safe_load(file)
-                logger.info(f"Successfully imported configuration from {os.path.abspath(import_path)}")
+                logger.debug(f"Successfully imported configuration from {os.path.abspath(import_path)}")
                 
                 # Recursively process imports in the imported file
                 imported_config = _process_imports(imported_config, config_dir)
