@@ -40,6 +40,20 @@ DATA PATTERNS:
       * Medium endpoints: /search, /analytics, /orders
       * Fast endpoints: /auth/login, /users, /products, /notifications
 
+BUSINESS VALUE FEATURES:
+    - Correlated request traces: ~10% of logs are multi-service traces with same request_id
+      (demonstrates distributed tracing capability for debugging)
+    - Realistic user pool: 20 consistent users with 4 "power users" who generate more activity
+      (enables meaningful "most active users" and "user activity" queries)
+    - Named loggers: 13 realistic logger names (activityLogger, securityLogger, etc.)
+      (enables component-level debugging queries)
+    - Scheduled jobs: 10 realistic job names (sync_job, backup_job, report_generation_job)
+      (enables job monitoring and failure tracking queries)
+    - Order lifecycle: Order IDs (ORD-xxx) with creation, payment, shipping, and failure events
+      (enables business transaction tracking)
+    - Service health patterns: Error distribution weighted by service type
+      (demonstrates service health monitoring capabilities)
+
 EXAMPLES:
     # Generate 1000 logs with default settings
     python utils/elasticsearch-intent-template/generate_sample_data.py
@@ -109,6 +123,32 @@ SERVICES = [
     "search-service", "recommendation-service", "analytics-service"
 ]
 
+# Realistic user pool for consistent user activity tracking
+# Using a fixed pool allows queries like "show user activity" to return meaningful results
+USER_POOL = [
+    "user-admin001", "user-john42", "user-sarah99", "user-mike123", "user-emma456",
+    "user-david789", "user-lisa321", "user-chris654", "user-anna987", "user-tom111",
+    "user-jane222", "user-bob333", "user-kate444", "user-alex555", "user-mary666",
+    "user-james777", "user-linda888", "user-robert999", "user-patricia000", "user-michael101"
+]
+
+# Power users who generate more activity (for "most active users" queries)
+POWER_USERS = ["user-admin001", "user-john42", "user-sarah99", "user-mike123"]
+
+# Scheduled job names for job-related queries
+SCHEDULED_JOBS = [
+    "sync_job", "backup_job", "cleanup_job", "report_generation_job",
+    "email_digest_job", "cache_warmup_job", "metrics_aggregation_job",
+    "inventory_sync_job", "order_reconciliation_job", "user_export_job"
+]
+
+# Logger names for component-level queries
+LOGGER_NAMES = [
+    "activityLogger", "northLogger", "southLogger", "eastLogger", "westLogger",
+    "scientistLogger", "engineerLogger", "managerLogger", "analystLogger",
+    "securityLogger", "performanceLogger", "auditLogger", "transactionLogger"
+]
+
 # Common log message templates by level
 LOG_TEMPLATES = {
     "ERROR": [
@@ -121,7 +161,17 @@ LOG_TEMPLATES = {
         "Failed to send notification: {error}",
         "Cache miss followed by database error: {error}",
         "Payment processing failed: {error}",
-        "Unhandled exception in {service}: {error}"
+        "Unhandled exception in {service}: {error}",
+        "Order {order_id} failed: insufficient inventory",
+        "Order {order_id} payment declined: {error}",
+        "Scheduled job {job_name} failed: {error}",
+        "Database transaction rolled back: {error}",
+        "External API {service} returned error: {error}",
+        "File upload failed for user {user_id}: {error}",
+        "Session expired for user {user_id}",
+        "Invalid credentials for user {user_id} from IP {ip}",
+        "Circuit breaker opened for {service}",
+        "Message queue connection lost: {error}"
     ],
     "WARN": [
         "Slow query detected: {query} took {duration}ms",
@@ -133,7 +183,17 @@ LOG_TEMPLATES = {
         "API response time degraded: {latency}ms",
         "Queue depth exceeding threshold: {depth}",
         "Certificate expiring in {days} days",
-        "Unusual traffic pattern detected from IP {ip}"
+        "Unusual traffic pattern detected from IP {ip}",
+        "Order {order_id} taking longer than expected",
+        "Scheduled job {job_name} running longer than threshold",
+        "User {user_id} approaching rate limit",
+        "Database connection pool at {percent}% capacity",
+        "Disk space usage at {percent}% on {host}",
+        "Response time SLA breach for {endpoint}: {latency}ms",
+        "Inventory low for product {product_id}",
+        "Payment retry scheduled for order {order_id}",
+        "Background job queue backlog: {depth} items",
+        "External service {service} response degraded"
     ],
     "INFO": [
         "Request processed successfully in {duration}ms",
@@ -145,7 +205,22 @@ LOG_TEMPLATES = {
         "Health check passed",
         "Configuration reloaded successfully",
         "Scheduled job {job_name} completed",
-        "API endpoint {endpoint} called by user {user_id}"
+        "API endpoint {endpoint} called by user {user_id}",
+        "Order {order_id} shipped to customer",
+        "Order {order_id} status changed to {status}",
+        "User {user_id} updated profile",
+        "User {user_id} changed password",
+        "Inventory updated for product {product_id}: {count} units",
+        "Report generated for user {user_id}: {report_type}",
+        "Email sent to user {user_id}: {email_type}",
+        "Scheduled job {job_name} started",
+        "Database backup completed successfully",
+        "Service {service} health check: all systems operational",
+        "User {user_id} logged out",
+        "New user registered: {user_id}",
+        "Order {order_id} refund processed: ${amount}",
+        "Webhook delivered successfully to {endpoint}",
+        "Cache invalidated for {entity}"
     ],
     "DEBUG": [
         "Entering function: {function}",
@@ -157,7 +232,17 @@ LOG_TEMPLATES = {
         "Applying rate limit check",
         "Session created for user {user_id}",
         "Parsing request headers",
-        "Building SQL query: {query}"
+        "Building SQL query: {query}",
+        "Request body: {params}",
+        "Response headers set: Content-Type=application/json",
+        "Database query executed in {duration}ms",
+        "Cache key generated: {key}",
+        "JWT token validated for user {user_id}",
+        "Rate limit check passed for user {user_id}",
+        "Request correlation ID: {request_id}",
+        "Loading configuration from {config_file}",
+        "Middleware chain executed in {duration}ms",
+        "Connection acquired from pool in {duration}ms"
     ]
 }
 
@@ -431,17 +516,17 @@ Generate one log message:"""
         """Generate message from templates"""
         template = random.choice(LOG_TEMPLATES[level])
 
-        # Fill in placeholders
+        # Fill in placeholders with realistic values
         replacements = {
             'error': random.choice(EXCEPTION_TYPES),
-            'user_id': context.get('user_id', self.fake.uuid4()[:8]),
+            'user_id': context.get('user_id') or random.choice(USER_POOL),
             'service': random.choice(SERVICES),
             'timeout': random.randint(1000, 30000),
             'duration': random.randint(50, 5000),
             'percent': random.randint(60, 95),
-            'query': f"SELECT * FROM {self.fake.word()}",
+            'query': f"SELECT * FROM {random.choice(['users', 'orders', 'products', 'inventory', 'payments'])}",
             'endpoint': random.choice(API_ENDPOINTS),
-            'operation': random.choice(['database_query', 'api_call', 'cache_update']),
+            'operation': random.choice(['database_query', 'api_call', 'cache_update', 'file_upload', 'email_send']),
             'attempt': random.randint(1, 5),
             'rate': random.randint(50, 90),
             'latency': random.randint(500, 3000),
@@ -450,12 +535,19 @@ Generate one log message:"""
             'ip': self.fake.ipv4(),
             'order_id': f"ORD-{self.fake.uuid4()[:8]}",
             'amount': f"{random.randint(10, 1000):.2f}",
-            'entity': random.choice(['users', 'products', 'orders']),
-            'job_name': f"{random.choice(['sync', 'backup', 'cleanup'])}_job",
+            'entity': random.choice(['users', 'products', 'orders', 'inventory', 'sessions']),
+            'job_name': random.choice(SCHEDULED_JOBS),
             'function': f"{self.fake.word()}Handler",
-            'params': json.dumps({'page': 1, 'limit': 20}),
+            'params': json.dumps({'page': random.randint(1, 10), 'limit': random.choice([10, 20, 50, 100])}),
             'key': self.fake.uuid4(),
-            'count': random.randint(1, 100)
+            'count': random.randint(1, 100),
+            'product_id': f"PROD-{self.fake.uuid4()[:6]}",
+            'status': random.choice(['pending', 'processing', 'shipped', 'delivered', 'cancelled']),
+            'report_type': random.choice(['sales_summary', 'inventory_report', 'user_activity', 'performance_metrics']),
+            'email_type': random.choice(['order_confirmation', 'shipping_notification', 'password_reset', 'welcome_email']),
+            'host': context.get('host', f"{random.choice(SERVICES)}-{random.randint(1, 10)}"),
+            'request_id': self.fake.uuid4(),
+            'config_file': random.choice(['application.yaml', 'database.yaml', 'services.yaml', 'security.yaml'])
         }
 
         try:
@@ -534,16 +626,30 @@ Generate one log message:"""
         else:
             service_name = random.choice(SERVICES)
 
-        user_id = f"user-{self.fake.uuid4()[:8]}" if random.random() > 0.3 else None
+        # Use realistic user pool - power users are more likely to appear
+        # 70% of logs have a user_id, 30% are system/anonymous operations
+        if random.random() > 0.3:
+            # Power users appear 3x more often for realistic "most active users" queries
+            if random.random() < 0.4:  # 40% chance of power user
+                user_id = random.choice(POWER_USERS)
+            else:
+                user_id = random.choice(USER_POOL)
+        else:
+            user_id = None
+
         environment = random.choices(
             ["production", "staging", "development"],
             weights=[0.7, 0.2, 0.1]
         )[0]
 
+        # Use realistic logger names
+        logger_name = random.choice(LOGGER_NAMES)
+
         context = {
             'service_name': service_name,
             'user_id': user_id,
-            'environment': environment
+            'environment': environment,
+            'logger_name': logger_name
         }
 
         # Generate message
@@ -561,7 +667,7 @@ Generate one log message:"""
             "timestamp": timestamp.isoformat().replace('+00:00', 'Z'),
             "level": level,
             "message": message,
-            "logger": f"{service_name}.{self.fake.word()}Logger",
+            "logger": f"{service_name}.{logger_name}",
             "service_name": service_name,
             "environment": environment,
             "host": f"{service_name}-{random.randint(1, 10)}.{environment}.local",
@@ -647,6 +753,134 @@ Generate one log message:"""
 
         return '\n'.join(lines)
 
+    def _generate_correlated_trace(self, base_timestamp: datetime,
+                                     user_id: Optional[str],
+                                     environment: str) -> List[Dict[str, Any]]:
+        """Generate a correlated request trace across multiple services
+
+        This creates realistic distributed traces where a single request
+        flows through multiple services with the same request_id.
+
+        Args:
+            base_timestamp: Starting timestamp for the trace
+            user_id: User ID if authenticated request
+            environment: Environment (production, staging, development)
+
+        Returns:
+            List of correlated log records
+        """
+        request_id = self.fake.uuid4()
+        records = []
+
+        # Define realistic request flows
+        TRACE_FLOWS = [
+            # E-commerce order flow
+            [
+                ("api-gateway", "INFO", "Incoming request to {endpoint}", 50),
+                ("auth-service", "INFO", "JWT token validated for user {user_id}", 30),
+                ("order-service", "INFO", "Order {order_id} created successfully", 200),
+                ("payment-service", "INFO", "Payment of ${amount} processed for order {order_id}", 500),
+                ("inventory-service", "INFO", "Inventory updated for product {product_id}: {count} units", 100),
+                ("notification-service", "INFO", "Email sent to user {user_id}: order_confirmation", 150),
+            ],
+            # Failed payment flow
+            [
+                ("api-gateway", "INFO", "Incoming request to {endpoint}", 50),
+                ("auth-service", "INFO", "JWT token validated for user {user_id}", 30),
+                ("order-service", "INFO", "Order {order_id} created successfully", 200),
+                ("payment-service", "ERROR", "Payment processing failed: {error}", 2000),
+                ("order-service", "WARN", "Order {order_id} taking longer than expected", 100),
+            ],
+            # User login flow
+            [
+                ("api-gateway", "INFO", "Incoming request to {endpoint}", 30),
+                ("auth-service", "DEBUG", "Validating request payload", 10),
+                ("auth-service", "INFO", "User {user_id} logged in from {ip}", 150),
+                ("user-service", "INFO", "Request processed successfully in {duration}ms", 50),
+            ],
+            # Search flow
+            [
+                ("api-gateway", "INFO", "Incoming request to {endpoint}", 40),
+                ("search-service", "DEBUG", "Query parameters: {params}", 10),
+                ("search-service", "DEBUG", "Database query executed in {duration}ms", 300),
+                ("search-service", "INFO", "Request processed successfully in {duration}ms", 50),
+            ],
+            # Report generation flow
+            [
+                ("api-gateway", "INFO", "Incoming request to {endpoint}", 50),
+                ("auth-service", "INFO", "JWT token validated for user {user_id}", 30),
+                ("analytics-service", "INFO", "Report generated for user {user_id}: sales_summary", 3000),
+                ("notification-service", "INFO", "Email sent to user {user_id}: report_ready", 100),
+            ],
+        ]
+
+        flow = random.choice(TRACE_FLOWS)
+        current_time = base_timestamp
+        order_id = f"ORD-{self.fake.uuid4()[:8]}"
+
+        for service_name, level, message_template, duration_ms in flow:
+            logger_name = random.choice(LOGGER_NAMES)
+
+            # Generate message with context
+            context = {
+                'user_id': user_id,
+                'service_name': service_name,
+                'environment': environment,
+                'host': f"{service_name}-{random.randint(1, 5)}.{environment}.local"
+            }
+
+            # Fill in message template
+            replacements = {
+                'endpoint': random.choice(API_ENDPOINTS),
+                'user_id': user_id or random.choice(USER_POOL),
+                'order_id': order_id,
+                'amount': f"{random.randint(10, 500):.2f}",
+                'product_id': f"PROD-{self.fake.uuid4()[:6]}",
+                'count': random.randint(1, 50),
+                'error': random.choice(EXCEPTION_TYPES),
+                'ip': self.fake.ipv4(),
+                'duration': duration_ms + random.randint(-20, 50),
+                'params': json.dumps({'q': self.fake.word(), 'limit': 20}),
+            }
+
+            try:
+                message = message_template.format(**replacements)
+            except KeyError:
+                message = message_template
+
+            record = {
+                "timestamp": current_time.isoformat().replace('+00:00', 'Z'),
+                "level": level,
+                "message": message,
+                "logger": f"{service_name}.{logger_name}",
+                "service_name": service_name,
+                "environment": environment,
+                "host": context['host'],
+                "request_id": request_id,
+                "response_time": duration_ms + random.randint(-10, 30),
+                "endpoint": random.choice(API_ENDPOINTS),
+                "status_code": 500 if level == "ERROR" else 200,
+            }
+
+            if user_id:
+                record["user_id"] = user_id
+
+            # Add exception for errors
+            if level == "ERROR":
+                exception_type = random.choice(EXCEPTION_TYPES)
+                record["exception"] = {
+                    "type": exception_type,
+                    "message": f"{exception_type}: {self.fake.sentence()}",
+                    "stacktrace": self._generate_stacktrace(service_name)
+                }
+
+            records.append(record)
+
+            # Advance time
+            current_time = current_time + timedelta(milliseconds=duration_ms + random.randint(5, 50))
+
+        return records
+
     async def generate_records(self, count: int, days_back: int = 7,
                                error_rate: float = 0.1) -> List[Dict[str, Any]]:
         """Generate multiple log records
@@ -664,7 +898,34 @@ Generate one log message:"""
         records = []
         now = datetime.now(timezone.utc)
 
-        for i in range(count):
+        # Generate ~10% of logs as correlated traces for realistic request tracing
+        trace_count = int(count * 0.1)
+        single_count = count - (trace_count * 5)  # Avg 5 records per trace
+
+        logger.info(f"   Generating {trace_count} correlated traces...")
+        for i in range(trace_count):
+            seconds_back = random.randint(0, days_back * 24 * 3600)
+            timestamp = now - timedelta(seconds=seconds_back)
+
+            # Select user (power users more likely)
+            if random.random() < 0.4:
+                user_id = random.choice(POWER_USERS)
+            else:
+                user_id = random.choice(USER_POOL) if random.random() > 0.2 else None
+
+            environment = random.choices(
+                ["production", "staging", "development"],
+                weights=[0.7, 0.2, 0.1]
+            )[0]
+
+            trace_records = self._generate_correlated_trace(timestamp, user_id, environment)
+            records.extend(trace_records)
+
+            if (i + 1) % 50 == 0:
+                logger.info(f"   Generated {i + 1}/{trace_count} traces...")
+
+        logger.info(f"   Generating {single_count} individual records...")
+        for i in range(single_count):
             # Distribute logs across the time range
             seconds_back = random.randint(0, days_back * 24 * 3600)
             timestamp = now - timedelta(seconds=seconds_back)
@@ -673,9 +934,12 @@ Generate one log message:"""
             records.append(record)
 
             if (i + 1) % 100 == 0:
-                logger.info(f"   Generated {i + 1}/{count} records...")
+                logger.info(f"   Generated {i + 1}/{single_count} individual records...")
 
-        logger.info(f"✅ Generated {count} records")
+        # Sort by timestamp for realistic ordering
+        records.sort(key=lambda x: x['timestamp'])
+
+        logger.info(f"✅ Generated {len(records)} total records ({trace_count} traces + {single_count} individual)")
         return records
 
     async def create_index(self, index_name: str):

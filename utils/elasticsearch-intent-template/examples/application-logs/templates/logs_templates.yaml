@@ -1104,3 +1104,1837 @@ templates:
 
     tags: ["analytics", "spike_detection", "bucket_script", "error_rate"]
     result_format: "timeseries"
+
+  # ============================================================================
+  # ENDPOINT & API ANALYSIS TEMPLATES
+  # ============================================================================
+
+  - id: search_by_endpoint
+    version: "1.0.0"
+    description: "Search logs for a specific API endpoint"
+    category: "api_analysis"
+    complexity: "simple"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "wildcard": {
+                  "endpoint.keyword": "*{{endpoint_pattern}}*"
+                }
+              }
+              {% if level %}
+              ,{
+                "term": {
+                  "level": "{{level}}"
+                }
+              }
+              {% endif %}
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+              {% if status_code_min %}
+              ,{
+                "range": {
+                  "status_code": {
+                    "gte": {{status_code_min}}
+                    {% if status_code_max %}
+                    ,"lte": {{status_code_max}}
+                    {% endif %}
+                  }
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "desc"
+            }
+          }
+        ],
+        "_source": ["timestamp", "level", "message", "service_name", "endpoint", "status_code", "response_time", "user_id", "request_id"]
+      }
+
+    parameters:
+      - name: endpoint_pattern
+        type: string
+        required: true
+        description: "API endpoint pattern to search for (supports wildcards)"
+        location: "body"
+        example: "/api/v1/users"
+
+      - name: level
+        type: string
+        required: false
+        description: "Log level to filter"
+        location: "body"
+        allowed_values: ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Service name to filter"
+        location: "body"
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: status_code_min
+        type: integer
+        required: false
+        description: "Minimum HTTP status code"
+        location: "body"
+
+      - name: status_code_max
+        type: integer
+        required: false
+        description: "Maximum HTTP status code"
+        location: "body"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of results"
+        location: "body"
+
+    nl_examples:
+      - "Show me logs for the /api/v1/users endpoint"
+      - "Find all requests to the inventory API"
+      - "What happened on the reports endpoint?"
+      - "Show logs for /api/v1/orders"
+      - "Find errors on the payment endpoint"
+      - "Get logs for the authentication API"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "application_logs"
+      qualifiers: ["endpoint", "api", "route"]
+
+    tags: ["logs", "endpoint", "api", "search"]
+    result_format: "table"
+
+  - id: endpoint_performance_stats
+    version: "1.0.0"
+    description: "Get performance statistics grouped by API endpoint"
+    category: "api_analysis"
+    complexity: "medium"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "exists": {
+                  "field": "endpoint"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "by_endpoint": {
+            "terms": {
+              "field": "endpoint.keyword",
+              "size": {{agg_size}},
+              "order": {
+                "avg_response_time": "desc"
+              }
+            },
+            "aggs": {
+              "avg_response_time": {
+                "avg": {
+                  "field": "response_time"
+                }
+              },
+              "max_response_time": {
+                "max": {
+                  "field": "response_time"
+                }
+              },
+              "min_response_time": {
+                "min": {
+                  "field": "response_time"
+                }
+              },
+              "percentiles": {
+                "percentiles": {
+                  "field": "response_time",
+                  "percents": [50, 90, 95, 99]
+                }
+              },
+              "error_count": {
+                "filter": {
+                  "range": {
+                    "status_code": {
+                      "gte": 400
+                    }
+                  }
+                }
+              },
+              "success_count": {
+                "filter": {
+                  "range": {
+                    "status_code": {
+                      "lt": 400
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Filter by specific service"
+        location: "body"
+
+      - name: agg_size
+        type: integer
+        required: false
+        default: 20
+        description: "Number of endpoints to return"
+        location: "body"
+
+    nl_examples:
+      - "Which endpoints are slowest?"
+      - "Show me API performance by endpoint"
+      - "What are the response times for each endpoint?"
+      - "Compare endpoint performance"
+      - "Which APIs have the highest latency?"
+      - "Show endpoint statistics"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "terms"
+      group_by: "endpoint"
+      qualifiers: ["performance", "latency"]
+
+    tags: ["performance", "endpoint", "api", "latency", "statistics"]
+    result_format: "summary"
+
+  # ============================================================================
+  # USER ACTIVITY TEMPLATES
+  # ============================================================================
+
+  - id: search_user_activity
+    version: "1.0.0"
+    description: "Search for all activity by a specific user"
+    category: "user_analytics"
+    complexity: "simple"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "term": {
+                  "user_id": "{{user_id}}"
+                }
+              }
+              {% if message %}
+              ,{
+                "match": {
+                  "message": "{{message}}"
+                }
+              }
+              {% endif %}
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if level %}
+              ,{
+                "term": {
+                  "level": "{{level}}"
+                }
+              }
+              {% endif %}
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "desc"
+            }
+          }
+        ],
+        "_source": ["timestamp", "level", "message", "service_name", "endpoint", "status_code", "response_time", "request_id"]
+      }
+
+    parameters:
+      - name: user_id
+        type: string
+        required: true
+        description: "User ID to search for"
+        location: "body"
+        example: "user-d0bfa6e5"
+
+      - name: message
+        type: string
+        required: false
+        description: "Message text to search for"
+        location: "body"
+
+      - name: level
+        type: string
+        required: false
+        description: "Log level to filter"
+        location: "body"
+        allowed_values: ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Service name to filter"
+        location: "body"
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-7d"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 100
+        description: "Maximum number of results"
+        location: "body"
+
+    nl_examples:
+      - "Show me all activity for user user-d0bfa6e5"
+      - "What did user john123 do today?"
+      - "Find logs for user admin"
+      - "Get activity history for user-abc123"
+      - "Show me what user xyz did in the last hour"
+      - "Track user activity for user-12345"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "application_logs"
+      qualifiers: ["user", "activity", "history"]
+
+    tags: ["logs", "user", "activity", "search"]
+    result_format: "table"
+
+  - id: most_active_users
+    version: "1.0.0"
+    description: "Find the most active users by request count"
+    category: "user_analytics"
+    complexity: "medium"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "exists": {
+                  "field": "user_id"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+              {% if environment %}
+              ,{
+                "term": {
+                  "environment": "{{environment}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "by_user": {
+            "terms": {
+              "field": "user_id.keyword",
+              "size": {{agg_size}},
+              "order": {
+                "_count": "desc"
+              }
+            },
+            "aggs": {
+              "unique_endpoints": {
+                "cardinality": {
+                  "field": "endpoint.keyword"
+                }
+              },
+              "services_used": {
+                "cardinality": {
+                  "field": "service_name.keyword"
+                }
+              },
+              "error_count": {
+                "filter": {
+                  "term": {
+                    "level": "ERROR"
+                  }
+                }
+              },
+              "last_activity": {
+                "max": {
+                  "field": "timestamp"
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Filter by specific service"
+        location: "body"
+
+      - name: environment
+        type: string
+        required: false
+        description: "Filter by environment"
+        location: "body"
+        allowed_values: ["production", "staging", "development"]
+
+      - name: agg_size
+        type: integer
+        required: false
+        default: 20
+        description: "Number of users to return"
+        location: "body"
+
+    nl_examples:
+      - "Who are the most active users?"
+      - "Show me top users by activity"
+      - "Which users made the most requests?"
+      - "Find the busiest users today"
+      - "List most active users in production"
+      - "Show user activity rankings"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "terms"
+      group_by: "user_id"
+      qualifiers: ["active", "top", "ranking"]
+
+    tags: ["analytics", "users", "activity", "ranking"]
+    result_format: "summary"
+
+  # ============================================================================
+  # REQUEST TRACING TEMPLATES
+  # ============================================================================
+
+  - id: trace_request
+    version: "1.0.0"
+    description: "Trace all logs for a specific request ID across services"
+    category: "tracing"
+    complexity: "simple"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "term": {
+            "request_id": "{{request_id}}"
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "asc"
+            }
+          }
+        ],
+        "_source": ["timestamp", "level", "message", "service_name", "logger", "endpoint", "status_code", "response_time", "user_id", "host"]
+      }
+
+    parameters:
+      - name: request_id
+        type: string
+        required: true
+        description: "Request ID to trace"
+        location: "body"
+        example: "a6cfd7e9-3cb0-4e0a-aebb-5382c36a0fc3"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 100
+        description: "Maximum number of results"
+        location: "body"
+
+    nl_examples:
+      - "Trace request a6cfd7e9-3cb0-4e0a-aebb-5382c36a0fc3"
+      - "Show me all logs for request ID abc-123"
+      - "Follow the request path for request xyz"
+      - "Debug request flow for request-id-456"
+      - "Track request across services"
+      - "Show request trace for correlation ID"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "application_logs"
+      qualifiers: ["trace", "request", "correlation"]
+
+    tags: ["tracing", "debugging", "request", "correlation"]
+    result_format: "table"
+
+  # ============================================================================
+  # ORDER & BUSINESS EVENT TEMPLATES
+  # ============================================================================
+
+  - id: search_order_events
+    version: "1.0.0"
+    description: "Search for order-related events and activities"
+    category: "business_events"
+    complexity: "simple"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "match": {
+                  "message": {
+                    "query": "{% if order_id %}{{order_id}}{% else %}order{% endif %}",
+                    "operator": "AND"
+                  }
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if level %}
+              ,{
+                "term": {
+                  "level": "{{level}}"
+                }
+              }
+              {% endif %}
+              {% if user_id %}
+              ,{
+                "term": {
+                  "user_id": "{{user_id}}"
+                }
+              }
+              {% endif %}
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "desc"
+            }
+          }
+        ],
+        "highlight": {
+          "fields": {
+            "message": {
+              "fragment_size": 200
+            }
+          }
+        },
+        "_source": ["timestamp", "level", "message", "service_name", "user_id", "request_id", "endpoint"]
+      }
+
+    parameters:
+      - name: order_id
+        type: string
+        required: false
+        description: "Specific order ID to search for (e.g., ORD-7444bb3b)"
+        location: "body"
+        example: "ORD-7444bb3b"
+
+      - name: level
+        type: string
+        required: false
+        description: "Log level to filter"
+        location: "body"
+        allowed_values: ["ERROR", "WARN", "INFO", "DEBUG"]
+
+      - name: user_id
+        type: string
+        required: false
+        description: "User ID associated with the order"
+        location: "body"
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Service name to filter"
+        location: "body"
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-7d"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of results"
+        location: "body"
+
+    nl_examples:
+      - "Find logs for order ORD-7444bb3b"
+      - "Show me all order events"
+      - "Search for order creation logs"
+      - "What happened to order ORD-abc123?"
+      - "Track order processing"
+      - "Find failed orders"
+      - "Show order errors"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "application_logs"
+      qualifiers: ["order", "business", "transaction"]
+
+    tags: ["orders", "business", "events", "search"]
+    result_format: "table"
+
+  - id: search_scheduled_jobs
+    version: "1.0.0"
+    description: "Search for scheduled job executions and their status"
+    category: "operations"
+    complexity: "simple"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "match": {
+                  "message": {
+                    "query": "{% if job_name %}{{job_name}}{% else %}scheduled job{% endif %}",
+                    "operator": "OR"
+                  }
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if level %}
+              ,{
+                "term": {
+                  "level": "{{level}}"
+                }
+              }
+              {% endif %}
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "desc"
+            }
+          }
+        ],
+        "_source": ["timestamp", "level", "message", "service_name", "logger", "host", "response_time"]
+      }
+
+    parameters:
+      - name: job_name
+        type: string
+        required: false
+        description: "Job name to search for (e.g., sync_job)"
+        location: "body"
+        example: "sync_job"
+
+      - name: level
+        type: string
+        required: false
+        description: "Log level to filter"
+        location: "body"
+        allowed_values: ["ERROR", "WARN", "INFO", "DEBUG"]
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Service running the job"
+        location: "body"
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of results"
+        location: "body"
+
+    nl_examples:
+      - "Show me scheduled job executions"
+      - "Find sync_job runs"
+      - "What scheduled jobs ran today?"
+      - "Show failed scheduled jobs"
+      - "Find cron job logs"
+      - "Check job execution status"
+      - "List background job runs"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "application_logs"
+      qualifiers: ["job", "scheduled", "cron", "background"]
+
+    tags: ["jobs", "scheduled", "operations", "background"]
+    result_format: "table"
+
+  # ============================================================================
+  # SERVICE HEALTH & COMPARISON TEMPLATES
+  # ============================================================================
+
+  - id: service_health_overview
+    version: "1.0.0"
+    description: "Get health overview for all services including error rates and response times"
+    category: "service_analytics"
+    complexity: "medium"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "range": {
+            "timestamp": {
+              "gte": "{{start_time}}",
+              "lte": "{{end_time}}"
+            }
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "by_service": {
+            "terms": {
+              "field": "service_name.keyword",
+              "size": {{agg_size}}
+            },
+            "aggs": {
+              "total_requests": {
+                "value_count": {
+                  "field": "request_id.keyword"
+                }
+              },
+              "error_count": {
+                "filter": {
+                  "term": {
+                    "level": "ERROR"
+                  }
+                }
+              },
+              "warn_count": {
+                "filter": {
+                  "term": {
+                    "level": "WARN"
+                  }
+                }
+              },
+              "avg_response_time": {
+                "avg": {
+                  "field": "response_time"
+                }
+              },
+              "p95_response_time": {
+                "percentiles": {
+                  "field": "response_time",
+                  "percents": [95]
+                }
+              },
+              "unique_hosts": {
+                "cardinality": {
+                  "field": "host.keyword"
+                }
+              },
+              "status_codes": {
+                "terms": {
+                  "field": "status_code",
+                  "size": 10
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-1h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: agg_size
+        type: integer
+        required: false
+        default: 20
+        description: "Number of services to return"
+        location: "body"
+
+    nl_examples:
+      - "Show me service health overview"
+      - "How are all services performing?"
+      - "Give me a health check for all services"
+      - "Show service status dashboard"
+      - "What's the health of the system?"
+      - "Service health summary"
+      - "System overview"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "terms"
+      group_by: "service_name"
+      qualifiers: ["health", "status", "overview"]
+
+    tags: ["health", "services", "monitoring", "dashboard"]
+    result_format: "summary"
+
+  - id: compare_environments
+    version: "1.0.0"
+    description: "Compare metrics between environments (production, staging, development)"
+    category: "environment_analytics"
+    complexity: "medium"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "by_environment": {
+            "terms": {
+              "field": "environment.keyword",
+              "size": 5
+            },
+            "aggs": {
+              "total_logs": {
+                "value_count": {
+                  "field": "level.keyword"
+                }
+              },
+              "by_level": {
+                "terms": {
+                  "field": "level.keyword",
+                  "size": 5
+                }
+              },
+              "avg_response_time": {
+                "avg": {
+                  "field": "response_time"
+                }
+              },
+              "unique_services": {
+                "cardinality": {
+                  "field": "service_name.keyword"
+                }
+              },
+              "error_rate": {
+                "filter": {
+                  "term": {
+                    "level": "ERROR"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Filter by specific service"
+        location: "body"
+
+    nl_examples:
+      - "Compare production vs staging"
+      - "How does production compare to development?"
+      - "Show environment comparison"
+      - "Compare error rates across environments"
+      - "Environment health comparison"
+      - "Staging vs production metrics"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "terms"
+      group_by: "environment"
+      qualifiers: ["compare", "environment"]
+
+    tags: ["environment", "comparison", "analytics"]
+    result_format: "summary"
+
+  # ============================================================================
+  # HOST & INFRASTRUCTURE TEMPLATES
+  # ============================================================================
+
+  - id: logs_by_host
+    version: "1.0.0"
+    description: "Search logs from a specific host or server instance"
+    category: "infrastructure"
+    complexity: "simple"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "wildcard": {
+                  "host.keyword": "*{{host_pattern}}*"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if level %}
+              ,{
+                "term": {
+                  "level": "{{level}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "desc"
+            }
+          }
+        ],
+        "_source": ["timestamp", "level", "message", "service_name", "host", "logger"]
+      }
+
+    parameters:
+      - name: host_pattern
+        type: string
+        required: true
+        description: "Host name pattern to search for"
+        location: "body"
+        example: "payment-service-1"
+
+      - name: level
+        type: string
+        required: false
+        description: "Log level to filter"
+        location: "body"
+        allowed_values: ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of results"
+        location: "body"
+
+    nl_examples:
+      - "Show logs from payment-service-1"
+      - "Find logs from host inventory-service-5"
+      - "What errors occurred on server user-service-6?"
+      - "Get logs from production host"
+      - "Show me logs from a specific instance"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "application_logs"
+      qualifiers: ["host", "server", "instance"]
+
+    tags: ["infrastructure", "host", "server", "logs"]
+    result_format: "table"
+
+  - id: host_distribution
+    version: "1.0.0"
+    description: "Show log distribution across hosts and identify potential hotspots"
+    category: "infrastructure"
+    complexity: "medium"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+              {% if environment %}
+              ,{
+                "term": {
+                  "environment": "{{environment}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "by_host": {
+            "terms": {
+              "field": "host.keyword",
+              "size": {{agg_size}},
+              "order": {
+                "_count": "desc"
+              }
+            },
+            "aggs": {
+              "by_level": {
+                "terms": {
+                  "field": "level.keyword",
+                  "size": 5
+                }
+              },
+              "avg_response_time": {
+                "avg": {
+                  "field": "response_time"
+                }
+              },
+              "service": {
+                "terms": {
+                  "field": "service_name.keyword",
+                  "size": 1
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-1h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Filter by specific service"
+        location: "body"
+
+      - name: environment
+        type: string
+        required: false
+        description: "Filter by environment"
+        location: "body"
+        allowed_values: ["production", "staging", "development"]
+
+      - name: agg_size
+        type: integer
+        required: false
+        default: 20
+        description: "Number of hosts to return"
+        location: "body"
+
+    nl_examples:
+      - "Show log distribution by host"
+      - "Which hosts are most active?"
+      - "Find hot spots in infrastructure"
+      - "Show server load distribution"
+      - "Compare activity across hosts"
+      - "Which instances are busiest?"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "terms"
+      group_by: "host"
+      qualifiers: ["distribution", "infrastructure"]
+
+    tags: ["infrastructure", "hosts", "distribution", "analytics"]
+    result_format: "summary"
+
+  # ============================================================================
+  # DEBUG & LOGGER TEMPLATES
+  # ============================================================================
+
+  - id: search_by_logger
+    version: "1.0.0"
+    description: "Search logs from a specific logger/component"
+    category: "debugging"
+    complexity: "simple"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "wildcard": {
+                  "logger.keyword": "*{{logger_pattern}}*"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if level %}
+              ,{
+                "term": {
+                  "level": "{{level}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "desc"
+            }
+          }
+        ],
+        "_source": ["timestamp", "level", "message", "logger", "service_name"]
+      }
+
+    parameters:
+      - name: logger_pattern
+        type: string
+        required: true
+        description: "Logger name pattern to search for"
+        location: "body"
+        example: "activityLogger"
+
+      - name: level
+        type: string
+        required: false
+        description: "Log level to filter"
+        location: "body"
+        allowed_values: ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of results"
+        location: "body"
+
+    nl_examples:
+      - "Show logs from activityLogger"
+      - "Find logs from the payment-service logger"
+      - "Get debug logs from scientistLogger"
+      - "Search logs by logger name"
+      - "Show northLogger output"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "application_logs"
+      qualifiers: ["logger", "component", "module"]
+
+    tags: ["debugging", "logger", "component", "logs"]
+    result_format: "table"
+
+  - id: search_debug_logs
+    version: "1.0.0"
+    description: "Search DEBUG level logs with optional query parameter filtering"
+    category: "debugging"
+    complexity: "simple"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "term": {
+                  "level": "DEBUG"
+                }
+              }
+              {% if message %}
+              ,{
+                "match": {
+                  "message": "{{message}}"
+                }
+              }
+              {% endif %}
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+              {% if endpoint %}
+              ,{
+                "wildcard": {
+                  "endpoint.keyword": "*{{endpoint}}*"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "desc"
+            }
+          }
+        ],
+        "_source": ["timestamp", "message", "logger", "service_name", "endpoint", "request_id"]
+      }
+
+    parameters:
+      - name: message
+        type: string
+        required: false
+        description: "Message text to search for"
+        location: "body"
+        example: "Query parameters"
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Service name to filter"
+        location: "body"
+
+      - name: endpoint
+        type: string
+        required: false
+        description: "Endpoint to filter"
+        location: "body"
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-1h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 100
+        description: "Maximum number of results"
+        location: "body"
+
+    nl_examples:
+      - "Show me debug logs"
+      - "Find debug output from inventory service"
+      - "Show debug logs with query parameters"
+      - "Get debug level entries"
+      - "Search debug logs for the last hour"
+      - "Find verbose logging output"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "application_logs"
+      qualifiers: ["debug", "verbose", "trace"]
+
+    tags: ["debugging", "debug", "verbose", "logs"]
+    result_format: "table"
+
+  # ============================================================================
+  # STATUS CODE ANALYSIS TEMPLATES
+  # ============================================================================
+
+  - id: status_code_distribution
+    version: "1.0.0"
+    description: "Analyze HTTP status code distribution across services"
+    category: "http_analytics"
+    complexity: "medium"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "exists": {
+                  "field": "status_code"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+              {% if environment %}
+              ,{
+                "term": {
+                  "environment": "{{environment}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "status_codes": {
+            "terms": {
+              "field": "status_code",
+              "size": 20,
+              "order": {
+                "_count": "desc"
+              }
+            },
+            "aggs": {
+              "by_service": {
+                "terms": {
+                  "field": "service_name.keyword",
+                  "size": 10
+                }
+              },
+              "avg_response_time": {
+                "avg": {
+                  "field": "response_time"
+                }
+              }
+            }
+          },
+          "status_ranges": {
+            "range": {
+              "field": "status_code",
+              "ranges": [
+                { "key": "2xx_success", "from": 200, "to": 300 },
+                { "key": "3xx_redirect", "from": 300, "to": 400 },
+                { "key": "4xx_client_error", "from": 400, "to": 500 },
+                { "key": "5xx_server_error", "from": 500, "to": 600 }
+              ]
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Filter by specific service"
+        location: "body"
+
+      - name: environment
+        type: string
+        required: false
+        description: "Filter by environment"
+        location: "body"
+        allowed_values: ["production", "staging", "development"]
+
+    nl_examples:
+      - "Show status code distribution"
+      - "How many 500 errors do we have?"
+      - "What's the breakdown of HTTP status codes?"
+      - "Show me 4xx vs 5xx errors"
+      - "Analyze HTTP response codes"
+      - "Status code summary"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "terms"
+      group_by: "status_code"
+      qualifiers: ["http", "status", "distribution"]
+
+    tags: ["http", "status_code", "analytics", "errors"]
+    result_format: "summary"
+
+  - id: find_4xx_errors
+    version: "1.0.0"
+    description: "Find client-side 4xx HTTP errors"
+    category: "http_analytics"
+    complexity: "simple"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              },
+              {
+                "range": {
+                  "status_code": {
+                    "gte": 400,
+                    "lt": 500
+                  }
+                }
+              }
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+              {% if endpoint %}
+              ,{
+                "wildcard": {
+                  "endpoint.keyword": "*{{endpoint}}*"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "desc"
+            }
+          }
+        ],
+        "_source": ["timestamp", "level", "message", "service_name", "endpoint", "status_code", "user_id", "request_id"]
+      }
+
+    parameters:
+      - name: service_name
+        type: string
+        required: false
+        description: "Filter by specific service"
+        location: "body"
+
+      - name: endpoint
+        type: string
+        required: false
+        description: "Filter by endpoint"
+        location: "body"
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of results"
+        location: "body"
+
+    nl_examples:
+      - "Show me 4xx errors"
+      - "Find client errors"
+      - "What 400 errors occurred?"
+      - "Show 404 not found errors"
+      - "Find bad request errors"
+      - "List unauthorized requests"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "application_logs"
+      qualifiers: ["4xx", "client_error", "http"]
+
+    tags: ["http", "4xx", "client_error", "errors"]
+    result_format: "table"

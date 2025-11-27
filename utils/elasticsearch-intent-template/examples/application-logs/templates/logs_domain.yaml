@@ -69,6 +69,9 @@ indices:
         type: "integer"
       - name: "status_code"
         type: "integer"
+      - name: "endpoint"
+        type: "keyword"
+        description: "API endpoint path"
 
     # Common filters
     common_filters:
@@ -113,6 +116,31 @@ indices:
         field: "response_time"
         percents: [50, 95, 99]
 
+      - name: "by_endpoint"
+        type: "terms"
+        field: "endpoint"
+        size: 20
+
+      - name: "by_user"
+        type: "terms"
+        field: "user_id"
+        size: 20
+
+      - name: "by_host"
+        type: "terms"
+        field: "host"
+        size: 20
+
+      - name: "status_code_distribution"
+        type: "terms"
+        field: "status_code"
+        size: 10
+
+      - name: "by_environment"
+        type: "terms"
+        field: "environment"
+        size: 5
+
     # Default sorting
     default_sort:
       - field: "timestamp"
@@ -145,7 +173,26 @@ vocabulary:
     error: ["error", "exception", "failure", "problem", "crash", "bug"]
     warning: ["warning", "warn", "caution", "alert"]
     critical: ["critical", "severe", "fatal", "serious"]
-    slow: ["slow", "delayed", "timeout", "performance"]
+    slow: ["slow", "delayed", "timeout", "performance", "latency"]
+    active: ["active", "busy", "top", "most", "highest"]
+    failed: ["failed", "unsuccessful", "broken", "down"]
+    successful: ["successful", "completed", "success", "passed", "ok"]
+
+  entity_field_synonyms:
+    user_id: ["user", "user id", "customer", "account"]
+    request_id: ["request", "request id", "correlation id", "trace id"]
+    service_name: ["service", "microservice", "app", "application"]
+    endpoint: ["endpoint", "api", "route", "path", "url"]
+    host: ["host", "server", "instance", "node", "machine"]
+    logger: ["logger", "component", "module"]
+    status_code: ["status code", "http code", "response code"]
+    response_time: ["response time", "latency", "duration"]
+    environment: ["environment", "env", "stage"]
+
+  business_terms:
+    order: ["order", "purchase", "transaction", "sale"]
+    job: ["job", "task", "scheduled", "cron", "background"]
+    report: ["report", "generate", "export"]
 
   time_expressions:
     hour: ["hour", "hr", "h"]
@@ -153,6 +200,10 @@ vocabulary:
     week: ["week", "w"]
     month: ["month", "mo"]
     minute: ["minute", "min", "m"]
+    today: ["today", "this day"]
+    yesterday: ["yesterday"]
+    this_week: ["this week"]
+    last_week: ["last week"]
 
 # Query DSL Patterns
 query_patterns:
