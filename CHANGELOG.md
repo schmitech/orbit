@@ -1,5 +1,43 @@
 # Changelog
 
+## [2.1.1] - 2025-11-27
+
+### Core System Updates
+- GraphQL Intent Adapter: Added new GraphQL intent adapter with examples
+- File Metadata Consolidation: Consolidated file metadata storage into main backend database, removed separate files.db, updated FileMetadataStore to use DatabaseService interface
+- Chat History Cleanup: Implemented automatic cleanup for chat history messages exceeding token budget (deletes old messages when session exceeds 120% of token budget)
+- Elasticsearch Log Templates: Enhanced log templates with 16 new query templates (endpoint analysis, user activity, request tracing, order/job events, service health), expanded domain vocabulary, and correlated request traces
+- Default Model Updates: Changed default model to granite4:1b for ollama and llama_cpp providers
+- Dependencies: Updated various packages to latest versions
+
+### Chat-app & UI Improvements
+- Thread Replies: Fixed thread replies display and focus management (show user questions, prevent main input from stealing focus, refocus thread input after sending)
+- UI Styling: Polished UI styling with expanded sidebar card spacing, aligned actions with titles, centered conversation header row
+- Thread Panel Theme: Unified thread panel theme to match main chat palette with scoped styling
+- Configure API Button: Fixed enter key not working issue, renamed button label to 'Update'
+
+### Bug Fixes & Technical Improvements
+- ThreadDatasetService: Implemented singleton pattern to prevent duplicate initialization and reduce resource usage
+- File Processing: Added fallback processors for PPTX/XLSX/VTT formats to eliminate docling dependency, fixed ChromaDB intermittent "Collection does not exist" race condition
+- Cohere Services: Fixed Cohere v2 API support with AsyncClientV2 initialization, added vision service support, maintained backward compatibility with v1 API
+- Voice Streaming: Fixed realtime voice streaming stability by wrapping raw PCM chunks in WAV containers before Whisper STT
+- Logging Refactoring: Standardized logging across codebase by replacing self.logger.* calls with module-level logger.* calls
+- Whisper Logger: Fixed logger definition moved from module docstring to module level
+- CLI Restart: Fixed restart command when server uses non-default port (removed hardcoded port 3000)
+- Elasticsearch Templates: Fixed JSON parsing error in search_slow_requests template by removing unsupported {% set %} statements
+- Qdrant Integration: Completed Qdrant integration with v1.16 API compatibility, fixed file deletion cleanup
+- File Attachments: Fixed retry action to send file attachments along with questions, fixed attachment IDs not being sent
+- Unit Tests: Fixed various unit test errors
+
+### API & Client Updates
+- orbitchat v2.1.7: Published new NPM package versions with UI improvements and bug fixes
+
+### Other Changes
+- Firecrawl Templates: Added helper scripts to generate firecrawl intent templates
+- GGUF Models: Updated gguf models config with granite4-1b
+- Logging Verbosity: Reduced info verbosity by setting config yaml loading to debug level
+- Documentation: Updated conversation_history.md with new architecture, updated SECURITY.md
+
 ## [2.1.0] - 2025-11-22
 
 ### Core System Updates

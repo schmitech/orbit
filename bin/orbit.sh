@@ -2,7 +2,7 @@
 
 # ORBIT CLI Bash Wrapper
 # Enterprise-grade shell wrapper for the ORBIT Python CLI
-# Version: 2.1.0
+# Version: 2.1.1
 
 set -euo pipefail  # Exit on error, undefined variables, and pipe failures
 
@@ -176,7 +176,7 @@ case "${1:-}" in
     
     # Version check with additional info
     --version-full)
-        echo "ORBIT CLI Shell Wrapper v2.1.0"
+        echo "ORBIT CLI Shell Wrapper v2.1.1"
         echo "Python: $("$PYTHON_CMD" --version)"
         echo "Script: $ORBIT_PY"
         "$PYTHON_CMD" "$ORBIT_PY" --version

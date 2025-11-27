@@ -203,12 +203,12 @@ Download and install the latest stable release without cloning the repository.
 
 ```bash
 # Download the latest release archive
-# Replace v2.1.0 with the latest version from https://github.com/schmitech/orbit/releases
-curl -L https://github.com/schmitech/orbit/releases/download/v2.1.0/orbit-2.1.0.tar.gz -o orbit-2.1.0.tar.gz
+# Replace v2.1.1 with the latest version from https://github.com/schmitech/orbit/releases
+curl -L https://github.com/schmitech/orbit/releases/download/v2.1.1/orbit-2.1.1.tar.gz -o orbit-2.1.1.tar.gz
 
-tar -xzf orbit-2.1.0.tar.gz
+tar -xzf orbit-2.1.1.tar.gz
 
-cd orbit-2.1.0
+cd orbit-2.1.1
 ```
 
 #### 2. Configure and Install

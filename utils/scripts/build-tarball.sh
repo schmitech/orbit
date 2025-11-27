@@ -219,10 +219,10 @@ else
     touch dist/build/${PACKAGE_NAME}/.env
 fi
 
-# Download and include gemma3-1b model for quick start
-echo "Downloading gemma3-1b model for quick start..."
+# Download and include granite4-1b model for quick start
+echo "Downloading granite4:1b model for quick start..."
 GGUF_MODELS_CONFIG="install/gguf-models.json"
-MODEL_NAME="gemma3-1b"
+MODEL_NAME="granite4-1b"
 MODELS_DIR="models"
 
 # Function to get model info from JSON config
