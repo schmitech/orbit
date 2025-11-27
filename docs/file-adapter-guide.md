@@ -59,6 +59,9 @@ uploads/
 ### Basic Processors (Fast & Lightweight)
 - **pypdf 6.0.0+**: PDF text extraction
 - **python-docx**: Microsoft Word documents
+- **python-pptx**: PowerPoint presentations (slides, tables, text shapes)
+- **openpyxl**: Excel spreadsheets (multi-sheet, formulas as values)
+- **webvtt-py**: WebVTT subtitles/captions with timestamps
 - **pandas**: CSV and structured data
 - **BeautifulSoup**: HTML parsing
 - Standard library: Plain text, JSON
@@ -73,7 +76,9 @@ uploads/
   - Formula and code detection
 - **Additional formats**: Images (PNG, JPEG, TIFF), audio (WAV, MP3), WebVTT
 
-Docling is registered as a fallback processor and automatically handles complex documents that require advanced understanding.
+**Important Security Note**: Docling uses lazy initialization to prevent outbound connections to HuggingFace at server startup. The `DocumentConverter` is only initialized when actually processing a file that requires it, not during server startup. This addresses security concerns about outbound connections.
+
+**Configuration**: Docling can be enabled/disabled via `files.processing.docling_enabled` in `config.yaml`. When disabled, the system automatically falls back to format-specific processors (pypdf, python-docx, etc.) for supported formats. See [Processor Selection Strategy](#processor-selection-strategy) below for details.
 
 ## API Endpoints
 
@@ -242,36 +247,91 @@ Configure the file adapter in `config/adapters.yaml`:
     # DuckDB
     enable_duckdb_path: true
     duckdb_store: "duckdb"
+    
+    # Docling processor configuration (in config/config.yaml)
+    # files:
+    #   processing:
+    #     docling_enabled: true  # Enable/disable docling (default: true)
 ```
 
 ## Supported File Types
 
-| Type | MIME Type | Processor | Path | Notes |
-|------|-----------|-----------|------|-------|
-| PDF | `application/pdf` | pypdf/docling | Vector | Layout-aware parsing with Docling |
-| DOCX | `application/...docx` | python-docx/docling | Vector | Structure preservation |
-| PPTX | `application/...pptx` | docling | Vector | Slide content extraction |
-| XLSX | `application/...xlsx` | docling | Vector | Cell-level parsing |
-| TXT | `text/plain` | Text | Vector | Plain text |
-| Markdown | `text/markdown` | Text | Vector | Plain text |
-| CSV | `text/csv` | pandas/docling | DuckDB/Vector | Dual-path support |
-| JSON | `application/json` | JSON | Vector | Structured data |
-| HTML | `text/html` | BeautifulSoup/docling | Vector | Advanced parsing |
-| PNG/JPEG/TIFF | `image/*` | docling | Vector | OCR support |
-| WAV/MP3 | `audio/*` | docling | Vector | ASR support |
-| VTT | `text/vtt` | docling | Vector | Caption parsing |
+| Type | MIME Type | Processor (when docling enabled) | Processor (when docling disabled) | Path | Notes |
+|------|-----------|----------------------------------|-------------------------------------|------|-------|
+| PDF | `application/pdf` | docling | PDFProcessor (pypdf) | Vector | Layout-aware parsing with Docling; basic text extraction with pypdf |
+| DOCX | `application/...docx` | docling | DOCXProcessor (python-docx) | Vector | Structure preservation |
+| PPTX | `application/...pptx` | docling | PPTXProcessor (python-pptx) | Vector | Slide and table extraction |
+| XLSX | `application/...xlsx` | docling | XLSXProcessor (openpyxl) | Vector | Multi-sheet support with row/column extraction |
+| TXT | `text/plain` | TextProcessor | TextProcessor | Vector | Plain text (same for both) |
+| Markdown | `text/markdown` | TextProcessor | TextProcessor | Vector | Plain text (same for both) |
+| CSV | `text/csv` | docling | CSVProcessor (pandas) | DuckDB/Vector | Dual-path support |
+| JSON | `application/json` | JSONProcessor | JSONProcessor | Vector | Structured data (same for both) |
+| HTML | `text/html` | docling | HTMLProcessor (BeautifulSoup) | Vector | Advanced parsing with Docling; basic parsing with BeautifulSoup |
+| PNG/JPEG/TIFF | `image/*` | Vision Services | Vision Services | Vector | Uses configured vision provider (not docling) |
+| WAV/MP3 | `audio/*` | Audio Services | Audio Services | Vector | Uses configured audio provider (not docling) |
+| VTT | `text/vtt` | docling | VTTProcessor (webvtt-py) | Vector | Subtitle/caption extraction with timestamps |
+
+**Key Points:**
+- When `docling_enabled: true` (default): Docling is used for PDF, DOCX, PPTX, XLSX, HTML, CSV, VTT
+- When `docling_enabled: false`: Format-specific processors are used automatically (PDFProcessor, DOCXProcessor, PPTXProcessor, XLSXProcessor, VTTProcessor, etc.)
+- Images and audio are handled by Vision/Audio Services, not docling processors
+- All formats now have fallback processors - no docling dependency required
 
 ## Processor Selection Strategy
 
-The system intelligently selects the best processor for each file:
+The system intelligently selects the best processor for each file based on registration order and availability:
 
-1. **Format-specific processors** are tried first (fast, lightweight)
-   - Example: pypdf for PDFs, python-docx for DOCX
-2. **Docling processor** is used as fallback (advanced features)
-   - Complex layouts, OCR for images, ASR for audio
-   - Automatically handles formats without specific processors
+### When Docling is Enabled (Default)
 
-This ensures optimal performance while supporting advanced features when needed.
+1. **Docling processor** is registered first and takes precedence for formats it supports
+   - Provides advanced features: layout understanding, OCR, ASR, table extraction
+   - Uses lazy initialization - no outbound connections until actually processing a file
+   - Supports: PDF, DOCX, PPTX, XLSX, HTML, images, audio, VTT
+
+2. **Format-specific processors** are registered as alternatives
+   - Available but only used if docling is disabled or unavailable
+   - Examples: PDFProcessor (pypdf), DOCXProcessor (python-docx), CSVProcessor (pandas)
+
+### When Docling is Disabled
+
+The system automatically falls back to format-specific processors:
+
+- **PDF** → `PDFProcessor` (pypdf) - no network calls
+- **DOCX** → `DOCXProcessor` (python-docx) - no network calls
+- **PPTX** → `PPTXProcessor` (python-pptx) - no network calls
+- **XLSX** → `XLSXProcessor` (openpyxl) - no network calls
+- **VTT** → `VTTProcessor` (webvtt-py) - no network calls
+- **CSV** → `CSVProcessor` (pandas) - no network calls
+- **HTML** → `HTMLProcessor` (beautifulsoup4) - no network calls
+- **JSON** → `JSONProcessor` (standard library) - no network calls
+- **Text/Code files** → `TextProcessor` (standard library) - no network calls
+- **Images** → Vision Services (configured provider) - may use local or cloud models
+- **Audio** → Audio Services (configured provider) - may use local or cloud models
+
+All document formats now have local fallback processors with no network dependencies.
+
+### Configuration
+
+Control docling behavior in `config/config.yaml`:
+
+```yaml
+files:
+  processing:
+    # Enable/disable docling processor
+    # When disabled, automatically uses format-specific processors (pypdf, python-docx, etc.)
+    # Default: true (enabled with lazy initialization - no startup connections)
+    docling_enabled: true
+```
+
+**Recommendation**: Keep `docling_enabled: true` (default) to:
+- Prevent outbound connections at startup (lazy initialization)
+- Support all formats including PPTX/XLSX/VTT
+- Only connect to HuggingFace when actually processing files that need it
+
+**Security-conscious environments**: Set `docling_enabled: false` if you:
+- Want to completely prevent any HuggingFace connections
+- Prefer using lightweight format-specific processors only
+- All formats (including PPTX, XLSX, VTT) are fully supported without docling
 
 ## Chunking Strategies
 
@@ -421,6 +481,7 @@ This prevents the NumPy 2.x compatibility issues that can cause server startup f
 - Check file format is supported
 - Verify file size is within limits
 - Check logs for processor errors
+- Check that required libraries are installed (python-pptx, openpyxl, webvtt-py for their respective formats)
 
 ### No Results from Query
 - Ensure file processing completed
@@ -437,10 +498,50 @@ This prevents the NumPy 2.x compatibility issues that can cause server startup f
 - Check virtual environment is activated
 - Verify all dependencies installed correctly
 
+### Outbound Connection Concerns (Security)
+- **By default**: Docling uses lazy initialization - no connections at startup
+- **To completely disable**: Set `files.processing.docling_enabled: false` in `config.yaml`
+- **When disabled**: System automatically uses format-specific processors (pypdf, python-docx, python-pptx, openpyxl, webvtt-py, etc.)
+- All formats are fully supported without docling - no functionality loss
+
+## Security Considerations
+
+### Outbound Connections
+
+The system is designed to minimize outbound connections:
+
+1. **Docling Lazy Initialization**: 
+   - Docling's `DocumentConverter` is only created when actually processing a file
+   - No connections to HuggingFace at server startup
+   - Connections only occur when processing files that require docling
+
+2. **Format-Specific Processors**:
+   - All format-specific processors (pypdf, python-docx, pandas, etc.) are local libraries
+   - No network calls required
+   - Available when docling is disabled
+
+3. **Vision/Audio Services**:
+   - Use configured providers (may be local or cloud-based)
+   - Configured separately from file processors
+   - Can use local models to avoid outbound connections
+
+### Recommended Configuration for Security-Conscious Environments
+
+```yaml
+files:
+  processing:
+    docling_enabled: false  # Disable docling to prevent any HuggingFace connections
+```
+
+**Trade-offs**:
+- ✅ No outbound connections to HuggingFace
+- ✅ Uses lightweight local processors
+- ✅ All formats supported (PPTX, XLSX, VTT via python-pptx, openpyxl, webvtt-py)
+- ⚠️ Docling provides more advanced features (OCR, layout understanding) for complex documents
+
 ## Future Enhancements
 
 - [ ] S3/MinIO storage backend
-- [ ] Additional formats (Excel with advanced features, PowerPoint)
 - [ ] Advanced chunking (structure-aware, table-aware)
 - [ ] Multi-document analysis
 - [ ] Streaming processing for large files

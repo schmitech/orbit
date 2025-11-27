@@ -36,7 +36,9 @@ class CSVProcessor(FileProcessor):
         """Extract text from CSV file."""
         if not CSV_AVAILABLE:
             raise ImportError("pandas not available")
-        
+
+        logger.debug(f"CSVProcessor.extract_text() called for file: {filename or 'unknown'} (using pandas)")
+
         try:
             # Try to decode as UTF-8
             csv_text = file_data.decode('utf-8')

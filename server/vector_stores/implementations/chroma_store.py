@@ -2,6 +2,7 @@
 ChromaDB store implementation for vector operations.
 """
 
+import asyncio
 import logging
 from typing import Dict, Any, Optional, List
 from pathlib import Path
@@ -40,6 +41,7 @@ class ChromaStore(BaseVectorStore):
         # Connection and state
         self._client = None
         self._collections = {}  # Cache for collection objects
+        self._collection_lock = asyncio.Lock()  # Lock for thread-safe collection operations
 
         # Create persist directory if specified
         if self.persist_directory:
@@ -386,38 +388,40 @@ class ChromaStore(BaseVectorStore):
             logger.error(f"Error deleting vector from ChromaDB: {e}")
             return False
     
-    async def create_collection(self, 
-                               collection_name: str, 
+    async def create_collection(self,
+                               collection_name: str,
                                dimension: int,
                                **kwargs) -> bool:
         """
         Create a new ChromaDB collection.
-        
+
         Args:
             collection_name: Name of the collection
             dimension: Vector dimension (stored in metadata)
             **kwargs: Additional collection parameters
-            
+
         Returns:
             True if successful, False otherwise
         """
         await self.ensure_connected()
-        
+
         try:
             # Get distance function from config or use cosine as default
             distance_function = self.config.connection_params.get('distance_function', 'cosine')
-            
-            collection = self._client.create_collection(
+
+            # Use get_or_create_collection to avoid race conditions
+            # This is atomic and handles concurrent requests safely
+            collection = self._client.get_or_create_collection(
                 name=collection_name,
                 metadata={"dimension": dimension, "hnsw:space": distance_function, **kwargs}
             )
-            
+
             # Cache the collection
             self._collections[collection_name] = collection
 
-            logger.debug(f"Created ChromaDB collection: {collection_name}")
+            logger.debug(f"Created/retrieved ChromaDB collection: {collection_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error creating ChromaDB collection: {e}")
             return False
@@ -514,22 +518,45 @@ class ChromaStore(BaseVectorStore):
         # Check cache first
         if collection_name in self._collections:
             return self._collections[collection_name]
-        
+
         try:
             collection = self._client.get_collection(name=collection_name)
             self._collections[collection_name] = collection
+            logger.debug(f"Retrieved existing ChromaDB collection: {collection_name}")
             return collection
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Collection {collection_name} not found: {e}")
             return None
-    
+
     async def _get_or_create_collection(self, collection_name: str, dimension: int):
-        """Get existing collection or create new one."""
-        collection = await self._get_collection(collection_name)
-        
-        if collection is None:
-            # Try to create the collection
-            success = await self.create_collection(collection_name, dimension)
-            if success:
-                collection = await self._get_collection(collection_name)
-        
-        return collection
+        """
+        Get existing collection or create new one.
+
+        Uses locking to prevent race conditions when multiple requests
+        try to create the same collection concurrently.
+        """
+        # Quick check without lock - if already cached, return immediately
+        if collection_name in self._collections:
+            return self._collections[collection_name]
+
+        # Use lock to prevent race conditions during collection creation
+        async with self._collection_lock:
+            # Double-check after acquiring lock (another thread may have created it)
+            if collection_name in self._collections:
+                return self._collections[collection_name]
+
+            try:
+                # Use ChromaDB's atomic get_or_create_collection
+                # This is thread-safe and handles concurrent requests properly
+                distance_function = self.config.connection_params.get('distance_function', 'cosine')
+                collection = self._client.get_or_create_collection(
+                    name=collection_name,
+                    metadata={"dimension": dimension, "hnsw:space": distance_function}
+                )
+                self._collections[collection_name] = collection
+                logger.debug(f"Got or created ChromaDB collection: {collection_name}")
+                return collection
+
+            except Exception as e:
+                logger.error(f"Error in get_or_create_collection for {collection_name}: {e}")
+                return None

@@ -38,20 +38,48 @@ class DoclingProcessor(FileProcessor):
     Requires: docling
     """
     
-    def __init__(self):
-        """Initialize Docling processor."""
+    def __init__(self, enabled: bool = True):
+        """
+        Initialize Docling processor.
+        
+        Args:
+            enabled: Whether docling is enabled. If False, converter will not be initialized.
+        """
         super().__init__()
         self._converter = None
-        if DOCLING_AVAILABLE:
-            try:
-                self._converter = DocumentConverter()
-            except Exception as e:
-                logger.warning(f"Failed to initialize Docling converter: {e}")
+        self._enabled = enabled
+        self._initialized = False
+        # Don't initialize converter at startup - use lazy initialization
+        # This prevents outbound connections to HuggingFace during server startup
+    
+    def _ensure_initialized(self):
+        """Lazy initialization of DocumentConverter - only when actually needed."""
+        if self._initialized:
+            return
+        
+        if not self._enabled:
+            self._initialized = True
+            return
+        
+        if not DOCLING_AVAILABLE:
+            self._initialized = True
+            return
+        
+        try:
+            logger.debug("Lazy initializing Docling DocumentConverter (this may connect to HuggingFace)")
+            self._converter = DocumentConverter()
+            self._initialized = True
+            logger.debug("Docling DocumentConverter initialized successfully")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Docling converter: {e}")
+            self._initialized = True  # Mark as initialized to prevent retries
     
     def supports_mime_type(self, mime_type: str) -> bool:
         """Check if this processor supports the MIME type."""
-        if not DOCLING_AVAILABLE or not self._converter:
+        if not self._enabled or not DOCLING_AVAILABLE:
             return False
+        # Don't initialize converter just to check support - use lazy init
+        # We can return True for supported types without initializing
         
         # Docling supports a wide range of formats
         supported_types = [
@@ -73,8 +101,18 @@ class DoclingProcessor(FileProcessor):
     
     async def extract_text(self, file_data: bytes, filename: str = None) -> str:
         """Extract text from document using Docling."""
-        if not DOCLING_AVAILABLE or not self._converter:
+        if not self._enabled:
+            raise ValueError("Docling processor is disabled")
+        if not DOCLING_AVAILABLE:
             raise ImportError("docling not available")
+
+        logger.debug(f"DoclingProcessor.extract_text() called for file: {filename or 'unknown'}")
+
+        # Lazy initialization - only create converter when actually processing a file
+        self._ensure_initialized()
+        
+        if not self._converter:
+            raise RuntimeError("Docling converter failed to initialize")
         
         text_parts = []
         
@@ -113,7 +151,15 @@ class DoclingProcessor(FileProcessor):
         """Extract metadata from document."""
         metadata = await super().extract_metadata(file_data, filename)
         
-        if not DOCLING_AVAILABLE or not self._converter:
+        if not self._enabled:
+            return metadata
+        if not DOCLING_AVAILABLE:
+            return metadata
+        
+        # Lazy initialization - only create converter when actually processing a file
+        self._ensure_initialized()
+        
+        if not self._converter:
             return metadata
         
         try:
@@ -166,7 +212,7 @@ class DoclingProcessor(FileProcessor):
     
     def supports_advanced_features(self) -> bool:
         """Check if advanced features are enabled."""
-        return DOCLING_AVAILABLE and self._converter is not None
+        return self._enabled and DOCLING_AVAILABLE
     
     def get_supported_formats(self) -> list:
         """Get list of supported document formats."""

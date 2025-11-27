@@ -35,9 +35,11 @@ class PDFProcessor(FileProcessor):
         """Extract text from PDF."""
         if not PDF_AVAILABLE:
             raise ImportError("pypdf not available")
-        
+
+        logger.debug(f"PDFProcessor.extract_text() called for file: {filename or 'unknown'} (using pypdf)")
+
         text_parts = []
-        
+
         try:
             pdf_file = BytesIO(file_data)
             pdf_reader = PdfReader(pdf_file)

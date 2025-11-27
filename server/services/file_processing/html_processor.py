@@ -34,7 +34,9 @@ class HTMLProcessor(FileProcessor):
         """Extract text from HTML."""
         if not HTML_AVAILABLE:
             raise ImportError("beautifulsoup4 not available")
-        
+
+        logger.debug(f"HTMLProcessor.extract_text() called for file: {filename or 'unknown'} (using BeautifulSoup)")
+
         try:
             html_text = file_data.decode('utf-8')
             soup = BeautifulSoup(html_text, 'html.parser')

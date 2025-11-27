@@ -58,6 +58,8 @@ class TextProcessor(FileProcessor):
     
     async def extract_text(self, file_data: bytes, filename: str = None) -> str:
         """Extract text from file."""
+        logger.debug(f"TextProcessor.extract_text() called for file: {filename or 'unknown'} (using standard library)")
+
         try:
             # Try UTF-8 first
             text = file_data.decode('utf-8')

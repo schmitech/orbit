@@ -52,7 +52,7 @@ class FileProcessingService:
         # Initialize components
         self.storage = self._init_storage()
         self.metadata_store = FileMetadataStore(config=config)
-        self.processor_registry = FileProcessorRegistry()
+        self.processor_registry = FileProcessorRegistry(config=config)
         self.chunker = self._init_chunker()
 
         # Configuration - get from adapter config first, then files.processing, then default

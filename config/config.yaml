@@ -20,7 +20,7 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "llama_cpp"
+  inference_provider: "ollama"
 
 language_detection:
   enabled: true
@@ -202,7 +202,7 @@ chat_history:
     required: false
 
 conversation_threading:
-  enabled: false
+  enabled: true
   dataset_ttl_hours: 24  # Global default TTL for stored datasets
   storage_backend: "redis"  # redis, sqlite, mongodb (fallback order: redis -> sqlite/mongodb)
   redis_key_prefix: "thread_dataset:"
@@ -210,9 +210,10 @@ conversation_threading:
 files:
   # Global defaults for all file adapters
   # Individual adapters in adapters.yaml can override these settings
-  
-  metadata_db_path: "files.db"  # Path to SQLite database for file metadata (relative to project root)
-  
+
+  # NOTE: File metadata (uploaded_files, file_chunks) is now stored in the main backend database
+  # configured in internal_services.backend (SQLite or MongoDB), not in a separate files.db
+
   # Default storage configuration (can be overridden per adapter)
   storage_root: "./uploads"  # Default root directory for storing uploaded files
   
@@ -222,6 +223,14 @@ files:
   # Respects document structure (paragraphs → sentences → words) while handling structured data
   default_chunk_size: 2048  # Default chunk size (characters for fixed/semantic, tokens for token/recursive)
   default_chunk_overlap: 200  # Default overlap (characters for fixed/semantic, tokens for token/recursive)
+  
+  # Processing configuration
+  processing:
+    # Docling processor configuration
+    # Set to false to disable docling processor and prevent outbound connections to HuggingFace at startup
+    # When disabled, docling will not be initialized until actually needed (lazy initialization)
+    # Default: true (enabled)
+    docling_enabled: true
   
   # Tokenizer configuration (optional)
   # If not specified, uses character-based tokenization

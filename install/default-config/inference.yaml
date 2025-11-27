@@ -17,9 +17,9 @@ inference:
     presence_penalty: 0.0
     frequency_penalty: 0.0
     # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
-    mirostat: 0
-    mirostat_tau: 0.8
-    mirostat_eta: 0.6
+    mirostat: 0           # Mirostat sampling algorithm (0 = disabled, 1 = Mirostat v1, 2 = Mirostat v2). Enables dynamic adjustment of randomness to maintain output quality and length.
+    mirostat_tau: 0.8     # Target entropy (tau) for Mirostat. Controls the balance between randomness and coherence—lower is more focused, higher is more random.
+    mirostat_eta: 0.6     # Learning rate (eta) for the Mirostat controller. Determines how quickly Mirostat adjusts sampling to hit the target entropy.
     # Context and memory - Optimized for Granite 4.0-1B (supports 128K, using 64K for laptop efficiency)
     num_ctx: 65536  # 64K context - large enough for extensive chat history, practical for laptop CPU
     num_keep: 1024  # Keep significant chat history and prompt context
@@ -34,10 +34,10 @@ inference:
     main_gpu: 0
     low_vram: false
     # Memory management
-    use_mmap: true
-    use_mlock: false
-    vocab_only: false
-    numa: false
+    use_mmap: true        # Use memory-mapped file access for faster model loading and lower RAM use
+    use_mlock: false      # Do not lock model file into RAM (prevents OS from swapping, but requires root)
+    vocab_only: false     # Load full model (not just vocabulary/embeddings) into memory
+    numa: false           # Disable NUMA (Non-Uniform Memory Access) optimizations (for most single-CPU setups)
     # Random seed for reproducible outputs
     seed: null
     # Retry configuration for handling cold starts

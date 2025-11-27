@@ -39,9 +39,11 @@ class DOCXProcessor(FileProcessor):
         """Extract text from DOCX."""
         if not DOCX_AVAILABLE:
             raise ImportError("python-docx not available")
-        
+
+        logger.debug(f"DOCXProcessor.extract_text() called for file: {filename or 'unknown'} (using python-docx)")
+
         text_parts = []
-        
+
         try:
             doc = Document(BytesIO(file_data))
             

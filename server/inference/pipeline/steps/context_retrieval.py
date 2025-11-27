@@ -447,12 +447,38 @@ class ContextRetrievalStep(PipelineStep):
                     "Results have been truncated.\n\n"
                 )
 
+        # Extract unique filenames from document metadata
+        filenames = []
+        for doc in documents:
+            metadata = doc.get('metadata', {})
+            # Check multiple possible locations for filename
+            filename = (
+                metadata.get('filename') or
+                doc.get('file_metadata', {}).get('filename') or
+                metadata.get('source')
+            )
+            if filename and filename not in filenames:
+                filenames.append(filename)
+
+        # Build header with actual filename(s)
+        if filenames:
+            if len(filenames) == 1:
+                file_label = f"Content extracted from [{filenames[0]}]"
+                logger.debug(f"Formatting content for single file: {filenames[0]}")
+            else:
+                file_list = ", ".join(f"[{f}]" for f in filenames)
+                file_label = f"Content extracted from files: {file_list}"
+                logger.debug(f"Formatting content for multiple files: {filenames}")
+        else:
+            file_label = "Content extracted from uploaded file(s)"
+            logger.debug("No filename found in document metadata, using generic label")
+
         for i, doc in enumerate(documents):
             content = doc.get('content', '')
 
             # Add context label for first chunk to help LLM understand this is document content
             if i == 0:
-                context += "## Content extracted from uploaded file(s):\n\n"
+                context += f"## {file_label}:\n\n"
 
             context += f"{content}\n\n"
 

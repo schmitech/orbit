@@ -25,6 +25,8 @@ class JSONProcessor(FileProcessor):
     
     async def extract_text(self, file_data: bytes, filename: str = None) -> str:
         """Extract text representation from JSON."""
+        logger.debug(f"JSONProcessor.extract_text() called for file: {filename or 'unknown'} (using standard library)")
+
         try:
             data = json.loads(file_data.decode('utf-8'))
             
