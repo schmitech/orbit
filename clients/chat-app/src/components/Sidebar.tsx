@@ -309,15 +309,33 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
                       autoFocus
                     />
                   ) : (
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <h3
-                        className={`truncate text-sm font-semibold ${
-                          currentConversationId === conversation.id ? 'text-[#1f2937] dark:text-white' : 'text-gray-700 dark:text-[#d4d7e2]'
-                        }`}
-                      >
-                        {conversation.title}
-                      </h3>
-                      <div className="flex items-center gap-1.5 pr-1 text-[11px] text-gray-500 dark:text-[#a6acc5]">
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <h3
+                          className={`flex-1 truncate text-sm font-semibold ${
+                            currentConversationId === conversation.id ? 'text-[#1f2937] dark:text-white' : 'text-gray-700 dark:text-[#d4d7e2]'
+                          }`}
+                        >
+                          {conversation.title}
+                        </h3>
+                        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button
+                            onClick={(e) => handleEditStart(e, conversation)}
+                            className="rounded-full p-2 text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
+                            title="Rename conversation"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteConversation(e, conversation)}
+                            className="rounded-full p-2 text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
+                            title="Delete conversation"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-1 flex items-center gap-1.5 pr-1 text-[11px] text-gray-500 dark:text-[#a6acc5]">
                         <span className="whitespace-nowrap leading-none">
                           {formatConversationTimestamp(conversation.updatedAt)}
                         </span>
@@ -332,25 +350,6 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
                           </span>
                         )}
                       </div>
-                    </div>
-                  )}
-
-                  {editingId !== conversation.id && (
-                    <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
-                        onClick={(e) => handleEditStart(e, conversation)}
-                        className="rounded-full p-2 text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
-                        title="Rename conversation"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteConversation(e, conversation)}
-                        className="rounded-full p-2 text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
-                        title="Delete conversation"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
                     </div>
                   )}
                 </div>
