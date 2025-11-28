@@ -62,22 +62,22 @@ function parseArgs() {
         config.defaultKey = args[++i];
         break;
       case '--use-local-api':
-        config.useLocalApi = args[++i] === 'true';
+        config.useLocalApi = true;
         break;
       case '--local-api-path':
         config.localApiPath = args[++i];
         break;
       case '--console-debug':
-        config.consoleDebug = args[++i] === 'true';
+        config.consoleDebug = true;
         break;
       case '--enable-upload':
-        config.enableUploadButton = args[++i] === 'true';
+        config.enableUploadButton = true;
         break;
       case '--enable-audio':
-        config.enableAudioOutput = args[++i] === 'true';
+        config.enableAudioOutput = true;
         break;
       case '--enable-feedback':
-        config.enableFeedbackButtons = args[++i] === 'true';
+        config.enableFeedbackButtons = true;
         break;
       case '--max-files-per-conversation':
         config.maxFilesPerConversation = parseInt(args[++i], 10);
@@ -370,12 +370,12 @@ Usage: orbitchat [options]
 Options:
   --api-url URL                    API URL (default: http://localhost:3000)
   --api-key KEY                    Default API key (default: default-key)
-  --use-local-api BOOLEAN          Use local API build (default: false)
+  --use-local-api                  Use local API build (default: false)
   --local-api-path PATH            Path to local API
-  --console-debug BOOLEAN          Enable console debug (default: false)
-  --enable-upload BOOLEAN          Enable upload button (default: false)
-  --enable-audio BOOLEAN           Enable audio button (default: false)
-  --enable-feedback BOOLEAN        Enable feedback buttons (default: false)
+  --console-debug                  Enable console debug (default: false)
+  --enable-upload                  Enable upload button (default: false)
+  --enable-audio                   Enable audio button (default: false)
+  --enable-feedback                Enable feedback buttons (default: false)
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
   --max-total-files N              Max total files (default: 100, 0 = unlimited)
@@ -399,6 +399,7 @@ Configuration Priority:
 Examples:
   orbitchat --api-url http://localhost:3000 --port 8080
   orbitchat --api-key my-key --open
+  orbitchat --enable-audio --enable-upload --console-debug
   orbitchat --config /path/to/config.json
 `);
 }
