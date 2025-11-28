@@ -40,6 +40,7 @@
 #   intent-sql-sqlite-contact -> contact
 #   intent-sql-sqlite-classified -> classified
 #   intent-duckdb-analytics -> analytical
+#   intent-duckdb-open-gov-travel-expenses -> travel-expenses
 #   intent-sql-postgres -> postgres
 #   intent-elasticsearch-app-logs -> elasticsearch
 #   intent-firecrawl-webscrape -> web
@@ -52,6 +53,7 @@
 #       You can add the prompt later using the prompt associate command.
 
 set -e  # Exit on error
+set -o pipefail  # Exit on pipe failures
 
 # Colors for output
 RED='\033[0;31m'
@@ -59,6 +61,38 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Error handling function
+error_handler() {
+    local exit_code=$?
+    local line_number=$1
+    local command=$2
+    
+    if [ $exit_code -ne 0 ]; then
+        echo ""
+        echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${RED}✗ ERROR: Script failed at line $line_number${NC}"
+        echo -e "${RED}  Command: $command${NC}"
+        echo -e "${RED}  Exit code: $exit_code${NC}"
+        echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        echo -e "${YELLOW}Stack trace:${NC}"
+        local frame=0
+        while caller $frame; do
+            ((frame++))
+        done | sed 's/^/  /'
+        echo ""
+    fi
+}
+
+# Cleanup function for temporary files
+cleanup_temp_files() {
+    rm -f /tmp/orbit_key_create_stderr.$$ /tmp/orbit_key_rename_stderr.$$ /tmp/orbit_auth_stderr.$$
+}
+
+# Set trap to catch errors and cleanup
+trap 'error_handler ${LINENO} "$BASH_COMMAND"; cleanup_temp_files' ERR
+trap 'cleanup_temp_files' EXIT
 
 # Parse command line arguments
 FILTER_ADAPTER=""
@@ -104,13 +138,16 @@ check_key_exists() {
     local key_name=$1
     local list_cmd="$ORBIT_SCRIPT key list --output json"
     local list_output
-    list_output=$(eval "$list_cmd" 2>&1)
-    local exit_code=$?
+    local stderr_output
     
-    if [ $exit_code -ne 0 ]; then
-        # If list command fails, assume key doesn't exist to be safe
+    # Capture both stdout and stderr separately
+    list_output=$(eval "$list_cmd" 2> >(tee /dev/stderr >&2)) || {
+        local exit_code=$?
+        echo -e "${YELLOW}    ⚠ Warning: Failed to list keys (exit code: $exit_code)${NC}" >&2
+        echo -e "${YELLOW}    Command: $list_cmd${NC}" >&2
+        echo -e "${YELLOW}    Assuming key '$key_name' doesn't exist to be safe${NC}" >&2
         return 1
-    fi
+    }
     
     # Check if any key has a matching client_name
     # Using jq if available for reliable JSON parsing, otherwise use grep
@@ -172,12 +209,34 @@ create_and_rename_key() {
     echo -e "${YELLOW}  Step 3: Creating API key...${NC}"
     echo -e "${YELLOW}    Command: $create_cmd${NC}"
     local output
-    output=$(eval "$create_cmd" 2>&1) || {
+    local stderr_output
+    local exit_code
+    
+    # Capture stdout and stderr separately for better error reporting
+    output=$(eval "$create_cmd" 2> >(tee /tmp/orbit_key_create_stderr.$$ >&2)) || {
+        exit_code=$?
+        stderr_output=$(cat /tmp/orbit_key_create_stderr.$$ 2>/dev/null || echo "")
+        rm -f /tmp/orbit_key_create_stderr.$$
+        
+        echo ""
         echo -e "${RED}    ✗ Failed to create key for $adapter${NC}"
-        echo -e "${RED}    Error output:${NC}"
-        echo "$output" | sed 's/^/      /'
+        echo -e "${RED}    Exit code: $exit_code${NC}"
+        echo -e "${RED}    Command that failed: $create_cmd${NC}"
+        if [ -n "$output" ]; then
+            echo -e "${RED}    Stdout output:${NC}"
+            echo "$output" | sed 's/^/      /'
+        fi
+        if [ -n "$stderr_output" ]; then
+            echo -e "${RED}    Stderr output:${NC}"
+            echo "$stderr_output" | sed 's/^/      /'
+        fi
+        if [ -z "$output" ] && [ -z "$stderr_output" ]; then
+            echo -e "${RED}    No output captured (command may have failed silently)${NC}"
+        fi
+        echo ""
         return 1
     }
+    rm -f /tmp/orbit_key_create_stderr.$$
     
     echo -e "${GREEN}    ✓ Command executed successfully${NC}"
     echo -e "${YELLOW}    Raw output:${NC}"
@@ -216,12 +275,36 @@ create_and_rename_key() {
     local rename_cmd="$ORBIT_SCRIPT key rename --old-key $api_key --new-key $key_name"
     echo -e "${YELLOW}    Command: $rename_cmd${NC}"
     local rename_output
-    rename_output=$(eval "$rename_cmd" 2>&1) || {
+    local rename_stderr
+    local rename_exit_code
+    
+    # Capture stdout and stderr separately for better error reporting
+    rename_output=$(eval "$rename_cmd" 2> >(tee /tmp/orbit_key_rename_stderr.$$ >&2)) || {
+        rename_exit_code=$?
+        rename_stderr=$(cat /tmp/orbit_key_rename_stderr.$$ 2>/dev/null || echo "")
+        rm -f /tmp/orbit_key_rename_stderr.$$
+        
+        echo ""
         echo -e "${RED}    ✗ Failed to rename key $api_key to $key_name${NC}"
-        echo -e "${RED}    Error output:${NC}"
-        echo "$rename_output" | sed 's/^/      /'
+        echo -e "${RED}    Exit code: $rename_exit_code${NC}"
+        echo -e "${RED}    Command that failed: $rename_cmd${NC}"
+        echo -e "${RED}    Original API key: $api_key${NC}"
+        echo -e "${RED}    Target key name: $key_name${NC}"
+        if [ -n "$rename_output" ]; then
+            echo -e "${RED}    Stdout output:${NC}"
+            echo "$rename_output" | sed 's/^/      /'
+        fi
+        if [ -n "$rename_stderr" ]; then
+            echo -e "${RED}    Stderr output:${NC}"
+            echo "$rename_stderr" | sed 's/^/      /'
+        fi
+        if [ -z "$rename_output" ] && [ -z "$rename_stderr" ]; then
+            echo -e "${RED}    No output captured (command may have failed silently)${NC}"
+        fi
+        echo ""
         return 1
     }
+    rm -f /tmp/orbit_key_rename_stderr.$$
     
     echo -e "${GREEN}    ✓ Rename command executed successfully${NC}"
     if [ -n "$rename_output" ]; then
@@ -238,29 +321,46 @@ create_and_rename_key() {
 # Function to check if admin is authenticated
 check_admin_auth() {
     echo -e "${YELLOW}Checking authentication status...${NC}"
+    local auth_cmd="$ORBIT_SCRIPT auth-status"
     local auth_output
-    auth_output=$(eval "$ORBIT_SCRIPT auth-status" 2>&1)
-    local exit_code=$?
+    local auth_stderr
+    local exit_code
     
-    if [ $exit_code -ne 0 ]; then
+    # Capture stdout and stderr separately
+    auth_output=$(eval "$auth_cmd" 2> >(tee /tmp/orbit_auth_stderr.$$ >&2)) || {
+        exit_code=$?
+        auth_stderr=$(cat /tmp/orbit_auth_stderr.$$ 2>/dev/null || echo "")
+        rm -f /tmp/orbit_auth_stderr.$$
+        
         echo -e "${RED}✗ Failed to check authentication status${NC}"
-        echo -e "${RED}Error: $auth_output${NC}"
+        echo -e "${RED}  Exit code: $exit_code${NC}"
+        echo -e "${RED}  Command: $auth_cmd${NC}"
+        if [ -n "$auth_output" ]; then
+            echo -e "${RED}  Stdout: $auth_output${NC}"
+        fi
+        if [ -n "$auth_stderr" ]; then
+            echo -e "${RED}  Stderr: $auth_stderr${NC}"
+        fi
+        echo -e "${YELLOW}  Please ensure the ORBIT server is running and try again${NC}"
         return 1
-    fi
+    }
+    rm -f /tmp/orbit_auth_stderr.$$
     
     # Check if authenticated
     if ! echo "$auth_output" | grep -qiE "(✓ authenticated|authenticated)"; then
         echo -e "${RED}✗ Not authenticated${NC}"
-        echo -e "${YELLOW}Please login as admin first using:${NC}"
-        echo -e "${YELLOW}  $ORBIT_SCRIPT login${NC}"
+        echo -e "${RED}  Auth output: $auth_output${NC}"
+        echo -e "${YELLOW}  Please login as admin first using:${NC}"
+        echo -e "${YELLOW}    $ORBIT_SCRIPT login${NC}"
         return 1
     fi
     
     # Check if user is admin
     if ! echo "$auth_output" | grep -qiE "Role:\s*admin"; then
         echo -e "${RED}✗ User is not an admin${NC}"
-        echo -e "${YELLOW}Please login as admin first using:${NC}"
-        echo -e "${YELLOW}  $ORBIT_SCRIPT login${NC}"
+        echo -e "${RED}  Auth output: $auth_output${NC}"
+        echo -e "${YELLOW}  Please login as admin first using:${NC}"
+        echo -e "${YELLOW}    $ORBIT_SCRIPT login${NC}"
         return 1
     fi
     
@@ -319,6 +419,7 @@ declare -a all_adapters=(
     "intent-sql-sqlite-contact|contact|examples/prompts/contact-assistant-prompt.txt|Contact Assistant Prompt"
     "intent-sql-sqlite-classified|classified|examples/prompts/analytics-assistant-prompt.txt|Classified Data Prompt"
     "intent-duckdb-analytics|analytical|examples/prompts/analytics-assistant-prompt.txt|DuckDB Analytics Prompt"
+    "intent-duckdb-open-gov-travel-expenses|travel-expenses|utils/duckdb-intent-template/examples/open-gov-travel-expenses/travel-expenses-assistant-prompt.txt|Travel Expenses Assistant Prompt"
     "intent-sql-postgres|postgres|examples/postgres/prompts/customer-assistant-enhanced-prompt.txt|PostgreSQL Customer Orders Prompt"
     "intent-elasticsearch-app-logs|elasticsearch|examples/prompts/elasticsearch-log-assistant-prompt.txt|Elasticsearch Logs Prompt"
     "intent-firecrawl-webscrape|web|examples/prompts/firecrawl-knowledge-assistant-prompt.txt|Firecrawl Web Prompt"
@@ -364,7 +465,7 @@ existing_count=0
 # Process each adapter
 adapter_index=0
 for entry in "${adapters[@]}"; do
-    ((adapter_index++))
+    adapter_index=$((adapter_index + 1))  # Safe increment that always succeeds
     IFS='|' read -r adapter key_name prompt_file prompt_name <<< "$entry"
     
     echo ""
@@ -376,18 +477,25 @@ for entry in "${adapters[@]}"; do
     # The script will attempt to create keys for all listed adapters and handle errors
     
     # Check if key exists first (before calling create function which also checks)
-    if check_key_exists "$key_name"; then
-        ((existing_count++))
+    if check_key_exists "$key_name" 2>&1; then
+        existing_count=$((existing_count + 1))  # Safe increment
         echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo -e "${GREEN}[$adapter_index/${#adapters[@]}] Key '$key_name' already exists - skipping${NC}"
         echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo ""
-    elif create_and_rename_key "$adapter" "$key_name" "$prompt_file" "$prompt_name"; then
-        ((success_count++))
+    elif create_and_rename_key "$adapter" "$key_name" "$prompt_file" "$prompt_name" 2>&1; then
+        success_count=$((success_count + 1))  # Safe increment
         echo -e "${GREEN}✓ Adapter $adapter_index/${#adapters[@]} completed successfully${NC}"
     else
-        ((failure_count++))
-        echo -e "${RED}✗ Adapter $adapter_index/${#adapters[@]} failed: $adapter${NC}"
+        local create_exit_code=$?
+        failure_count=$((failure_count + 1))  # Safe increment
+        echo ""
+        echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${RED}✗ Adapter $adapter_index/${#adapters[@]} FAILED: $adapter${NC}"
+        echo -e "${RED}  Key name: $key_name${NC}"
+        echo -e "${RED}  Exit code: $create_exit_code${NC}"
+        echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
     fi
     echo ""
 done
