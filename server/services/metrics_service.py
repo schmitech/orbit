@@ -265,15 +265,24 @@ class MetricsService:
                 self.cpu_usage.set(cpu_percent)
                 self.memory_usage.set(memory_mb)
 
-                # Calculate request rate
+                # Calculate request rate using a 10-second window for more accurate current rate
                 now = time.time()
-                cutoff = now - 60  # Last minute
-                recent_requests = [t for t in self.request_timestamps if t > cutoff]
-                requests_per_second = len(recent_requests) / 60.0 if recent_requests else 0
+                rate_cutoff = now - 10  # 10-second window for current rate
+                error_cutoff = now - 60  # 60-second window for error rate
+                recent_requests = [t for t in self.request_timestamps if t > rate_cutoff]
+                # Calculate actual time span for accurate rate calculation
+                if recent_requests:
+                    time_span = now - min(recent_requests)
+                    # Use actual time span, but ensure at least 1 second to avoid division issues
+                    time_span = max(time_span, 1.0)
+                    requests_per_second = len(recent_requests) / time_span
+                else:
+                    requests_per_second = 0.0
 
-                # Calculate error rate
-                recent_errors = [t for t in self.error_timestamps if t > cutoff]
-                error_rate = (len(recent_errors) / len(recent_requests) * 100) if recent_requests else 0
+                # Calculate error rate using 60-second window
+                recent_errors = [t for t in self.error_timestamps if t > error_cutoff]
+                error_rate_requests = [t for t in self.request_timestamps if t > error_cutoff]
+                error_rate = (len(recent_errors) / len(error_rate_requests) * 100) if error_rate_requests else 0
 
                 # Calculate response time statistics
                 response_times_list = list(self.response_times)
@@ -392,13 +401,23 @@ class MetricsService:
         uptime_seconds = time.time() - self._start_time
         uptime_str = self._format_uptime(uptime_seconds)
 
-        # Calculate current rates
+        # Calculate current rates using a 10-second window for more accurate current rate
         now = time.time()
-        cutoff = now - 60
-        recent_requests = [t for t in self.request_timestamps if t > cutoff]
-        requests_per_second = len(recent_requests) / 60.0 if recent_requests else 0
-        recent_errors = [t for t in self.error_timestamps if t > cutoff]
-        error_rate = (len(recent_errors) / len(recent_requests) * 100) if recent_requests else 0
+        # Use 10 seconds for current rate, 60 seconds for error rate calculation
+        rate_cutoff = now - 10  # 10-second window for current rate
+        error_cutoff = now - 60  # 60-second window for error rate
+        recent_requests = [t for t in self.request_timestamps if t > rate_cutoff]
+        # Calculate actual time span for accurate rate calculation
+        if recent_requests:
+            time_span = now - min(recent_requests)
+            # Use actual time span, but ensure at least 1 second to avoid division issues
+            time_span = max(time_span, 1.0)
+            requests_per_second = len(recent_requests) / time_span
+        else:
+            requests_per_second = 0.0
+        recent_errors = [t for t in self.error_timestamps if t > error_cutoff]
+        error_rate_requests = [t for t in self.request_timestamps if t > error_cutoff]
+        error_rate = (len(recent_errors) / len(error_rate_requests) * 100) if error_rate_requests else 0
 
         # Process-specific metrics
         process_cpu_percent = self.process.cpu_percent(interval=None)

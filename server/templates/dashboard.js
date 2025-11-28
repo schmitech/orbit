@@ -332,7 +332,9 @@
             document.getElementById('total-requests').textContent = formatNumber(data.requests.total);
             document.getElementById('requests-error-rate').textContent = formatNumber(errorPercent, 2) + '%';
 
-            document.getElementById('error-rate').textContent = formatNumber(errorPercent, 2);
+            // Calculate reliability as (100% - error rate)
+            const reliabilityPercent = clampPercentage(100 - errorPercent);
+            document.getElementById('error-rate').textContent = formatNumber(reliabilityPercent, 2);
 
             const reliabilityStatusEl = document.getElementById('reliability-status');
             let reliabilityStatus = 'Nominal';
@@ -354,6 +356,7 @@
                 reliabilityStatusEl.className = reliabilityStatusClass;
             }
 
+            // Show error rate as a progress bar (inverse of reliability)
             const errorBar = document.getElementById('error-rate-bar');
             if (errorBar) {
                 errorBar.className = `progress-bar ${reliabilityBarClass}`;
