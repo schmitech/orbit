@@ -94,6 +94,7 @@ class KeyListCommand(BaseCommand):
         parser.add_argument('--active-only', action='store_true', help='Show only active keys')
         parser.add_argument('--limit', type=int, default=100, help='Maximum number of keys to return')
         parser.add_argument('--offset', type=int, default=0, help='Number of keys to skip for pagination')
+        parser.add_argument('--output', choices=['table', 'json'], default='table', help='Output format (default: table)')
     
     def execute(self, args: argparse.Namespace) -> int:
         result = self.api_service.list_api_keys(
@@ -101,7 +102,9 @@ class KeyListCommand(BaseCommand):
             limit=args.limit,
             offset=args.offset
         )
-        if getattr(args, 'output', None) == 'json':
+        # Check for output format (from subcommand arg or parent parser)
+        output_format = getattr(args, 'output', 'table')
+        if output_format == 'json':
             self.formatter.format_json(result)
         else:
             if result:
