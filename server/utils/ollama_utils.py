@@ -24,11 +24,15 @@ class OllamaConfig:
         
         Args:
             config: Configuration dictionary
-            service_type: Type of service (embeddings, inference, moderators, rerankers)
+            service_type: Type of service (embeddings, inference, moderators, rerankers, vision)
         """
         # Extract service-specific config if available
         if service_type:
-            service_config = config.get(service_type, {}).get('ollama', {})
+            # Vision service uses 'visions' (plural) in config, not 'vision'
+            if service_type == 'vision':
+                service_config = config.get('visions', {}).get('ollama', {})
+            else:
+                service_config = config.get(service_type, {}).get('ollama', {})
         else:
             service_config = config.get('ollama', {})
         
@@ -69,7 +73,8 @@ class OllamaConfig:
             'embeddings': 'nomic-embed-text',
             'inference': 'gemma3:1b',
             'moderators': 'gemma3:12b',
-            'rerankers': 'xitao/bge-reranker-v2-m3:'
+            'rerankers': 'xitao/bge-reranker-v2-m3:',
+            'vision': 'qwen3-vl:8b'
         }
         return defaults.get(service_type, 'gemma3:1b')
 
