@@ -102,9 +102,9 @@ adapters:
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
     database: "utils/duckdb-intent-template/examples/analytics/analytics.duckdb"
-    inference_provider: "cohere"
-    # model: "glm-4.6"
-    embedding_provider: "cohere"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    embedding_provider: "ollama"
     config:
       # Path to the domain definition file
       domain_config_path: "utils/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
@@ -113,6 +113,50 @@ adapters:
 
       # Name for the vector store collection for templates
       template_collection_name: "duckdb_analytics_templates"
+      # Store configuration - references stores.yaml
+      store_name: "chroma"
+      confidence_threshold: 0.4
+
+      # Maximum templates to consider
+      max_templates: 5
+
+      # Return top N results
+      return_results: 100
+
+      # Template loading settings
+      reload_templates_on_start: true  # Whether to reload templates on startup
+      force_reload_templates: true  # Force reload even if templates exist in storage
+
+      # DuckDB-specific configuration
+      # Database path is configured in datasources.yaml (defaults to examples/duckdb/analytics.duckdb)
+      # Can override here if needed:
+      # database: "path/to/custom.duckdb"  # Optional: override datasource default
+      read_only: true  # Allow concurrent reads from multiple processes (no writes needed for intent queries)
+      access_mode: "READ_ONLY"  # Multiple processes can read simultaneously (see https://duckdb.org/docs/stable/connect/concurrency)
+      threads: null  # Use default thread count
+
+      # Query monitoring (automatically provided by unified base)
+      enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds
+
+  - name: "intent-duckdb-open-gov-travel-expenses"
+    enabled: false
+    type: "retriever"
+    datasource: "duckdb"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
+    database: "utils/duckdb-intent-template/examples/open-gov-travel-expenses/travel_expenses.duckdb"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    embedding_provider: "ollama"
+    config:
+      # Path to the domain definition file
+      domain_config_path: "utils/duckdb-intent-template/examples/open-gov-travel-expenses/travel_expenses_domain.yaml"
+      template_library_path:
+        - "utils/duckdb-intent-template/examples/open-gov-travel-expenses/travel_expenses_templates.yaml"
+
+      # Name for the vector store collection for templates
+      template_collection_name: "duckdb_open_gov_travel_expenses_templates"
       # Store configuration - references stores.yaml
       store_name: "chroma"
       confidence_threshold: 0.4

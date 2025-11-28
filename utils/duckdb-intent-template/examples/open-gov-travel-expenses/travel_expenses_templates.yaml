@@ -1,0 +1,696 @@
+status: completed
+generated_at: '2025-01-27T12:00:00.000000'
+last_updated: '2025-01-27T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 25
+templates:
+- id: find_all_travel_expenses
+  description: Retrieve recent travel expenses with pagination (limited to prevent large result sets)
+  sql: SELECT ref_number, name, start_date, end_date, destination_en, owner_org_title, total FROM travel_expenses WHERE (:min_date IS NULL OR start_date >= :min_date) ORDER BY start_date DESC LIMIT :limit OFFSET :offset
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 50
+  - name: offset
+    type: integer
+    description: Number of records to skip
+    required: false
+    default: 0
+  - name: min_date
+    type: date
+    description: Minimum start date filter (optional, defaults to no filter but limited to 50 records)
+    required: false
+    default: null
+  nl_examples:
+  - Show me all travel expenses
+  - List all travel expenses
+  - Get all travel expense records
+  - Display travel expenses
+  - What travel expenses do we have?
+  - Find all travel expenses
+  - Show every travel expense
+  - I need all travel expenses
+  - Get all available travel expenses
+  - Display entire travel expenses list
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - travel_expenses
+- id: count_all_travel_expenses
+  description: Counts the total number of travel expenses in the database
+  sql: SELECT COUNT(*) AS expense_count FROM travel_expenses
+  parameters: []
+  nl_examples:
+  - How many travel expenses do we have?
+  - Count all travel expenses
+  - What's the total number of travel expenses?
+  - How many travel expenses are there?
+  - Get the travel expenses count
+  - Show me total travel expenses count
+  - What is the total travel expenses count?
+  - How many travel expenses in the system?
+  - Get total number of travel expenses
+  - Show me travel expenses count
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - travel_expenses
+  - count
+- id: find_travel_expenses_by_organization
+  description: Find travel expenses filtered by organization with pagination
+  sql: SELECT ref_number, name, start_date, end_date, destination_en, total FROM travel_expenses WHERE owner_org_title = :organization ORDER BY start_date DESC LIMIT :limit
+  parameters:
+  - name: organization
+    type: string
+    description: Organization name filter
+    required: true
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  nl_examples:
+  - Show me travel expenses for Accessibility Standards Canada
+  - List travel expenses from a specific organization
+  - Get travel expenses for organization
+  - Find travel expenses with organization
+  - Display expenses from organization
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers:
+    - organization
+  tags:
+  - find
+  - travel_expenses
+  - organization
+- id: find_travel_expenses_by_person
+  description: Find travel expenses filtered by person name with pagination
+  sql: SELECT ref_number, start_date, end_date, destination_en, purpose_en, total FROM travel_expenses WHERE name = :person_name ORDER BY start_date DESC LIMIT :limit
+  parameters:
+  - name: person_name
+    type: string
+    description: Person name filter
+    required: true
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  nl_examples:
+  - Show me travel expenses for Philip Rizcallah
+  - List travel expenses for a specific person
+  - Get travel expenses for person
+  - Find travel expenses with person name
+  - Display expenses for person
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers:
+    - person
+  tags:
+  - find
+  - travel_expenses
+  - person
+- id: find_travel_expenses_by_destination
+  description: Find travel expenses filtered by destination with pagination
+  sql: SELECT ref_number, name, start_date, end_date, purpose_en, total FROM travel_expenses WHERE destination_en = :destination ORDER BY start_date DESC LIMIT :limit
+  parameters:
+  - name: destination
+    type: string
+    description: Destination filter
+    required: true
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  nl_examples:
+  - Show me travel expenses to Vancouver
+  - List travel expenses for destination
+  - Get travel expenses to a specific destination
+  - Find travel expenses with destination
+  - Display expenses for destination
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers:
+    - destination
+  tags:
+  - find
+  - travel_expenses
+  - destination
+- id: find_travel_expenses_by_date_range
+  description: Find travel expenses within a date range with pagination
+  sql: SELECT ref_number, name, start_date, end_date, destination_en, total FROM travel_expenses WHERE start_date >= :start_date AND start_date <= :end_date ORDER BY start_date DESC LIMIT :limit
+  parameters:
+  - name: start_date
+    type: date
+    description: Start date filter
+    required: true
+  - name: end_date
+    type: date
+    description: End date filter
+    required: true
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  nl_examples:
+  - Show me travel expenses between January 1 and March 31, 2020
+  - List travel expenses from start to end date
+  - Get travel expenses in date range
+  - Find travel expenses between dates
+  - Display expenses for date range
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers:
+    - date_range
+  tags:
+  - find
+  - travel_expenses
+  - date
+- id: find_travel_expenses_by_year
+  description: Find travel expenses for a specific year with pagination
+  sql: SELECT ref_number, name, start_date, end_date, destination_en, total FROM travel_expenses WHERE EXTRACT(YEAR FROM start_date) = :year ORDER BY start_date DESC LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year filter
+    required: true
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  nl_examples:
+  - Show me travel expenses for 2020
+  - List travel expenses in year
+  - Get travel expenses for a specific year
+  - Find travel expenses with year
+  - Display expenses for year
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers:
+    - year
+  tags:
+  - find
+  - travel_expenses
+  - year
+- id: total_travel_expenses_amount
+  description: Calculate total travel expenses amount with optional filtering
+  sql: SELECT SUM(total) AS total_expenses FROM travel_expenses WHERE total IS NOT NULL AND (:organization IS NULL OR owner_org_title = :organization) AND (:year IS NULL OR EXTRACT(YEAR FROM start_date) = :year)
+  parameters:
+  - name: organization
+    type: string
+    description: Optional organization filter
+    required: false
+    default: null
+  - name: year
+    type: integer
+    description: Optional year filter
+    required: false
+    default: null
+  nl_examples:
+  - What's the total travel expenses amount?
+  - Show me total expenses
+  - Calculate total travel expenses
+  - Get sum of all travel expenses
+  - What's the total expenses for organization?
+  - Calculate total expenses in year
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - travel_expenses
+  - total
+- id: average_travel_expense
+  description: Calculate average travel expense amount
+  sql: SELECT AVG(total) AS avg_expense FROM travel_expenses WHERE total IS NOT NULL
+  parameters: []
+  nl_examples:
+  - What's the average travel expense?
+  - Show me average expense
+  - Calculate average travel expense amount
+  - Get average expense per trip
+  - What is the average expense?
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - travel_expenses
+  - average
+- id: top_expensive_trips
+  description: Find top N most expensive trips
+  sql: SELECT ref_number, name, start_date, destination_en, total FROM travel_expenses WHERE total IS NOT NULL ORDER BY total DESC LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of top trips to return
+    required: false
+    default: 10
+  nl_examples:
+  - Show me top 10 most expensive trips
+  - List top expensive trips
+  - Get highest travel expenses
+  - Find most expensive travel expenses
+  - Display top 5 trips by cost
+  - Show me top expensive trips
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - travel_expenses
+  - top
+- id: expenses_by_organization_total
+  description: Calculate total expenses grouped by organization (top N)
+  sql: SELECT owner_org_title, COUNT(*) AS expense_count, SUM(total) AS total_expenses, AVG(total) AS avg_expense FROM travel_expenses WHERE owner_org_title IS NOT NULL AND total IS NOT NULL GROUP BY owner_org_title ORDER BY total_expenses DESC LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of organizations to return
+    required: false
+    default: 50
+  nl_examples:
+  - Show me travel expenses grouped by organization
+  - List total expenses per organization
+  - Get expenses amount by organization
+  - Find which organization has the most expenses
+  - Display expenses breakdown by organization
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - travel_expenses
+  - organization
+- id: expenses_by_destination_total
+  description: Calculate total expenses grouped by destination
+  sql: SELECT destination_en, COUNT(*) AS trip_count, SUM(total) AS total_expenses FROM travel_expenses WHERE destination_en IS NOT NULL AND total IS NOT NULL GROUP BY destination_en ORDER BY total_expenses DESC LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of destinations to return
+    required: false
+    default: 20
+  nl_examples:
+  - Show me travel expenses by destination
+  - List total expenses per destination
+  - Get expenses amount grouped by destination
+  - Find which destination has the most trips
+  - Display expenses breakdown by destination
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - travel_expenses
+  - destination
+- id: expenses_by_person_total
+  description: Calculate total expenses grouped by person
+  sql: SELECT name, COUNT(*) AS trip_count, SUM(total) AS total_expenses FROM travel_expenses WHERE name IS NOT NULL AND total IS NOT NULL GROUP BY name ORDER BY total_expenses DESC LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of people to return
+    required: false
+    default: 20
+  nl_examples:
+  - Show me travel expenses by person
+  - List total expenses per person
+  - Get expenses amount grouped by person
+  - Find which person has the most expenses
+  - Display expenses breakdown by person
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - travel_expenses
+  - person
+- id: expenses_by_year_total
+  description: Calculate total expenses grouped by year (recent years)
+  sql: SELECT EXTRACT(YEAR FROM start_date) AS year, COUNT(*) AS expense_count, SUM(total) AS total_expenses FROM travel_expenses WHERE start_date IS NOT NULL AND total IS NOT NULL AND (:min_date IS NULL OR start_date >= :min_date) GROUP BY year ORDER BY year DESC LIMIT :limit
+  parameters:
+  - name: min_date
+    type: date
+    description: Minimum start date (optional, defaults to no filter but limited to 10 years)
+    required: false
+    default: null
+  - name: limit
+    type: integer
+    description: Maximum number of years to return
+    required: false
+    default: 10
+  nl_examples:
+  - Show me travel expenses by year
+  - List total expenses per year
+  - Get expenses amount grouped by year
+  - Find expense trends over time
+  - Display yearly expense totals
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - travel_expenses
+  - year
+- id: expenses_by_month_total
+  description: Calculate total expenses grouped by month for a specific year
+  sql: SELECT EXTRACT(MONTH FROM start_date) AS month, COUNT(*) AS expense_count, SUM(total) AS total_expenses FROM travel_expenses WHERE start_date >= :year_start AND start_date < :year_end AND total IS NOT NULL GROUP BY month ORDER BY month
+  parameters:
+  - name: year_start
+    type: date
+    description: Start of year (e.g., 2020-01-01)
+    required: true
+  - name: year_end
+    type: date
+    description: End of year (e.g., 2021-01-01)
+    required: true
+  nl_examples:
+  - Show me travel expenses by month for 2020
+  - List monthly expenses
+  - Get expenses grouped by month
+  - Display monthly expense totals
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - travel_expenses
+  - month
+- id: expense_category_breakdown
+  description: Calculate total expenses by category (airfare, transport, lodging, meals, other)
+  sql: SELECT SUM(airfare) AS total_airfare, SUM(other_transport) AS total_other_transport, SUM(lodging) AS total_lodging, SUM(meals) AS total_meals, SUM(other_expenses) AS total_other_expenses, SUM(total) AS grand_total FROM travel_expenses WHERE total IS NOT NULL
+  parameters: []
+  nl_examples:
+  - Show me total airfare expenses
+  - List expense breakdown by category
+  - Get total by expense type
+  - Find total lodging expenses
+  - Display expense category totals
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - travel_expenses
+  - category
+- id: top_organizations_by_expense_count
+  description: Find top N organizations by number of expense records
+  sql: SELECT owner_org_title, COUNT(*) AS expense_count FROM travel_expenses WHERE owner_org_title IS NOT NULL GROUP BY owner_org_title ORDER BY expense_count DESC LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of top organizations to return
+    required: false
+    default: 10
+  nl_examples:
+  - Show me top 5 organizations by expense count
+  - List organizations with most expenses
+  - Get top organizations by number of trips
+  - Find organizations with most travel
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - travel_expenses
+  - organization
+  - top
+- id: top_destinations_by_trip_count
+  description: Find top N destinations by number of trips
+  sql: SELECT destination_en, COUNT(*) AS trip_count FROM travel_expenses WHERE destination_en IS NOT NULL GROUP BY destination_en ORDER BY trip_count DESC LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of top destinations to return
+    required: false
+    default: 10
+  nl_examples:
+  - Show me top 5 destinations by trip count
+  - List most visited destinations
+  - Get top destinations
+  - Find most popular destinations
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - travel_expenses
+  - destination
+  - top
+- id: expenses_above_threshold
+  description: Find travel expenses above a certain amount with pagination
+  sql: SELECT ref_number, name, start_date, destination_en, total FROM travel_expenses WHERE total >= :threshold ORDER BY total DESC LIMIT :limit
+  parameters:
+  - name: threshold
+    type: decimal
+    description: Minimum expense amount threshold
+    required: true
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  nl_examples:
+  - Show me expenses greater than 5000
+  - List expenses above threshold
+  - Get high value expenses
+  - Find expensive trips
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - travel_expenses
+  - threshold
+- id: search_expenses_by_purpose
+  description: Search travel expenses by purpose keyword with pagination
+  sql: SELECT ref_number, name, start_date, destination_en, purpose_en, total FROM travel_expenses WHERE purpose_en LIKE '%' || :keyword || '%' ORDER BY start_date DESC LIMIT :limit
+  parameters:
+  - name: keyword
+    type: string
+    description: Keyword to search in purpose
+    required: true
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  nl_examples:
+  - Find expenses containing meeting
+  - Search for expenses with purpose board
+  - Show expenses with keyword in purpose
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - travel_expenses
+  - search
+- id: expenses_statistics
+  description: Get summary statistics for travel expenses
+  sql: SELECT COUNT(*) AS total_count, SUM(total) AS total_amount, AVG(total) AS avg_amount, MIN(total) AS min_amount, MAX(total) AS max_amount FROM travel_expenses WHERE total IS NOT NULL
+  parameters: []
+  nl_examples:
+  - Show me travel expense statistics
+  - Get summary of expense data
+  - Find min, max, and average expenses
+  - Display expense statistics
+  - Calculate expense variance
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - travel_expenses
+  - statistics
+- id: expenses_by_organization_and_year
+  description: Calculate total expenses grouped by organization and year (top N organizations, recent years)
+  sql: SELECT owner_org_title, EXTRACT(YEAR FROM start_date) AS year, COUNT(*) AS expense_count, SUM(total) AS total_expenses FROM travel_expenses WHERE owner_org_title IS NOT NULL AND start_date IS NOT NULL AND total IS NOT NULL AND (:min_date IS NULL OR start_date >= :min_date) GROUP BY owner_org_title, year ORDER BY total_expenses DESC LIMIT :limit
+  parameters:
+  - name: min_date
+    type: date
+    description: Minimum start date (optional, defaults to no filter but limited to 100 results)
+    required: false
+    default: null
+  - name: limit
+    type: integer
+    description: Maximum number of organization-year combinations to return
+    required: false
+    default: 100
+  nl_examples:
+  - Show me total expenses by organization and year
+  - Get expense totals grouped by organization and year
+  - Find expenses by organization and date
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: travel_expenses
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - travel_expenses
+  - organization
+  - year
+
