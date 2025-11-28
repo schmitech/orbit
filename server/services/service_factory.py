@@ -304,12 +304,12 @@ class ServiceFactory:
             redis_config = self.config.get('internal_services', {}).get('redis', {})
             
             # Log Redis configuration details
-            logger.info("Redis configuration:")
-            logger.info(f"  Host: {redis_config.get('host', 'localhost')}")
-            logger.info(f"  Port: {redis_config.get('port', 6379)}")
-            logger.info(f"  SSL: {'enabled' if is_true_value(redis_config.get('use_ssl', False)) else 'disabled'}")
-            logger.info(f"  Username: {'set' if redis_config.get('username') else 'not set'}")
-            logger.info(f"  Password: {'set' if redis_config.get('password') else 'not set'}")
+            logger.debug("Redis configuration:")
+            logger.debug(f"  Host: {redis_config.get('host', 'localhost')}")
+            logger.debug(f"  Port: {redis_config.get('port', 6379)}")
+            logger.debug(f"  SSL: {'enabled' if is_true_value(redis_config.get('use_ssl', False)) else 'disabled'}")
+            logger.debug(f"  Username: {'set' if redis_config.get('username') else 'not set'}")
+            logger.debug(f"  Password: {'set' if redis_config.get('password') else 'not set'}")
             
             # Validate required Redis configuration
             if not redis_config.get('host'):
