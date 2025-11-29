@@ -18,14 +18,35 @@ sys.path.append(str(SERVER_DIR))
 from services.file_metadata.metadata_store import FileMetadataStore
 
 
+def create_test_config(db_path: str) -> dict:
+    """Helper to create test config with SQLite database path"""
+    return {
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': db_path
+                }
+            }
+        }
+    }
+
+
 @pytest_asyncio.fixture
 async def metadata_store(tmp_path):
     """Fixture to provide a clean metadata store for each test"""
     db_path = tmp_path / "test_orbit.db"
-    store = FileMetadataStore(db_path=str(db_path))
+    
+    # Reset singleton to ensure test isolation
+    FileMetadataStore.reset_instance()
+    
+    config = create_test_config(str(db_path))
+    store = FileMetadataStore(config=config)
+    await store._ensure_initialized()
     yield store
     # Cleanup
     store.close()
+    FileMetadataStore.reset_instance()
     if db_path.exists():
         db_path.unlink()
 
@@ -34,13 +55,19 @@ async def metadata_store(tmp_path):
 async def test_metadata_store_initialization(tmp_path):
     """Test metadata store initialization and schema creation"""
     db_path = tmp_path / "test.db"
-    store = FileMetadataStore(db_path=str(db_path))
+    config = create_test_config(str(db_path))
+    store = FileMetadataStore(config=config)
+    
+    # Initialize the database service
+    await store._ensure_initialized()
 
     # Verify database file was created
     assert db_path.exists()
 
-    # Verify connection works
-    assert store.connection is not None
+    # Verify connection works (via db_service)
+    assert store._db_service is not None
+    assert hasattr(store._db_service, 'connection')
+    assert store._db_service.connection is not None
 
     store.close()
 
@@ -596,10 +623,12 @@ async def test_migration_adds_embedding_columns(tmp_path):
     conn.close()
 
     # Now open with FileMetadataStore (should run migration)
-    store = FileMetadataStore(db_path=str(db_path))
+    config = create_test_config(str(db_path))
+    store = FileMetadataStore(config=config)
+    await store._ensure_initialized()
 
     # Verify columns were added
-    cursor = store.connection.cursor()
+    cursor = store._db_service.connection.cursor()
     cursor.execute("PRAGMA table_info(uploaded_files)")
     columns = [row[1] for row in cursor.fetchall()]
     assert 'embedding_provider' in columns, "embedding_provider column should be added by migration"
@@ -637,14 +666,17 @@ async def test_migration_idempotent(tmp_path):
     db_path = tmp_path / "idempotent_test.db"
 
     # Create first store (runs migration)
-    store1 = FileMetadataStore(db_path=str(db_path))
+    config = create_test_config(str(db_path))
+    store1 = FileMetadataStore(config=config)
+    await store1._ensure_initialized()
     store1.close()
 
     # Create second store (migration should be idempotent)
-    store2 = FileMetadataStore(db_path=str(db_path))
+    store2 = FileMetadataStore(config=config)
+    await store2._ensure_initialized()
 
     # Verify columns exist
-    cursor = store2.connection.cursor()
+    cursor = store2._db_service.connection.cursor()
     cursor.execute("PRAGMA table_info(uploaded_files)")
     columns = [row[1] for row in cursor.fetchall()]
     assert 'embedding_provider' in columns

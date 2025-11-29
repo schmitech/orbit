@@ -22,6 +22,20 @@ sys.path.append(str(SERVER_DIR))
 from retrievers.implementations.file.file_retriever import FileVectorRetriever
 
 
+def create_test_config(db_path: str) -> dict:
+    """Helper to create test config with SQLite database path"""
+    return {
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': db_path
+                }
+            }
+        }
+    }
+
+
 # Create a simple ProcessingContext class for testing
 # This avoids importing the entire pipeline infrastructure
 @dataclass
@@ -168,7 +182,10 @@ async def test_file_retriever_get_relevant_context_with_file_ids(mock_retriever)
     import os
     with tempfile.TemporaryDirectory() as tmp_dir:
         db_path = os.path.join(tmp_dir, "test_metadata.db")
-        metadata_store = FileMetadataStore(db_path=db_path)
+        FileMetadataStore.reset_instance()
+        metadata_config = create_test_config(db_path)
+        metadata_store = FileMetadataStore(config=metadata_config)
+        await metadata_store._ensure_initialized()
         mock_retriever.metadata_store = metadata_store
 
         # Create test files in metadata store
@@ -212,7 +229,10 @@ async def test_file_retriever_get_relevant_context_single_file_id(mock_retriever
     import os
     with tempfile.TemporaryDirectory() as tmp_dir:
         db_path = os.path.join(tmp_dir, "test_metadata.db")
-        metadata_store = FileMetadataStore(db_path=db_path)
+        FileMetadataStore.reset_instance()
+        metadata_config = create_test_config(db_path)
+        metadata_store = FileMetadataStore(config=metadata_config)
+        await metadata_store._ensure_initialized()
         mock_retriever.metadata_store = metadata_store
 
         # Create test file
@@ -290,7 +310,10 @@ async def test_file_retriever_multiple_file_ids_filtering():
     import os
     with tempfile.TemporaryDirectory() as tmp_dir:
         db_path = os.path.join(tmp_dir, "test_metadata.db")
-        metadata_store = FileMetadataStore(db_path=db_path)
+        FileMetadataStore.reset_instance()
+        metadata_config = create_test_config(db_path)
+        metadata_store = FileMetadataStore(config=metadata_config)
+        await metadata_store._ensure_initialized()
         retriever.metadata_store = metadata_store
 
         # Create test files with provider-aware collection names
@@ -378,7 +401,10 @@ async def test_empty_file_ids_does_not_add_filter():
     import os
     with tempfile.TemporaryDirectory() as tmp_dir:
         db_path = os.path.join(tmp_dir, "test_metadata.db")
-        metadata_store = FileMetadataStore(db_path=db_path)
+        FileMetadataStore.reset_instance()
+        metadata_config = create_test_config(db_path)
+        metadata_store = FileMetadataStore(config=metadata_config)
+        await metadata_store._ensure_initialized()
         retriever.metadata_store = metadata_store
 
         # Create file
@@ -436,7 +462,10 @@ async def test_file_ids_with_api_key_ownership_validation():
     import os
     with tempfile.TemporaryDirectory() as tmp_dir:
         db_path = os.path.join(tmp_dir, "test_metadata.db")
-        metadata_store = FileMetadataStore(db_path=db_path)
+        FileMetadataStore.reset_instance()
+        metadata_config = create_test_config(db_path)
+        metadata_store = FileMetadataStore(config=metadata_config)
+        await metadata_store._ensure_initialized()
         retriever.metadata_store = metadata_store
 
         # Create files with different API keys

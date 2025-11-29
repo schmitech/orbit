@@ -19,6 +19,20 @@ from services.file_storage.filesystem_storage import FilesystemStorage
 from services.file_metadata.metadata_store import FileMetadataStore
 
 
+def create_test_config(db_path: str) -> dict:
+    """Helper to create test config with SQLite database path"""
+    return {
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': db_path
+                }
+            }
+        }
+    }
+
+
 @pytest_asyncio.fixture
 async def integrated_system(tmp_path):
     """
@@ -48,7 +62,13 @@ async def integrated_system(tmp_path):
     # Replace metadata store with one using temporary database
     from services.file_metadata.metadata_store import FileMetadataStore
     service.metadata_store.close()  # Close the default one
-    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+    
+    # Reset singleton to ensure test isolation
+    FileMetadataStore.reset_instance()
+    
+    metadata_config = create_test_config(test_db_path)
+    service.metadata_store = FileMetadataStore(config=metadata_config)
+    await service.metadata_store._ensure_initialized()
 
     yield {
         'service': service,
@@ -57,6 +77,7 @@ async def integrated_system(tmp_path):
 
     # Cleanup
     service.metadata_store.close()
+    FileMetadataStore.reset_instance()
     # Clean up test database
     if os.path.exists(test_db_path):
         os.remove(test_db_path)
@@ -355,7 +376,12 @@ async def test_chunking_strategies_comparison(tmp_path):
 
     service_fixed = FileProcessingService(config_fixed)
     service_fixed.metadata_store.close()
-    service_fixed.metadata_store = FileMetadataStore(db_path=test_db_fixed)
+    
+    # Reset singleton for fixed chunking service
+    FileMetadataStore.reset_instance()
+    metadata_config_fixed = create_test_config(test_db_fixed)
+    service_fixed.metadata_store = FileMetadataStore(config=metadata_config_fixed)
+    await service_fixed.metadata_store._ensure_initialized()
 
     # Test with semantic chunking
     test_db_semantic = str(tmp_path / "test_orbit_semantic.db")
@@ -368,7 +394,12 @@ async def test_chunking_strategies_comparison(tmp_path):
 
     service_semantic = FileProcessingService(config_semantic)
     service_semantic.metadata_store.close()
-    service_semantic.metadata_store = FileMetadataStore(db_path=test_db_semantic)
+    
+    # Reset singleton for semantic chunking service
+    FileMetadataStore.reset_instance()
+    metadata_config_semantic = create_test_config(test_db_semantic)
+    service_semantic.metadata_store = FileMetadataStore(config=metadata_config_semantic)
+    await service_semantic.metadata_store._ensure_initialized()
 
     # Same content, different strategies
     file_data = b"First sentence. Second sentence. Third sentence. " * 10

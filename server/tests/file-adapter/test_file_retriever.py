@@ -19,10 +19,27 @@ from retrievers.implementations.file.file_retriever import FileVectorRetriever
 from services.file_metadata.metadata_store import FileMetadataStore
 
 
+def create_test_config(db_path: str) -> dict:
+    """Helper to create test config with SQLite database path"""
+    return {
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': db_path
+                }
+            }
+        }
+    }
+
+
 @pytest_asyncio.fixture
 async def mock_retriever(tmp_path):
     """Fixture to provide a FileVectorRetriever with mocked dependencies"""
     test_db_path = str(tmp_path / "test_orbit.db")
+    
+    # Reset singleton to ensure test isolation
+    FileMetadataStore.reset_instance()
     
     config = {
         'collection_prefix': 'test_files_',
@@ -30,11 +47,14 @@ async def mock_retriever(tmp_path):
     }
     
     retriever = FileVectorRetriever(config=config)
-    retriever.metadata_store = FileMetadataStore(db_path=test_db_path)
+    metadata_config = create_test_config(test_db_path)
+    retriever.metadata_store = FileMetadataStore(config=metadata_config)
+    await retriever.metadata_store._ensure_initialized()
     
     yield retriever
     
     retriever.metadata_store.close()
+    FileMetadataStore.reset_instance()
     import os
     if os.path.exists(test_db_path):
         os.remove(test_db_path)

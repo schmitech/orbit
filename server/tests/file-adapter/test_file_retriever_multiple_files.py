@@ -22,10 +22,27 @@ from retrievers.implementations.file.file_retriever import FileVectorRetriever
 from services.file_metadata.metadata_store import FileMetadataStore
 
 
+def create_test_config(db_path: str) -> dict:
+    """Helper to create test config with SQLite database path"""
+    return {
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': db_path
+                }
+            }
+        }
+    }
+
+
 @pytest_asyncio.fixture
 async def retriever_with_metadata(tmp_path):
     """Fixture providing retriever with metadata store"""
     db_path = str(tmp_path / "test_metadata.db")
+
+    # Reset singleton to ensure test isolation
+    FileMetadataStore.reset_instance()
 
     config = {
         'collection_prefix': 'test_files_',
@@ -34,7 +51,9 @@ async def retriever_with_metadata(tmp_path):
     }
 
     retriever = FileVectorRetriever(config=config)
-    retriever.metadata_store = FileMetadataStore(db_path=db_path)
+    metadata_config = create_test_config(db_path)
+    retriever.metadata_store = FileMetadataStore(config=metadata_config)
+    await retriever.metadata_store._ensure_initialized()
     retriever.initialized = True
 
     # Mock embeddings - 3 dimensions to match provider signature 'test_3'
@@ -43,6 +62,7 @@ async def retriever_with_metadata(tmp_path):
     yield retriever
 
     retriever.metadata_store.close()
+    FileMetadataStore.reset_instance()
     if os.path.exists(db_path):
         os.remove(db_path)
 

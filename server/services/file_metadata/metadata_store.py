@@ -41,12 +41,11 @@ class FileMetadataStore:
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, db_path: str = None, config: Dict[str, Any] = None):
+    def __init__(self, config: Dict[str, Any] = None):
         """
         Initialize metadata store.
 
         Args:
-            db_path: Deprecated - ignored, uses main backend instead
             config: Configuration dictionary (required for first initialization)
         """
         # Skip re-initialization for singleton
