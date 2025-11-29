@@ -8,54 +8,55 @@ the benefits of code consolidation and reusability.
 Services with missing dependencies are skipped gracefully.
 
 Available Embedding Services:
-    - OpenAIEmbeddingService: OpenAI embeddings (migrated)
-    - OllamaEmbeddingService: Ollama embeddings (migrated)
-    - CohereEmbeddingService: Cohere embeddings (migrated)
-    - MistralEmbeddingService: Mistral embeddings (migrated)
-    - JinaEmbeddingService: Jina AI embeddings (migrated)
-    - LlamaCppEmbeddingService: Llama.cpp embeddings (migrated)
+    - OpenAIEmbeddingService: OpenAI embeddings
+    - OllamaEmbeddingService: Ollama embeddings
+    - CohereEmbeddingService: Cohere embeddings
+    - MistralEmbeddingService: Mistral embeddings
+    - JinaEmbeddingService: Jina AI embeddings
+    - LlamaCppEmbeddingService: Llama.cpp embeddings
 
 Available Inference Services:
-    - OpenAIInferenceService: OpenAI inference (migrated)
-    - AnthropicInferenceService: Anthropic inference (migrated)
-    - OllamaInferenceService: Ollama inference (migrated)
-    - GroqInferenceService: Groq inference (migrated)
-    - MistralInferenceService: Mistral inference (migrated)
-    - DeepSeekInferenceService: DeepSeek inference (migrated)
-    - FireworksInferenceService: Fireworks inference (migrated)
-    - PerplexityInferenceService: Perplexity inference (migrated)
-    - TogetherInferenceService: Together inference (migrated)
-    - OpenRouterInferenceService: OpenRouter inference (migrated)
-    - XAIInferenceService: xAI (Grok) inference (migrated)
-    - AWSBedrockInferenceService: AWS Bedrock inference (migrated)
-    - AzureOpenAIInferenceService: Azure OpenAI inference (migrated)
-    - VertexAIInferenceService: Vertex AI inference (migrated)
-    - GeminiInferenceService: Gemini inference (migrated)
-    - CohereInferenceService: Cohere inference (migrated)
-    - NVIDIAInferenceService: NVIDIA NIM inference (migrated)
-    - ReplicateInferenceService: Replicate inference (migrated)
-    - WatsonInferenceService: IBM Watson inference (migrated)
-    - VLLMInferenceService: vLLM inference (migrated)
-    - LlamaCppInferenceService: Llama.cpp inference (migrated)
-    - HuggingFaceInferenceService: Hugging Face inference (migrated)
-    - OllamaCloudInferenceService: Ollama Cloud inference (migrated)
+    - OpenAIInferenceService: OpenAI inference
+    - AnthropicInferenceService: Anthropic inference
+    - OllamaInferenceService: Ollama inference
+    - GroqInferenceService: Groq inference
+    - MistralInferenceService: Mistral inference
+    - DeepSeekInferenceService: DeepSeek inference
+    - FireworksInferenceService: Fireworks inference
+    - PerplexityInferenceService: Perplexity inference
+    - TogetherInferenceService: Together inference
+    - OpenRouterInferenceService: OpenRouter inference
+    - XAIInferenceService: xAI (Grok) inference
+    - AWSBedrockInferenceService: AWS Bedrock inference
+    - AzureOpenAIInferenceService: Azure OpenAI inference
+    - VertexAIInferenceService: Vertex AI inference
+    - GeminiInferenceService: Gemini inference
+    - CohereInferenceService: Cohere inference
+    - NVIDIAInferenceService: NVIDIA NIM inference
+    - ReplicateInferenceService: Replicate inference
+    - WatsonInferenceService: IBM Watson inference
+    - VLLMInferenceService: vLLM inference
+    - LlamaCppInferenceService: Llama.cpp inference
+    - ShimmyInferenceService: Shimmy inference (new)
+    - HuggingFaceInferenceService: Hugging Face inference
+    - OllamaCloudInferenceService: Ollama Cloud inference
     - ZaiInferenceService: Z.AI inference (new)
 
 Available Moderation Services:
-    - OpenAIModerationService: OpenAI moderation (migrated)
-    - AnthropicModerationService: Anthropic moderation (migrated)
-    - OllamaModerationService: Ollama moderation (migrated)
+    - OpenAIModerationService: OpenAI moderation
+    - AnthropicModerationService: Anthropic moderation
+    - OllamaModerationService: Ollama moderation
 
 Available Reranking Services:
     - OllamaRerankingService: Ollama reranking (local, free)
     - CohereRerankingService: Cohere Rerank API (excellent quality, multilingual)
     - JinaRerankingService: Jina AI Reranker (fast, good quality)
     - OpenAIRerankingService: OpenAI GPT-based reranking (complex queries)
-    - AnthropicRerankingService: Anthropic Claude-based reranking (nuanced)
+    - AnthropicRerankingService: Anthropic Claude-based reranking (complex queries)
     - VoyageRerankingService: Voyage AI Reranker (cost-effective)
 
 Available Vision Services:
-    - OpenAIVisionService: OpenAI vision (GPT-4o, multimodal)
+    - OpenAIVisionService: OpenAI vision (GPT-5, multimodal)
     - GeminiVisionService: Gemini vision (multimodal, OCR)
     - AnthropicVisionService: Anthropic Claude vision (multimodal analysis)
     - OllamaVisionService: Ollama vision (qwen3-vl, local multimodal)
@@ -118,6 +119,7 @@ _implementations = [
     ('watson_inference_service', 'WatsonInferenceService'),
     ('vllm_inference_service', 'VLLMInferenceService'),
     ('llama_cpp_inference_service', 'LlamaCppInferenceService'),
+    ('shimmy_inference_service', 'ShimmyInferenceService'),
     ('huggingface_inference_service', 'HuggingFaceInferenceService'),
     ('ollama_cloud_inference_service', 'OllamaCloudInferenceService'),
     ('bitnet_inference_service', 'BitNetInferenceService'),

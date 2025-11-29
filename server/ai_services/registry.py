@@ -98,6 +98,7 @@ def register_inference_services(config: Dict[str, Any] = None) -> None:
         ("watson", "WatsonInferenceService", "IBM Watson"),
         ("vllm", "VLLMInferenceService", "vLLM"),
         ("llama_cpp", "LlamaCppInferenceService", "Llama.cpp"),
+        ("shimmy", "ShimmyInferenceService", "Shimmy"),
         ("huggingface", "HuggingFaceInferenceService", "Hugging Face"),
         ("ollama_cloud", "OllamaCloudInferenceService", "Ollama Cloud"),
         ("bitnet", "BitNetInferenceService", "BitNet (1.58-bit)"),

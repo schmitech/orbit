@@ -37,7 +37,7 @@ class UnifiedProviderFactory:
         'aws', 'azure', 'vertexai', 'gemini',
         # Custom/Local providers
         'cohere', 'nvidia', 'replicate', 'watson',
-        'llama_cpp', 'huggingface'
+        'llama_cpp', 'shimmy', 'bitnet', 'zai', 'huggingface'
     ]
 
     @classmethod
@@ -70,7 +70,7 @@ class UnifiedProviderFactory:
             )
 
         logger = logging.getLogger(__name__)
-        logger.info(f"Creating provider '{provider_name}' using unified architecture")
+        logger.debug(f"Creating provider '{provider_name}' using unified architecture")
 
         return create_unified_provider(provider_name, config)
 

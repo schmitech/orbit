@@ -31,6 +31,7 @@ _providers = [
     ('replicate_base', 'ReplicateBaseService'),
     ('watson_base', 'WatsonBaseService'),
     ('llama_cpp_base', 'LlamaCppBaseService'),
+    ('shimmy_base', 'ShimmyBaseService'),
     ('huggingface_base', 'HuggingFaceBaseService'),
     ('zai_base', 'ZaiBaseService'),
     ('sentence_transformers_base', 'SentenceTransformersBaseService'),
