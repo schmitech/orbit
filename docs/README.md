@@ -44,6 +44,7 @@ Welcome to the ORBIT (Open Retrieval-Based Inference Toolkit) documentation. Thi
 - [MCP Protocol](mcp_protocol.md) - Model Context Protocol integration
 - [Chat Service System Prompts](chat_service_system_prompts.md) - System prompt configuration
 - [Llama.cpp Server Guide](llama-cpp-server-guide.md) - Local model server setup
+- [Shimmy Setup Guide](shimmy-setup-guide.md) - Lightweight OpenAI-compatible inference server
 
 ## Development and Roadmap
 

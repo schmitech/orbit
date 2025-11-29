@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/schmitech/orbit">
-    <img src="docs/images/orbit-logo.png" alt="ORBIT Logo" width="500" style="border: none; outline: none; box-shadow: none;"/>
+    <img src="docs/images/orbit-logo-transparent.png" alt="ORBIT Logo" width="500" style="border: none; outline: none; box-shadow: none;"/>
   </a>
 </div>
   
