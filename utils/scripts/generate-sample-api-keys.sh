@@ -487,7 +487,7 @@ for entry in "${adapters[@]}"; do
         success_count=$((success_count + 1))  # Safe increment
         echo -e "${GREEN}✓ Adapter $adapter_index/${#adapters[@]} completed successfully${NC}"
     else
-        local create_exit_code=$?
+        create_exit_code=$?
         failure_count=$((failure_count + 1))  # Safe increment
         echo ""
         echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -530,4 +530,3 @@ else
     echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     exit 1
 fi
-
