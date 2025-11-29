@@ -26,6 +26,12 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 
 > ⭐️ If ORBIT helps you ship faster, please consider starring the repo to support the roadmap.
 
+**Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
+**Updates:** Check the [changelog](CHANGELOG.md)
+**Maintained by:** [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/)
+
+ORBIT is not affiliated with, endorsed by, or funded by any organization. ORBIT is provided free of charge with no commercial intent.
+
 ## Table of Contents
 
 - [✨ Highlights](#highlights)
@@ -33,7 +39,6 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 - [🚀 Quick Start](#quick-start)
 - [⭐ Support the Project](#support-the-project)
 - [📖 Documentation](#documentation)
-- [🤝 Community & Support](#community--support)
 - [📄 License](#license)
 
 ---
@@ -63,7 +68,48 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 - **Data teams** building RAG applications that need to query SQL databases, vector stores, and APIs through natural language.
 - **Researchers & tinkerers** exploring local-first stacks, evaluating different foundation models, or building multimodal AI applications.
 
-Have a story or feature request? [Open an issue](https://github.com/schmitech/orbit/issues) or add it to the [Roadmap](docs/roadmap/README.md).
+---
+
+## Supported AI Providers
+
+ORBIT supports a wide range of AI providers across inference, vision, embeddings, reranking, and sound. Switch between providers in configuration without changing your code.
+
+| Provider | Inference | Vision | Embeddings | Reranking | Sound | Type |
+|----------|-----------|--------|------------|-----------|-------|------|
+| **Anthropic** | ✅ | ✅ | ❌ | ✅ | ❌ | Cloud API |
+| **AWS Bedrock** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Azure OpenAI** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **BitNet** | ✅ | ❌ | ❌ | ❌ | ❌ | Local |
+| **Cohere** | ✅ | ✅ | ✅ | ✅ | ❌ | Cloud API |
+| **Coqui** | ❌ | ❌ | ❌ | ❌ | ✅ | Local |
+| **DeepSeek** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **ElevenLabs** | ❌ | ❌ | ❌ | ❌ | ✅ | Cloud API |
+| **Fireworks** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Google Gemini** | ✅ | ✅ | ❌ | ❌ | ✅ | Cloud API |
+| **Google Vertex** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Groq** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Hugging Face** | ✅ | ❌ | ❌ | ❌ | ❌ | Local/Cloud |
+| **IBM Watson** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Jina AI** | ❌ | ❌ | ✅ | ✅ | ❌ | Cloud API |
+| **llama.cpp** | ✅ | ✅ | ✅ | ❌ | ❌ | Local |
+| **Mistral** | ✅ | ❌ | ✅ | ❌ | ❌ | Cloud API |
+| **NVIDIA** | ✅ | ❌ | ❌ | ❌ | ❌ | Local/Cloud |
+| **Ollama** | ✅ | ✅ | ✅ | ✅ | ✅ | Local/Cloud |
+| **Ollama Cloud** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **OpenAI** | ✅ | ✅ | ✅ | ✅ | ✅ | Cloud API |
+| **OpenRouter** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Perplexity** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Replicate** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Sentence Transformers** | ❌ | ❌ | ✅ | ❌ | ❌ | Local |
+| **Shimmy** | ✅ | ❌ | ❌ | ❌ | ❌ | Local |
+| **Together AI** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Voyage AI** | ❌ | ❌ | ❌ | ✅ | ❌ | Cloud API |
+| **vLLM** | ✅ | ✅ | ❌ | ❌ | ✅ | Local |
+| **Whisper** | ❌ | ❌ | ❌ | ❌ | ✅ | Local |
+| **xAI (Grok)** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Zai** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+
+**Total:** 30 providers across 5 capability categories
 
 ---
 
@@ -379,12 +425,6 @@ For more detailed information, please refer to the official documentation.
 - [RAG & Adapters](docs/adapters.md)
 - [Development Roadmap](docs/roadmap/README.md)
 - [Contributing Guide](CONTRIBUTING.md)
-
-## Community & Support
-
-- **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
-- **Updates:** Check the [changelog](CHANGELOG.md)
-- **Maintained by:** [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/)
 
 ## License
 
