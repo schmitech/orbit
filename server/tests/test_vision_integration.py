@@ -355,7 +355,7 @@ class TestVisionServiceWithDifferentImageFormats:
     @pytest.mark.asyncio
     async def test_vision_service_with_png_bytes(self, vision_config, png_image_bytes):
         """Test vision service with PNG bytes."""
-        from ai_services.implementations.openai_vision_service import OpenAIVisionService
+        from ai_services.implementations.vision.openai_vision_service import OpenAIVisionService
 
         # Create mock client
         mock_client = MagicMock()
@@ -377,7 +377,7 @@ class TestVisionServiceWithDifferentImageFormats:
     @pytest.mark.asyncio
     async def test_vision_service_with_jpeg_bytes(self, vision_config, jpeg_image_bytes):
         """Test vision service with JPEG bytes."""
-        from ai_services.implementations.openai_vision_service import OpenAIVisionService
+        from ai_services.implementations.vision.openai_vision_service import OpenAIVisionService
 
         # Create mock client
         mock_client = MagicMock()
@@ -399,7 +399,7 @@ class TestVisionServiceWithDifferentImageFormats:
     @pytest.mark.asyncio
     async def test_vision_service_with_pil_image(self, vision_config, pil_image):
         """Test vision service with PIL Image object."""
-        from ai_services.implementations.openai_vision_service import OpenAIVisionService
+        from ai_services.implementations.vision.openai_vision_service import OpenAIVisionService
 
         # Create mock client
         mock_client = MagicMock()

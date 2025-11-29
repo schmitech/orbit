@@ -25,7 +25,7 @@ async def test_orbit_streaming():
     print("\n=== Testing OpenAI streaming through ORBIT infrastructure ===\n")
 
     # Import ORBIT components
-    from ai_services.implementations.openai_inference_service import OpenAIInferenceService
+    from ai_services.implementations.inference.openai_inference_service import OpenAIInferenceService
 
     # Create config
     config = {

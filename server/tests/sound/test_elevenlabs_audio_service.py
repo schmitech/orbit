@@ -21,7 +21,7 @@ from aiohttp import ClientResponse
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(server_dir)
 
-from ai_services.implementations.elevenlabs_audio_service import ElevenLabsAudioService
+from ai_services.implementations.audio.elevenlabs_audio_service import ElevenLabsAudioService
 from ai_services.base import ServiceType
 
 

@@ -17,7 +17,7 @@ server_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Add server directory to Python path
 sys.path.append(server_dir)
 
-from ai_services.implementations.zai_inference_service import ZaiInferenceService
+from ai_services.implementations.inference.zai_inference_service import ZaiInferenceService
 from ai_services.base import ServiceType
 
 

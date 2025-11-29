@@ -46,7 +46,7 @@ def register_embedding_services() -> None:
     for provider_key, class_name, display_name in services:
         try:
             # Lazy import - only import what we can
-            module = __import__('ai_services.implementations', fromlist=[class_name])
+            module = __import__('ai_services.implementations.embedding', fromlist=[class_name])
             service_class = getattr(module, class_name)
 
             AIServiceFactory.register_service(
@@ -120,7 +120,7 @@ def register_inference_services(config: Dict[str, Any] = None) -> None:
 
         try:
             # Lazy import - only import what we can
-            module = __import__('ai_services.implementations', fromlist=[class_name])
+            module = __import__('ai_services.implementations.inference', fromlist=[class_name])
             service_class = getattr(module, class_name)
 
             AIServiceFactory.register_service(
@@ -152,7 +152,7 @@ def register_moderation_services() -> None:
     for provider_key, class_name, display_name in services:
         try:
             # Lazy import - only import what we can
-            module = __import__('ai_services.implementations', fromlist=[class_name])
+            module = __import__('ai_services.implementations.moderation', fromlist=[class_name])
             service_class = getattr(module, class_name)
 
             AIServiceFactory.register_service(
@@ -200,7 +200,7 @@ def register_reranking_services(config: Dict[str, Any] = None) -> None:
         
         try:
             # Lazy import - only import what we can
-            module = __import__('ai_services.implementations', fromlist=[class_name])
+            module = __import__('ai_services.implementations.reranking', fromlist=[class_name])
             service_class = getattr(module, class_name)
 
             AIServiceFactory.register_service(
@@ -252,7 +252,7 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
         
         try:
             # Lazy import - only import what we can
-            module = __import__('ai_services.implementations', fromlist=[class_name])
+            module = __import__('ai_services.implementations.vision', fromlist=[class_name])
             service_class = getattr(module, class_name)
 
             AIServiceFactory.register_service(
@@ -322,7 +322,7 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
         
         try:
             # Lazy import - only import what we can
-            module = __import__('ai_services.implementations', fromlist=[class_name])
+            module = __import__('ai_services.implementations.audio', fromlist=[class_name])
             service_class = getattr(module, class_name)
 
             AIServiceFactory.register_service(

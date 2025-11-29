@@ -300,7 +300,7 @@ class TestOpenAIVisionService:
     @pytest.mark.asyncio
     async def test_analyze_image(self, openai_config, sample_image_bytes):
         """Test OpenAI analyze_image method."""
-        from ai_services.implementations.openai_vision_service import OpenAIVisionService
+        from ai_services.implementations.vision.openai_vision_service import OpenAIVisionService
 
         # Create mock client
         mock_client = MagicMock()
@@ -329,7 +329,7 @@ class TestOpenAIVisionService:
     @pytest.mark.asyncio
     async def test_describe_image(self, openai_config, sample_image_bytes):
         """Test OpenAI describe_image method."""
-        from ai_services.implementations.openai_vision_service import OpenAIVisionService
+        from ai_services.implementations.vision.openai_vision_service import OpenAIVisionService
 
         # Create mock client
         mock_client = MagicMock()
@@ -355,7 +355,7 @@ class TestOpenAIVisionService:
     @pytest.mark.asyncio
     async def test_extract_text_from_image(self, openai_config, sample_image_bytes):
         """Test OpenAI extract_text_from_image method."""
-        from ai_services.implementations.openai_vision_service import OpenAIVisionService
+        from ai_services.implementations.vision.openai_vision_service import OpenAIVisionService
 
         # Create mock client
         mock_client = MagicMock()
@@ -381,7 +381,7 @@ class TestOpenAIVisionService:
     @pytest.mark.asyncio
     async def test_multimodal_inference(self, openai_config, sample_image_bytes):
         """Test OpenAI multimodal_inference method."""
-        from ai_services.implementations.openai_vision_service import OpenAIVisionService
+        from ai_services.implementations.vision.openai_vision_service import OpenAIVisionService
 
         # Create mock client
         mock_client = MagicMock()
@@ -433,7 +433,7 @@ class TestGeminiVisionService:
     @pytest.mark.asyncio
     async def test_analyze_image(self, gemini_config, sample_image_bytes):
         """Test Gemini analyze_image method."""
-        from ai_services.implementations.gemini_vision_service import GeminiVisionService
+        from ai_services.implementations.vision.gemini_vision_service import GeminiVisionService
 
         # Patch the API key resolution
         with patch.object(GeminiVisionService, '_resolve_api_key', return_value='test-key'):
@@ -475,7 +475,7 @@ class TestGeminiVisionService:
     @pytest.mark.asyncio
     async def test_describe_image(self, gemini_config, sample_image_bytes):
         """Test Gemini describe_image method."""
-        from ai_services.implementations.gemini_vision_service import GeminiVisionService
+        from ai_services.implementations.vision.gemini_vision_service import GeminiVisionService
 
         # Patch the API key resolution
         with patch.object(GeminiVisionService, '_resolve_api_key', return_value='test-key'):
@@ -517,7 +517,7 @@ class TestGeminiVisionService:
     @pytest.mark.asyncio
     async def test_multimodal_inference_with_rest(self, gemini_config, sample_image_bytes):
         """Test Gemini multimodal_inference with REST transport."""
-        from ai_services.implementations.gemini_vision_service import GeminiVisionService
+        from ai_services.implementations.vision.gemini_vision_service import GeminiVisionService
 
         # Create service with REST transport
         gemini_config['transport'] = 'rest'
@@ -587,7 +587,7 @@ class TestAnthropicVisionService:
     @pytest.mark.asyncio
     async def test_analyze_image(self, anthropic_config, sample_image_bytes):
         """Test Anthropic analyze_image method."""
-        from ai_services.implementations.anthropic_vision_service import AnthropicVisionService
+        from ai_services.implementations.vision.anthropic_vision_service import AnthropicVisionService
 
         # Create mock client
         mock_client = MagicMock()
@@ -621,7 +621,7 @@ class TestAnthropicVisionService:
     @pytest.mark.asyncio
     async def test_describe_image(self, anthropic_config, sample_image_bytes):
         """Test Anthropic describe_image method."""
-        from ai_services.implementations.anthropic_vision_service import AnthropicVisionService
+        from ai_services.implementations.vision.anthropic_vision_service import AnthropicVisionService
 
         # Create mock client
         mock_client = MagicMock()
@@ -647,7 +647,7 @@ class TestAnthropicVisionService:
     @pytest.mark.asyncio
     async def test_extract_text_from_image(self, anthropic_config, sample_image_bytes):
         """Test Anthropic extract_text_from_image method."""
-        from ai_services.implementations.anthropic_vision_service import AnthropicVisionService
+        from ai_services.implementations.vision.anthropic_vision_service import AnthropicVisionService
 
         # Create mock client
         mock_client = MagicMock()
@@ -673,7 +673,7 @@ class TestAnthropicVisionService:
     @pytest.mark.asyncio
     async def test_multimodal_inference(self, anthropic_config, sample_image_bytes):
         """Test Anthropic multimodal_inference method."""
-        from ai_services.implementations.anthropic_vision_service import AnthropicVisionService
+        from ai_services.implementations.vision.anthropic_vision_service import AnthropicVisionService
 
         # Create mock client
         mock_client = MagicMock()
@@ -703,7 +703,7 @@ class TestAnthropicVisionService:
     @pytest.mark.asyncio
     async def test_detect_objects(self, anthropic_config, sample_image_bytes):
         """Test Anthropic detect_objects method."""
-        from ai_services.implementations.anthropic_vision_service import AnthropicVisionService
+        from ai_services.implementations.vision.anthropic_vision_service import AnthropicVisionService
 
         # Create mock client
         mock_client = MagicMock()
@@ -748,7 +748,7 @@ class TestVisionServiceErrorHandling:
     @pytest.mark.asyncio
     async def test_invalid_image_format(self, openai_config):
         """Test handling of invalid image format."""
-        from ai_services.implementations.openai_vision_service import OpenAIVisionService
+        from ai_services.implementations.vision.openai_vision_service import OpenAIVisionService
 
         # Patch the API key resolution
         with patch.object(OpenAIVisionService, '_resolve_api_key', return_value='test-key'):
@@ -763,7 +763,7 @@ class TestVisionServiceErrorHandling:
     @pytest.mark.asyncio
     async def test_api_error_handling(self, openai_config):
         """Test handling of API errors."""
-        from ai_services.implementations.openai_vision_service import OpenAIVisionService
+        from ai_services.implementations.vision.openai_vision_service import OpenAIVisionService
 
         # Create mock client that raises an error
         mock_client = MagicMock()

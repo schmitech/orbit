@@ -21,7 +21,7 @@ sys.path.append(server_dir)
 
 # Try importing WhisperAudioService
 try:
-    from ai_services.implementations.whisper_audio_service import WhisperAudioService, WHISPER_AVAILABLE
+    from ai_services.implementations.audio.whisper_audio_service import WhisperAudioService, WHISPER_AVAILABLE
     from ai_services.base import ServiceType
 except ImportError as e:
     pytest.skip(f"WhisperAudioService not available: {e}", allow_module_level=True)

@@ -26,7 +26,7 @@ sys.modules['google.cloud.speech'] = MagicMock()
 sys.modules['google.cloud.texttospeech'] = MagicMock()
 sys.modules['google.cloud.translate_v2'] = MagicMock()
 
-from ai_services.implementations.google_audio_service import GoogleAudioService
+from ai_services.implementations.audio.google_audio_service import GoogleAudioService
 from ai_services.base import ServiceType
 
 

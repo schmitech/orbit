@@ -21,7 +21,7 @@ from io import BytesIO
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(server_dir)
 
-from ai_services.implementations.openai_audio_service import OpenAIAudioService
+from ai_services.implementations.audio.openai_audio_service import OpenAIAudioService
 from ai_services.base import ServiceType
 
 

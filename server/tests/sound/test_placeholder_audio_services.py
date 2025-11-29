@@ -20,8 +20,8 @@ from unittest.mock import patch, MagicMock
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(server_dir)
 
-from ai_services.implementations.anthropic_audio_service import AnthropicAudioService
-from ai_services.implementations.cohere_audio_service import CohereAudioService
+from ai_services.implementations.audio.anthropic_audio_service import AnthropicAudioService
+from ai_services.implementations.audio.cohere_audio_service import CohereAudioService
 from ai_services.base import ServiceType
 
 

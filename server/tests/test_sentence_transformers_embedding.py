@@ -128,7 +128,7 @@ async def test_local_embedding_generation(st_embedding_config: Dict[str, Any], t
         pytest.skip("Config is set to remote mode, skipping local test")
 
     try:
-        from ai_services.implementations.sentence_transformers_embedding_service import (
+        from ai_services.implementations.embedding.sentence_transformers_embedding_service import (
             SentenceTransformersEmbeddingService
         )
     except ImportError:
@@ -180,7 +180,7 @@ async def test_batch_embedding_generation(st_embedding_config: Dict[str, Any], t
         pytest.skip("Config is set to remote mode, skipping local test")
 
     try:
-        from ai_services.implementations.sentence_transformers_embedding_service import (
+        from ai_services.implementations.embedding.sentence_transformers_embedding_service import (
             SentenceTransformersEmbeddingService
         )
     except ImportError:
@@ -233,7 +233,7 @@ async def test_dimensions_consistency(st_embedding_config: Dict[str, Any]):
         pytest.skip("Config is set to remote mode, skipping local test")
 
     try:
-        from ai_services.implementations.sentence_transformers_embedding_service import (
+        from ai_services.implementations.embedding.sentence_transformers_embedding_service import (
             SentenceTransformersEmbeddingService
         )
     except ImportError:
@@ -285,7 +285,7 @@ async def test_get_dimensions(st_embedding_config: Dict[str, Any]):
         pytest.skip("Config is set to remote mode, skipping local test")
 
     try:
-        from ai_services.implementations.sentence_transformers_embedding_service import (
+        from ai_services.implementations.embedding.sentence_transformers_embedding_service import (
             SentenceTransformersEmbeddingService
         )
     except ImportError:
@@ -323,7 +323,7 @@ async def test_get_dimensions(st_embedding_config: Dict[str, Any]):
 async def test_empty_text_handling():
     """Test that empty text is handled appropriately"""
     try:
-        from ai_services.implementations.sentence_transformers_embedding_service import (
+        from ai_services.implementations.embedding.sentence_transformers_embedding_service import (
             SentenceTransformersEmbeddingService
         )
     except ImportError:
@@ -362,7 +362,7 @@ async def test_empty_text_handling():
 async def test_normalization():
     """Test embedding normalization"""
     try:
-        from ai_services.implementations.sentence_transformers_embedding_service import (
+        from ai_services.implementations.embedding.sentence_transformers_embedding_service import (
             SentenceTransformersEmbeddingService
         )
     except ImportError:
@@ -406,7 +406,7 @@ async def test_normalization():
 async def test_remote_mode_with_mock():
     """Test remote mode with mocked HTTP calls"""
     try:
-        from ai_services.implementations.sentence_transformers_embedding_service import (
+        from ai_services.implementations.embedding.sentence_transformers_embedding_service import (
             SentenceTransformersEmbeddingService
         )
     except ImportError:
@@ -466,7 +466,7 @@ async def test_remote_mode_with_mock():
 async def test_error_handling_on_init():
     """Test error handling when model fails to load"""
     try:
-        from ai_services.implementations.sentence_transformers_embedding_service import (
+        from ai_services.implementations.embedding.sentence_transformers_embedding_service import (
             SentenceTransformersEmbeddingService
         )
     except ImportError:
@@ -495,7 +495,7 @@ async def test_error_handling_on_init():
 async def test_uninitialized_service_error():
     """Test that using service before initialization raises appropriate error"""
     try:
-        from ai_services.implementations.sentence_transformers_embedding_service import (
+        from ai_services.implementations.embedding.sentence_transformers_embedding_service import (
             SentenceTransformersEmbeddingService
         )
     except ImportError:
