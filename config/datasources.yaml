@@ -6,8 +6,12 @@ datasources:
     port: 8000
     embedding_provider: "ollama" 
   qdrant:
-    host: ${DATASOURCE_QDRANT_HOST}
-    port: ${DATASOURCE_QDRANT_PORT}
+    # Qdrant Cloud: set DATASOURCE_QDRANT_URL and DATASOURCE_QDRANT_API_KEY
+    # Self-hosted: set DATASOURCE_QDRANT_HOST and DATASOURCE_QDRANT_PORT
+    url: ${DATASOURCE_QDRANT_URL:-}
+    host: ${DATASOURCE_QDRANT_HOST:-localhost}
+    port: ${DATASOURCE_QDRANT_PORT:-6333}
+    api_key: ${DATASOURCE_QDRANT_API_KEY:-}
     timeout: 5
     prefer_grpc: false
     https: false

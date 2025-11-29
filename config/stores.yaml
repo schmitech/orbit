@@ -37,13 +37,17 @@ vector_stores:
     cache_ttl: 1800
 
   qdrant:
-    enabled: false
+    enabled: true
     connection_params:
-      host: "${DATASOURCE_QDRANT_HOST}"
-      port: "${DATASOURCE_QDRANT_PORT}"
-      api_key: "${DATASOURCE_QDRANT_API_KEY}"
+      # Qdrant Cloud: set DATASOURCE_QDRANT_URL (e.g., https://xxx.cloud.qdrant.io:6333)
+      # Self-hosted: set DATASOURCE_QDRANT_HOST and DATASOURCE_QDRANT_PORT
+      # The code will use 'url' if set, otherwise falls back to 'host'+'port'
+      url: "${DATASOURCE_QDRANT_URL:-}"  # For Qdrant Cloud - leave empty for self-hosted
+      host: "${DATASOURCE_QDRANT_HOST:-localhost}"  # For self-hosted - ignored if url is set
+      port: "${DATASOURCE_QDRANT_PORT:-6333}"  # For self-hosted - ignored if url is set
+      api_key: "${DATASOURCE_QDRANT_API_KEY:-}"
       prefer_grpc: false
-      https: false
+      https: false  # For self-hosted only - ignored if url is set
     cache_ttl: 1800
 
   faiss:

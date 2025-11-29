@@ -34,6 +34,9 @@ class QdrantStore(BaseVectorStore):
         super().__init__(config)
 
         # Qdrant-specific configuration
+        # Cloud mode: use 'url' parameter (e.g., https://xxx.cloud.qdrant.io:6333)
+        # Self-hosted mode: use 'host' + 'port' parameters
+        self.url = config.connection_params.get('url')  # For Qdrant Cloud
         self.host = config.connection_params.get('host', 'localhost')
         self.port = config.connection_params.get('port', 6333)
         self.api_key = config.connection_params.get('api_key')
@@ -60,27 +63,40 @@ class QdrantStore(BaseVectorStore):
         try:
             from qdrant_client import QdrantClient
 
-            # Convert port to int if it's a string
-            port = self.port
-            if isinstance(port, str):
-                try:
-                    port = int(port)
-                except ValueError:
-                    logger.warning(f"Invalid port value '{port}', using default 6333")
-                    port = 6333
+            # Determine connection mode: URL (cloud) vs host:port (self-hosted)
+            if self.url:
+                # Qdrant Cloud mode - use URL-based connection
+                init_kwargs = {
+                    'url': self.url,
+                    'timeout': self.config.timeout or 60,
+                    'prefer_grpc': self.prefer_grpc,
+                }
+                if self.api_key:
+                    init_kwargs['api_key'] = self.api_key
 
-            # Initialize Qdrant client
-            init_kwargs = {
-                'host': self.host,
-                'port': port,
-                'timeout': self.config.timeout or 60,
-                'prefer_grpc': self.prefer_grpc,
-                'https': self.https
-            }
+                logger.debug(f"Connecting to Qdrant Cloud at {self.url}")
+            else:
+                # Self-hosted mode - use host:port connection
+                # Convert port to int if it's a string
+                port = self.port
+                if isinstance(port, str):
+                    try:
+                        port = int(port)
+                    except ValueError:
+                        logger.warning(f"Invalid port value '{port}', using default 6333")
+                        port = 6333
 
-            # Add API key if provided
-            if self.api_key:
-                init_kwargs['api_key'] = self.api_key
+                init_kwargs = {
+                    'host': self.host,
+                    'port': port,
+                    'timeout': self.config.timeout or 60,
+                    'prefer_grpc': self.prefer_grpc,
+                    'https': self.https
+                }
+
+                # Add API key if provided
+                if self.api_key:
+                    init_kwargs['api_key'] = self.api_key
 
             self._client = QdrantClient(**init_kwargs)
 
@@ -88,7 +104,10 @@ class QdrantStore(BaseVectorStore):
             self._client.get_collections()
 
             self.status = StoreStatus.CONNECTED
-            logger.info(f"Qdrant store {self.config.name} connected successfully to {self.host}:{port}")
+            if self.url:
+                logger.debug(f"Qdrant store {self.config.name} connected successfully to {self.url}")
+            else:
+                logger.debug(f"Qdrant store {self.config.name} connected successfully to {self.host}:{init_kwargs['port']}")
             return True
 
         except ImportError:
@@ -161,7 +180,7 @@ class QdrantStore(BaseVectorStore):
             if not await self.collection_exists(collection_name):
                 # Get dimension from first vector
                 dimension = len(vectors[0]) if vectors else 768
-                logger.info(f"Creating Qdrant collection {collection_name} with dimension {dimension}")
+                logger.debug(f"Creating Qdrant collection {collection_name} with dimension {dimension}")
                 await self.create_collection(collection_name, dimension)
 
             # Prepare points for upsert
@@ -232,9 +251,11 @@ class QdrantStore(BaseVectorStore):
 
             # Build filter if metadata filters provided
             search_filter = None
+            filter_fields = []
             if filter_metadata:
                 conditions = []
                 for key, value in filter_metadata.items():
+                    filter_fields.append(key)
                     conditions.append(
                         FieldCondition(
                             key=key,
@@ -243,33 +264,16 @@ class QdrantStore(BaseVectorStore):
                     )
                 search_filter = Filter(must=conditions) if conditions else None
 
-            # Perform search
+            # Perform search with auto-retry on missing index
             # Note: API changed in qdrant-client v1.16+: search() -> query_points()
             #       and query_vector -> query
-            try:
-                # Try new API (qdrant-client v1.16+)
-                search_results = self._client.query_points(
-                    collection_name=collection_name,
-                    query=query_vector,  # Changed from query_vector to query
-                    limit=limit,
-                    query_filter=search_filter,
-                    with_payload=True
-                )
-                # Extract points from QueryResponse (v1.16+ returns QueryResponse object)
-                if hasattr(search_results, 'points'):
-                    search_results = search_results.points
-            except AttributeError:
-                # Fall back to old API (qdrant-client < v1.16)
-                logger.debug("Falling back to legacy search() method")
-                search_params = {
-                    'collection_name': collection_name,
-                    'query_vector': query_vector,
-                    'limit': limit,
-                    'with_payload': True
-                }
-                if search_filter:
-                    search_params['query_filter'] = search_filter
-                search_results = self._client.search(**search_params)
+            search_results = await self._execute_search_with_index_retry(
+                collection_name=collection_name,
+                query_vector=query_vector,
+                limit=limit,
+                search_filter=search_filter,
+                filter_fields=filter_fields
+            )
 
             # Format results
             results = []
@@ -580,6 +584,10 @@ class QdrantStore(BaseVectorStore):
                 )
             )
 
+            # Create payload indexes for common filter fields
+            # This is required for Qdrant Cloud to filter by these fields
+            await self._create_payload_indexes(collection_name)
+
             # Invalidate cache
             self._collections_cache = None
             self._cache_timestamp = None
@@ -706,3 +714,162 @@ class QdrantStore(BaseVectorStore):
         """
         results = await self.search_vectors(query_vector, limit, collection_name)
         return [r for r in results if r['score'] >= threshold]
+
+    async def _execute_search_with_index_retry(self,
+                                               collection_name: str,
+                                               query_vector: List[float],
+                                               limit: int,
+                                               search_filter: Any,
+                                               filter_fields: List[str],
+                                               retry_count: int = 0) -> List[Any]:
+        """
+        Execute search with automatic retry on missing index error.
+
+        If Qdrant Cloud returns a "missing index" error, this method will
+        automatically create the required index and retry the search.
+
+        Args:
+            collection_name: Name of the collection
+            query_vector: Query vector
+            limit: Maximum results
+            search_filter: Qdrant filter object
+            filter_fields: List of field names being filtered
+            retry_count: Current retry attempt
+
+        Returns:
+            List of search results
+        """
+        try:
+            # Try new API (qdrant-client v1.16+)
+            search_results = self._client.query_points(
+                collection_name=collection_name,
+                query=query_vector,
+                limit=limit,
+                query_filter=search_filter,
+                with_payload=True
+            )
+            # Extract points from QueryResponse (v1.16+ returns QueryResponse object)
+            if hasattr(search_results, 'points'):
+                search_results = search_results.points
+            return search_results
+
+        except AttributeError:
+            # Fall back to old API (qdrant-client < v1.16)
+            logger.debug("Falling back to legacy search() method")
+            search_params = {
+                'collection_name': collection_name,
+                'query_vector': query_vector,
+                'limit': limit,
+                'with_payload': True
+            }
+            if search_filter:
+                search_params['query_filter'] = search_filter
+            return self._client.search(**search_params)
+
+        except Exception as e:
+            error_str = str(e)
+            # Check if this is a missing index error from Qdrant Cloud
+            if 'Index required' in error_str and retry_count < 1:
+                logger.info(f"Missing payload index detected, creating indexes for filter fields: {filter_fields}")
+
+                # Create indexes for all filter fields
+                for field_name in filter_fields:
+                    await self.ensure_payload_index(collection_name, field_name)
+
+                # Retry the search once
+                return await self._execute_search_with_index_retry(
+                    collection_name=collection_name,
+                    query_vector=query_vector,
+                    limit=limit,
+                    search_filter=search_filter,
+                    filter_fields=filter_fields,
+                    retry_count=retry_count + 1
+                )
+            else:
+                # Re-raise the exception if it's not an index error or we've already retried
+                raise
+
+    async def _create_payload_indexes(self, collection_name: str) -> None:
+        """
+        Create payload indexes for common filter fields.
+
+        Qdrant Cloud requires payload indexes to filter by fields.
+        This creates indexes for commonly used filter fields.
+
+        Args:
+            collection_name: Name of the collection
+        """
+        try:
+            from qdrant_client.models import PayloadSchemaType
+
+            # Common fields that are used for filtering
+            index_fields = [
+                ('file_id', PayloadSchemaType.KEYWORD),
+                ('_original_id', PayloadSchemaType.KEYWORD),
+                ('source', PayloadSchemaType.KEYWORD),
+                ('type', PayloadSchemaType.KEYWORD),
+                ('category', PayloadSchemaType.KEYWORD),
+                ('adapter_name', PayloadSchemaType.KEYWORD),
+            ]
+
+            for field_name, field_type in index_fields:
+                try:
+                    self._client.create_payload_index(
+                        collection_name=collection_name,
+                        field_name=field_name,
+                        field_schema=field_type
+                    )
+                    logger.debug(f"Created payload index for '{field_name}' on collection {collection_name}")
+                except Exception as e:
+                    # Index might already exist or field not present - that's OK
+                    if "already exists" not in str(e).lower():
+                        logger.debug(f"Could not create index for '{field_name}': {e}")
+
+        except Exception as e:
+            logger.warning(f"Error creating payload indexes: {e}")
+
+    async def ensure_payload_index(self,
+                                   collection_name: str,
+                                   field_name: str,
+                                   field_type: str = 'keyword') -> bool:
+        """
+        Ensure a payload index exists for a specific field.
+
+        Call this method before filtering by a field that might not be indexed.
+
+        Args:
+            collection_name: Name of the collection
+            field_name: Name of the payload field to index
+            field_type: Type of index ('keyword', 'integer', 'float', 'bool', 'text')
+
+        Returns:
+            True if index exists or was created, False on error
+        """
+        await self.ensure_connected()
+
+        try:
+            from qdrant_client.models import PayloadSchemaType
+
+            type_map = {
+                'keyword': PayloadSchemaType.KEYWORD,
+                'integer': PayloadSchemaType.INTEGER,
+                'float': PayloadSchemaType.FLOAT,
+                'bool': PayloadSchemaType.BOOL,
+                'text': PayloadSchemaType.TEXT,
+            }
+
+            schema_type = type_map.get(field_type.lower(), PayloadSchemaType.KEYWORD)
+
+            self._client.create_payload_index(
+                collection_name=collection_name,
+                field_name=field_name,
+                field_schema=schema_type
+            )
+            logger.debug(f"Created payload index for '{field_name}' on collection {collection_name}")
+            return True
+
+        except Exception as e:
+            if "already exists" in str(e).lower():
+                return True
+            logger.warning(f"Error creating payload index for '{field_name}': {e}")
+            return False

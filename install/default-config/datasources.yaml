@@ -8,6 +8,7 @@ datasources:
   qdrant:
     host: ${DATASOURCE_QDRANT_HOST}
     port: ${DATASOURCE_QDRANT_PORT}
+    api_key: ${DATASOURCE_QDRANT_API_KEY}
     timeout: 5
     prefer_grpc: false
     https: false

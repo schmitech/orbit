@@ -139,7 +139,11 @@ class StoreManager:
     @staticmethod
     def _resolve_env_variable(value: Any) -> Any:
         """
-        Resolve environment variable placeholders like ${VAR_NAME}.
+        Resolve environment variable placeholders.
+
+        Supports two formats:
+        - ${VAR_NAME} - Required variable, logs warning if not found
+        - ${VAR_NAME:-default} - Optional variable with default value
 
         Args:
             value: Value that may contain env var placeholder
@@ -148,12 +152,24 @@ class StoreManager:
             Resolved value
         """
         if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
-            env_var = value[2:-1]  # Remove ${ and }
-            resolved = os.getenv(env_var)
-            if resolved is None:
-                logger.warning(f"Environment variable {env_var} not found, using placeholder value")
-                return value
-            return resolved
+            inner = value[2:-1]  # Remove ${ and }
+
+            # Check for default value syntax: ${VAR:-default}
+            if ':-' in inner:
+                env_var, default_value = inner.split(':-', 1)
+                resolved = os.getenv(env_var)
+                if resolved is not None and resolved != "":
+                    return resolved
+                else:
+                    # Use default silently (no warning for optional vars)
+                    return default_value
+            else:
+                # No default - this is a required variable
+                resolved = os.getenv(inner)
+                if resolved is None:
+                    logger.warning(f"Environment variable {inner} not found, using placeholder value")
+                    return value
+                return resolved
         elif isinstance(value, dict):
             # Recursively resolve dict values
             return {k: StoreManager._resolve_env_variable(v) for k, v in value.items()}

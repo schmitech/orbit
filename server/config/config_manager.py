@@ -318,17 +318,34 @@ def _merge_configs(main_config: Dict[str, Any], imported_config: Dict[str, Any])
 
 
 def _process_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Process environment variables in config values"""
-    # Handle environment variables in the config (format: ${ENV_VAR_NAME})
+    """Process environment variables in config values
+
+    Supports two formats:
+    - ${ENV_VAR_NAME} - Required variable, logs warning if not found
+    - ${ENV_VAR_NAME:-default} - Optional variable with default value
+    """
     def replace_env_vars(value):
         if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
-            env_var_name = value[2:-1]
-            env_value = os.environ.get(env_var_name)
-            if env_value is not None:
-                return env_value
+            inner = value[2:-1]
+
+            # Check for default value syntax: ${VAR:-default}
+            if ':-' in inner:
+                env_var_name, default_value = inner.split(':-', 1)
+                env_value = os.environ.get(env_var_name)
+                if env_value is not None and env_value != "":
+                    return env_value
+                else:
+                    # Use default silently (no warning for optional vars)
+                    return default_value
             else:
-                logger.warning(f"Environment variable {env_var_name} not found")
-                return ""
+                # No default - this is a required variable
+                env_var_name = inner
+                env_value = os.environ.get(env_var_name)
+                if env_value is not None:
+                    return env_value
+                else:
+                    logger.warning(f"Environment variable {env_var_name} not found")
+                    return ""
         return value
 
     # Recursively process the config

@@ -70,48 +70,6 @@ ORBIT is not affiliated with, endorsed by, or funded by any organization. ORBIT 
 
 ---
 
-## Supported AI Providers
-
-ORBIT supports a wide range of AI providers across inference, vision, embeddings, reranking, and sound. Switch between providers in configuration without changing your code.
-
-| Provider | Inference | Vision | Embeddings | Reranking | Sound | Type |
-|----------|-----------|--------|------------|-----------|-------|------|
-| **Anthropic** | ✅ | ✅ | ❌ | ✅ | ❌ | Cloud API |
-| **AWS Bedrock** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **Azure OpenAI** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **BitNet** | ✅ | ❌ | ❌ | ❌ | ❌ | Local |
-| **Cohere** | ✅ | ✅ | ✅ | ✅ | ❌ | Cloud API |
-| **Coqui** | ❌ | ❌ | ❌ | ❌ | ✅ | Local |
-| **DeepSeek** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **ElevenLabs** | ❌ | ❌ | ❌ | ❌ | ✅ | Cloud API |
-| **Fireworks** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **Google Gemini** | ✅ | ✅ | ❌ | ❌ | ✅ | Cloud API |
-| **Google Vertex** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **Groq** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **Hugging Face** | ✅ | ❌ | ❌ | ❌ | ❌ | Local/Cloud |
-| **IBM Watson** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **Jina AI** | ❌ | ❌ | ✅ | ✅ | ❌ | Cloud API |
-| **llama.cpp** | ✅ | ✅ | ✅ | ❌ | ❌ | Local |
-| **Mistral** | ✅ | ❌ | ✅ | ❌ | ❌ | Cloud API |
-| **NVIDIA** | ✅ | ❌ | ❌ | ❌ | ❌ | Local/Cloud |
-| **Ollama** | ✅ | ✅ | ✅ | ✅ | ✅ | Local/Cloud |
-| **Ollama Cloud** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **OpenAI** | ✅ | ✅ | ✅ | ✅ | ✅ | Cloud API |
-| **OpenRouter** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **Perplexity** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **Replicate** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **Sentence Transformers** | ❌ | ❌ | ✅ | ❌ | ❌ | Local |
-| **Shimmy** | ✅ | ❌ | ❌ | ❌ | ❌ | Local |
-| **Together AI** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **Voyage AI** | ❌ | ❌ | ❌ | ✅ | ❌ | Cloud API |
-| **vLLM** | ✅ | ✅ | ❌ | ❌ | ✅ | Local |
-| **Whisper** | ❌ | ❌ | ❌ | ❌ | ✅ | Local |
-| **xAI (Grok)** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-| **Zai** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
-
-**Total:** 30 providers across 5 capability categories
-
----
 
 ## 🚀 Quick Start
 
@@ -402,6 +360,49 @@ You can now use the API key you created with the React app (`orbitchat`) to have
 
 - Explore `config/adapters.yaml` to enable or customize adapters for different data sources.
 - Skim the [docs](#documentation) for deep dives on auth, configuration, and deployment patterns.
+
+---
+
+## Supported AI Providers
+
+ORBIT supports a wide range of AI providers across inference, vision, embeddings, reranking, and sound. Switch between providers in configuration without changing your code.
+
+| Provider | Inference | Vision | Embeddings | Reranking | Sound | Type |
+|----------|-----------|--------|------------|-----------|-------|------|
+| **Anthropic** | ✅ | ✅ | ❌ | ✅ | ❌ | Cloud API |
+| **AWS Bedrock** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Azure OpenAI** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **BitNet** | ✅ | ❌ | ❌ | ❌ | ❌ | Local |
+| **Cohere** | ✅ | ✅ | ✅ | ✅ | ❌ | Cloud API |
+| **Coqui** | ❌ | ❌ | ❌ | ❌ | ✅ | Local |
+| **DeepSeek** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **ElevenLabs** | ❌ | ❌ | ❌ | ❌ | ✅ | Cloud API |
+| **Fireworks** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Google Gemini** | ✅ | ✅ | ❌ | ❌ | ✅ | Cloud API |
+| **Google Vertex** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Groq** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Hugging Face** | ✅ | ❌ | ❌ | ❌ | ❌ | Local/Cloud |
+| **IBM Watson** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Jina AI** | ❌ | ❌ | ✅ | ✅ | ❌ | Cloud API |
+| **llama.cpp** | ✅ | ✅ | ✅ | ❌ | ❌ | Local |
+| **Mistral** | ✅ | ❌ | ✅ | ❌ | ❌ | Cloud API |
+| **NVIDIA** | ✅ | ❌ | ❌ | ❌ | ❌ | Local/Cloud |
+| **Ollama** | ✅ | ✅ | ✅ | ✅ | ✅ | Local/Cloud |
+| **Ollama Cloud** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **OpenAI** | ✅ | ✅ | ✅ | ✅ | ✅ | Cloud API |
+| **OpenRouter** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Perplexity** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Replicate** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Sentence Transformers** | ❌ | ❌ | ✅ | ❌ | ❌ | Local |
+| **Shimmy** | ✅ | ❌ | ❌ | ❌ | ❌ | Local |
+| **Together AI** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Voyage AI** | ❌ | ❌ | ❌ | ✅ | ❌ | Cloud API |
+| **vLLM** | ✅ | ✅ | ❌ | ❌ | ✅ | Local |
+| **Whisper** | ❌ | ❌ | ❌ | ❌ | ✅ | Local |
+| **xAI (Grok)** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+| **Zai** | ✅ | ❌ | ❌ | ❌ | ❌ | Cloud API |
+
+**Total:** 30 providers across 5 capability categories
 
 ---
 
