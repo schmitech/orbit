@@ -94,6 +94,36 @@ inference:
     top_k: 20
     max_tokens: 2048
     stream: true
+  shimmy:
+    enabled: false
+    base_url: "http://localhost:11435"  # Shimmy server URL (OpenAI-compatible API)
+    model: "gemma-3-1b-it-q4-0"  # Model name to request from the server (smallest available - good for quick testing)
+    api_key: null  # Optional - Shimmy doesn't require authentication
+    
+    # Generation parameters
+    temperature: 0.4  # Balanced for creative yet factual outputs
+    top_p: 0.9  # Good diversity while maintaining coherence
+    max_tokens: 4096  # Maximum tokens to generate
+    
+    # Context configuration
+    context_window: 65536  # Shimmy supports large context windows
+    stream: true
+    
+    # Stop sequences (optional)
+    stop_tokens: []
+    
+    # Timeout configuration
+    timeout:
+      connect: 10000   # 10 seconds
+      total: 120000    # 2 minutes
+    
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
   llama_cpp:
     enabled: true
     # Mode: "direct" (load model locally with Python bindings) or "api" (connect to llama.cpp server)
