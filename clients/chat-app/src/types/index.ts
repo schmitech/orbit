@@ -58,7 +58,8 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   attachedFiles?: FileAttachment[];  // Files attached to this conversation
-  apiKey?: string; // API key associated with this conversation
+  apiKey?: string; // API key associated with this conversation (when middleware is disabled)
+  adapterName?: string; // Adapter name associated with this conversation (when middleware is enabled)
   apiUrl?: string; // API URL associated with this conversation
   adapterInfo?: AdapterInfo; // Adapter information (client_name, model)
   audioSettings?: AudioSettings; // Audio configuration for this conversation

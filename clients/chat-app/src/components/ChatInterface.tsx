@@ -1,11 +1,12 @@
 import { useState, useEffect, FormEvent, MouseEvent } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
+import { AdapterSelector } from './AdapterSelector';
 import { useChatStore } from '../stores/chatStore';
 import { Eye, EyeOff, Settings, RefreshCw, Menu } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
-import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
+import { getDefaultKey, getApiUrl, getEnableApiMiddleware } from '../utils/runtimeConfig';
 import { PACKAGE_VERSION } from '../utils/version';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
@@ -38,12 +39,21 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   // Initialize with runtime config defaults (will be updated when modal opens)
   const [apiUrl, setApiUrl] = useState(() => getApiUrl());
   const [apiKey, setApiKey] = useState(() => getDefaultKey());
+  const [selectedAdapter, setSelectedAdapter] = useState<string | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isRefreshingAdapterInfo, setIsRefreshingAdapterInfo] = useState(false);
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
+  const isMiddlewareEnabled = getEnableApiMiddleware();
+
+  // Initialize selected adapter from conversation
+  useEffect(() => {
+    if (isMiddlewareEnabled && currentConversation?.adapterName) {
+      setSelectedAdapter(currentConversation.adapterName);
+    }
+  }, [isMiddlewareEnabled, currentConversation?.adapterName]);
 
   // Disable Configure API button once conversation has started (has messages)
   // API key should remain immutable per conversation to prevent issues with conversation history
@@ -117,8 +127,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   };
 
   const handleRefreshAdapterInfo = async () => {
-    if (!currentConversation || !currentConversation.apiKey) {
-      debugWarn('Cannot refresh adapter info: no conversation or API key');
+    if (!currentConversation || (!currentConversation.apiKey && !currentConversation.adapterName)) {
+      debugWarn('Cannot refresh adapter info: no conversation or API key/adapter');
       return;
     }
 
@@ -127,11 +137,13 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       const api = await getApi();
       const conversationApiUrl = currentConversation.apiUrl || getApiUrl();
       const conversationApiKey = currentConversation.apiKey;
+      const conversationAdapterName = currentConversation.adapterName;
 
       const adapterClient = new api.ApiClient({
         apiUrl: conversationApiUrl,
-        apiKey: conversationApiKey,
-        sessionId: null
+        apiKey: conversationApiKey || null,
+        sessionId: null,
+        adapterName: conversationAdapterName || null
       });
 
       if (typeof adapterClient.getAdapterInfo === 'function') {
@@ -168,32 +180,60 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     if (event) {
       event.preventDefault();
     }
-    if (apiUrl && apiKey) {
-      setIsValidating(true);
-      setValidationError(null);
-      
-      try {
-        await configureApiSettings(apiUrl, apiKey);
-        // Clear any existing error after successful configuration
-        clearError();
-        // After successful configuration, the conversation now has the new API key
-        // So we keep the configured values (they'll be loaded next time the modal opens)
-        // But we still close the modal
+    
+    if (isMiddlewareEnabled) {
+      // Middleware mode: use adapter name
+      if (apiUrl && selectedAdapter) {
+        setIsValidating(true);
         setValidationError(null);
-        setShowApiKey(false);
-        setShowConfig(false);
-      } catch (error) {
-        debugError('Failed to configure API:', error);
-        // Set validation error for display in the modal
-        const errorMessage = error instanceof Error ? error.message : 'Failed to configure API settings';
-        setValidationError(errorMessage);
-        // Also set error in the store for global error banner
-        // (The store will handle this, but we can also show it in the modal)
-        // Don't reset fields on error - let user see what they entered
-      } finally {
-        setIsValidating(false);
+        
+        try {
+          await configureApiSettings(apiUrl, undefined, undefined, selectedAdapter);
+          clearError();
+          setValidationError(null);
+          setShowConfig(false);
+        } catch (error) {
+          debugError('Failed to configure adapter:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Failed to configure adapter';
+          setValidationError(errorMessage);
+        } finally {
+          setIsValidating(false);
+        }
+      }
+    } else {
+      // Normal mode: use API key
+      if (apiUrl && apiKey) {
+        setIsValidating(true);
+        setValidationError(null);
+        
+        try {
+          await configureApiSettings(apiUrl, apiKey);
+          // Clear any existing error after successful configuration
+          clearError();
+          // After successful configuration, the conversation now has the new API key
+          // So we keep the configured values (they'll be loaded next time the modal opens)
+          // But we still close the modal
+          setValidationError(null);
+          setShowApiKey(false);
+          setShowConfig(false);
+        } catch (error) {
+          debugError('Failed to configure API:', error);
+          // Set validation error for display in the modal
+          const errorMessage = error instanceof Error ? error.message : 'Failed to configure API settings';
+          setValidationError(errorMessage);
+          // Also set error in the store for global error banner
+          // (The store will handle this, but we can also show it in the modal)
+          // Don't reset fields on error - let user see what they entered
+        } finally {
+          setIsValidating(false);
+        }
       }
     }
+  };
+
+  const handleAdapterChange = (adapterName: string) => {
+    setSelectedAdapter(adapterName);
+    setValidationError(null);
   };
 
   return (
@@ -209,48 +249,58 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]"
               >
                 <h2 className="text-lg font-medium text-[#353740] dark:text-[#ececf1] mb-4">
-                  Configure API Settings
+                  {isMiddlewareEnabled ? 'Select Adapter' : 'Configure API Settings'}
                 </h2>
                 <div className="space-y-5">
-                  <div>
-                    <label className="block text-sm font-medium text-[#353740] dark:text-[#d1d5db] mb-2">
-                      API URL
-                    </label>
-                    <input
-                      type="text"
-                      value={apiUrl}
-                      onChange={(e) => setApiUrl(e.target.value)}
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
-                      placeholder="https://api.example.com"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[#353740] dark:text-[#d1d5db] mb-2">
-                      API Key
-                    </label>
-                    <div className="relative">
+                  {!isMiddlewareEnabled && (
+                    <div>
+                      <label className="block text-sm font-medium text-[#353740] dark:text-[#d1d5db] mb-2">
+                        API URL
+                      </label>
                       <input
-                        type={showApiKey ? 'text' : 'password'}
-                        value={apiKey}
-                        onChange={(e) => {
-                          setApiKey(e.target.value);
-                          setValidationError(null); // Clear validation error when user types
-                        }}
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-10 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
-                        placeholder="your-api-key"
-                        disabled={isValidating}
+                        type="text"
+                        value={apiUrl}
+                        onChange={(e) => setApiUrl(e.target.value)}
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
+                        placeholder="https://api.example.com"
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 hover:text-gray-700 dark:text-[#d1d5db] dark:hover:text-white"
-                        aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-                        disabled={isValidating}
-                      >
-                        {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
                     </div>
-                  </div>
+                  )}
+                  {isMiddlewareEnabled ? (
+                    <AdapterSelector
+                      selectedAdapter={selectedAdapter}
+                      onAdapterChange={handleAdapterChange}
+                      disabled={isValidating}
+                    />
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-[#353740] dark:text-[#d1d5db] mb-2">
+                        API Key
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showApiKey ? 'text' : 'password'}
+                          value={apiKey}
+                          onChange={(e) => {
+                            setApiKey(e.target.value);
+                            setValidationError(null); // Clear validation error when user types
+                          }}
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-10 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
+                          placeholder="your-api-key"
+                          disabled={isValidating}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 hover:text-gray-700 dark:text-[#d1d5db] dark:hover:text-white"
+                          aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                          disabled={isValidating}
+                        >
+                          {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {validationError && (
                     <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
                       {validationError}
@@ -277,7 +327,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     </button>
                     <button
                       type="submit"
-                      disabled={!apiUrl || !apiKey || isValidating}
+                      disabled={isValidating || (isMiddlewareEnabled ? !selectedAdapter : (!apiUrl || !apiKey))}
                       className="rounded-md bg-[#343541] px-4 py-2 text-sm font-medium text-white hover:bg-[#282b32] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
                     >
                       {isValidating ? 'Validating...' : 'Update'}
@@ -348,7 +398,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       )}
                       <button
                         onClick={handleRefreshAdapterInfo}
-                        disabled={isRefreshingAdapterInfo || !currentConversation?.apiKey}
+                        disabled={isRefreshingAdapterInfo || (!currentConversation?.apiKey && !currentConversation?.adapterName)}
                         className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 dark:text-[#bfc2cd] dark:hover:text-white dark:hover:bg-[#4a4b54] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Refresh adapter info"
                       >
@@ -372,30 +422,50 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 <span className="text-sm text-gray-500 dark:text-[#bfc2cd] sm:text-right">
                   v{PACKAGE_VERSION}
                 </span>
-                <button
-                  onClick={() => {
-                    // Load current conversation's API settings if available, otherwise use defaults
-                    // This allows users to see and modify their previously configured API key
-                    // Always use runtime config defaults (from CLI args) when no conversation exists
-                    // Read dynamically to ensure we get the latest runtime config
-                    const runtimeApiUrl = getApiUrl();
-                    const conversationApiUrl = currentConversation?.apiUrl;
-                    const currentApiUrl = conversationApiUrl && conversationApiUrl !== runtimeApiUrl
-                      ? conversationApiUrl
-                      : runtimeApiUrl;
-                    const currentApiKey = currentConversation?.apiKey || getDefaultKey();
-                    setApiUrl(currentApiUrl);
-                    setApiKey(currentApiKey);
-                    setValidationError(null);
-                    setShowApiKey(false);
-                    setShowConfig(true);
-                  }}
-                  disabled={!canConfigureApi}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-gray-300 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a] dark:hover:border-[#6b6f7a] dark:disabled:hover:bg-transparent dark:disabled:hover:border-[#4a4b54] sm:w-auto"
-                  title={!canConfigureApi ? "API key cannot be changed once conversation has started. Create a new conversation to use a different API key." : "Configure API settings"}
-                >
-                  Configure API
-                </button>
+                {!isMiddlewareEnabled && (
+                  <button
+                    onClick={() => {
+                      // Load current conversation's API settings if available, otherwise use defaults
+                      // This allows users to see and modify their previously configured API key
+                      // Always use runtime config defaults (from CLI args) when no conversation exists
+                      // Read dynamically to ensure we get the latest runtime config
+                      const runtimeApiUrl = getApiUrl();
+                      const conversationApiUrl = currentConversation?.apiUrl;
+                      const currentApiUrl = conversationApiUrl && conversationApiUrl !== runtimeApiUrl
+                        ? conversationApiUrl
+                        : runtimeApiUrl;
+                      const currentApiKey = currentConversation?.apiKey || getDefaultKey();
+                      setApiUrl(currentApiUrl);
+                      setApiKey(currentApiKey);
+                      setValidationError(null);
+                      setShowApiKey(false);
+                      setShowConfig(true);
+                    }}
+                    disabled={!canConfigureApi}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-gray-300 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a] dark:hover:border-[#6b6f7a] dark:disabled:hover:bg-transparent dark:disabled:hover:border-[#4a4b54] sm:w-auto"
+                    title={!canConfigureApi ? "API key cannot be changed once conversation has started. Create a new conversation to use a different API key." : "Configure API settings"}
+                  >
+                    Configure API
+                  </button>
+                )}
+                {isMiddlewareEnabled && (
+                  <div className="w-full sm:w-auto">
+                    <AdapterSelector
+                      selectedAdapter={selectedAdapter || currentConversation?.adapterName || null}
+                      onAdapterChange={async (adapterName) => {
+                        setSelectedAdapter(adapterName);
+                        const apiUrl = currentConversation?.apiUrl || getApiUrl();
+                        try {
+                          await configureApiSettings(apiUrl, undefined, undefined, adapterName);
+                          clearError();
+                        } catch (error) {
+                          debugError('Failed to configure adapter:', error);
+                        }
+                      }}
+                      disabled={!canConfigureApi}
+                    />
+                  </div>
+                )}
                 <button
                   onClick={onOpenSettings}
                   className="hidden rounded-md bg-[#343541] p-2 text-white hover:bg-[#282b32] transition-colors dark:bg-[#565869] dark:hover:bg-[#6b6f7a] md:inline-flex"
@@ -420,7 +490,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 <div className="w-full">
                   <MessageInput
                     onSend={handleSendMessage}
-                    disabled={isLoading || !currentConversation || !currentConversation.apiKey}
+                    disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
                     placeholder="Message ORBIT..."
                     isCentered
                   />
@@ -446,7 +516,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
               />
               <MessageInput
                 onSend={handleSendMessage}
-                disabled={isLoading || !currentConversation || !currentConversation.apiKey}
+                disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
                 placeholder="Message ORBIT..."
               />
             </>

@@ -23,6 +23,7 @@ interface RuntimeConfig {
   enableAudioOutput: boolean;
   enableFeedbackButtons: boolean;
   enableConversationThreads: boolean;
+  enableApiMiddleware: boolean;
   showGitHubStats: boolean;
   
   // GitHub Configuration
@@ -61,6 +62,7 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
   enableAudioOutput: 'VITE_ENABLE_AUDIO_OUTPUT',
   enableFeedbackButtons: 'VITE_ENABLE_FEEDBACK',
   enableConversationThreads: 'VITE_ENABLE_CONVERSATION_THREADS',
+  enableApiMiddleware: 'VITE_ENABLE_API_MIDDLEWARE',
   showGitHubStats: 'VITE_SHOW_GITHUB_STATS',
   githubOwner: 'VITE_GITHUB_OWNER',
   githubRepo: 'VITE_GITHUB_REPO',
@@ -186,6 +188,7 @@ export const runtimeConfig: RuntimeConfig = {
   enableAudioOutput: getConfigValue('enableAudioOutput', false, 'boolean'),
   enableFeedbackButtons: getConfigValue('enableFeedbackButtons', false, 'boolean'),
   enableConversationThreads: getConfigValue('enableConversationThreads', true, 'boolean'),
+  enableApiMiddleware: getConfigValue('enableApiMiddleware', false, 'boolean'),
   showGitHubStats: getConfigValue('showGitHubStats', true, 'boolean'),
   
   // GitHub Configuration
@@ -273,6 +276,10 @@ export function getEnableFeedbackButtons(): boolean {
 
 export function getEnableConversationThreads(): boolean {
   return runtimeConfig.enableConversationThreads;
+}
+
+export function getEnableApiMiddleware(): boolean {
+  return runtimeConfig.enableApiMiddleware;
 }
 
 export function getShowGitHubStats(): boolean {

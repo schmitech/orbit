@@ -1,11 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Upload, X, Loader2 } from 'lucide-react';
+import { Upload, Loader2 } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugWarn, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { getDefaultKey, resolveApiUrl } from '../utils/runtimeConfig';
+import { getDefaultKey, resolveApiUrl, getEnableApiMiddleware } from '../utils/runtimeConfig';
 
 // Default API key from runtime configuration
 const DEFAULT_API_KEY = getDefaultKey();
@@ -14,6 +14,29 @@ const DEFAULT_API_KEY = getDefaultKey();
 const uploadingFilesStore = new Map<string, Map<string, FileUploadProgress>>();
 const uploadedFilesStore = new Map<string, FileAttachment[]>();
 const uploadedFileIdsStore = new Map<string, string>();
+const middlewareEnabled = getEnableApiMiddleware();
+
+const getStoredAdapterName = (): string | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return localStorage.getItem('chat-adapter-name');
+  } catch {
+    return null;
+  }
+};
+
+const isErrorWithMessage = (error: unknown): error is { message?: string } => {
+  return typeof error === 'object' && error !== null && 'message' in error;
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (isErrorWithMessage(error)) return error.message ?? 'Unknown error';
+  return 'Unknown error';
+};
 
 interface FileUploadProps {
   conversationId: string | null;
@@ -35,7 +58,7 @@ export function FileUpload({
   onUploadSuccess,
   maxFiles = AppConfig.maxFilesPerConversation,
   disabled = false 
-}: FileUploadProps) {
+}: FileUploadProps): React.ReactElement {
   const [isDragging, setIsDragging] = useState(false);
   const [globalUploadRevision, setGlobalUploadRevision] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,6 +71,7 @@ export function FileUpload({
   const conversations = useChatStore(state => state.conversations);
 
   const uploadingFiles = useMemo(() => {
+    void globalUploadRevision;
     if (!conversationId) {
       return new Map<string, FileUploadProgress>();
     }
@@ -55,14 +79,6 @@ export function FileUpload({
     return uploads ? new Map(uploads) : new Map<string, FileUploadProgress>();
   }, [conversationId, globalUploadRevision]);
 
-  const uploadedFiles = useMemo(() => {
-    if (!conversationId) {
-      return [] as FileAttachment[];
-    }
-    const files = uploadedFilesStoreRef.current.get(conversationId);
-    return files ? [...files] : [];
-  }, [conversationId, globalUploadRevision]);
-  
   const refreshVisibleUploads = useCallback((targetConversationId: string | null) => {
     if (!targetConversationId) {
       onUploadingChange?.(null, false);
@@ -178,51 +194,58 @@ export function FileUpload({
     };
   }, []);
 
-  // Cleanup: Delete uploaded files from server when component unmounts
-  // Only delete files that aren't already in the conversation
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      abortControllersRef.current.forEach(controller => controller.abort());
+  const cleanupPendingUploads = useCallback(() => {
+    isMountedRef.current = false;
+    const abortControllers = new Map(abortControllersRef.current);
+    abortControllers.forEach(controller => controller.abort());
 
-      setTimeout(() => {
-        const store = useChatStore.getState();
-        const conversationsById = new Map(store.conversations.map(conv => [conv.id, conv]));
-        const fileIdsToDelete: Array<{ fileId: string; conversationId: string | null }> = [];
+    setTimeout(() => {
+      const store = useChatStore.getState();
+      const conversationsById = new Map(store.conversations.map(conv => [conv.id, conv]));
+      const fileIdsToDelete: Array<{ fileId: string; conversationId: string | null }> = [];
 
-        uploadedFileIdsRef.current.forEach((convId, fileId) => {
-          if (convId) {
-            const conversation = conversationsById.get(convId);
-            const filesInConversation = new Set(
-              conversation?.attachedFiles?.map(f => f.file_id) || []
-            );
-            if (filesInConversation.has(fileId)) {
-              uploadedFileIdsRef.current.delete(fileId);
-              return;
-            }
+      uploadedFileIdsRef.current.forEach((convId, fileId) => {
+        if (convId) {
+          const conversation = conversationsById.get(convId);
+          const filesInConversation = new Set(
+            conversation?.attachedFiles?.map(f => f.file_id) || []
+          );
+          if (filesInConversation.has(fileId)) {
+            uploadedFileIdsRef.current.delete(fileId);
+            return;
           }
-          fileIdsToDelete.push({ fileId, conversationId: convId || null });
-        });
+        }
+        fileIdsToDelete.push({ fileId, conversationId: convId || null });
+      });
 
-        if (fileIdsToDelete.length > 0) {
-          onClose?.();
-          fileIdsToDelete.forEach(async ({ fileId, conversationId }) => {
-            try {
-              if (conversationId) {
-                await removeFileFromConversation(conversationId, fileId);
-              } else {
-                await FileUploadService.deleteFile(fileId);
-              }
-            } catch (error: any) {
-              if (!error.message?.includes('404') && !error.message?.includes('File not found')) {
+      if (fileIdsToDelete.length > 0) {
+        onClose?.();
+        fileIdsToDelete.forEach(async ({ fileId, conversationId }) => {
+          try {
+            if (conversationId) {
+              await removeFileFromConversation(conversationId, fileId);
+            } else {
+              const adapterName = middlewareEnabled ? getStoredAdapterName() : null;
+              await FileUploadService.deleteFile(fileId, undefined, undefined, adapterName ?? undefined);
+            }
+          } catch (error) {
+            if (isErrorWithMessage(error)) {
+              const message = error.message ?? '';
+              if (!message.includes('404') && !message.includes('File not found')) {
                 debugWarn(`Failed to cleanup file ${fileId} during component unmount:`, error);
               }
+            } else {
+              debugWarn(`Failed to cleanup file ${fileId} during component unmount`, error);
             }
-          });
-        }
-      }, 300);
-    };
-  }, [removeFileFromConversation, onClose]);
+          }
+        });
+      }
+    }, 300);
+  }, [onClose, removeFileFromConversation]);
+
+  // Cleanup: Delete uploaded files from server when component unmounts
+  // Only delete files that aren't already in the conversation
+  useEffect(() => cleanupPendingUploads, [cleanupPendingUploads]);
 
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -262,12 +285,22 @@ export function FileUpload({
       }
     }
 
-    if (!conversation.apiKey || conversation.apiKey === DEFAULT_API_KEY) {
-      onUploadError?.('API key not configured for this conversation. Please configure API settings first.');
-      return;
+    const isMiddlewareEnabled = middlewareEnabled;
+    
+    if (isMiddlewareEnabled) {
+      if (!conversation.adapterName) {
+        onUploadError?.('Adapter not configured for this conversation. Please select an adapter first.');
+        return;
+      }
+    } else {
+      if (!conversation.apiKey || conversation.apiKey === DEFAULT_API_KEY) {
+        onUploadError?.('API key not configured for this conversation. Please configure API settings first.');
+        return;
+      }
     }
 
     const conversationApiKey = conversation.apiKey;
+    const conversationAdapterName = conversation.adapterName;
     const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
 
     for (let index = 0; index < fileArray.length; index++) {
@@ -285,10 +318,11 @@ export function FileUpload({
               prev.set(progressKey, progress);
               return prev;
             });
+
             if (progress.fileId && !uploadedFileId) {
               uploadedFileId = progress.fileId;
               uploadedFileIdsRef.current.set(progress.fileId, activeConversationId);
-              
+
               // Add file to conversation immediately when we get the fileId
               // This ensures the file persists even if user switches conversations
               const fileAttachment: FileAttachment = {
@@ -296,17 +330,18 @@ export function FileUpload({
                 filename: file.name,
                 mime_type: file.type || 'application/octet-stream',
                 file_size: file.size,
-                processing_status: progress.status === 'uploading' ? 'uploading' : 
-                                 progress.status === 'processing' ? 'processing' : 
-                                 progress.status === 'completed' ? 'completed' : undefined
+                processing_status: progress.status === 'uploading' ? 'uploading' :
+                                  progress.status === 'processing' ? 'processing' :
+                                  progress.status === 'completed' ? 'completed' : undefined
               };
-              
+
               debugLog(`[FileUpload] Adding file ${progress.fileId} to conversation ${activeConversationId} immediately (status: ${fileAttachment.processing_status})`);
               addFileToConversation(activeConversationId, fileAttachment);
             }
           },
           conversationApiKey,
-          conversationApiUrl
+          conversationApiUrl,
+          isMiddlewareEnabled ? conversationAdapterName : undefined
         ).catch(error => {
           if (error.message && error.message.includes('was deleted')) {
             if (uploadedFileId) {
@@ -369,20 +404,21 @@ export function FileUpload({
             return prev;
           });
         }
-      } catch (error: any) {
-        if (error.name === 'AbortError' || abortController.signal.aborted) {
+      } catch (error) {
+        const message = getErrorMessage(error);
+        if ((error instanceof DOMException && error.name === 'AbortError') || abortController.signal.aborted) {
           debugLog(`Upload cancelled for ${file.name}`);
           if (uploadedFileId) {
             uploadedFileIdsRef.current.delete(uploadedFileId);
           }
           continue;
         }
-        if (error.message && error.message.includes('was deleted')) {
+        if (message.includes('was deleted')) {
           debugLog(`File ${file.name} was deleted during upload`);
           if (uploadedFileId) {
             uploadedFileIdsRef.current.delete(uploadedFileId);
           }
-          const fileIdMatch = error.message.match(/File\s+([\w-]+)\s+was deleted/);
+          const fileIdMatch = message.match(/File\s+([\w-]+)\s+was deleted/);
           if (fileIdMatch && fileIdMatch[1]) {
             uploadedFileIdsRef.current.delete(fileIdMatch[1]);
           }
@@ -391,9 +427,9 @@ export function FileUpload({
         if (isMountedRef.current) {
           debugError(`Failed to upload file ${file.name}:`, error);
           debugError(`File type: ${file.type}, File name: ${file.name}`);
-          onUploadError?.(error.message || `Failed to upload ${file.name}`);
+          onUploadError?.(message || `Failed to upload ${file.name}`);
         } else {
-          debugWarn(`Upload error for ${file.name} (component unmounted):`, error.message);
+          debugWarn(`Upload error for ${file.name} (component unmounted):`, message);
         }
         if (uploadedFileId) {
           uploadedFileIdsRef.current.delete(uploadedFileId);
@@ -404,7 +440,7 @@ export function FileUpload({
         // Progress will be removed when file completes or on error
       }
     }
-  }, [conversationId, maxFiles, onUploadError, updateUploadedStore, updateUploadingStore]);
+  }, [addFileToConversation, conversationId, maxFiles, onUploadError, updateUploadedStore, updateUploadingStore]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -440,50 +476,14 @@ export function FileUpload({
     }
   }, [handleFiles]);
 
-  const handleRemoveFile = useCallback(async (fileId: string) => {
-    const store = useChatStore.getState();
-    const activeConversationId = conversationId || store.currentConversationId;
-
-    debugLog(`[FileUpload] handleRemoveFile called for file ${fileId}`, {
-      activeConversationId,
-      hasRemoveFileFromConversation: !!removeFileFromConversation
-    });
-
-    if (!activeConversationId) {
-      uploadedFileIdsRef.current.delete(fileId);
-      try {
-        await FileUploadService.deleteFile(fileId);
-      } catch (error) {
-        debugError(`[FileUpload] Failed to delete file ${fileId} from server:`, error);
-      }
-      return;
-    }
-
-    updateUploadedStore(activeConversationId, (prev) => prev.filter(f => f.file_id !== fileId));
-    uploadedFileIdsRef.current.delete(fileId);
-
-    try {
-      await removeFileFromConversation(activeConversationId, fileId);
-      debugLog(`[FileUpload] Successfully removed file ${fileId} from conversation ${activeConversationId}`);
-    } catch (error) {
-      debugError(`[FileUpload] Failed to remove file ${fileId} from conversation:`, error);
-      try {
-        await FileUploadService.deleteFile(fileId);
-      } catch (deleteError) {
-        debugError(`[FileUpload] Failed to delete file ${fileId} from server:`, deleteError);
-      }
-    }
-  }, [conversationId, removeFileFromConversation, updateUploadedStore]);
-
   const handleClick = useCallback(() => {
     if (!disabled && fileInputRef.current) {
       fileInputRef.current.click();
     }
   }, [disabled]);
 
-  // Hide upload area when files are uploading OR when files have been uploaded
+  // Hide upload area only while files are actively uploading; keep it visible afterwards
   const isUploading = uploadingFiles.size > 0;
-  const hasUploadedFiles = uploadedFiles.length > 0;
   const conversationNameMap = useMemo(() => {
     const map = new Map<string, string>();
     conversations.forEach(conv => {
@@ -493,6 +493,7 @@ export function FileUpload({
   }, [conversations]);
 
   const otherUploadingConversations = useMemo(() => {
+    void globalUploadRevision;
     const entries: Array<{ conversationId: string; uploads: Array<{ key: string; progress: FileUploadProgress }> }> = [];
     uploadingFilesStoreRef.current.forEach((progressMap, convId) => {
       if (convId !== conversationId && progressMap.size > 0) {
@@ -505,11 +506,44 @@ export function FileUpload({
     return entries;
   }, [conversationId, globalUploadRevision]);
 
+  const progressContent = (
+    <div className="w-full max-w-full overflow-hidden space-y-2">
+      {Array.from(uploadingFiles.values()).map((progress) => (
+        <div key={progress.filename} className="w-full max-w-full flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg overflow-hidden">
+          <Loader2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin flex-shrink-0" />
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
+              {progress.filename}
+            </p>
+            <div className="mt-1 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+              <div
+                className="bg-emerald-600 dark:bg-emerald-400 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${progress.progress}%` }}
+              />
+            </div>
+          </div>
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            {progress.status === 'uploading' ? 'Uploading...' :
+             progress.status === 'processing' ? 'Processing...' :
+             progress.status === 'completed' ? 'Done' : 'Error'}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
+  if (isUploading) {
+    return (
+      <div className="w-full max-w-full overflow-hidden space-y-3">
+        {progressContent}
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-full overflow-hidden space-y-3">
-      {/* Upload area - only show when not uploading AND no files uploaded yet */}
-      {!isUploading && !hasUploadedFiles && (
-        <div
+      {/* Upload area */}
+      <div
           onClick={handleClick}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -545,35 +579,7 @@ export function FileUpload({
               </p>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Upload progress - show when uploading */}
-      {isUploading && (
-        <div className="w-full max-w-full overflow-hidden space-y-2">
-          {Array.from(uploadingFiles.values()).map((progress) => (
-            <div key={progress.filename} className="w-full max-w-full flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg overflow-hidden">
-              <Loader2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin flex-shrink-0" />
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
-                  {progress.filename}
-                </p>
-                <div className="mt-1 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
-                  <div
-                    className="bg-emerald-600 dark:bg-emerald-400 h-1.5 rounded-full transition-all duration-300"
-                    style={{ width: `${progress.progress}%` }}
-                  />
-                </div>
-              </div>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                {progress.status === 'uploading' ? 'Uploading...' :
-                 progress.status === 'processing' ? 'Processing...' :
-                 progress.status === 'completed' ? 'Done' : 'Error'}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      </div>
 
       {otherUploadingConversations.length > 0 && (
         <div className="w-full max-w-full space-y-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/40">

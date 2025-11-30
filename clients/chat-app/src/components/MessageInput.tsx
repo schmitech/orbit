@@ -97,7 +97,6 @@ export function MessageInput({
   const [isHoveringMic, setIsHoveringMic] = useState(false);
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
-  const [removeFileSuccess, setRemoveFileSuccess] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
   const voiceMessageRef = useRef('');
@@ -124,7 +123,7 @@ export function MessageInput({
   }, []);
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
 
-  const { createConversation, currentConversationId, removeFileFromConversation, conversations, isLoading, syncConversationFiles } = useChatStore();
+  const { createConversation, currentConversationId, conversations, isLoading, syncConversationFiles } = useChatStore();
   const currentConversation = conversations.find(c => c.id === currentConversationId);
 
   const handleVoiceCompletion = useCallback(() => {
@@ -379,7 +378,15 @@ export function MessageInput({
 
   // Sync and poll file status when switching to a conversation
   useEffect(() => {
-    if (!currentConversationId || !currentConversation || !currentConversation.apiKey) {
+    const middlewareMode = typeof window !== 'undefined' &&
+      (window as Record<string, unknown>).ORBIT_CHAT_CONFIG?.enableApiMiddleware === true;
+    
+    if (!currentConversationId || !currentConversation) {
+      return;
+    }
+    
+    // Check for API key or adapter name depending on mode
+    if (middlewareMode ? !currentConversation.adapterName : !currentConversation.apiKey) {
       return;
     }
 
@@ -517,44 +524,6 @@ export function MessageInput({
     }
     showUploadSuccessToast(newFiles);
   }, [currentConversationId, showUploadSuccessToast]);
-
-  const handleRemoveFile = async (fileId: string) => {
-    // Get filename before removing for success message
-    const fileToRemove = attachedFiles.find(f => f.file_id === fileId);
-    const filename = fileToRemove?.filename || 'File';
-    
-    // Remove from local attached files list
-    setAttachedFiles(prev => prev.filter(f => f.file_id !== fileId));
-    
-    // Remove from processedFilesRef to allow re-uploading if needed
-    if (currentConversationId) {
-      const fileKey = `${currentConversationId}-${fileId}`;
-      processedFilesRef.current.delete(fileKey);
-    }
-    
-    // Remove from conversation and delete from server if conversation exists
-    if (currentConversationId) {
-      try {
-        await removeFileFromConversation(currentConversationId, fileId);
-        // Show success message
-        playSoundEffect('success', settings.soundEnabled);
-        setRemoveFileSuccess(`File "${filename}" removed successfully`);
-        setTimeout(() => {
-          setRemoveFileSuccess(null);
-        }, 3000);
-      } catch (error) {
-        debugError(`Failed to remove file ${fileId} from conversation:`, error);
-        playSoundEffect('error', settings.soundEnabled);
-      }
-    } else {
-      // Even if no conversation, show success for local removal
-      playSoundEffect('success', settings.soundEnabled);
-      setRemoveFileSuccess(`File "${filename}" removed successfully`);
-      setTimeout(() => {
-        setRemoveFileSuccess(null);
-      }, 3000);
-    }
-  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
@@ -702,6 +671,9 @@ export function MessageInput({
         };
 
         debugLog(`[MessageInput] Pasting file: ${file.name}, type: ${file.type || 'unknown'}, size: ${file.size}`);
+        const middlewareMode = typeof window !== 'undefined' &&
+          (window as Record<string, unknown>).ORBIT_CHAT_CONFIG?.enableApiMiddleware === true;
+        const conversationAdapterName = currentConversation?.adapterName;
         const uploadedAttachment = await FileUploadService.uploadFile(
           file,
           (progress) => {
@@ -709,7 +681,8 @@ export function MessageInput({
             updateEntry(progress);
           },
           conversationApiKey,
-          conversationApiUrl
+          conversationApiUrl,
+          middlewareMode ? conversationAdapterName : undefined
         );
         uploadedAttachments.push(uploadedAttachment);
         completionPromises.push(markEntryComplete());
@@ -747,7 +720,7 @@ export function MessageInput({
     } finally {
       setConversationUploading(pasteConversationId, false);
     }
-  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled]);
+  }, [attachedFiles, currentConversation?.adapterName, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled]);
 
   const effectivePlaceholder = (hasProcessingFiles || isUploading)
     ? 'Files are uploading/processing, please wait...'
@@ -783,12 +756,6 @@ export function MessageInput({
           <div className="mb-3 w-full flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200">
             <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
             <span>{uploadSuccessMessage}</span>
-          </div>
-        )}
-        {removeFileSuccess && (
-          <div className="mb-3 w-full flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200">
-            <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-            <span>{removeFileSuccess}</span>
           </div>
         )}
 
@@ -971,15 +938,13 @@ export function MessageInput({
                       {file.processing_status === 'uploading' ? 'Uploading...' : 'Processing...'}
                     </span>
                   )}
-                  {!disabled && (
-                    <button
-                      onClick={() => handleRemoveFile(file.file_id)}
-                      className="text-gray-500 hover:text-red-600 dark:text-[#bfc2cd] dark:hover:text-red-300"
-                      title="Remove file"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
+                  <button
+                    disabled
+                    className="text-gray-300 dark:text-[#4a4b54] cursor-not-allowed"
+                    title="File removal disabled; use Clear All in sidebar"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 </div>
               );
             })}

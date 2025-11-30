@@ -4,15 +4,20 @@
  * 
  * Serves the chat-app as a standalone application with runtime configuration.
  * Configuration can be provided via CLI arguments, config file, or environment variables.
+ * 
+ * When VITE_ENABLE_API_MIDDLEWARE is enabled, the server acts as a proxy to hide
+ * API keys from the client by mapping adapter names to actual API keys.
  */
 
-import http from 'http';
+import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { homedir } from 'os';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import yaml from 'js-yaml';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,6 +33,7 @@ const DEFAULT_CONFIG = {
   enableUploadButton: false,
   enableAudioOutput: false,
   enableFeedbackButtons: false,
+  enableApiMiddleware: false,
   maxFilesPerConversation: 5,
   maxFileSizeMB: 50,
   maxTotalFiles: 100,
@@ -36,6 +42,33 @@ const DEFAULT_CONFIG = {
   maxTotalMessages: 10000,
   maxMessageLength: 1000,
 };
+
+/**
+ * Load adapter mappings from YAML file
+ */
+function loadAdaptersConfig() {
+  const configPaths = [
+    path.join(__dirname, '..', 'adapters.yaml'),
+    path.join(process.cwd(), 'adapters.yaml'),
+    path.join(homedir(), '.orbit-chat-app', 'adapters.yaml'),
+  ];
+
+  for (const configPath of configPaths) {
+    try {
+      if (fs.existsSync(configPath)) {
+        const content = fs.readFileSync(configPath, 'utf8');
+        const config = yaml.load(content);
+        if (config && config.adapters) {
+          return config.adapters;
+        }
+      }
+    } catch (error) {
+      console.warn(`Warning: Could not load adapters config from ${configPath}:`, error.message);
+    }
+  }
+
+  return null;
+}
 
 /**
  * Parse command-line arguments
@@ -78,6 +111,9 @@ function parseArgs() {
         break;
       case '--enable-feedback':
         config.enableFeedbackButtons = true;
+        break;
+      case '--enable-api-middleware':
+        config.enableApiMiddleware = true;
         break;
       case '--max-files-per-conversation':
         config.maxFilesPerConversation = parseInt(args[++i], 10);
@@ -163,6 +199,7 @@ function loadConfigFromEnv() {
     VITE_ENABLE_UPLOAD: 'enableUploadButton',
     VITE_ENABLE_AUDIO_OUTPUT: 'enableAudioOutput',
     VITE_ENABLE_FEEDBACK: 'enableFeedbackButtons',
+    VITE_ENABLE_API_MIDDLEWARE: 'enableApiMiddleware',
     VITE_MAX_FILES_PER_CONVERSATION: 'maxFilesPerConversation',
     VITE_MAX_FILE_SIZE_MB: 'maxFileSizeMB',
     VITE_MAX_TOTAL_FILES: 'maxTotalFiles',
@@ -177,7 +214,7 @@ function loadConfigFromEnv() {
     if (value !== undefined) {
       if (configKey === 'useLocalApi' || configKey === 'consoleDebug' || 
           configKey === 'enableUploadButton' || configKey === 'enableAudioOutput' ||
-          configKey === 'enableFeedbackButtons') {
+          configKey === 'enableFeedbackButtons' || configKey === 'enableApiMiddleware') {
         envConfig[configKey] = value === 'true';
       } else if (configKey.includes('max') && configKey !== 'maxFileSizeMB') {
         const parsed = parseInt(value, 10);
@@ -243,6 +280,158 @@ function injectConfig(html, config) {
 }
 
 /**
+ * Create Express server to serve the built app
+ */
+function createServer(distPath, config) {
+  const app = express();
+  const adapters = config.enableApiMiddleware ? loadAdaptersConfig() : null;
+
+  // API endpoints for middleware mode - MUST be before body parsers
+  if (config.enableApiMiddleware && adapters) {
+    // Endpoint to list available adapters
+    app.get('/api/adapters', (req, res) => {
+      const adapterList = Object.keys(adapters).map(name => ({
+        name,
+        apiUrl: adapters[name].apiUrl,
+        // Don't expose API keys
+      }));
+      res.json({ adapters: adapterList });
+    });
+
+    // Proxy middleware for API requests - must be before body parsers to preserve request stream
+    app.use('/api/proxy', (req, res, next) => {
+      const adapterName = req.headers['x-adapter-name'];
+      
+      if (!adapterName) {
+        return res.status(400).json({ error: 'X-Adapter-Name header is required' });
+      }
+
+      const adapter = adapters[adapterName];
+      if (!adapter) {
+        return res.status(404).json({ error: `Adapter '${adapterName}' not found` });
+      }
+
+      // Create proxy middleware for this request
+      const proxy = createProxyMiddleware({
+        target: adapter.apiUrl,
+        changeOrigin: true,
+        pathRewrite: {
+          '^/api/proxy': '', // Remove /api/proxy prefix
+        },
+        onProxyReq: (proxyReq, req) => {
+          // Remove adapter name header
+          proxyReq.removeHeader('x-adapter-name');
+          // Add actual API key (use X-API-Key to match backend expectation)
+          proxyReq.setHeader('X-API-Key', adapter.apiKey);
+          // Preserve important headers
+          const headersToPreserve = ['content-type', 'x-session-id', 'x-thread-id', 'accept', 'content-length'];
+          headersToPreserve.forEach(header => {
+            const value = req.headers[header];
+            if (value) {
+              proxyReq.setHeader(header, value);
+            }
+          });
+          // Copy all other headers
+          Object.keys(req.headers).forEach(key => {
+            const lowerKey = key.toLowerCase();
+            if (!['x-adapter-name', 'host', 'connection', 'transfer-encoding'].includes(lowerKey)) {
+              const value = req.headers[key];
+              if (value && !headersToPreserve.includes(lowerKey)) {
+                proxyReq.setHeader(key, value);
+              }
+            }
+          });
+        },
+        onProxyRes: (proxyRes, req, res) => {
+          // Handle CORS if needed
+          proxyRes.headers['access-control-allow-origin'] = '*';
+          proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
+          proxyRes.headers['access-control-allow-headers'] = 'Content-Type, X-API-Key, X-Session-ID, X-Thread-ID, X-Adapter-Name';
+        },
+        onError: (err, req, res) => {
+          console.error('Proxy error:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Proxy error', message: err.message });
+          }
+        },
+        ws: false, // Disable WebSocket proxying
+        logLevel: 'silent', // Reduce logging
+      });
+
+      proxy(req, res, next);
+    });
+  }
+
+  // Middleware for parsing JSON - after proxy routes to preserve request body stream
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
+  // Serve static files
+  app.use(express.static(distPath, {
+    setHeaders: (res, filePath) => {
+      // Inject config into HTML files
+      if (path.extname(filePath) === '.html') {
+        // This will be handled in the route handler
+      }
+    },
+  }));
+
+  // SPA fallback - serve index.html for all non-file requests
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+
+    let filePath = path.join(distPath, req.path === '/' ? 'index.html' : req.path);
+    
+    // Security: prevent directory traversal
+    filePath = path.normalize(filePath);
+    if (!filePath.startsWith(path.normalize(distPath))) {
+      return res.status(403).send('Forbidden');
+    }
+
+    // Check if file exists
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      // Read and serve file
+      try {
+        let content = fs.readFileSync(filePath);
+        
+        // Inject configuration into HTML files
+        if (path.extname(filePath) === '.html') {
+          content = Buffer.from(injectConfig(content.toString(), config));
+        }
+
+        const mimeType = getMimeType(filePath);
+        res.setHeader('Content-Type', mimeType);
+        res.send(content);
+      } catch (error) {
+        console.error('Error serving file:', error);
+        res.status(500).send('Internal Server Error');
+      }
+    } else {
+      // For SPA routing, serve index.html for non-file requests
+      if (!path.extname(filePath)) {
+        filePath = path.join(distPath, 'index.html');
+        try {
+          let content = fs.readFileSync(filePath);
+          content = Buffer.from(injectConfig(content.toString(), config));
+          res.setHeader('Content-Type', 'text/html');
+          res.send(content);
+        } catch (error) {
+          console.error('Error serving index.html:', error);
+          res.status(500).send('Internal Server Error');
+        }
+      } else {
+        res.status(404).send('Not Found');
+      }
+    }
+  });
+
+  return app;
+}
+
+/**
  * Get MIME type for file extension
  */
 function getMimeType(filePath) {
@@ -265,52 +454,6 @@ function getMimeType(filePath) {
     '.eot': 'application/vnd.ms-fontobject',
   };
   return mimeTypes[ext] || 'application/octet-stream';
-}
-
-/**
- * Create HTTP server to serve the built app
- */
-function createServer(distPath, config) {
-  return http.createServer((req, res) => {
-    let filePath = path.join(distPath, req.url === '/' ? 'index.html' : req.url);
-    
-    // Security: prevent directory traversal
-    filePath = path.normalize(filePath);
-    if (!filePath.startsWith(distPath)) {
-      res.writeHead(403);
-      res.end('Forbidden');
-      return;
-    }
-
-    // Check if file exists
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      // For SPA routing, serve index.html for non-file requests
-      if (!path.extname(filePath)) {
-        filePath = path.join(distPath, 'index.html');
-      } else {
-        res.writeHead(404);
-        res.end('Not Found');
-        return;
-      }
-    }
-
-    // Read and serve file
-    try {
-      let content = fs.readFileSync(filePath);
-      
-      // Inject configuration into HTML files
-      if (path.extname(filePath) === '.html') {
-        content = Buffer.from(injectConfig(content.toString(), config));
-      }
-
-      const mimeType = getMimeType(filePath);
-      res.writeHead(200, { 'Content-Type': mimeType });
-      res.end(content);
-    } catch (error) {
-      res.writeHead(500);
-      res.end('Internal Server Error');
-    }
-  });
 }
 
 /**
@@ -376,6 +519,7 @@ Options:
   --enable-upload                  Enable upload button (default: false)
   --enable-audio                   Enable audio button (default: false)
   --enable-feedback                Enable feedback buttons (default: false)
+  --enable-api-middleware          Enable API middleware mode (default: false)
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
   --max-total-files N              Max total files (default: 100, 0 = unlimited)
@@ -433,16 +577,26 @@ function main() {
   }
 
   // Create and start server
-  const server = createServer(distPath, config);
+  const app = createServer(distPath, config);
   
-  server.listen(serverConfig.port, serverConfig.host, () => {
+  app.listen(serverConfig.port, serverConfig.host, () => {
     const url = `http://${serverConfig.host}:${serverConfig.port}`;
-    console.log(`\n🚀 ORBIT Chat App is running at ${url}\n`);
-    console.log('Configuration:');
-    console.log(`  API URL: ${config.apiUrl}`);
-    console.log(`  Default Key: ${config.defaultKey}`);
-    console.log(`  Port: ${serverConfig.port}`);
-    console.log(`  Host: ${serverConfig.host}\n`);
+    console.debug(`\n🚀 ORBIT Chat App is running at ${url}\n`);
+    console.debug('Configuration:');
+    console.debug(`  API URL: ${config.apiUrl}`);
+    console.debug(`  Default Key: ${config.defaultKey}`);
+    console.debug(`  Port: ${serverConfig.port}`);
+    console.debug(`  Host: ${serverConfig.host}`);
+    if (config.enableApiMiddleware) {
+      console.debug(`  API Middleware: Enabled`);
+      const adapters = loadAdaptersConfig();
+      if (adapters) {
+        console.debug(`  Available Adapters: ${Object.keys(adapters).join(', ')}`);
+      } else {
+        console.debug(`  Warning: No adapters.yaml found`);
+      }
+    }
+    console.debug('');
     
     if (serverConfig.open) {
       openBrowser(url);
@@ -451,11 +605,8 @@ function main() {
 
   // Handle graceful shutdown
   process.on('SIGINT', () => {
-    console.log('\n\nShutting down server...');
-    server.close(() => {
-      console.log('Server closed.');
-      process.exit(0);
-    });
+    console.debug('\n\nShutting down server...');
+    process.exit(0);
   });
 }
 

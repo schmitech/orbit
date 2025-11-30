@@ -128,6 +128,37 @@ Configuration is loaded in the following priority order:
 3. Environment variables (`VITE_*`)
 4. Default values (lowest priority)
 
+### 🔐 API Key Middleware (Adapter Proxy)
+
+The CLI can run an Express middleware layer that injects API keys server-side so browsers only see adapter names.
+
+1. **Create `adapters.yaml`** – the server loads the first file it finds from:
+   - `<orbitchat install>/adapters.yaml` (next to `bin/orbitchat.js`)
+   - The current working directory
+   - `~/.orbit-chat-app/adapters.yaml`
+
+   ```yaml
+   adapters:
+     local-dev:
+       apiKey: orbit_dev_key
+       apiUrl: http://localhost:3000
+     production:
+       apiKey: orbit_prod_key
+       apiUrl: https://api.example.com
+   ```
+
+2. **Enable the proxy** – pass `--enable-api-middleware` or export `VITE_ENABLE_API_MIDDLEWARE=true` before running `orbitchat`. The Express server exposes:
+   - `GET /api/adapters` – returns adapter names/URLs for the dropdown
+   - `/api/proxy/*` – forwards chat, file, thread, and admin calls while injecting the adapter’s real `X-API-Key`
+
+3. **Client experience** – once enabled, the UI hides the API-key modal, shows an Adapter Selector, and routes every request through `/api/proxy/...` using an `X-Adapter-Name` header. Conversations remember adapter names instead of keys.
+
+4. **Deployment checklist**
+   - Keep `adapters.yaml` out of source control; treat it like secrets.
+   - Provide HTTPS in front of the CLI (or run behind an existing reverse proxy).
+   - Set `VITE_ENABLE_API_MIDDLEWARE=true` everywhere you build/run the CLI so runtime config matches server behaviour.
+   - Verify `/api/adapters` works before inviting end users; the request should never include API keys.
+
 ---
 
 ## 🧑‍💻 Development

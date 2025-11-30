@@ -1,0 +1,12 @@
+# Adapter Configuration
+# This file maps adapter names to actual API keys and URLs.
+# When API middleware is enabled, clients will only see adapter names,
+# never the actual API keys.
+
+adapters:
+  simple-chat:
+    apiKey: default-key
+    apiUrl: http://localhost:3000
+  files:
+    apiKey: multimodal
+    apiUrl: http://localhost:3000

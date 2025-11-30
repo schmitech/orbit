@@ -99,6 +99,27 @@ Configuration is loaded in the following priority order:
 
 **Note:** GitHub stats and GitHub owner/repo are always shown and default to "schmitech/orbit". These are only configurable via build-time environment variables (`VITE_SHOW_GITHUB_STATS`, `VITE_GITHUB_OWNER`, `VITE_GITHUB_REPO`) for developers who fork the repository and build their own version.
 
+### Protect API Keys with the Middleware Proxy
+
+You can prevent API keys from ever reaching the browser by enabling the built-in middleware layer:
+
+1. Create an `adapters.yaml` file (next to `bin/orbitchat.js`, in your working directory, or in `~/.orbit-chat-app/`). Example:
+   ```yaml
+   adapters:
+     local-dev:
+       apiKey: orbit_dev_key
+       apiUrl: http://localhost:3000
+     production:
+       apiKey: orbit_prod_key
+       apiUrl: https://api.example.com
+   ```
+2. Start the CLI with `--enable-api-middleware` (or export `VITE_ENABLE_API_MIDDLEWARE=true`). The Express server now:
+   - Serves `GET /api/adapters` so the React app can list safe adapter names.
+   - Proxies all chat/file/thread/admin calls through `/api/proxy/...`, injecting the adapter’s real `X-API-Key`.
+3. The UI automatically swaps the API-key modal for an Adapter Selector and stores adapter names per conversation.
+
+Keep `adapters.yaml` out of source control and run the CLI behind HTTPS (or another reverse proxy) when deploying.
+
 ### Environment Variables
 
 You can also set configuration via environment variables (for development):
