@@ -384,6 +384,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     // New conversations default to the configured default key and API URL from runtime config
     const defaultApiUrl = getApiUrl(); // Use runtime config (from CLI args or env vars)
     const defaultApiKey = DEFAULT_API_KEY;
+
+    // Check if middleware mode is enabled
+    const isMiddlewareEnabled = getEnableApiMiddleware();
+    // Get stored adapter name from localStorage if in middleware mode
+    const storedAdapterName = isMiddlewareEnabled
+      ? (typeof window !== 'undefined' ? localStorage.getItem('chat-adapter-name') : null)
+      : null;
+
     const newConversation: Conversation = {
       id,
       sessionId: newSessionId,
@@ -391,8 +399,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
-      apiKey: defaultApiKey,
-      apiUrl: defaultApiUrl
+      // In middleware mode, use adapter name instead of API key
+      apiKey: isMiddlewareEnabled ? undefined : defaultApiKey,
+      apiUrl: defaultApiUrl,
+      adapterName: storedAdapterName || undefined
     };
 
     // Update state with new conversation and switch to its session
@@ -413,23 +423,29 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       };
     });
 
-    // Reconfigure API with the new session ID and the default API key
+    // Reconfigure API with the new session ID and the default API key/adapter
     ensureApiConfigured().then(isConfigured => {
       if (isConfigured) {
         getApi().then(api => {
-          api.configureApi(defaultApiUrl, defaultApiKey, newSessionId);
-          
-          // Load adapter info for the default key when creating a new conversation
+          // Configure API based on mode
+          if (isMiddlewareEnabled && storedAdapterName) {
+            api.configureApi(defaultApiUrl, null, newSessionId, storedAdapterName);
+          } else {
+            api.configureApi(defaultApiUrl, defaultApiKey, newSessionId);
+          }
+
+          // Load adapter info for the new conversation
           try {
             const validationClient = new api.ApiClient({
               apiUrl: defaultApiUrl,
-              apiKey: defaultApiKey,
-              sessionId: null
+              apiKey: isMiddlewareEnabled ? null : defaultApiKey,
+              sessionId: null,
+              adapterName: isMiddlewareEnabled ? storedAdapterName : null
             });
-            
+
             if (typeof validationClient.getAdapterInfo === 'function') {
               validationClient.getAdapterInfo().then(adapterInfo => {
-                debugLog('✅ Adapter info loaded for default key in new conversation:', adapterInfo);
+                debugLog('✅ Adapter info loaded for new conversation:', adapterInfo);
                 const currentState = useChatStore.getState();
                 useChatStore.setState({
                   conversations: currentState.conversations.map(conv =>
@@ -439,11 +455,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                   )
                 });
               }).catch((error) => {
-                debugWarn('Failed to load adapter info for default key in new conversation:', error);
+                debugWarn('Failed to load adapter info for new conversation:', error);
               });
             }
           } catch (error) {
-            debugWarn('Failed to load adapter info for default key:', error);
+            debugWarn('Failed to load adapter info:', error);
           }
         });
       }

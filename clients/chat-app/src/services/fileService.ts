@@ -8,7 +8,7 @@ import { getApi } from '../api/loader';
 import { FileAttachment } from '../types';
 import { debugLog, debugWarn, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { getDefaultKey, getApiUrl, DEFAULT_API_URL } from '../utils/runtimeConfig';
+import { getDefaultKey, getApiUrl, DEFAULT_API_URL, getEnableApiMiddleware } from '../utils/runtimeConfig';
 
 // Default API key from runtime configuration
 const DEFAULT_API_KEY = getDefaultKey();
@@ -157,8 +157,7 @@ export class FileUploadService {
       // Use provided API key/adapter/URL if available, otherwise fall back to localStorage
       const api = await getApi();
       const resolvedApiUrl = determineApiUrl(apiUrl);
-      const isMiddlewareEnabled = typeof window !== 'undefined' && 
-        (window as any).ORBIT_CHAT_CONFIG?.enableApiMiddleware === true;
+      const isMiddlewareEnabled = getEnableApiMiddleware();
       
       let resolvedApiKey: string | null = null;
       let resolvedAdapterName: string | null = null;
@@ -231,7 +230,16 @@ export class FileUploadService {
       try {
         // Poll every 2 seconds for up to 60 seconds (30 attempts)
         // Note: checkMounted parameter not available in this context, but errors will be caught
-        fileInfo = await this.pollFileStatus(response.file_id, 30, 2000);
+        // Pass API credentials for middleware mode support
+        fileInfo = await this.pollFileStatus(
+          response.file_id,
+          30,
+          2000,
+          undefined, // checkMounted
+          resolvedApiKey ?? undefined,
+          resolvedApiUrl,
+          resolvedAdapterName ?? undefined
+        );
       } catch (error: any) {
         // If polling fails, times out, or file was deleted, return the initial response
         // This allows the UI to handle the state appropriately
@@ -341,33 +349,32 @@ export class FileUploadService {
     try {
       const api = await getApi();
       const resolvedApiUrl = determineApiUrl(apiUrl);
-      const isMiddlewareEnabled = typeof window !== 'undefined' && 
-        (window as any).ORBIT_CHAT_CONFIG?.enableApiMiddleware === true;
-      
+      const isMiddlewareEnabled = getEnableApiMiddleware();
+
       let resolvedApiKey: string | null = null;
       let resolvedAdapterName: string | null = null;
-      
+
       if (isMiddlewareEnabled) {
-        resolvedAdapterName = adapterName || 
+        resolvedAdapterName = adapterName ||
           (typeof window !== 'undefined' ? localStorage.getItem('chat-adapter-name') : null);
-        
+
         if (!resolvedAdapterName) {
           throw new Error('Adapter not configured');
         }
       } else {
-        resolvedApiKey = apiKey || 
-          localStorage.getItem('chat-api-key') || 
+        resolvedApiKey = apiKey ||
+          localStorage.getItem('chat-api-key') ||
           (window as any).CHATBOT_API_KEY ||
           DEFAULT_API_KEY;
-        
+
         if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
           throw new Error('API key not configured');
         }
       }
 
-      const client = new api.ApiClient({ 
-        apiUrl: resolvedApiUrl, 
-        apiKey: resolvedApiKey, 
+      const client = new api.ApiClient({
+        apiUrl: resolvedApiUrl,
+        apiKey: resolvedApiKey,
         sessionId: null,
         adapterName: resolvedAdapterName
       });
@@ -376,7 +383,9 @@ export class FileUploadService {
         throw new Error('File listing is not available. Please use the local API build or update the npm package.');
       }
 
-      const files = await client.listFiles();
+      const filesResponse = await client.listFiles();
+      // Handle both array response and { files: [...] } response format
+      const files = Array.isArray(filesResponse) ? filesResponse : (filesResponse as any).files || [];
       
       // Convert server response to FileAttachment format
       return files.map(file => ({
@@ -407,25 +416,24 @@ export class FileUploadService {
     try {
       const api = await getApi();
       const resolvedApiUrl = determineApiUrl(apiUrl);
-      const isMiddlewareEnabled = typeof window !== 'undefined' && 
-        (window as any).ORBIT_CHAT_CONFIG?.enableApiMiddleware === true;
-      
+      const isMiddlewareEnabled = getEnableApiMiddleware();
+
       let resolvedApiKey: string | null = null;
       let resolvedAdapterName: string | null = null;
-      
+
       if (isMiddlewareEnabled) {
-        resolvedAdapterName = adapterName || 
+        resolvedAdapterName = adapterName ||
           (typeof window !== 'undefined' ? localStorage.getItem('chat-adapter-name') : null);
-        
+
         if (!resolvedAdapterName) {
           throw new Error('Adapter not configured');
         }
       } else {
-        resolvedApiKey = apiKey || 
-          localStorage.getItem('chat-api-key') || 
+        resolvedApiKey = apiKey ||
+          localStorage.getItem('chat-api-key') ||
           (window as any).CHATBOT_API_KEY ||
           DEFAULT_API_KEY;
-        
+
         if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
           throw new Error('API key not configured');
         }
@@ -466,11 +474,14 @@ export class FileUploadService {
 
   /**
    * Poll file status until processing is complete
-   * 
+   *
    * @param fileId - The file ID to poll
    * @param maxAttempts - Maximum number of polling attempts (default: 30)
    * @param pollInterval - Interval between polls in milliseconds (default: 2000)
    * @param checkMounted - Optional function to check if component is still mounted
+   * @param apiKey - Optional API key for authentication
+   * @param apiUrl - Optional API URL
+   * @param adapterName - Optional adapter name for middleware mode
    * @returns Promise resolving to file attachment metadata when processing is complete
    * @throws Error if polling times out or fails
    */
@@ -478,7 +489,10 @@ export class FileUploadService {
     fileId: string,
     maxAttempts: number = 30,
     pollInterval: number = 2000,
-    checkMounted?: () => boolean
+    checkMounted?: () => boolean,
+    apiKey?: string,
+    apiUrl?: string,
+    adapterName?: string
   ): Promise<FileAttachment> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
@@ -487,7 +501,7 @@ export class FileUploadService {
           throw new Error(`Polling cancelled - component unmounted`);
         }
 
-        const fileInfo = await this.getFileInfo(fileId);
+        const fileInfo = await this.getFileInfo(fileId, apiKey, apiUrl, adapterName);
         
         // If processing is complete, return the file info
         if (fileInfo.processing_status === 'completed') {
@@ -543,25 +557,24 @@ export class FileUploadService {
     try {
       const api = await getApi();
       const resolvedApiUrl = determineApiUrl(apiUrl);
-      const isMiddlewareEnabled = typeof window !== 'undefined' && 
-        (window as any).ORBIT_CHAT_CONFIG?.enableApiMiddleware === true;
-      
+      const isMiddlewareEnabled = getEnableApiMiddleware();
+
       let resolvedApiKey: string | null = null;
       let resolvedAdapterName: string | null = null;
-      
+
       if (isMiddlewareEnabled) {
-        resolvedAdapterName = adapterName || 
+        resolvedAdapterName = adapterName ||
           (typeof window !== 'undefined' ? localStorage.getItem('chat-adapter-name') : null);
-        
+
         if (!resolvedAdapterName) {
           throw new Error('Adapter not configured');
         }
       } else {
-        resolvedApiKey = apiKey || 
-          localStorage.getItem('chat-api-key') || 
+        resolvedApiKey = apiKey ||
+          localStorage.getItem('chat-api-key') ||
           (window as any).CHATBOT_API_KEY ||
           DEFAULT_API_KEY;
-        
+
         if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
           throw new Error('API key not configured');
         }

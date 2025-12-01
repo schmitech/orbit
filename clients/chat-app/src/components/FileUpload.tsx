@@ -14,7 +14,6 @@ const DEFAULT_API_KEY = getDefaultKey();
 const uploadingFilesStore = new Map<string, Map<string, FileUploadProgress>>();
 const uploadedFilesStore = new Map<string, FileAttachment[]>();
 const uploadedFileIdsStore = new Map<string, string>();
-const middlewareEnabled = getEnableApiMiddleware();
 
 const getStoredAdapterName = (): string | null => {
   if (typeof window === 'undefined') {
@@ -225,7 +224,8 @@ export function FileUpload({
             if (conversationId) {
               await removeFileFromConversation(conversationId, fileId);
             } else {
-              const adapterName = middlewareEnabled ? getStoredAdapterName() : null;
+              const isMiddlewareEnabled = getEnableApiMiddleware();
+              const adapterName = isMiddlewareEnabled ? getStoredAdapterName() : null;
               await FileUploadService.deleteFile(fileId, undefined, undefined, adapterName ?? undefined);
             }
           } catch (error) {
@@ -285,8 +285,8 @@ export function FileUpload({
       }
     }
 
-    const isMiddlewareEnabled = middlewareEnabled;
-    
+    const isMiddlewareEnabled = getEnableApiMiddleware();
+
     if (isMiddlewareEnabled) {
       if (!conversation.adapterName) {
         onUploadError?.('Adapter not configured for this conversation. Please select an adapter first.');

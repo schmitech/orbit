@@ -279,7 +279,9 @@ export function getEnableConversationThreads(): boolean {
 }
 
 export function getEnableApiMiddleware(): boolean {
-  return runtimeConfig.enableApiMiddleware;
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  // This is important because the config may be injected after the module loads
+  return getConfigValue('enableApiMiddleware', false, 'boolean');
 }
 
 export function getShowGitHubStats(): boolean {

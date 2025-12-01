@@ -201,26 +201,36 @@ function createMiddlewareApi(baseApi: LocalApiModule): ApiFunctions {
         sourceLanguage?: string,
         targetLanguage?: string
       ): AsyncGenerator<StreamResponse> {
+        // Build request body matching node-api behavior
+        const requestBody: Record<string, unknown> = {
+          messages: [{ role: 'user', content: message }],
+          stream: stream !== false,
+        };
+        // Only include file_ids if non-empty array (matches node-api behavior)
+        if (fileIds && fileIds.length > 0) {
+          requestBody.file_ids = fileIds;
+        }
+        // Only include thread_id if provided
+        if (threadId) {
+          requestBody.thread_id = threadId;
+        }
+        // Include optional audio parameters only if provided
+        if (audioInput) requestBody.audio_input = audioInput;
+        if (audioFormat) requestBody.audio_format = audioFormat;
+        if (language) requestBody.language = language;
+        if (returnAudio !== undefined) requestBody.return_audio = returnAudio;
+        if (ttsVoice) requestBody.tts_voice = ttsVoice;
+        if (sourceLanguage) requestBody.source_language = sourceLanguage;
+        if (targetLanguage) requestBody.target_language = targetLanguage;
+
         const response = await fetch('/api/proxy/v1/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-Adapter-Name': adapterName!,
             ...(sessionId ? { 'X-Session-ID': sessionId } : {}),
-            ...(threadId ? { 'X-Thread-ID': threadId } : {}),
           },
-          body: JSON.stringify({
-            messages: [{ role: 'user', content: message }],
-            stream: stream !== false,
-            file_ids: fileIds,
-            audio_input: audioInput,
-            audio_format: audioFormat,
-            language,
-            return_audio: returnAudio,
-            tts_voice: ttsVoice,
-            source_language: sourceLanguage,
-            target_language: targetLanguage,
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
@@ -381,7 +391,9 @@ function createMiddlewareApi(baseApi: LocalApiModule): ApiFunctions {
           },
         });
         if (!response.ok) throw new Error(`Failed to list files: ${response.statusText}`);
-        return response.json();
+        const data = await response.json();
+        // Handle both array response and { files: [...] } response format
+        return Array.isArray(data) ? data : (data.files || []);
       },
 
       async getFileInfo(fileId: string) {
