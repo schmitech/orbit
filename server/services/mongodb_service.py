@@ -235,6 +235,76 @@ class MongoDBService(DatabaseService):
         else:
             return data
 
+    def _sanitize_document(self, data: Any) -> Any:
+        """
+        Recursively sanitize document to ensure all values are MongoDB/BSON serializable.
+        Converts non-serializable objects (like ObjectApiResponse) to dictionaries.
+
+        Args:
+            data: Data to sanitize (dict, list, or any value)
+
+        Returns:
+            Sanitized data with all non-serializable objects converted to dictionaries
+        """
+        # Handle dictionaries
+        if isinstance(data, dict):
+            return {key: self._sanitize_document(value) for key, value in data.items()}
+        
+        # Handle lists
+        elif isinstance(data, list):
+            return [self._sanitize_document(item) for item in data]
+        
+        # Handle ObjectApiResponse and similar objects that have a dict-like structure
+        elif hasattr(data, '__dict__') or hasattr(data, 'body'):
+            # Check for ObjectApiResponse specifically - it usually has a 'body' attribute
+            if hasattr(data, 'body'):
+                try:
+                    body = data.body
+                    # If body is a dict, recursively sanitize it
+                    if isinstance(body, dict):
+                        return self._sanitize_document(body)
+                    # If body is already serializable, return it
+                    elif isinstance(body, (str, int, float, bool, type(None))):
+                        return body
+                    # Otherwise, recursively sanitize the body
+                    else:
+                        return self._sanitize_document(body)
+                except Exception:
+                    pass
+            
+            # Try to convert object to dict if it has a to_dict method
+            if hasattr(data, 'to_dict'):
+                try:
+                    return self._sanitize_document(data.to_dict())
+                except Exception:
+                    pass
+            
+            # Try dict-like access (some response objects support this)
+            try:
+                if hasattr(data, 'get') and callable(data.get):
+                    # Try to convert to dict using dict() constructor if possible
+                    return self._sanitize_document(dict(data))
+            except Exception:
+                pass
+            
+            # Try to convert using __dict__
+            if hasattr(data, '__dict__'):
+                try:
+                    return self._sanitize_document(data.__dict__)
+                except Exception:
+                    pass
+            
+            # Last resort: convert to string representation
+            return str(data)
+        
+        # Handle datetime objects (already handled by BSON, but ensure timezone awareness)
+        elif isinstance(data, datetime):
+            return data
+        
+        # Return primitive types as-is
+        else:
+            return data
+
     async def find_one(self, collection_name: str, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Find a single document in a collection
@@ -320,11 +390,14 @@ class MongoDBService(DatabaseService):
 
         try:
             collection = self.get_collection(collection_name)
-            result = await collection.insert_one(document)
+            # Sanitize document to ensure all values are MongoDB/BSON serializable
+            sanitized_document = self._sanitize_document(document)
+            result = await collection.insert_one(sanitized_document)
             # Convert ObjectId to string for JSON serialization
             return id_to_string(result.inserted_id)
         except Exception as e:
             logger.error(f"Error inserting document into {collection_name}: {str(e)}")
+            logger.error(f"Document that failed: {str(document)[:500]}...")  # Log first 500 chars for debugging
             return None
     
     async def update_one(self, collection_name: str, query: Dict[str, Any], update: Dict[str, Any]) -> bool:
