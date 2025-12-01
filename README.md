@@ -26,11 +26,11 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 
 > ⭐️ If ORBIT helps you ship faster, please consider starring the repo to support the roadmap.
 
-**Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
-**Updates:** Check the [changelog](CHANGELOG.md)
-**Maintained by:** [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/)
+- **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
+- **Updates:** Check the [changelog](CHANGELOG.md)
+- **Maintained by:** [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/)
 
-ORBIT is not affiliated with, endorsed by, or funded by any organization. ORBIT is provided free of charge with no commercial intent.
+> **Important:** ORBIT is not affiliated with, endorsed by, or funded by any organization. ORBIT is provided **free of charge** with **no commercial intent** or sales purposes.
 
 ## Table of Contents
 
