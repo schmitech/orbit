@@ -106,45 +106,48 @@ class DoclingProcessor(FileProcessor):
         if not DOCLING_AVAILABLE:
             raise ImportError("docling not available")
 
-        logger.debug(f"DoclingProcessor.extract_text() called for file: {filename or 'unknown'}")
+        logger.info(f"[Docling] Starting text extraction for: {filename or 'unknown'} ({len(file_data)} bytes)")
 
         # Lazy initialization - only create converter when actually processing a file
         self._ensure_initialized()
-        
+
         if not self._converter:
             raise RuntimeError("Docling converter failed to initialize")
-        
+
         text_parts = []
-        
+
         try:
             # Docling requires a file path, so we'll create a temporary file
             with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                 temp_file.write(file_data)
                 temp_path = temp_file.name
-            
+
             try:
+                logger.debug(f"[Docling] Converting document to markdown...")
                 # Convert document
                 result = self._converter.convert(temp_path)
-                
+
                 # Extract text from document
                 # Docling provides rich document structure
                 if hasattr(result, 'document'):
                     doc = result.document
-                    
+
                     # Export to markdown for clean text extraction
                     markdown_text = doc.export_to_markdown()
                     if markdown_text:
                         text_parts.append(markdown_text)
-            
+
             finally:
                 # Clean up temp file
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
-            
-            return "\n\n".join(text_parts)
-        
+
+            extracted_text = "\n\n".join(text_parts)
+            logger.info(f"[Docling] Successfully extracted {len(extracted_text)} characters from {filename or 'unknown'}")
+            return extracted_text
+
         except Exception as e:
-            logger.error(f"Error processing document with Docling: {e}")
+            logger.error(f"[Docling] Error processing document '{filename or 'unknown'}': {e}")
             raise
     
     async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:

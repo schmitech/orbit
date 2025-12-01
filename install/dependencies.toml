@@ -133,6 +133,7 @@ dependencies = [
     "python-magic>=0.4.27",
     "filetype>=1.2.0",
     "docling>=2.58.0",
+    "markitdown[all]>=0.1.4",
     "pyarrow>=22.0.0",
     "markdown>=3.9",
     "nh3>=0.3.0",

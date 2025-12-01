@@ -20,7 +20,7 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "ollama"
+  inference_provider: "llama_cpp"
 
 language_detection:
   enabled: true
@@ -145,6 +145,18 @@ logging:
       level: "WARNING"
     PIL.Image:
       level: "WARNING"
+    pdfminer:
+      level: "WARNING"
+      propagate: false
+    pdfminer.psparser:
+      level: "WARNING"
+      propagate: false
+    pdfminer.pdfdocument:
+      level: "WARNING"
+      propagate: false
+    pdfminer.pdfinterp:
+      level: "WARNING"
+      propagate: false
 
 clock_service:
   enabled: true
@@ -231,6 +243,26 @@ files:
     # When disabled, docling will not be initialized until actually needed (lazy initialization)
     # Default: true (enabled)
     docling_enabled: true
+
+    # MarkItDown processor configuration (Microsoft's document-to-markdown converter)
+    # Set to true to enable MarkItDown as an alternative/fallback document processor
+    # Supports: PDF, DOCX, PPTX, XLSX, XLS, HTML, CSV, JSON, XML, images, audio, ZIP, EPUB
+    # Requires: pip install markitdown[all]
+    # Default: false (opt-in)
+    markitdown_enabled: true
+
+    # Processor priority when multiple universal processors are enabled
+    # Determines which processor is tried first for overlapping MIME types
+    # Options: "docling" (default), "markitdown", "native"
+    # - docling: Try Docling first (advanced document understanding)
+    # - markitdown: Try MarkItDown first (clean markdown conversion)
+    # - native: Only use native Python processors (no universal processors)
+    processor_priority: "docling"
+
+    # MarkItDown-specific options
+    markitdown:
+      # Enable third-party plugins (default: false for security)
+      enable_plugins: false
   
   # Tokenizer configuration (optional)
   # If not specified, uses character-based tokenization

@@ -377,7 +377,7 @@ function createServer(distPath, config) {
   }));
 
   // SPA fallback - serve index.html for all non-file requests
-  app.get('*', (req, res, next) => {
+  app.get(/.*/, (req, res, next) => {
     // Skip API routes
     if (req.path.startsWith('/api/')) {
       return next();

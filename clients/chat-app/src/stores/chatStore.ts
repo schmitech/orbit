@@ -2023,6 +2023,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 const initializeStore = async () => {
   // Then initialize the rest of the store
   const saved = localStorage.getItem('chat-state');
+  const runtimeApiUrl = getApiUrl();
+  const hasStoredApiOverride = typeof window !== 'undefined'
+    ? Boolean(localStorage.getItem('chat-api-url'))
+    : false;
   let sessionId = getOrCreateSessionId(); // Default session ID
   let hasExistingConversations = false;
   
@@ -2031,28 +2035,44 @@ const initializeStore = async () => {
       const parsedState = JSON.parse(saved);
       // Restore Date objects and clean up any streaming messages
       // For backward compatibility: initialize conversations without apiKey/apiUrl with 'default-key'
-      parsedState.conversations = parsedState.conversations.map((conv: any) => ({
-        ...conv,
-        sessionId: conv.sessionId || generateUniqueSessionId(), // Generate sessionId for existing conversations if missing
-        createdAt: new Date(conv.createdAt),
-        updatedAt: new Date(conv.updatedAt),
-        attachedFiles: conv.attachedFiles || [], // Ensure attachedFiles exists
-        // Preserve existing API keys - only use default if missing (backward compatibility)
-        // This ensures existing conversations maintain their associated API keys
-        apiKey: conv.apiKey || DEFAULT_API_KEY,
-        apiUrl: resolveApiUrl(conv.apiUrl),
-        // Preserve adapterInfo if it exists
-        adapterInfo: conv.adapterInfo || undefined,
-        currentThreadId: undefined,
-        currentThreadSessionId: undefined,
-        messages: conv.messages
-          .filter((msg: any) => !(msg.role === 'assistant' && msg.isStreaming)) // Remove any streaming messages
-          .map((msg: any) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp),
-            isStreaming: false // Ensure no messages are marked as streaming
-          }))
-      }));
+      parsedState.conversations = parsedState.conversations.map((conv: any) => {
+        const normalizedConversation = {
+          ...conv,
+          sessionId: conv.sessionId || generateUniqueSessionId(), // Generate sessionId for existing conversations if missing
+          createdAt: new Date(conv.createdAt),
+          updatedAt: new Date(conv.updatedAt),
+          attachedFiles: conv.attachedFiles || [], // Ensure attachedFiles exists
+          // Preserve existing API keys - only use default if missing (backward compatibility)
+          // This ensures existing conversations maintain their associated API keys
+          apiKey: conv.apiKey || DEFAULT_API_KEY,
+          // Preserve adapterInfo if it exists
+          adapterInfo: conv.adapterInfo || undefined,
+          currentThreadId: undefined,
+          currentThreadSessionId: undefined,
+          messages: conv.messages
+            .filter((msg: any) => !(msg.role === 'assistant' && msg.isStreaming)) // Remove any streaming messages
+            .map((msg: any) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp),
+              isStreaming: false // Ensure no messages are marked as streaming
+            }))
+        };
+
+        // If the user hasn't configured a custom API URL yet, make sure empty placeholder
+        // conversations always follow the runtime config that the CLI injected.
+        const isPlaceholderConversation =
+          normalizedConversation.messages.length === 0 &&
+          (!normalizedConversation.apiKey || normalizedConversation.apiKey === DEFAULT_API_KEY);
+
+        const apiUrl = isPlaceholderConversation && !hasStoredApiOverride
+          ? runtimeApiUrl
+          : resolveApiUrl(conv.apiUrl);
+
+        return {
+          ...normalizedConversation,
+          apiUrl
+        };
+      });
       
       // Check if we have existing conversations
       hasExistingConversations = parsedState.conversations && parsedState.conversations.length > 0;

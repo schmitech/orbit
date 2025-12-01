@@ -32,14 +32,36 @@ class FileProcessorRegistry:
     
     def _register_builtin_processors(self):
         """Register built-in file processors."""
-        # Check if docling is enabled in config
-        # Default to enabled for backward compatibility
+        # Check processor configuration
         files_config = self.config.get('files', {})
         processing_config = files_config.get('processing', {})
+
+        # Universal processor settings
         docling_enabled = processing_config.get('docling_enabled', True)
-        
-        # Register Docling first (universal processor, acts as fallback)
-        if docling_enabled:
+        markitdown_enabled = processing_config.get('markitdown_enabled', False)
+        processor_priority = processing_config.get('processor_priority', 'docling')
+
+        # MarkItDown specific config
+        markitdown_config = processing_config.get('markitdown', {})
+        enable_plugins = markitdown_config.get('enable_plugins', False)
+
+        # Register universal processors based on priority
+        # First registered processor gets priority for overlapping MIME types
+        if processor_priority == 'markitdown':
+            # MarkItDown first, Docling as fallback
+            self._register_markitdown(markitdown_enabled, enable_plugins)
+            self._register_docling(docling_enabled)
+        else:
+            # Docling first (default), MarkItDown as fallback
+            self._register_docling(docling_enabled)
+            self._register_markitdown(markitdown_enabled, enable_plugins)
+
+        # Register native format-specific processors as final fallback
+        self._register_native_processors()
+
+    def _register_docling(self, enabled: bool):
+        """Register Docling processor if enabled."""
+        if enabled:
             try:
                 from .docling_processor import DoclingProcessor
                 self.register(DoclingProcessor(enabled=True))
@@ -48,6 +70,20 @@ class FileProcessorRegistry:
                 logger.debug(f"DoclingProcessor not available: {e}")
         else:
             logger.info("Docling processor is disabled in configuration (prevents outbound connections to HuggingFace)")
+
+    def _register_markitdown(self, enabled: bool, enable_plugins: bool = False):
+        """Register MarkItDown processor if enabled."""
+        if enabled:
+            try:
+                from .markitdown_processor import MarkItDownProcessor
+                self.register(MarkItDownProcessor(enabled=True, enable_plugins=enable_plugins))
+                logger.info("Registered MarkItDownProcessor (Microsoft MarkItDown for document conversion)")
+            except ImportError as e:
+                logger.debug(f"MarkItDownProcessor not available: {e}")
+        else:
+            logger.debug("MarkItDown processor is disabled in configuration")
+
+    def _register_native_processors(self):
         
         # Register format-specific processors
         try:
@@ -129,12 +165,14 @@ class FileProcessorRegistry:
             if processor.supports_mime_type(mime_type):
                 processor_name = processor.__class__.__name__
                 if processor_name == "DoclingProcessor":
-                    logger.debug(f"Selected DoclingProcessor for MIME type '{mime_type}' (advanced document understanding)")
+                    logger.info(f"[ProcessorRegistry] Selected DoclingProcessor for MIME type '{mime_type}'")
+                elif processor_name == "MarkItDownProcessor":
+                    logger.info(f"[ProcessorRegistry] Selected MarkItDownProcessor for MIME type '{mime_type}'")
                 else:
-                    logger.debug(f"Selected {processor_name} for MIME type '{mime_type}' (format-specific processor)")
+                    logger.info(f"[ProcessorRegistry] Selected {processor_name} for MIME type '{mime_type}'")
                 return processor
 
-        logger.debug(f"No processor found for MIME type '{mime_type}'")
+        logger.warning(f"[ProcessorRegistry] No processor found for MIME type '{mime_type}'")
         return None
     
     def list_supported_types(self) -> List[str]:

@@ -249,8 +249,9 @@ class FileProcessingService:
                 use_tokens=use_tokens,
                 tokenizer=tokenizer
             )
-            mode = "token-based" if use_tokens else "character-based"
-            logger.debug(f"  Fixed-size chunker configured: mode={mode}")
+            if logger.isEnabledFor(logging.DEBUG):
+                mode = "token-based" if use_tokens else "character-based"
+                logger.debug(f"  Fixed-size chunker configured: mode={mode}")
             return chunker
 
     async def _get_vision_provider_for_api_key(self, api_key: str) -> str:
@@ -718,8 +719,16 @@ class FileProcessingService:
         if not processor:
             raise ValueError(f"No processor available for MIME type: {mime_type}")
 
+        if logger.isEnabledFor(logging.DEBUG):
+            processor_name = processor.__class__.__name__
+            logger.debug(f"Processing file '{filename}' (MIME: {mime_type}) with {processor_name}")
+
         text = await processor.extract_text(file_data, filename)
         metadata = await processor.extract_metadata(file_data, filename)
+
+        if logger.isEnabledFor(logging.DEBUG):
+            processor_name = processor.__class__.__name__
+            logger.debug(f"Extraction complete for '{filename}': {len(text)} chars extracted by {processor_name}")
 
         return text, metadata
     
@@ -815,16 +824,18 @@ class FileProcessingService:
         Returns:
             List of Chunk objects
         """
-        strategy_name = self.chunker.__class__.__name__
-        logger.debug(f"Chunking content for file {file_id} using strategy: {strategy_name}")
-        logger.debug(f"  Text length: {len(text)} characters")
+        if logger.isEnabledFor(logging.DEBUG):
+            strategy_name = self.chunker.__class__.__name__
+            logger.debug(f"Chunking content for file {file_id} using strategy: {strategy_name}")
+            logger.debug(f"  Text length: {len(text)} characters")
 
         chunks = self.chunker.chunk_text(text, file_id, metadata)
 
-        logger.debug(f"  Created {len(chunks)} chunks from file {file_id}")
-        if chunks:
-            avg_chunk_size = sum(len(c.text) for c in chunks) / len(chunks)
-            logger.debug(f"  Average chunk size: {avg_chunk_size:.0f} characters")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"  Created {len(chunks)} chunks from file {file_id}")
+            if chunks:
+                avg_chunk_size = sum(len(c.text) for c in chunks) / len(chunks)
+                logger.debug(f"  Average chunk size: {avg_chunk_size:.0f} characters")
         
         return chunks
     
