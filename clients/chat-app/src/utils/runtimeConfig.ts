@@ -76,9 +76,27 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
 };
 
 /**
+ * Check if window.ORBIT_CHAT_CONFIG has been injected by CLI
+ * This is set by the orbitchat CLI when serving the app
+ */
+function hasCliConfig(): boolean {
+  return typeof window !== 'undefined' && isRuntimeConfig((window as any).ORBIT_CHAT_CONFIG);
+}
+
+/**
  * Get a configuration value from multiple sources
+ *
+ * Priority order:
+ * 1. window.ORBIT_CHAT_CONFIG (injected by CLI at runtime - HIGHEST priority)
+ * 2. window.CHATBOT_* (legacy window variables)
+ * 3. import.meta.env.VITE_* (build-time env vars - ONLY used if no CLI config exists)
+ * 4. Default values
+ *
  * Note: GitHub-related config (showGitHubStats, githubOwner, githubRepo) is only
  * configurable via build-time env vars for developers who fork the repo.
+ *
+ * IMPORTANT: When CLI config is present, we ONLY use CLI values and defaults.
+ * Build-time env vars are ignored to ensure CLI arguments always take precedence.
  */
 function getConfigValue<T>(
   key: keyof RuntimeConfig,
@@ -87,16 +105,22 @@ function getConfigValue<T>(
 ): T {
   // GitHub config is only configurable via build-time env vars (for forkers)
   const isGitHubConfig = key === 'showGitHubStats' || key === 'githubOwner' || key === 'githubRepo';
-  
+
+  // Check if CLI config exists - if so, we prioritize it completely over env vars
+  const cliConfigExists = hasCliConfig();
+
   if (!isGitHubConfig) {
     // Check window.ORBIT_CHAT_CONFIG first (injected by CLI)
-    if (typeof window !== 'undefined' && isRuntimeConfig((window as any).ORBIT_CHAT_CONFIG)) {
+    if (cliConfigExists) {
       const value = (window as any).ORBIT_CHAT_CONFIG[key];
       if (value !== undefined && value !== null) {
         return value as T;
       }
+      // If CLI config exists but this key is not set, fall through to defaults
+      // Do NOT check env vars - CLI config takes complete precedence
+      return defaultValue;
     }
-    
+
     // Check legacy window.CHATBOT_* variables
     if (typeof window !== 'undefined') {
       const win = window as any;
@@ -110,11 +134,12 @@ function getConfigValue<T>(
       }
     }
   }
-  
+
   // Check import.meta.env.VITE_* (build-time, for development and forkers)
+  // ONLY used when no CLI config is present
   const envKey = envKeyMap[key];
   const envValue = envKey ? (import.meta.env as any)[envKey] : undefined;
-  
+
   if (envValue !== undefined && envValue !== null && envValue !== '') {
     if (type === 'boolean') {
       return (envValue === 'true') as T;
@@ -130,7 +155,7 @@ function getConfigValue<T>(
       return envValue as T;
     }
   }
-  
+
   // Return default value
   return defaultValue;
 }
@@ -251,36 +276,42 @@ export function getDefaultKey(): string {
 }
 
 export function getUseLocalApi(): boolean {
-  return runtimeConfig.useLocalApi;
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  return getConfigValue('useLocalApi', false, 'boolean');
 }
 
 export function getLocalApiPath(): string | undefined {
-  return runtimeConfig.localApiPath;
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  return getConfigValue('localApiPath', undefined, 'string');
 }
 
 export function getConsoleDebug(): boolean {
-  return runtimeConfig.consoleDebug;
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  return getConfigValue('consoleDebug', false, 'boolean');
 }
 
 export function getEnableUploadButton(): boolean {
-  return runtimeConfig.enableUploadButton;
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  return getConfigValue('enableUploadButton', false, 'boolean');
 }
 
 export function getEnableAudioOutput(): boolean {
-  return runtimeConfig.enableAudioOutput;
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  return getConfigValue('enableAudioOutput', false, 'boolean');
 }
 
 export function getEnableFeedbackButtons(): boolean {
-  return runtimeConfig.enableFeedbackButtons;
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  return getConfigValue('enableFeedbackButtons', false, 'boolean');
 }
 
 export function getEnableConversationThreads(): boolean {
-  return runtimeConfig.enableConversationThreads;
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  return getConfigValue('enableConversationThreads', true, 'boolean');
 }
 
 export function getEnableApiMiddleware(): boolean {
   // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  // This is important because the config may be injected after the module loads
   return getConfigValue('enableApiMiddleware', false, 'boolean');
 }
 

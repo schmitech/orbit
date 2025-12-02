@@ -264,18 +264,23 @@ function mergeConfig(cliConfig, serverConfig) {
 
 /**
  * Inject configuration into HTML
+ * The config script MUST be placed in <head> BEFORE the main JS module loads,
+ * otherwise window.ORBIT_CHAT_CONFIG won't be available when the app initializes.
  */
 function injectConfig(html, config) {
-  const configScript = `
-    <script>
-      window.ORBIT_CHAT_CONFIG = ${JSON.stringify(config, null, 2)};
-    </script>
-  `;
-  
-  // Replace the placeholder script tag
-  return html.replace(
+  const configScript = `<script>window.ORBIT_CHAT_CONFIG = ${JSON.stringify(config)};</script>`;
+
+  // Remove the placeholder script tag (it's in body, too late)
+  html = html.replace(
     /<script id="orbit-chat-config" type="application\/json">[\s\S]*?<\/script>/,
-    configScript
+    '<!-- Config injected in head -->'
+  );
+
+  // Inject the config script at the START of <head>, before any other scripts
+  // This ensures window.ORBIT_CHAT_CONFIG is available when the main JS bundle loads
+  return html.replace(
+    /<head>/i,
+    '<head>\n    ' + configScript
   );
 }
 
@@ -366,65 +371,48 @@ function createServer(distPath, config) {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
-  // Serve static files
+  // IMPORTANT: Handle index.html BEFORE express.static to inject runtime config
+  // express.static would serve the file without config injection otherwise
+  app.get(['/', '/index.html'], (req, res) => {
+    try {
+      const indexPath = path.join(distPath, 'index.html');
+      let content = fs.readFileSync(indexPath, 'utf8');
+      content = injectConfig(content, config);
+      res.setHeader('Content-Type', 'text/html');
+      res.send(content);
+    } catch (error) {
+      console.error('Error serving index.html:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
+
+  // Serve static files (JS, CSS, images, etc.) - index.html is handled above
   app.use(express.static(distPath, {
-    setHeaders: (res, filePath) => {
-      // Inject config into HTML files
-      if (path.extname(filePath) === '.html') {
-        // This will be handled in the route handler
-      }
-    },
+    index: false, // Don't serve index.html automatically - we handle it above
   }));
 
-  // SPA fallback - serve index.html for all non-file requests
-  app.get(/.*/, (req, res, next) => {
+  // SPA fallback - serve index.html for all non-file routes (client-side routing)
+  app.get('/{*splat}', (req, res, next) => {
     // Skip API routes
     if (req.path.startsWith('/api/')) {
       return next();
     }
 
-    let filePath = path.join(distPath, req.path === '/' ? 'index.html' : req.path);
-    
-    // Security: prevent directory traversal
-    filePath = path.normalize(filePath);
-    if (!filePath.startsWith(path.normalize(distPath))) {
-      return res.status(403).send('Forbidden');
+    // Skip requests for files with extensions (let them 404)
+    if (path.extname(req.path)) {
+      return res.status(404).send('Not Found');
     }
 
-    // Check if file exists
-    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-      // Read and serve file
-      try {
-        let content = fs.readFileSync(filePath);
-        
-        // Inject configuration into HTML files
-        if (path.extname(filePath) === '.html') {
-          content = Buffer.from(injectConfig(content.toString(), config));
-        }
-
-        const mimeType = getMimeType(filePath);
-        res.setHeader('Content-Type', mimeType);
-        res.send(content);
-      } catch (error) {
-        console.error('Error serving file:', error);
-        res.status(500).send('Internal Server Error');
-      }
-    } else {
-      // For SPA routing, serve index.html for non-file requests
-      if (!path.extname(filePath)) {
-        filePath = path.join(distPath, 'index.html');
-        try {
-          let content = fs.readFileSync(filePath);
-          content = Buffer.from(injectConfig(content.toString(), config));
-          res.setHeader('Content-Type', 'text/html');
-          res.send(content);
-        } catch (error) {
-          console.error('Error serving index.html:', error);
-          res.status(500).send('Internal Server Error');
-        }
-      } else {
-        res.status(404).send('Not Found');
-      }
+    // Serve index.html for SPA routes
+    try {
+      const indexPath = path.join(distPath, 'index.html');
+      let content = fs.readFileSync(indexPath, 'utf8');
+      content = injectConfig(content, config);
+      res.setHeader('Content-Type', 'text/html');
+      res.send(content);
+    } catch (error) {
+      console.error('Error serving index.html:', error);
+      res.status(500).send('Internal Server Error');
     }
   });
 
