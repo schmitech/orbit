@@ -1,7 +1,19 @@
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { adaptersPlugin } from './vite-plugin-adapters';
+
+// Plugin to fix MaxListenersExceededWarning in development
+// Vite's HMR can add multiple close listeners
+const fixMaxListenersPlugin = () => ({
+  name: 'fix-max-listeners',
+  configureServer(server: ViteDevServer) {
+    // Increase max listeners to prevent warning during HMR
+    if (server.httpServer) {
+      server.httpServer.setMaxListeners(20);
+    }
+  },
+});
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -13,7 +25,7 @@ export default defineConfig(({ mode }) => {
     ? path.resolve(__dirname, '../node-api/dist')
     : path.resolve(__dirname, 'src/api/local-stub');
 
-  const plugins: any[] = [react()];
+  const plugins: any[] = [react(), fixMaxListenersPlugin()];
   
   // Add adapters plugin when middleware is enabled
   if (enableMiddleware) {
