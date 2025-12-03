@@ -8,11 +8,26 @@
 
 set -e
 
-# Default database file path
-DEFAULT_DB="examples/duckdb/analytics.duckdb"
+# Get script directory and resolve paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Default database file path (relative to script directory)
+DEFAULT_DB="$SCRIPT_DIR/analytics.duckdb"
 
 # Get database file from argument or use default
-DB_FILE="${1:-$DEFAULT_DB}"
+if [ -n "$1" ]; then
+    # If argument is provided, resolve it (could be relative or absolute)
+    if [[ "$1" == /* ]]; then
+        # Absolute path
+        DB_FILE="$1"
+    else
+        # Relative path - resolve from script directory
+        DB_FILE="$(cd "$SCRIPT_DIR" && cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+    fi
+else
+    # Use default (in script directory)
+    DB_FILE="$DEFAULT_DB"
+fi
 
 # Check if database file exists
 if [ ! -f "$DB_FILE" ]; then
@@ -23,15 +38,26 @@ if [ ! -f "$DB_FILE" ]; then
     echo "  If not provided, defaults to: $DEFAULT_DB"
     echo ""
     echo "To generate sample data, run:"
-    echo "  cd utils/duckdb-intent-template/examples/analytics"
-    echo "  python generate_analytics_data.py --output ../../../../examples/duckdb/analytics.duckdb"
+    echo "  cd $SCRIPT_DIR"
+    echo "  python3 generate_analytics_data.py --output $DB_FILE"
     exit 1
 fi
 
 # Check for venv and activate it if it exists
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
-VENV_PATH="$PROJECT_ROOT/venv"
+# Try to find project root by looking for common markers (venv, install/, etc.)
+PROJECT_ROOT=""
+if [ -d "$SCRIPT_DIR/../../../../venv" ]; then
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../" && pwd)"
+elif [ -d "$SCRIPT_DIR/../../../../../venv" ]; then
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../../" && pwd)"
+elif [ -d "$SCRIPT_DIR/../../../../../../venv" ]; then
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../../../" && pwd)"
+fi
+
+VENV_PATH=""
+if [ -n "$PROJECT_ROOT" ]; then
+    VENV_PATH="$PROJECT_ROOT/venv"
+fi
 
 if [ -d "$VENV_PATH" ]; then
     source "$VENV_PATH/bin/activate"
@@ -42,6 +68,8 @@ fi
 DUCKDB_CMD=""
 if command -v duckdb &> /dev/null; then
     DUCKDB_CMD="duckdb"
+elif python3 -c "import duckdb" 2>/dev/null; then
+    DUCKDB_CMD="python3"
 elif python -c "import duckdb" 2>/dev/null; then
     DUCKDB_CMD="python"
 else
@@ -49,10 +77,17 @@ else
     echo "Please install DuckDB:"
     echo "  pip install duckdb"
     echo ""
+    echo "Or install the databases profile:"
+    echo "  cd $PROJECT_ROOT && ./install/setup.sh --profile databases"
+    echo ""
     echo "Or install DuckDB CLI from: https://duckdb.org/docs/installation/"
     echo ""
     echo "Note: If using venv, make sure it's activated or run:"
-    echo "  source venv/bin/activate"
+    if [ -n "$VENV_PATH" ]; then
+        echo "  source $VENV_PATH/bin/activate"
+    else
+        echo "  source venv/bin/activate"
+    fi
     exit 1
 fi
 
@@ -91,14 +126,31 @@ $query
 EOF
     else
         # Use Python duckdb module with read-only mode
-        python <<EOF
+        $DUCKDB_CMD <<EOF
 import duckdb
 import sys
 
 # Connect in read-only mode to allow concurrent reads when Orbit is running
 conn = duckdb.connect('$DB_FILE', read_only=True)
-result = conn.execute('''$query''').fetchall()
-columns = [desc[0] for desc in conn.description] if conn.description else []
+
+# Execute query - DuckDB Python API returns a relation
+relation = conn.execute('''$query''')
+
+# Get column names from the relation's description
+columns = []
+try:
+    # DuckDB Python API: description is a list of tuples (name, type, ...)
+    if hasattr(relation, 'description') and relation.description:
+        columns = [desc[0] for desc in relation.description]
+except (AttributeError, TypeError):
+    pass
+
+# If we couldn't get columns, try fetching first row to determine width
+rows = relation.fetchall()
+
+if not columns and rows:
+    # Generate generic column names based on row width
+    columns = [f'col_{i+1}' for i in range(len(rows[0]))]
 
 # Print headers
 if columns:
@@ -107,8 +159,8 @@ if columns:
     print('-' * len(header))
     
 # Print rows
-for row in result:
-    print(' | '.join(str(val) for val in row))
+for row in rows:
+    print(' | '.join(str(val) if val is not None else 'NULL' for val in row))
     
 conn.close()
 EOF

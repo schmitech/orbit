@@ -400,9 +400,19 @@ def generate_employees(count: int, turnover_pct: float = 12.0) -> list:
         if is_terminated:
             # Termination happened sometime between hire and now
             # Weighted toward more recent (people who left long ago wouldn't be in recent data)
-            days_employed = random.randint(90, int((current_date - hire_date).days))
-            termination_date = hire_date + timedelta(days=days_employed)
-            status = 'terminated'
+            days_since_hire = int((current_date - hire_date).days)
+            
+            # Ensure valid range: terminated employees should have worked at least 90 days
+            # If hired less than 90 days ago, don't terminate them (override termination decision)
+            if days_since_hire < 90:
+                # Too recent to terminate - keep them active
+                termination_date = None
+                status = 'active'
+            else:
+                # Valid range: at least 90 days, up to days_since_hire
+                days_employed = random.randint(90, days_since_hire)
+                termination_date = hire_date + timedelta(days=days_employed)
+                status = 'terminated'
         else:
             termination_date = None
             status = 'active'
