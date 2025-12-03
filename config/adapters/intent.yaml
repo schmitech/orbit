@@ -4,16 +4,16 @@
 
 adapters:
   - name: "intent-sql-sqlite-contact"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "sqlite"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
-    database: "utils/sql-intent-template/examples/sqlite/contact/contact.db"
+    database: "utils/sql-intent-template/examples/sqlite/contact/hr.db"
     # Provider overrides - intent adapters benefit from powerful models
-    inference_provider: "ollama_cloud"    # Cloud LLM for complex intent classification
-    model: "gpt-oss:20b"           # Large model for better intent understanding
-    embedding_provider: "cohere"          # Local embeddings for template matching
+    inference_provider: "cohere"    # Cloud LLM for complex intent classification
+    # model: "gpt-oss:120b"           # Large model for better intent understanding
+    embedding_provider: "openai"          # Local embeddings for template matching
     # reranker_provider: "ollama"           # Optional: Jina AI reranker for template relevance
 
     config:
@@ -21,14 +21,14 @@ adapters:
       check_same_thread: false  # Allow multi-threaded access
 
       # Path to the domain definition file
-      domain_config_path: "utils/sql-intent-template/examples/sqlite/contact/contact-domain.yaml"
+      domain_config_path: "utils/sql-intent-template/examples/sqlite/contact/hr-domain.yaml"
       template_library_path:
-        - "utils/sql-intent-template/examples/sqlite/contact/contact-templates.yaml"
+        - "utils/sql-intent-template/examples/sqlite/contact/hr-templates.yaml"
 
       # Name for the vector store collection for templates
       template_collection_name: "contact_intent_templates"
       # Store configuration - references stores.yaml
-      store_name: "chroma"
+      store_name: "qdrant"
       confidence_threshold: 0.4
 
       # Maximum templates to consider
@@ -73,7 +73,7 @@ adapters:
       # Name for the vector store collection for templates
       template_collection_name: "classified_data_intent_templates"
       # Store configuration - references stores.yaml
-      store_name: "chroma"
+      store_name: "qdrant"
       confidence_threshold: 0.4
 
       # Maximum templates to consider
@@ -83,8 +83,8 @@ adapters:
       return_results: 100
 
       # Template loading settings
-      reload_templates_on_start: true  # Whether to reload templates on startup
-      force_reload_templates: true  # Force reload even if templates exist in storage
+      reload_templates_on_start: false  # Whether to reload templates on startup
+      force_reload_templates: false  # Force reload even if templates exist in storage
 
       # Unified retriever features
       use_connection_pool: false  # SQLite doesn't support traditional pooling (file-based)
@@ -104,7 +104,7 @@ adapters:
     database: "utils/duckdb-intent-template/examples/analytics/analytics.duckdb"
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    embedding_provider: "ollama"
+    embedding_provider: "openai"
     config:
       # Path to the domain definition file
       domain_config_path: "utils/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
@@ -114,7 +114,7 @@ adapters:
       # Name for the vector store collection for templates
       template_collection_name: "duckdb_analytics_templates"
       # Store configuration - references stores.yaml
-      store_name: "chroma"
+      store_name: "qdrant"
       confidence_threshold: 0.4
 
       # Maximum templates to consider
@@ -124,8 +124,8 @@ adapters:
       return_results: 100
 
       # Template loading settings
-      reload_templates_on_start: true  # Whether to reload templates on startup
-      force_reload_templates: true  # Force reload even if templates exist in storage
+      reload_templates_on_start: false  # Whether to reload templates on startup
+      force_reload_templates: false  # Force reload even if templates exist in storage
 
       # DuckDB-specific configuration
       # Database path is configured in datasources.yaml (defaults to examples/duckdb/analytics.duckdb)
@@ -148,7 +148,7 @@ adapters:
     database: "utils/duckdb-intent-template/examples/open-gov-travel-expenses/travel_expenses.duckdb"
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    embedding_provider: "ollama"
+    embedding_provider: "openai"
     config:
       # Path to the domain definition file
       domain_config_path: "utils/duckdb-intent-template/examples/open-gov-travel-expenses/travel_expenses_domain.yaml"
@@ -158,7 +158,7 @@ adapters:
       # Name for the vector store collection for templates
       template_collection_name: "duckdb_open_gov_travel_expenses_templates"
       # Store configuration - references stores.yaml
-      store_name: "chroma"
+      store_name: "qdrant"
       confidence_threshold: 0.4
 
       # Maximum templates to consider
@@ -168,8 +168,8 @@ adapters:
       return_results: 100
 
       # Template loading settings
-      reload_templates_on_start: true  # Whether to reload templates on startup
-      force_reload_templates: true  # Force reload even if templates exist in storage
+      reload_templates_on_start: false  # Whether to reload templates on startup
+      force_reload_templates: false  # Force reload even if templates exist in storage
 
       # DuckDB-specific configuration
       # Database path is configured in datasources.yaml (defaults to examples/duckdb/analytics.duckdb)
@@ -191,8 +191,8 @@ adapters:
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    embedding_provider: "cohere"
-    reranker_provider: "cohere"
+    embedding_provider: "openai"
+    # reranker_provider: "cohere"
 
     # Capabilities: Standard intent retriever
     # Note: Intent adapters use the same capabilities as QA adapters (always retrieve, standard formatting)
@@ -214,10 +214,10 @@ adapters:
         - "utils/sql-intent-template/examples/postgres/customer-orders/advanced_analytics_templates.yaml"
         - "utils/sql-intent-template/examples/postgres/customer-orders/comparative_analysis_templates.yaml"
       # Name for the vector store collection for templates
-      reranker_top_n: 40      # Optional: limit reranked results (overrides return_results)
+      # reranker_top_n: 40      # Optional: limit reranked results (overrides return_results)
       template_collection_name: "intent_query_templates"
       # Store configuration - references stores.yaml
-      store_name: "chroma"
+      store_name: "qdrant"
       confidence_threshold: 0.4
       # Maximum templates to consider
       max_templates: 5
@@ -259,7 +259,7 @@ adapters:
       # reranker_top_n: 3      # Optional: limit reranked results (overrides return_results)
       # Vector store configuration for template matching
       template_collection_name: "elasticsearch_logs_templates"
-      store_name: "chroma"  # References stores.yaml
+      store_name: "qdrant"  # References stores.yaml
 
       # Intent matching configuration
       confidence_threshold: 0.4
@@ -267,8 +267,8 @@ adapters:
       return_results: 10
 
       # Template loading settings
-      reload_templates_on_start: true
-      force_reload_templates: true
+      reload_templates_on_start: false
+      force_reload_templates: false
 
       # Elasticsearch-specific configuration
       # Note: Connection parameters (node, auth, verify_certs) are in datasources.yaml
@@ -291,7 +291,7 @@ adapters:
   # This adapter uses a fake REST API for testing and debugging HTTP adapter functionality
   # No authentication required - perfect for isolating parameter extraction issues
   - name: "intent-http-jsonplaceholder"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "http"  # Uses HTTP datasource placeholder
     adapter: "intent"
@@ -307,7 +307,7 @@ adapters:
 
       # Vector store configuration for template matching
       template_collection_name: "jsonplaceholder_http_templates"
-      store_name: "chroma"  # References stores.yaml
+      store_name: "qdrant"  # References stores.yaml
 
       # Intent matching configuration
       confidence_threshold: 0.4
@@ -316,8 +316,8 @@ adapters:
       verbose: false  # Enable debug logging
 
       # Template loading settings
-      reload_templates_on_start: true
-      force_reload_templates: true
+      reload_templates_on_start: false
+      force_reload_templates: false
 
       # HTTP-specific configuration
       base_url: "https://jsonplaceholder.typicode.com"
@@ -358,7 +358,7 @@ adapters:
 
       # Vector store for template matching
       template_collection_name: "firecrawl_test_templates"  # Using test collection name
-      store_name: "chroma"
+      store_name: "qdrant"
 
       # Intent matching (lower threshold for testing)
       confidence_threshold: 0.3
@@ -366,8 +366,8 @@ adapters:
       return_results: 1
 
       # Template loading
-      reload_templates_on_start: true
-      force_reload_templates: true
+      reload_templates_on_start: false
+      force_reload_templates: false
 
       # Enable verbose logging for debugging
       verbose: true
@@ -448,7 +448,7 @@ adapters:
 
       # Vector store configuration for template matching
       template_collection_name: "intent_mongodb_templates"
-      store_name: "chroma"  # References stores.yaml
+      store_name: "qdrant"  # References stores.yaml
 
       # Intent matching configuration
       confidence_threshold: 0.4
@@ -456,8 +456,8 @@ adapters:
       return_results: 50
 
       # Template loading settings
-      reload_templates_on_start: true
-      force_reload_templates: true
+      reload_templates_on_start: false
+      force_reload_templates: false
 
       # MongoDB-specific configuration
       # Note: Connection parameters (connection_string, host, port, auth) are in datasources.yaml
@@ -493,7 +493,7 @@ adapters:
   # This adapter demonstrates GraphQL query generation from natural language
   # Uses the public SpaceX GraphQL API (no authentication required)
   - name: "intent-graphql-spacex"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "http"  # Uses HTTP datasource placeholder
     adapter: "intent"
@@ -508,7 +508,7 @@ adapters:
 
       # Vector store configuration for template matching
       template_collection_name: "graphql_spacex_templates"
-      store_name: "chroma"  # References stores.yaml
+      store_name: "qdrant"  # References stores.yaml
 
       # Intent matching configuration
       confidence_threshold: 0.4
@@ -516,8 +516,8 @@ adapters:
       return_results: 20
 
       # Template loading settings
-      reload_templates_on_start: true
-      force_reload_templates: true
+      reload_templates_on_start: false
+      force_reload_templates: false
 
       # GraphQL-specific configuration
       base_url: "https://spacex-production.up.railway.app"
@@ -545,9 +545,9 @@ adapters:
     datasource: "http"  # Uses HTTP datasource placeholder
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentGraphQLRetriever"
-    inference_provider: "ollama"
+    inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    embedding_provider: "ollama"
+    embedding_provider: "openai"
     config:
       # Domain and template configuration
       domain_config_path: "utils/graphql-intent-template/examples/nato/templates/nato_domain.yaml"
@@ -556,7 +556,7 @@ adapters:
 
       # Vector store configuration for template matching
       template_collection_name: "graphql_nato_templates"
-      store_name: "chroma"  # References stores.yaml
+      store_name: "qdrant"  # References stores.yaml
 
       # Intent matching configuration
       confidence_threshold: 0.4
@@ -564,8 +564,8 @@ adapters:
       return_results: 20
 
       # Template loading settings
-      reload_templates_on_start: true
-      force_reload_templates: true
+      reload_templates_on_start: false
+      force_reload_templates: false
 
       # GraphQL-specific configuration
       base_url: "https://security-converter.obrienlabs.dev"
