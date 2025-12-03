@@ -416,7 +416,7 @@ declare -a all_adapters=(
     "qa-sql|sql-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|SQL QA Prompt"
     "qa-vector-chroma|chroma-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|Chroma QA Prompt"
     # "qa-vector-qdrant-demo|demo-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|Qdrant Demo Prompt"  # Excluded: requires special Qdrant deployment
-    "intent-sql-sqlite-contact|contact|examples/prompts/contact-assistant-prompt.txt|Contact Assistant Prompt"
+    "intent-sql-sqlite-contact|contact|examples/prompts/hr-assistant-prompt.txt|HR Assistant Prompt"
     "intent-sql-sqlite-classified|classified|examples/prompts/analytics-assistant-prompt.txt|Classified Data Prompt"
     "intent-duckdb-analytics|analytical|examples/prompts/analytics-assistant-prompt.txt|DuckDB Analytics Prompt"
     "intent-duckdb-open-gov-travel-expenses|travel-expenses|utils/duckdb-intent-template/examples/open-gov-travel-expenses/travel-expenses-assistant-prompt.txt|Travel Expenses Assistant Prompt"

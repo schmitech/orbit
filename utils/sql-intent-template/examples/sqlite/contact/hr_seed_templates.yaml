@@ -1,0 +1,404 @@
+# Seed Templates for HR Management Example
+#
+# These templates serve as a starting point and guide for the template generator.
+# They define the expected template categories and structures for HR queries.
+#
+# Usage: Use these as reference when generating new templates, or merge them
+# with auto-generated templates for a complete library.
+
+templates:
+  # ============================================================================
+  # BASIC EMPLOYEE RETRIEVAL TEMPLATES
+  # ============================================================================
+
+  - id: list_all_employees
+    description: List all employees with optional pagination
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, e.phone, e.hire_date, e.status
+      FROM employees e
+      ORDER BY e.hire_date DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me all employees"
+      - "List all employees"
+      - "Get all employees"
+      - "Display all staff"
+    tags: [basic, list, pagination, employees]
+    result_format: table
+
+  - id: search_employees_by_name
+    description: Search employees by first or last name (partial match)
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, e.phone, e.hire_date, e.status
+      FROM employees e
+      WHERE e.first_name LIKE '%' || ? || '%' OR e.last_name LIKE '%' || ? || '%'
+      ORDER BY e.last_name, e.first_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: name_pattern
+        type: string
+        description: Name or partial name to search for
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Find employees named John"
+      - "Search for employees with Smith in their name"
+      - "Show me employees named Alice"
+    tags: [search, name, partial_match, employees]
+    result_format: table
+
+  # ============================================================================
+  # EMPLOYEE-DEPARTMENT QUERIES
+  # ============================================================================
+
+  - id: list_employees_by_department
+    description: List employees in a specific department
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, d.name as department_name, ed.start_date
+      FROM employees e
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id
+      INNER JOIN departments d ON ed.department_id = d.id
+      WHERE d.name = ? AND ed.end_date IS NULL
+      ORDER BY e.last_name, e.first_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: department_name
+        type: string
+        description: Department name
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me employees in Engineering"
+      - "List employees in Sales department"
+      - "Get staff in Marketing"
+    tags: [filter, department, employees, join]
+    result_format: table
+
+  - id: count_employees_by_department
+    description: Count employees grouped by department
+    sql_template: |
+      SELECT d.name as department_name, COUNT(DISTINCT e.id) as employee_count
+      FROM departments d
+      LEFT JOIN employee_departments ed ON d.id = ed.department_id AND ed.end_date IS NULL
+      LEFT JOIN employees e ON ed.employee_id = e.id AND e.status = 'active'
+      GROUP BY d.id, d.name
+      ORDER BY employee_count DESC, d.name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of departments to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of departments to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "How many employees per department?"
+      - "Show me employee count by department"
+      - "Get employee distribution by department"
+    tags: [count, aggregate, group_by, department]
+    result_format: table
+
+  # ============================================================================
+  # EMPLOYEE-POSITION QUERIES
+  # ============================================================================
+
+  - id: list_employees_by_position
+    description: List employees with a specific position/job title
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, p.title as position_title, ep.salary, ep.start_date
+      FROM employees e
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id
+      INNER JOIN positions p ON ep.position_id = p.id
+      WHERE p.title = ? AND ep.end_date IS NULL
+      ORDER BY e.last_name, e.first_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: position_title
+        type: string
+        description: Job title/position name
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me Software Engineers"
+      - "List all Sales Representatives"
+      - "Get employees with Manager position"
+    tags: [filter, position, employees, join]
+    result_format: table
+
+  - id: find_employees_by_salary_range
+    description: Find employees with salaries in a specific range
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, p.title as position_title, ep.salary
+      FROM employees e
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      INNER JOIN positions p ON ep.position_id = p.id
+      WHERE ep.salary BETWEEN ? AND ?
+      ORDER BY ep.salary DESC, e.last_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: min_salary
+        type: decimal
+        description: Minimum salary
+        required: true
+      - name: max_salary
+        type: decimal
+        description: Maximum salary
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me employees earning between 80000 and 120000"
+      - "Find employees with salary 100000 to 150000"
+      - "Get staff earning 50000 to 80000"
+    tags: [filter, salary, range, employees]
+    result_format: table
+
+  # ============================================================================
+  # DEPARTMENT QUERIES
+  # ============================================================================
+
+  - id: list_all_departments
+    description: List all departments
+    sql_template: |
+      SELECT d.id, d.name, d.location, d.budget
+      FROM departments d
+      ORDER BY d.name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me all departments"
+      - "List all departments"
+      - "Get department list"
+    tags: [basic, list, departments]
+    result_format: table
+
+  # ============================================================================
+  # POSITION QUERIES
+  # ============================================================================
+
+  - id: list_all_positions
+    description: List all positions/job titles
+    sql_template: |
+      SELECT p.id, p.title, d.name as department_name, p.min_salary, p.max_salary
+      FROM positions p
+      LEFT JOIN departments d ON p.department_id = d.id
+      ORDER BY d.name, p.title
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me all positions"
+      - "List all job titles"
+      - "Get all positions"
+    tags: [basic, list, positions]
+    result_format: table
+
+  # ============================================================================
+  # AGGREGATION QUERIES
+  # ============================================================================
+
+  - id: count_all_employees
+    description: Count total number of employees
+    sql_template: |
+      SELECT COUNT(*) as total_employees
+      FROM employees
+      WHERE status = 'active'
+    parameters: []
+    nl_examples:
+      - "How many employees do we have?"
+      - "Count all employees"
+      - "What's the total number of employees?"
+    tags: [count, aggregate, total, employees]
+    result_format: summary
+
+  - id: average_salary
+    description: Calculate the average salary of all employees
+    sql_template: |
+      SELECT AVG(ep.salary) as average_salary
+      FROM employee_positions ep
+      INNER JOIN employees e ON ep.employee_id = e.id
+      WHERE ep.end_date IS NULL AND e.status = 'active'
+    parameters: []
+    nl_examples:
+      - "What's the average salary?"
+      - "Get the mean salary"
+      - "Calculate average employee salary"
+    tags: [aggregate, average, salary, statistics]
+    result_format: summary
+
+  - id: average_salary_by_department
+    description: Calculate average salary grouped by department
+    sql_template: |
+      SELECT d.name as department_name, AVG(ep.salary) as average_salary, COUNT(DISTINCT e.id) as employee_count
+      FROM departments d
+      INNER JOIN employee_departments ed ON d.id = ed.department_id AND ed.end_date IS NULL
+      INNER JOIN employees e ON ed.employee_id = e.id AND e.status = 'active'
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      GROUP BY d.id, d.name
+      ORDER BY average_salary DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of departments to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of departments to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "What's the average salary by department?"
+      - "Show me average salary per department"
+      - "Get mean salary by department"
+    tags: [aggregate, average, salary, department, group_by]
+    result_format: table
+
+  # ============================================================================
+  # COMPLEX QUERIES
+  # ============================================================================
+
+  - id: employee_full_profile
+    description: Get complete employee profile with department, position, and salary
+    sql_template: |
+      SELECT 
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        e.phone,
+        e.hire_date,
+        d.name as department_name,
+        d.location as department_location,
+        p.title as position_title,
+        ep.salary,
+        ep.start_date as position_start_date
+      FROM employees e
+      LEFT JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL AND ed.is_primary = 1
+      LEFT JOIN departments d ON ed.department_id = d.id
+      LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL AND ep.is_primary = 1
+      LEFT JOIN positions p ON ep.position_id = p.id
+      WHERE e.id = ?
+      LIMIT 1
+    parameters:
+      - name: employee_id
+        type: integer
+        description: Employee ID
+        required: true
+    nl_examples:
+      - "Show me full profile for employee 1"
+      - "Get complete employee information"
+      - "Display employee profile"
+    tags: [join, profile, employees, complex]
+    result_format: table
+
+  - id: department_roster
+    description: Get complete roster for a department including all employees with their positions and salaries
+    sql_template: |
+      SELECT 
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        p.title as position_title,
+        ep.salary,
+        e.hire_date
+      FROM departments d
+      INNER JOIN employee_departments ed ON d.id = ed.department_id AND ed.end_date IS NULL
+      INNER JOIN employees e ON ed.employee_id = e.id AND e.status = 'active'
+      LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL AND ep.is_primary = 1
+      LEFT JOIN positions p ON ep.position_id = p.id
+      WHERE d.name = ?
+      ORDER BY p.title, e.last_name, e.first_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: department_name
+        type: string
+        description: Department name
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me Engineering department roster"
+      - "Get complete Sales team list"
+      - "List all employees in Marketing with their positions"
+    tags: [join, department, roster, complex]
+    result_format: table

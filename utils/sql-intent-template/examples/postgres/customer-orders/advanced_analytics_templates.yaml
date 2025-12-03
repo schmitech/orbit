@@ -17,16 +17,23 @@ templates:
         required: false
         default: 365
     sql_template: |
-      WITH customer_order_timeline AS (
-        SELECT 
-          customer_id,
-          MIN(order_date)::date AS first_order_date,
-          MAX(order_date)::date AS last_order_date,
-          COUNT(*) AS total_orders
+      WITH customers_in_period AS (
+        SELECT DISTINCT customer_id
         FROM orders 
         WHERE order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND status != 'cancelled'
-        GROUP BY customer_id
+      ),
+      customer_order_timeline AS (
+        SELECT 
+          cip.customer_id,
+          MIN(o.order_date)::date AS first_order_date,
+          MAX(o.order_date)::date AS last_order_date,
+          COUNT(*) AS total_orders,
+          COUNT(CASE WHEN o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s) THEN 1 END) AS orders_in_period
+        FROM customers_in_period cip
+        INNER JOIN orders o ON cip.customer_id = o.customer_id
+        WHERE o.status != 'cancelled'
+        GROUP BY cip.customer_id
       ),
       retention_stats AS (
         SELECT 
@@ -38,8 +45,9 @@ templates:
             ELSE 'VIP customers (10+ orders)'
           END AS customer_type,
           COUNT(*) AS customer_count,
-          AVG(total_orders)::numeric AS avg_orders_per_customer,
-          AVG((last_order_date - first_order_date))::numeric AS avg_customer_lifespan_days
+          ROUND(AVG(total_orders)::numeric, 1) AS avg_orders_per_customer,
+          ROUND(AVG((last_order_date - first_order_date))::numeric, 1) AS avg_customer_lifespan_days,
+          ROUND(AVG(orders_in_period)::numeric, 1) AS avg_orders_in_period
         FROM customer_order_timeline
         GROUP BY 
           CASE 
@@ -53,10 +61,16 @@ templates:
       SELECT 
         customer_type,
         customer_count,
-        ROUND(customer_count * 100.0 / SUM(customer_count) OVER(), 2) AS percentage,
-        ROUND(avg_orders_per_customer, 1) AS avg_orders,
-        ROUND(avg_customer_lifespan_days, 1) AS avg_lifespan_days
+        CASE 
+          WHEN SUM(customer_count) OVER() > 0 
+          THEN ROUND(customer_count * 100.0 / SUM(customer_count) OVER(), 2)
+          ELSE 0
+        END AS percentage,
+        avg_orders_per_customer AS avg_orders,
+        avg_customer_lifespan_days AS avg_lifespan_days,
+        avg_orders_in_period
       FROM retention_stats
+      WHERE customer_count > 0
       ORDER BY customer_count DESC
     result_format: "table"
     tags: ["retention", "repeat", "customers", "comeback", "loyalty", "behavior"]
@@ -87,6 +101,11 @@ templates:
         description: "Days since last order to consider high risk"
         required: false
         default: 120
+      - name: max_customers
+        type: integer
+        description: "Maximum number of detailed at-risk customers to return"
+        required: false
+        default: 50
     sql_template: |
       WITH customer_activity AS (
         SELECT 
@@ -104,26 +123,78 @@ templates:
         LEFT JOIN orders o ON c.id = o.customer_id AND o.status != 'cancelled'
         GROUP BY c.id, c.name, c.email, c.city, c.country
         HAVING COUNT(o.id) > 0
+      ),
+      ranked_customers AS (
+        SELECT
+          ca.*,
+          CASE 
+            WHEN ca.days_since_last_order >= %(high_risk_days)s THEN 'High Risk'
+            WHEN ca.days_since_last_order >= %(warning_days)s THEN 'At Risk'
+            ELSE 'Active'
+          END as churn_risk_level,
+          ROW_NUMBER() OVER (
+            ORDER BY 
+              CASE 
+                WHEN ca.days_since_last_order >= %(high_risk_days)s THEN 2
+                WHEN ca.days_since_last_order >= %(warning_days)s THEN 1
+                ELSE 0
+              END DESC,
+              ca.days_since_last_order DESC,
+              ca.total_spent DESC
+          ) AS risk_rank
+        FROM customer_activity ca
+        WHERE ca.days_since_last_order >= %(warning_days)s
+      ),
+      risk_summary AS (
+        SELECT
+          churn_risk_level,
+          COUNT(*) AS customer_count,
+          ROUND(AVG(days_since_last_order)::numeric, 1) AS avg_days_since_last_order,
+          ROUND(AVG(total_spent)::numeric, 2) AS avg_total_spent,
+          ROUND(AVG(avg_order_value)::numeric, 2) AS avg_order_value,
+          STRING_AGG(
+            name || ' (#' || id || ', ' || days_since_last_order || ' days)',
+            '; '
+            ORDER BY days_since_last_order DESC, total_spent DESC
+          ) FILTER (WHERE risk_rank <= LEAST(%(max_customers)s, 10)) AS sample_customers
+        FROM ranked_customers
+        GROUP BY churn_risk_level
       )
       SELECT 
-        id as customer_id,
-        name as customer_name,
-        email,
-        city,
-        country,
-        total_orders,
-        ROUND(total_spent, 2) as total_spent,
-        last_order_date,
-        days_since_last_order,
-        ROUND(avg_order_value, 2) as avg_order_value,
-        CASE 
-          WHEN days_since_last_order >= %(high_risk_days)s THEN 'High Risk'
-          WHEN days_since_last_order >= %(warning_days)s THEN 'At Risk'
-          ELSE 'Active'
-        END as churn_risk_level
-      FROM customer_activity
-      WHERE days_since_last_order >= %(warning_days)s
-      ORDER BY total_spent DESC, days_since_last_order DESC
+        rs.churn_risk_level,
+        rs.customer_count,
+        rs.avg_days_since_last_order,
+        rs.avg_total_spent,
+        rs.avg_order_value AS avg_order_value_summary,
+        rs.sample_customers,
+        COALESCE(
+          (
+            SELECT json_agg(detail ORDER BY detail->>'days_since_last_order' DESC, detail->>'total_spent' DESC)
+            FROM (
+              SELECT json_build_object(
+                'customer_id', rc.id,
+                'customer_name', rc.name,
+                'email', rc.email,
+                'city', rc.city,
+                'country', rc.country,
+                'total_orders', rc.total_orders,
+                'total_spent', ROUND(rc.total_spent, 2),
+                'avg_order_value', ROUND(rc.avg_order_value, 2),
+                'last_order_date', rc.last_order_date,
+                'days_since_last_order', rc.days_since_last_order,
+                'risk_rank', rc.risk_rank
+              ) AS detail
+              FROM ranked_customers rc
+              WHERE rc.churn_risk_level = rs.churn_risk_level
+                AND rc.risk_rank <= %(max_customers)s
+              ORDER BY rc.days_since_last_order DESC, rc.total_spent DESC
+            ) details
+          ),
+          '[]'::json
+        ) AS top_customers
+      FROM risk_summary rs
+      ORDER BY 
+        CASE rs.churn_risk_level WHEN 'High Risk' THEN 0 WHEN 'At Risk' THEN 1 ELSE 2 END
     result_format: "table"
     tags: ["churn", "risk", "leaving", "stop", "buying", "at-risk", "customers"]
     semantic_tags:
@@ -160,8 +231,8 @@ templates:
           MAX(order_date)::date as last_order_date,
           (MAX(order_date)::date - MIN(order_date)::date) as customer_lifespan_days,
           CASE 
-            WHEN COUNT(*) = 1 THEN 0
-            ELSE (MAX(order_date)::date - MIN(order_date)::date)::numeric / (COUNT(*) - 1)
+            WHEN COUNT(*) <= 1 THEN NULL
+            ELSE (MAX(order_date)::date - MIN(order_date)::date)::numeric / NULLIF(COUNT(*) - 1, 0)
           END as avg_days_between_orders,
           STDDEV(total) as order_value_stddev,
           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total) as median_order_value
@@ -169,11 +240,11 @@ templates:
         WHERE order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND status != 'cancelled'
         GROUP BY customer_id
-        HAVING COUNT(*) >= 2
       ),
       pattern_summary AS (
         SELECT 
           CASE 
+            WHEN order_count = 1 THEN 'Single-order customers'
             WHEN avg_days_between_orders <= 7 THEN 'Weekly buyers (≤7 days)'
             WHEN avg_days_between_orders <= 30 THEN 'Monthly buyers (8-30 days)'
             WHEN avg_days_between_orders <= 60 THEN 'Bi-monthly buyers (31-60 days)'
@@ -194,6 +265,7 @@ templates:
         FROM customer_patterns
         GROUP BY 
           CASE 
+            WHEN order_count = 1 THEN 'Single-order customers'
             WHEN avg_days_between_orders <= 7 THEN 'Weekly buyers (≤7 days)'
             WHEN avg_days_between_orders <= 30 THEN 'Monthly buyers (8-30 days)'
             WHEN avg_days_between_orders <= 60 THEN 'Bi-monthly buyers (31-60 days)'
@@ -453,7 +525,7 @@ templates:
         required: false
         default: 365
     sql_template: |
-      WITH customer_values AS (
+      WITH customer_spend AS (
         SELECT 
           c.id,
           c.name,
@@ -462,13 +534,18 @@ templates:
           c.country,
           COUNT(o.id) as total_orders,
           SUM(o.total) as total_spent,
-          AVG(o.total) as avg_order_value,
-          NTILE(100) OVER (ORDER BY SUM(o.total)) as percentile
+          AVG(o.total) as avg_order_value
         FROM customers c
         JOIN orders o ON c.id = o.customer_id
         WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND o.status != 'cancelled'
         GROUP BY c.id, c.name, c.email, c.city, c.country
+      ),
+      customer_values AS (
+        SELECT 
+          *,
+          NTILE(100) OVER (ORDER BY total_spent) as percentile
+        FROM customer_spend
       )
       SELECT 
         CASE 

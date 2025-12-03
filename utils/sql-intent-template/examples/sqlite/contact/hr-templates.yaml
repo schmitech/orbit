@@ -1,0 +1,1229 @@
+status: completed
+generated_at: '2025-01-15T00:00:00.000000'
+last_updated: '2025-01-15T00:00:00.000000'
+generator_version: 1.0.0
+total_templates: 89
+templates:
+  # ============================================================================
+  # EMPLOYEE SEARCH & LOOKUP TEMPLATES
+  # ============================================================================
+
+  - id: search_employees_by_name
+    description: Search employees by first or last name (partial match)
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, e.phone, e.hire_date, e.status
+      FROM employees e
+      WHERE e.first_name LIKE '%' || ? || '%' OR e.last_name LIKE '%' || ? || '%'
+      ORDER BY e.last_name, e.first_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: name_pattern
+        type: string
+        description: Name or partial name to search for
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Find employees named John"
+      - "Search for employees with Smith in their name"
+      - "Show me employees named Alice"
+    tags: [search, name, partial_match, employees]
+    result_format: table
+
+  - id: find_employee_by_email
+    description: Find a specific employee by exact email address
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, e.phone, e.hire_date, e.status
+      FROM employees e
+      WHERE e.email = ?
+      LIMIT 1
+    parameters:
+      - name: email
+        type: string
+        description: Exact email address to search for
+        required: true
+    nl_examples:
+      - "Find employee with email john.doe@company.com"
+      - "Who has email jane.smith@company.com?"
+      - "Get employee by email"
+    tags: [search, email, exact_match, employees]
+    result_format: table
+
+  # ============================================================================
+  # EMPLOYEE-DEPARTMENT QUERIES
+  # ============================================================================
+
+  - id: list_employees_by_department
+    description: List employees in a specific department
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, d.name as department_name, ed.start_date
+      FROM employees e
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id
+      INNER JOIN departments d ON ed.department_id = d.id
+      WHERE d.name = ? AND ed.end_date IS NULL
+      ORDER BY e.last_name, e.first_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: department_name
+        type: string
+        description: Department name
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me employees in Engineering"
+      - "List employees in Sales department"
+      - "Get staff in Marketing"
+    tags: [filter, department, employees, join]
+    result_format: table
+
+  - id: count_employees_by_department
+    description: Count employees grouped by department
+    sql_template: |
+      SELECT d.name as department_name, COUNT(DISTINCT e.id) as employee_count
+      FROM departments d
+      LEFT JOIN employee_departments ed ON d.id = ed.department_id AND ed.end_date IS NULL
+      LEFT JOIN employees e ON ed.employee_id = e.id AND e.status = 'active'
+      GROUP BY d.id, d.name
+      ORDER BY employee_count DESC, d.name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of departments to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of departments to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "How many employees per department?"
+      - "Show me employee count by department"
+      - "Get employee distribution by department"
+    tags: [count, aggregate, group_by, department]
+    result_format: table
+
+  # ============================================================================
+  # EMPLOYEE-POSITION QUERIES
+  # ============================================================================
+
+  - id: list_employees_by_position
+    description: List employees with a specific position/job title
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, p.title as position_title, ep.salary, ep.start_date
+      FROM employees e
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id
+      INNER JOIN positions p ON ep.position_id = p.id
+      WHERE p.title = ? AND ep.end_date IS NULL
+      ORDER BY e.last_name, e.first_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: position_title
+        type: string
+        description: Job title/position name
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me Software Engineers"
+      - "List all Sales Representatives"
+      - "Get employees with Manager position"
+    tags: [filter, position, employees, join]
+    result_format: table
+
+  - id: find_employees_by_salary_range
+    description: Find employees with salaries in a specific range
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, p.title as position_title, ep.salary
+      FROM employees e
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      INNER JOIN positions p ON ep.position_id = p.id
+      WHERE ep.salary BETWEEN ? AND ?
+      ORDER BY ep.salary DESC, e.last_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: min_salary
+        type: decimal
+        description: Minimum salary
+        required: true
+      - name: max_salary
+        type: decimal
+        description: Maximum salary
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me employees earning between 80000 and 120000"
+      - "Find employees with salary 100000 to 150000"
+      - "Get staff earning 50000 to 80000"
+    tags: [filter, salary, range, employees]
+    result_format: table
+
+  # ============================================================================
+  # DEPARTMENT QUERIES
+  # ============================================================================
+
+  - id: find_department_by_name
+    description: Find a specific department by name
+    sql_template: |
+      SELECT d.id, d.name, d.location, d.budget
+      FROM departments d
+      WHERE d.name = ?
+      LIMIT 1
+    parameters:
+      - name: department_name
+        type: string
+        description: Department name
+        required: true
+    nl_examples:
+      - "Find Engineering department"
+      - "Show me Sales department"
+      - "Get Marketing department info"
+    tags: [search, department, exact_match]
+    result_format: table
+
+  - id: list_departments_by_location
+    description: List departments in a specific location
+    sql_template: |
+      SELECT d.id, d.name, d.location, d.budget
+      FROM departments d
+      WHERE d.location = ?
+      ORDER BY d.name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: location
+        type: string
+        description: Location/city name
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me departments in San Francisco"
+      - "List departments in New York"
+      - "Get departments located in Los Angeles"
+    tags: [filter, location, departments]
+    result_format: table
+
+  # ============================================================================
+  # POSITION QUERIES
+  # ============================================================================
+
+  - id: list_positions_by_department
+    description: List positions in a specific department
+    sql_template: |
+      SELECT p.id, p.title, p.min_salary, p.max_salary, p.description
+      FROM positions p
+      INNER JOIN departments d ON p.department_id = d.id
+      WHERE d.name = ?
+      ORDER BY p.title
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: department_name
+        type: string
+        description: Department name
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me positions in Engineering"
+      - "List jobs in Sales department"
+      - "Get positions in Marketing"
+    tags: [filter, department, positions]
+    result_format: table
+
+  - id: find_positions_by_salary_range
+    description: Find positions with salary ranges within specified bounds
+    sql_template: |
+      SELECT p.id, p.title, d.name as department_name, p.min_salary, p.max_salary
+      FROM positions p
+      LEFT JOIN departments d ON p.department_id = d.id
+      WHERE p.min_salary >= ? AND p.max_salary <= ?
+      ORDER BY p.min_salary DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: min_salary
+        type: decimal
+        description: Minimum salary threshold
+        required: true
+      - name: max_salary
+        type: decimal
+        description: Maximum salary threshold
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me positions with salary range 80000 to 150000"
+      - "Find jobs paying 100000 to 200000"
+      - "Get positions with salaries 50000 to 100000"
+    tags: [filter, salary, range, positions]
+    result_format: table
+
+  # ============================================================================
+  # AGGREGATION QUERIES
+  # ============================================================================
+
+  - id: count_all_employees
+    description: Count total number of employees
+    sql_template: |
+      SELECT COUNT(*) as total_employees
+      FROM employees
+      WHERE status = 'active'
+    parameters: []
+    nl_examples:
+      - "How many employees do we have?"
+      - "Count all employees"
+      - "What's the total number of employees?"
+    tags: [count, aggregate, total, employees]
+    result_format: summary
+
+  - id: average_salary
+    description: Calculate the average salary of all employees
+    sql_template: |
+      SELECT AVG(ep.salary) as average_salary
+      FROM employee_positions ep
+      INNER JOIN employees e ON ep.employee_id = e.id
+      WHERE ep.end_date IS NULL AND e.status = 'active'
+    parameters: []
+    nl_examples:
+      - "What's the average salary?"
+      - "Get the mean salary"
+      - "Calculate average employee salary"
+    tags: [aggregate, average, salary, statistics]
+    result_format: summary
+
+  - id: average_salary_by_department
+    description: Calculate average salary grouped by department
+    sql_template: |
+      SELECT d.name as department_name, AVG(ep.salary) as average_salary, COUNT(DISTINCT e.id) as employee_count
+      FROM departments d
+      INNER JOIN employee_departments ed ON d.id = ed.department_id AND ed.end_date IS NULL
+      INNER JOIN employees e ON ed.employee_id = e.id AND e.status = 'active'
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      GROUP BY d.id, d.name
+      ORDER BY average_salary DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of departments to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of departments to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "What's the average salary by department?"
+      - "Show me average salary per department"
+      - "Get mean salary by department"
+    tags: [aggregate, average, salary, department, group_by]
+    result_format: table
+
+  - id: salary_statistics
+    description: Get comprehensive salary statistics (min, max, average, count)
+    sql_template: |
+      SELECT 
+        MIN(ep.salary) as min_salary,
+        MAX(ep.salary) as max_salary,
+        AVG(ep.salary) as avg_salary,
+        COUNT(DISTINCT e.id) as total_employees
+      FROM employee_positions ep
+      INNER JOIN employees e ON ep.employee_id = e.id
+      WHERE ep.end_date IS NULL AND e.status = 'active'
+    parameters: []
+    nl_examples:
+      - "Show me salary statistics"
+      - "Get salary statistics"
+      - "What are the salary stats?"
+    tags: [aggregate, statistics, salary, summary]
+    result_format: summary
+
+  # ============================================================================
+  # HIRE DATE / TENURE QUERIES
+  # ============================================================================
+
+  - id: list_recent_hires
+    description: List employees hired within a specified number of days
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, e.hire_date, d.name as department_name
+      FROM employees e
+      LEFT JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL AND ed.is_primary = 1
+      LEFT JOIN departments d ON ed.department_id = d.id
+      WHERE e.hire_date >= date('now', '-' || ? || ' days')
+      ORDER BY e.hire_date DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: days
+        type: integer
+        description: Number of days to look back
+        required: true
+        default: 30
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me employees hired in the last 30 days"
+      - "List recent hires"
+      - "Get employees hired this month"
+    tags: [filter, hire_date, temporal, employees]
+    result_format: table
+
+  - id: list_employees_by_hire_year
+    description: List employees hired in a specific year
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, e.email, e.hire_date, d.name as department_name
+      FROM employees e
+      LEFT JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL AND ed.is_primary = 1
+      LEFT JOIN departments d ON ed.department_id = d.id
+      WHERE strftime('%Y', e.hire_date) = ?
+      ORDER BY e.hire_date DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: year
+        type: integer
+        description: Year (e.g., 2020)
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me employees hired in 2020"
+      - "List employees hired in 2021"
+      - "Get staff hired in 2022"
+    tags: [filter, hire_date, year, employees]
+    result_format: table
+
+  # ============================================================================
+  # COMPLEX QUERIES
+  # ============================================================================
+
+  - id: employee_full_profile
+    description: Get complete employee profile with department, position, and salary
+    sql_template: |
+      SELECT 
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        e.phone,
+        e.hire_date,
+        d.name as department_name,
+        d.location as department_location,
+        p.title as position_title,
+        ep.salary,
+        ep.start_date as position_start_date
+      FROM employees e
+      LEFT JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL AND ed.is_primary = 1
+      LEFT JOIN departments d ON ed.department_id = d.id
+      LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL AND ep.is_primary = 1
+      LEFT JOIN positions p ON ep.position_id = p.id
+      WHERE e.id = ?
+      LIMIT 1
+    parameters:
+      - name: employee_id
+        type: integer
+        description: Employee ID
+        required: true
+    nl_examples:
+      - "Show me full profile for employee 1"
+      - "Get complete employee information"
+      - "Display employee profile"
+    tags: [join, profile, employees, complex]
+    result_format: table
+
+  - id: department_roster
+    description: Get complete roster for a department including all employees with their positions and salaries
+    sql_template: |
+      SELECT 
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        p.title as position_title,
+        ep.salary,
+        e.hire_date
+      FROM departments d
+      INNER JOIN employee_departments ed ON d.id = ed.department_id AND ed.end_date IS NULL
+      INNER JOIN employees e ON ed.employee_id = e.id AND e.status = 'active'
+      LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL AND ep.is_primary = 1
+      LEFT JOIN positions p ON ep.position_id = p.id
+      WHERE d.name = ?
+      ORDER BY p.title, e.last_name, e.first_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: department_name
+        type: string
+        description: Department name
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me Engineering department roster"
+      - "Get complete Sales team list"
+      - "List all employees in Marketing with their positions"
+    tags: [join, department, roster, complex]
+    result_format: table
+
+  - id: employees_by_department_and_position
+    description: Find employees matching both department and position criteria
+    sql_template: |
+      SELECT
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        d.name as department_name,
+        p.title as position_title,
+        ep.salary
+      FROM employees e
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL
+      INNER JOIN departments d ON ed.department_id = d.id
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      INNER JOIN positions p ON ep.position_id = p.id
+      WHERE d.name = ? AND p.title = ? AND e.status = 'active'
+      ORDER BY e.last_name, e.first_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: department_name
+        type: string
+        description: Department name
+        required: true
+      - name: position_title
+        type: string
+        description: Position/job title
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Find Software Engineers in Engineering"
+      - "Show me Sales Representatives in Sales"
+      - "Get Managers in Marketing"
+    tags: [filter, multi_filter, department, position, employees]
+    result_format: table
+
+  # ============================================================================
+  # BUSINESS INTELLIGENCE & HIDDEN INFORMATION DISCOVERY
+  # ============================================================================
+
+  - id: salary_equity_by_position
+    description: Identify salary disparities within the same position - reveals pay equity issues
+    sql_template: |
+      SELECT
+        p.title as position_title,
+        d.name as department_name,
+        COUNT(DISTINCT e.id) as employee_count,
+        MIN(ep.salary) as min_actual_salary,
+        MAX(ep.salary) as max_actual_salary,
+        ROUND(AVG(ep.salary), 2) as avg_actual_salary,
+        MAX(ep.salary) - MIN(ep.salary) as salary_spread,
+        ROUND((MAX(ep.salary) - MIN(ep.salary)) * 100.0 / AVG(ep.salary), 2) as spread_pct
+      FROM employee_positions ep
+      INNER JOIN positions p ON ep.position_id = p.id
+      INNER JOIN employees e ON ep.employee_id = e.id
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL
+      INNER JOIN departments d ON ed.department_id = d.id
+      WHERE ep.end_date IS NULL AND e.status = 'active'
+      GROUP BY p.id, d.id
+      HAVING COUNT(DISTINCT e.id) > 1
+      ORDER BY spread_pct DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show salary disparities within positions"
+      - "Find pay equity issues"
+      - "Which positions have the biggest salary gaps?"
+      - "Identify compensation inequities"
+      - "Show me salary spread by role"
+    tags: [equity, salary, analytics, compliance, bi, discovery]
+    result_format: table
+
+  - id: flight_risk_employees
+    description: Identify employees at risk of leaving - long tenure with below-average salary for their position
+    sql_template: |
+      SELECT
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        p.title as position_title,
+        d.name as department_name,
+        ep.salary as current_salary,
+        p.min_salary,
+        p.max_salary,
+        ROUND((p.min_salary + p.max_salary) / 2.0, 2) as position_midpoint,
+        ROUND((julianday('now') - julianday(e.hire_date)) / 365, 1) as years_employed,
+        ROUND((ep.salary - p.min_salary) * 100.0 / (p.max_salary - p.min_salary), 1) as salary_percentile_in_range
+      FROM employees e
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      INNER JOIN positions p ON ep.position_id = p.id
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL
+      INNER JOIN departments d ON ed.department_id = d.id
+      WHERE e.status = 'active'
+        AND (julianday('now') - julianday(e.hire_date)) / 365 > ?
+        AND ep.salary < (p.min_salary + p.max_salary) / 2
+      ORDER BY years_employed DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: min_tenure_years
+        type: decimal
+        description: Minimum years of employment to consider
+        required: false
+        default: 2
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Who might be thinking of leaving?"
+      - "Show flight risk employees"
+      - "Find underpaid long-tenured staff"
+      - "Identify retention risks"
+      - "Which employees are we at risk of losing?"
+    tags: [retention, risk, analytics, hr_intelligence, bi, discovery]
+    result_format: table
+
+  - id: department_budget_utilization
+    description: Compare department salary spend vs budget allocation - reveals over/under budget departments
+    sql_template: |
+      SELECT
+        d.name as department_name,
+        d.location,
+        d.budget as department_budget,
+        COUNT(DISTINCT e.id) as headcount,
+        COALESCE(SUM(ep.salary), 0) as total_salary_cost,
+        ROUND(COALESCE(AVG(ep.salary), 0), 2) as avg_salary,
+        ROUND(COALESCE(SUM(ep.salary), 0) * 100.0 / NULLIF(d.budget, 0), 2) as salary_budget_pct,
+        d.budget - COALESCE(SUM(ep.salary), 0) as remaining_budget
+      FROM departments d
+      LEFT JOIN employee_departments ed ON d.id = ed.department_id AND ed.end_date IS NULL
+      LEFT JOIN employees e ON ed.employee_id = e.id AND e.status = 'active'
+      LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      GROUP BY d.id
+      ORDER BY salary_budget_pct DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "How much of each department's budget goes to salaries?"
+      - "Show budget utilization by department"
+      - "Which departments are over budget on payroll?"
+      - "Compare salary spend to budget"
+      - "Show me department budget efficiency"
+    tags: [budget, finance, analytics, planning, bi]
+    result_format: table
+
+  - id: manager_span_analysis
+    description: Analyze manager-to-employee ratios by department - reveals organizational structure issues
+    sql_template: |
+      SELECT
+        d.name as department_name,
+        d.location,
+        COUNT(DISTINCT e.id) as total_employees,
+        COUNT(DISTINCT CASE WHEN p.title LIKE '%Manager%' THEN e.id END) as manager_count,
+        COUNT(DISTINCT CASE WHEN p.title NOT LIKE '%Manager%' THEN e.id END) as individual_contributor_count,
+        CASE
+          WHEN COUNT(DISTINCT CASE WHEN p.title LIKE '%Manager%' THEN e.id END) > 0
+          THEN ROUND(
+            COUNT(DISTINCT CASE WHEN p.title NOT LIKE '%Manager%' THEN e.id END) * 1.0 /
+            COUNT(DISTINCT CASE WHEN p.title LIKE '%Manager%' THEN e.id END), 1)
+          ELSE NULL
+        END as span_of_control
+      FROM departments d
+      INNER JOIN employee_departments ed ON d.id = ed.department_id AND ed.end_date IS NULL
+      INNER JOIN employees e ON ed.employee_id = e.id AND e.status = 'active'
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      INNER JOIN positions p ON ep.position_id = p.id
+      GROUP BY d.id
+      ORDER BY span_of_control DESC NULLS LAST
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "What's the manager to employee ratio?"
+      - "Show span of control by department"
+      - "Are we top-heavy in any department?"
+      - "Analyze management structure"
+      - "Which departments have too many managers?"
+    tags: [org_structure, management, analytics, bi]
+    result_format: table
+
+  - id: promotion_candidates
+    description: Find employees earning above their position's max salary - indicates promotion overdue
+    sql_template: |
+      SELECT
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        p.title as current_position,
+        d.name as department_name,
+        ep.salary as current_salary,
+        p.max_salary as position_max_salary,
+        ep.salary - p.max_salary as above_max_by,
+        ROUND((julianday('now') - julianday(ep.start_date)) / 365, 1) as years_in_current_role,
+        ROUND((julianday('now') - julianday(e.hire_date)) / 365, 1) as total_tenure
+      FROM employees e
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      INNER JOIN positions p ON ep.position_id = p.id
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL
+      INNER JOIN departments d ON ed.department_id = d.id
+      WHERE e.status = 'active' AND ep.salary > p.max_salary
+      ORDER BY above_max_by DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Who is overdue for promotion?"
+      - "Find employees earning above their grade"
+      - "Show promotion candidates"
+      - "Which employees have outgrown their role?"
+      - "Identify employees needing title adjustment"
+    tags: [talent, promotion, career, analytics, bi, discovery]
+    result_format: table
+
+  - id: hiring_trends_by_month
+    description: Analyze hiring patterns by month to identify seasonality and planning opportunities
+    sql_template: |
+      SELECT
+        strftime('%Y', e.hire_date) as year,
+        strftime('%m', e.hire_date) as month,
+        COUNT(*) as hires,
+        GROUP_CONCAT(DISTINCT d.name) as departments_hired_into
+      FROM employees e
+      LEFT JOIN employee_departments ed ON e.id = ed.employee_id
+      LEFT JOIN departments d ON ed.department_id = d.id
+      WHERE e.hire_date >= date('now', '-' || ? || ' years')
+      GROUP BY strftime('%Y-%m', e.hire_date)
+      ORDER BY year DESC, month DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: years_back
+        type: integer
+        description: Number of years to look back
+        required: false
+        default: 3
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "When do we hire the most?"
+      - "Show hiring patterns by month"
+      - "What's our hiring seasonality?"
+      - "Analyze recruitment trends"
+      - "Which months have the most new hires?"
+    tags: [hiring, trends, analytics, planning, bi]
+    result_format: table
+
+  - id: cost_per_location
+    description: Total payroll cost by geographic location - reveals cost center distribution
+    sql_template: |
+      SELECT
+        d.location,
+        COUNT(DISTINCT d.id) as department_count,
+        COUNT(DISTINCT e.id) as headcount,
+        COALESCE(SUM(ep.salary), 0) as total_payroll,
+        ROUND(COALESCE(AVG(ep.salary), 0), 2) as avg_salary,
+        COALESCE(SUM(d.budget), 0) as total_budget,
+        ROUND(COALESCE(SUM(ep.salary), 0) * 100.0 / NULLIF(SUM(d.budget), 0), 2) as payroll_to_budget_pct
+      FROM departments d
+      LEFT JOIN employee_departments ed ON d.id = ed.department_id AND ed.end_date IS NULL
+      LEFT JOIN employees e ON ed.employee_id = e.id AND e.status = 'active'
+      LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      GROUP BY d.location
+      ORDER BY total_payroll DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "What's our payroll by location?"
+      - "Compare costs across offices"
+      - "Show headcount and salary by city"
+      - "Which location has highest labor costs?"
+      - "Analyze geographic cost distribution"
+    tags: [cost, location, analytics, finance, bi]
+    result_format: table
+
+  - id: tenure_distribution_analysis
+    description: Analyze workforce tenure distribution - reveals retention patterns and workforce stability
+    sql_template: |
+      SELECT
+        CASE
+          WHEN tenure_years < 1 THEN '0-1 years'
+          WHEN tenure_years < 2 THEN '1-2 years'
+          WHEN tenure_years < 3 THEN '2-3 years'
+          WHEN tenure_years < 5 THEN '3-5 years'
+          ELSE '5+ years'
+        END as tenure_bucket,
+        COUNT(*) as employee_count,
+        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM employees WHERE status = 'active'), 1) as pct_of_workforce,
+        ROUND(AVG(salary), 2) as avg_salary_in_bucket
+      FROM (
+        SELECT
+          e.id,
+          ROUND((julianday('now') - julianday(e.hire_date)) / 365.0, 1) as tenure_years,
+          ep.salary
+        FROM employees e
+        LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+        WHERE e.status = 'active'
+      )
+      GROUP BY tenure_bucket
+      ORDER BY
+        CASE tenure_bucket
+          WHEN '0-1 years' THEN 1
+          WHEN '1-2 years' THEN 2
+          WHEN '2-3 years' THEN 3
+          WHEN '3-5 years' THEN 4
+          ELSE 5
+        END
+    parameters: []
+    nl_examples:
+      - "What's our tenure distribution?"
+      - "How long do employees stay?"
+      - "Show workforce by years of service"
+      - "Analyze employee retention by tenure"
+      - "What percentage of staff are new?"
+    tags: [tenure, retention, analytics, workforce_planning, bi]
+    result_format: table
+
+  - id: single_point_of_failure_positions
+    description: Find positions with only one employee - succession planning risk
+    sql_template: |
+      SELECT
+        p.title as position_title,
+        d.name as department_name,
+        e.first_name,
+        e.last_name,
+        e.email,
+        ep.salary,
+        ROUND((julianday('now') - julianday(e.hire_date)) / 365, 1) as years_employed
+      FROM positions p
+      INNER JOIN employee_positions ep ON p.id = ep.position_id AND ep.end_date IS NULL
+      INNER JOIN employees e ON ep.employee_id = e.id AND e.status = 'active'
+      INNER JOIN departments d ON p.department_id = d.id
+      WHERE p.id IN (
+        SELECT position_id
+        FROM employee_positions
+        WHERE end_date IS NULL
+        GROUP BY position_id
+        HAVING COUNT(DISTINCT employee_id) = 1
+      )
+      ORDER BY d.name, p.title
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Which positions have only one person?"
+      - "Show single points of failure"
+      - "Find succession planning risks"
+      - "Identify key person dependencies"
+      - "Which roles need backup coverage?"
+    tags: [succession, risk, planning, bi, discovery]
+    result_format: table
+
+  - id: compensation_band_outliers
+    description: Find employees whose salary falls outside their position's defined salary range
+    sql_template: |
+      SELECT
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        p.title as position_title,
+        d.name as department_name,
+        ep.salary as current_salary,
+        p.min_salary,
+        p.max_salary,
+        CASE
+          WHEN ep.salary < p.min_salary THEN 'Below minimum'
+          WHEN ep.salary > p.max_salary THEN 'Above maximum'
+          ELSE 'Within range'
+        END as band_status,
+        CASE
+          WHEN ep.salary < p.min_salary THEN p.min_salary - ep.salary
+          WHEN ep.salary > p.max_salary THEN ep.salary - p.max_salary
+          ELSE 0
+        END as variance_amount,
+        ROUND((julianday('now') - julianday(e.hire_date)) / 365, 1) as years_employed
+      FROM employees e
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      INNER JOIN positions p ON ep.position_id = p.id
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL
+      INNER JOIN departments d ON ed.department_id = d.id
+      WHERE e.status = 'active'
+        AND (ep.salary < p.min_salary OR ep.salary > p.max_salary)
+      ORDER BY variance_amount DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Who is paid outside their salary band?"
+      - "Find compensation outliers"
+      - "Show employees with salary exceptions"
+      - "Identify pay band violations"
+      - "Which salaries need adjustment?"
+    tags: [compensation, compliance, analytics, bi, discovery]
+    result_format: table
+
+  - id: department_salary_ranking
+    description: Rank employees by salary within their department - reveals internal equity
+    sql_template: |
+      SELECT
+        d.name as department_name,
+        e.first_name,
+        e.last_name,
+        p.title as position_title,
+        ep.salary,
+        RANK() OVER (PARTITION BY d.id ORDER BY ep.salary DESC) as salary_rank_in_dept,
+        COUNT(*) OVER (PARTITION BY d.id) as dept_size,
+        ROUND(ep.salary * 100.0 / SUM(ep.salary) OVER (PARTITION BY d.id), 2) as pct_of_dept_payroll
+      FROM employees e
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      INNER JOIN positions p ON ep.position_id = p.id
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL
+      INNER JOIN departments d ON ed.department_id = d.id
+      WHERE e.status = 'active' AND d.name = ?
+      ORDER BY ep.salary DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: department_name
+        type: string
+        description: Department name to analyze
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Rank employees by salary in Engineering"
+      - "Show salary ranking in Sales"
+      - "Who are the top earners in Marketing?"
+      - "Display salary hierarchy in Finance"
+    tags: [salary, ranking, department, analytics, bi]
+    result_format: table
+
+  - id: headcount_growth_by_department
+    description: Analyze headcount growth over time by department
+    sql_template: |
+      SELECT
+        d.name as department_name,
+        strftime('%Y', e.hire_date) as hire_year,
+        COUNT(*) as new_hires,
+        SUM(COUNT(*)) OVER (PARTITION BY d.id ORDER BY strftime('%Y', e.hire_date)) as cumulative_hires
+      FROM employees e
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id
+      INNER JOIN departments d ON ed.department_id = d.id
+      WHERE e.hire_date >= date('now', '-' || ? || ' years')
+      GROUP BY d.id, d.name, strftime('%Y', e.hire_date)
+      ORDER BY d.name, hire_year
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: years_back
+        type: integer
+        description: Number of years to look back
+        required: false
+        default: 5
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "How has each department grown over time?"
+      - "Show headcount growth by department"
+      - "Which departments are expanding?"
+      - "Analyze department growth trends"
+    tags: [growth, trends, department, analytics, bi]
+    result_format: table
+
+  - id: employees_without_assignments
+    description: Find employees missing department or position assignments - data quality issue
+    sql_template: |
+      SELECT
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        e.hire_date,
+        e.status,
+        CASE WHEN ed.id IS NULL THEN 'Missing' ELSE 'Assigned' END as department_status,
+        CASE WHEN ep.id IS NULL THEN 'Missing' ELSE 'Assigned' END as position_status
+      FROM employees e
+      LEFT JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL
+      LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      WHERE e.status = 'active'
+        AND (ed.id IS NULL OR ep.id IS NULL)
+      ORDER BY e.hire_date DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Find employees without department assignments"
+      - "Show employees missing position assignments"
+      - "Identify incomplete employee records"
+      - "Which employees have missing data?"
+      - "Find data quality issues in employee records"
+    tags: [data_quality, compliance, audit, discovery]
+    result_format: table
+
+  - id: cross_department_employees
+    description: Find employees assigned to multiple departments - reveals matrix organization
+    sql_template: |
+      SELECT
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        COUNT(DISTINCT ed.department_id) as department_count,
+        GROUP_CONCAT(DISTINCT d.name) as departments,
+        GROUP_CONCAT(DISTINCT d.location) as locations
+      FROM employees e
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL
+      INNER JOIN departments d ON ed.department_id = d.id
+      WHERE e.status = 'active'
+      GROUP BY e.id
+      HAVING COUNT(DISTINCT ed.department_id) > 1
+      ORDER BY department_count DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Who works in multiple departments?"
+      - "Show cross-functional employees"
+      - "Find employees with dual assignments"
+      - "Identify matrix organization members"
+    tags: [org_structure, cross_functional, analytics, discovery]
+    result_format: table
+
+  - id: salary_percentile_analysis
+    description: Calculate salary percentiles across the organization
+    sql_template: |
+      SELECT
+        e.first_name,
+        e.last_name,
+        p.title as position_title,
+        d.name as department_name,
+        ep.salary,
+        NTILE(4) OVER (ORDER BY ep.salary) as salary_quartile,
+        ROUND(PERCENT_RANK() OVER (ORDER BY ep.salary) * 100, 1) as percentile_rank,
+        ROUND(ep.salary - AVG(ep.salary) OVER (), 2) as variance_from_avg
+      FROM employees e
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      INNER JOIN positions p ON ep.position_id = p.id
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL
+      INNER JOIN departments d ON ed.department_id = d.id
+      WHERE e.status = 'active'
+      ORDER BY ep.salary DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show salary percentiles for all employees"
+      - "Where does each employee rank in salary?"
+      - "Display salary quartile distribution"
+      - "Rank employees by compensation percentile"
+    tags: [salary, percentile, analytics, bi]
+    result_format: table

@@ -65,25 +65,26 @@ templates:
       WITH input_params AS (
         SELECT 
           CASE 
-            WHEN %(target_date)s = 'TODAY' THEN CURRENT_DATE
-            WHEN %(target_date)s ~ '^\d{4}-\d{2}-\d{2}$' THEN to_date(%(target_date)s, 'YYYY-MM-DD')
-            WHEN %(target_date)s ~ '^\d{2}/\d{2}/\d{4}$' THEN to_date(%(target_date)s, 'MM/DD/YYYY')
-            WHEN %(target_date)s ~ '^\d{2}-\d{2}-\d{4}$' THEN to_date(%(target_date)s, 'MM-DD-YYYY')
-            WHEN %(target_date)s ~ '^[A-Za-z]+ \d{1,2}[a-z]{0,2}(,? \d{4})?$' THEN
+            WHEN %(target_date)s IS NULL THEN CURRENT_DATE
+            WHEN %(target_date)s::text = 'TODAY' THEN CURRENT_DATE
+            WHEN %(target_date)s::text ~ '^\d{4}-\d{2}-\d{2}$' THEN to_date(%(target_date)s::text, 'YYYY-MM-DD')
+            WHEN %(target_date)s::text ~ '^\d{2}/\d{2}/\d{4}$' THEN to_date(%(target_date)s::text, 'MM/DD/YYYY')
+            WHEN %(target_date)s::text ~ '^\d{2}-\d{2}-\d{4}$' THEN to_date(%(target_date)s::text, 'MM-DD-YYYY')
+            WHEN %(target_date)s::text ~ '^[A-Za-z]+ \d{1,2}[a-z]{0,2}(,? \d{4})?$' THEN
               to_date(
                 REGEXP_REPLACE(
-                  REGEXP_REPLACE(%(target_date)s, '(st|nd|rd|th)', '', 'gi'),
+                  REGEXP_REPLACE(%(target_date)s::text, '(st|nd|rd|th)', '', 'gi'),
                   ',',
                   '',
                   'g'
                 ) ||
                 CASE 
-                  WHEN %(target_date)s ~ '\d{4}' THEN ''
+                  WHEN %(target_date)s::text ~ '\d{4}' THEN ''
                   ELSE ' ' || EXTRACT(YEAR FROM CURRENT_DATE)::text
                 END,
                 'Month DD YYYY'
               )
-            ELSE NULL
+            ELSE COALESCE(%(target_date)s::date, CURRENT_DATE)
           END as target_date,
           GREATEST(COALESCE(%(days_range)s, 1), 1)::int as days_range
       )
@@ -98,9 +99,9 @@ templates:
       FROM orders o
       CROSS JOIN input_params ip
       WHERE (
-        ip.target_date IS NOT NULL AND DATE(o.order_date) = ip.target_date
-      ) OR (
-        ip.days_range > 1 AND o.order_date >= CURRENT_DATE - ip.days_range * INTERVAL '1 day'
+        (ip.days_range = 1 AND DATE(o.order_date) = ip.target_date)
+        OR
+        (ip.days_range > 1 AND DATE(o.order_date) >= ip.target_date - (ip.days_range - 1) * INTERVAL '1 day' AND DATE(o.order_date) <= ip.target_date)
       )
       AND o.status != 'cancelled'
       GROUP BY DATE(o.order_date)
