@@ -356,13 +356,14 @@ function createMiddlewareApi(baseApi: LocalApiModule): ApiFunctions {
       },
 
       async deleteConversationWithFiles(sessId?: string, fileIds?: string[]) {
-        const response = await fetch(`/api/proxy/admin/conversations/${sessId || sessionId}`, {
+        const targetSession = sessId || sessionId;
+        // Send file_ids as query parameters to match direct API behavior
+        const fileIdsParam = fileIds && fileIds.length > 0 ? `?file_ids=${fileIds.join(',')}` : '';
+        const response = await fetch(`/api/proxy/admin/conversations/${targetSession}${fileIdsParam}`, {
           method: 'DELETE',
           headers: {
-            'Content-Type': 'application/json',
             'X-Adapter-Name': adapterName!,
           },
-          body: JSON.stringify({ file_ids: fileIds }),
         });
         if (!response.ok) throw new Error(`Failed to delete conversation: ${response.statusText}`);
         return response.json();

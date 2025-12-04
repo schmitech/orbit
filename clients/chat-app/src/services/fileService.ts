@@ -388,7 +388,15 @@ export class FileUploadService {
       const files = Array.isArray(filesResponse) ? filesResponse : (filesResponse as any).files || [];
       
       // Convert server response to FileAttachment format
-      return files.map(file => ({
+      return files.map((file: {
+        file_id: string;
+        filename: string;
+        mime_type: string;
+        file_size: number;
+        upload_timestamp?: string;
+        processing_status?: string;
+        chunk_count?: number;
+      }) => ({
         file_id: file.file_id,
         filename: file.filename,
         mime_type: file.mime_type,
