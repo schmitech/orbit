@@ -301,42 +301,15 @@ function createServer(distPath, config, serverConfig = {}) {
 
   // API endpoints for middleware mode - MUST be before body parsers
   if (config.enableApiMiddleware && adapters) {
-    // Endpoint to list available adapters
-    app.get('/api/adapters', (req, res) => {
-      const adapterList = Object.keys(adapters).map(name => ({
-        name,
-        apiUrl: adapters[name].apiUrl,
-        // Don't expose API keys
-      }));
-      res.json({ adapters: adapterList });
-    });
-
-    // Proxy middleware for API requests - must be before body parsers to preserve request stream
-    app.use('/api/proxy', (req, res, next) => {
-      const adapterName = req.headers['x-adapter-name'];
-
-      if (!adapterName) {
-        return res.status(400).json({ error: 'X-Adapter-Name header is required' });
+    // Pre-create proxy instances for each adapter to avoid memory leaks
+    // Creating proxies on every request adds event listeners that accumulate
+    const proxyInstances = {};
+    for (const [adapterName, adapter] of Object.entries(adapters)) {
+      if (!adapter.apiKey || !adapter.apiUrl) {
+        console.warn(`[Proxy] Skipping adapter '${adapterName}': missing apiKey or apiUrl`);
+        continue;
       }
-
-      const adapter = adapters[adapterName];
-      if (!adapter) {
-        console.error(`[Proxy] Adapter '${adapterName}' not found. Available: ${Object.keys(adapters).join(', ')}`);
-        return res.status(404).json({ error: `Adapter '${adapterName}' not found` });
-      }
-
-      // Validate adapter has required fields
-      if (!adapter.apiKey) {
-        console.error(`[Proxy] Adapter '${adapterName}' has no apiKey configured`);
-        return res.status(500).json({ error: `Adapter '${adapterName}' has no apiKey configured` });
-      }
-      if (!adapter.apiUrl) {
-        console.error(`[Proxy] Adapter '${adapterName}' has no apiUrl configured`);
-        return res.status(500).json({ error: `Adapter '${adapterName}' has no apiUrl configured` });
-      }
-
-      // Create proxy middleware for this request
-      const proxy = createProxyMiddleware({
+      proxyInstances[adapterName] = createProxyMiddleware({
         target: adapter.apiUrl,
         changeOrigin: true,
         pathRewrite: {
@@ -385,6 +358,31 @@ function createServer(distPath, config, serverConfig = {}) {
         ws: false, // Disable WebSocket proxying
         logLevel: 'silent', // Reduce logging
       });
+    }
+
+    // Endpoint to list available adapters
+    app.get('/api/adapters', (req, res) => {
+      const adapterList = Object.keys(adapters).map(name => ({
+        name,
+        apiUrl: adapters[name].apiUrl,
+        // Don't expose API keys
+      }));
+      res.json({ adapters: adapterList });
+    });
+
+    // Proxy middleware for API requests - must be before body parsers to preserve request stream
+    app.use('/api/proxy', (req, res, next) => {
+      const adapterName = req.headers['x-adapter-name'];
+
+      if (!adapterName) {
+        return res.status(400).json({ error: 'X-Adapter-Name header is required' });
+      }
+
+      const proxy = proxyInstances[adapterName];
+      if (!proxy) {
+        console.error(`[Proxy] Adapter '${adapterName}' not found. Available: ${Object.keys(proxyInstances).join(', ')}`);
+        return res.status(404).json({ error: `Adapter '${adapterName}' not found` });
+      }
 
       proxy(req, res, next);
     });
