@@ -45,9 +45,12 @@ const DEFAULT_CONFIG = {
 
 /**
  * Load adapter mappings from YAML file
+ * @param {string|null} customPath - Optional custom path to adapters.yaml
  */
-function loadAdaptersConfig() {
+function loadAdaptersConfig(customPath = null) {
   const configPaths = [
+    // Custom path takes priority if provided
+    ...(customPath ? [customPath] : []),
     path.join(__dirname, '..', 'adapters.yaml'),
     path.join(process.cwd(), 'adapters.yaml'),
     path.join(homedir(), '.orbit-chat-app', 'adapters.yaml'),
@@ -59,6 +62,7 @@ function loadAdaptersConfig() {
         const content = fs.readFileSync(configPath, 'utf8');
         const config = yaml.load(content);
         if (config && config.adapters) {
+          console.log(`  Adapters config: ${configPath}`);
           return config.adapters;
         }
       }
@@ -81,6 +85,7 @@ function parseArgs() {
     host: 'localhost',
     open: false,
     configFile: null,
+    adaptersConfig: null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -147,6 +152,9 @@ function parseArgs() {
         break;
       case '--config':
         serverConfig.configFile = args[++i];
+        break;
+      case '--adapters-config':
+        serverConfig.adaptersConfig = args[++i];
         break;
       case '--help':
       case '-h':
@@ -287,9 +295,9 @@ function injectConfig(html, config) {
 /**
  * Create Express server to serve the built app
  */
-function createServer(distPath, config) {
+function createServer(distPath, config, serverConfig = {}) {
   const app = express();
-  const adapters = config.enableApiMiddleware ? loadAdaptersConfig() : null;
+  const adapters = config.enableApiMiddleware ? loadAdaptersConfig(serverConfig.adaptersConfig) : null;
 
   // API endpoints for middleware mode - MUST be before body parsers
   if (config.enableApiMiddleware && adapters) {
@@ -306,14 +314,25 @@ function createServer(distPath, config) {
     // Proxy middleware for API requests - must be before body parsers to preserve request stream
     app.use('/api/proxy', (req, res, next) => {
       const adapterName = req.headers['x-adapter-name'];
-      
+
       if (!adapterName) {
         return res.status(400).json({ error: 'X-Adapter-Name header is required' });
       }
 
       const adapter = adapters[adapterName];
       if (!adapter) {
+        console.error(`[Proxy] Adapter '${adapterName}' not found. Available: ${Object.keys(adapters).join(', ')}`);
         return res.status(404).json({ error: `Adapter '${adapterName}' not found` });
+      }
+
+      // Validate adapter has required fields
+      if (!adapter.apiKey) {
+        console.error(`[Proxy] Adapter '${adapterName}' has no apiKey configured`);
+        return res.status(500).json({ error: `Adapter '${adapterName}' has no apiKey configured` });
+      }
+      if (!adapter.apiUrl) {
+        console.error(`[Proxy] Adapter '${adapterName}' has no apiUrl configured`);
+        return res.status(500).json({ error: `Adapter '${adapterName}' has no apiUrl configured` });
       }
 
       // Create proxy middleware for this request
@@ -323,10 +342,14 @@ function createServer(distPath, config) {
         pathRewrite: {
           '^/api/proxy': '', // Remove /api/proxy prefix
         },
+        // Set headers directly - this is more reliable than onProxyReq for some cases
+        headers: {
+          'X-API-Key': adapter.apiKey,
+        },
         onProxyReq: (proxyReq, req) => {
           // Remove adapter name header
           proxyReq.removeHeader('x-adapter-name');
-          // Add actual API key (use X-API-Key to match backend expectation)
+          // Ensure API key is set (backup to headers option above)
           proxyReq.setHeader('X-API-Key', adapter.apiKey);
           // Preserve important headers
           const headersToPreserve = ['content-type', 'x-session-id', 'x-thread-id', 'accept', 'content-length'];
@@ -508,6 +531,7 @@ Options:
   --enable-audio                   Enable audio button (default: false)
   --enable-feedback                Enable feedback buttons (default: false)
   --enable-api-middleware          Enable API middleware mode (default: false)
+  --adapters-config PATH           Path to adapters.yaml for middleware mode
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
   --max-total-files N              Max total files (default: 100, 0 = unlimited)
@@ -533,7 +557,9 @@ Examples:
   orbitchat --api-key my-key --open
   orbitchat --enable-audio --enable-upload --console-debug
   orbitchat --config /path/to/config.json
+  orbitchat --enable-api-middleware --adapters-config ./adapters.yaml
 `);
+
 }
 
 /**
@@ -565,8 +591,8 @@ function main() {
   }
 
   // Create and start server
-  const app = createServer(distPath, config);
-  
+  const app = createServer(distPath, config, serverConfig);
+
   app.listen(serverConfig.port, serverConfig.host, () => {
     const url = `http://${serverConfig.host}:${serverConfig.port}`;
     console.debug(`\n🚀 ORBIT Chat App is running at ${url}\n`);
@@ -577,11 +603,11 @@ function main() {
     console.debug(`  Host: ${serverConfig.host}`);
     if (config.enableApiMiddleware) {
       console.debug(`  API Middleware: Enabled`);
-      const adapters = loadAdaptersConfig();
+      const adapters = loadAdaptersConfig(serverConfig.adaptersConfig);
       if (adapters) {
         console.debug(`  Available Adapters: ${Object.keys(adapters).join(', ')}`);
       } else {
-        console.debug(`  Warning: No adapters.yaml found`);
+        console.debug(`  Warning: No adapters.yaml found. Use --adapters-config to specify path.`);
       }
     }
     console.debug('');
