@@ -10,6 +10,11 @@
 
 export const DEFAULT_API_URL = 'http://localhost:3000';
 
+interface AdapterConfig {
+  name: string;
+  apiUrl: string;
+}
+
 interface RuntimeConfig {
   // API Configuration
   apiUrl: string;
@@ -17,7 +22,7 @@ interface RuntimeConfig {
   useLocalApi: boolean;
   localApiPath?: string;
   consoleDebug: boolean;
-  
+
   // Feature Flags
   enableUploadButton: boolean;
   enableAudioOutput: boolean;
@@ -25,21 +30,24 @@ interface RuntimeConfig {
   enableConversationThreads: boolean;
   enableApiMiddleware: boolean;
   showGitHubStats: boolean;
-  
+
   // GitHub Configuration
   githubOwner: string;
   githubRepo: string;
-  
+
+  // Adapters (for middleware mode, fallback when adapters.yaml is not available)
+  adapters?: AdapterConfig[];
+
   // File Upload Limits
   maxFilesPerConversation: number;
   maxFileSizeMB: number;
   maxTotalFiles: number | null; // null = unlimited
-  
+
   // Conversation Limits
   maxConversations: number | null; // null = unlimited
   maxMessagesPerConversation: number | null; // null = unlimited
   maxTotalMessages: number | null; // null = unlimited
-  
+
   // Message Limits
   maxMessageLength: number;
 }
@@ -66,6 +74,7 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
   showGitHubStats: 'VITE_SHOW_GITHUB_STATS',
   githubOwner: 'VITE_GITHUB_OWNER',
   githubRepo: 'VITE_GITHUB_REPO',
+  adapters: 'VITE_ADAPTERS',
   maxFilesPerConversation: 'VITE_MAX_FILES_PER_CONVERSATION',
   maxFileSizeMB: 'VITE_MAX_FILE_SIZE_MB',
   maxTotalFiles: 'VITE_MAX_TOTAL_FILES',

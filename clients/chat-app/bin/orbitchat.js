@@ -16,7 +16,6 @@ import { homedir } from 'os';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import yaml from 'js-yaml';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -44,34 +43,45 @@ const DEFAULT_CONFIG = {
 };
 
 /**
- * Load adapter mappings from YAML file
- * @param {string|null} customPath - Optional custom path to adapters.yaml
+ * Load adapter mappings from environment variable
+ * Format: JSON array of adapter objects
+ * Example: ORBIT_ADAPTERS='[{"name":"Simple Chat","apiKey":"key1","apiUrl":"https://api.example.com"}]'
+ * @returns {object|null} - Adapters object or null if not found/invalid
  */
-function loadAdaptersConfig(customPath = null) {
-  const configPaths = [
-    // Custom path takes priority if provided
-    ...(customPath ? [customPath] : []),
-    path.join(__dirname, '..', 'adapters.yaml'),
-    path.join(process.cwd(), 'adapters.yaml'),
-    path.join(homedir(), '.orbit-chat-app', 'adapters.yaml'),
-  ];
-
-  for (const configPath of configPaths) {
-    try {
-      if (fs.existsSync(configPath)) {
-        const content = fs.readFileSync(configPath, 'utf8');
-        const config = yaml.load(content);
-        if (config && config.adapters) {
-          console.log(`  Adapters config: ${configPath}`);
-          return config.adapters;
-        }
-      }
-    } catch (error) {
-      console.warn(`Warning: Could not load adapters config from ${configPath}:`, error.message);
-    }
+function loadAdaptersConfig() {
+  const envValue = process.env.ORBIT_ADAPTERS || process.env.VITE_ADAPTERS;
+  if (!envValue) {
+    return null;
   }
 
-  return null;
+  try {
+    const parsed = JSON.parse(envValue);
+    if (!Array.isArray(parsed)) {
+      console.warn('Warning: ORBIT_ADAPTERS/VITE_ADAPTERS must be a JSON array');
+      return null;
+    }
+
+    // Convert array to object format expected by the rest of the code
+    const adapters = {};
+    for (const adapter of parsed) {
+      if (!adapter.name) {
+        console.warn('Warning: Each adapter must have a "name" property');
+        continue;
+      }
+      adapters[adapter.name] = {
+        apiKey: adapter.apiKey || 'default-key',
+        apiUrl: adapter.apiUrl || 'http://localhost:3000',
+      };
+    }
+
+    if (Object.keys(adapters).length > 0) {
+      return adapters;
+    }
+    return null;
+  } catch (error) {
+    console.warn('Warning: Could not parse ORBIT_ADAPTERS/VITE_ADAPTERS:', error.message);
+    return null;
+  }
 }
 
 /**
@@ -85,7 +95,6 @@ function parseArgs() {
     host: 'localhost',
     open: false,
     configFile: null,
-    adaptersConfig: null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -152,9 +161,6 @@ function parseArgs() {
         break;
       case '--config':
         serverConfig.configFile = args[++i];
-        break;
-      case '--adapters-config':
-        serverConfig.adaptersConfig = args[++i];
         break;
       case '--help':
       case '-h':
@@ -295,9 +301,9 @@ function injectConfig(html, config) {
 /**
  * Create Express server to serve the built app
  */
-function createServer(distPath, config, serverConfig = {}) {
+function createServer(distPath, config) {
   const app = express();
-  const adapters = config.enableApiMiddleware ? loadAdaptersConfig(serverConfig.adaptersConfig) : null;
+  const adapters = config.enableApiMiddleware ? loadAdaptersConfig() : null;
 
   // API endpoints for middleware mode - MUST be before body parsers
   if (config.enableApiMiddleware && adapters) {
@@ -529,7 +535,6 @@ Options:
   --enable-audio                   Enable audio button (default: false)
   --enable-feedback                Enable feedback buttons (default: false)
   --enable-api-middleware          Enable API middleware mode (default: false)
-  --adapters-config PATH           Path to adapters.yaml for middleware mode
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
   --max-total-files N              Max total files (default: 100, 0 = unlimited)
@@ -550,12 +555,16 @@ Configuration Priority:
   3. Environment variables (VITE_*)
   4. Default values
 
+Environment Variables for Middleware Mode:
+  ORBIT_ADAPTERS or VITE_ADAPTERS   JSON array of adapter configurations
+                                    Example: '[{"name":"Chat","apiKey":"key1","apiUrl":"https://api.example.com"}]'
+
 Examples:
   orbitchat --api-url http://localhost:3000 --port 8080
   orbitchat --api-key my-key --open
   orbitchat --enable-audio --enable-upload --console-debug
   orbitchat --config /path/to/config.json
-  orbitchat --enable-api-middleware --adapters-config ./adapters.yaml
+  ORBIT_ADAPTERS='[{"name":"Chat","apiKey":"mykey","apiUrl":"https://api.example.com"}]' orbitchat --enable-api-middleware
 `);
 
 }
@@ -589,7 +598,7 @@ function main() {
   }
 
   // Create and start server
-  const app = createServer(distPath, config, serverConfig);
+  const app = createServer(distPath, config);
 
   app.listen(serverConfig.port, serverConfig.host, () => {
     const url = `http://${serverConfig.host}:${serverConfig.port}`;
@@ -601,11 +610,11 @@ function main() {
     console.debug(`  Host: ${serverConfig.host}`);
     if (config.enableApiMiddleware) {
       console.debug(`  API Middleware: Enabled`);
-      const adapters = loadAdaptersConfig(serverConfig.adaptersConfig);
+      const adapters = loadAdaptersConfig();
       if (adapters) {
         console.debug(`  Available Adapters: ${Object.keys(adapters).join(', ')}`);
       } else {
-        console.debug(`  Warning: No adapters.yaml found. Use --adapters-config to specify path.`);
+        console.debug(`  Warning: No adapters configured. Set ORBIT_ADAPTERS or VITE_ADAPTERS environment variable.`);
       }
     }
     console.debug('');
