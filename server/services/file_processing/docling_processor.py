@@ -143,7 +143,7 @@ class DoclingProcessor(FileProcessor):
                     os.unlink(temp_path)
 
             extracted_text = "\n\n".join(text_parts)
-            logger.info(f"[Docling] Successfully extracted {len(extracted_text)} characters from {filename or 'unknown'}")
+            logger.debug(f"[Docling] Successfully extracted {len(extracted_text)} characters from {filename or 'unknown'}")
             return extracted_text
 
         except Exception as e:

@@ -165,11 +165,11 @@ class FileProcessorRegistry:
             if processor.supports_mime_type(mime_type):
                 processor_name = processor.__class__.__name__
                 if processor_name == "DoclingProcessor":
-                    logger.info(f"[ProcessorRegistry] Selected DoclingProcessor for MIME type '{mime_type}'")
+                    logger.debug(f"[ProcessorRegistry] Selected DoclingProcessor for MIME type '{mime_type}'")
                 elif processor_name == "MarkItDownProcessor":
-                    logger.info(f"[ProcessorRegistry] Selected MarkItDownProcessor for MIME type '{mime_type}'")
+                    logger.debug(f"[ProcessorRegistry] Selected MarkItDownProcessor for MIME type '{mime_type}'")
                 else:
-                    logger.info(f"[ProcessorRegistry] Selected {processor_name} for MIME type '{mime_type}'")
+                    logger.debug(f"[ProcessorRegistry] Selected {processor_name} for MIME type '{mime_type}'")
                 return processor
 
         logger.warning(f"[ProcessorRegistry] No processor found for MIME type '{mime_type}'")
