@@ -30,6 +30,12 @@ Based on `clients/node-api/api.ts`, the following endpoints need to be accessibl
 ### Health Check (recommended)
 - `GET /health`
 
+### Dashboard Endpoints
+- `GET /dashboard` (serves HTML dashboard)
+- `GET /metrics` (Prometheus metrics endpoint)
+- `GET /metrics/json` (JSON metrics endpoint)
+- `WebSocket /ws/metrics` (real-time metrics streaming)
+
 ## AWS ALB Listener Rules Configuration
 
 Configure these rules in order of priority (lower numbers = higher priority). Rules are evaluated in order, and the first matching rule is applied.
@@ -43,8 +49,52 @@ Configure these rules in order of priority (lower numbers = higher priority). Ru
   - HTTP request method = `GET`
 - **Action**: Forward to backend target group
 
-**Priority 2: Chat Endpoint (Streaming)**
+**Priority 2: Dashboard WebSocket (Real-time Metrics)**
 - **Priority**: 2
+- **Conditions**:
+  - Path (value) = `/ws/metrics`
+  - HTTP request method = `GET`
+- **Action**: Forward to backend target group
+- **Note**: 
+  - This endpoint uses WebSocket protocol for real-time metrics streaming
+  - AWS ALB supports WebSocket connections natively - ensure your target group has appropriate timeout settings (recommended: 60+ seconds for long-lived connections)
+  - The WebSocket connection requires HTTP Basic authentication or cookie-based session authentication
+
+**Priority 3: Dashboard HTML**
+- **Priority**: 3
+- **Conditions**:
+  - Path (value) = `/dashboard`
+  - HTTP request method = `GET` OR `OPTIONS`
+- **Action**: Forward to backend target group
+- **Note**: 
+  - Serves the monitoring dashboard HTML page
+  - Requires HTTP Basic authentication with admin credentials
+  - `OPTIONS` included for CORS preflight requests
+
+**Priority 4: Dashboard Metrics (Prometheus)**
+- **Priority**: 4
+- **Conditions**:
+  - Path (value) = `/metrics`
+  - HTTP request method = `GET` OR `OPTIONS`
+- **Action**: Forward to backend target group
+- **Note**: 
+  - Prometheus-compatible metrics endpoint
+  - Returns metrics in Prometheus text format
+  - `OPTIONS` included for CORS preflight requests
+
+**Priority 5: Dashboard Metrics (JSON)**
+- **Priority**: 5
+- **Conditions**:
+  - Path (value) = `/metrics/json`
+  - HTTP request method = `GET` OR `OPTIONS`
+- **Action**: Forward to backend target group
+- **Note**: 
+  - JSON metrics endpoint for custom integrations
+  - Returns metrics in JSON format
+  - `OPTIONS` included for CORS preflight requests
+
+**Priority 6: Chat Endpoint (Streaming)**
+- **Priority**: 6
 - **Conditions**:
   - Path (value) = `/v1/chat`
   - HTTP request method = `POST` OR `OPTIONS`
@@ -53,82 +103,82 @@ Configure these rules in order of priority (lower numbers = higher priority). Ru
   - This endpoint supports Server-Sent Events (SSE) streaming. Ensure your target group has appropriate timeout settings (recommended: 60+ seconds).
   - `OPTIONS` included for CORS preflight requests
 
-**Priority 3: Admin API Key Status**
-- **Priority**: 3
+**Priority 7: Admin API Key Status**
+- **Priority**: 7
 - **Conditions**:
   - Path (pattern) = `/admin/api-keys/*/status`
   - HTTP request method = `GET` OR `OPTIONS`
 - **Action**: Forward to backend target group
 
-**Priority 4: Admin API Key Info**
-- **Priority**: 4
+**Priority 8: Admin API Key Info**
+- **Priority**: 8
 - **Conditions**:
   - Path (value) = `/admin/api-keys/info`
   - HTTP request method = `GET` OR `OPTIONS`
 - **Action**: Forward to backend target group
 
-**Priority 5: Admin Chat History**
-- **Priority**: 5
+**Priority 9: Admin Chat History**
+- **Priority**: 9
 - **Conditions**:
   - Path (pattern) = `/admin/chat-history/*`
   - HTTP request method = `DELETE` OR `OPTIONS`
 - **Action**: Forward to backend target group
 
-**Priority 6: Admin Conversations**
-- **Priority**: 6
+**Priority 10: Admin Conversations**
+- **Priority**: 10
 - **Conditions**:
   - Path (pattern) = `/admin/conversations/*`
   - HTTP request method = `DELETE` OR `OPTIONS`
 - **Action**: Forward to backend target group
 
-**Priority 7: Thread Creation**
-- **Priority**: 7
+**Priority 11: Thread Creation**
+- **Priority**: 11
 - **Conditions**:
   - Path (value) = `/api/threads`
   - HTTP request method = `POST` OR `OPTIONS`
 - **Action**: Forward to backend target group
 
-**Priority 8: Thread Operations (GET/DELETE)**
-- **Priority**: 8
+**Priority 12: Thread Operations (GET/DELETE)**
+- **Priority**: 12
 - **Conditions**:
   - Path (pattern) = `/api/threads/*`
   - HTTP request method = `GET` OR `DELETE` OR `OPTIONS`
 - **Action**: Forward to backend target group
 - **Note**: This matches both `GET /api/threads/{thread_id}` and `DELETE /api/threads/{thread_id}`
 
-**Priority 9: File Upload**
-- **Priority**: 9
+**Priority 13: File Upload**
+- **Priority**: 13
 - **Conditions**:
   - Path (value) = `/api/files/upload`
   - HTTP request method = `POST` OR `OPTIONS`
 - **Action**: Forward to backend target group
 - **Note**: File uploads may require larger request size limits (default is 1MB). Configure your target group and ALB accordingly.
 
-**Priority 10: File Query**
-- **Priority**: 10
+**Priority 14: File Query**
+- **Priority**: 14
 - **Conditions**:
   - Path (pattern) = `/api/files/*/query`
   - HTTP request method = `POST` OR `OPTIONS`
 - **Action**: Forward to backend target group
 - **Note**: Must come before the general `/api/files/*` pattern to match `/api/files/{file_id}/query` specifically
 
-**Priority 11: File Operations (GET/DELETE)**
-- **Priority**: 11
+**Priority 15: File Operations (GET/DELETE)**
+- **Priority**: 15
 - **Conditions**:
   - Path (pattern) = `/api/files/*`
   - HTTP request method = `GET` OR `DELETE` OR `OPTIONS`
 - **Action**: Forward to backend target group
 - **Note**: This matches both `GET /api/files/{file_id}` and `DELETE /api/files/{file_id}`
 
-**Priority 12: List Files**
-- **Priority**: 12
+**Priority 16: List Files**
+- **Priority**: 16
 - **Conditions**:
   - Path (value) = `/api/files`
   - HTTP request method = `GET` OR `OPTIONS`
 - **Action**: Forward to backend target group
 - **Note**: Must come after `/api/files/*` pattern to match exact `/api/files` path
 
-**Priority 13: Default Rule (Catch-All)**
+**Priority 17: Default Rule (Catch-All)**
 - **Priority**: 50000 (or highest available)
 - **Conditions**: None (default action)
 - **Action**: Forward to backend target group OR return 404
@@ -143,18 +193,25 @@ If you prefer fewer rules, you can use these broader patterns:
 **Priority 1: Health Check**
 - Path = `/health`, Method = `GET`
 
-**Priority 2: Admin Routes**
+**Priority 2: Dashboard WebSocket**
+- Path = `/ws/metrics`, Method = `GET` (WebSocket upgrade)
+
+**Priority 3: Dashboard Routes**
+- Path (pattern) = `/dashboard` OR `/metrics*`
+- All HTTP methods
+
+**Priority 4: Admin Routes**
 - Path (pattern) = `/admin/*`
 - All HTTP methods
 
-**Priority 3: API Routes**
+**Priority 5: API Routes**
 - Path (pattern) = `/api/*`
 - All HTTP methods
 
-**Priority 4: Chat Endpoint**
+**Priority 6: Chat Endpoint**
 - Path = `/v1/chat`, Method = `POST` OR `OPTIONS`
 
-**Priority 5: Default**
+**Priority 7: Default**
 - Catch-all rule
 
 ## Minimal Security-Focused Configuration
@@ -172,6 +229,12 @@ Based on analysis of `clients/node-api/api.ts`, the client uses these specific e
 5. **Delete Conversation**: `DELETE /admin/conversations/{session_id}`
 6. **Threads**: `POST /api/threads`, `GET /api/threads/{thread_id}`, `DELETE /api/threads/{thread_id}`
 7. **Files**: `POST /api/files/upload`, `GET /api/files`, `GET /api/files/{file_id}`, `POST /api/files/{file_id}/query`, `DELETE /api/files/{file_id}`
+
+Additionally, if you're using the monitoring dashboard (`server/routes/dashboard_routes.py`), you'll need:
+
+8. **Dashboard**: `GET /dashboard` (HTML dashboard page)
+9. **Dashboard Metrics**: `GET /metrics` (Prometheus format), `GET /metrics/json` (JSON format)
+10. **Dashboard WebSocket**: `WebSocket /ws/metrics` (real-time metrics streaming)
 
 The detailed rule configuration above already follows this minimal approach. The key differences from a more permissive configuration are:
 
@@ -192,32 +255,39 @@ If you want even fewer rules, you can group related endpoints:
 **Priority 1: Health Check (Optional)**
 - Path = `/health`, Method = `GET`
 
-**Priority 2: Chat Endpoint**
+**Priority 2: Dashboard WebSocket (if using dashboard)**
+- Path = `/ws/metrics`, Method = `GET` (WebSocket upgrade)
+
+**Priority 3: Dashboard Routes (if using dashboard)**
+- Path (pattern) = `/dashboard` OR `/metrics*`
+- All HTTP methods (includes `GET`, `OPTIONS`)
+
+**Priority 4: Chat Endpoint**
 - Path = `/v1/chat`, Method = `POST` OR `OPTIONS`
 
-**Priority 3: Admin API Key Operations**
+**Priority 5: Admin API Key Operations**
 - Path (pattern) = `/admin/api-keys/*`
 - HTTP request method = `GET` OR `OPTIONS`
 - **Note**: This covers both `/admin/api-keys/{api_key}/status` and `/admin/api-keys/info`
 
-**Priority 4-5: Admin Chat Operations**
-- Priority 4: `/admin/chat-history/*`, `DELETE` OR `OPTIONS`
-- Priority 5: `/admin/conversations/*`, `DELETE` OR `OPTIONS`
+**Priority 6-7: Admin Chat Operations**
+- Priority 6: `/admin/chat-history/*`, `DELETE` OR `OPTIONS`
+- Priority 7: `/admin/conversations/*`, `DELETE` OR `OPTIONS`
 - **Note**: ALB doesn't support OR conditions for paths, so you'll need two separate rules
 
-**Priority 6: Thread Operations**
+**Priority 8: Thread Operations**
 - Path (pattern) = `/api/threads*` (matches `/api/threads` and `/api/threads/*`)
 - All HTTP methods (includes `POST`, `GET`, `DELETE`, `OPTIONS`)
 
-**Priority 7: File Query (Specific)**
+**Priority 9: File Query (Specific)**
 - Path (pattern) = `/api/files/*/query`
 - HTTP request method = `POST` OR `OPTIONS`
 
-**Priority 8: File Operations**
+**Priority 10: File Operations**
 - Path (pattern) = `/api/files*` (matches `/api/files` and `/api/files/*`)
 - All HTTP methods (includes `POST`, `GET`, `DELETE`, `OPTIONS`)
 
-**Priority 9: Default**
+**Priority 11: Default**
 - Return 404 for all unmatched requests
 
 ### Security Considerations
@@ -238,8 +308,11 @@ If you want even fewer rules, you can group related endpoints:
 - Consider using S3 for large file uploads if needed
 
 ### WebSocket Support
-- If you plan to use WebSocket connections, ensure your ALB supports WebSocket upgrades
+- AWS ALB natively supports WebSocket connections - no special configuration needed
+- The `/ws/metrics` endpoint uses WebSocket protocol for real-time metrics streaming
+- Ensure your target group has appropriate timeout settings (recommended: 60+ seconds for long-lived WebSocket connections)
 - The `/v1/chat` endpoint uses SSE (Server-Sent Events), not WebSockets, so standard HTTP/HTTPS is sufficient
+- WebSocket connections require HTTP Basic authentication or cookie-based session authentication (handled by the backend)
 
 ### SSL/TLS
 - Configure HTTPS listener on port 443
@@ -280,10 +353,102 @@ resource "aws_lb_listener_rule" "health_check" {
   }
 }
 
+# Dashboard WebSocket (real-time metrics)
+resource "aws_lb_listener_rule" "dashboard_websocket" {
+  listener_arn = aws_lb_listener.main.arn
+  priority     = 2
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/ws/metrics"]
+    }
+  }
+
+  condition {
+    http_request_method {
+      values = ["GET"]
+    }
+  }
+}
+
+# Dashboard HTML
+resource "aws_lb_listener_rule" "dashboard_html" {
+  listener_arn = aws_lb_listener.main.arn
+  priority     = 3
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/dashboard"]
+    }
+  }
+
+  condition {
+    http_request_method {
+      values = ["GET", "OPTIONS"]
+    }
+  }
+}
+
+# Dashboard Prometheus metrics
+resource "aws_lb_listener_rule" "dashboard_metrics" {
+  listener_arn = aws_lb_listener.main.arn
+  priority     = 4
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/metrics"]
+    }
+  }
+
+  condition {
+    http_request_method {
+      values = ["GET", "OPTIONS"]
+    }
+  }
+}
+
+# Dashboard JSON metrics
+resource "aws_lb_listener_rule" "dashboard_metrics_json" {
+  listener_arn = aws_lb_listener.main.arn
+  priority     = 5
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/metrics/json"]
+    }
+  }
+
+  condition {
+    http_request_method {
+      values = ["GET", "OPTIONS"]
+    }
+  }
+}
+
 # Chat endpoint
 resource "aws_lb_listener_rule" "chat" {
   listener_arn = aws_lb_listener.main.arn
-  priority     = 2
+  priority     = 6
 
   action {
     type             = "forward"
@@ -306,7 +471,7 @@ resource "aws_lb_listener_rule" "chat" {
 # Admin API key status
 resource "aws_lb_listener_rule" "admin_api_key_status" {
   listener_arn = aws_lb_listener.main.arn
-  priority     = 3
+  priority     = 7
 
   action {
     type             = "forward"
@@ -329,7 +494,7 @@ resource "aws_lb_listener_rule" "admin_api_key_status" {
 # Admin API key info
 resource "aws_lb_listener_rule" "admin_api_key_info" {
   listener_arn = aws_lb_listener.main.arn
-  priority     = 4
+  priority     = 8
 
   action {
     type             = "forward"
@@ -352,7 +517,7 @@ resource "aws_lb_listener_rule" "admin_api_key_info" {
 # Admin chat history delete
 resource "aws_lb_listener_rule" "admin_chat_history" {
   listener_arn = aws_lb_listener.main.arn
-  priority     = 5
+  priority     = 9
 
   action {
     type             = "forward"
@@ -375,7 +540,7 @@ resource "aws_lb_listener_rule" "admin_chat_history" {
 # Admin conversations delete
 resource "aws_lb_listener_rule" "admin_conversations" {
   listener_arn = aws_lb_listener.main.arn
-  priority     = 6
+  priority     = 10
 
   action {
     type             = "forward"
@@ -398,7 +563,7 @@ resource "aws_lb_listener_rule" "admin_conversations" {
 # Thread creation
 resource "aws_lb_listener_rule" "threads_create" {
   listener_arn = aws_lb_listener.main.arn
-  priority     = 7
+  priority     = 11
 
   action {
     type             = "forward"
@@ -421,7 +586,7 @@ resource "aws_lb_listener_rule" "threads_create" {
 # Thread operations (GET/DELETE)
 resource "aws_lb_listener_rule" "threads_ops" {
   listener_arn = aws_lb_listener.main.arn
-  priority     = 8
+  priority     = 12
 
   action {
     type             = "forward"
@@ -444,7 +609,7 @@ resource "aws_lb_listener_rule" "threads_ops" {
 # File upload
 resource "aws_lb_listener_rule" "files_upload" {
   listener_arn = aws_lb_listener.main.arn
-  priority     = 9
+  priority     = 13
 
   action {
     type             = "forward"
@@ -467,7 +632,7 @@ resource "aws_lb_listener_rule" "files_upload" {
 # File query
 resource "aws_lb_listener_rule" "files_query" {
   listener_arn = aws_lb_listener.main.arn
-  priority     = 10
+  priority     = 14
 
   action {
     type             = "forward"
@@ -490,7 +655,7 @@ resource "aws_lb_listener_rule" "files_query" {
 # File operations (GET/DELETE)
 resource "aws_lb_listener_rule" "files_ops" {
   listener_arn = aws_lb_listener.main.arn
-  priority     = 11
+  priority     = 15
 
   action {
     type             = "forward"
@@ -513,7 +678,7 @@ resource "aws_lb_listener_rule" "files_ops" {
 # List files
 resource "aws_lb_listener_rule" "files_list" {
   listener_arn = aws_lb_listener.main.arn
-  priority     = 12
+  priority     = 16
 
   action {
     type             = "forward"
@@ -552,7 +717,7 @@ resource "aws_lb_listener_rule" "default_reject" {
 }
 ```
 
-**Summary**: This configuration includes 13 rules (12 endpoint rules + 1 default reject rule) that expose only the endpoints used by the Node.js API client, providing optimal security while maintaining full functionality.
+**Summary**: This configuration includes 17 rules (16 endpoint rules + 1 default reject rule) that expose the endpoints used by the Node.js API client and the dashboard, providing optimal security while maintaining full functionality. The dashboard rules include WebSocket support for real-time metrics streaming.
 
 ## Testing
 
@@ -560,24 +725,172 @@ After configuring the rules, test each endpoint:
 
 ```bash
 # Health check
-curl https://your-alb-dns-name/health
+curl https://your-alb-address/health
 
 # Chat endpoint
-curl -X POST https://your-alb-dns-name/v1/chat \
+curl -X POST https://your-alb-address/v1/chat \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -d '{"messages":[{"role":"user","content":"test"}],"stream":false}'
 
+# Dashboard (requires HTTP Basic auth)
+curl -u admin:password https://your-alb-address/dashboard
+
+# Dashboard metrics (Prometheus format)
+curl -u admin:password https://your-alb-address/metrics
+
+# Dashboard metrics (JSON format)
+curl -u admin:password https://your-alb-address/metrics/json
+
 # File upload
-curl -X POST https://your-alb-dns-name/api/files/upload \
+curl -X POST https://your-alb-address/api/files/upload \
   -H "X-API-Key: your-api-key" \
   -F "file=@test.txt"
 ```
+### Recommended Rule Configuration for Dashboard
 
-## Troubleshooting
+If the dashboard WebSocket is not working, verify these rules are configured correctly:
 
-1. **404 errors**: Check that path patterns match exactly (case-sensitive)
-2. **Timeout errors**: Increase idle timeout for streaming endpoints
-3. **502 errors**: Check target group health and security group rules
-4. **413 errors**: Increase request size limits for file uploads
+**Priority 2: Dashboard WebSocket**
+```
+Path (value) = /ws/metrics
+HTTP request method = GET
+```
+*Note: AWS ALB automatically handles the WebSocket upgrade protocol. You don't need to explicitly match the `Upgrade` header.*
+
+**Priority 3: Dashboard HTML**
+```
+Path (value) = /dashboard
+HTTP request method = GET OR OPTIONS
+```
+*Note: OPTIONS is required for CORS preflight requests from the browser.*
+
+**Priority 4: Dashboard Metrics (Prometheus)**
+```
+Path (value) = /metrics
+HTTP request method = GET OR OPTIONS
+```
+
+**Priority 5: Dashboard Metrics (JSON)**
+```
+Path (value) = /metrics/json
+HTTP request method = GET OR OPTIONS
+```
+
+### Testing WebSocket Connection
+
+To test if the WebSocket endpoint is accessible:
+
+```bash
+# Test WebSocket connection (requires wscat or similar tool)
+wscat -c wss://your-alb-address/ws/metrics \
+  -H "Authorization: Basic $(echo -n 'admin:password' | base64)"
+
+# Or test with curl (will show upgrade response)
+curl -i -N \
+  -H "Connection: Upgrade" \
+  -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: test" \
+  -H "Authorization: Basic $(echo -n 'admin:password' | base64)" \
+  https://your-alb-address/ws/metrics
+```
+
+Expected response should include:
+- `HTTP/1.1 101 Switching Protocols`
+- `Upgrade: websocket`
+- `Connection: Upgrade`
+
+## Troubleshooting: Works Locally but 404 Through ALB
+
+If your dashboard works locally (e.g., `http://localhost:3000/dashboard`) but returns 404 through the ALB, check the following:
+
+### Common Causes
+
+1. **Rule Priority Conflict**:
+   - A higher priority rule might be matching first and rejecting the request
+   - **Fix**: Ensure dashboard rules have higher priority (lower numbers) than catch-all rules
+   - **Check**: Verify your rule priorities are in the correct order (1, 2, 3, 4, 5 for dashboard rules)
+
+2. **Path Pattern Mismatch**:
+   - **Problem**: Using path pattern `/dashboard/*` instead of exact path `/dashboard`
+   - **Fix**: Use exact path match: `Path (value) = /dashboard` (not pattern)
+   - **Why**: The dashboard route is `/dashboard`, not `/dashboard/*`
+
+3. **HTTP Method Not Included**:
+   - **Problem**: Missing `OPTIONS` method for CORS preflight
+   - **Fix**: Add `OPTIONS` to HTTP request method: `GET OR OPTIONS`
+   - **Test**: Try accessing the dashboard with authentication:
+     ```bash
+     curl -u admin:admin123 https://your-alb-address/dashboard
+     ```
+
+4. **Default Rule Catching Request**:
+   - **Problem**: Default rule (lowest priority) is returning 404 before dashboard rules match
+   - **Fix**: Ensure dashboard rules have higher priority than the default rule
+   - **Check**: Your dashboard rules should be priorities 2-5, default should be 50000
+
+5. **Case Sensitivity**:
+   - **Problem**: Path matching is case-sensitive
+   - **Fix**: Ensure path is exactly `/dashboard` (lowercase), not `/Dashboard` or `/DASHBOARD`
+
+### Step-by-Step Debugging
+
+1. **Test each endpoint individually**:
+   ```bash
+   # Test health (should work)
+   curl https://your-alb-address/health
+   
+   # Test dashboard with auth
+   curl -u admin:admin123 https://your-alb-address/dashboard
+   
+   # Test metrics
+   curl -u admin:admin123 https://your-alb-address/metrics
+   
+   # Test metrics JSON
+   curl -u admin:admin123 https://your-alb-address/metrics/json
+   ```
+
+2. **Check ALB access logs**:
+   - Enable ALB access logs in CloudWatch
+   - Look for requests to `/dashboard` and see which rule matched
+   - Check if the request is being forwarded to the target group
+
+3. **Verify target group health**:
+   - Check EC2 → Target Groups → Your Target Group → Health checks
+   - Ensure targets are healthy
+   - If unhealthy, check security groups and backend service logs
+
+4. **Test WebSocket connection**:
+   ```bash
+   # Test WebSocket upgrade
+   curl -i -N \
+     -H "Connection: Upgrade" \
+     -H "Upgrade: websocket" \
+     -H "Sec-WebSocket-Version: 13" \
+     -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+     -H "Authorization: Basic $(echo -n 'admin:admin123' | base64)" \
+     https://your-alb-address/ws/metrics
+   ```
+
+### Correct Rule Configuration Checklist
+
+Verify your ALB rules match this exact configuration:
+
+- [ ] **Priority 1**: `/health` with `GET` method
+- [ ] **Priority 2**: `/ws/metrics` with `GET` method (WebSocket)
+- [ ] **Priority 3**: `/dashboard` with `GET OR OPTIONS` methods
+- [ ] **Priority 4**: `/metrics` with `GET OR OPTIONS` methods
+- [ ] **Priority 5**: `/metrics/json` with `GET OR OPTIONS` methods
+- [ ] **Priority 6+**: Other API routes
+- [ ] **Priority 50000**: Default rule (should be last)
+
+### Authentication Notes
+
+The dashboard requires HTTP Basic authentication:
+- **Username**: `admin`
+- **Password**: `admin123` (or your configured admin password)
+- When accessing through a browser, you'll be prompted for credentials
+- The dashboard sets a `dashboard_token` cookie for subsequent requests
+- WebSocket connections use either Basic auth or the session cookie
 
