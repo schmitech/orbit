@@ -5,38 +5,40 @@ inference:
     model: "granite4:1b"
     stream: true
     think: false  # Enable/disable think mode (shows reasoning in <think> tags)
-    # Generation parameters - Optimized for Granite 4.0-1B on CPU laptop
-    temperature: 0.4  # Balanced for creative yet factual outputs with 1B model
+    # Generation parameters - Optimized for Granite 4.0-1B on CPU Mac with 16GB RAM
+    temperature: 0.7  # Balanced for creative yet factual outputs with 1B model
     top_p: 0.9  # Good diversity while maintaining coherence
-    top_k: 50  # Slightly higher for better token selection with larger model
+    top_k: 30  # Optimal token selection for 1B model (lower than larger models)
     min_p: 0.0
-    typical_p: 0.7
-    num_predict: 6144  # Longer responses leveraging 1B model's improved capabilities
-    repeat_penalty: 1.2  # Higher penalty to prevent repetition in longer contexts
-    repeat_last_n: 128  # Check more tokens for repetition in extended chat history
+    typical_p: 0.9  # Adjusted for 1B model quality
+    num_predict: 4096  # Sufficient for detailed responses while managing memory on 16GB RAM
+    repeat_penalty: 1.15  # Moderate penalty to prevent repetition while maintaining natural flow
+    repeat_last_n: 64  # Check fewer tokens for repetition (appropriate for smaller context window)
     presence_penalty: 0.0
     frequency_penalty: 0.0
     # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
     mirostat: 0
-    mirostat_tau: 0.8
-    mirostat_eta: 0.6
-    # Context and memory - Optimized for Granite 4.0-1B (supports 128K, using 64K for laptop efficiency)
-    # num_ctx: 65536  # 64K context - large enough for extensive chat history, practical for laptop CPU
-    num_ctx: 2048  # 64K context - large enough for extensive chat history, practical for laptop CPU
-    num_keep: 1024  # Keep significant chat history and prompt context
+    mirostat_tau: 4.0  # Adjusted for 1B model
+    mirostat_eta: 0.1
+    # Context and memory - Optimized for Granite 4.0-1B on CPU Mac with 16GB RAM
+    # 1B model is memory-efficient, but 16GB RAM limits context window size
+    # Using 8K context provides good balance between functionality and memory usage
+    num_ctx: 8192  # 8K context - optimal for 16GB RAM on CPU (1B model uses ~2-3GB base, leaving room for context)
+    num_keep: 1024  # Keep reasonable chat history and prompt context for 1B model on CPU
     penalize_newline: false
     # Stop sequences
     stop: []
-    # Threading and performance - Optimized for 1.6B parameter model on CPU
-    num_threads: 8  # Optimal for 1B model on modern laptop CPUs
-    num_batch: 6  # Increased batch size for better throughput with 1B model
-    # GPU settings
-    num_gpu: 0
-    main_gpu: 0
-    low_vram: false
-    # Memory management
-    use_mmap: true
-    use_mlock: false
+    # Threading and performance - Optimized for Granite 4.0-1B on CPU Mac
+    # Mac CPUs typically have 8-10 cores, using 6 threads for optimal CPU utilization
+    num_threads: 6  # Optimal for CPU inference on Mac (balances performance and system responsiveness)
+    num_batch: 64  # Smaller batch size for CPU (reduces memory pressure on 16GB RAM)
+    # CPU settings - Optimized for Mac CPU (no GPU acceleration)
+    num_gpu: 0  # CPU only (0 = no GPU layers, all computation on CPU)
+    main_gpu: 0  # Not applicable for CPU but kept for compatibility
+    low_vram: false  # Not applicable for CPU mode
+    # Memory management - Optimized for CPU with 16GB RAM
+    use_mmap: true  # Memory mapping reduces RAM usage (important for 16GB systems)
+    use_mlock: false  # Keep false for CPU to allow OS memory management
     vocab_only: false
     numa: false
     # Random seed for reproducible outputs
@@ -52,7 +54,12 @@ inference:
     timeout:
       connect: 10000         # 10 seconds for connection
       total: 120000          # 2 minutes total timeout
-      warmup: 60000          # 1 minute for initial warmup
+      warmup: 120000         # 2 minutes for initial warmup (increased for cold starts)
+
+    # Keep alive - how long to keep model loaded in memory after requests
+    # Options: "5m", "10m", "1h", "-1" (indefinite), "0" (unload immediately)
+    # Longer values reduce cold start latency but use more VRAM
+    keep_alive: "10m"
   ollama_cloud:
     enabled: true
     api_key: ${OLLAMA_CLOUD_API_KEY}
@@ -84,6 +91,56 @@ inference:
     # num_threads, num_batch, use_mmap, use_mlock, vocab_only, numa are not applicable
     # Random seed for reproducible outputs
     seed: null
+  ollama_remote:
+    enabled: false
+    # Remote Ollama server URL (e.g., AWS EC2, self-hosted server)
+    base_url: "http://your-remote-server:11434"
+    # Optional API key for secured remote servers (leave null if not required)
+    api_key: null
+    model: "granite4:1b"  # Model available on your remote Ollama server
+    stream: true
+    think: false  # Enable/disable think mode (shows reasoning in <think> tags)
+    # Generation parameters - Adjust based on your use case and model
+    temperature: 0.7  # Balanced for creative yet factual outputs
+    top_p: 0.9  # Good diversity while maintaining coherence
+    top_k: 30
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 4096  # Maximum tokens to generate
+    repeat_penalty: 1.15  # Moderate penalty to prevent repetition
+    repeat_last_n: 64  # Check tokens for repetition
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # Context settings - Adjust based on your remote server's capabilities
+    num_ctx: 8192  # Context window size (depends on server's model and hardware)
+    num_keep: 1024  # Keep prompt context and chat history
+    penalize_newline: false
+    # Stop sequences
+    stop: []
+    # Remote server - these settings are managed by the remote Ollama server
+    # num_threads, num_batch, num_gpu, use_mmap, use_mlock, vocab_only, numa are not applicable
+    # Random seed for reproducible outputs
+    seed: null
+    # Retry configuration for handling network issues and cold starts
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000  # Start with 2 seconds
+      max_wait_ms: 30000     # Max 30 seconds per retry
+      exponential_base: 2    # Exponential backoff multiplier
+    # Timeout configuration
+    timeout:
+      connect: 10000         # 10 seconds for connection
+      total: 120000          # 2 minutes total timeout
+      warmup: 120000         # 2 minutes for initial warmup (increased for cold starts)
+    # Keep alive - how long to keep model loaded in memory on remote server
+    # Options: "5m", "10m", "1h", "-1" (indefinite), "0" (unload immediately)
+    # Longer values reduce cold start latency but use more server memory
+    keep_alive: "10m"
   vllm:
     enabled: false
     host: "localhost"
@@ -164,7 +221,7 @@ inference:
   gemini:
     enabled: true
     api_key: ${GOOGLE_API_KEY}
-    model: "gemini-3-pro-preview"
+    model: "gemini-2.5-flash"
     context_window: 1000000  # Gemini supports up to 1M tokens
     temperature: 0.1
     top_p: 0.8
@@ -172,6 +229,8 @@ inference:
     max_tokens: 1024
     stream: true
     transport: "rest"
+    # Safety settings - set to true to disable all safety filters (useful for reducing false positives)
+    disable_safety: true
   groq:
     enabled: true
     api_key: ${GROQ_API_KEY}

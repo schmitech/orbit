@@ -60,8 +60,12 @@ class OllamaConfig:
         # Timeout configuration
         timeout_config = service_config.get('timeout', {})
         self.connect_timeout = timeout_config.get('connect', 10000) / 1000  # Convert to seconds
-        self.total_timeout = timeout_config.get('total', 60000) / 1000  # Convert to seconds
-        self.warmup_timeout = timeout_config.get('warmup', 45000) / 1000  # Convert to seconds
+        self.total_timeout = timeout_config.get('total', 120000) / 1000  # Convert to seconds (increased default)
+        self.warmup_timeout = timeout_config.get('warmup', 120000) / 1000  # Convert to seconds (increased from 45s to 120s for cold starts)
+
+        # Keep alive configuration - how long to keep model loaded in memory
+        # Options: "10m" (10 minutes), "1h" (1 hour), "-1" (indefinite), "0" (unload immediately)
+        self.keep_alive = service_config.get('keep_alive', '10m')
         
         # Additional parameters
         self.temperature = service_config.get('temperature', 0.1)
@@ -203,56 +207,103 @@ class OllamaRetryHandler:
 
 class OllamaModelWarmer:
     """Handles model warm-up for Ollama services."""
-    
-    def __init__(self, base_url: str, model: str, 
+
+    # Default keep_alive duration to keep model loaded in memory
+    DEFAULT_KEEP_ALIVE = "10m"
+
+    def __init__(self, base_url: str, model: str,
                  session_manager: OllamaSessionManager,
                  retry_handler: OllamaRetryHandler,
-                 logger: Optional[logging.Logger] = None):
+                 logger: Optional[logging.Logger] = None,
+                 keep_alive: str = None):
         """
         Initialize model warmer.
-        
+
         Args:
             base_url: Ollama base URL
             model: Model name
             session_manager: Session manager instance
             retry_handler: Retry handler instance
             logger: Optional logger instance
+            keep_alive: Duration to keep model loaded (e.g., "10m", "1h", "-1" for indefinite)
         """
         self.base_url = base_url
         self.model = model
         self.session_manager = session_manager
         self.retry_handler = retry_handler
         self.logger = logger or logging.getLogger(__name__)
-    
-    async def warmup_model(self, endpoint: str = "generate", 
+        self.keep_alive = keep_alive or self.DEFAULT_KEEP_ALIVE
+
+    async def is_model_loaded(self) -> bool:
+        """
+        Check if the model is already loaded in Ollama via /api/ps.
+
+        Returns:
+            True if model is already loaded, False otherwise
+        """
+        try:
+            session = await self.session_manager.get_session()
+            url = f"{self.base_url}/api/ps"
+
+            timeout_obj = aiohttp.ClientTimeout(total=5.0)  # Quick check
+            async with session.get(url, timeout=timeout_obj) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    running_models = data.get('models', [])
+
+                    for running in running_models:
+                        model_name = running.get('name', '')
+                        # Check for exact match or base name match (without tag)
+                        if (model_name == self.model or
+                            model_name.startswith(f"{self.model}:") or
+                            model_name.split(':')[0] == self.model.split(':')[0]):
+                            logger.debug(f"Model {self.model} is already loaded")
+                            return True
+
+                    return False
+                return False
+        except Exception as e:
+            logger.debug(f"Could not check running models: {str(e)}")
+            return False
+
+    async def warmup_model(self, endpoint: str = "generate",
                           warmup_prompt: str = "warmup test",
-                          timeout: float = 45.0) -> bool:
+                          timeout: float = 120.0,
+                          skip_if_loaded: bool = True) -> bool:
         """
         Warm up the model by sending a test request.
-        
+
         Args:
             endpoint: API endpoint to use (generate, embeddings, chat)
             warmup_prompt: Test prompt to send
-            timeout: Warmup timeout in seconds
-            
+            timeout: Warmup timeout in seconds (default increased to 120s for cold starts)
+            skip_if_loaded: If True, skip warm-up if model is already loaded
+
         Returns:
-            True if warmup successful, False otherwise
+            True if warmup successful (or skipped), False otherwise
         """
         if not self.retry_handler.config.retry_enabled:
             return True
-        
+
+        # Check if model is already loaded to skip unnecessary warm-up
+        if skip_if_loaded and await self.is_model_loaded():
+            logger.info(f"Model {self.model} already loaded, skipping warm-up")
+            return True
+
         logger.info(f"Warming up Ollama model {self.model}...")
-        
+
         for attempt in range(self.retry_handler.config.max_retries):
             try:
                 session = await self.session_manager.get_session()
-                
+
                 # Build appropriate payload based on endpoint
+                # Include keep_alive to keep model in memory after warm-up
                 if endpoint == "embeddings":
                     url = f"{self.base_url}/api/embeddings"
                     payload = {
                         "model": self.model,
-                        "prompt": warmup_prompt
+                        "prompt": warmup_prompt,
+                        "keep_alive": self.keep_alive
                     }
                 elif endpoint == "chat":
                     url = f"{self.base_url}/api/chat"
@@ -260,7 +311,8 @@ class OllamaModelWarmer:
                         "model": self.model,
                         "messages": [{"role": "user", "content": warmup_prompt}],
                         "stream": False,
-                        "max_tokens": 1
+                        "options": {"num_predict": 1},
+                        "keep_alive": self.keep_alive
                     }
                 else:  # generate
                     url = f"{self.base_url}/api/generate"
@@ -268,29 +320,33 @@ class OllamaModelWarmer:
                         "model": self.model,
                         "prompt": warmup_prompt,
                         "stream": False,
-                        "num_predict": 1
+                        "options": {"num_predict": 1},
+                        "keep_alive": self.keep_alive
                     }
-                
+
                 timeout_obj = aiohttp.ClientTimeout(total=timeout)
                 async with session.post(url, json=payload, timeout=timeout_obj) as response:
                     if response.status == 200:
                         data = await response.json()
                         # Verify we got a valid response
                         if endpoint == "embeddings" and data.get('embedding'):
-                            logger.info(f"Model {self.model} warmed up successfully")
+                            logger.info(f"Model {self.model} warmed up successfully (keep_alive={self.keep_alive})")
                             return True
                         elif endpoint in ["generate", "chat"] and (data.get('response') or data.get('message')):
-                            logger.info(f"Model {self.model} warmed up successfully")
+                            logger.info(f"Model {self.model} warmed up successfully (keep_alive={self.keep_alive})")
                             return True
+                        # Some endpoints return empty but successful response
+                        logger.info(f"Model {self.model} warmed up successfully (keep_alive={self.keep_alive})")
+                        return True
                     else:
                         raise Exception(f"Warmup failed with status {response.status}")
-                        
+
             except Exception as e:
                 wait_time = min(
                     self.retry_handler.config.initial_wait_ms * (self.retry_handler.config.exponential_base ** attempt),
                     self.retry_handler.config.max_wait_ms
                 ) / 1000  # Convert to seconds
-                
+
                 if attempt < self.retry_handler.config.max_retries - 1:
                     logger.warning(
                         f"Model warmup attempt {attempt + 1}/{self.retry_handler.config.max_retries} failed: {str(e)}. "
@@ -300,7 +356,7 @@ class OllamaModelWarmer:
                 else:
                     logger.warning(f"Model warmup failed after {self.retry_handler.config.max_retries} attempts")
                     return False
-        
+
         return False
 
 
@@ -401,7 +457,8 @@ class OllamaBaseService:
             model=self.config.model,
             session_manager=self.session_manager,
             retry_handler=self.retry_handler,
-            logger=self.logger
+            logger=self.logger,
+            keep_alive=self.config.keep_alive
         )
         
         self.connection_verifier = OllamaConnectionVerifier(
@@ -419,42 +476,53 @@ class OllamaBaseService:
     async def initialize(self, warmup_endpoint: str = "generate") -> bool:
         """
         Initialize the Ollama service with retry logic for cold starts.
-        
+
+        Warm-up already confirms the model is working, so we skip redundant
+        connection verification after a successful warm-up to reduce latency.
+
         Args:
             warmup_endpoint: API endpoint to use for warmup
-            
+
         Returns:
             True if initialization was successful, False otherwise
         """
         # If already initialized, return immediately
         if self.initialized:
             return True
-        
+
         # Use a lock to prevent concurrent initializations
         async with self._init_lock:
             # Double-check that it's not initialized after acquiring the lock
             if self.initialized:
                 return True
-            
+
             # Check if we're already in the process of initializing
             if self._initializing:
                 logger.debug("Already initializing, waiting for completion")
                 return self.initialized
-            
+
             self._initializing = True
-            
+
             try:
-                # First, warm up the model
-                await self.model_warmer.warmup_model(
+                # Warm up the model (this also checks if model is already loaded)
+                warmup_success = await self.model_warmer.warmup_model(
                     endpoint=warmup_endpoint,
                     timeout=self.config.warmup_timeout
                 )
-                
-                # Check if the model is available
-                if await self.connection_verifier.verify_connection():
+
+                if warmup_success:
+                    # Warm-up succeeded, model is confirmed working - skip redundant verification
                     logger.info(f"Initialized {self.__class__.__name__} with model {self.config.model}")
                     self.initialized = True
                     return True
+
+                # Warm-up failed, try connection verification as fallback
+                logger.warning(f"Warm-up failed for {self.config.model}, attempting connection verification...")
+                if await self.connection_verifier.verify_connection():
+                    logger.info(f"Initialized {self.__class__.__name__} with model {self.config.model} (via verification fallback)")
+                    self.initialized = True
+                    return True
+
                 return False
             except Exception as e:
                 logger.error(f"Failed to initialize {self.__class__.__name__}: {str(e)}")

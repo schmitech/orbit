@@ -26,6 +26,7 @@ Available providers:
     - ShimmyInferenceService: Shimmy inference
     - HuggingFaceInferenceService: Hugging Face inference
     - OllamaCloudInferenceService: Ollama Cloud inference
+    - OllamaRemoteInferenceService: Ollama Remote (self-hosted) inference
     - BitNetInferenceService: BitNet (1.58-bit) inference
     - ZaiInferenceService: Z.AI inference
 """
@@ -61,6 +62,7 @@ _implementations = [
     ('shimmy_inference_service', 'ShimmyInferenceService'),
     ('huggingface_inference_service', 'HuggingFaceInferenceService'),
     ('ollama_cloud_inference_service', 'OllamaCloudInferenceService'),
+    ('ollama_remote_inference_service', 'OllamaRemoteInferenceService'),
     ('bitnet_inference_service', 'BitNetInferenceService'),
     ('zai_inference_service', 'ZaiInferenceService'),
 ]

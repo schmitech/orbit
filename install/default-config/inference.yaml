@@ -83,6 +83,57 @@ inference:
     # num_threads, num_batch, use_mmap, use_mlock, vocab_only, numa are not applicable
     # Random seed for reproducible outputs
     seed: null
+  ollama_remote:
+    enabled: false
+    # Remote Ollama server URL (e.g., AWS EC2, self-hosted server)
+    # Example: "http://ec2-xx-xx-xx-xx.compute-1.amazonaws.com:11434"
+    base_url: "http://your-remote-server:11434"
+    # Optional API key for secured remote servers (leave null if not required)
+    api_key: null
+    model: "granite4:1b"  # Model available on your remote Ollama server
+    stream: true
+    think: false  # Enable/disable think mode (shows reasoning in <think> tags)
+    # Generation parameters - Adjust based on your use case and model
+    temperature: 0.7  # Balanced for creative yet factual outputs
+    top_p: 0.9  # Good diversity while maintaining coherence
+    top_k: 30
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 4096  # Maximum tokens to generate
+    repeat_penalty: 1.15  # Moderate penalty to prevent repetition
+    repeat_last_n: 64  # Check tokens for repetition
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # Context settings - Adjust based on your remote server's capabilities
+    num_ctx: 8192  # Context window size (depends on server's model and hardware)
+    num_keep: 1024  # Keep prompt context and chat history
+    penalize_newline: false
+    # Stop sequences
+    stop: []
+    # Remote server - these settings are managed by the remote Ollama server
+    # num_threads, num_batch, num_gpu, use_mmap, use_mlock, vocab_only, numa are not applicable
+    # Random seed for reproducible outputs
+    seed: null
+    # Retry configuration for handling network issues and cold starts
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000  # Start with 2 seconds
+      max_wait_ms: 30000     # Max 30 seconds per retry
+      exponential_base: 2    # Exponential backoff multiplier
+    # Timeout configuration
+    timeout:
+      connect: 10000         # 10 seconds for connection
+      total: 120000          # 2 minutes total timeout
+      warmup: 120000         # 2 minutes for initial warmup (increased for cold starts)
+    # Keep alive - how long to keep model loaded in memory on remote server
+    # Options: "5m", "10m", "1h", "-1" (indefinite), "0" (unload immediately)
+    # Longer values reduce cold start latency but use more server memory
+    keep_alive: "10m"
   vllm:
     enabled: false
     host: "localhost"
@@ -130,6 +181,38 @@ inference:
       "<|end_of_text|>",
       "<|end_of_role|>"
     ]
+  shimmy:
+    enabled: true
+    base_url: "http://localhost:11435"  # Shimmy server URL (OpenAI-compatible API)
+    model: "gemma-3-1b-it-q4-0"  # Model name to request from the server
+    api_key: null  # Optional - Shimmy doesn't require authentication
+    
+    # Generation parameters
+    temperature: 0.4  # Balanced for creative yet factual outputs
+    top_p: 0.9  # Good diversity while maintaining coherence
+    top_k: 50  # Token selection parameter
+    max_tokens: 4096  # Maximum tokens to generate
+    repeat_penalty: 1.2  # Penalty to prevent repetition
+    
+    # Context configuration
+    context_window: 65536  # Shimmy supports large context windows
+    stream: true
+    
+    # Stop sequences (optional)
+    stop_tokens: []
+    
+    # Timeout configuration
+    timeout:
+      connect: 10000   # 10 seconds
+      total: 120000    # 2 minutes
+    
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
   gemini:
     enabled: true
     api_key: ${GOOGLE_API_KEY}

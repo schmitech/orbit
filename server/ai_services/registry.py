@@ -101,6 +101,7 @@ def register_inference_services(config: Dict[str, Any] = None) -> None:
         ("shimmy", "ShimmyInferenceService", "Shimmy"),
         ("huggingface", "HuggingFaceInferenceService", "Hugging Face"),
         ("ollama_cloud", "OllamaCloudInferenceService", "Ollama Cloud"),
+        ("ollama_remote", "OllamaRemoteInferenceService", "Ollama Remote"),
         ("bitnet", "BitNetInferenceService", "BitNet (1.58-bit)"),
         ("zai", "ZaiInferenceService", "Z.AI"),
     ]
