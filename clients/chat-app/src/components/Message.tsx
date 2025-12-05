@@ -20,6 +20,7 @@ import { getEnableFeedbackButtons, getEnableConversationThreads } from '../utils
 import { AudioPlayer } from './AudioPlayer';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { AppConfig } from '../utils/config';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface MessageProps {
   message: MessageType;
@@ -58,6 +59,31 @@ export function Message({
   const locale = (import.meta.env as any).VITE_LOCALE || 'en-US';
   const threadsEnabled = getEnableConversationThreads();
   const threadCharLimit = AppConfig.maxMessageLength;
+  const { theme, isDark } = useTheme();
+
+  const forcedThemeClass =
+    theme.mode === 'dark' ? 'dark' : theme.mode === 'light' ? 'light' : '';
+  const syntaxTheme: 'dark' | 'light' = isDark ? 'dark' : 'light';
+
+  const assistantMarkdownClass = useMemo(
+    () =>
+      ['message-markdown w-full min-w-0', 'prose prose-slate dark:prose-invert max-w-none', forcedThemeClass]
+        .filter(Boolean)
+        .join(' '),
+    [forcedThemeClass]
+  );
+
+  const userMarkdownClass = useMemo(
+    () =>
+      ['message-markdown w-full min-w-0', 'prose prose-invert max-w-none', forcedThemeClass]
+        .filter(Boolean)
+        .join(' '),
+    [forcedThemeClass]
+  );
+
+  const mainMarkdownClassName = isAssistant ? assistantMarkdownClass : userMarkdownClass;
+  const threadAssistantMarkdownClass = `${assistantMarkdownClass} text-sm leading-6`;
+  const threadUserMarkdownClass = `${userMarkdownClass} text-sm leading-6`;
 
   useEffect(() => {
     if (!prevThreadIdRef.current && message.threadInfo?.thread_id) {
@@ -95,10 +121,6 @@ export function Message({
 
     return `${dayOfWeek}, ${month} ${day}, ${year} ${time}`;
   }, [message.timestamp, locale]);
-
-  const contentClass = isAssistant
-    ? 'markdown-content prose prose-slate dark:prose-invert max-w-none'
-    : 'markdown-content prose prose-invert max-w-none';
 
   const avatarClasses = isAssistant
     ? 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-900 dark:from-[#1f2a36] dark:to-[#1a2230] dark:text-[#c5d7ff]'
@@ -215,16 +237,24 @@ export function Message({
   const renderedMessageContent = useMemo(() => {
     if (message.isStreaming && (!message.content || message.content === '…')) {
       return (
-        <div className="flex items-center gap-1.5 py-1">
-          <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '0ms' }} />
-          <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '150ms' }} />
-          <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
+        <div className={mainMarkdownClassName}>
+          <div className="flex items-center gap-1.5 py-1">
+            <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '0ms' }} />
+            <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '150ms' }} />
+            <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
+          </div>
         </div>
       );
     }
 
-    return <MarkdownRenderer content={truncateLongContent(sanitizeMessageContent(message.content || ''))} />;
-  }, [message.content, message.isStreaming]);
+    return (
+      <MarkdownRenderer
+        content={truncateLongContent(sanitizeMessageContent(message.content || ''))}
+        className={mainMarkdownClassName}
+        syntaxTheme={syntaxTheme}
+      />
+    );
+  }, [mainMarkdownClassName, message.content, message.isStreaming, syntaxTheme]);
 
   const renderedThreadReplies = useMemo(() => {
     // Sort replies by timestamp to maintain chronological order
@@ -238,14 +268,21 @@ export function Message({
     return sortedReplies.map(reply => {
       const replyIsAssistant = reply.role === 'assistant';
 
+      const replyMarkdownClass = replyIsAssistant ? threadAssistantMarkdownClass : threadUserMarkdownClass;
       const replyContent = reply.isStreaming && (!reply.content || reply.content === '…') ? (
-        <div className="flex items-center gap-1.5 py-1">
-          <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '0ms' }} />
-          <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '150ms' }} />
-          <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
+        <div className={replyMarkdownClass}>
+          <div className="flex items-center gap-1.5 py-1">
+            <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '0ms' }} />
+            <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '150ms' }} />
+            <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
+          </div>
         </div>
       ) : (
-        <MarkdownRenderer content={truncateLongContent(sanitizeMessageContent(reply.content || ''))} />
+        <MarkdownRenderer
+          content={truncateLongContent(sanitizeMessageContent(reply.content || ''))}
+          className={replyMarkdownClass}
+          syntaxTheme={syntaxTheme}
+        />
       );
 
       return (
@@ -264,12 +301,12 @@ export function Message({
               <span>{replyIsAssistant ? 'Assistant' : 'You'}</span>
               <span>{formatThreadTimestamp(reply.timestamp)}</span>
             </div>
-            <div className="prose prose-slate max-w-none text-sm text-[#353740] dark:prose-invert dark:text-[#ececf1]">{replyContent}</div>
+            {replyContent}
           </div>
         </div>
       );
     });
-  }, [formatThreadTimestamp, threadReplies]);
+  }, [formatThreadTimestamp, syntaxTheme, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
 
   return (
     <div className="group flex items-start gap-3 px-1 animate-fadeIn min-w-0 sm:px-0">
@@ -288,7 +325,7 @@ export function Message({
         </div>
 
         <div className={bubbleClasses}>
-          <div className={contentClass}>{renderedMessageContent}</div>
+          {renderedMessageContent}
 
           {message.attachments && message.attachments.length > 0 && (
             <div className="mt-3 space-y-2">

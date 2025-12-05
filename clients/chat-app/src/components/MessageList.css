@@ -75,3 +75,34 @@
   background-color: var(--thread-avatar-user-bg) !important;
   color: var(--thread-avatar-user-text) !important;
 }
+
+.message-list .message-bubble {
+  width: 100%;
+  max-width: 960px;
+}
+
+@media (min-width: 1280px) {
+  .message-list .message-bubble {
+    max-width: 900px;
+  }
+}
+
+.message-list .message-markdown {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 768px) {
+  .message-list .message-markdown {
+    max-width: 840px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .message-list .message-markdown {
+    max-width: 880px;
+  }
+}

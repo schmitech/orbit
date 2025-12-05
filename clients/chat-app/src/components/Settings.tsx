@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Monitor, Sun, Moon, Palette, Type, Volume2, Package } from 'lucide-react';
+import { X, Monitor, Sun, Moon, Palette, Type, Volume2, Package, Trash2, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { getVersionInfo } from '../utils/version';
@@ -17,6 +17,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
     apiVersion: string;
     isLocalApi: boolean;
   } | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -42,11 +43,18 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
     updateSettings({ soundEnabled: !settings.soundEnabled });
   };
 
+  const handleResetApplication = () => {
+    // Clear all localStorage data
+    localStorage.clear();
+    // Reload the page to reset all state
+    window.location.reload();
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
+        <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             Settings
           </h2>
@@ -59,7 +67,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 overflow-y-auto">
+        <div className="flex-1 min-h-0 p-6 space-y-6 overflow-y-auto">
           {/* Theme Settings */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
@@ -182,6 +190,56 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                   }`}
                 />
               </button>
+            </div>
+          </div>
+
+          {/* Data Management */}
+          <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+              <Trash2 className="w-5 h-5" />
+              Data Management
+            </h3>
+            
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Clear all application data including conversations, settings, and API configurations. This action cannot be undone.
+              </p>
+              {!showResetConfirm ? (
+                <button
+                  onClick={() => setShowResetConfirm(true)}
+                  className="w-full px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  Reset Application
+                </button>
+              ) : (
+                <div className="space-y-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-red-800 dark:text-red-300 mb-1">
+                        Are you sure?
+                      </p>
+                      <p className="text-xs text-red-700 dark:text-red-400">
+                        This will delete all conversations, settings, API keys, and other stored data. The page will reload automatically.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleResetApplication}
+                      className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 dark:bg-red-700 rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors"
+                    >
+                      Yes, Reset Everything
+                    </button>
+                    <button
+                      onClick={() => setShowResetConfirm(false)}
+                      className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
