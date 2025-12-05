@@ -111,7 +111,17 @@ logging:
       disabled: true
     # Reduce WebSocket message spam from inference server
     server.inference_server:
-      level: "INFO"
+      level: "WARNING"
+      propagate: false
+    # Suppress uvicorn WebSocket connection logs
+    uvicorn:
+      level: "WARNING"
+      propagate: false
+    uvicorn.access:
+      level: "WARNING"
+      propagate: false
+    uvicorn.asgi:
+      level: "WARNING"
       propagate: false
     inference.clients.llama_cpp:
       level: "ERROR"
