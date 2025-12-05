@@ -438,8 +438,10 @@ class ServiceFactory:
             
             # Preload all adapters in parallel to prevent sequential blocking
             if available_adapters:
-                logger.info("Starting parallel adapter preloading...")
-                preload_results = await base_adapter_manager.preload_all_adapters(timeout_per_adapter=60.0)
+                # Get timeout from config (default 120s for Ollama cold starts)
+                preload_timeout = self.config.get('performance', {}).get('adapter_preload_timeout', 120.0)
+                logger.info(f"Starting parallel adapter preloading (timeout: {preload_timeout}s per adapter)...")
+                preload_results = await base_adapter_manager.preload_all_adapters(timeout_per_adapter=preload_timeout)
                 
                 # Log preloading results
                 successful_adapters = [name for name, result in preload_results.items() if result["success"]]

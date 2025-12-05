@@ -41,7 +41,11 @@ language_detection:
 performance:
   workers: 4
   keep_alive_timeout: 30
-  
+
+  # Adapter preload timeout (seconds) - increase for Ollama cold starts
+  # This is the maximum time to wait for each adapter to initialize during startup
+  adapter_preload_timeout: 120  # 2 minutes (default was 60s)
+
   thread_pools:
     io_workers: 50              # Up from 10
     cpu_workers: 30             # CPU-bound tasks
@@ -121,6 +125,20 @@ logging:
       level: "WARNING"
       propagate: false
     uvicorn.asgi:
+      level: "WARNING"
+      propagate: false
+    # Suppress Elasticsearch client transport logs
+    elastic_transport:
+      level: "WARNING"
+      propagate: false
+    elastic_transport.transport:
+      level: "WARNING"
+      propagate: false
+    elasticsearch:
+      level: "WARNING"
+      propagate: false
+    # Suppress Elasticsearch datasource connection logs
+    datasources.implementations.elasticsearch_datasource:
       level: "WARNING"
       propagate: false
     inference.clients.llama_cpp:
