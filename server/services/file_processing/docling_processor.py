@@ -2,7 +2,7 @@
 Docling Universal Processor
 
 Handles multiple document formats using IBM's Docling library.
-Supports: PDF, DOCX, PPTX, XLSX, HTML, images, audio, and more.
+Supports: PDF, DOCX, PPTX, XLSX, HTML, Markdown, AsciiDoc, XML, images, VTT, and more.
 """
 
 import logging
@@ -27,7 +27,7 @@ class DoclingProcessor(FileProcessor):
     """
     Universal processor for multiple document formats using IBM Docling.
     
-    Supports: PDF, DOCX, PPTX, XLSX, HTML, images, audio, VTT, and more
+    Supports: PDF, DOCX, PPTX, XLSX, HTML, XHTML, Markdown, AsciiDoc, CSV, JSON, XML, images, VTT
     Provides advanced PDF understanding including:
     - Page layout and reading order
     - Table structure extraction
@@ -83,18 +83,32 @@ class DoclingProcessor(FileProcessor):
         
         # Docling supports a wide range of formats
         supported_types = [
+            # Documents
             'application/pdf',
-            'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # DOCX
             'application/vnd.openxmlformats-officedocument.presentationml.presentation',  # PPTX
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # XLSX
+            # Markup/Text
             'text/html',
+            'application/xhtml+xml',  # XHTML
+            'text/markdown',
+            'text/x-markdown',
+            'text/asciidoc',
+            'text/x-asciidoc',
             'text/csv',
+            # Note: 'application/json' removed - Docling only supports its own
+            # serialized format, not arbitrary JSON files. Regular JSON should
+            # be handled by a dedicated JSON processor.
+            # XML formats (USPTO, JATS)
+            'application/xml',
+            'text/xml',
+            # Images
             'image/png',
             'image/jpeg',
             'image/tiff',
-            'audio/wav',
-            'audio/mpeg',
+            'image/bmp',
+            'image/webp',
+            # Subtitles
             'text/vtt',
         ]
         
@@ -117,9 +131,17 @@ class DoclingProcessor(FileProcessor):
 
         text_parts = []
 
+        # Get file extension from filename for Docling format detection
+        suffix = ''
+        if filename:
+            _, ext = os.path.splitext(filename)
+            if ext:
+                suffix = ext
+
         try:
             # Docling requires a file path, so we'll create a temporary file
-            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            # Preserve file extension so Docling can detect the format
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
                 temp_file.write(file_data)
                 temp_path = temp_file.name
 
@@ -166,11 +188,19 @@ class DoclingProcessor(FileProcessor):
         if not self._converter:
             return metadata
         
+        # Get file extension from filename for Docling format detection
+        suffix = ''
+        if filename:
+            _, ext = os.path.splitext(filename)
+            if ext:
+                suffix = ext
+
         try:
             # Docling provides rich metadata about document structure
             # This can include page count, sections, tables, images, etc.
             
-            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            # Preserve file extension so Docling can detect the format
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
                 temp_file.write(file_data)
                 temp_path = temp_file.name
             
@@ -225,9 +255,8 @@ class DoclingProcessor(FileProcessor):
         
         return [
             'PDF', 'DOCX', 'PPTX', 'XLSX',
-            'HTML', 'Markdown', 'CSV',
-            'PNG', 'JPEG', 'TIFF',
-            'WAV', 'MP3',
-            'VTT',
-            'And more...'
+            'HTML', 'XHTML', 'Markdown', 'AsciiDoc',
+            'CSV', 'XML',
+            'PNG', 'JPEG', 'TIFF', 'BMP', 'WebP',
+            'VTT'
         ]
