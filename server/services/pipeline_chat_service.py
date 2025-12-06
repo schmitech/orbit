@@ -40,7 +40,8 @@ class PipelineChatService:
 
     def __init__(self, config: Dict[str, Any], logger_service,
                  chat_history_service=None, llm_guard_service=None, moderator_service=None,
-                 retriever=None, reranker_service=None, prompt_service=None, clock_service=None):
+                 retriever=None, reranker_service=None, prompt_service=None, clock_service=None,
+                 redis_service=None):
         """
         Initialize the pipeline chat service.
 
@@ -54,6 +55,7 @@ class PipelineChatService:
             reranker_service: Optional reranker service
             prompt_service: Optional prompt service
             clock_service: Optional clock service
+            redis_service: Optional Redis service for session persistence
         """
         self.config = config
 
@@ -63,6 +65,7 @@ class PipelineChatService:
         self.llm_guard_service = llm_guard_service
         self.moderator_service = moderator_service
         self.clock_service = clock_service
+        self.redis_service = redis_service
 
         # Create pipeline factory
         self.pipeline_factory = PipelineFactory(config)
@@ -81,7 +84,8 @@ class PipelineChatService:
             chat_history_service=chat_history_service,
             logger_service=logger_service,
             adapter_manager=adapter_manager,
-            clock_service=self.clock_service
+            clock_service=self.clock_service,
+            redis_service=self.redis_service
         )
 
         # Initialize handlers with shared adapter_manager

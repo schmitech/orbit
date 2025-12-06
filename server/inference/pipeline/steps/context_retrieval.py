@@ -3,10 +3,14 @@ Context Retrieval Step
 
 This step retrieves relevant context documents for RAG processing.
 Refactored to use capability-based architecture instead of hardcoded adapter checks.
+
+Enhanced with language-aware retrieval:
+- Boosts documents matching the detected user language
+- Filters or de-prioritizes documents in non-matching languages when confidence is high
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from ..base import PipelineStep, ProcessingContext
 from adapters.capabilities import (
     AdapterCapabilities,
@@ -264,6 +268,13 @@ class ContextRetrievalStep(PipelineStep):
                 **retriever_kwargs
             )
 
+            # Apply language-aware boosting/filtering if language detection is available
+            detected_language = getattr(context, 'detected_language', None)
+            language_confidence = context.metadata.get('last_detected_language_confidence', 0.0)
+
+            if detected_language and language_confidence > 0.5:
+                docs = self._apply_language_boost(docs, detected_language, language_confidence)
+
             context.retrieved_docs = docs
 
             # Check if results were truncated
@@ -351,6 +362,86 @@ class ContextRetrievalStep(PipelineStep):
             kwargs['session_id'] = context.session_id
 
         return kwargs
+
+    def _apply_language_boost(
+        self,
+        docs: List[Dict[str, Any]],
+        detected_language: str,
+        language_confidence: float
+    ) -> List[Dict[str, Any]]:
+        """
+        Apply language-aware boosting to retrieved documents.
+
+        Documents matching the detected user language get a confidence boost,
+        while non-matching documents may be de-prioritized when language
+        confidence is high.
+
+        Args:
+            docs: List of retrieved documents
+            detected_language: Detected user language code (e.g., 'en', 'es', 'fr')
+            language_confidence: Confidence of language detection (0.0 to 1.0)
+
+        Returns:
+            Re-sorted list of documents with adjusted confidence scores
+        """
+        if not docs or not detected_language:
+            return docs
+
+        # Get config for language boost settings
+        config = self.container.get('config') if self.container.has('config') else {}
+        lang_config = config.get('language_detection', {})
+
+        # Language boost settings (configurable)
+        match_boost = lang_config.get('retrieval_match_boost', 0.1)
+        mismatch_penalty = lang_config.get('retrieval_mismatch_penalty', 0.05)
+        min_confidence_for_boost = lang_config.get('retrieval_min_confidence', 0.7)
+
+        # Only apply significant adjustments when language confidence is high
+        if language_confidence < min_confidence_for_boost:
+            return docs
+
+        boosted_docs = []
+        for doc in docs:
+            doc_copy = doc.copy()
+            metadata = doc_copy.get('metadata', {})
+            doc_language = metadata.get('language') or metadata.get('lang')
+
+            # Get current confidence/relevance score
+            current_score = doc_copy.get('confidence', doc_copy.get('relevance', 0.5))
+
+            if doc_language:
+                # Normalize document language code
+                doc_lang_normalized = doc_language.lower()[:2] if len(doc_language) > 2 else doc_language.lower()
+                user_lang_normalized = detected_language.lower()[:2] if len(detected_language) > 2 else detected_language.lower()
+
+                if doc_lang_normalized == user_lang_normalized:
+                    # Boost matching language documents
+                    new_score = min(1.0, current_score + (match_boost * language_confidence))
+                    doc_copy['confidence'] = new_score
+                    doc_copy['relevance'] = new_score
+                    metadata['language_matched'] = True
+                else:
+                    # Slight penalty for non-matching (but don't exclude)
+                    new_score = max(0.0, current_score - (mismatch_penalty * language_confidence))
+                    doc_copy['confidence'] = new_score
+                    doc_copy['relevance'] = new_score
+                    metadata['language_matched'] = False
+
+            doc_copy['metadata'] = metadata
+            boosted_docs.append(doc_copy)
+
+        # Re-sort by adjusted confidence
+        boosted_docs.sort(
+            key=lambda d: d.get('confidence', d.get('relevance', 0.0)),
+            reverse=True
+        )
+
+        logger.debug(
+            f"Applied language boost for '{detected_language}' "
+            f"(confidence: {language_confidence:.2f}) to {len(boosted_docs)} documents"
+        )
+
+        return boosted_docs
 
     def _get_truncation_info(self, docs: list) -> Optional[Dict[str, int]]:
         """

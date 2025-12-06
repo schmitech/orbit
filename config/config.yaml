@@ -20,7 +20,7 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "llama_cpp"
+  inference_provider: "ollama"
 
 language_detection:
   enabled: true
@@ -32,11 +32,31 @@ language_detection:
     langdetect: 1.0
     langid: 1.2
     pycld2: 1.5
-  min_confidence: 0.5
-  min_margin: 0.1
-  prefer_english_for_ascii: false
-  enable_stickiness: false
+  min_confidence: 0.7
+  min_margin: 0.2
+  prefer_english_for_ascii: true
+  enable_stickiness: true
   fallback_language: "en"
+  backend_timeout: 3.0  # Timeout per backend in seconds (increase for cold starts)
+
+  # Configurable heuristic nudges for voting adjustments
+  heuristic_nudges:
+    en_boost: 0.2       # Boost for English in ASCII-heavy text
+    es_penalty: 0.1     # Penalty for Spanish in pure ASCII (avoids es/en confusion)
+    script_boost: 0.2   # Boost when script detection matches ensemble winner
+
+  # Mixed language detection
+  mixed_language_threshold: 0.3  # Min confidence for secondary language to flag as mixed
+
+  # Chat history language prior (uses recent messages to stabilize detection)
+  use_chat_history_prior: true
+  chat_history_prior_weight: 0.3  # Weight given to chat history distribution
+  chat_history_messages_count: 5  # Number of recent messages to consider
+
+  # RAG retrieval language boosting (boosts documents matching user's language)
+  retrieval_match_boost: 0.1       # Boost for documents matching detected language
+  retrieval_mismatch_penalty: 0.05 # Penalty for non-matching language documents
+  retrieval_min_confidence: 0.7    # Min detection confidence to apply boost
 
 performance:
   workers: 4

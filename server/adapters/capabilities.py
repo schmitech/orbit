@@ -45,6 +45,7 @@ class AdapterCapabilities:
     supports_session_tracking: bool = False  # Needs session_id
     requires_api_key_validation: bool = False  # Needs api_key for ownership validation
     supports_threading: bool = False  # Supports conversation threading on retrieved datasets
+    supports_language_filtering: bool = False  # Can filter/boost by detected language
 
     # Additional parameters to pass to get_relevant_context()
     required_parameters: List[str] = field(default_factory=list)
@@ -86,6 +87,7 @@ class AdapterCapabilities:
             supports_session_tracking=capabilities_config.get('supports_session_tracking', False),
             requires_api_key_validation=capabilities_config.get('requires_api_key_validation', False),
             supports_threading=capabilities_config.get('supports_threading', False),
+            supports_language_filtering=capabilities_config.get('supports_language_filtering', False),
             required_parameters=capabilities_config.get('required_parameters', []),
             optional_parameters=capabilities_config.get('optional_parameters', []),
             skip_when_no_files=capabilities_config.get('skip_when_no_files', False),
@@ -206,6 +208,12 @@ class AdapterCapabilities:
         # Add session_id if supported
         if self.supports_session_tracking and context.session_id:
             kwargs['session_id'] = context.session_id
+
+        # Add detected_language if language filtering is supported
+        if self.supports_language_filtering:
+            detected_lang = getattr(context, 'detected_language', None)
+            if detected_lang:
+                kwargs['detected_language'] = detected_lang
 
         # Add any required/optional parameters from context
         for param in self.required_parameters + self.optional_parameters:

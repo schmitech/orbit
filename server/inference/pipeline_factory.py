@@ -49,11 +49,12 @@ class PipelineFactory:
         chat_history_service=None,
         logger_service=None,
         adapter_manager=None,
-        clock_service=None
+        clock_service=None,
+        redis_service=None
     ) -> ServiceContainer:
         """
         Create a service container with all required services.
-        
+
         Args:
             retriever: Optional retriever service
             reranker_service: Optional reranker service
@@ -64,19 +65,20 @@ class PipelineFactory:
             logger_service: Optional logger service
             adapter_manager: Optional dynamic adapter manager
             clock_service: Optional clock service
-            
+            redis_service: Optional Redis service for session persistence
+
         Returns:
             Configured service container
         """
         container = ServiceContainer()
-        
+
         # Register configuration
         container.register_singleton('config', self.config)
-        
+
         # Create and register clean LLM provider
         llm_provider = ProviderFactory.create_provider(self.config)
         container.register_singleton('llm_provider', llm_provider)
-        
+
         # Register RAG services - prefer adapter manager over static retriever
         if adapter_manager:
             container.register_singleton('adapter_manager', adapter_manager)
@@ -84,30 +86,35 @@ class PipelineFactory:
         elif retriever:
             container.register_singleton('retriever', retriever)
             logger.info("Registered static retriever")
-        
+
         if reranker_service:
             container.register_singleton('reranker_service', reranker_service)
-        
+
         if prompt_service:
             container.register_singleton('prompt_service', prompt_service)
-        
+
         # Register security services if available
         if llm_guard_service:
             container.register_singleton('llm_guard_service', llm_guard_service)
-        
+
         if moderator_service:
             container.register_singleton('moderator_service', moderator_service)
-        
+
         # Register other services if available
         if chat_history_service:
             container.register_singleton('chat_history_service', chat_history_service)
-        
+
         if logger_service:
             container.register_singleton('logger_service', logger_service)
-            
+
         if clock_service:
             container.register_singleton('clock_service', clock_service)
-        
+
+        # Register Redis service for session persistence (language stickiness, etc.)
+        if redis_service:
+            container.register_singleton('redis_service', redis_service)
+            logger.info("Registered Redis service for session persistence")
+
         logger.info(f"Created service container with {len(container.list_services())} services")
         return container
     
@@ -176,6 +183,7 @@ class PipelineFactory:
         logger_service=None,
         adapter_manager=None,
         clock_service=None,
+        redis_service=None,
         pipeline_type: str = "standard"
     ) -> InferencePipeline:
         """
@@ -194,6 +202,7 @@ class PipelineFactory:
             logger_service: Optional logger service
             adapter_manager: Optional dynamic adapter manager
             clock_service: Optional clock service
+            redis_service: Optional Redis service for session persistence
             pipeline_type: Type of pipeline to create (default: "standard")
 
         Returns:
@@ -208,7 +217,8 @@ class PipelineFactory:
             chat_history_service=chat_history_service,
             logger_service=logger_service,
             adapter_manager=adapter_manager,
-            clock_service=clock_service
+            clock_service=clock_service,
+            redis_service=redis_service
         )
 
         return self.create_pipeline(container, pipeline_type) 

@@ -30,7 +30,7 @@ class ThreadDatasetService:
     _instances: Dict[str, 'ThreadDatasetService'] = {}
     _lock = threading.Lock()
     
-    def __new__(cls, config: Dict[str, Any]):
+    def __new__(cls, config: Dict[str, Any], redis_service: Optional['RedisService'] = None):
         """Create or return existing ThreadDatasetService instance based on configuration"""
         cache_key = cls._create_cache_key(config)
         
@@ -86,30 +86,32 @@ class ThreadDatasetService:
             cls._instances.clear()
             logger.debug("Cleared all ThreadDatasetService cached instances")
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], redis_service: Optional['RedisService'] = None):
         """
         Initialize the thread dataset service.
 
         Args:
             config: Application configuration
+            redis_service: Optional pre-initialized Redis service (avoids creating duplicates)
         """
         self.config = config
-        
+
         # Threading configuration
         threading_config = config.get('conversation_threading', {})
         self.enabled = threading_config.get('enabled', True)
         self.dataset_ttl_hours = threading_config.get('dataset_ttl_hours', 24)
         self.storage_backend = threading_config.get('storage_backend', 'redis')
         self.redis_key_prefix = threading_config.get('redis_key_prefix', 'thread_dataset:')
-        
+
         # Initialize services - set to None first to avoid AttributeError
         self.redis_service = None
         self.database_service = None
-        
+
         # Initialize Redis service (if threading is enabled and storage backend is redis)
         if self.enabled and self.storage_backend == 'redis':
             try:
-                self.redis_service = RedisService(config)
+                # Use provided redis_service or create new one (singleton pattern ensures reuse)
+                self.redis_service = redis_service if redis_service is not None else RedisService(config)
                 if self.redis_service.enabled:
                     logger.debug(f"✓ ThreadDatasetService: Redis storage enabled (key prefix: {self.redis_key_prefix})")
                 else:

@@ -208,7 +208,8 @@ class ServiceFactory:
         llm_guard_service = getattr(app.state, 'llm_guard_service', None)
         moderator_service = getattr(app.state, 'moderator_service', None)
         clock_service = getattr(app.state, 'clock_service', None)
-        
+        redis_service = getattr(app.state, 'redis_service', None)
+
         # Use pipeline-based chat service (now the default)
         from services.pipeline_chat_service import PipelineChatService
         app.state.chat_service = PipelineChatService(
@@ -220,7 +221,8 @@ class ServiceFactory:
             retriever=getattr(app.state, 'retriever', None),
             reranker_service=getattr(app.state, 'reranker_service', None),
             prompt_service=getattr(app.state, 'prompt_service', None),
-            clock_service=clock_service
+            clock_service=clock_service,
+            redis_service=redis_service
         )
         # Initialize the pipeline provider
         try:
@@ -335,11 +337,13 @@ class ServiceFactory:
         """Initialize Thread Dataset Service (shared instance for all services)."""
         threading_config = self.config.get('conversation_threading', {})
         threading_enabled = is_true_value(threading_config.get('enabled', False))
-        
+
         if threading_enabled:
             from services.thread_dataset_service import ThreadDatasetService
             logger.debug("Creating shared ThreadDatasetService instance...")
-            app.state.thread_dataset_service = ThreadDatasetService(self.config)
+            # Pass the already-initialized redis_service to avoid creating duplicate instances
+            redis_service = getattr(app.state, 'redis_service', None)
+            app.state.thread_dataset_service = ThreadDatasetService(self.config, redis_service=redis_service)
             try:
                 await app.state.thread_dataset_service.initialize()
                 logger.debug("ThreadDatasetService initialized successfully")
@@ -403,7 +407,13 @@ class ServiceFactory:
     async def _initialize_prompt_service(self, app: FastAPI) -> None:
         """Initialize Prompt Service."""
         from services.prompt_service import PromptService
-        app.state.prompt_service = PromptService(self.config, app.state.database_service)
+        # Pass the already-initialized redis_service to avoid creating duplicate instances
+        redis_service = getattr(app.state, 'redis_service', None)
+        app.state.prompt_service = PromptService(
+            self.config,
+            database_service=app.state.database_service,
+            redis_service=redis_service
+        )
         logger.info("Initializing Prompt Service...")
         try:
             await app.state.prompt_service.initialize()
