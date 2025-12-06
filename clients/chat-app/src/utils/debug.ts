@@ -2,14 +2,12 @@
  * Debug utility to conditionally log based on VITE_CONSOLE_DEBUG environment variable
  */
 
-const isDebugEnabled = (): boolean => {
-  return (import.meta.env as any).VITE_CONSOLE_DEBUG === 'true';
-};
+const isDebugEnabled = (): boolean => import.meta.env.VITE_CONSOLE_DEBUG === 'true';
 
 /**
  * Conditionally log to console.log if debug is enabled
  */
-export const debugLog = (...args: any[]): void => {
+export const debugLog = (...args: unknown[]): void => {
   if (isDebugEnabled()) {
     console.log(...args);
   }
@@ -18,7 +16,7 @@ export const debugLog = (...args: any[]): void => {
 /**
  * Conditionally log to console.warn if debug is enabled
  */
-export const debugWarn = (...args: any[]): void => {
+export const debugWarn = (...args: unknown[]): void => {
   if (isDebugEnabled()) {
     console.warn(...args);
   }
@@ -27,7 +25,7 @@ export const debugWarn = (...args: any[]): void => {
 /**
  * Conditionally log to console.error if debug is enabled
  */
-export const debugError = (...args: any[]): void => {
+export const debugError = (...args: unknown[]): void => {
   if (isDebugEnabled()) {
     console.error(...args);
   }
@@ -36,7 +34,6 @@ export const debugError = (...args: any[]): void => {
 /**
  * Always log errors (even when debug is disabled) - use for critical errors
  */
-export const logError = (...args: any[]): void => {
+export const logError = (...args: unknown[]): void => {
   console.error(...args);
 };
-

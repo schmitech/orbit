@@ -2,6 +2,11 @@
  * Content validation utilities to prevent base64 audio data from being displayed as text
  */
 
+const MARKDOWN_CHARACTERS = ['#', '*', '`', '[', ']', '(', ')', '{', '}', '|', '<', '>'];
+
+const containsMarkdownSyntax = (value: string): boolean =>
+  MARKDOWN_CHARACTERS.some((character) => value.includes(character));
+
 /**
  * Detects if a string contains base64-encoded audio data
  * Base64 audio strings are typically very long and contain only base64 characters
@@ -26,7 +31,7 @@ export function isBase64AudioData(text: string): boolean {
     // Check for common text patterns that would indicate legitimate content
     // Include programming keywords, markdown syntax, URLs, etc.
     const hasTextPatterns = /\b(the|and|for|are|but|not|you|all|can|function|const|let|var|class|return|import|export|async|await|if|else|while|true|false|null|undefined|http|https|www|error|data|response|request|api|json|xml|html|css|js|py|java|cpp|def|print|console|log)\b/i.test(text);
-    const hasMarkdown = /[#*`\[\](){}|<>]/.test(text);
+    const hasMarkdown = containsMarkdownSyntax(text);
     const hasPunctuation = /[.,;:!?'"()-]/.test(text);
 
     // If no text patterns, no markdown, and no punctuation - it's likely audio
@@ -71,7 +76,7 @@ export function sanitizeMessageContent(content: string): string {
     if (cleaned.length > 10000 && /^[A-Za-z0-9+/=]+$/.test(cleaned)) {
       // Check for text patterns that would indicate legitimate content
       const hasTextPatterns = /\b(function|const|let|var|class|return|import|export|if|else|while|for|true|false|null|def|print)\b/i.test(match);
-      const hasMarkdown = /[#*`\[\](){}|<>]/.test(match);
+      const hasMarkdown = containsMarkdownSyntax(match);
       const hasPunctuation = /[.,;:!?'"()-]/.test(match);
 
       // If pure base64 with no text patterns, remove it
@@ -100,4 +105,3 @@ export function truncateLongContent(content: string, maxLength: number = 50000):
   
   return content.substring(0, maxLength) + '\n\n... (content truncated due to length)';
 }
-

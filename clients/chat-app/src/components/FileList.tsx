@@ -1,13 +1,11 @@
-import React, { useState } from 'react';
-import { FileText, Trash2, X, Paperclip } from 'lucide-react';
+import { useState, type MouseEvent } from 'react';
+import { FileText, Trash2, Paperclip } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { FileAttachment } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { debugError } from '../utils/debug';
 
-interface FileListProps {}
-
-export function FileList({}: FileListProps) {
+export function FileList() {
   const {
     conversations,
     currentConversationId,
@@ -32,8 +30,8 @@ export function FileList({}: FileListProps) {
   
   const files = currentConversation?.attachedFiles || [];
 
-  const handleDeleteFile = (e: React.MouseEvent, file: FileAttachment) => {
-    e.stopPropagation();
+  const handleDeleteFile = (event: MouseEvent<HTMLButtonElement>, file: FileAttachment) => {
+    event.stopPropagation();
     setDeleteConfirmation({
       isOpen: true,
       fileId: file.file_id,

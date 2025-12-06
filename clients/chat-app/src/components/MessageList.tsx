@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Message } from './Message';
 import { Message as MessageType } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
@@ -27,7 +27,7 @@ export function MessageList({
   const prevMessageCountRef = useRef(messages.length);
   const prevLastMessageContentRef = useRef<string>('');
   const prevIsLoadingRef = useRef(isLoading);
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const shouldAutoScrollRef = useRef(true);
   const { settings } = useSettings();
 
   const { topLevelMessages, threadLookup } = useMemo(() => {
@@ -58,7 +58,7 @@ export function MessageList({
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     // Only disable auto-scroll if user has scrolled significantly up (more than 200px)
     const isNearBottom = distanceFromBottom < 200;
-    setShouldAutoScroll(isNearBottom);
+    shouldAutoScrollRef.current = isNearBottom;
   };
 
   // Scroll to bottom helper function
@@ -95,15 +95,15 @@ export function MessageList({
       // Use 'auto' for immediate scroll on new messages, 'smooth' for streaming updates
       scrollToBottom(hasNewMessage ? 'auto' : 'smooth');
       // Reset shouldAutoScroll to true when new content arrives
-      setShouldAutoScroll(true);
-    } else if (shouldAutoScroll && contentChanged) {
+      shouldAutoScrollRef.current = true;
+    } else if (shouldAutoScrollRef.current && contentChanged) {
       // If user is near bottom and content changed, scroll smoothly
       scrollToBottom('smooth');
     }
 
     prevMessageCountRef.current = messageCount;
     prevLastMessageContentRef.current = lastMessageContent;
-  }, [messages, shouldAutoScroll]);
+  }, [messages]);
 
   // Scroll to bottom when loading starts (new assistant message being prepared)
   useEffect(() => {
@@ -111,7 +111,7 @@ export function MessageList({
       // Always scroll when loading starts, regardless of scroll position
       // This ensures we scroll when user sends a message and response is being prepared
       scrollToBottom('auto');
-      setShouldAutoScroll(true);
+      shouldAutoScrollRef.current = true;
     }
   }, [isLoading]);
 

@@ -3,8 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import type { IncomingMessage, ServerResponse } from 'http';
-import type { ClientRequest } from 'http';
+import type { Options } from 'http-proxy-middleware';
+import type { IncomingMessage, ServerResponse, ClientRequest } from 'http';
 
 let adaptersCache: Record<string, { apiKey: string; apiUrl: string }> | null = null;
 
@@ -101,7 +101,7 @@ export function adaptersPlugin(): Plugin {
         }
 
         // Create proxy middleware
-        const proxy = createProxyMiddleware({
+        const proxyOptions: Options = {
           target: adapter.apiUrl,
           changeOrigin: true,
           pathRewrite: {
@@ -164,7 +164,9 @@ export function adaptersPlugin(): Plugin {
           },
           ws: false,
           logLevel: 'silent',
-        } as any);
+        };
+
+        const proxy = createProxyMiddleware(proxyOptions);
 
         proxy(req, res, next);
       });

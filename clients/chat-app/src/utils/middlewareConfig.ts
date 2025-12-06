@@ -22,6 +22,32 @@ export interface AdaptersResponse {
   adapters: Adapter[];
 }
 
+declare global {
+  interface Window {
+    ORBIT_CHAT_CONFIG?: {
+      adapters?: unknown[];
+    };
+  }
+}
+
+const normalizeAdapter = (input: unknown): Adapter | null => {
+  if (!input || typeof input !== 'object') {
+    return null;
+  }
+  const candidate = input as { name?: unknown; apiUrl?: unknown };
+  if (typeof candidate.name !== 'string' || candidate.name.trim().length === 0) {
+    return null;
+  }
+  const apiUrl =
+    typeof candidate.apiUrl === 'string' && candidate.apiUrl.trim().length > 0
+      ? candidate.apiUrl
+      : 'http://localhost:3000';
+  return {
+    name: candidate.name.trim(),
+    apiUrl,
+  };
+};
+
 let adaptersCache: Adapter[] | null = null;
 
 /**
@@ -39,13 +65,16 @@ export function isMiddlewareEnabled(): boolean {
 function loadAdaptersFromConfig(): Adapter[] | null {
   // First check window.ORBIT_CHAT_CONFIG.adapters (injected at runtime)
   if (typeof window !== 'undefined') {
-    const config = (window as any).ORBIT_CHAT_CONFIG;
+    const config = window.ORBIT_CHAT_CONFIG;
     if (config?.adapters && Array.isArray(config.adapters)) {
       debugLog('Loading adapters from window.ORBIT_CHAT_CONFIG');
-      return config.adapters.map((a: any) => ({
-        name: a.name,
-        apiUrl: a.apiUrl || 'http://localhost:3000',
-      }));
+      const runtimeAdapters = config.adapters
+        .map(normalizeAdapter)
+        .filter((adapter): adapter is Adapter => adapter !== null);
+
+      if (runtimeAdapters.length > 0) {
+        return runtimeAdapters;
+      }
     }
   }
 
@@ -56,12 +85,12 @@ function loadAdaptersFromConfig(): Adapter[] | null {
       const parsed = JSON.parse(envValue);
       if (Array.isArray(parsed)) {
         debugLog('Loading adapters from VITE_ADAPTERS environment variable');
-        return parsed
-          .filter((a: any) => a.name)
-          .map((a: any) => ({
-            name: a.name,
-            apiUrl: a.apiUrl || 'http://localhost:3000',
-          }));
+        const parsedAdapters = parsed
+          .map(normalizeAdapter)
+          .filter((adapter): adapter is Adapter => adapter !== null);
+        if (parsedAdapters.length > 0) {
+          return parsedAdapters;
+        }
       }
     } catch (error) {
       debugError('Failed to parse VITE_ADAPTERS:', error);
@@ -121,4 +150,3 @@ export async function getAdapter(name: string): Promise<Adapter | null> {
   const adapters = await fetchAdapters();
   return adapters.find(a => a.name === name) || null;
 }
-

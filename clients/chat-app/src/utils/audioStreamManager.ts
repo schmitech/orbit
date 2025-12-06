@@ -44,7 +44,7 @@ class AudioStreamManager {
         silentAudio.volume = 0;
         await silentAudio.play();
         silentAudio.pause();
-      } catch (silentAudioError) {
+      } catch {
         // Silent audio unlock might fail if not in user gesture context
         // This is okay - we'll still mark as enabled and try again later
         debugLog('[AudioStreamManager] Silent audio unlock deferred (will work on next interaction)');
@@ -94,7 +94,7 @@ class AudioStreamManager {
       try {
         await this.audioContext.resume();
       } catch (err) {
-        debugLog('[AudioStreamManager] AudioContext resume deferred');
+        debugLog('[AudioStreamManager] AudioContext resume deferred', err);
         return false;
       }
     }

@@ -201,19 +201,6 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
     return `${formattedDate} · ${formattedTime}`;
   };
 
-  const getConversationPreview = (conversation: Conversation) => {
-    if (conversation.messages.length === 0) {
-      return 'No messages yet';
-    }
-    const lastMessage = conversation.messages[conversation.messages.length - 1];
-    const sanitized = lastMessage.content.replace(/\s+/g, ' ').trim();
-    const maxLength = 90;
-    if (sanitized.length <= maxLength) {
-      return sanitized;
-    }
-    return `${sanitized.slice(0, maxLength)}…`;
-  };
-
   return (
     <>
       <div className="flex h-full w-full md:w-72 flex-col border-r border-b border-gray-200 bg-gray-50 dark:border-[#4a4b54] dark:bg-[#202123]">

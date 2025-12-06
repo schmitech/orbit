@@ -16,9 +16,9 @@ export async function getApiPackageVersion(): Promise<string> {
   try {
     // Try to get the actual installed version from the package
     // Note: This might not work in all environments, so we have a fallback
-    const apiPackage = await import('@schmitech/chatbot-api');
-    return (apiPackage as any).version || API_PACKAGE_VERSION;
-  } catch (error) {
+    const apiPackage = await import('@schmitech/chatbot-api') as { version?: string };
+    return apiPackage.version || API_PACKAGE_VERSION;
+  } catch {
     // Fallback to the version from our package.json
     return API_PACKAGE_VERSION;
   }
@@ -27,11 +27,15 @@ export async function getApiPackageVersion(): Promise<string> {
 /**
  * Get version information for display
  */
-export async function getVersionInfo() {
+export async function getVersionInfo(): Promise<{
+  appVersion: string;
+  apiVersion: string;
+  isLocalApi: boolean;
+}> {
   const apiVersion = await getApiPackageVersion();
   return {
     appVersion: PACKAGE_VERSION,
-    apiVersion: apiVersion,
-    isLocalApi: (import.meta.env as any).VITE_USE_LOCAL_API === 'true'
+    apiVersion,
+    isLocalApi: import.meta.env.VITE_USE_LOCAL_API === 'true'
   };
 }

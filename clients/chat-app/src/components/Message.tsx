@@ -56,7 +56,7 @@ export function Message({
   // Count only assistant responses, not user questions
   const threadReplyCount = threadReplies.filter(msg => msg.role === 'assistant').length;
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
-  const locale = (import.meta.env as any).VITE_LOCALE || 'en-US';
+  const locale = import.meta.env.VITE_LOCALE || 'en-US';
   const threadsEnabled = getEnableConversationThreads();
   const threadCharLimit = AppConfig.maxMessageLength;
   const { theme, isDark } = useTheme();

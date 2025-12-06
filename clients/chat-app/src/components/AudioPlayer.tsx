@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Play, Pause, Volume2 } from 'lucide-react';
 import { debugError, debugLog } from '../utils/debug';
 
@@ -115,7 +115,7 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
         URL.revokeObjectURL(audioUrl);
       }
     };
-  }, [audio, audioFormat, autoPlay]);
+  }, [audio, audioFormat, autoPlay, maxSizeMB]);
 
   // Update duration when metadata is loaded
   const handleLoadedMetadata = () => {
@@ -154,10 +154,10 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
   };
 
   // Seek to specific time
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSeek = (event: ChangeEvent<HTMLInputElement>) => {
     if (!audioRef.current) return;
 
-    const time = parseFloat(e.target.value);
+    const time = parseFloat(event.target.value);
     audioRef.current.currentTime = time;
     setCurrentTime(time);
   };

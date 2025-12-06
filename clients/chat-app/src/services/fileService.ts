@@ -40,6 +40,13 @@ const determineApiUrl = (explicit?: string | null): string => {
   return getApiUrl();
 };
 
+const getLegacyApiKey = (): string | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return window.CHATBOT_API_KEY || null;
+};
+
 export interface FileUploadProgress {
   filename: string;
   progress: number;  // 0-100
@@ -178,7 +185,7 @@ export class FileUploadService {
         // Normal mode: use API key
         resolvedApiKey = apiKey || 
           localStorage.getItem('chat-api-key') || 
-          (window as any).CHATBOT_API_KEY ||
+          getLegacyApiKey() ||
           DEFAULT_API_KEY;
         
         // Validate API key is configured
@@ -240,15 +247,16 @@ export class FileUploadService {
           resolvedApiUrl,
           resolvedAdapterName ?? undefined
         );
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         // If polling fails, times out, or file was deleted, return the initial response
         // This allows the UI to handle the state appropriately
-        if (error.message && error.message.includes('was deleted')) {
+        if (errorMessage.includes('was deleted')) {
           // File was deleted during upload - re-throw to handle cleanup
           throw new Error(`File ${response.file_id} was deleted during upload`);
         }
         // For other errors, log and return initial response
-        debugWarn(`File status polling failed for ${response.file_id}:`, error.message || error);
+        debugWarn(`File status polling failed for ${response.file_id}:`, error);
         fileInfo = {
           file_id: response.file_id,
           filename: response.filename,
@@ -272,8 +280,8 @@ export class FileUploadService {
       // Return file attachment metadata with updated status
       return fileInfo;
 
-    } catch (error: any) {
-      let errorMessage = error.message || 'Upload failed';
+    } catch (error: unknown) {
+      let errorMessage = error instanceof Error ? error.message : 'Upload failed';
       
       // Provide more helpful error messages
       if (errorMessage.includes('401') || errorMessage.includes('Invalid API key')) {
@@ -293,7 +301,7 @@ export class FileUploadService {
                       '     -d \'{"client_name": "chat-app", "adapter_name": "file-document-qa"}\'';
       } else if (errorMessage.includes('API key not configured')) {
         // Keep the detailed message we added above
-        errorMessage = error.message;
+        errorMessage = error instanceof Error ? error.message : errorMessage;
       }
       
       if (onProgress) {
@@ -326,7 +334,7 @@ export class FileUploadService {
             onProgress(index, progress);
           }
         });
-      } catch (error) {
+      } catch (error: unknown) {
         // Continue with other files even if one fails
         logError(`Failed to upload file ${file.name}:`, error);
         throw error;
@@ -364,7 +372,7 @@ export class FileUploadService {
       } else {
         resolvedApiKey = apiKey ||
           localStorage.getItem('chat-api-key') ||
-          (window as any).CHATBOT_API_KEY ||
+          getLegacyApiKey() ||
           DEFAULT_API_KEY;
 
         if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
@@ -384,8 +392,11 @@ export class FileUploadService {
       }
 
       const filesResponse = await client.listFiles();
-      // Handle both array response and { files: [...] } response format
-      const files = Array.isArray(filesResponse) ? filesResponse : (filesResponse as any).files || [];
+      const files = Array.isArray(filesResponse)
+        ? filesResponse
+        : Array.isArray((filesResponse as { files?: FileAttachment[] }).files)
+          ? (filesResponse as { files: FileAttachment[] }).files
+          : [];
       
       // Convert server response to FileAttachment format
       return files.map((file: {
@@ -405,9 +416,10 @@ export class FileUploadService {
         processing_status: file.processing_status,
         chunk_count: file.chunk_count
       }));
-    } catch (error: any) {
+    } catch (error: unknown) {
       logError('Failed to list files:', error);
-      throw new Error(error.message || 'Failed to list files');
+      const message = error instanceof Error ? error.message : 'Failed to list files';
+      throw new Error(message);
     }
   }
 
@@ -439,7 +451,7 @@ export class FileUploadService {
       } else {
         resolvedApiKey = apiKey ||
           localStorage.getItem('chat-api-key') ||
-          (window as any).CHATBOT_API_KEY ||
+          getLegacyApiKey() ||
           DEFAULT_API_KEY;
 
         if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
@@ -470,13 +482,17 @@ export class FileUploadService {
         processing_status: fileInfo.processing_status,
         chunk_count: fileInfo.chunk_count
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle 404 specifically - file was deleted
-      if (error.message && (error.message.includes('404') || error.message.includes('File not found'))) {
+      if (
+        error instanceof Error &&
+        (error.message.includes('404') || error.message.includes('File not found'))
+      ) {
         throw new Error(`File ${fileId} was deleted`);
       }
       logError(`Failed to get file info for ${fileId}:`, error);
-      throw new Error(error.message || `Failed to get file info: ${fileId}`);
+      const message = error instanceof Error ? error.message : `Failed to get file info: ${fileId}`;
+      throw new Error(message);
     }
   }
 
@@ -525,18 +541,19 @@ export class FileUploadService {
         if (attempt < maxAttempts - 1) {
           await new Promise(resolve => setTimeout(resolve, pollInterval));
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         // If file not found (404) or was deleted, stop polling immediately
-        if (error.message && (
-          error.message.includes('404') || 
-          error.message.includes('File not found') ||
-          error.message.includes('was deleted')
-        )) {
+        if (
+          errorMessage.includes('404') || 
+          errorMessage.includes('File not found') ||
+          errorMessage.includes('was deleted')
+        ) {
           throw new Error(`File ${fileId} was deleted during upload`);
         }
         
         // If component unmounted, stop polling
-        if (error.message && error.message.includes('component unmounted')) {
+        if (errorMessage.includes('component unmounted')) {
           throw error;
         }
         
@@ -580,7 +597,7 @@ export class FileUploadService {
       } else {
         resolvedApiKey = apiKey ||
           localStorage.getItem('chat-api-key') ||
-          (window as any).CHATBOT_API_KEY ||
+          getLegacyApiKey() ||
           DEFAULT_API_KEY;
 
         if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
@@ -600,15 +617,19 @@ export class FileUploadService {
       }
 
       return await client.deleteFile(fileId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If file was already deleted (404), that's fine - return a success response
-      if (error.message && (error.message.includes('404') || error.message.includes('File not found') || error.message.includes('Not Found'))) {
+      if (
+        error instanceof Error &&
+        (error.message.includes('404') || error.message.includes('File not found') || error.message.includes('Not Found'))
+      ) {
         debugLog(`File ${fileId} was already deleted from server`);
         return { message: 'File already deleted', file_id: fileId };
       }
       
       logError(`Failed to delete file ${fileId}:`, error);
-      throw new Error(error.message || `Failed to delete file: ${fileId}`);
+      const message = error instanceof Error ? error.message : `Failed to delete file: ${fileId}`;
+      throw new Error(message);
     }
   }
 }

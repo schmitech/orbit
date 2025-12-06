@@ -1,5 +1,11 @@
 import { debugLog } from './debug';
 
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext;
+  }
+}
+
 /**
  * Sound effects utility for playing notification sounds
  * Respects the user's soundEnabled setting from SettingsContext
@@ -9,7 +15,12 @@ import { debugLog } from './debug';
 function playBeep(frequency: number = 800, duration: number = 100, type: 'sine' | 'square' | 'triangle' = 'sine'): void {
   try {
     // Check if AudioContext is available
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (typeof window === 'undefined') {
+      debugLog('[SoundEffects] Window is not available for audio playback');
+      return;
+    }
+
+    const AudioContextClass = window.AudioContext ?? window.webkitAudioContext;
     if (!AudioContextClass) {
       debugLog('[SoundEffects] AudioContext not supported in this browser');
       return;
@@ -83,4 +94,3 @@ export function useSoundEffects() {
     }
   };
 }
-

@@ -28,12 +28,26 @@ type ChatAction =
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
+type StoredMessage = Omit<Message, 'timestamp'> & {
+  timestamp: string | number | Date;
+};
+
+type StoredConversation = Omit<Conversation, 'createdAt' | 'updatedAt' | 'messages'> & {
+  createdAt: string | number | Date;
+  updatedAt: string | number | Date;
+  messages: StoredMessage[];
+};
+
+type PersistedChatState = Omit<ChatState, 'conversations'> & {
+  conversations: StoredConversation[];
+};
+
 function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case 'LOAD_STATE':
       return action.state;
       
-    case 'CREATE_CONVERSATION':
+    case 'CREATE_CONVERSATION': {
       const newConversation: Conversation = {
         id: action.id,
         sessionId: action.sessionId,
@@ -47,6 +61,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         conversations: [newConversation, ...state.conversations],
         currentConversationId: action.id
       };
+    }
       
     case 'SELECT_CONVERSATION':
       return {
@@ -54,7 +69,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         currentConversationId: action.id
       };
       
-    case 'DELETE_CONVERSATION':
+    case 'DELETE_CONVERSATION': {
       const filtered = state.conversations.filter(c => c.id !== action.id);
       return {
         ...state,
@@ -63,6 +78,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
           ? (filtered[0]?.id || null) 
           : state.currentConversationId
       };
+    }
       
     case 'ADD_MESSAGE':
       return {
@@ -143,20 +159,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem('chat-state');
     if (saved) {
       try {
-        const parsedState = JSON.parse(saved);
+        const parsedState = JSON.parse(saved) as PersistedChatState;
         // Restore Date objects and ensure sessionId exists for backward compatibility
-        parsedState.conversations = parsedState.conversations.map((conv: any) => ({
+        const normalizedConversations: Conversation[] = parsedState.conversations.map((conv) => ({
           ...conv,
-          // Generate sessionId for existing conversations that don't have one
           sessionId: conv.sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           createdAt: new Date(conv.createdAt),
           updatedAt: new Date(conv.updatedAt),
-          messages: conv.messages.map((msg: any) => ({
+          messages: conv.messages.map((msg) => ({
             ...msg,
             timestamp: new Date(msg.timestamp)
           }))
         }));
-        dispatch({ type: 'LOAD_STATE', state: parsedState });
+        dispatch({
+          type: 'LOAD_STATE',
+          state: {
+            ...parsedState,
+            conversations: normalizedConversations
+          }
+        });
       } catch (error) {
         debugError('Failed to load chat state:', error);
       }
@@ -336,11 +357,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        const backendMessages = data.messages || [];
+        type BackendMessage = {
+          timestamp: string | number | Date;
+          role: Message['role'];
+          content: string;
+        };
+
+        const backendMessages: BackendMessage[] = Array.isArray(data.messages)
+          ? data.messages
+          : [];
         
         // Update local conversation with backend messages
         // This ensures frontend display matches backend storage
-        const updatedMessages = backendMessages.map((msg: any) => ({
+        const updatedMessages = backendMessages.map((msg) => ({
           id: `msg_${msg.timestamp}_${msg.role}`,
           content: msg.content,
           role: msg.role,
@@ -359,24 +388,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-      return (
-      <ChatContext.Provider value={{
-        ...state,
-        createConversation,
-        selectConversation,
-        deleteConversation,
-        sendMessage,
-        regenerateResponse,
-        updateConversationTitle,
-        clearError,
-        getCurrentSessionId,
-        syncConversationFromBackend
-      }}>
-        {children}
-      </ChatContext.Provider>
-    );
+  return (
+    <ChatContext.Provider value={{
+      ...state,
+      createConversation,
+      selectConversation,
+      deleteConversation,
+      sendMessage,
+      regenerateResponse,
+      updateConversationTitle,
+      clearError,
+      getCurrentSessionId,
+      syncConversationFromBackend
+    }}>
+      {children}
+    </ChatContext.Provider>
+  );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useChat() {
   const context = useContext(ChatContext);
   if (!context) {

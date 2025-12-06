@@ -163,21 +163,16 @@ type LocalApiModule = {
 let apiCache: ApiFunctions | null = null;
 
 // Middleware state
-let middlewareAdapterName: string | null = null;
-let middlewareApiUrl: string | null = null;
-
 /**
  * Create middleware-aware API functions that route through proxy
  */
-function createMiddlewareApi(baseApi: LocalApiModule): ApiFunctions {
+function createMiddlewareApi(): ApiFunctions {
   let sessionId: string | null = null;
   let adapterName: string | null = null;
 
   const configureApi = (apiUrl: string, apiKey?: string | null, sessId?: string | null, adapter?: string | null) => {
     sessionId = sessId || null;
     adapterName = adapter || null;
-    middlewareAdapterName = adapterName;
-    middlewareApiUrl = apiUrl;
     // In middleware mode, we don't configure the base API with the actual key
     // The proxy will handle it
   };
@@ -272,7 +267,7 @@ function createMiddlewareApi(baseApi: LocalApiModule): ApiFunctions {
                   };
                   
                   yield responseData;
-                } catch (e) {
+                } catch {
                   // Skip invalid JSON
                 }
               }
@@ -296,7 +291,7 @@ function createMiddlewareApi(baseApi: LocalApiModule): ApiFunctions {
                     threading: data.threading
                   };
                   yield responseData;
-                } catch (e) {
+                } catch {
                   // Skip invalid JSON
                 }
               }
@@ -525,12 +520,12 @@ async function importLocalApiModule(apiPath: string): Promise<LocalApiModule> {
   // When using alias, don't use @vite-ignore so Vite can resolve it
   // The alias is configured in vite.config.ts when VITE_USE_LOCAL_API=true
   if (apiPath === '@local-node-api/api.mjs') {
-    // @ts-ignore - alias resolved by Vite at build/runtime
+    // @ts-expect-error - alias resolved by Vite at build/runtime
     return import('@local-node-api/api.mjs');
   }
   
   // For relative paths, use @vite-ignore to suppress Vite's static analysis warning
-  // @ts-ignore - dynamic import path resolved at runtime
+  // @ts-expect-error - dynamic import path resolved at runtime
   return import(/* @vite-ignore */ apiPath);
 }
 
@@ -556,7 +551,7 @@ export async function loadApi(): Promise<ApiFunctions> {
         // If a custom path is provided, use it (must be a relative path that Vite can resolve)
         if (localApiPath.startsWith('/')) {
           // Absolute path - convert to relative from src
-          const hasAlias = (import.meta.env as any).VITE_USE_LOCAL_API === 'true';
+          const hasAlias = import.meta.env.VITE_USE_LOCAL_API === 'true';
           apiPath = localApiPath.startsWith('/src/')
             ? `.${localApiPath.substring(4)}${localApiPath.endsWith('.mjs') ? '' : '/api.mjs'}`
             : hasAlias ? '@local-node-api/api.mjs' : '../../../node-api/dist/api.mjs';
@@ -571,7 +566,7 @@ export async function loadApi(): Promise<ApiFunctions> {
         // Default: use Vite alias @local-node-api when VITE_USE_LOCAL_API=true
         // The alias is configured in vite.config.ts when VITE_USE_LOCAL_API=true
         // Check if we're in a context where the alias should be available
-        const hasAlias = (import.meta.env as any).VITE_USE_LOCAL_API === 'true';
+        const hasAlias = import.meta.env.VITE_USE_LOCAL_API === 'true';
         if (hasAlias) {
           // Use alias - it's configured in vite.config.ts
           apiPath = '@local-node-api/api.mjs';
@@ -588,7 +583,7 @@ export async function loadApi(): Promise<ApiFunctions> {
       
       if (enableMiddleware) {
         debugLog('🔐 API Middleware enabled - routing through proxy');
-        apiCache = createMiddlewareApi(localApi);
+        apiCache = createMiddlewareApi();
       } else {
         apiCache = {
           configureApi: localApi.configureApi,
@@ -599,7 +594,7 @@ export async function loadApi(): Promise<ApiFunctions> {
       debugLog('✅ Local API loaded successfully');
     } else {
       debugLog('📦 Loading npm package API');
-      // @ts-ignore - Dynamic import that may not be available at compile time
+      // @ts-expect-error - Dynamic import that may not be available at compile time
       const npmApi = await import('@schmitech/chatbot-api');
       
       // Create a wrapper for streamChat to match our interface signature
@@ -634,12 +629,12 @@ export async function loadApi(): Promise<ApiFunctions> {
       
       // Create a wrapper class for ApiClient to fix streamChat signature
       class ApiClientWrapper implements ApiClient {
-        private client: any;
+        private client: ApiClient;
         
         constructor(config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null; adapterName?: string | null }) {
           if (enableMiddleware && config.adapterName) {
             // In middleware mode, create a middleware client instead
-            const middlewareApi = createMiddlewareApi(npmApi as any);
+            const middlewareApi = createMiddlewareApi();
             this.client = new middlewareApi.ApiClient(config);
           } else {
             this.client = new npmApi.ApiClient(config);
@@ -692,7 +687,7 @@ export async function loadApi(): Promise<ApiFunctions> {
       
       if (enableMiddleware) {
         debugLog('🔐 API Middleware enabled - routing through proxy');
-        apiCache = createMiddlewareApi(npmApi as any);
+        apiCache = createMiddlewareApi();
       } else {
         apiCache = {
           configureApi: npmApi.configureApi,
@@ -710,7 +705,7 @@ export async function loadApi(): Promise<ApiFunctions> {
     if (useLocalApi) {
       debugLog('🔄 Falling back to npm package...');
       try {
-        // @ts-ignore - Dynamic import that may not be available at compile time
+        // @ts-expect-error - Dynamic import that may not be available at compile time
         const npmApi = await import('@schmitech/chatbot-api');
         
         // Create a wrapper for streamChat to match our interface signature
@@ -745,12 +740,12 @@ export async function loadApi(): Promise<ApiFunctions> {
         
         // Create a wrapper class for ApiClient to fix streamChat signature
         class ApiClientWrapper implements ApiClient {
-          private client: any;
+          private client: ApiClient;
           
           constructor(config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null; adapterName?: string | null }) {
             if (enableMiddleware && config.adapterName) {
               // In middleware mode, create a middleware client instead
-              const middlewareApi = createMiddlewareApi(npmApi as any);
+              const middlewareApi = createMiddlewareApi();
               this.client = new middlewareApi.ApiClient(config);
             } else {
               this.client = new npmApi.ApiClient(config);
@@ -803,7 +798,7 @@ export async function loadApi(): Promise<ApiFunctions> {
         
         if (enableMiddleware) {
           debugLog('🔐 API Middleware enabled - routing through proxy');
-          apiCache = createMiddlewareApi(npmApi as any);
+          apiCache = createMiddlewareApi();
         } else {
           apiCache = {
             configureApi: npmApi.configureApi,

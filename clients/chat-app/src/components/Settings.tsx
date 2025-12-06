@@ -18,6 +18,8 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
     isLocalApi: boolean;
   } | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetConfirmationText, setResetConfirmationText] = useState('');
+  const [resetAcknowledged, setResetAcknowledged] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -43,16 +45,30 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
     updateSettings({ soundEnabled: !settings.soundEnabled });
   };
 
+  const openResetDialog = () => {
+    setResetConfirmationText('');
+    setResetAcknowledged(false);
+    setShowResetConfirm(true);
+  };
+
+  const closeResetDialog = () => {
+    setShowResetConfirm(false);
+    setResetConfirmationText('');
+    setResetAcknowledged(false);
+  };
+
   const handleResetApplication = () => {
-    // Clear all localStorage data
+    closeResetDialog();
     localStorage.clear();
-    // Reload the page to reset all state
     window.location.reload();
   };
 
+  const canResetApplication =
+    resetAcknowledged && resetConfirmationText.trim().toLowerCase() === 'reset';
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden relative">
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -200,46 +216,33 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
               Data Management
             </h3>
             
-            <div className="space-y-2">
+            <div className="space-y-3">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Clear all application data including conversations, settings, and API configurations. This action cannot be undone.
+                Clear all application data including conversations, saved API configurations, and personalized settings.
               </p>
-              {!showResetConfirm ? (
-                <button
-                  onClick={() => setShowResetConfirm(true)}
-                  className="w-full px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                >
-                  Reset Application
-                </button>
-              ) : (
-                <div className="space-y-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-red-800 dark:text-red-300 mb-1">
-                        Are you sure?
-                      </p>
-                      <p className="text-xs text-red-700 dark:text-red-400">
-                        This will delete all conversations, settings, API keys, and other stored data. The page will reload automatically.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleResetApplication}
-                      className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 dark:bg-red-700 rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors"
-                    >
-                      Yes, Reset Everything
-                    </button>
-                    <button
-                      onClick={() => setShowResetConfirm(false)}
-                      className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
+              <ul className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-gray-500" />
+                  Conversation history and transcripts
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-gray-500" />
+                  API keys, base URLs, and provider preferences
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-gray-500" />
+                  Theme, accessibility, and notification settings
+                </li>
+              </ul>
+              <button
+                onClick={openResetDialog}
+                className="w-full px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                Reset Application
+              </button>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                You&apos;ll be asked to confirm before anything is deleted.
+              </p>
             </div>
           </div>
 
@@ -267,6 +270,67 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
             </div>
           </div>
         </div>
+        {showResetConfirm && (
+          <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+            <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 border border-red-100 dark:border-red-800 shadow-2xl p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
+                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    Reset application data?
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    This removes everything stored on this device. Type <span className="font-semibold text-gray-900 dark:text-gray-100">RESET</span> to continue.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Confirmation text
+                </label>
+                <input
+                  value={resetConfirmationText}
+                  onChange={(event) => setResetConfirmationText(event.target.value.toUpperCase())}
+                  placeholder="RESET"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-red-400 dark:text-gray-100"
+                />
+              </div>
+
+              <label className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
+                <input
+                  type="checkbox"
+                  checked={resetAcknowledged}
+                  onChange={(event) => setResetAcknowledged(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-500 text-red-600 focus:ring-red-500"
+                />
+                <span>I understand this action is permanent and will reload the app.</span>
+              </label>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={closeResetDialog}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Keep my data
+                </button>
+                <button
+                  onClick={handleResetApplication}
+                  disabled={!canResetApplication}
+                  className={`flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                    canResetApplication
+                      ? 'bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600'
+                      : 'bg-red-200 text-red-600/60 dark:bg-red-900/20 dark:text-red-400/60 cursor-not-allowed'
+                  }`}
+                >
+                  Delete everything
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

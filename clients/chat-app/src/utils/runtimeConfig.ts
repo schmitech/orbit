@@ -10,11 +10,6 @@
 
 export const DEFAULT_API_URL = 'http://localhost:3000';
 
-interface AdapterConfig {
-  name: string;
-  apiUrl: string;
-}
-
 interface RuntimeConfig {
   // API Configuration
   apiUrl: string;
@@ -36,7 +31,10 @@ interface RuntimeConfig {
   githubRepo: string;
 
   // Adapters (for middleware mode, fallback when adapters.yaml is not available)
-  adapters?: AdapterConfig[];
+  adapters?: Array<{
+    name: string;
+    apiUrl: string;
+  }>;
 
   // File Upload Limits
   maxFilesPerConversation: number;
@@ -52,8 +50,16 @@ interface RuntimeConfig {
   maxMessageLength: number;
 }
 
+declare global {
+  interface Window {
+    ORBIT_CHAT_CONFIG?: Partial<RuntimeConfig>;
+    CHATBOT_API_URL?: string;
+    CHATBOT_API_KEY?: string;
+  }
+}
+
 // Type guard for window.ORBIT_CHAT_CONFIG
-function isRuntimeConfig(obj: any): obj is Partial<RuntimeConfig> {
+function isRuntimeConfig(obj: unknown): obj is Partial<RuntimeConfig> {
   return typeof obj === 'object' && obj !== null;
 }
 
@@ -89,7 +95,7 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
  * This is set by the orbitchat CLI when serving the app
  */
 function hasCliConfig(): boolean {
-  return typeof window !== 'undefined' && isRuntimeConfig((window as any).ORBIT_CHAT_CONFIG);
+  return typeof window !== 'undefined' && isRuntimeConfig(window.ORBIT_CHAT_CONFIG);
 }
 
 /**
@@ -121,7 +127,7 @@ function getConfigValue<T>(
   if (!isGitHubConfig) {
     // Check window.ORBIT_CHAT_CONFIG first (injected by CLI)
     if (cliConfigExists) {
-      const value = (window as any).ORBIT_CHAT_CONFIG[key];
+      const value = window.ORBIT_CHAT_CONFIG?.[key];
       if (value !== undefined && value !== null) {
         return value as T;
       }
@@ -132,13 +138,16 @@ function getConfigValue<T>(
 
     // Check legacy window.CHATBOT_* variables
     if (typeof window !== 'undefined') {
-      const win = window as any;
       switch (key) {
         case 'apiUrl':
-          if (win.CHATBOT_API_URL) return win.CHATBOT_API_URL as T;
+          if (window.CHATBOT_API_URL) {
+            return window.CHATBOT_API_URL as T;
+          }
           break;
         case 'defaultKey':
-          if (win.CHATBOT_API_KEY) return win.CHATBOT_API_KEY as T;
+          if (window.CHATBOT_API_KEY) {
+            return window.CHATBOT_API_KEY as T;
+          }
           break;
       }
     }
@@ -147,7 +156,8 @@ function getConfigValue<T>(
   // Check import.meta.env.VITE_* (build-time, for development and forkers)
   // ONLY used when no CLI config is present
   const envKey = envKeyMap[key];
-  const envValue = envKey ? (import.meta.env as any)[envKey] : undefined;
+  const envRecord = import.meta.env as Record<string, string | undefined>;
+  const envValue = envKey ? envRecord[envKey] : undefined;
 
   if (envValue !== undefined && envValue !== null && envValue !== '') {
     if (type === 'boolean') {

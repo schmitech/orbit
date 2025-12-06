@@ -27,7 +27,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(saved);
         // Ensure voiceEnabled is always false on app start (user can enable it manually)
         return { ...DEFAULT_SETTINGS, ...parsed, voiceEnabled: false };
-      } catch (error) {
+      } catch {
         // If parsing fails, use defaults
         return DEFAULT_SETTINGS;
       }
@@ -51,6 +51,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSettings() {
   const context = useContext(SettingsContext);
   if (!context) {
@@ -58,4 +59,3 @@ export function useSettings() {
   }
   return context;
 }
-

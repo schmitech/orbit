@@ -12,21 +12,26 @@ interface AudioEnableButtonProps {
  * Required due to browser autoplay policies - needs user gesture to enable audio.
  */
 export function AudioEnableButton({ className = '' }: AudioEnableButtonProps) {
-  const [isEnabled, setIsEnabled] = useState(false);
+  const [isEnabled, setIsEnabled] = useState(() => audioStreamManager.isAudioEnabled());
   const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
-    // Check initial state
-    setIsEnabled(audioStreamManager.isAudioEnabled());
-
     // Set up callbacks
-    audioStreamManager.setOnPlaybackStart(() => {
+    const handlePlaybackStart = () => {
       setIsPlaying(true);
-    });
+    };
 
-    audioStreamManager.setOnPlaybackEnd(() => {
+    const handlePlaybackEnd = () => {
       setIsPlaying(false);
-    });
+    };
+
+    audioStreamManager.setOnPlaybackStart(handlePlaybackStart);
+    audioStreamManager.setOnPlaybackEnd(handlePlaybackEnd);
+
+    return () => {
+      audioStreamManager.setOnPlaybackStart(() => {});
+      audioStreamManager.setOnPlaybackEnd(() => {});
+    };
   }, []);
 
   const handleEnableAudio = async () => {

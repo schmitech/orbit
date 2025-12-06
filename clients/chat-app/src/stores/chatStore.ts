@@ -235,14 +235,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 // Don't fail configuration if adapter info fails to load
               }
             }
-          } catch (validationError: any) {
+          } catch (validationError: unknown) {
             // api.ts already throws user-friendly error messages, so we can just re-throw them
             // This avoids duplicating error message logic and keeps the code DRY
             if (validationError instanceof Error) {
               throw validationError;
             }
             // Fallback for non-Error objects
-            throw new Error(`API key validation failed: ${validationError?.message || 'Unknown error'}`);
+            throw new Error(`API key validation failed: ${String(validationError)}`);
           }
         }
         
@@ -640,7 +640,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     set((state: ExtendedChatState) => {
       const filtered = state.conversations.filter((c: Conversation) => c.id !== id);
-      let newCurrentId = state.currentConversationId === id 
+      const newCurrentId = state.currentConversationId === id 
         ? (filtered[0]?.id || null) 
         : state.currentConversationId;
 
@@ -981,7 +981,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         }
 
         // Apply message limit cleanup before adding new messages
-        let updatedConversations = state.conversations.map(conv => {
+        const updatedConversations = state.conversations.map(conv => {
           if (conv.id !== conversationId) {
             // For other conversations, check per-conversation limit
             const maxMessagesPerConversation = AppConfig.maxMessagesPerConversation;
@@ -1873,9 +1873,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       debugLog(`[chatStore] Calling FileUploadService.deleteFile for ${fileId}`);
       await FileUploadService.deleteFile(fileId, conversationApiKey, conversationApiUrl, conversationAdapterName);
       debugLog(`[chatStore] Successfully deleted file ${fileId} from server`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If file was already deleted (404), that's fine - just log and continue
-      if (error.message && (error.message.includes('404') || error.message.includes('File not found'))) {
+      if (
+        error instanceof Error &&
+        (error.message.includes('404') || error.message.includes('File not found'))
+      ) {
         debugLog(`[chatStore] File ${fileId} was already deleted from server`);
       } else {
         debugError(`[chatStore] Failed to delete file ${fileId} from server:`, error);
@@ -2021,6 +2024,21 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
 // Initialize store from localStorage
 const initializeStore = async () => {
+  type StoredMessage = Omit<Message, 'timestamp'> & {
+    timestamp: string | number | Date;
+    isStreaming?: boolean;
+  };
+
+  type StoredConversation = Omit<Conversation, 'createdAt' | 'updatedAt' | 'messages'> & {
+    createdAt: string | number | Date;
+    updatedAt: string | number | Date;
+    messages?: StoredMessage[];
+  };
+
+  interface PersistedChatState {
+    conversations?: StoredConversation[];
+    currentConversationId?: string | null;
+  }
   // Then initialize the rest of the store
   const saved = localStorage.getItem('chat-state');
   const runtimeApiUrl = getApiUrl();
@@ -2032,30 +2050,42 @@ const initializeStore = async () => {
   
   if (saved) {
     try {
-      const parsedState = JSON.parse(saved);
+      const parsedState = JSON.parse(saved) as PersistedChatState;
+      const toDate = (value: string | number | Date | undefined): Date => {
+        if (value instanceof Date) {
+          return value;
+        }
+        const parsedDate = value ? new Date(value) : new Date();
+        return Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+      };
       // Restore Date objects and clean up any streaming messages
       // For backward compatibility: initialize conversations without apiKey/apiUrl with 'default-key'
-      parsedState.conversations = parsedState.conversations.map((conv: any) => {
-        const normalizedConversation = {
-          ...conv,
-          sessionId: conv.sessionId || generateUniqueSessionId(), // Generate sessionId for existing conversations if missing
-          createdAt: new Date(conv.createdAt),
-          updatedAt: new Date(conv.updatedAt),
-          attachedFiles: conv.attachedFiles || [], // Ensure attachedFiles exists
-          // Preserve existing API keys - only use default if missing (backward compatibility)
-          // This ensures existing conversations maintain their associated API keys
-          apiKey: conv.apiKey || DEFAULT_API_KEY,
-          // Preserve adapterInfo if it exists
-          adapterInfo: conv.adapterInfo || undefined,
+      const storedConversations = Array.isArray(parsedState.conversations) ? parsedState.conversations : [];
+      parsedState.conversations = storedConversations.map((storedConversation) => {
+        const storedMessages = Array.isArray(storedConversation.messages) ? storedConversation.messages : [];
+        const sanitizedMessages: Message[] = storedMessages
+          .filter((msg) => !(msg.role === 'assistant' && msg.isStreaming))
+          .map((msg) => ({
+            ...msg,
+            timestamp: toDate(msg.timestamp),
+            isStreaming: false,
+          }));
+
+        const normalizedConversation: Conversation = {
+          id: storedConversation.id,
+          sessionId: storedConversation.sessionId || generateUniqueSessionId(),
+          title: storedConversation.title || 'New Chat',
+          messages: sanitizedMessages,
+          createdAt: toDate(storedConversation.createdAt),
+          updatedAt: toDate(storedConversation.updatedAt),
+          attachedFiles: storedConversation.attachedFiles || [],
+          apiKey: storedConversation.apiKey || DEFAULT_API_KEY,
+          adapterName: storedConversation.adapterName,
+          apiUrl: storedConversation.apiUrl,
+          adapterInfo: storedConversation.adapterInfo,
+          audioSettings: storedConversation.audioSettings,
           currentThreadId: undefined,
           currentThreadSessionId: undefined,
-          messages: conv.messages
-            .filter((msg: any) => !(msg.role === 'assistant' && msg.isStreaming)) // Remove any streaming messages
-            .map((msg: any) => ({
-              ...msg,
-              timestamp: new Date(msg.timestamp),
-              isStreaming: false // Ensure no messages are marked as streaming
-            }))
         };
 
         // If the user hasn't configured a custom API URL yet, make sure empty placeholder
@@ -2066,11 +2096,11 @@ const initializeStore = async () => {
 
         const apiUrl = isPlaceholderConversation && !hasStoredApiOverride
           ? runtimeApiUrl
-          : resolveApiUrl(conv.apiUrl);
+          : resolveApiUrl(storedConversation.apiUrl);
 
         return {
           ...normalizedConversation,
-          apiUrl
+          apiUrl,
         };
       });
       
@@ -2080,7 +2110,7 @@ const initializeStore = async () => {
       // If there's a current conversation, use its session ID
       if (parsedState.currentConversationId && parsedState.conversations) {
         const currentConversation = parsedState.conversations.find(
-          (conv: any) => conv.id === parsedState.currentConversationId
+          (conv) => conv.id === parsedState.currentConversationId
         );
         if (currentConversation && currentConversation.sessionId) {
           sessionId = currentConversation.sessionId;
@@ -2130,7 +2160,7 @@ const initializeStore = async () => {
       
       // Debug: Log loaded conversations and their session IDs
       const loadedConversations = useChatStore.getState().conversations;
-      debugLog('📋 Loaded conversations:', loadedConversations.map((conv: any) => ({
+      debugLog('📋 Loaded conversations:', loadedConversations.map((conv) => ({
         id: conv.id,
         title: conv.title,
         sessionId: conv.sessionId,

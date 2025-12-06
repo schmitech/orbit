@@ -1,4 +1,4 @@
-import { defineConfig, loadEnv, type ViteDevServer } from 'vite';
+import { defineConfig, loadEnv, type ViteDevServer, type PluginOption } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { adaptersPlugin } from './vite-plugin-adapters';
@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => {
     ? path.resolve(__dirname, '../node-api/dist')
     : path.resolve(__dirname, 'src/api/local-stub');
 
-  const plugins: any[] = [react(), fixMaxListenersPlugin()];
+  const plugins: PluginOption[] = [react(), fixMaxListenersPlugin()];
   
   // Add adapters plugin when middleware is enabled
   if (enableMiddleware) {
