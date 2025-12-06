@@ -296,12 +296,14 @@ export function Message({
           >
             {replyIsAssistant ? <Bot className="h-3.5 w-3.5" /> : <User2 className="h-3.5 w-3.5" />}
           </div>
-          <div className="flex-1 rounded-2xl border border-white/70 bg-white/90 px-4 py-3 text-sm shadow-sm dark:border-white/5 dark:bg-white/5 backdrop-blur">
+          <div className="flex-1 min-w-0 rounded-2xl border border-white/70 bg-white/90 px-4 py-3 text-sm shadow-sm dark:border-white/5 dark:bg-white/5 backdrop-blur overflow-hidden">
             <div className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-blue-900/70 dark:text-[#c5d7ff]">
               <span>{replyIsAssistant ? 'Assistant' : 'You'}</span>
               <span>{formatThreadTimestamp(reply.timestamp)}</span>
             </div>
-            {replyContent}
+            <div className="thread-markdown-wrapper overflow-x-auto">
+              {replyContent}
+            </div>
           </div>
         </div>
       );

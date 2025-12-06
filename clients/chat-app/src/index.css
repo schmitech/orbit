@@ -134,6 +134,35 @@
   .prose blockquote {
     @apply border-l-4 border-gray-200 bg-gray-50 dark:bg-[#202123] rounded-r-lg pl-6 py-4 my-4 text-[#353740] dark:text-[#ececf1];
   }
+
+  /* Table styling for markdown content */
+  .prose table {
+    @apply w-full border-collapse my-4 text-sm;
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .prose thead {
+    @apply bg-gray-100 dark:bg-[#2a2b32];
+  }
+
+  .prose th {
+    @apply px-4 py-2 text-left font-semibold text-[#353740] dark:text-[#ececf1] border border-gray-200 dark:border-[#3c3f4a];
+    white-space: nowrap;
+  }
+
+  .prose td {
+    @apply px-4 py-2 text-[#353740] dark:text-[#ececf1] border border-gray-200 dark:border-[#3c3f4a];
+  }
+
+  .prose tbody tr:nth-child(even) {
+    @apply bg-gray-50 dark:bg-[#202123];
+  }
+
+  .prose tbody tr:hover {
+    @apply bg-gray-100 dark:bg-[#2a2b32];
+  }
 }
 
 /* Custom scrollbar */

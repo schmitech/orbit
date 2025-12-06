@@ -106,3 +106,43 @@
     max-width: 880px;
   }
 }
+
+/* Thread markdown wrapper - ensures consistent horizontal scrolling for tables and wide content */
+.thread-markdown-wrapper {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+}
+
+.thread-markdown-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+
+.thread-markdown-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.thread-markdown-wrapper::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+.dark .thread-markdown-wrapper::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Ensure tables in threads have proper styling */
+.thread-markdown-wrapper table {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+
+.thread-markdown-wrapper .prose {
+  max-width: 100%;
+}
