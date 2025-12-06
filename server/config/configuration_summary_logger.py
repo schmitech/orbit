@@ -178,14 +178,6 @@ class ConfigurationSummaryLogger:
                 max_body_size = request_limits.get('max_body_size_mb', 10)
                 self._log_message(f"📦 Request Limits: max body size {max_body_size}MB")
 
-            # Error Handling Configuration
-            error_handling = security_config.get('error_handling', {})
-            expose_details = error_handling.get('expose_details', False)
-            if expose_details:
-                self._log_message("⚠️ Error Details: EXPOSED (development mode)", level='warning')
-            else:
-                self._log_message("🔒 Error Details: HIDDEN (production mode)")
-
             # LLM Guard Configuration
             llm_guard_config = self.config.get('llm_guard', {})
             llm_guard_enabled = bool(llm_guard_config) and llm_guard_config.get('enabled', True)

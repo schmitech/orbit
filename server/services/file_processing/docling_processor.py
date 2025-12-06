@@ -89,6 +89,7 @@ class DoclingProcessor(FileProcessor):
             'application/vnd.openxmlformats-officedocument.presentationml.presentation',  # PPTX
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # XLSX
             'text/html',
+            'text/csv',
             'image/png',
             'image/jpeg',
             'image/tiff',
@@ -224,7 +225,7 @@ class DoclingProcessor(FileProcessor):
         
         return [
             'PDF', 'DOCX', 'PPTX', 'XLSX',
-            'HTML', 'Markdown',
+            'HTML', 'Markdown', 'CSV',
             'PNG', 'JPEG', 'TIFF',
             'WAV', 'MP3',
             'VTT',

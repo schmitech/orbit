@@ -6,7 +6,7 @@ while maintaining backward compatibility with the existing pipeline interface.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 from .llm_provider import LLMProvider
 from .unified_provider_adapter import create_unified_provider
 
@@ -15,30 +15,41 @@ class UnifiedProviderFactory:
     """
     Factory for creating LLM providers using the new unified architecture.
 
-    This factory uses the new AI services under the hood while maintaining
+    This factory uses the AI services under the hood while maintaining
     compatibility with the existing pipeline LLMProvider interface.
-
-    Benefits of using this factory:
-    - Uses the new unified architecture (3,426 lines of code eliminated!)
-    - Consistent error handling across all providers
-    - Automatic retry logic
-    - Better maintainability
-    - All 27 AI services available (23 inference + 3 moderation + 1 reranking)
     """
 
-    # Supported providers - all from the new unified architecture
-    SUPPORTED_PROVIDERS = [
-        # Core providers
-        'openai', 'anthropic', 'ollama',
-        # OpenAI-compatible (10 providers)
-        'groq', 'mistral', 'deepseek', 'fireworks',
-        'perplexity', 'together', 'openrouter', 'xai', 'vllm', 'ollama_cloud',
-        # Cloud providers
-        'aws', 'azure', 'vertexai', 'gemini',
-        # Custom/Local providers
-        'cohere', 'nvidia', 'replicate', 'watson',
-        'llama_cpp', 'shimmy', 'bitnet', 'zai', 'huggingface'
-    ]
+    @classmethod
+    def _get_configured_providers(cls, config: Dict[str, Any]) -> List[str]:
+        """
+        Get list of providers configured in inference.yaml.
+
+        Args:
+            config: Application configuration dictionary
+
+        Returns:
+            List of provider names from the inference config
+        """
+        inference_config = config.get('inference', {})
+        return list(inference_config.keys())
+
+    @classmethod
+    def _get_enabled_providers(cls, config: Dict[str, Any]) -> List[str]:
+        """
+        Get list of enabled providers from inference.yaml.
+
+        Args:
+            config: Application configuration dictionary
+
+        Returns:
+            List of enabled provider names
+        """
+        inference_config = config.get('inference', {})
+        enabled = []
+        for provider_name, provider_config in inference_config.items():
+            if isinstance(provider_config, dict) and provider_config.get('enabled', False):
+                enabled.append(provider_name)
+        return enabled
 
     @classmethod
     def create_provider(cls, config: Dict[str, Any]) -> LLMProvider:
@@ -52,7 +63,7 @@ class UnifiedProviderFactory:
             LLMProvider instance using the new unified architecture
 
         Raises:
-            ValueError: If the provider is not supported
+            ValueError: If the provider is not configured
 
         Example:
             >>> factory = UnifiedProviderFactory()
@@ -61,12 +72,13 @@ class UnifiedProviderFactory:
             >>> response = await provider.generate("Hello!")
         """
         provider_name = config['general'].get('inference_provider', 'openai')
+        configured_providers = cls._get_configured_providers(config)
 
-        if provider_name not in cls.SUPPORTED_PROVIDERS:
-            supported = ', '.join(cls.SUPPORTED_PROVIDERS)
+        if provider_name not in configured_providers:
+            supported = ', '.join(configured_providers)
             raise ValueError(
                 f"Unsupported provider '{provider_name}'. "
-                f"Supported providers: {supported}"
+                f"Configured providers: {supported}"
             )
 
         logger = logging.getLogger(__name__)
@@ -91,13 +103,15 @@ class UnifiedProviderFactory:
             LLMProvider instance
 
         Raises:
-            ValueError: If the provider is not supported
+            ValueError: If the provider is not configured
         """
-        if provider_name not in cls.SUPPORTED_PROVIDERS:
-            supported = ', '.join(cls.SUPPORTED_PROVIDERS)
+        configured_providers = cls._get_configured_providers(config)
+
+        if provider_name not in configured_providers:
+            supported = ', '.join(configured_providers)
             raise ValueError(
                 f"Unsupported provider '{provider_name}'. "
-                f"Supported providers: {supported}"
+                f"Configured providers: {supported}"
             )
 
         logger = logging.getLogger(__name__)
@@ -106,21 +120,27 @@ class UnifiedProviderFactory:
         return create_unified_provider(provider_name, config)
 
     @classmethod
-    def list_providers(cls) -> list:
+    def list_providers(cls, config: Dict[str, Any]) -> List[str]:
         """
-        List all available providers.
+        List all configured providers from inference.yaml.
+
+        Args:
+            config: Application configuration dictionary
 
         Returns:
-            List of provider names
+            List of configured provider names
         """
-        return cls.SUPPORTED_PROVIDERS.copy()
+        return cls._get_configured_providers(config)
 
     @classmethod
-    def list_available_providers(cls) -> list:
+    def list_available_providers(cls, config: Dict[str, Any]) -> List[str]:
         """
-        List providers that can be successfully loaded.
+        List providers that are enabled in inference.yaml.
+
+        Args:
+            config: Application configuration dictionary
 
         Returns:
-            List of provider names (all are available in unified architecture)
+            List of enabled provider names
         """
-        return cls.SUPPORTED_PROVIDERS.copy()
+        return cls._get_enabled_providers(config)

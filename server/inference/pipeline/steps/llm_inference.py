@@ -161,9 +161,14 @@ class LLMInferenceStep(PipelineStep):
         # Check if we should use message format (for passthrough adapters)
         if self._should_use_message_format(context):
             await self._build_message_format(context)
+            # Return a simplified fallback prompt derived from the already-built messages
+            # to avoid duplicate logging and work
+            if hasattr(context, 'messages') and context.messages:
+                # Extract system content from the first message (already built)
+                system_content = context.messages[0].get('content', '') if context.messages else ''
+                return f"{system_content}\n\nUser: {context.message}"
 
-        # Always return traditional concatenated format as fallback
-        # The messages array (if built) will be passed via kwargs to providers
+        # Build traditional concatenated format for non-message-format adapters
         return await self._build_traditional_prompt(context)
 
     def _should_use_message_format(self, context: ProcessingContext) -> bool:
