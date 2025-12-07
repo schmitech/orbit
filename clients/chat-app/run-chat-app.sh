@@ -4,18 +4,22 @@
 # ================================
 #
 # Usage:
-#   ./run-chat-app.sh --start   Start orbitchat in background
-#   ./run-chat-app.sh --stop    Stop orbitchat
-#   ./run-chat-app.sh --status  Check if orbitchat is running
-#   ./run-chat-app.sh --help    Show this help message
+#   ./run-chat-app.sh --start [port]  Start orbitchat in background
+#   ./run-chat-app.sh --stop          Stop orbitchat
+#   ./run-chat-app.sh --status        Check if orbitchat is running
+#   ./run-chat-app.sh --help          Show this help message
 #
 # Files:
-#   PID file: /home/ubuntu/orbitchat/orbitchat.pid
-#   Log file: /home/ubuntu/orbitchat/orbitchat.log
+#   PID file: <script_dir>/orbitchat.pid
+#   Log file: <script_dir>/orbitchat.log
 #
 
-PIDFILE="/home/ubuntu/orbitchat/orbitchat.pid"
-LOGFILE="/home/ubuntu/orbitchat/orbitchat.log"
+# Get the directory where this script is located (works on Mac and Linux)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+PIDFILE="$SCRIPT_DIR/orbitchat.pid"
+LOGFILE="$SCRIPT_DIR/orbitchat.log"
+PORT="${ORBITCHAT_PORT:-5173}"
 
 # Set the VITE_ADAPTERS environment variable (required for --enable-api-middleware)
 export VITE_ADAPTERS='[
@@ -29,9 +33,10 @@ start_app() {
         exit 1
     fi
 
-    echo "Starting orbitchat in background..."
+    echo "Starting orbitchat on port $PORT..."
+    # Note: Add '--host 0.0.0.0' below to listen on all network interfaces (allow access from other devices)
     nohup orbitchat --api-url http://localhost:3000 --enable-api-middleware --enable-upload \
-        --host 0.0.0.0 \
+        --port "$PORT" \
         --max-conversations 5 \
         --max-messages-per-conversation 50 \
         --max-total-messages 200 \
@@ -42,8 +47,12 @@ start_app() {
         > "$LOGFILE" 2>&1 &
 
     echo $! > "$PIDFILE"
-    echo "orbitchat started (PID: $!)"
-    echo "Logs: $LOGFILE"
+    echo ""
+    echo "✓ orbitchat started (PID: $!)"
+    echo ""
+    echo "  Open in browser: http://localhost:$PORT"
+    echo "  Logs: $LOGFILE"
+    echo ""
 }
 
 stop_app() {
@@ -67,6 +76,7 @@ stop_app() {
 status_app() {
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
         echo "orbitchat is running (PID: $(cat "$PIDFILE"))"
+        echo "  URL: http://localhost:$PORT"
     else
         echo "orbitchat is not running"
     fi
@@ -76,21 +86,37 @@ show_help() {
     echo "OrbitChat Daemon Control Script"
     echo "================================"
     echo ""
-    echo "Usage: $0 {--start|--stop|--status|--help}"
+    echo "Usage: $0 {--start [port]|--stop|--status|--help}"
     echo ""
     echo "Options:"
-    echo "  --start   Start orbitchat in background"
+    echo "  --start [port]  Start orbitchat in background (optionally specify port)"
     echo "  --stop    Stop orbitchat"
     echo "  --status  Check if orbitchat is running"
     echo "  --help    Show this help message"
     echo ""
-    echo "Files:"
+    echo "Environment variables:"
+    echo "  ORBITCHAT_PORT  Port to run on (default: 5173)"
+    echo ""
+    echo "Examples:"
+    echo "  $0 --start                      # Start on default port 5173"
+    echo "  $0 --start 8080                 # Start on port 8080"
+    echo "  ORBITCHAT_PORT=8080 $0 --start  # Start on port 8080 (env var)"
+    echo ""
+    echo "Note:"
+    echo "  To allow access from other devices on the network, add '--host 0.0.0.0'"
+    echo "  to the orbitchat command in this script."
+    echo ""
+    echo "Files (stored in script directory):"
     echo "  PID file: $PIDFILE"
     echo "  Log file: $LOGFILE"
 }
 
 case "$1" in
     --start)
+        # Optional port argument: --start [port]
+        if [ -n "$2" ]; then
+            PORT="$2"
+        fi
         start_app
         ;;
     --stop)
