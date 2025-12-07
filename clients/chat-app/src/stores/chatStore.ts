@@ -760,7 +760,13 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
         const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
         const conversationAdapterName = conversation.adapterName;
-        
+
+        // In middleware mode, skip server deletion if adapter is not configured
+        if (isMiddlewareEnabled && !conversationAdapterName) {
+          debugLog(`Skipping server deletion for conversation ${conversation.id}: adapter not configured`);
+          return;
+        }
+
         const api = await getApi();
         const apiClient: ApiClient = new api.ApiClient({
           apiUrl: conversationApiUrl,
