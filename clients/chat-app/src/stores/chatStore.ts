@@ -5,6 +5,7 @@ import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { getDefaultKey, getApiUrl, resolveApiUrl, DEFAULT_API_URL, getEnableApiMiddleware } from '../utils/runtimeConfig';
+import { getFirstAdapter } from '../utils/middlewareConfig';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { audioStreamManager } from '../utils/audioStreamManager';
 
@@ -2235,7 +2236,10 @@ const initializeStore = async () => {
   const currentConversation = currentState.currentConversationId
     ? currentState.conversations.find(conv => conv.id === currentState.currentConversationId)
     : null;
-  
+
+  // Check if middleware mode is enabled
+  const isMiddlewareEnabled = getEnableApiMiddleware();
+
   // Use current conversation's API key if available and we have existing conversations
   // But if there are no conversations at all, always use default-key
   // This ensures new installations always start with default-key
@@ -2245,50 +2249,129 @@ const initializeStore = async () => {
   const apiUrlToUse = (hasExistingConversations && currentConversation?.apiUrl)
     ? currentConversation.apiUrl
     : getApiUrl();
-  
+
   // Auto-configure API with the determined key and validate it
   try {
     const api = await getApi();
-    api.configureApi(apiUrlToUse, apiKeyToUse, sessionId);
-    currentApiUrl = apiUrlToUse;
-    apiConfigured = true;
-    
-    // Validate and load adapter info for the default key on startup
-    // Only validate default key if we're using it (no existing conversations or no conversation key)
-    if (apiKeyToUse === DEFAULT_API_KEY) {
-      try {
-        const validationClient = new api.ApiClient({
-          apiUrl: apiUrlToUse,
-          apiKey: apiKeyToUse,
-          sessionId: null
-        });
-        
-        // Validate the API key
-        if (typeof validationClient.validateApiKey === 'function') {
-          await validationClient.validateApiKey();
-          debugLog('✅ Default API key validated on startup');
-        }
-        
-        // Load adapter info
-        if (typeof validationClient.getAdapterInfo === 'function') {
-          const adapterInfo = await validationClient.getAdapterInfo();
-          debugLog('✅ Adapter info loaded for default key:', adapterInfo);
-          
-          // Update the current conversation with adapter info
-          const currentState = useChatStore.getState();
-          if (currentState.currentConversationId) {
-            useChatStore.setState({
-              conversations: currentState.conversations.map(conv =>
-                conv.id === currentState.currentConversationId
-                  ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
-                  : conv
-              )
+
+    // In middleware mode, auto-select the first adapter if no adapter is configured
+    if (isMiddlewareEnabled) {
+      const existingAdapterName = currentConversation?.adapterName;
+
+      if (!existingAdapterName) {
+        // Auto-select the first adapter from VITE_ADAPTERS
+        const firstAdapter = await getFirstAdapter();
+
+        if (firstAdapter) {
+          debugLog('🔄 Auto-selecting first adapter:', firstAdapter.name);
+
+          // Configure API with the first adapter
+          api.configureApi(apiUrlToUse, null, sessionId, firstAdapter.name);
+          currentApiUrl = apiUrlToUse;
+          apiConfigured = true;
+
+          // Store adapter name in localStorage for persistence
+          localStorage.setItem('chat-adapter-name', firstAdapter.name);
+
+          // Validate and load adapter info
+          try {
+            const validationClient = new api.ApiClient({
+              apiUrl: apiUrlToUse,
+              apiKey: null,
+              sessionId: null,
+              adapterName: firstAdapter.name
             });
+
+            let adapterInfo: AdapterInfo | undefined;
+            if (typeof validationClient.getAdapterInfo === 'function') {
+              adapterInfo = await validationClient.getAdapterInfo();
+              debugLog('✅ Adapter info loaded for auto-selected adapter:', adapterInfo);
+            }
+
+            // Update the current conversation with adapter name and info
+            const stateAfterAutoSelect = useChatStore.getState();
+            if (stateAfterAutoSelect.currentConversationId) {
+              useChatStore.setState({
+                conversations: stateAfterAutoSelect.conversations.map(conv =>
+                  conv.id === stateAfterAutoSelect.currentConversationId
+                    ? {
+                        ...conv,
+                        adapterName: firstAdapter.name,
+                        adapterInfo: adapterInfo,
+                        apiUrl: apiUrlToUse,
+                        apiKey: undefined, // Clear API key in middleware mode
+                        updatedAt: new Date()
+                      }
+                    : conv
+                )
+              });
+
+              // Save to localStorage
+              setTimeout(() => {
+                const updatedState = useChatStore.getState();
+                localStorage.setItem('chat-state', JSON.stringify({
+                  conversations: updatedState.conversations,
+                  currentConversationId: updatedState.currentConversationId
+                }));
+              }, 0);
+            }
+          } catch (error) {
+            debugWarn('Failed to validate auto-selected adapter on startup:', error);
+            // Don't fail initialization if validation fails
           }
+        } else {
+          debugWarn('No adapters available for auto-selection in middleware mode');
         }
-      } catch (error) {
-        debugWarn('Failed to validate default API key on startup:', error);
-        // Don't fail initialization if validation fails
+      } else {
+        // Use existing adapter from conversation
+        api.configureApi(apiUrlToUse, null, sessionId, existingAdapterName);
+        currentApiUrl = apiUrlToUse;
+        apiConfigured = true;
+        debugLog('✅ Using existing adapter from conversation:', existingAdapterName);
+      }
+    } else {
+      // Non-middleware mode: use API key
+      api.configureApi(apiUrlToUse, apiKeyToUse, sessionId);
+      currentApiUrl = apiUrlToUse;
+      apiConfigured = true;
+
+      // Validate and load adapter info for the default key on startup
+      // Only validate default key if we're using it (no existing conversations or no conversation key)
+      if (apiKeyToUse === DEFAULT_API_KEY) {
+        try {
+          const validationClient = new api.ApiClient({
+            apiUrl: apiUrlToUse,
+            apiKey: apiKeyToUse,
+            sessionId: null
+          });
+
+          // Validate the API key
+          if (typeof validationClient.validateApiKey === 'function') {
+            await validationClient.validateApiKey();
+            debugLog('✅ Default API key validated on startup');
+          }
+
+          // Load adapter info
+          if (typeof validationClient.getAdapterInfo === 'function') {
+            const adapterInfo = await validationClient.getAdapterInfo();
+            debugLog('✅ Adapter info loaded for default key:', adapterInfo);
+
+            // Update the current conversation with adapter info
+            const currentState = useChatStore.getState();
+            if (currentState.currentConversationId) {
+              useChatStore.setState({
+                conversations: currentState.conversations.map(conv =>
+                  conv.id === currentState.currentConversationId
+                    ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                    : conv
+                )
+              });
+            }
+          }
+        } catch (error) {
+          debugWarn('Failed to validate default API key on startup:', error);
+          // Don't fail initialization if validation fails
+        }
       }
     }
   } catch (error) {

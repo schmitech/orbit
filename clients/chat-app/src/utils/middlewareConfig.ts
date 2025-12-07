@@ -152,3 +152,15 @@ export async function getAdapter(name: string): Promise<Adapter | null> {
   const adapters = await fetchAdapters();
   return adapters.find(a => a.name === name) || null;
 }
+
+/**
+ * Get the first available adapter (for auto-selection when middleware is enabled)
+ */
+export async function getFirstAdapter(): Promise<Adapter | null> {
+  try {
+    const adapters = await fetchAdapters();
+    return adapters.length > 0 ? adapters[0] : null;
+  } catch {
+    return null;
+  }
+}
