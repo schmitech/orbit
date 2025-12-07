@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  orbitchat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      # Adapters configuration - in production, use secrets management
+      - VITE_ADAPTERS=${VITE_ADAPTERS:-[{"name":"Simple Chat","apiKey":"default-key","apiUrl":"http://host.docker.internal:3001"}]}
+      - VITE_ENABLE_API_MIDDLEWARE=true
+      - VITE_ENABLE_UPLOAD=true
+      - VITE_ENABLE_AUDIO_OUTPUT=false
+      - VITE_ENABLE_CONVERSATION_THREADS=true
+      - VITE_MAX_FILES_PER_CONVERSATION=5
+      - VITE_MAX_FILE_SIZE_MB=50
+      - PORT=3000
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/adapters', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # For macOS/Windows Docker Desktop to access host services
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

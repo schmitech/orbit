@@ -1,4 +1,5 @@
 import type { Plugin } from 'vite';
+import { loadEnv } from 'vite';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
@@ -7,13 +8,66 @@ import type { Options } from 'http-proxy-middleware';
 import type { IncomingMessage, ServerResponse, ClientRequest } from 'http';
 
 let adaptersCache: Record<string, { apiKey: string; apiUrl: string }> | null = null;
+let loadedEnv: Record<string, string> | null = null;
+
+interface AdapterEntry {
+  name: string;
+  apiKey?: string;
+  apiUrl?: string;
+}
+
+function loadAdaptersFromEnv(): Record<string, { apiKey: string; apiUrl: string }> | null {
+  // Load env vars using Vite's loadEnv if not already loaded
+  if (!loadedEnv) {
+    const mode = process.env.NODE_ENV || 'development';
+    loadedEnv = loadEnv(mode, process.cwd(), '');
+  }
+
+  const envValue = loadedEnv.VITE_ADAPTERS || process.env.VITE_ADAPTERS;
+  if (!envValue) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(envValue) as AdapterEntry[];
+    if (!Array.isArray(parsed)) {
+      return null;
+    }
+
+    const adapters: Record<string, { apiKey: string; apiUrl: string }> = {};
+    for (const entry of parsed) {
+      if (entry.name && typeof entry.name === 'string') {
+        adapters[entry.name] = {
+          apiKey: entry.apiKey || 'default-key',
+          apiUrl: entry.apiUrl || 'http://localhost:3000',
+        };
+      }
+    }
+
+    if (Object.keys(adapters).length > 0) {
+      console.debug('[adapters-plugin] Loaded adapters from VITE_ADAPTERS env var');
+      return adapters;
+    }
+  } catch (error) {
+    console.warn('[adapters-plugin] Failed to parse VITE_ADAPTERS:', error);
+  }
+
+  return null;
+}
 
 function loadAdaptersConfig(): Record<string, { apiKey: string; apiUrl: string }> | null {
   if (adaptersCache) {
     return adaptersCache;
   }
 
-  // Try to load adapters.yaml from common locations
+  // First try VITE_ADAPTERS environment variable
+  const envAdapters = loadAdaptersFromEnv();
+  if (envAdapters) {
+    adaptersCache = envAdapters;
+    return adaptersCache;
+  }
+
+  // Then try to load adapters.yaml from common locations
   const configPaths = [
     path.join(process.cwd(), 'adapters.yaml'),
     path.join(__dirname, 'adapters.yaml'),
@@ -27,6 +81,7 @@ function loadAdaptersConfig(): Record<string, { apiKey: string; apiUrl: string }
         const config = yaml.load(content) as { adapters?: Record<string, { apiKey: string; apiUrl: string }> };
         if (config && config.adapters) {
           adaptersCache = config.adapters;
+          console.log(`[adapters-plugin] Loaded adapters from ${configPath}`);
           return adaptersCache;
         }
       }
@@ -61,10 +116,9 @@ export function adaptersPlugin(): Plugin {
             return;
           }
 
-          // Return adapter list without exposing API keys
+          // Return adapter list without exposing API keys or URLs
           const adapterList = Object.keys(adapters).map(name => ({
             name,
-            apiUrl: adapters[name].apiUrl,
           }));
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -110,60 +164,60 @@ export function adaptersPlugin(): Plugin {
           headers: {
             'X-API-Key': adapter.apiKey,
           },
-          // Enable streaming for SSE responses
+          // Enable streaming for SSE responses (don't self-handle, let proxy stream directly)
           selfHandleResponse: false,
-          // Don't buffer the response - stream it directly
-          buffer: false,
-          onProxyReq: (proxyReq: ClientRequest, proxyReqIncoming: IncomingMessage) => {
-            // Remove adapter name header
-            proxyReq.removeHeader('x-adapter-name');
-            // Ensure API key is set (use X-API-Key to match backend expectation)
-            proxyReq.setHeader('X-API-Key', adapter.apiKey);
-            
-            // Preserve important headers
-            const headersToPreserve = ['content-type', 'x-session-id', 'x-thread-id', 'accept', 'content-length'];
-            headersToPreserve.forEach(header => {
-              const value = proxyReqIncoming.headers[header];
-              if (value) {
-                if (typeof value === 'string') {
-                  proxyReq.setHeader(header, value);
-                } else if (Array.isArray(value) && value.length > 0) {
-                  proxyReq.setHeader(header, value[0]);
-                }
-              }
-            });
-            // Copy all other headers
-            Object.keys(proxyReqIncoming.headers).forEach(key => {
-              const lowerKey = key.toLowerCase();
-              if (!['x-adapter-name', 'host', 'connection', 'transfer-encoding'].includes(lowerKey)) {
-                const value = proxyReqIncoming.headers[key];
+          ws: false,
+          on: {
+            proxyReq: (proxyReq: ClientRequest, proxyReqIncoming: IncomingMessage) => {
+              // Remove adapter name header
+              proxyReq.removeHeader('x-adapter-name');
+              // Ensure API key is set (use X-API-Key to match backend expectation)
+              proxyReq.setHeader('X-API-Key', adapter.apiKey);
+              
+              // Preserve important headers
+              const headersToPreserve = ['content-type', 'x-session-id', 'x-thread-id', 'accept', 'content-length'];
+              headersToPreserve.forEach(header => {
+                const value = proxyReqIncoming.headers[header];
                 if (value) {
-                  if (typeof value === 'string' && !headersToPreserve.includes(lowerKey)) {
-                    proxyReq.setHeader(key, value);
-                  } else if (Array.isArray(value) && value.length > 0 && !headersToPreserve.includes(lowerKey)) {
-                    proxyReq.setHeader(key, value[0]);
+                  if (typeof value === 'string') {
+                    proxyReq.setHeader(header, value);
+                  } else if (Array.isArray(value) && value.length > 0) {
+                    proxyReq.setHeader(header, value[0]);
                   }
                 }
+              });
+              // Copy all other headers
+              Object.keys(proxyReqIncoming.headers).forEach(key => {
+                const lowerKey = key.toLowerCase();
+                if (!['x-adapter-name', 'host', 'connection', 'transfer-encoding'].includes(lowerKey)) {
+                  const value = proxyReqIncoming.headers[key];
+                  if (value) {
+                    if (typeof value === 'string' && !headersToPreserve.includes(lowerKey)) {
+                      proxyReq.setHeader(key, value);
+                    } else if (Array.isArray(value) && value.length > 0 && !headersToPreserve.includes(lowerKey)) {
+                      proxyReq.setHeader(key, value[0]);
+                    }
+                  }
+                }
+              });
+            },
+            proxyRes: (proxyRes: IncomingMessage) => {
+              // Handle CORS
+              if (proxyRes.headers) {
+                proxyRes.headers['access-control-allow-origin'] = '*';
+                proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
+                proxyRes.headers['access-control-allow-headers'] = 'Content-Type, X-API-Key, X-Session-ID, X-Thread-ID, X-Adapter-Name';
               }
-            });
+            },
+            error: (err, _req, res) => {
+              console.error('[Vite Proxy] Proxy error:', err);
+              // res can be ServerResponse or Socket; only write if it's a ServerResponse
+              if ('headersSent' in res && !res.headersSent) {
+                (res as ServerResponse).writeHead(500, { 'Content-Type': 'application/json' });
+                (res as ServerResponse).end(JSON.stringify({ error: 'Proxy error', message: err.message }));
+              }
+            },
           },
-          onProxyRes: (proxyRes: IncomingMessage) => {
-            // Handle CORS
-            if (proxyRes.headers) {
-              proxyRes.headers['access-control-allow-origin'] = '*';
-              proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
-              proxyRes.headers['access-control-allow-headers'] = 'Content-Type, X-API-Key, X-Session-ID, X-Thread-ID, X-Adapter-Name';
-            }
-          },
-          onError: (err: Error, _req: IncomingMessage, res: ServerResponse) => {
-            console.error('[Vite Proxy] Proxy error:', err);
-            if (!res.headersSent) {
-              res.writeHead(500, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'Proxy error', message: err.message }));
-            }
-          },
-          ws: false,
-          logLevel: 'silent',
         };
 
         const proxy = createProxyMiddleware(proxyOptions);

@@ -487,8 +487,6 @@ function createMiddlewareApi(): ApiFunctions {
       constructor(config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null; adapterName?: string | null }) {
         adapterName = config.adapterName || null;
         sessionId = config.sessionId || null;
-        middlewareAdapterName = adapterName;
-        middlewareApiUrl = config.apiUrl;
         this.client = createMiddlewareClient();
       }
 

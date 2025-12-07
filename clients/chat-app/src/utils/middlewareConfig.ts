@@ -15,7 +15,7 @@ import { debugLog, debugError } from './debug';
 
 export interface Adapter {
   name: string;
-  apiUrl: string;
+  apiUrl?: string; // Only used for non-middleware mode; not exposed by server in middleware mode
 }
 
 export interface AdaptersResponse {
@@ -38,13 +38,14 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
   if (typeof candidate.name !== 'string' || candidate.name.trim().length === 0) {
     return null;
   }
+  // In middleware mode, apiUrl is optional - the proxy handles routing
   const apiUrl =
     typeof candidate.apiUrl === 'string' && candidate.apiUrl.trim().length > 0
       ? candidate.apiUrl
-      : 'http://localhost:3000';
+      : undefined;
   return {
     name: candidate.name.trim(),
-    apiUrl,
+    ...(apiUrl && { apiUrl }),
   };
 };
 
@@ -120,6 +121,7 @@ export async function fetchAdapters(): Promise<Adapter[]> {
       debugLog('Fetched adapters from /api/adapters:', adaptersCache);
       return adaptersCache;
     }
+    debugLog(`/api/adapters returned ${response.status}, trying fallback`);
   } catch (error) {
     debugLog('Could not fetch from /api/adapters, trying fallback:', error);
   }

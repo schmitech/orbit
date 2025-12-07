@@ -366,12 +366,10 @@ function createServer(distPath, config) {
       });
     }
 
-    // Endpoint to list available adapters
+    // Endpoint to list available adapters (only expose names, not URLs or keys)
     app.get('/api/adapters', (req, res) => {
       const adapterList = Object.keys(adapters).map(name => ({
         name,
-        apiUrl: adapters[name].apiUrl,
-        // Don't expose API keys
       }));
       res.json({ adapters: adapterList });
     });
