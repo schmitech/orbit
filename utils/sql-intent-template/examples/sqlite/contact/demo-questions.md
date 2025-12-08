@@ -1,4 +1,5 @@
 How many employees per department?
+What's the mean salary per department?
 Show me positions in Engineering.
 
 What's the manager to employee ratio?

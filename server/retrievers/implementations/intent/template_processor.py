@@ -59,6 +59,9 @@ def sql_string(value: Any) -> str:
     """Escape string for SQL, returns NULL for None."""
     if value is None:
         return "NULL"
+    # Handle undefined template variables - preserve the template syntax
+    if isinstance(value, DebugUndefined):
+        return f"{{{{ {value._undefined_name} | sql_string }}}}"
     escaped = str(value).replace("'", "''")
     return f"'{escaped}'"
 
@@ -67,6 +70,9 @@ def sql_list(values: Any) -> str:
     """Convert list to SQL IN clause values."""
     if not values:
         return "NULL"
+    # Handle undefined template variables - preserve the template syntax
+    if isinstance(values, DebugUndefined):
+        return f"{{{{ {values._undefined_name} | sql_list }}}}"
     if isinstance(values, str):
         return sql_string(values)
     return ", ".join(sql_string(v) for v in values)
@@ -76,13 +82,20 @@ def sql_identifier(value: str) -> str:
     """Escape SQL identifier (table/column names)."""
     if value is None:
         return ""
+    # Handle undefined template variables - preserve the template syntax
+    if isinstance(value, DebugUndefined):
+        return f"{{{{ {value._undefined_name} | sql_identifier }}}}"
     # Remove any existing quotes and escape embedded quotes
     clean = str(value).replace('"', '""')
     return f'"{clean}"'
 
 
 def json_filter(value: Any) -> str:
-    """JSON encode value."""
+    """JSON encode value, handling undefined template variables."""
+    # Handle PreservingUndefined - return the template syntax so it can be preserved
+    if isinstance(value, DebugUndefined):
+        # Return the original template syntax for undefined variables
+        return f"{{{{ {value._undefined_name} | tojson }}}}"
     return json.dumps(value)
 
 

@@ -354,10 +354,17 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
 
             # Execute query and convert to list
             results = []
+            seen_ids = set()
             async for document in cursor:
                 # Convert ObjectId to string for JSON serialization
-                if '_id' in document:
-                    document['_id'] = str(document['_id'])
+                doc_id = document.get('_id')
+                if doc_id:
+                    doc_id_str = str(doc_id)
+                    document['_id'] = doc_id_str
+                    # Skip duplicates based on _id
+                    if doc_id_str in seen_ids:
+                        continue
+                    seen_ids.add(doc_id_str)
                 results.append(document)
 
             return results
