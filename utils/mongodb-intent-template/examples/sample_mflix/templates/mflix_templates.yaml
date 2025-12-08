@@ -12,11 +12,19 @@ templates:
     query_type: "find"
 
     # MongoDB query template (with variable substitution)
+    # Always filters for movies with numeric ratings to ensure proper sorting
     mongodb_query: |
       {
         "filter": {
-          {% if title or genres or year_min or year_max or rating_min %}
           {% set comma = joiner(",") %}
+          {% if rating_min %}
+          {{comma()}}"imdb.rating": {
+            "$gte": {{rating_min}},
+            "$type": "number"
+          }
+          {% else %}
+          {{comma()}}"imdb.rating": { "$type": "number" }
+          {% endif %}
           {% if title %}
           {{comma()}}"title": {
             "$regex": "{{title}}",
@@ -25,7 +33,7 @@ templates:
           {% endif %}
           {% if genres %}
           {{comma()}}"genres": {
-            "$in": {{genres}}
+            "$in": {{ genres | tojson }}
           }
           {% endif %}
           {% if year_min or year_max %}
@@ -34,14 +42,6 @@ templates:
             {% if year_min and year_max %},{% endif %}
             {% if year_max %}"$lte": {{year_max}}{% endif %}
           }
-          {% endif %}
-          {% if rating_min %}
-          {{comma()}}"imdb.rating": {
-            "$gte": {{rating_min}}
-          }
-          {% endif %}
-          {% else %}
-          "title": { "$exists": true }
           {% endif %}
         },
         "projection": {
@@ -151,16 +151,19 @@ templates:
       {
         "filter": {
           "genres": {
-            "$in": {{genres}}
+            "$in": {{ genres | tojson }}
           },
           "year": {
             "$gte": {{year_min}},
             "$lte": {{year_max}}
-          }
+          },
           {% if rating_min %}
-          , "imdb.rating": {
-            "$gte": {{rating_min}}
+          "imdb.rating": {
+            "$gte": {{rating_min}},
+            "$type": "number"
           }
+          {% else %}
+          "imdb.rating": { "$type": "number" }
           {% endif %}
         },
         "projection": {
@@ -318,7 +321,7 @@ templates:
         "filter": {
           {% if movie_id or text %}
           {% if movie_id %}
-          "movie_id": ObjectId("{{movie_id}}")
+          "movie_id": { "$oid": "{{movie_id}}" }
           {% endif %}
           {% if movie_id and text %},{% endif %}
           {% if text %}
@@ -348,7 +351,7 @@ templates:
       - name: movie_id
         type: string
         required: false
-        description: "Movie ID to filter comments"
+        description: "Movie ID to filter comments (24-character hex string)"
         example: "573a1390f29313caabcd42e8"
 
       - name: text
@@ -395,23 +398,22 @@ templates:
     mongodb_query: |
       {
         "filter": {
-          {% if rating_min or min_votes %}
           {% set comma = joiner(",") %}
           {% if rating_min %}
           {{comma()}}"imdb.rating": {
-            "$gte": {{rating_min}}
+            "$gte": {{rating_min}},
+            "$type": "number"
             {% if rating_max %}
             , "$lte": {{rating_max}}
             {% endif %}
           }
+          {% else %}
+          {{comma()}}"imdb.rating": { "$type": "number" }
           {% endif %}
           {% if min_votes %}
           {{comma()}}"imdb.votes": {
             "$gte": {{min_votes}}
           }
-          {% endif %}
-          {% else %}
-          "imdb.rating": { "$exists": true }
           {% endif %}
         },
         "projection": {
@@ -489,11 +491,19 @@ templates:
     mongodb_query: |
       {
         "filter": {
-          {% if genres or year_min or year_max or rating_min or rating_max or runtime_min or runtime_max or countries or languages %}
           {% set comma = joiner(",") %}
+          {% if rating_min or rating_max %}
+          {{comma()}}"imdb.rating": {
+            "$type": "number"
+            {% if rating_min %},"$gte": {{rating_min}}{% endif %}
+            {% if rating_max %},"$lte": {{rating_max}}{% endif %}
+          }
+          {% else %}
+          {{comma()}}"imdb.rating": { "$type": "number" }
+          {% endif %}
           {% if genres %}
           {{comma()}}"genres": {
-            "$in": {{genres}}
+            "$in": {{ genres | tojson }}
           }
           {% endif %}
           {% if year_min or year_max %}
@@ -501,13 +511,6 @@ templates:
             {% if year_min %}"$gte": {{year_min}}{% endif %}
             {% if year_min and year_max %},{% endif %}
             {% if year_max %}"$lte": {{year_max}}{% endif %}
-          }
-          {% endif %}
-          {% if rating_min or rating_max %}
-          {{comma()}}"imdb.rating": {
-            {% if rating_min %}"$gte": {{rating_min}}{% endif %}
-            {% if rating_min and rating_max %},{% endif %}
-            {% if rating_max %}"$lte": {{rating_max}}{% endif %}
           }
           {% endif %}
           {% if runtime_min or runtime_max %}
@@ -519,16 +522,13 @@ templates:
           {% endif %}
           {% if countries %}
           {{comma()}}"countries": {
-            "$in": {{countries}}
+            "$in": {{ countries | tojson }}
           }
           {% endif %}
           {% if languages %}
           {{comma()}}"languages": {
-            "$in": {{languages}}
+            "$in": {{ languages | tojson }}
           }
-          {% endif %}
-          {% else %}
-          "title": { "$exists": true }
           {% endif %}
         },
         "projection": {

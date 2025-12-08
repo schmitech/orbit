@@ -25,33 +25,33 @@ templates:
         default: 1
     sql_template: |
       WITH period_data AS (
-        SELECT 
-          CASE 
-            WHEN %(period_type)s = 'week' THEN 
-              CASE 
+        SELECT
+          CASE
+            WHEN %(period_type)s = 'week' THEN
+              CASE
                 WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 week') 
+                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 week')
                      AND order_date < DATE_TRUNC('week', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             WHEN %(period_type)s = 'month' THEN
-              CASE 
+              CASE
                 WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 month') 
+                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 month')
                      AND order_date < DATE_TRUNC('month', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             WHEN %(period_type)s = 'quarter' THEN
-              CASE 
+              CASE
                 WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 quarter') 
+                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) - (%(periods_back)s * INTERVAL '3 months')
                      AND order_date < DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             ELSE
-              CASE 
+              CASE
                 WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 year') 
+                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 year')
                      AND order_date < DATE_TRUNC('year', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
@@ -62,54 +62,54 @@ templates:
           COUNT(DISTINCT customer_id) as unique_customers
         FROM orders
         WHERE status != 'cancelled'
-          AND order_date >= 
-            CASE 
+          AND order_date >=
+            CASE
               WHEN %(period_type)s = 'week' THEN DATE_TRUNC('week', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 week')
               WHEN %(period_type)s = 'month' THEN DATE_TRUNC('month', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 month')
-              WHEN %(period_type)s = 'quarter' THEN DATE_TRUNC('quarter', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 quarter')
+              WHEN %(period_type)s = 'quarter' THEN DATE_TRUNC('quarter', CURRENT_DATE) - (%(periods_back)s * INTERVAL '3 months')
               ELSE DATE_TRUNC('year', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 year')
             END
-        GROUP BY 
-          CASE 
-            WHEN %(period_type)s = 'week' THEN 
-              CASE 
+        GROUP BY
+          CASE
+            WHEN %(period_type)s = 'week' THEN
+              CASE
                 WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 week') 
+                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 week')
                      AND order_date < DATE_TRUNC('week', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             WHEN %(period_type)s = 'month' THEN
-              CASE 
+              CASE
                 WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 month') 
+                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 month')
                      AND order_date < DATE_TRUNC('month', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             WHEN %(period_type)s = 'quarter' THEN
-              CASE 
+              CASE
                 WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 quarter') 
+                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) - (%(periods_back)s * INTERVAL '3 months')
                      AND order_date < DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             ELSE
-              CASE 
+              CASE
                 WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 year') 
+                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 year')
                      AND order_date < DATE_TRUNC('year', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
           END
       )
-      SELECT 
+      SELECT
         period,
         total_orders,
         ROUND(total_revenue, 2) as total_revenue,
         ROUND(avg_order_value, 2) as avg_order_value,
         unique_customers,
-        CASE 
+        CASE
           WHEN period = 'Current Period' AND LAG(total_revenue) OVER (ORDER BY period DESC) IS NOT NULL THEN
-            ROUND(((total_revenue - LAG(total_revenue) OVER (ORDER BY period DESC)) / 
+            ROUND(((total_revenue - LAG(total_revenue) OVER (ORDER BY period DESC)) /
                    LAG(total_revenue) OVER (ORDER BY period DESC)) * 100, 2)
           ELSE NULL
         END as revenue_growth_percent

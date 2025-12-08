@@ -11,6 +11,7 @@ import traceback
 import json
 from typing import Dict, Any, List, Optional, Tuple
 from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
 from retrievers.base.base_retriever import RetrieverFactory
@@ -213,8 +214,9 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             parameters: Parameters for substitution
 
         Returns:
-            Processed MongoDB query as dictionary
+            Processed MongoDB query as dictionary with proper BSON types
         """
+        rendered = None
         try:
             if self.template_processor:
                 # Use the template processor to render the MongoDB query
@@ -224,7 +226,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
                     preserve_unknown=False
                 )
                 logger.debug(f"Rendered MongoDB query template:\n{rendered}")
-                return json.loads(rendered)
+                parsed = json.loads(rendered)
             else:
                 # Fallback: simple parameter substitution
                 rendered = template
@@ -239,14 +241,49 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
                     else:
                         rendered = rendered.replace(placeholder, str(value))
                 logger.debug(f"Rendered MongoDB query template (fallback):\n{rendered}")
-                return json.loads(rendered)
+                parsed = json.loads(rendered)
+
+            # Convert Extended JSON types (e.g., {"$oid": "..."}) to BSON types
+            return self._convert_extended_json(parsed)
 
         except Exception as e:
             logger.error(f"Error processing MongoDB query template: {e}")
-            logger.error(f"Rendered template that failed to parse:\n{rendered}")
+            if rendered:
+                logger.error(f"Rendered template that failed to parse:\n{rendered}")
             logger.error(f"Template parameters: {parameters}")
             # Return an empty query as fallback
             return {"filter": {}}
+
+    def _convert_extended_json(self, obj: Any) -> Any:
+        """
+        Recursively convert MongoDB Extended JSON types to BSON types.
+
+        Handles:
+        - {"$oid": "..."} -> ObjectId(...)
+        - {"$date": "..."} -> datetime (if needed in future)
+
+        Args:
+            obj: The object to convert (dict, list, or primitive)
+
+        Returns:
+            Converted object with proper BSON types
+        """
+        if isinstance(obj, dict):
+            # Check for Extended JSON ObjectId format
+            if len(obj) == 1 and "$oid" in obj:
+                try:
+                    return ObjectId(obj["$oid"])
+                except Exception as e:
+                    logger.warning(f"Invalid ObjectId value: {obj['$oid']}, error: {e}")
+                    return obj
+
+            # Recursively process all values
+            return {key: self._convert_extended_json(value) for key, value in obj.items()}
+
+        elif isinstance(obj, list):
+            return [self._convert_extended_json(item) for item in obj]
+
+        return obj
 
     def _normalize_sort_spec(self, sort_spec):
         """
@@ -445,6 +482,9 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
         """
         Format MongoDB results as human-readable text.
 
+        All documents are included in the formatted output to ensure the LLM
+        has access to complete query results for accurate responses.
+
         Args:
             documents: List of MongoDB documents
             template: The template being executed
@@ -466,13 +506,15 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
 
         display_fields = template.get('display_fields', None)
 
-        for i, doc in enumerate(documents[:10], 1):
+        # Format ALL documents (not just first 10) so LLM has complete data
+        for i, doc in enumerate(documents, 1):
             lines.append(f"\n{i}.")
 
             if display_fields:
                 for field in display_fields:
-                    if field in doc:
-                        value = doc[field]
+                    # Handle nested field access (e.g., "imdb.rating")
+                    value = self._get_nested_value(doc, field)
+                    if value is not None:
                         if isinstance(value, dict):
                             value = json.dumps(value, indent=2)
                         lines.append(f"   {field}: {value}")
@@ -485,10 +527,27 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
                         value = json.dumps(value, indent=2)
                     lines.append(f"   {key}: {value}")
 
-        if total > 10:
-            lines.append(f"\n... and {total - 10} more documents")
-
         return '\n'.join(lines)
+
+    def _get_nested_value(self, doc: Dict, field_path: str) -> Any:
+        """
+        Get a value from a nested document using dot notation.
+
+        Args:
+            doc: The document to extract from
+            field_path: Dot-separated path (e.g., "imdb.rating")
+
+        Returns:
+            The value at the path, or None if not found
+        """
+        parts = field_path.split('.')
+        value = doc
+        for part in parts:
+            if isinstance(value, dict) and part in value:
+                value = value[part]
+            else:
+                return None
+        return value
 
     async def get_collection_info(self, collection_name: str) -> Dict:
         """

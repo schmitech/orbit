@@ -387,12 +387,13 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
         
         elif hits:
             # Format regular search results
+            # Include ALL results so LLM has complete data for accurate responses
             total = len(hits)
             lines.append(f"Found {total} results:")
 
             display_fields = template.get('display_fields', None)
 
-            for i, hit in enumerate(hits[:10], 1):
+            for i, hit in enumerate(hits, 1):
                 lines.append(f"\n{i}. (Score: {hit.get('_score', 'N/A')})")
 
                 if display_fields:
@@ -410,9 +411,6 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
                     lines.append("   Highlights:")
                     for field, highlights in hit['_highlights'].items():
                         lines.append(f"     {field}: {highlights[0]}")
-
-            if total > 10:
-                lines.append(f"\n... and {total - 10} more results")
         else:
             lines.append("No results found.")
 

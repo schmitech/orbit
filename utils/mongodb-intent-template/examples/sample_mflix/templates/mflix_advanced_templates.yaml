@@ -22,9 +22,10 @@ templates:
           {
             "$match": {
               {% if min_rating %}
-              "imdb.rating": { "$gte": {{min_rating}} }
+              "imdb.rating": { "$gte": {{min_rating}}, "$type": "number" },
+              {% else %}
+              "imdb.rating": { "$type": "number" },
               {% endif %}
-              {% if min_rating %},{% endif %}
               "title": { "$exists": true }
             }
           },
@@ -228,15 +229,14 @@ templates:
         "pipeline": [
           {
             "$match": {
-              {% if title %}
-              "title": { "$regex": "{{title}}", "$options": "i" }
-              {% endif %}
-              {% if title and min_rating %},{% endif %}
+              {% set comma = joiner(",") %}
               {% if min_rating %}
-              "imdb.rating": { "$gte": {{min_rating}} }
+              {{comma()}}"imdb.rating": { "$gte": {{min_rating}}, "$type": "number" }
+              {% else %}
+              {{comma()}}"imdb.rating": { "$type": "number" }
               {% endif %}
-              {% if not title and not min_rating %}
-              "title": { "$exists": true }
+              {% if title %}
+              {{comma()}}"title": { "$regex": "{{title}}", "$options": "i" }
               {% endif %}
             }
           },
@@ -762,7 +762,8 @@ templates:
         "pipeline": [
           {
             "$match": {
-              "awards.wins": { "$gte": {{min_awards}} }
+              "awards.wins": { "$gte": {{min_awards}} },
+              "imdb.rating": { "$type": "number" }
               {% if year_min %}
               , "year": { "$gte": {{year_min}} }
               {% endif %}

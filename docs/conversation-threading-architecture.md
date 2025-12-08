@@ -176,7 +176,9 @@ CREATE INDEX idx_conversation_threads_thread_session ON conversation_threads(thr
 CREATE INDEX idx_conversation_threads_expires_at ON conversation_threads(expires_at);
 ```
 
-#### thread_datasets Collection (Database Fallback)
+#### thread_datasets Collection (Database Fallback Only)
+
+> ⚠️ **Important:** This table/collection is a **fallback only**. When Redis is enabled and working, this table will be **empty** - this is expected behavior.
 
 ```javascript
 {
@@ -188,7 +190,135 @@ CREATE INDEX idx_conversation_threads_expires_at ON conversation_threads(expires
 }
 ```
 
-### 4. API Endpoints
+### 4. Storage Architecture Deep Dive
+
+Understanding where thread data is stored is crucial for debugging and monitoring.
+
+#### Two Separate Storage Locations
+
+Thread data is split across **two different storage locations**:
+
+| Storage Location | What's Stored | Backend |
+|------------------|---------------|---------|
+| `conversation_threads` | Thread metadata (IDs, session info, `dataset_key`) | Always SQLite/MongoDB |
+| Redis keys OR `thread_datasets` | Actual dataset content (query results) | Redis (primary) OR Database (fallback) |
+
+#### Storage Decision Logic
+
+The `ThreadDatasetService` decides where to store datasets based on Redis availability:
+
+```python
+# From server/services/thread_dataset_service.py
+
+async def store_dataset(...):
+    if self.storage_backend == 'redis' and self.redis_service and self.redis_service.enabled:
+        # PRIMARY: Store in Redis with automatic TTL expiration
+        await self.redis_service.set(dataset_key, encoded, ttl=ttl_seconds)
+    else:
+        # FALLBACK: Store in thread_datasets table/collection
+        collection_name = 'thread_datasets'
+        await self.database_service.insert_one(collection_name, document)
+```
+
+#### Why `thread_datasets` Table May Be Empty
+
+If you check the `thread_datasets` table and find it empty, **this is expected behavior** when:
+
+1. ✅ Redis is enabled in configuration (`storage_backend: "redis"`)
+2. ✅ Redis service is connected and working
+3. ✅ Datasets are being stored in Redis with TTL
+
+**Verification Steps:**
+
+```bash
+# Check if Redis has thread datasets
+redis-cli KEYS "thread_dataset:*"
+
+# Check if conversation_threads has metadata
+sqlite3 orbit.db "SELECT id, dataset_key FROM conversation_threads;"
+
+# The dataset_key in conversation_threads should match Redis keys
+```
+
+#### Storage Relationship Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Thread Creation Flow                            │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  ThreadService.create_thread()                                      │
+│                                                                     │
+│  1. Generate thread_id and thread_session_id                        │
+│  2. Store dataset via ThreadDatasetService                          │
+│  3. Store metadata in conversation_threads table                    │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              │                               │
+              ▼                               ▼
+┌──────────────────────────┐    ┌──────────────────────────────────────┐
+│  ThreadDatasetService    │    │  conversation_threads (Database)     │
+│                          │    │                                      │
+│  ┌────────────────────┐  │    │  Always stores:                      │
+│  │ Redis Available?   │  │    │  - thread_id                         │
+│  └─────────┬──────────┘  │    │  - parent_message_id                 │
+│            │             │    │  - parent_session_id                 │
+│     ┌──────┴──────┐      │    │  - thread_session_id                 │
+│     │             │      │    │  - dataset_key ←───────────────────┐ │
+│     ▼             ▼      │    │  - expires_at                      │ │
+│  ┌─────┐     ┌────────┐  │    └─────────────────────────────────────┘ │
+│  │ YES │     │   NO   │  │                                           │
+│  └──┬──┘     └───┬────┘  │                                           │
+│     │            │       │    ┌──────────────────────────────────────┐
+│     ▼            ▼       │    │                                      │
+│  ┌─────────┐ ┌─────────┐ │    │  dataset_key format:                 │
+│  │  Redis  │ │Database │ │    │  "thread_dataset:{thread_id}"        │
+│  │  Keys   │ │  Table  │ │    │                                      │
+│  └─────────┘ └─────────┘ │    └──────────────────────────────────────┘
+│                          │
+│  Key: thread_dataset:*   │
+│  TTL: auto-expires       │
+│                          │
+│  Table: thread_datasets  │
+│  TTL: manual cleanup     │
+└──────────────────────────┘
+```
+
+#### Common Debugging Scenarios
+
+**Scenario 1: Threads working, `thread_datasets` empty**
+- ✅ This is correct! Redis is handling dataset storage.
+- Verify: `redis-cli KEYS "thread_dataset:*"` shows keys.
+- Verify: `conversation_threads` table has metadata.
+
+**Scenario 2: Threads working, datasets in `thread_datasets` table**
+- ✅ This is correct! Redis is unavailable, using fallback.
+- This happens when `storage_backend` is not `redis` or Redis is down.
+
+**Scenario 3: `conversation_threads` empty, no Redis keys**
+- ❌ Threads not being created.
+- Check: Is the `/api/threads` endpoint being called?
+- Check: Does the parent message have `retrieved_docs` in metadata?
+
+**Scenario 4: `conversation_threads` has records, but datasets missing**
+- ❌ Dataset storage failed or datasets expired.
+- Check: Redis connectivity if using Redis.
+- Check: TTL configuration (`dataset_ttl_hours`).
+
+#### Why Keep Both Storage Options?
+
+The `thread_datasets` table provides **resilience**:
+
+1. **Redis Unavailable:** If Redis goes down, threads continue to work using database fallback.
+2. **Configuration Flexibility:** Some deployments may not have Redis infrastructure.
+3. **Gradual Migration:** Systems can transition from database to Redis storage seamlessly.
+
+> 🚨 **Do not remove** the `thread_datasets` table definition from `sqlite_service.py` or the fallback logic from `thread_dataset_service.py`.
+
+### 5. API Endpoints
 
 #### POST /api/threads
 

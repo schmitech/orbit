@@ -1,29 +1,170 @@
-"""Utility for processing intent SQL templates with domain-specific variables."""
+"""Utility for processing intent templates with Jinja2 templating system."""
 
 from __future__ import annotations
 
 import copy
 import json
-import re
-from typing import Any, Dict, Optional, Tuple, Union
+import logging
+from typing import Any, Dict, Optional, Union
+
+from jinja2 import Environment, BaseLoader, DebugUndefined, StrictUndefined, UndefinedError
 
 from .domain import DomainConfig
 
-# Regex patterns reused for variable and conditional substitution
-_VARIABLE_PATTERN = re.compile(r"{{\s*([\w\.]+)\s*}}")
-_IF_PATTERN = re.compile(r"{%\s*if\s+([^%]+?)\s*%}(.*?){%\s*endif\s*%}", re.DOTALL)
+logger = logging.getLogger(__name__)
+
+
+# Custom Undefined class that preserves unknown variables when preserve_unknown=True
+class PreservingUndefined(DebugUndefined):
+    """Undefined that preserves the original template syntax for unknown variables."""
+
+    def __str__(self) -> str:
+        return f"{{{{ {self._undefined_name} }}}}"
+
+    def __repr__(self) -> str:
+        return f"{{{{ {self._undefined_name} }}}}"
+
+    def __bool__(self) -> bool:
+        return False
+
+
+class SilentUndefined(DebugUndefined):
+    """Undefined that raises on access but returns False in boolean context.
+
+    This allows `{% if variable %}` to work when variable is undefined (returns False),
+    but raises an error when trying to use the undefined variable's value.
+    """
+
+    def __str__(self) -> str:
+        # Raise when trying to use the value
+        self._fail_with_undefined_error()
+
+    def __repr__(self) -> str:
+        self._fail_with_undefined_error()
+
+    def __bool__(self) -> bool:
+        # In boolean context (if statements), undefined is falsy
+        return False
+
+    def __iter__(self):
+        # Allow iteration over undefined to return empty iterator
+        return iter([])
+
+    def __len__(self):
+        return 0
+
+
+# Custom filters for SQL and JSON safety
+def sql_string(value: Any) -> str:
+    """Escape string for SQL, returns NULL for None."""
+    if value is None:
+        return "NULL"
+    escaped = str(value).replace("'", "''")
+    return f"'{escaped}'"
+
+
+def sql_list(values: Any) -> str:
+    """Convert list to SQL IN clause values."""
+    if not values:
+        return "NULL"
+    if isinstance(values, str):
+        return sql_string(values)
+    return ", ".join(sql_string(v) for v in values)
+
+
+def sql_identifier(value: str) -> str:
+    """Escape SQL identifier (table/column names)."""
+    if value is None:
+        return ""
+    # Remove any existing quotes and escape embedded quotes
+    clean = str(value).replace('"', '""')
+    return f'"{clean}"'
+
+
+def json_filter(value: Any) -> str:
+    """JSON encode value."""
+    return json.dumps(value)
+
+
+def joiner_filter(sep: str = ", ") -> "Joiner":
+    """Create a joiner that returns separator after first call."""
+    return Joiner(sep)
+
+
+class Joiner:
+    """Helper class for comma-separated conditional values in templates."""
+
+    def __init__(self, sep: str = ", "):
+        self.sep = sep
+        self.used = False
+
+    def __call__(self) -> str:
+        if not self.used:
+            self.used = True
+            return ""
+        return self.sep
+
+    def __str__(self) -> str:
+        if not self.used:
+            self.used = True
+            return ""
+        return self.sep
 
 
 class TemplateProcessor:
-    """Process template metadata and SQL using domain configuration variables."""
+    """Process template metadata and SQL/JSON using Jinja2 with domain configuration variables."""
 
     def __init__(self, domain_config: Union[DomainConfig, Dict[str, Any]]):
-        if isinstance(domain_config, DomainConfig):
-            self.domain_config = domain_config
-        else:
+        # Check if it's a dict (needs to be converted) or already a domain config object
+        if isinstance(domain_config, dict):
             self.domain_config = DomainConfig(domain_config)
+        else:
+            # Already a DomainConfig or compatible object (duck typing)
+            self.domain_config = domain_config
 
         self._base_context = self._build_base_context()
+
+        # Create Jinja2 environment for normal rendering
+        # Uses SilentUndefined: allows `{% if var %}` when var is undefined (returns False)
+        # but raises when trying to use the undefined variable's value like {{ var }}
+        self.env = Environment(
+            loader=BaseLoader(),
+            undefined=SilentUndefined,
+            autoescape=False,  # Templates contain SQL/JSON, not HTML
+            trim_blocks=True,
+            lstrip_blocks=True,
+            keep_trailing_newline=False,
+        )
+
+        # Create Jinja2 environment for preserve_unknown mode
+        self.env_preserve = Environment(
+            loader=BaseLoader(),
+            undefined=PreservingUndefined,
+            autoescape=False,
+            trim_blocks=True,
+            lstrip_blocks=True,
+            keep_trailing_newline=False,
+        )
+
+        # Register custom filters on both environments
+        self._register_filters(self.env)
+        self._register_filters(self.env_preserve)
+
+        # Register custom globals (functions)
+        self._register_globals(self.env)
+        self._register_globals(self.env_preserve)
+
+    def _register_filters(self, env: Environment) -> None:
+        """Register custom Jinja2 filters."""
+        env.filters["sql_string"] = sql_string
+        env.filters["sql_list"] = sql_list
+        env.filters["sql_identifier"] = sql_identifier
+        env.filters["json"] = json_filter
+        env.filters["tojson"] = json_filter  # Alias for compatibility
+
+    def _register_globals(self, env: Environment) -> None:
+        """Register custom Jinja2 global functions."""
+        env.globals["joiner"] = joiner_filter
 
     def _build_base_context(self) -> Dict[str, Any]:
         """Construct reusable context derived from the domain configuration."""
@@ -78,7 +219,9 @@ class TemplateProcessor:
     ) -> Dict[str, Any]:
         """Return a copy of the template with variables substituted recursively."""
         context = self._merge_context(extra_context)
-        return self._render_structure(copy.deepcopy(template), context, preserve_unknown=preserve_unknown)
+        return self._render_structure(
+            copy.deepcopy(template), context, preserve_unknown=preserve_unknown
+        )
 
     def render_sql(
         self,
@@ -87,14 +230,27 @@ class TemplateProcessor:
         extra_context: Optional[Dict[str, Any]] = None,
         preserve_unknown: bool = False,
     ) -> str:
-        """Render SQL with domain variables and optional runtime parameters."""
+        """Render SQL/Query DSL with domain variables and optional runtime parameters.
+
+        Args:
+            sql_template: Jinja2 template string for SQL or query DSL
+            parameters: Runtime parameters to substitute into the template
+            extra_context: Additional context to merge with domain context
+            preserve_unknown: If True, keep unknown variables as {{ var }} in output
+
+        Returns:
+            Rendered template string with variables substituted
+        """
         context = self._merge_context(extra_context)
-        return self._render_text(
+        if parameters:
+            context.update(parameters)
+
+        rendered = self._render_text(
             sql_template,
             context,
             preserve_unknown=preserve_unknown,
-            parameters=parameters,
-        ).strip()
+        )
+        return rendered.strip() if rendered else rendered
 
     # Internal helpers -------------------------------------------------
 
@@ -116,7 +272,10 @@ class TemplateProcessor:
                 for key, val in value.items()
             }
         if isinstance(value, list):
-            return [self._render_structure(item, context, preserve_unknown) for item in value]
+            return [
+                self._render_structure(item, context, preserve_unknown)
+                for item in value
+            ]
         if isinstance(value, str):
             return self._render_text(value, context, preserve_unknown)
         return value
@@ -126,90 +285,41 @@ class TemplateProcessor:
         text: str,
         context: Dict[str, Any],
         preserve_unknown: bool,
-        parameters: Optional[Dict[str, Any]] = None,
     ) -> str:
+        """Render a text template using Jinja2."""
         if not text:
             return text
 
-        def replace_if(match: re.Match[str]) -> str:
-            condition = match.group(1).strip()
-            block_content = match.group(2)
-            result = self._evaluate_condition(condition, context, parameters)
+        try:
+            # Choose environment based on preserve_unknown flag
+            env = self.env_preserve if preserve_unknown else self.env
+            template = env.from_string(text)
+            rendered = template.render(**context)
 
-            if result is None:
-                return match.group(0) if preserve_unknown else ""
-            return block_content if result else ""
+            # Clean up multiple blank lines
+            lines = rendered.split("\n")
+            cleaned_lines = []
+            prev_blank = False
+            for line in lines:
+                is_blank = not line.strip()
+                if is_blank and prev_blank:
+                    continue
+                cleaned_lines.append(line)
+                prev_blank = is_blank
 
-        processed = _IF_PATTERN.sub(replace_if, text)
+            return "\n".join(cleaned_lines)
 
-        def replace_var(match: re.Match[str]) -> str:
-            token = match.group(1).strip()
-            value, found, _ = self._resolve_variable(token, context, parameters)
-            if not found:
-                return match.group(0) if preserve_unknown else ""
-            if value is None:
-                return ""
-            # JSON-encode lists and dicts to ensure valid JSON output
-            if isinstance(value, (list, dict)):
-                return json.dumps(value)
-            return str(value)
-
-        return _VARIABLE_PATTERN.sub(replace_var, processed)
-
-    def _evaluate_condition(
-        self,
-        expression: str,
-        context: Dict[str, Any],
-        parameters: Optional[Dict[str, Any]] = None,
-    ) -> Optional[bool]:
-        negate = False
-        expr = expression
-
-        if expr.startswith("not "):
-            negate = True
-            expr = expr[4:].strip()
-        elif expr.startswith("!"):
-            negate = True
-            expr = expr[1:].strip()
-
-        value, found, source = self._resolve_variable(expr, context, parameters)
-        if not found:
-            return None
-
-        if source == "parameter":
-            truthy = value is not None and value != ""
-        else:
-            truthy = bool(value)
-
-        return not truthy if negate else truthy
-
-    def _resolve_variable(
-        self,
-        token: str,
-        context: Dict[str, Any],
-        parameters: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[Any, bool, str]:
-        value, found = _traverse_dict(context, token)
-        if found:
-            return value, True, "context"
-
-        if parameters is not None and token in parameters:
-            return parameters[token], True, "parameter"
-
-        return None, False, "unknown"
-
-
-def _traverse_dict(data: Dict[str, Any], path: str) -> Tuple[Any, bool]:
-    """Traverse nested dictionaries using dotted paths."""
-    parts = path.split('.') if path else []
-    current: Any = data
-
-    for part in parts:
-        if isinstance(current, dict) and part in current:
-            current = current[part]
-        else:
-            return None, False
-    return current, True
+        except UndefinedError as e:
+            if preserve_unknown:
+                # This shouldn't happen with PreservingUndefined, but handle it
+                logger.warning(f"Undefined variable in template: {e}")
+                return text
+            raise
+        except Exception as e:
+            logger.error(f"Error rendering template: {e}")
+            if preserve_unknown:
+                return text
+            raise
 
 
 def _deep_update(original: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
