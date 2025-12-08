@@ -138,6 +138,7 @@ export interface AdapterInfo {
   adapter_name: string;
   model: string | null;
   isFileSupported?: boolean;
+  notes?: string | null;
 }
 
 export class ApiClient {
