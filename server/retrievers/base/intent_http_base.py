@@ -619,10 +619,9 @@ class IntentHTTPRetriever(BaseRetriever):
                     
                     self.dump_results_to_file(results, prefix=f"http_{template.get('id', 'unknown')}")
 
-                if results:
-                    if results and self.return_results is not None and len(results) > self.return_results:
-                        logger.debug(f"Truncating result set from {len(results)} to {self.return_results} results based on adapter config.")
-                        results = results[:self.return_results]
+                # Note: Intent-based retrievers should pass ALL results to the LLM
+                # The return_results limit is for similarity-based retrievers, not intent queries
+                # where the template already controls result limits (e.g., LIMIT in SQL, GraphQL limits)
 
                 # Format response using domain-aware generator
                 if self.response_generator:
@@ -637,7 +636,7 @@ class IntentHTTPRetriever(BaseRetriever):
                     elif formatted_data.get("table") and formatted_data["table"].get("rows"):
                         table_data = formatted_data["table"]
                         columns = table_data["columns"]
-                        rows = table_data["rows"][:self.return_results]
+                        rows = table_data["rows"]  # Include ALL rows for complete LLM context
 
                         table_text = " | ".join(columns) + "\n"
                         table_text += "-" * len(table_text) + "\n"

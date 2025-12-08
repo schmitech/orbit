@@ -47,6 +47,7 @@
 #   intent-mongodb-mflix -> mflix
 #   intent-http-jsonplaceholder -> rest
 #   intent-graphql-spacex -> spacex
+#   intent-graphql-nato -> nato
 #   file-document-qa -> files
 #
 # Note: If a prompt file is not found, the key will be created without a prompt.
@@ -426,6 +427,7 @@ declare -a all_adapters=(
     "intent-mongodb-mflix|mflix|examples/prompts/mongodb-mflix-assistant-prompt.txt|MongoDB MFlix Prompt"
     "intent-http-jsonplaceholder|rest|examples/prompts/jsonplaceholder-api-assistant-prompt.txt|JSONPlaceholder API Prompt"
     "intent-graphql-spacex|spacex|examples/prompts/spacex-graphql-assistant-prompt.txt|SpaceX GraphQL Prompt"
+    "intent-graphql-nato|nato|examples/prompts/nato-graphql-assistant-prompt.txt|NATO GraphQL Prompt"
     "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.txt|File Document QA Prompt"
 )
 

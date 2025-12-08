@@ -1,4 +1,6 @@
-Show me recent error logs. What pattern or insights do you see?
+Show me recent error logs.
+Show me the ones in the last hour in a table
+Can you group by service and count the errors per service? Then display in a pie chart.
 
 Which endpoints are slow? Provide a summarized table with a column including your troubleshooting recommendations.
 

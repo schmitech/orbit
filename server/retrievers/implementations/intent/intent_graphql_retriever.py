@@ -481,6 +481,9 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
         """
         Format GraphQL results as human-readable text.
 
+        All results are included in the formatted output to ensure the LLM
+        has access to complete query results for accurate responses.
+
         Args:
             results: List of result dictionaries
             template: The template being executed
@@ -511,23 +514,21 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
                 lines.append(" | ".join(str(f) for f in display_fields))
                 lines.append("-" * (len(" | ".join(str(f) for f in display_fields))))
 
-                # Table rows (show first 10)
-                for result in results[:10]:
+                # Table rows - include ALL results for complete LLM context
+                for result in results:
                     row = []
                     for field in display_fields:
                         value = result.get(field, '')
-                        # Truncate long values
-                        value_str = str(value)[:50] if value is not None else ''
+                        # Truncate long values for readability
+                        value_str = str(value)[:100] if value is not None else ''
                         row.append(value_str)
                     lines.append(" | ".join(row))
-
-                if total > 10:
-                    lines.append(f"\n... and {total - 10} more results")
         else:
             # Format as list
             lines.append(f"Found {total} result(s):")
 
-            for i, result in enumerate(results[:10], 1):
+            # Include ALL results for complete LLM context
+            for i, result in enumerate(results, 1):
                 lines.append(f"\n{i}.")
                 display_fields = template.get('display_fields')
 
@@ -535,20 +536,17 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
                     for field in display_fields:
                         if field in result:
                             value = result[field]
-                            # Truncate long values
-                            if isinstance(value, str) and len(value) > 200:
-                                value = value[:200] + "..."
+                            # Truncate very long string values for readability
+                            if isinstance(value, str) and len(value) > 500:
+                                value = value[:500] + "..."
                             lines.append(f"   {field}: {value}")
                 else:
                     # Show all fields
                     for key, value in result.items():
                         if not key.startswith('_'):
-                            if isinstance(value, str) and len(value) > 200:
-                                value = value[:200] + "..."
+                            if isinstance(value, str) and len(value) > 500:
+                                value = value[:500] + "..."
                             lines.append(f"   {key}: {value}")
-
-            if total > 10:
-                lines.append(f"\n... and {total - 10} more results")
 
         return '\n'.join(lines)
 
