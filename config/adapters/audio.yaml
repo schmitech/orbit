@@ -151,7 +151,7 @@ adapters:
 
   # Premium voice chat with ElevenLabs (high-quality TTS)
   - name: "premium-voice-chat"
-    enabled: true
+    enabled: false
     type: "passthrough"
     datasource: "none"
     adapter: "conversational"
