@@ -19,7 +19,8 @@
 # What this script does:
 #   1. Creates API keys for each adapter listed below
 #   2. Associates appropriate prompt files with each key
-#   3. Renames each key to an easier-to-remember name
+#   3. Adds intro notes (markdown) displayed in the chat interface
+#   4. Renames each key to an easier-to-remember name
 #
 # Note: Adapters are now defined in config/adapters/*.yaml files (split by category).
 #       This script uses a hardcoded list of adapters. If you add new adapters to the
@@ -50,8 +51,11 @@
 #   intent-graphql-nato -> nato
 #   file-document-qa -> files
 #
-# Note: If a prompt file is not found, the key will be created without a prompt.
-#       You can add the prompt later using the prompt associate command.
+# Notes:
+#   - Each adapter includes a markdown "notes" field that appears in the chat interface
+#     as an intro message to help users understand what the agent can do.
+#   - If a prompt file is not found, the key will be created without a prompt.
+#     You can add the prompt later using the prompt associate command.
 
 set -e  # Exit on error
 set -o pipefail  # Exit on pipe failures
@@ -174,6 +178,7 @@ create_and_rename_key() {
     local key_name=$2
     local prompt_file=$3
     local prompt_name=$4
+    local notes=$5
     
     echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${YELLOW}Creating key for adapter: $adapter${NC}"
@@ -182,6 +187,12 @@ create_and_rename_key() {
     # Build the create command
     local create_cmd="$ORBIT_SCRIPT key create --adapter $adapter --name \"$key_name\""
     echo -e "${YELLOW}  Step 1: Building create command...${NC}"
+    
+    # Add notes if provided
+    if [ -n "$notes" ]; then
+        echo -e "${GREEN}    ✓ Adding notes for chat interface${NC}"
+        create_cmd="$create_cmd --notes \"$notes\""
+    fi
     
     # Add prompt file if provided
     if [ -n "$prompt_file" ]; then
@@ -416,7 +427,7 @@ declare -a all_adapters=(
     "local-voice-chat|whisper|examples/prompts/audio/local-audio-transcription-prompt.txt|Local Voice Prompt"
     "qa-sql|sql-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|SQL QA Prompt"
     "qa-vector-chroma|chroma-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|Chroma QA Prompt"
-    # "qa-vector-qdrant-demo|demo-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|Qdrant Demo Prompt"  # Excluded: requires special Qdrant deployment
+    # "qa-vector-qdrant-demo|demo-key|..." excluded: requires special Qdrant deployment
     "intent-sql-sqlite-contact|contact|examples/prompts/hr-assistant-prompt.txt|HR Assistant Prompt"
     "intent-sql-sqlite-classified|classified|examples/prompts/analytics-assistant-prompt.txt|Classified Data Prompt"
     "intent-duckdb-analytics|analytical|examples/prompts/analytics-assistant-prompt.txt|DuckDB Analytics Prompt"
@@ -430,6 +441,307 @@ declare -a all_adapters=(
     "intent-graphql-nato|nato|examples/prompts/nato-graphql-assistant-prompt.txt|NATO GraphQL Prompt"
     "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.txt|File Document QA Prompt"
 )
+
+# Define notes for each adapter (associative array keyed by adapter name)
+# These are displayed in the chat interface as intro messages
+declare -A adapter_notes
+
+adapter_notes["simple-chat"]="## Welcome to ORBIT 👋
+
+I'm your **curious and friendly AI assistant**, ready to explore any topic with you!
+
+Whether you want to:
+- 🔭 Dive into science and technology
+- 💡 Brainstorm creative ideas
+- 📚 Learn something new together
+- 🤔 Work through a tricky problem
+
+I'll break down complex ideas into simple explanations and keep the conversation flowing.
+
+**What would you like to talk about today?**"
+
+adapter_notes["simple-chat-with-files"]="## Welcome to ORBIT Document Assistant 📄
+
+I'm here to help you **understand and extract insights** from your uploaded documents!
+
+I can work with:
+- 📑 PDFs and Word documents
+- 📊 Spreadsheets and CSV files
+- 🖼️ Images and diagrams
+- 📝 JSON and data files
+
+Upload a file and ask me anything about it. I'll cite specific sources and provide actionable insights.
+
+**What document would you like to explore?**"
+
+adapter_notes["simple-chat-with-files-audio"]="## Welcome to ORBIT Multimodal Assistant 🎧
+
+I can help you understand **documents, images, and audio recordings**!
+
+I support:
+- 📄 Documents (PDFs, Word, spreadsheets)
+- 🖼️ Images and diagrams
+- 🎙️ Audio files with transcription
+
+Upload any file and I'll extract insights, summarize content, and answer your questions with precise citations.
+
+**What would you like me to analyze?**"
+
+adapter_notes["voice-chat"]="## Welcome to ORBIT Voice Assistant 🎙️
+
+I'm your **conversational voice companion**, ready to chat naturally!
+
+Just speak to me and I'll respond with clear, friendly answers. I keep things concise for voice and use natural language patterns.
+
+**What would you like to talk about?**"
+
+adapter_notes["audio-transcription"]="## Welcome to ORBIT Audio Transcription 🎧
+
+I specialize in **transcribing and analyzing audio recordings**!
+
+I can:
+- 📝 Transcribe meetings and conversations
+- 🔍 Extract key points and action items
+- 👥 Identify speakers and topics
+- ⏱️ Provide timestamped references
+
+Upload an audio file and I'll help you understand what was said.
+
+**What audio would you like me to transcribe?**"
+
+adapter_notes["multilingual-voice-assistant"]="## Welcome to ORBIT Multilingual Voice 🌍
+
+I'm your **multilingual voice assistant**, ready to chat in multiple languages!
+
+I can:
+- 🗣️ Detect and respond in your language
+- 🔄 Translate between languages
+- 🌐 Adapt to cultural context
+
+Speak to me in English, French, Spanish, or many other languages.
+
+**Comment puis-je vous aider? / How can I help you?**"
+
+adapter_notes["premium-voice-chat"]="## Welcome to ORBIT Premium Voice ✨
+
+I'm your **sophisticated voice assistant** with premium text-to-speech!
+
+I provide:
+- 🎙️ Natural, high-quality voice responses
+- 💬 Engaging, thoughtful conversations
+- 📚 Clear explanations of complex topics
+
+Speak naturally and I'll respond with polished, professional answers.
+
+**What would you like to discuss?**"
+
+adapter_notes["local-voice-chat"]="## Welcome to ORBIT Local Transcription 🔒
+
+I provide **private, local audio transcription** using Whisper!
+
+Benefits:
+- 🔐 100% local processing - your audio never leaves your device
+- 🌍 Supports 99 languages
+- 💰 No API costs
+- 📴 Works offline
+
+Upload an audio file and I'll transcribe it completely privately.
+
+**What audio would you like me to transcribe?**"
+
+adapter_notes["qa-sql"]="## Welcome to ORBIT City Assistant 🏙️
+
+I'm your **municipal information assistant**!
+
+I can help you with:
+- 🏛️ City services and programs
+- 📋 Permits and licensing
+- 🏠 Property and tax information
+- 🚧 Public works and infrastructure
+
+Ask me about city regulations, services, or community programs.
+
+**What city information do you need?**"
+
+adapter_notes["qa-vector-chroma"]="## Welcome to ORBIT City Assistant 🏙️
+
+I'm your **municipal information assistant** powered by semantic search!
+
+I can help you find information about:
+- 🏛️ City services and programs
+- 📋 Municipal regulations
+- 🏠 Property information
+- 🚧 Infrastructure and public works
+
+**What would you like to know about your city?**"
+
+adapter_notes["intent-sql-sqlite-contact"]="## Welcome to ORBIT HR Assistant 👥
+
+I'm your **HR data and workforce analytics assistant** for a Canadian organization!
+
+I can help you with:
+- 👤 Employee information and search
+- 💰 Compensation analysis (all in CAD)
+- 🏢 Department and position data
+- 📊 Workforce analytics and trends
+
+I support both English and French responses.
+
+**What HR information do you need?**"
+
+adapter_notes["intent-sql-sqlite-classified"]="## Welcome to ORBIT Analytics Assistant 📊
+
+I'm your **business intelligence assistant** for sales and product analytics!
+
+I can analyze:
+- 💹 Sales performance and trends
+- 📦 Product analytics
+- 👥 Customer behavior
+- 🌍 Regional patterns
+
+I provide data-driven insights with specific numbers and comparisons.
+
+**What would you like to analyze?**"
+
+adapter_notes["intent-duckdb-analytics"]="## Welcome to ORBIT Analytics Assistant 📊
+
+I'm your **business intelligence assistant** powered by DuckDB!
+
+I can help you analyze:
+- 💹 Sales performance and revenue
+- 📈 Trends and growth patterns
+- 🏆 Top performers and rankings
+- 🌍 Regional comparisons
+
+Ask me about sales, products, customers, or market trends.
+
+**What business insights do you need?**"
+
+adapter_notes["intent-duckdb-open-gov-travel-expenses"]="## Welcome to ORBIT Travel Expenses 🇨🇦
+
+I'm your **government transparency assistant** for analyzing federal travel expenses!
+
+I can help you explore:
+- 🏛️ Spending by organization
+- ✈️ Travel destinations and purposes
+- 📅 Expense trends over time
+- 💰 Cost breakdowns (airfare, lodging, meals)
+
+All data from Government of Canada Proactive Disclosure.
+
+**What travel expense data would you like to explore?**"
+
+adapter_notes["intent-sql-postgres"]="## Welcome to ORBIT Customer Assistant 🛒
+
+I'm your **e-commerce customer service assistant**!
+
+I can help you with:
+- 👤 Customer information and profiles
+- 📦 Order details and history
+- 💳 Payment and shipping status
+- 📊 Customer analytics
+
+I support both English and French responses.
+
+**What customer or order information do you need?**"
+
+adapter_notes["intent-elasticsearch-app-logs"]="## Welcome to ORBIT Log Analyst 🔍
+
+I'm your friendly **application log analysis assistant**!
+
+I can help you:
+- 🚨 Find and analyze errors
+- ⚡ Monitor service performance
+- 📈 Track response times and trends
+- 🔧 Troubleshoot issues
+
+I'll help you understand what your logs are telling you about your system.
+
+**What would you like to investigate?**"
+
+adapter_notes["intent-firecrawl-webscrape"]="## Welcome to ORBIT Knowledge Assistant 🌐
+
+I'm your **web knowledge retrieval assistant**!
+
+I can find and present information from:
+- 📚 Wikipedia and encyclopedias
+- 📖 Official documentation
+- 🎓 Educational websites
+- 📰 Authoritative sources
+
+Ask me about any topic and I'll retrieve reliable information for you.
+
+**What would you like to learn about?**"
+
+adapter_notes["intent-mongodb-mflix"]="## Welcome to ORBIT Movie Database 🎬
+
+I'm your **movie and entertainment data assistant**!
+
+I can help you discover:
+- 🎥 Movies by genre, year, or director
+- ⭐ Ratings and reviews
+- 🏆 Award-winning films
+- 📊 Trends and analytics
+
+Explore our extensive film database and find your next favorite movie!
+
+**What movies are you interested in?**"
+
+adapter_notes["intent-http-jsonplaceholder"]="## Welcome to ORBIT API Explorer 🔌
+
+I'm your **REST API testing assistant** for JSONPlaceholder!
+
+I can help you explore:
+- 📝 Posts and content
+- 👤 User profiles
+- 💬 Comments and engagement
+- ✅ Todos and task management
+
+Perfect for development testing and learning API concepts.
+
+**What API data would you like to explore?**"
+
+adapter_notes["intent-graphql-spacex"]="## Welcome to ORBIT SpaceX Explorer 🚀
+
+I'm your **space exploration data assistant**!
+
+I can help you discover:
+- 🛸 Launch missions and history
+- 🔥 Rocket specifications (Falcon 9, Falcon Heavy)
+- 🛰️ Dragon capsules and spacecraft
+- 🌍 Launch sites and drone ships
+
+Explore SpaceX's journey to revolutionize space travel!
+
+**What SpaceX mission interests you?**"
+
+adapter_notes["intent-graphql-nato"]="## Welcome to ORBIT Classification Converter 🔐
+
+I'm your **NATO security classification assistant**.
+
+I can help you with:
+- 🌍 Member nation classification schemas
+- 🔄 Classification conversions between nations
+- 📋 Conversion request management
+- 📊 NATO standard equivalents
+
+Professional assistance for international security cooperation.
+
+**What classification information do you need?**"
+
+adapter_notes["file-document-qa"]="## Welcome to ORBIT Document Q&A 📚
+
+I'm here to help you **understand your uploaded documents**!
+
+I can analyze:
+- 📄 PDFs and Word documents
+- 📊 Spreadsheets and data files
+- 🖼️ Images and diagrams
+- 📝 Any text-based content
+
+Upload a document and ask me questions. I'll provide precise answers with source citations.
+
+**What document would you like to explore?**"
 
 # Filter adapters if --adapter argument is provided
 declare -a adapters=()
@@ -470,6 +782,9 @@ for entry in "${adapters[@]}"; do
     adapter_index=$((adapter_index + 1))  # Safe increment that always succeeds
     IFS='|' read -r adapter key_name prompt_file prompt_name <<< "$entry"
     
+    # Look up notes from associative array
+    notes="${adapter_notes[$adapter]:-}"
+    
     echo ""
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${GREEN}[$adapter_index/${#adapters[@]}] Processing Adapter: $adapter${NC}"
@@ -485,7 +800,7 @@ for entry in "${adapters[@]}"; do
         echo -e "${GREEN}[$adapter_index/${#adapters[@]}] Key '$key_name' already exists - skipping${NC}"
         echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo ""
-    elif create_and_rename_key "$adapter" "$key_name" "$prompt_file" "$prompt_name" 2>&1; then
+    elif create_and_rename_key "$adapter" "$key_name" "$prompt_file" "$prompt_name" "$notes" 2>&1; then
         success_count=$((success_count + 1))  # Safe increment
         echo -e "${GREEN}✓ Adapter $adapter_index/${#adapters[@]} completed successfully${NC}"
     else
