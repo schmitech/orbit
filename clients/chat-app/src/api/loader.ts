@@ -132,6 +132,7 @@ export interface ApiClient {
     adapter_name: string;
     model: string | null;
     isFileSupported?: boolean;
+    notes?: string | null;
   }>;
 }
 

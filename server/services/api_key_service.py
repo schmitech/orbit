@@ -421,7 +421,8 @@ class ApiKeyService:
         # Build response
         adapter_info = {
             "client_name": client_name,
-            "adapter_name": adapter_name
+            "adapter_name": adapter_name,
+            "notes": key_doc.get("notes")  # Include notes from API key record
         }
 
         # Get model - check adapter config first, then fall back to global inference config

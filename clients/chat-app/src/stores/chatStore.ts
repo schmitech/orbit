@@ -800,6 +800,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const defaultSessionId = generateUniqueSessionId();
     const defaultApiUrl = getApiUrl();
+    const isMiddlewareEnabled = getEnableApiMiddleware();
     const defaultConversation: Conversation = {
       id: defaultConversationId,
       sessionId: defaultSessionId,
@@ -807,49 +808,92 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
-      apiKey: DEFAULT_API_KEY,
+      apiKey: isMiddlewareEnabled ? undefined : DEFAULT_API_KEY,
       apiUrl: defaultApiUrl
     };
 
-    // Configure API with default key and validate it
+    // Configure API and validate/load adapter info
     ensureApiConfigured().then(isConfigured => {
       if (isConfigured) {
-        getApi().then(api => {
-          api.configureApi(defaultApiUrl, DEFAULT_API_KEY, defaultSessionId);
-          
-          // Validate and load adapter info for default key
-          try {
-            const validationClient = new api.ApiClient({
-              apiUrl: defaultApiUrl,
-              apiKey: DEFAULT_API_KEY,
-              sessionId: null
-            });
-            
-            if (typeof validationClient.validateApiKey === 'function') {
-              validationClient.validateApiKey().then(() => {
-                debugLog('✅ Default API key validated after clearing all conversations');
-              }).catch(() => {
-                debugWarn('Failed to validate default API key');
-              });
-            }
-            
-            if (typeof validationClient.getAdapterInfo === 'function') {
-              validationClient.getAdapterInfo().then(adapterInfo => {
-                debugLog('✅ Adapter info loaded for default key:', adapterInfo);
-                const currentState = useChatStore.getState();
-                useChatStore.setState({
-                  conversations: currentState.conversations.map(conv =>
-                    conv.id === defaultConversationId
-                      ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
-                      : conv
-                  )
+        getApi().then(async api => {
+          if (isMiddlewareEnabled) {
+            // In middleware mode, auto-select the first adapter
+            try {
+              const firstAdapter = await getFirstAdapter();
+              if (firstAdapter) {
+                api.configureApi(defaultApiUrl, null, defaultSessionId, firstAdapter.name);
+
+                // Load adapter info
+                const validationClient = new api.ApiClient({
+                  apiUrl: defaultApiUrl,
+                  apiKey: null,
+                  sessionId: null,
+                  adapterName: firstAdapter.name
                 });
-              }).catch(() => {
-                debugWarn('Failed to load adapter info for default key');
-              });
+
+                if (typeof validationClient.getAdapterInfo === 'function') {
+                  const adapterInfo = await validationClient.getAdapterInfo();
+                  debugLog('✅ Adapter info loaded after clearing conversations:', adapterInfo);
+                  const currentState = useChatStore.getState();
+                  useChatStore.setState({
+                    conversations: currentState.conversations.map(conv =>
+                      conv.id === defaultConversationId
+                        ? { ...conv, adapterName: firstAdapter.name, adapterInfo: adapterInfo, updatedAt: new Date() }
+                        : conv
+                    )
+                  });
+
+                  // Save to localStorage
+                  setTimeout(() => {
+                    const updatedState = useChatStore.getState();
+                    localStorage.setItem('chat-state', JSON.stringify({
+                      conversations: updatedState.conversations,
+                      currentConversationId: updatedState.currentConversationId
+                    }));
+                  }, 0);
+                }
+              }
+            } catch (error) {
+              debugWarn('Failed to configure adapter after clearing conversations:', error);
             }
-          } catch (error) {
-            debugWarn('Failed to validate default API key:', error);
+          } else {
+            // Non-middleware mode: use default API key
+            api.configureApi(defaultApiUrl, DEFAULT_API_KEY, defaultSessionId);
+
+            // Validate and load adapter info for default key
+            try {
+              const validationClient = new api.ApiClient({
+                apiUrl: defaultApiUrl,
+                apiKey: DEFAULT_API_KEY,
+                sessionId: null
+              });
+
+              if (typeof validationClient.validateApiKey === 'function') {
+                validationClient.validateApiKey().then(() => {
+                  debugLog('✅ Default API key validated after clearing all conversations');
+                }).catch(() => {
+                  debugWarn('Failed to validate default API key');
+                });
+              }
+
+              if (typeof validationClient.getAdapterInfo === 'function') {
+                validationClient.getAdapterInfo().then(adapterInfo => {
+                  debugLog('✅ Adapter info loaded for default key:', adapterInfo);
+                  const currentState = useChatStore.getState();
+                  useChatStore.setState({
+                    conversations: currentState.conversations.map(conv =>
+                      conv.id === defaultConversationId
+                        ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                        : conv
+                    )
+                  });
+                }).catch(() => {
+                  debugWarn('Failed to load adapter info for default key');
+                });
+              }
+            } catch (error) {
+              debugWarn('Failed to validate default API key:', error);
+            }
           }
         });
       }
@@ -2328,6 +2372,46 @@ const initializeStore = async () => {
         currentApiUrl = apiUrlToUse;
         apiConfigured = true;
         debugLog('✅ Using existing adapter from conversation:', existingAdapterName);
+
+        // Load adapter info if not already loaded
+        if (!currentConversation?.adapterInfo) {
+          try {
+            const validationClient = new api.ApiClient({
+              apiUrl: apiUrlToUse,
+              apiKey: null,
+              sessionId: null,
+              adapterName: existingAdapterName
+            });
+
+            if (typeof validationClient.getAdapterInfo === 'function') {
+              const adapterInfo = await validationClient.getAdapterInfo();
+              debugLog('✅ Adapter info loaded for existing adapter:', adapterInfo);
+
+              // Update the current conversation with adapter info
+              const stateAfterLoad = useChatStore.getState();
+              if (stateAfterLoad.currentConversationId) {
+                useChatStore.setState({
+                  conversations: stateAfterLoad.conversations.map(conv =>
+                    conv.id === stateAfterLoad.currentConversationId
+                      ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                      : conv
+                  )
+                });
+
+                // Save to localStorage
+                setTimeout(() => {
+                  const updatedState = useChatStore.getState();
+                  localStorage.setItem('chat-state', JSON.stringify({
+                    conversations: updatedState.conversations,
+                    currentConversationId: updatedState.currentConversationId
+                  }));
+                }, 0);
+              }
+            }
+          } catch (error) {
+            debugWarn('Failed to load adapter info for existing adapter:', error);
+          }
+        }
       }
     } else {
       // Non-middleware mode: use API key

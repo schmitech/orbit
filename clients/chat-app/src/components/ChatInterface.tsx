@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, MouseEvent } from 'react';
+import { useState, useEffect, useRef, FormEvent, MouseEvent } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { AdapterSelector } from './AdapterSelector';
@@ -10,6 +10,7 @@ import { getDefaultKey, getApiUrl, getEnableApiMiddleware } from '../utils/runti
 import { PACKAGE_VERSION } from '../utils/version';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
+import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 
 // Note: We use getApiUrl() and getDefaultKey() directly when needed
 // to ensure we always read the latest runtime config (including CLI args)
@@ -54,6 +55,58 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       setSelectedAdapter(currentConversation.adapterName);
     }
   }, [isMiddlewareEnabled, currentConversation?.adapterName]);
+
+  // Debug: Log current conversation state for middleware mode debugging
+  useEffect(() => {
+    if (isMiddlewareEnabled) {
+      debugLog('[ChatInterface] Middleware mode state:', {
+        hasConversation: !!currentConversation,
+        adapterName: currentConversation?.adapterName,
+        hasAdapterInfo: !!currentConversation?.adapterInfo,
+        hasNotes: !!currentConversation?.adapterInfo?.notes,
+        notes: currentConversation?.adapterInfo?.notes?.substring(0, 50) + '...'
+      });
+    }
+  }, [isMiddlewareEnabled, currentConversation?.adapterName, currentConversation?.adapterInfo]);
+
+  // Load adapter info if in middleware mode and adapter is selected but info is missing or incomplete
+  // This handles: 1) race conditions, 2) stale localStorage without notes field
+  const adapterInfoLoadedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const loadMissingAdapterInfo = async () => {
+      const adapterName = currentConversation?.adapterName;
+      // Only load once per adapter to avoid duplicate requests
+      if (adapterInfoLoadedRef.current === adapterName) return;
+
+      // Check if adapterInfo is missing OR if notes field is missing (stale data from before notes feature)
+      const needsRefresh = !currentConversation?.adapterInfo ||
+                          (currentConversation?.adapterInfo && currentConversation.adapterInfo.notes === undefined);
+
+      if (isMiddlewareEnabled && adapterName && needsRefresh) {
+        adapterInfoLoadedRef.current = adapterName;
+        debugLog('[ChatInterface] Loading adapter info - adapterName:', adapterName, 'reason:', !currentConversation?.adapterInfo ? 'missing' : 'notes undefined');
+        try {
+          const apiUrl = currentConversation?.apiUrl || getApiUrl();
+          debugLog('[ChatInterface] Calling configureApiSettings for:', adapterName);
+          await configureApiSettings(apiUrl, undefined, undefined, adapterName);
+          debugLog('[ChatInterface] Adapter info loaded successfully');
+        } catch (error) {
+          debugError('[ChatInterface] Failed to load adapter info:', error);
+          // Reset flag on error so it can retry
+          adapterInfoLoadedRef.current = null;
+        }
+      } else {
+        debugLog('[ChatInterface] Skipping adapter info load:', {
+          isMiddlewareEnabled,
+          adapterName,
+          hasAdapterInfo: !!currentConversation?.adapterInfo,
+          hasNotes: currentConversation?.adapterInfo?.notes !== undefined,
+          refValue: adapterInfoLoadedRef.current
+        });
+      }
+    };
+    loadMissingAdapterInfo();
+  }, [isMiddlewareEnabled, currentConversation?.adapterName, currentConversation?.adapterInfo, currentConversation?.apiUrl, configureApiSettings]);
 
   // Disable Configure API button once conversation has started (has messages)
   // API key should remain immutable per conversation to prevent issues with conversation history
@@ -479,20 +532,27 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
           {/* Messages and Input - Conditional Layout */}
           {!currentConversation || currentConversation.messages.length === 0 ? (
-            // Empty state: Center the input in the middle (ChatGPT-style)
-            <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-4">
-              <div className="w-full max-w-3xl mx-auto text-center space-y-3">
-                <div className="space-y-1.5">
-                  <h2 className="text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
-                    How can I assist you today?
-                  </h2>
+            // Empty state: Left-aligned content close to header, full width
+            <div className="flex-1 flex flex-col min-h-0 pt-6">
+              <div className="w-full space-y-3">
+                <div className="mb-2">
+                  {currentConversation?.adapterInfo?.notes ? (
+                    // Show adapter notes as the main prompt with markdown rendering
+                    <div className="text-base text-gray-600 dark:text-[#bfc2cd] leading-relaxed prose prose-sm dark:prose-invert prose-p:my-1 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
+                      <MarkdownRenderer content={currentConversation.adapterInfo.notes} />
+                    </div>
+                  ) : (
+                    // Fallback to default message
+                    <h2 className="text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
+                      How can I assist you today?
+                    </h2>
+                  )}
                 </div>
-                <div className="w-full">
+                <div className="w-full [&>div]:px-0 [&>div>div]:max-w-none [&>div>div]:mx-0">
                   <MessageInput
                     onSend={handleSendMessage}
                     disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
                     placeholder="Message ORBIT..."
-                    isCentered
                   />
                 </div>
               </div>

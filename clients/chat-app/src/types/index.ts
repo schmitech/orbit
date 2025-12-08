@@ -40,6 +40,7 @@ export interface AdapterInfo {
   adapter_name: string;
   model: string | null;
   isFileSupported?: boolean;
+  notes?: string | null;  // Description/notes about the adapter from API key record
 }
 
 export interface AudioSettings {

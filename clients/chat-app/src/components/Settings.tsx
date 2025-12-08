@@ -218,31 +218,14 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
             
             <div className="space-y-3">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Clear all application data including conversations, saved API configurations, and personalized settings.
+                Clear all application data including conversations, and personalized settings.
               </p>
-              <ul className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-gray-500" />
-                  Conversation history and transcripts
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-gray-500" />
-                  API keys, base URLs, and provider preferences
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-gray-400 dark:bg-gray-500" />
-                  Theme, accessibility, and notification settings
-                </li>
-              </ul>
               <button
                 onClick={openResetDialog}
                 className="w-full px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 Reset Application
               </button>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                You&apos;ll be asked to confirm before anything is deleted.
-              </p>
             </div>
           </div>
 
