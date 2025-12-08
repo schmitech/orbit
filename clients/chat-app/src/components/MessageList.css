@@ -93,11 +93,50 @@
   min-width: 0;
   margin-left: auto;
   margin-right: auto;
+  /* Enable horizontal scrolling for wide content on mobile */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide scrollbar on mobile for cleaner look, but keep functionality */
+@media (max-width: 767px) {
+  .message-list .message-markdown {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
+  }
+
+  .message-list .message-markdown::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .message-list .message-markdown::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .message-list .message-markdown::-webkit-scrollbar-thumb {
+    background-color: rgba(128, 128, 128, 0.3);
+    border-radius: 2px;
+  }
+
+  /* Ensure charts, tables, and pre blocks can scroll */
+  .message-list .message-markdown pre,
+  .message-list .message-markdown table,
+  .message-list .message-markdown .recharts-wrapper,
+  .message-list .message-markdown svg {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* Give charts some breathing room */
+  .message-list .message-markdown .recharts-wrapper {
+    min-width: 300px;
+  }
 }
 
 @media (min-width: 768px) {
   .message-list .message-markdown {
     max-width: 840px;
+    overflow-x: visible;
   }
 }
 

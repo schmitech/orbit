@@ -1,7 +1,3 @@
-What are our typical order sizes?
-
-How often do customers typically order?
-
 Is our average order value going up or down?
 
 Top orders by value from last week

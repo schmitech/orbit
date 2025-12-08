@@ -740,7 +740,7 @@ export function MessageInput({
   const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
 
   return (
-    <div className={`bg-white px-3 py-4 dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
+    <div className={`bg-white px-3 py-3 md:px-0 md:py-4 dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
       <div className={`mx-auto w-full ${contentMaxWidth}`}>
         {voiceError && audioFeatureEnabled && (
           <div className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
@@ -759,51 +759,17 @@ export function MessageInput({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3">
+        <form onSubmit={handleSubmit} className="flex w-full flex-col gap-2 md:gap-3">
+        {/* Mobile layout: stacked with textarea on top, buttons below */}
+        {/* Desktop layout: single row with all elements inline */}
         <div
-          className={`flex flex-wrap gap-2 rounded-lg border px-3 py-3 shadow-sm transition-all sm:flex-nowrap sm:px-4 ${
+          className={`flex flex-col md:flex-row md:items-center gap-3 md:gap-2 rounded-2xl md:rounded-lg border px-4 py-3 md:px-4 md:py-3 shadow-sm transition-all ${
             isFocused
               ? 'border-gray-400 shadow-md dark:border-[#565869] dark:shadow-lg'
               : 'border-gray-300 dark:border-[#40414f]'
           } bg-gray-50 dark:bg-[#2d2f39]`}
         >
-          {uploadFeatureEnabled && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                if (!isFileUploadDisabled) {
-                  setShowFileUpload(!showFileUpload);
-                }
-              }}
-              disabled={isFileUploadDisabled}
-              onMouseEnter={() => setIsHoveringUpload(true)}
-              onMouseLeave={() => setIsHoveringUpload(false)}
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                showFileUpload || attachedFiles.length > 0
-                  ? 'bg-gray-100 text-[#353740] dark:bg-[#565869] dark:text-[#ececf1]'
-                  : isFileUploadDisabled
-                  ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
-              }`}
-              title={
-                !isFileSupported
-                  ? 'File upload not supported by this adapter'
-                  : isInputDisabled
-                  ? 'Files are uploading/processing. Please wait...'
-                  : attachedFiles.length > 0
-                  ? `${attachedFiles.length} file(s) attached`
-                  : 'Attach files'
-              }
-            >
-              {isFileUploadDisabled && isHoveringUpload ? (
-                <X className="h-4 w-4" />
-              ) : (
-                <Paperclip className="h-4 w-4" />
-              )}
-            </button>
-          )}
-
+          {/* Textarea row */}
           <textarea
             ref={textareaRef}
             value={message}
@@ -818,11 +784,11 @@ export function MessageInput({
             disabled={isInputDisabled}
             rows={1}
             maxLength={AppConfig.maxMessageLength}
-            className="flex-1 min-w-[150px] resize-none bg-transparent py-1 text-sm text-[#353740] placeholder-gray-600 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#bfc2cd]"
-            style={{ 
+            className="flex-1 w-full md:w-auto min-w-0 resize-none bg-transparent py-1 text-base md:text-sm text-[#353740] placeholder-gray-500 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#8e8ea0]"
+            style={{
               minHeight: '24px',
               maxHeight: '120px',
-              border: 'none', 
+              border: 'none',
               outline: 'none',
               boxShadow: 'none',
               WebkitAppearance: 'none',
@@ -832,87 +798,132 @@ export function MessageInput({
             }}
           />
 
-          <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
-            {message.length > 0 && (
-              <div className="min-w-[72px] text-right text-xs text-gray-500 dark:text-[#bfc2cd]">
-                <span className={message.length >= AppConfig.maxMessageLength ? 'text-red-600 font-semibold' : ''}>
-                  {message.length}/{AppConfig.maxMessageLength}
-                </span>
-              </div>
-            )}
-
-            {audioFeatureEnabled && (
-              <>
+          {/* Action buttons row */}
+          <div className="flex items-center justify-between md:justify-end gap-1 md:gap-2 md:flex-shrink-0">
+            {/* Left side buttons on mobile */}
+            <div className="flex items-center gap-1 md:gap-2">
+              {uploadFeatureEnabled && (
                 <button
                   type="button"
-                  onClick={handleVoiceResponseToggle}
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                    settings.voiceEnabled
-                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
-                      : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (!isFileUploadDisabled) {
+                      setShowFileUpload(!showFileUpload);
+                    }
+                  }}
+                  disabled={isFileUploadDisabled}
+                  onMouseEnter={() => setIsHoveringUpload(true)}
+                  onMouseLeave={() => setIsHoveringUpload(false)}
+                  className={`flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
+                    showFileUpload || attachedFiles.length > 0
+                      ? 'bg-gray-200 text-[#353740] dark:bg-[#565869] dark:text-[#ececf1]'
+                      : isFileUploadDisabled
+                      ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
+                      : 'text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
                   }`}
                   title={
-                    settings.voiceEnabled
-                      ? 'Voice responses enabled - Click to disable'
-                      : 'Enable voice responses (text-to-speech)'
+                    !isFileSupported
+                      ? 'File upload not supported by this adapter'
+                      : isInputDisabled
+                      ? 'Files are uploading/processing. Please wait...'
+                      : attachedFiles.length > 0
+                      ? `${attachedFiles.length} file(s) attached`
+                      : 'Attach files'
                   }
                 >
-                  {settings.voiceEnabled ? (
-                    <Volume2 className="h-5 w-5" />
+                  {isFileUploadDisabled && isHoveringUpload ? (
+                    <X className="h-5 w-5 md:h-4 md:w-4" />
                   ) : (
-                    <VolumeX className="h-5 w-5" />
+                    <Paperclip className="h-5 w-5 md:h-4 md:w-4" />
                   )}
                 </button>
-                {voiceRecordingAvailable && (
+              )}
+
+              {/* Character count - show inline on mobile when typing */}
+              {message.length > 0 && (
+                <div className="px-2 text-xs text-gray-500 dark:text-[#bfc2cd] md:min-w-[72px] md:text-right">
+                  <span className={message.length >= AppConfig.maxMessageLength ? 'text-red-600 font-semibold' : ''}>
+                    {message.length}/{AppConfig.maxMessageLength}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Right side buttons */}
+            <div className="flex items-center gap-1 md:gap-2">
+              {audioFeatureEnabled && (
+                <>
                   <button
                     type="button"
-                    onClick={handleVoiceToggle}
-                    disabled={isInputDisabled}
-                    onMouseEnter={() => setIsHoveringMic(true)}
-                    onMouseLeave={() => setIsHoveringMic(false)}
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                      isListening
-                        ? 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300'
-                        : isInputDisabled
-                        ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
-                        : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
+                    onClick={handleVoiceResponseToggle}
+                    className={`flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
+                      settings.voiceEnabled
+                        ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
+                        : 'text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
                     }`}
                     title={
-                      isInputDisabled
-                        ? 'Files are uploading/processing. Please wait...'
-                        : isListening
-                        ? 'Stop recording'
-                        : 'Start voice input'
+                      settings.voiceEnabled
+                        ? 'Voice responses enabled - Click to disable'
+                        : 'Enable voice responses (text-to-speech)'
                     }
                   >
-                    {isListening || (isInputDisabled && isHoveringMic) ? (
-                      <MicOff className="h-5 w-5" />
+                    {settings.voiceEnabled ? (
+                      <Volume2 className="h-5 w-5" />
                     ) : (
-                      <Mic className="h-5 w-5" />
+                      <VolumeX className="h-5 w-5" />
                     )}
                   </button>
-                )}
-              </>
-            )}
+                  {voiceRecordingAvailable && (
+                    <button
+                      type="button"
+                      onClick={handleVoiceToggle}
+                      disabled={isInputDisabled}
+                      onMouseEnter={() => setIsHoveringMic(true)}
+                      onMouseLeave={() => setIsHoveringMic(false)}
+                      className={`flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
+                        isListening
+                          ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'
+                          : isInputDisabled
+                          ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
+                          : 'text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
+                      }`}
+                      title={
+                        isInputDisabled
+                          ? 'Files are uploading/processing. Please wait...'
+                          : isListening
+                          ? 'Stop recording'
+                          : 'Start voice input'
+                      }
+                    >
+                      {isListening || (isInputDisabled && isHoveringMic) ? (
+                        <MicOff className="h-5 w-5" />
+                      ) : (
+                        <Mic className="h-5 w-5" />
+                      )}
+                    </button>
+                  )}
+                </>
+              )}
 
-            {(hasProcessingFiles || isUploading) && (
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-                <Loader2 className="h-4 w-4 animate-spin text-gray-500 dark:text-[#bfc2cd]" />
-              </div>
-            )}
+              {(hasProcessingFiles || isUploading) && (
+                <div className="flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center">
+                  <Loader2 className="h-5 w-5 md:h-4 md:w-4 animate-spin text-gray-500 dark:text-[#bfc2cd]" />
+                </div>
+              )}
 
-            <button
-              type="submit"
-              disabled={(!message.trim() && attachedFiles.length === 0) || isInputDisabled || isComposing}
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                (message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing
-                  ? 'bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200'
-                  : 'bg-gray-200 text-gray-400 dark:bg-[#565869] dark:text-[#6b6f7a]'
-              }`}
-              title="Send message"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </button>
+              <button
+                type="submit"
+                disabled={(!message.trim() && attachedFiles.length === 0) || isInputDisabled || isComposing}
+                className={`flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
+                  (message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing
+                    ? 'bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200'
+                    : 'bg-gray-300 text-gray-500 dark:bg-[#565869] dark:text-[#6b6f7a]'
+                }`}
+                title="Send message"
+              >
+                <ArrowUp className="h-5 w-5 md:h-4 md:w-4" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1022,10 +1033,10 @@ export function MessageInput({
           </div>
         )}
 
-        <div className="h-4">
+        <div className="h-5 md:h-4">
           {voiceRecordingAvailable && isListening && (
-            <span className="flex items-center gap-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+            <span className="flex items-center gap-2 text-sm md:text-xs text-gray-500 dark:text-[#bfc2cd]">
+              <span className="h-2.5 w-2.5 md:h-2 md:w-2 animate-pulse rounded-full bg-red-500" />
               Listening...
             </span>
           )}

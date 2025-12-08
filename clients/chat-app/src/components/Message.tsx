@@ -349,14 +349,14 @@ export function Message({
         </div>
 
         {isAssistant && !message.isStreaming && (
-          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd] sm:opacity-0 sm:group-hover:opacity-100">
+          <div className="flex items-center gap-1 md:gap-2 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd] sm:opacity-0 sm:group-hover:opacity-100">
             <button
               onClick={copyToClipboard}
               className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
               title="Copy message"
             >
               <Copy className="h-4 w-4" />
-              Copy
+              <span className="hidden sm:inline">Copy</span>
             </button>
 
             {onRegenerate && (
@@ -366,7 +366,7 @@ export function Message({
                 title="Regenerate response"
               >
                 <RotateCcw className="h-4 w-4" />
-                Retry
+                <span className="hidden sm:inline">Retry</span>
               </button>
             )}
 
@@ -377,7 +377,7 @@ export function Message({
                 title="Start thread for follow-up questions"
               >
                 <MessageSquare className="h-4 w-4" />
-                Start Thread
+                <span className="hidden sm:inline">Start Thread</span>
               </button>
             )}
 
@@ -405,26 +405,27 @@ export function Message({
         )}
 
         {threadsEnabled && message.threadInfo && (
-          <div className="ml-12 mt-4 rounded-xl border border-blue-100/80 bg-blue-50/70 p-4 text-sm shadow-sm ring-1 ring-blue-100/60 dark:border-[#1f2a36] dark:bg-[#0f1821] dark:ring-[#1f2a36]">
-            <div className="flex items-center justify-between text-sm font-semibold text-blue-900 dark:text-[#c5d7ff]">
-              <div className="inline-flex items-center gap-2 uppercase tracking-wide">
+          <div className="ml-0 sm:ml-12 mt-4 rounded-xl border border-blue-100/80 bg-blue-50/70 p-3 sm:p-4 text-sm shadow-sm ring-1 ring-blue-100/60 dark:border-[#1f2a36] dark:bg-[#0f1821] dark:ring-[#1f2a36]">
+            <div className="flex items-center justify-between gap-2 text-sm font-semibold text-blue-900 dark:text-[#c5d7ff]">
+              <div className="inline-flex items-center gap-2 uppercase tracking-wide text-xs sm:text-sm">
                 <MessageSquare className="h-3.5 w-3.5" />
                 <span>
-                  Thread replies
-                  {threadReplyCount > 0 ? ` (${threadReplyCount})` : ''}
+                  Thread{threadReplyCount > 0 ? ` (${threadReplyCount})` : ''}
                 </span>
               </div>
               <button
                 onClick={() => setIsThreadOpen(prev => !prev)}
-                className="inline-flex items-center gap-2 rounded-full border border-blue-200/80 px-3 py-1.5 text-xs uppercase tracking-wide text-blue-900 transition hover:bg-white/70 dark:border-[#233449] dark:text-[#c5d7ff] dark:hover:bg-white/10"
+                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-blue-200/80 px-2.5 sm:px-3 py-1.5 text-xs uppercase tracking-wide text-blue-900 transition hover:bg-white/70 dark:border-[#233449] dark:text-[#c5d7ff] dark:hover:bg-white/10"
               >
                 {isThreadOpen ? (
                   <>
-                    Hide <ChevronUp className="h-3 w-3" />
+                    <span className="hidden sm:inline">Hide</span>
+                    <ChevronUp className="h-4 w-4 sm:h-3 sm:w-3" />
                   </>
                 ) : (
                   <>
-                    Show <ChevronDown className="h-3 w-3" />
+                    <span className="hidden sm:inline">Show</span>
+                    <ChevronDown className="h-4 w-4 sm:h-3 sm:w-3" />
                   </>
                 )}
               </button>
@@ -435,10 +436,11 @@ export function Message({
                 <div className="mt-3 space-y-3">{renderedThreadReplies}</div>
 
                 <div className="mt-3 rounded-xl border border-white/80 bg-white/95 p-3 shadow-sm dark:border-white/10 dark:bg-white/10">
-                  <div className="flex flex-wrap items-center gap-3">
+                  {/* Mobile: stacked layout, Desktop: inline */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                     <textarea
                       ref={threadTextareaRef}
-                      className="flex-1 min-w-0 resize-none rounded-md border border-transparent bg-transparent px-3 py-1.5 text-sm text-[#353740] placeholder-gray-600 outline-none transition focus:border-gray-400 focus:ring-1 focus:ring-gray-300 disabled:opacity-60 dark:text-[#ececf1] dark:placeholder-[#bfc2cd] dark:focus:border-[#8e8ea0] dark:focus:ring-[#8e8ea0]"
+                      className="flex-1 w-full sm:w-auto min-w-0 resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-base sm:text-sm text-[#353740] placeholder-gray-500 outline-none transition focus:border-gray-400 focus:ring-1 focus:ring-gray-300 disabled:opacity-60 dark:border-[#3c3f4a] dark:bg-[#2d2f39] dark:text-[#ececf1] dark:placeholder-[#8e8ea0] dark:focus:border-[#8e8ea0] dark:focus:ring-[#8e8ea0]"
                       placeholder={threadReplyCount > 0 ? 'Reply in thread...' : 'Ask a follow-up...'}
                       value={threadInput}
                       onChange={e => setThreadInput(e.target.value)}
@@ -447,9 +449,8 @@ export function Message({
                       rows={1}
                       maxLength={threadCharLimit}
                       style={{
-                        minHeight: '38px',
+                        minHeight: '44px',
                         maxHeight: '120px',
-                        border: 'none',
                         outline: 'none',
                         boxShadow: 'none',
                         WebkitAppearance: 'none',
@@ -457,7 +458,7 @@ export function Message({
                         appearance: 'none'
                       }}
                     />
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between sm:justify-end gap-2">
                       {threadInput.length > 0 && (
                         <div className="text-xs text-gray-500 dark:text-[#bfc2cd] whitespace-nowrap">
                           <span className={threadInput.length >= threadCharLimit ? 'text-red-600 font-semibold' : ''}>
@@ -469,14 +470,14 @@ export function Message({
                         type="button"
                         onClick={handleThreadSubmit}
                         disabled={threadComposerDisabled || threadInput.trim().length === 0}
-                        className={`flex h-9 w-9 items-center justify-center rounded-full transition ${
+                        className={`flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full transition active:scale-95 ${
                           threadInput.trim().length > 0 && !threadComposerDisabled
                             ? 'bg-[#10a37f] text-white hover:bg-[#0f8f6f]'
                             : 'bg-gray-200 text-gray-400 dark:bg-[#2f313a] dark:text-[#6b6f7a]'
                         } disabled:cursor-not-allowed`}
                         title="Send thread message"
                       >
-                        {isSendingThreadMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+                        {isSendingThreadMessage ? <Loader2 className="h-5 w-5 sm:h-4 sm:w-4 animate-spin" /> : <ArrowUp className="h-5 w-5 sm:h-4 sm:w-4" />}
                       </button>
                     </div>
                   </div>

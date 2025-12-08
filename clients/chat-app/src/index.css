@@ -34,15 +34,29 @@
 @layer base {
   * {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    /* Prevent tap highlight on mobile */
+    -webkit-tap-highlight-color: transparent;
   }
-  
+
   html {
     @apply text-base;
+    /* Smooth scrolling for in-page navigation */
+    scroll-behavior: smooth;
+    /* Prevent pull-to-refresh on mobile (only on the html element) */
+    overscroll-behavior-y: contain;
   }
-  
+
   body {
     @apply bg-white dark:bg-[#212121] text-[#353740] dark:text-[#ececf1];
     line-height: 1.75;
+  }
+
+  /* Root container for proper mobile layout */
+  #root {
+    min-height: 100vh;
+    min-height: 100dvh; /* Dynamic viewport height for mobile browsers */
+    display: flex;
+    flex-direction: column;
   }
   
   /* Remove all textarea borders and outlines */
@@ -248,9 +262,96 @@ textarea:focus-visible {
   .prose {
     @apply text-sm;
   }
-  
+
   body {
     @apply text-sm;
+  }
+
+  /* Native-like touch interactions */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+
+  /* Smooth momentum scrolling for all scrollable areas */
+  .overflow-y-auto, .overflow-x-auto, .overflow-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Hide scrollbars on mobile for cleaner look */
+  .message-list::-webkit-scrollbar,
+  .overflow-y-auto::-webkit-scrollbar {
+    display: none;
+  }
+
+  .message-list,
+  .overflow-y-auto {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Prevent double-tap zoom on interactive elements */
+  button, input, textarea, select, a {
+    touch-action: manipulation;
+  }
+
+  /* Better touch targets - minimum 44px for iOS */
+  button, [role="button"], a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Exception for inline buttons that need to be smaller */
+  .inline-btn, button.h-8, button.h-6 {
+    min-height: auto;
+    min-width: auto;
+  }
+}
+
+/* iOS-specific fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Fix for iOS input zoom */
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  @media (min-width: 768px) {
+    input[type="text"],
+    input[type="password"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="search"],
+    textarea,
+    select {
+      font-size: inherit !important;
+    }
+  }
+
+  /* Safe area support for bottom fixed elements */
+  .mobile-bottom-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+  }
+}
+
+/* Active state for touch feedback */
+@media (hover: none) and (pointer: coarse) {
+  button:active:not(:disabled),
+  [role="button"]:active:not(:disabled) {
+    transform: scale(0.97);
+    transition: transform 0.1s ease-out;
+  }
+
+  /* Conversation item active state */
+  .conversation-item:active {
+    @apply bg-gray-100 dark:bg-[#3c3f4a];
   }
 }
 

@@ -12,6 +12,16 @@ import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 
+const MOBILE_FRAME_CLASSES =
+  'rounded-t-[32px] border border-white/40 bg-white/95 px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-[0_25px_60px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-[#2f303d] dark:bg-[#1c1d23]/95 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:shadow-none md:backdrop-blur-0';
+
+const MOBILE_INPUT_WRAPPER_CLASSES =
+  '-mx-4 mt-auto overflow-hidden rounded-t-[28px] border-t border-x border-white/40 bg-white/98 pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-[0_-12px_45px_rgba(15,23,42,0.2)] backdrop-blur-xl transition-all duration-200 dark:border-[#2f303d] dark:bg-[#1c1d23]/98 md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 [&>div]:rounded-t-[28px] md:[&>div]:rounded-none [&>div]:bg-transparent md:[&>div]:px-0';
+
+// Mobile header classes for native-like sticky behavior
+const MOBILE_HEADER_CLASSES =
+  'sticky top-0 z-10 -mx-4 px-4 pt-2 pb-4 bg-white/95 backdrop-blur-xl dark:bg-[#1c1d23]/95 border-b border-white/50 dark:border-white/10 md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:backdrop-blur-0 md:border-gray-200 md:dark:border-[#4a4b54]';
+
 // Note: We use getApiUrl() and getDefaultKey() directly when needed
 // to ensure we always read the latest runtime config (including CLI args)
 
@@ -290,9 +300,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   };
 
   return (
-    <div className="flex-1 flex flex-col">
-      <div className="flex h-full w-full flex-col px-3 sm:px-6">
-        <div className="mx-auto flex h-full w-full max-w-5xl flex-col">
+    <div className="flex-1 flex flex-col bg-gray-50 dark:bg-[#0d0e11] md:bg-transparent md:dark:bg-transparent overflow-hidden">
+      <div className="flex h-full w-full flex-col px-3 sm:px-6 overflow-hidden">
+        <div className={`mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden ${MOBILE_FRAME_CLASSES}`}>
 
           {/* API Configuration Modal */}
           {showConfig && (
@@ -407,55 +417,57 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
             </div>
           )}
 
-          {onOpenSidebar && (
-            <div className="mb-4 flex items-center justify-between gap-3 md:hidden">
-              <button
-                onClick={onOpenSidebar}
-                className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#343541]"
-                aria-label="Open conversations menu"
-              >
-                <Menu className="h-4 w-4" />
-                Chats
-              </button>
-              <button
-                onClick={onOpenSettings}
-                className="inline-flex items-center justify-center rounded-md bg-[#343541] p-2 text-white hover:bg-[#282b32] transition-colors dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
-                aria-label="Open settings"
-              >
-                <Settings className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-
           {/* Chat Header */}
-          <div className="border-b border-gray-200 dark:border-[#4a4b54] pb-6 pt-6">
+          <div className={MOBILE_HEADER_CLASSES}>
+            {/* Mobile navigation buttons - inside header so they stick with it */}
+            {onOpenSidebar && (
+              <div className="mb-4 grid grid-cols-2 gap-3 md:hidden">
+                <button
+                  onClick={onOpenSidebar}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/50 bg-white/80 px-4 py-3.5 text-sm font-semibold text-gray-800 shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-white dark:border-[#2f303d] dark:bg-[#232430] dark:text-[#ececf1]"
+                  aria-label="Open conversations menu"
+                >
+                  <Menu className="h-5 w-5" />
+                  Chats
+                </button>
+                <button
+                  onClick={onOpenSettings}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/50 bg-[#11121a]/90 px-4 py-3.5 text-sm font-semibold text-white shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-[#0c0d14] dark:border-[#3b3c49] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
+                  aria-label="Open settings"
+                >
+                  <Settings className="h-5 w-5" />
+                  Settings
+                </button>
+              </div>
+            )}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 {/* Adapter Info - show first when available */}
                 {currentConversation?.adapterInfo && (
                   <div className="mb-4">
                     <div className="flex flex-wrap items-center gap-2 mb-3">
-                      <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-gray-100 dark:bg-[#343541] border border-gray-200 dark:border-[#4a4b54]">
-                        <span className="text-xs font-medium text-gray-600 dark:text-[#bfc2cd] uppercase tracking-wide">Agent</span>
-                        <span className="text-sm font-semibold text-[#353740] dark:text-[#ececf1]">
-                          {currentConversation.adapterInfo.client_name}
-                        </span>
-                      </div>
                       {currentConversation.adapterInfo.model && (
-                        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-gray-100 dark:bg-[#343541] border border-gray-200 dark:border-[#4a4b54]">
-                          <span className="text-xs font-medium text-gray-600 dark:text-[#bfc2cd] uppercase tracking-wide">Model</span>
-                          <span className="text-sm font-semibold text-[#353740] dark:text-[#ececf1]">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]">
+                          <span>Model</span>
+                          <span className="text-gray-800 normal-case dark:text-[#ececf1]">
                             {currentConversation.adapterInfo.model}
                           </span>
                         </div>
                       )}
+                      <div className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]">
+                        <span>Agent</span>
+                        <span className="text-gray-800 normal-case dark:text-[#ececf1]">
+                          {currentConversation.adapterInfo.client_name}
+                        </span>
+                      </div>
                       <button
                         onClick={handleRefreshAdapterInfo}
                         disabled={isRefreshingAdapterInfo || (!currentConversation?.apiKey && !currentConversation?.adapterName)}
-                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 dark:text-[#bfc2cd] dark:hover:text-white dark:hover:bg-[#4a4b54] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 dark:border-[#4a4b54] dark:text-[#bfc2cd] dark:hover:bg-[#4a4b54] dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Refresh adapter info"
                       >
                         <RefreshCw className={`h-4 w-4 ${isRefreshingAdapterInfo ? 'animate-spin' : ''}`} />
+                        <span className="hidden sm:inline">Refresh</span>
                       </button>
                     </div>
                     {/* Title and metadata */}
@@ -532,34 +544,36 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
           {/* Messages and Input - Conditional Layout */}
           {!currentConversation || currentConversation.messages.length === 0 ? (
-            // Empty state: Left-aligned content close to header, full width
-            <div className="flex-1 flex flex-col min-h-0 pt-6">
-              <div className="w-full space-y-3">
-                <div className="mb-2">
-                  {currentConversation?.adapterInfo?.notes ? (
-                    // Show adapter notes as the main prompt with markdown rendering
-                    <div className="text-base text-gray-600 dark:text-[#bfc2cd] leading-relaxed prose prose-sm dark:prose-invert prose-p:my-1 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
-                      <MarkdownRenderer content={currentConversation.adapterInfo.notes} />
-                    </div>
-                  ) : (
-                    // Fallback to default message
-                    <h2 className="text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
-                      How can I assist you today?
-                    </h2>
-                  )}
-                </div>
-                <div className="w-full [&>div]:px-0 [&>div>div]:max-w-none [&>div>div]:mx-0">
-                  <MessageInput
-                    onSend={handleSendMessage}
-                    disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
-                    placeholder="Message ORBIT..."
-                  />
+            // Empty state: Flex layout that pushes input to bottom on mobile, left-aligned on desktop
+            <div className="flex flex-1 flex-col min-h-0 pt-4 md:pt-6">
+              <div className="flex-1 flex flex-col justify-between md:justify-start md:flex-none">
+                <div className="w-full space-y-3">
+                  <div className="mb-2">
+                    {currentConversation?.adapterInfo?.notes ? (
+                      // Show adapter notes as the main prompt with markdown rendering
+                      <div className="text-base text-gray-600 dark:text-[#bfc2cd] leading-relaxed prose prose-sm dark:prose-invert prose-p:my-1 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
+                        <MarkdownRenderer content={currentConversation.adapterInfo.notes} />
+                      </div>
+                    ) : (
+                      // Fallback to default message
+                      <h2 className="text-xl md:text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
+                        How can I assist you today?
+                      </h2>
+                    )}
+                  </div>
+                  <div className={MOBILE_INPUT_WRAPPER_CLASSES}>
+                    <MessageInput
+                      onSend={handleSendMessage}
+                      disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
+                      placeholder="Message ORBIT..."
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           ) : (
             // Has messages: Normal layout with messages at top and input at bottom
-            <>
+            <div className="flex flex-1 flex-col">
               <MessageList
                 messages={currentConversation.messages}
                 onRegenerate={regenerateResponse}
@@ -574,12 +588,14 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 sessionId={currentConversation.sessionId}
                 isLoading={isLoading}
               />
-              <MessageInput
-                onSend={handleSendMessage}
-                disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
-                placeholder="Message ORBIT..."
-              />
-            </>
+              <div className={MOBILE_INPUT_WRAPPER_CLASSES}>
+                <MessageInput
+                  onSend={handleSendMessage}
+                  disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
+                  placeholder="Message ORBIT..."
+                />
+              </div>
+            </div>
           )}
         </div>
       </div>

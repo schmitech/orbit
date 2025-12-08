@@ -31,18 +31,18 @@ function App() {
           {isMobileSidebarOpen && (
             <div className="fixed inset-0 z-50 flex md:hidden">
               <div
-                className="absolute inset-0 bg-black/60"
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                 onClick={() => setIsMobileSidebarOpen(false)}
                 aria-hidden="true"
               />
-              <div className="relative z-10 h-full w-[min(18rem,85vw)]">
+              <div className="relative z-10 h-full w-[min(18rem,85vw)] animate-slideIn">
                 <Sidebar onRequestClose={() => setIsMobileSidebarOpen(false)} />
                 <button
                   onClick={() => setIsMobileSidebarOpen(false)}
-                  className="absolute -right-3 top-3 rounded-full bg-white/90 p-2 text-gray-600 shadow dark:bg-[#2d2f39] dark:text-[#ececf1]"
+                  className="absolute -right-3 top-[max(env(safe-area-inset-top),0.75rem)] rounded-full bg-white/95 p-2.5 text-gray-600 shadow-lg active:scale-95 transition-transform dark:bg-[#2d2f39] dark:text-[#ececf1]"
                   aria-label="Close menu"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
