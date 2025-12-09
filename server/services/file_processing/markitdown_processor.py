@@ -77,6 +77,8 @@ class MarkItDownProcessor(FileProcessor):
             return False
 
         # MarkItDown supports a wide range of formats
+        # NOTE: CSV and JSON are excluded here to use native token-optimized processors
+        # which are more efficient for LLMs with limited context windows
         supported_types = [
             # Documents
             'application/pdf',
@@ -89,12 +91,12 @@ class MarkItDownProcessor(FileProcessor):
 
             # Text formats
             'text/html',
-            'text/csv',
+            # CSV excluded - use native CSVProcessor for token-efficient output
             'text/plain',
             'text/markdown',
             'text/xml',
             'application/xml',
-            'application/json',
+            # JSON excluded - use native JSONProcessor for token-efficient output
 
             # Images (EXIF metadata extraction)
             'image/png',

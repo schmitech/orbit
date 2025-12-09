@@ -10,10 +10,11 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama_cloud"    # Override default inference provider
-    model: "glm-4.6"            # Specific model for this adapter
-    embedding_provider: "openai"          # Embedding provider for file chunk retrieval (matches uploaded files)
-    vision_provider: "openai"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    inference_provider: "ollama"    # Override default inference provider
+    model: "gpt-oss:20b"            # Specific model for this adapter
+    embedding_provider: "ollama"          # Embedding provider for file chunk retrieval (matches uploaded files)
+    vision_provider: "ollama"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    audio_provider: "whisper"             # Audio provider for STT transcription (see sound.yaml) - local, free!
 
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
@@ -39,21 +40,22 @@ adapters:
       # Chunking strategy options: "fixed", "semantic", "token", "recursive"
       # These settings override global defaults in config.yaml
       chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive"
-      chunk_size: 1000  # Characters for fixed/semantic, tokens for token/recursive
-      chunk_overlap: 200  # Characters for fixed/semantic, tokens for token/recursive
-      
+      chunk_size: 1000  # Increased to fit token-optimized CSV/JSON summaries in single chunks
+      chunk_overlap: 100  # Characters for fixed/semantic, tokens for token/recursive
+
       # Vector store integration
       vector_store: "chroma"  # References stores.yaml
       collection_prefix: "files_"
-      
-      # Q&A settings
+
+      # Q&A settings - optimized for local LLMs with limited context (8K tokens)
+      # 3 chunks × 2000 chars ≈ 6K chars, leaving room for system prompt + response
       confidence_threshold: 0.3
-      max_results: 5
-      return_results: 3
+      max_results: 10       # Retrieve 5 chunks for good similarity matching
+      return_results: 10    # Send top 3 to LLM to stay within context limits
 
   # Enhanced multimodal adapter with audio file transcription support
   - name: "simple-chat-with-files-audio"
-    enabled: true
+    enabled: false
     type: "passthrough"  # Passthrough adapter with file retrieval and audio transcription
     datasource: "none"
     adapter: "multimodal"
@@ -63,7 +65,7 @@ adapters:
     model: "gpt-oss:120b"
     embedding_provider: "openai"
     vision_provider: "gemini"             # For image files
-    audio_provider: "openai"              # For audio file transcription (NEW)
+    audio_provider: "gemini"              # For audio file transcription and TTS (changed from openai)
 
     # Capabilities: Multimodal with audio support
     capabilities:
@@ -125,15 +127,15 @@ adapters:
   # Upload audio files → Get transcriptions and chat about the content
   # Uses local Whisper for transcription - completely free and offline!
   - name: "local-voice-chat"
-    enabled: true
+    enabled: false
     type: "passthrough"
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
 
     # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5"
     embedding_provider: "openai"
     audio_provider: "whisper"  # Local Whisper for audio transcription (free, offline)
 

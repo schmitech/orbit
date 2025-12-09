@@ -171,6 +171,13 @@ class FileVectorRetriever(AbstractVectorRetriever):
 
         # Group and format results
         formatted_results = self._format_results(results)
+
+        # Apply return_results limit (truncate to configured number of results)
+        return_limit = getattr(self, 'return_results', 3)
+        if len(formatted_results) > return_limit:
+            logger.info(f"FileVectorRetriever: Truncating results from {len(formatted_results)} to {return_limit} (return_results config)")
+            formatted_results = formatted_results[:return_limit]
+
         logger.debug(f"FileVectorRetriever: Final formatted results: {len(formatted_results)} chunks")
         logger.debug("=" * 80)
 
@@ -269,8 +276,18 @@ class FileVectorRetriever(AbstractVectorRetriever):
     
     async def _search_collection(self, collection_name: str, query_embedding: List[float],
                                  file_ids: Optional[List[str]] = None,
-                                 limit: int = 10) -> List[Dict[str, Any]]:
-        """Search a specific collection for relevant chunks."""
+                                 limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Search a specific collection for relevant chunks.
+
+        Args:
+            collection_name: Name of the collection to search
+            query_embedding: Query embedding vector
+            file_ids: Optional list of file IDs to filter by
+            limit: Maximum results to retrieve. Defaults to self.max_results (from adapter config)
+        """
+        # Use max_results from adapter config if not specified
+        if limit is None:
+            limit = getattr(self, 'max_results', 10)
         if not self._default_store:
             return []
         

@@ -106,13 +106,13 @@ class FileProcessorRegistry:
         
         try:
             from .csv_processor import CSVProcessor
-            self.register(CSVProcessor())
+            self.register(CSVProcessor(config=self.config))
         except ImportError as e:
             logger.debug(f"CSVProcessor not available: {e}")
-        
+
         try:
             from .json_processor import JSONProcessor
-            self.register(JSONProcessor())
+            self.register(JSONProcessor(config=self.config))
         except ImportError as e:
             logger.debug(f"JSONProcessor not available: {e}")
         

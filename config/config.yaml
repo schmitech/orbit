@@ -20,10 +20,10 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "ollama"
+  inference_provider: "llama_cpp"
 
 language_detection:
-  enabled: true
+  enabled: false
   backends:
     - "langdetect"
     - "langid"
@@ -311,7 +311,42 @@ files:
     markitdown:
       # Enable third-party plugins (default: false for security)
       enable_plugins: false
-  
+
+    # CSV processor settings
+    csv:
+      # For small CSVs, include ALL rows to enable exact lookups (e.g., "find ID X")
+      # Files with <= this many rows will have all data indexed, not just samples
+      # Set to 0 to always use summary mode (token-efficient but no exact lookups)
+      full_data_row_threshold: 200
+
+      # Number of sample rows to show in summary mode (for large files)
+      max_preview_rows: 5
+
+      # Maximum characters per column value before truncation
+      max_column_width: 50
+
+      # Maximum columns to show in detail (remaining columns listed by name only)
+      max_columns_full: 15
+
+    # JSON processor settings
+    json:
+      # For small JSON arrays, include ALL items to enable exact lookups (e.g., "find ID X")
+      # Arrays with <= this many items will have all data indexed, not just samples
+      # Set to 0 to always use summary mode (token-efficient but no exact lookups)
+      full_data_item_threshold: 200
+
+      # Maximum array items to show in previews (for large arrays in summary mode)
+      max_array_preview_items: 3
+
+      # Maximum depth for schema extraction
+      max_schema_depth: 4
+
+      # Maximum string length before truncation
+      max_string_length: 100
+
+      # Maximum keys to show for large objects
+      max_object_keys: 20
+
   # Tokenizer configuration (optional)
   # If not specified, uses character-based tokenization
   # Options: "character" (default), "gpt2", "tiktoken", or custom tokenizer identifier

@@ -82,6 +82,8 @@ class DoclingProcessor(FileProcessor):
         # We can return True for supported types without initializing
         
         # Docling supports a wide range of formats
+        # NOTE: CSV and JSON are excluded here to use native token-optimized processors
+        # which are more efficient for LLMs with limited context windows
         supported_types = [
             # Documents
             'application/pdf',
@@ -95,10 +97,8 @@ class DoclingProcessor(FileProcessor):
             'text/x-markdown',
             'text/asciidoc',
             'text/x-asciidoc',
-            'text/csv',
-            # Note: 'application/json' removed - Docling only supports its own
-            # serialized format, not arbitrary JSON files. Regular JSON should
-            # be handled by a dedicated JSON processor.
+            # CSV excluded - use native CSVProcessor for token-efficient output
+            # JSON excluded - use native JSONProcessor for token-efficient output
             # XML formats (USPTO, JATS)
             'application/xml',
             'text/xml',
