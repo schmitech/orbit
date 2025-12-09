@@ -405,7 +405,7 @@ export function Message({
         )}
 
         {threadsEnabled && message.threadInfo && (
-          <div className="ml-0 sm:ml-12 mt-4 rounded-xl border border-blue-100/80 bg-blue-50/70 p-3 sm:p-4 text-sm shadow-sm ring-1 ring-blue-100/60 dark:border-[#1f2a36] dark:bg-[#0f1821] dark:ring-[#1f2a36]">
+          <div className="thread-panel mt-4 rounded-xl border border-blue-100/80 bg-blue-50/70 p-3 sm:p-4 text-sm shadow-sm ring-1 ring-blue-100/60 dark:border-[#1f2a36] dark:bg-[#0f1821] dark:ring-[#1f2a36]">
             <div className="flex items-center justify-between gap-2 text-sm font-semibold text-blue-900 dark:text-[#c5d7ff]">
               <div className="inline-flex items-center gap-2 uppercase tracking-wide text-xs sm:text-sm">
                 <MessageSquare className="h-3.5 w-3.5" />

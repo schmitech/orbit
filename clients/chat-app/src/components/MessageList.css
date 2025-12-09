@@ -39,30 +39,30 @@
   --thread-avatar-user-text: #d7fff3;
 }
 
-.message-list :where(.ml-12.mt-4.rounded-xl.border) {
+.message-list :where(.thread-panel) {
   background-color: var(--thread-panel-bg) !important;
   border-color: var(--thread-panel-border) !important;
   box-shadow: var(--thread-panel-shadow) !important;
   backdrop-filter: blur(10px);
 }
 
-.message-list :where(.ml-12.mt-4.rounded-xl.border) .text-blue-900,
-.message-list :where(.ml-12.mt-4.rounded-xl.border) .dark\:text-\[\#c5d7ff\] {
+.message-list :where(.thread-panel) .text-blue-900,
+.message-list :where(.thread-panel) .dark\:text-\[\#c5d7ff\] {
   color: var(--thread-panel-heading) !important;
 }
 
-.message-list :where(.ml-12.mt-4.rounded-xl.border) .border-blue-200\/80,
-.message-list :where(.ml-12.mt-4.rounded-xl.border) .dark\:border-\[\#233449\] {
+.message-list :where(.thread-panel) .border-blue-200\/80,
+.message-list :where(.thread-panel) .dark\:border-\[\#233449\] {
   border-color: var(--thread-panel-button-border) !important;
 }
 
-.message-list :where(.ml-12.mt-4.rounded-xl.border) button.inline-flex.items-center.gap-2.rounded-full.border {
+.message-list :where(.thread-panel) button.inline-flex.items-center.gap-2.rounded-full.border {
   color: var(--thread-panel-button-text) !important;
   background-color: transparent;
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.message-list :where(.ml-12.mt-4.rounded-xl.border) button.inline-flex.items-center.gap-2.rounded-full.border:hover {
+.message-list :where(.thread-panel) button.inline-flex.items-center.gap-2.rounded-full.border:hover {
   background-color: var(--thread-panel-button-hover) !important;
 }
 
