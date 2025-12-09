@@ -33,9 +33,8 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
 - **Updates:** Check the [changelog](CHANGELOG.md)
+- **Commercial Support:** [schmitech.ai](https://schmitech.ai/en)
 - **Maintained by:** [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/)
-
-> **Important:** ORBIT is not affiliated with, endorsed by, or funded by any organization. ORBIT is provided **free of charge** with **no commercial intent** or sales purposes.
 
 ## Table of Contents
 
@@ -43,6 +42,7 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 - [🛠️ Why ORBIT](#why-orbit)
 - [🚀 Quick Start](#quick-start)
 - [⭐ Support the Project](#support-the-project)
+- [🏢 Commercial Support](#commercial-support)
 - [📖 Documentation](#documentation)
 - [📄 License](#license)
 
@@ -418,6 +418,31 @@ Your support keeps ORBIT independent and focused on open-source innovation.
 - ⭐ Star the repo to signal that ORBIT matters to you.
 - 📣 Share a demo, blog, or tweet so other builders discover it.
 - 🐛 Open issues and PRs—your feedback directly shapes the roadmap.
+
+---
+
+## Commercial Support
+
+**[Schmitech](https://schmitech.ai/en)** is the official commercial support provider for ORBIT, offering enterprise-grade services for organizations that need dedicated assistance.
+
+### Services
+
+| Service | Description |
+|---------|-------------|
+| **Managed Hosting** | Fully managed ORBIT deployments with SLA guarantees, 24/7 monitoring, and automatic updates |
+| **Custom Development** | Custom adapters, model fine-tuning, prompt engineering, and performance optimization |
+| **Enterprise Integration** | Connect ORBIT to your existing databases, APIs, SSO, and data pipelines |
+| **Installation & Setup** | On-premise deployment, cloud infrastructure setup (AWS, GCP, Azure), and security hardening |
+| **Training & Workshops** | Hands-on training, developer bootcamps, and best practices documentation |
+| **Dedicated Support** | Priority response, dedicated support engineer, and Slack/Teams channel access |
+
+### Support Plans
+
+- **Community** – Free tier with GitHub Issues and public documentation
+- **Professional** – Email support, private Slack, installation assistance, quarterly reviews
+- **Enterprise** – 4-hour SLA, dedicated engineer, custom development hours, 24/7 emergency support
+
+👉 **[Get in touch](https://schmitech.ai/en/contact)** to discuss your requirements.
 
 ---
 
