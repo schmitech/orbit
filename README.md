@@ -24,6 +24,11 @@ ORBIT (Open Retrieval-Based Inference Toolkit) is a middleware platform that pro
 
 ORBIT gives you a single, consistent API to run LLMs (local or cloud) against your private data sources with portability, performance, high-availability, and security at the core.
 
+<video src="https://github.com/user-attachments/assets/b188a903-c6b0-44a9-85ad-5191f36778dc" controls width="800" style="display: block; margin-left: 0;">
+  Your browser does not support the video tag.
+</video>
+<br/>
+
 > ⭐️ If ORBIT helps you ship faster, please consider starring the repo to support the roadmap.
 
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
@@ -75,7 +80,7 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 
 There are three ways to get started with ORBIT.
 
-### Option 1: Docker (Recommended)
+### Option 1: Docker
 
 This is the fastest way to get ORBIT running. The demo image includes a self-contained server with a local model, so no additional API keys are needed.
 
