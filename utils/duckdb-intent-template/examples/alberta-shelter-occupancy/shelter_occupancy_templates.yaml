@@ -1,0 +1,790 @@
+status: completed
+generated_at: '2025-01-27T12:00:00.000000'
+last_updated: '2025-01-27T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 25
+templates:
+# =============================================================================
+# CAPACITY & UTILIZATION ANALYSIS - Critical for resource planning
+# =============================================================================
+
+- id: current_capacity_utilization_by_city
+  description: Calculate current average capacity utilization rate by city to identify where resources are most strained
+  sql: |
+    SELECT
+      city,
+      COUNT(DISTINCT shelter_name) AS shelter_count,
+      ROUND(AVG(capacity), 0) AS avg_capacity,
+      ROUND(AVG(overnight), 0) AS avg_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct
+    FROM shelter_occupancy
+    WHERE year = :year AND capacity > 0 AND overnight IS NOT NULL
+    GROUP BY city
+    ORDER BY utilization_pct DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  nl_examples:
+  - What is the capacity utilization by city in 2024?
+  - Which cities have the highest shelter occupancy rates?
+  - Show me utilization rates across Alberta cities
+  - Where are shelters most full?
+  - Compare shelter capacity usage by city
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: shelter_occupancy
+    qualifiers: [city, utilization]
+  tags: [utilization, capacity, city, planning]
+
+- id: shelters_over_capacity
+  description: Identify shelters frequently operating over capacity - critical safety metric
+  sql: |
+    SELECT
+      shelter_name,
+      city,
+      shelter_type,
+      organization,
+      COUNT(*) AS days_over_capacity,
+      ROUND(AVG(overnight - capacity), 0) AS avg_excess,
+      MAX(overnight - capacity) AS max_excess
+    FROM shelter_occupancy
+    WHERE overnight > capacity AND capacity > 0 AND year = :year
+    GROUP BY shelter_name, city, shelter_type, organization
+    HAVING COUNT(*) >= :min_days
+    ORDER BY days_over_capacity DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  - name: min_days
+    type: integer
+    description: Minimum days over capacity to include
+    required: false
+    default: 10
+  nl_examples:
+  - Which shelters are overcrowded?
+  - Show me shelters that exceeded capacity in 2024
+  - What shelters are operating over capacity?
+  - Identify overcrowding issues
+  - Which facilities need more beds?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: shelter_occupancy
+    qualifiers: [capacity, safety]
+  tags: [overcrowding, safety, capacity, critical]
+
+- id: underutilized_shelters
+  description: Find shelters with consistently low utilization - opportunity for resource reallocation
+  sql: |
+    SELECT
+      shelter_name,
+      city,
+      shelter_type,
+      organization,
+      ROUND(AVG(capacity), 0) AS avg_capacity,
+      ROUND(AVG(overnight), 0) AS avg_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct
+    FROM shelter_occupancy
+    WHERE year = :year AND capacity > 0
+    GROUP BY shelter_name, city, shelter_type, organization
+    HAVING AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END) < :threshold
+    ORDER BY utilization_pct ASC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  - name: threshold
+    type: integer
+    description: Utilization threshold percentage (shelters below this)
+    required: false
+    default: 50
+  nl_examples:
+  - Which shelters are underutilized?
+  - Show me shelters with low occupancy rates
+  - Where do we have excess capacity?
+  - Find shelters running below half capacity
+  - Identify resource reallocation opportunities
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: shelter_occupancy
+    qualifiers: [utilization, efficiency]
+  tags: [underutilized, efficiency, planning]
+
+# =============================================================================
+# YEAR-OVER-YEAR TRENDS - Strategic planning insights
+# =============================================================================
+
+- id: yearly_occupancy_trends
+  description: Track year-over-year changes in total overnight stays to understand demand growth
+  sql: |
+    SELECT
+      year,
+      SUM(overnight) AS total_overnight,
+      ROUND(AVG(overnight), 0) AS avg_daily_overnight,
+      COUNT(DISTINCT shelter_name) AS active_shelters,
+      SUM(capacity) AS total_capacity_days,
+      ROUND(SUM(overnight) * 100.0 / NULLIF(SUM(capacity), 0), 1) AS overall_utilization_pct
+    FROM shelter_occupancy
+    WHERE overnight IS NOT NULL
+    GROUP BY year
+    ORDER BY year DESC
+  parameters: []
+  nl_examples:
+  - How has shelter demand changed over the years?
+  - Show me yearly occupancy trends
+  - What is the year-over-year shelter usage?
+  - Is homelessness increasing or decreasing?
+  - Track shelter demand over time
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: shelter_occupancy
+    qualifiers: [trends, yearly]
+  tags: [trends, yearly, strategic, demand]
+
+- id: city_growth_comparison
+  description: Compare occupancy growth rates between cities
+  sql: |
+    SELECT
+      city,
+      SUM(CASE WHEN year = :year THEN overnight END) AS current_year_overnight,
+      SUM(CASE WHEN year = :year - 1 THEN overnight END) AS previous_year_overnight,
+      ROUND((SUM(CASE WHEN year = :year THEN overnight END) - SUM(CASE WHEN year = :year - 1 THEN overnight END)) * 100.0
+        / NULLIF(SUM(CASE WHEN year = :year - 1 THEN overnight END), 0), 1) AS yoy_change_pct
+    FROM shelter_occupancy
+    WHERE year IN (:year, :year - 1) AND overnight IS NOT NULL
+    GROUP BY city
+    HAVING SUM(CASE WHEN year = :year - 1 THEN overnight END) > 0
+    ORDER BY yoy_change_pct DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Current year to compare
+    required: true
+  nl_examples:
+  - Which cities saw the biggest increase in shelter usage?
+  - Compare city growth rates year over year
+  - Where is homelessness growing fastest?
+  - Show me year-over-year changes by city
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: shelter_occupancy
+    qualifiers: [city, growth]
+  tags: [comparison, growth, city, trends]
+
+# =============================================================================
+# SEASONAL ANALYSIS - Operational planning
+# =============================================================================
+
+- id: seasonal_demand_patterns
+  description: Analyze monthly patterns to plan for seasonal demand fluctuations
+  sql: |
+    SELECT
+      month,
+      CASE month
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      ROUND(AVG(overnight), 0) AS avg_daily_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS avg_utilization_pct,
+      MAX(overnight) AS peak_overnight
+    FROM shelter_occupancy
+    WHERE overnight IS NOT NULL AND year >= :start_year
+    GROUP BY month
+    ORDER BY month
+  parameters:
+  - name: start_year
+    type: integer
+    description: Start year for analysis (includes all years from this point)
+    required: false
+    default: 2020
+  nl_examples:
+  - When is shelter demand highest during the year?
+  - Show me seasonal patterns in shelter usage
+  - Which months have the most overnight stays?
+  - What are the peak demand months?
+  - How does winter affect shelter occupancy?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: shelter_occupancy
+    qualifiers: [seasonal, monthly]
+  tags: [seasonal, planning, monthly, patterns]
+
+- id: winter_emergency_analysis
+  description: Analyze Winter Emergency shelter performance during cold months (Nov-Mar)
+  sql: |
+    SELECT
+      year,
+      city,
+      COUNT(DISTINCT shelter_name) AS winter_shelters,
+      SUM(overnight) AS total_overnight,
+      ROUND(AVG(overnight), 0) AS avg_daily_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct
+    FROM shelter_occupancy
+    WHERE shelter_type = 'Winter Emergency'
+      AND month IN (11, 12, 1, 2, 3)
+      AND overnight IS NOT NULL
+    GROUP BY year, city
+    ORDER BY year DESC, total_overnight DESC
+  parameters: []
+  nl_examples:
+  - How are winter emergency shelters performing?
+  - Show me winter shelter usage trends
+  - What is the winter emergency shelter capacity?
+  - Analyze cold weather shelter demand
+  - Winter shelter occupancy by city
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: shelter_occupancy
+    qualifiers: [winter, seasonal]
+  tags: [winter, emergency, seasonal, cold-weather]
+
+# =============================================================================
+# SHELTER TYPE ANALYSIS - Service planning
+# =============================================================================
+
+- id: shelter_type_comparison
+  description: Compare occupancy and utilization across different shelter types
+  sql: |
+    SELECT
+      shelter_type,
+      COUNT(DISTINCT shelter_name) AS shelter_count,
+      SUM(overnight) AS total_overnight,
+      ROUND(AVG(overnight), 0) AS avg_daily_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS avg_utilization_pct
+    FROM shelter_occupancy
+    WHERE year = :year AND overnight IS NOT NULL AND shelter_type IS NOT NULL
+    GROUP BY shelter_type
+    ORDER BY total_overnight DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  nl_examples:
+  - Compare different shelter types
+  - Which type of shelter has the highest demand?
+  - Show me occupancy by shelter category
+  - Adult vs youth vs women shelter comparison
+  - What shelter types are most utilized?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: shelter_occupancy
+    qualifiers: [shelter_type]
+  tags: [comparison, shelter-type, service-planning]
+
+- id: women_shelter_analysis
+  description: Analyze Women Emergency shelter capacity and demand
+  sql: |
+    SELECT
+      city,
+      shelter_name,
+      organization,
+      ROUND(AVG(capacity), 0) AS avg_capacity,
+      ROUND(AVG(overnight), 0) AS avg_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct,
+      COUNT(CASE WHEN overnight > capacity THEN 1 END) AS days_over_capacity
+    FROM shelter_occupancy
+    WHERE shelter_type = 'Women Emergency' AND year = :year AND overnight IS NOT NULL
+    GROUP BY city, shelter_name, organization
+    ORDER BY utilization_pct DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  nl_examples:
+  - How are women's shelters performing?
+  - Show me women's emergency shelter occupancy
+  - What is the demand for women's shelters?
+  - Women shelter capacity analysis
+  - Are women's shelters at capacity?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: shelter_occupancy
+    qualifiers: [women, demographic]
+  tags: [women, demographic, gender-specific]
+
+- id: youth_shelter_analysis
+  description: Analyze Youth Emergency shelter capacity and demand
+  sql: |
+    SELECT
+      city,
+      shelter_name,
+      organization,
+      ROUND(AVG(capacity), 0) AS avg_capacity,
+      ROUND(AVG(overnight), 0) AS avg_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct,
+      COUNT(CASE WHEN overnight > capacity THEN 1 END) AS days_over_capacity
+    FROM shelter_occupancy
+    WHERE shelter_type = 'Youth Emergency' AND year = :year AND overnight IS NOT NULL
+    GROUP BY city, shelter_name, organization
+    ORDER BY utilization_pct DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  nl_examples:
+  - How are youth shelters performing?
+  - Show me youth emergency shelter occupancy
+  - What is the demand for youth shelters?
+  - Youth shelter capacity analysis
+  - Are youth shelters meeting demand?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: shelter_occupancy
+    qualifiers: [youth, demographic]
+  tags: [youth, demographic, age-specific]
+
+# =============================================================================
+# ORGANIZATION PERFORMANCE - Provider accountability
+# =============================================================================
+
+- id: organization_performance
+  description: Compare shelter organizations by total capacity managed and utilization
+  sql: |
+    SELECT
+      organization,
+      COUNT(DISTINCT shelter_name) AS shelters_operated,
+      COUNT(DISTINCT city) AS cities_served,
+      SUM(overnight) AS total_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS avg_utilization_pct
+    FROM shelter_occupancy
+    WHERE year = :year AND organization IS NOT NULL AND overnight IS NOT NULL
+    GROUP BY organization
+    ORDER BY total_overnight DESC
+    LIMIT 15
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  nl_examples:
+  - Which organizations serve the most people?
+  - Compare shelter providers by volume
+  - Show me organization performance metrics
+  - Who are the largest shelter operators?
+  - Organization capacity and utilization comparison
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: shelter_occupancy
+    qualifiers: [organization]
+  tags: [organization, performance, providers]
+
+- id: specific_organization_detail
+  description: Get detailed performance for a specific organization
+  sql: |
+    SELECT
+      shelter_name,
+      city,
+      shelter_type,
+      ROUND(AVG(capacity), 0) AS avg_capacity,
+      ROUND(AVG(overnight), 0) AS avg_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct,
+      COUNT(CASE WHEN overnight > capacity THEN 1 END) AS days_over_capacity
+    FROM shelter_occupancy
+    WHERE organization = :organization AND year = :year AND overnight IS NOT NULL
+    GROUP BY shelter_name, city, shelter_type
+    ORDER BY avg_overnight DESC
+  parameters:
+  - name: organization
+    type: string
+    description: Organization name (e.g., Hope Mission, Salvation Army)
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  nl_examples:
+  - Show me all Hope Mission shelters
+  - What shelters does Salvation Army operate?
+  - Calgary Drop-In Centre performance
+  - Details for a specific organization
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: shelter_occupancy
+    qualifiers: [organization]
+  tags: [organization, detail, performance]
+
+# =============================================================================
+# CITY-SPECIFIC ANALYSIS - Local planning
+# =============================================================================
+
+- id: city_shelter_overview
+  description: Get comprehensive shelter overview for a specific city
+  sql: |
+    SELECT
+      shelter_type,
+      COUNT(DISTINCT shelter_name) AS shelter_count,
+      SUM(overnight) AS total_overnight,
+      ROUND(AVG(capacity), 0) AS avg_capacity_per_shelter,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct
+    FROM shelter_occupancy
+    WHERE city = :city AND year = :year AND overnight IS NOT NULL
+    GROUP BY shelter_type
+    ORDER BY total_overnight DESC
+  parameters:
+  - name: city
+    type: string
+    description: City name (Edmonton, Calgary, etc.)
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  nl_examples:
+  - Show me Edmonton's shelter overview
+  - What is Calgary's shelter capacity?
+  - Shelter breakdown for Grande Prairie
+  - City-level shelter analysis
+  - How many shelters are in Edmonton?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: shelter_occupancy
+    qualifiers: [city]
+  tags: [city, overview, local-planning]
+
+- id: edmonton_vs_calgary
+  description: Direct comparison between Edmonton and Calgary shelter systems
+  sql: |
+    SELECT
+      city,
+      COUNT(DISTINCT shelter_name) AS shelter_count,
+      SUM(overnight) AS total_overnight,
+      ROUND(AVG(overnight), 0) AS avg_daily_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct
+    FROM shelter_occupancy
+    WHERE city IN ('Edmonton', 'Calgary') AND year = :year AND overnight IS NOT NULL
+    GROUP BY city
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare
+    required: true
+  nl_examples:
+  - Compare Edmonton and Calgary shelter systems
+  - Edmonton vs Calgary shelter demand
+  - Which city has more shelter usage?
+  - Major city shelter comparison
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: shelter_occupancy
+    qualifiers: [city, edmonton, calgary]
+  tags: [comparison, edmonton, calgary, major-cities]
+
+# =============================================================================
+# SPECIFIC SHELTER ANALYSIS - Facility-level insights
+# =============================================================================
+
+- id: specific_shelter_monthly_trend
+  description: Monthly occupancy trend for a specific shelter
+  sql: |
+    SELECT
+      year,
+      month,
+      ROUND(AVG(capacity), 0) AS avg_capacity,
+      ROUND(AVG(overnight), 0) AS avg_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct,
+      MAX(overnight) AS peak_overnight
+    FROM shelter_occupancy
+    WHERE shelter_name LIKE '%' || :shelter_name || '%'
+      AND year >= :start_year
+      AND overnight IS NOT NULL
+    GROUP BY year, month
+    ORDER BY year DESC, month DESC
+    LIMIT 24
+  parameters:
+  - name: shelter_name
+    type: string
+    description: Shelter name (partial match)
+    required: true
+  - name: start_year
+    type: integer
+    description: Start year for trend
+    required: false
+    default: 2022
+  nl_examples:
+  - Show me Herb Jamieson Centre monthly trend
+  - Drop-In Centre occupancy over time
+  - Hope Mission monthly occupancy
+  - Track a specific shelter's performance
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: shelter_occupancy
+    qualifiers: [shelter, trend]
+  tags: [shelter-specific, trends, monthly]
+
+- id: top_capacity_shelters
+  description: List shelters with highest total capacity
+  sql: |
+    SELECT
+      shelter_name,
+      city,
+      organization,
+      shelter_type,
+      MAX(capacity) AS max_capacity,
+      ROUND(AVG(overnight), 0) AS avg_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct
+    FROM shelter_occupancy
+    WHERE year = :year AND capacity IS NOT NULL AND overnight IS NOT NULL
+    GROUP BY shelter_name, city, organization, shelter_type
+    ORDER BY max_capacity DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  - name: limit
+    type: integer
+    description: Number of shelters to return
+    required: false
+    default: 10
+  nl_examples:
+  - What are the largest shelters in Alberta?
+  - Show me shelters with most beds
+  - Top shelters by capacity
+  - Biggest emergency shelters
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: shelter_occupancy
+    qualifiers: [capacity, ranking]
+  tags: [capacity, ranking, top]
+
+# =============================================================================
+# TRANSITIONAL HOUSING - Program effectiveness
+# =============================================================================
+
+- id: transitional_vs_emergency
+  description: Compare transitional housing to emergency shelter utilization
+  sql: |
+    SELECT
+      CASE
+        WHEN shelter_type = 'Transitional' THEN 'Transitional'
+        ELSE 'Emergency (All Types)'
+      END AS category,
+      COUNT(DISTINCT shelter_name) AS shelter_count,
+      SUM(overnight) AS total_overnight,
+      ROUND(AVG(overnight), 0) AS avg_daily,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct
+    FROM shelter_occupancy
+    WHERE year = :year AND overnight IS NOT NULL
+    GROUP BY category
+    ORDER BY category
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  nl_examples:
+  - Compare transitional housing to emergency shelters
+  - How does transitional occupancy compare?
+  - Transitional vs emergency shelter usage
+  - Are people moving to transitional housing?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: shelter_occupancy
+    qualifiers: [transitional, emergency]
+  tags: [transitional, emergency, comparison, housing-continuum]
+
+# =============================================================================
+# REFERENCE DATA - System information
+# =============================================================================
+
+- id: list_cities
+  description: List all cities with shelter data
+  sql: |
+    SELECT DISTINCT
+      city,
+      COUNT(DISTINCT shelter_name) AS shelter_count,
+      MIN(year) AS data_from,
+      MAX(year) AS data_to
+    FROM shelter_occupancy
+    WHERE city IS NOT NULL
+    GROUP BY city
+    ORDER BY shelter_count DESC
+  parameters: []
+  nl_examples:
+  - What cities have shelter data?
+  - List all cities in the database
+  - Which cities are covered?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: shelter_occupancy
+    qualifiers: [reference]
+  tags: [reference, cities, metadata]
+
+- id: list_shelter_types
+  description: List all shelter types with counts
+  sql: |
+    SELECT DISTINCT
+      shelter_type,
+      COUNT(DISTINCT shelter_name) AS shelter_count,
+      SUM(overnight) AS total_overnight_all_time
+    FROM shelter_occupancy
+    WHERE shelter_type IS NOT NULL AND overnight IS NOT NULL
+    GROUP BY shelter_type
+    ORDER BY total_overnight_all_time DESC
+  parameters: []
+  nl_examples:
+  - What types of shelters exist?
+  - List all shelter categories
+  - Show me shelter type breakdown
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: shelter_occupancy
+    qualifiers: [reference]
+  tags: [reference, shelter-types, metadata]
+
+- id: list_organizations
+  description: List all shelter organizations
+  sql: |
+    SELECT DISTINCT
+      organization,
+      COUNT(DISTINCT shelter_name) AS shelters_operated,
+      COUNT(DISTINCT city) AS cities_served
+    FROM shelter_occupancy
+    WHERE organization IS NOT NULL
+    GROUP BY organization
+    ORDER BY shelters_operated DESC
+  parameters: []
+  nl_examples:
+  - What organizations operate shelters?
+  - List all shelter providers
+  - Who runs the shelters?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: shelter_occupancy
+    qualifiers: [reference]
+  tags: [reference, organizations, metadata]
+
+- id: data_coverage
+  description: Show data coverage summary - years and records available
+  sql: |
+    SELECT
+      MIN(date) AS earliest_date,
+      MAX(date) AS latest_date,
+      COUNT(DISTINCT year) AS years_covered,
+      COUNT(*) AS total_records,
+      COUNT(DISTINCT city) AS cities,
+      COUNT(DISTINCT shelter_name) AS shelters,
+      COUNT(DISTINCT organization) AS organizations
+    FROM shelter_occupancy
+  parameters: []
+  nl_examples:
+  - What data is available?
+  - Show me data coverage
+  - How much historical data exists?
+  - What is the date range of the data?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: shelter_occupancy
+    qualifiers: [reference, metadata]
+  tags: [reference, coverage, metadata]
+
+# =============================================================================
+# INTOX/DETOX ANALYSIS - Substance abuse services
+# =============================================================================
+
+- id: intox_shelter_analysis
+  description: Analyze Intox (substance abuse) shelter usage patterns
+  sql: |
+    SELECT
+      city,
+      shelter_name,
+      organization,
+      ROUND(AVG(capacity), 0) AS avg_capacity,
+      ROUND(AVG(overnight), 0) AS avg_overnight,
+      ROUND(AVG(CASE WHEN capacity > 0 THEN (overnight * 100.0 / capacity) END), 1) AS utilization_pct,
+      COUNT(CASE WHEN overnight > capacity THEN 1 END) AS days_over_capacity
+    FROM shelter_occupancy
+    WHERE shelter_type = 'Intox' AND year = :year AND overnight IS NOT NULL
+    GROUP BY city, shelter_name, organization
+    ORDER BY avg_overnight DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: true
+  nl_examples:
+  - How are intox shelters performing?
+  - Show me substance abuse shelter data
+  - What is the intox center occupancy?
+  - Detox facility utilization
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: shelter_occupancy
+    qualifiers: [intox, substance-abuse]
+  tags: [intox, detox, substance-abuse, health]
