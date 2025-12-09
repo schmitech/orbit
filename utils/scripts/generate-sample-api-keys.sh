@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 
 # Script to recreate all API keys for adapters when starting from scratch
 # This script creates keys for each adapter and renames them to easier-to-remember names
@@ -42,6 +42,7 @@
 #   intent-sql-sqlite-classified -> classified
 #   intent-duckdb-analytics -> analytical
 #   intent-duckdb-open-gov-travel-expenses -> travel-expenses
+#   intent-duckdb-alberta-shelter-occupancy -> shelter
 #   intent-sql-postgres -> postgres
 #   intent-elasticsearch-app-logs -> elasticsearch
 #   intent-firecrawl-webscrape -> web
@@ -128,7 +129,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Get the script directory and project root
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ORBIT_SCRIPT="$PROJECT_ROOT/bin/orbit.sh"
 
@@ -432,6 +433,7 @@ declare -a all_adapters=(
     "intent-sql-sqlite-classified|classified|examples/prompts/analytics-assistant-prompt.txt|Classified Data Prompt"
     "intent-duckdb-analytics|analytical|examples/prompts/analytics-assistant-prompt.txt|DuckDB Analytics Prompt"
     "intent-duckdb-open-gov-travel-expenses|travel-expenses|utils/duckdb-intent-template/examples/open-gov-travel-expenses/travel-expenses-assistant-prompt.txt|Travel Expenses Assistant Prompt"
+    "intent-duckdb-alberta-shelter-occupancy|shelter|utils/duckdb-intent-template/examples/alberta-shelter-occupancy/shelter-occupancy-assistant-prompt.txt|Alberta Shelter Occupancy Prompt"
     "intent-sql-postgres|postgres|examples/postgres/prompts/customer-assistant-enhanced-prompt.txt|PostgreSQL Customer Orders Prompt"
     "intent-elasticsearch-app-logs|elasticsearch|examples/prompts/elasticsearch-log-assistant-prompt.txt|Elasticsearch Logs Prompt"
     "intent-firecrawl-webscrape|web|examples/prompts/firecrawl-knowledge-assistant-prompt.txt|Firecrawl Web Prompt"
@@ -442,11 +444,14 @@ declare -a all_adapters=(
     "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.txt|File Document QA Prompt"
 )
 
-# Define notes for each adapter (associative array keyed by adapter name)
+# Function to get notes for each adapter (bash 3.2 compatible - no associative arrays)
 # These are displayed in the chat interface as intro messages
-declare -A adapter_notes
-
-adapter_notes["simple-chat"]="## Welcome to ORBIT 👋
+get_adapter_notes() {
+    local adapter_name="$1"
+    case "$adapter_name" in
+        "simple-chat")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT 👋
 
 I'm your **curious and friendly AI assistant**, ready to explore any topic with you!
 
@@ -458,9 +463,12 @@ Whether you want to:
 
 I'll break down complex ideas into simple explanations and keep the conversation flowing.
 
-**What would you like to talk about today?**"
-
-adapter_notes["simple-chat-with-files"]="## Welcome to ORBIT Document Assistant 📄
+**What would you like to talk about today?**
+NOTES_EOF
+            ;;
+        "simple-chat-with-files")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Document Assistant 📄
 
 I'm here to help you **understand and extract insights** from your uploaded documents!
 
@@ -472,9 +480,12 @@ I can work with:
 
 Upload a file and ask me anything about it. I'll cite specific sources and provide actionable insights.
 
-**What document would you like to explore?**"
-
-adapter_notes["simple-chat-with-files-audio"]="## Welcome to ORBIT Multimodal Assistant 🎧
+**What document would you like to explore?**
+NOTES_EOF
+            ;;
+        "simple-chat-with-files-audio")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Multimodal Assistant 🎧
 
 I can help you understand **documents, images, and audio recordings**!
 
@@ -485,17 +496,23 @@ I support:
 
 Upload any file and I'll extract insights, summarize content, and answer your questions with precise citations.
 
-**What would you like me to analyze?**"
-
-adapter_notes["voice-chat"]="## Welcome to ORBIT Voice Assistant 🎙️
+**What would you like me to analyze?**
+NOTES_EOF
+            ;;
+        "voice-chat")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Voice Assistant 🎙️
 
 I'm your **conversational voice companion**, ready to chat naturally!
 
 Just speak to me and I'll respond with clear, friendly answers. I keep things concise for voice and use natural language patterns.
 
-**What would you like to talk about?**"
-
-adapter_notes["audio-transcription"]="## Welcome to ORBIT Audio Transcription 🎧
+**What would you like to talk about?**
+NOTES_EOF
+            ;;
+        "audio-transcription")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Audio Transcription 🎧
 
 I specialize in **transcribing and analyzing audio recordings**!
 
@@ -507,9 +524,12 @@ I can:
 
 Upload an audio file and I'll help you understand what was said.
 
-**What audio would you like me to transcribe?**"
-
-adapter_notes["multilingual-voice-assistant"]="## Welcome to ORBIT Multilingual Voice 🌍
+**What audio would you like me to transcribe?**
+NOTES_EOF
+            ;;
+        "multilingual-voice-assistant")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Multilingual Voice 🌍
 
 I'm your **multilingual voice assistant**, ready to chat in multiple languages!
 
@@ -520,9 +540,12 @@ I can:
 
 Speak to me in English, French, Spanish, or many other languages.
 
-**Comment puis-je vous aider? / How can I help you?**"
-
-adapter_notes["premium-voice-chat"]="## Welcome to ORBIT Premium Voice ✨
+**Comment puis-je vous aider? / How can I help you?**
+NOTES_EOF
+            ;;
+        "premium-voice-chat")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Premium Voice ✨
 
 I'm your **sophisticated voice assistant** with premium text-to-speech!
 
@@ -533,9 +556,12 @@ I provide:
 
 Speak naturally and I'll respond with polished, professional answers.
 
-**What would you like to discuss?**"
-
-adapter_notes["local-voice-chat"]="## Welcome to ORBIT Local Transcription 🔒
+**What would you like to discuss?**
+NOTES_EOF
+            ;;
+        "local-voice-chat")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Local Transcription 🔒
 
 I provide **private, local audio transcription** using Whisper!
 
@@ -547,9 +573,12 @@ Benefits:
 
 Upload an audio file and I'll transcribe it completely privately.
 
-**What audio would you like me to transcribe?**"
-
-adapter_notes["qa-sql"]="## Welcome to ORBIT City Assistant 🏙️
+**What audio would you like me to transcribe?**
+NOTES_EOF
+            ;;
+        "qa-sql")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT City Assistant 🏙️
 
 I'm your **municipal information assistant**!
 
@@ -561,9 +590,12 @@ I can help you with:
 
 Ask me about city regulations, services, or community programs.
 
-**What city information do you need?**"
-
-adapter_notes["qa-vector-chroma"]="## Welcome to ORBIT City Assistant 🏙️
+**What city information do you need?**
+NOTES_EOF
+            ;;
+        "qa-vector-chroma")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT City Assistant 🏙️
 
 I'm your **municipal information assistant** powered by semantic search!
 
@@ -573,9 +605,12 @@ I can help you find information about:
 - 🏠 Property information
 - 🚧 Infrastructure and public works
 
-**What would you like to know about your city?**"
-
-adapter_notes["intent-sql-sqlite-contact"]="## Welcome to ORBIT HR Assistant 👥
+**What would you like to know about your city?**
+NOTES_EOF
+            ;;
+        "intent-sql-sqlite-contact")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT HR Assistant 👥
 
 I'm your **HR data and workforce analytics assistant** for a Canadian organization!
 
@@ -587,9 +622,12 @@ I can help you with:
 
 I support both English and French responses.
 
-**What HR information do you need?**"
-
-adapter_notes["intent-sql-sqlite-classified"]="## Welcome to ORBIT Analytics Assistant 📊
+**What HR information do you need?**
+NOTES_EOF
+            ;;
+        "intent-sql-sqlite-classified")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Analytics Assistant 📊
 
 I'm your **business intelligence assistant** for sales and product analytics!
 
@@ -601,9 +639,12 @@ I can analyze:
 
 I provide data-driven insights with specific numbers and comparisons.
 
-**What would you like to analyze?**"
-
-adapter_notes["intent-duckdb-analytics"]="## Welcome to ORBIT Analytics Assistant 📊
+**What would you like to analyze?**
+NOTES_EOF
+            ;;
+        "intent-duckdb-analytics")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Analytics Assistant 📊
 
 I'm your **business intelligence assistant** powered by DuckDB!
 
@@ -615,9 +656,12 @@ I can help you analyze:
 
 Ask me about sales, products, customers, or market trends.
 
-**What business insights do you need?**"
-
-adapter_notes["intent-duckdb-open-gov-travel-expenses"]="## Welcome to ORBIT Travel Expenses 🇨🇦
+**What business insights do you need?**
+NOTES_EOF
+            ;;
+        "intent-duckdb-open-gov-travel-expenses")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Travel Expenses 🇨🇦
 
 I'm your **government transparency assistant** for analyzing federal travel expenses!
 
@@ -629,9 +673,29 @@ I can help you explore:
 
 All data from Government of Canada Proactive Disclosure.
 
-**What travel expense data would you like to explore?**"
+**What travel expense data would you like to explore?**
+NOTES_EOF
+            ;;
+        "intent-duckdb-alberta-shelter-occupancy")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Shelter Occupancy 🏠
 
-adapter_notes["intent-sql-postgres"]="## Welcome to ORBIT Customer Assistant 🛒
+I'm your **emergency shelter data analyst** for Alberta's homelessness response system!
+
+I can help you analyze:
+- 📊 Shelter occupancy and capacity utilization
+- 🌡️ Seasonal trends (winter vs. summer patterns)
+- 🏙️ City comparisons (Edmonton, Calgary, and more)
+- 🏢 Organizational performance across providers
+
+Data covers 2013-2025 across all shelter types. I support English and French responses.
+
+**What shelter data would you like to explore?**
+NOTES_EOF
+            ;;
+        "intent-sql-postgres")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Customer Assistant 🛒
 
 I'm your **e-commerce customer service assistant**!
 
@@ -643,9 +707,12 @@ I can help you with:
 
 I support both English and French responses.
 
-**What customer or order information do you need?**"
-
-adapter_notes["intent-elasticsearch-app-logs"]="## Welcome to ORBIT Log Analyst 🔍
+**What customer or order information do you need?**
+NOTES_EOF
+            ;;
+        "intent-elasticsearch-app-logs")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Log Analyst 🔍
 
 I'm your friendly **application log analysis assistant**!
 
@@ -657,9 +724,12 @@ I can help you:
 
 I'll help you understand what your logs are telling you about your system.
 
-**What would you like to investigate?**"
-
-adapter_notes["intent-firecrawl-webscrape"]="## Welcome to ORBIT Knowledge Assistant 🌐
+**What would you like to investigate?**
+NOTES_EOF
+            ;;
+        "intent-firecrawl-webscrape")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Knowledge Assistant 🌐
 
 I'm your **web knowledge retrieval assistant**!
 
@@ -671,9 +741,12 @@ I can find and present information from:
 
 Ask me about any topic and I'll retrieve reliable information for you.
 
-**What would you like to learn about?**"
-
-adapter_notes["intent-mongodb-mflix"]="## Welcome to ORBIT Movie Database 🎬
+**What would you like to learn about?**
+NOTES_EOF
+            ;;
+        "intent-mongodb-mflix")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Movie Database 🎬
 
 I'm your **movie and entertainment data assistant**!
 
@@ -685,9 +758,12 @@ I can help you discover:
 
 Explore our extensive film database and find your next favorite movie!
 
-**What movies are you interested in?**"
-
-adapter_notes["intent-http-jsonplaceholder"]="## Welcome to ORBIT API Explorer 🔌
+**What movies are you interested in?**
+NOTES_EOF
+            ;;
+        "intent-http-jsonplaceholder")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT API Explorer 🔌
 
 I'm your **REST API testing assistant** for JSONPlaceholder!
 
@@ -699,9 +775,12 @@ I can help you explore:
 
 Perfect for development testing and learning API concepts.
 
-**What API data would you like to explore?**"
-
-adapter_notes["intent-graphql-spacex"]="## Welcome to ORBIT SpaceX Explorer 🚀
+**What API data would you like to explore?**
+NOTES_EOF
+            ;;
+        "intent-graphql-spacex")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT SpaceX Explorer 🚀
 
 I'm your **space exploration data assistant**!
 
@@ -713,9 +792,12 @@ I can help you discover:
 
 Explore SpaceX's journey to revolutionize space travel!
 
-**What SpaceX mission interests you?**"
-
-adapter_notes["intent-graphql-nato"]="## Welcome to ORBIT Classification Converter 🔐
+**What SpaceX mission interests you?**
+NOTES_EOF
+            ;;
+        "intent-graphql-nato")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Classification Converter 🔐
 
 I'm your **NATO security classification assistant**.
 
@@ -727,9 +809,12 @@ I can help you with:
 
 Professional assistance for international security cooperation.
 
-**What classification information do you need?**"
-
-adapter_notes["file-document-qa"]="## Welcome to ORBIT Document Q&A 📚
+**What classification information do you need?**
+NOTES_EOF
+            ;;
+        "file-document-qa")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Document Q&A 📚
 
 I'm here to help you **understand your uploaded documents**!
 
@@ -741,7 +826,15 @@ I can analyze:
 
 Upload a document and ask me questions. I'll provide precise answers with source citations.
 
-**What document would you like to explore?**"
+**What document would you like to explore?**
+NOTES_EOF
+            ;;
+        *)
+            # No notes for unknown adapters
+            echo ""
+            ;;
+    esac
+}
 
 # Filter adapters if --adapter argument is provided
 declare -a adapters=()
@@ -749,7 +842,7 @@ if [ -n "$FILTER_ADAPTER" ]; then
     echo -e "${BLUE}Filtering for adapter: $FILTER_ADAPTER${NC}"
     for entry in "${all_adapters[@]}"; do
         IFS='|' read -r adapter key_name prompt_file prompt_name <<< "$entry"
-        if [ "$adapter" == "$FILTER_ADAPTER" ]; then
+        if [ "$adapter" = "$FILTER_ADAPTER" ]; then
             adapters+=("$entry")
             echo -e "${GREEN}✓ Found adapter: $adapter${NC}"
             break
@@ -782,8 +875,8 @@ for entry in "${adapters[@]}"; do
     adapter_index=$((adapter_index + 1))  # Safe increment that always succeeds
     IFS='|' read -r adapter key_name prompt_file prompt_name <<< "$entry"
     
-    # Look up notes from associative array
-    notes="${adapter_notes[$adapter]:-}"
+    # Look up notes using function (bash 3.2 compatible)
+    notes="$(get_adapter_notes "$adapter")"
     
     echo ""
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
