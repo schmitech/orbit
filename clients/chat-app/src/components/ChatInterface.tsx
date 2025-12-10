@@ -11,6 +11,7 @@ import { PACKAGE_VERSION } from '../utils/version';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
+import { useTheme } from '../contexts/ThemeContext';
 
 const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-white/95 px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-[0_25px_60px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-[#2f303d] dark:bg-[#1c1d23]/95 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
@@ -44,6 +45,17 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   } = useChatStore();
 
   const { settings } = useSettings();
+  const { theme, isDark } = useTheme();
+  const forcedThemeClass =
+    theme.mode === 'dark' ? 'dark' : theme.mode === 'light' ? 'light' : '';
+  const syntaxTheme: 'dark' | 'light' = isDark ? 'dark' : 'light';
+  const adapterNotesMarkdownClass = [
+    'message-markdown w-full min-w-0',
+    'prose prose-slate dark:prose-invert max-w-none',
+    forcedThemeClass
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   // Configuration state for API settings
   const [showConfig, setShowConfig] = useState(false);
@@ -551,8 +563,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   <div className="mb-2">
                     {currentConversation?.adapterInfo?.notes ? (
                       // Show adapter notes as the main prompt with markdown rendering
-                      <div className="text-base text-gray-600 dark:text-[#bfc2cd] leading-relaxed prose prose-sm dark:prose-invert prose-p:my-1 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
-                        <MarkdownRenderer content={currentConversation.adapterInfo.notes} />
+                      <div className="text-base text-gray-600 dark:text-[#bfc2cd] leading-relaxed">
+                        <MarkdownRenderer
+                          content={currentConversation.adapterInfo.notes}
+                          className={adapterNotesMarkdownClass}
+                          syntaxTheme={syntaxTheme}
+                        />
                       </div>
                     ) : (
                       // Fallback to default message
