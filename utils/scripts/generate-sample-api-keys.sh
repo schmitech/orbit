@@ -41,15 +41,12 @@
 #   intent-sql-sqlite-contact -> contact
 #   intent-sql-sqlite-classified -> classified
 #   intent-duckdb-analytics -> analytical
-#   intent-duckdb-open-gov-travel-expenses -> travel-expenses
-#   intent-duckdb-alberta-shelter-occupancy -> shelter
 #   intent-sql-postgres -> postgres
 #   intent-elasticsearch-app-logs -> elasticsearch
 #   intent-firecrawl-webscrape -> web
 #   intent-mongodb-mflix -> mflix
 #   intent-http-jsonplaceholder -> rest
 #   intent-graphql-spacex -> spacex
-#   intent-graphql-nato -> nato
 #   file-document-qa -> files
 #
 # Notes:
@@ -432,15 +429,12 @@ declare -a all_adapters=(
     "intent-sql-sqlite-contact|contact|examples/prompts/hr-assistant-prompt.txt|HR Assistant Prompt"
     "intent-sql-sqlite-classified|classified|examples/prompts/analytics-assistant-prompt.txt|Classified Data Prompt"
     "intent-duckdb-analytics|analytical|examples/prompts/analytics-assistant-prompt.txt|DuckDB Analytics Prompt"
-    "intent-duckdb-open-gov-travel-expenses|travel-expenses|utils/duckdb-intent-template/examples/open-gov-travel-expenses/travel-expenses-assistant-prompt.txt|Travel Expenses Assistant Prompt"
-    "intent-duckdb-alberta-shelter-occupancy|shelter|utils/duckdb-intent-template/examples/alberta-shelter-occupancy/shelter-occupancy-assistant-prompt.txt|Alberta Shelter Occupancy Prompt"
     "intent-sql-postgres|postgres|examples/postgres/prompts/customer-assistant-enhanced-prompt.txt|PostgreSQL Customer Orders Prompt"
     "intent-elasticsearch-app-logs|elasticsearch|examples/prompts/elasticsearch-log-assistant-prompt.txt|Elasticsearch Logs Prompt"
     "intent-firecrawl-webscrape|web|examples/prompts/firecrawl-knowledge-assistant-prompt.txt|Firecrawl Web Prompt"
     "intent-mongodb-mflix|mflix|examples/prompts/mongodb-mflix-assistant-prompt.txt|MongoDB MFlix Prompt"
     "intent-http-jsonplaceholder|rest|examples/prompts/jsonplaceholder-api-assistant-prompt.txt|JSONPlaceholder API Prompt"
     "intent-graphql-spacex|spacex|examples/prompts/spacex-graphql-assistant-prompt.txt|SpaceX GraphQL Prompt"
-    "intent-graphql-nato|nato|examples/prompts/nato-graphql-assistant-prompt.txt|NATO GraphQL Prompt"
     "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.txt|File Document QA Prompt"
 )
 
@@ -659,40 +653,6 @@ Ask me about sales, products, customers, or market trends.
 **What business insights do you need?**
 NOTES_EOF
             ;;
-        "intent-duckdb-open-gov-travel-expenses")
-            cat <<'NOTES_EOF'
-## Welcome to ORBIT Travel Expenses 🇨🇦
-
-I'm your **government transparency assistant** for analyzing federal travel expenses!
-
-I can help you explore:
-- 🏛️ Spending by organization
-- ✈️ Travel destinations and purposes
-- 📅 Expense trends over time
-- 💰 Cost breakdowns (airfare, lodging, meals)
-
-All data from Government of Canada Proactive Disclosure.
-
-**What travel expense data would you like to explore?**
-NOTES_EOF
-            ;;
-        "intent-duckdb-alberta-shelter-occupancy")
-            cat <<'NOTES_EOF'
-## Welcome to ORBIT Shelter Occupancy 🏠
-
-I'm your **emergency shelter data analyst** for Alberta's homelessness response system!
-
-I can help you analyze:
-- 📊 Shelter occupancy and capacity utilization
-- 🌡️ Seasonal trends (winter vs. summer patterns)
-- 🏙️ City comparisons (Edmonton, Calgary, and more)
-- 🏢 Organizational performance across providers
-
-Data covers 2013-2025 across all shelter types. I support English and French responses.
-
-**What shelter data would you like to explore?**
-NOTES_EOF
-            ;;
         "intent-sql-postgres")
             cat <<'NOTES_EOF'
 ## Welcome to ORBIT Customer Assistant 🛒
@@ -793,23 +753,6 @@ I can help you discover:
 Explore SpaceX's journey to revolutionize space travel!
 
 **What SpaceX mission interests you?**
-NOTES_EOF
-            ;;
-        "intent-graphql-nato")
-            cat <<'NOTES_EOF'
-## Welcome to ORBIT Classification Converter 🔐
-
-I'm your **NATO security classification assistant**.
-
-I can help you with:
-- 🌍 Member nation classification schemas
-- 🔄 Classification conversions between nations
-- 📋 Conversion request management
-- 📊 NATO standard equivalents
-
-Professional assistance for international security cooperation.
-
-**What classification information do you need?**
 NOTES_EOF
             ;;
         "file-document-qa")
