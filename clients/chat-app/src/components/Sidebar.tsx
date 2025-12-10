@@ -7,6 +7,7 @@ import { debugWarn, debugError } from '../utils/debug';
 import { useGitHubStats } from '../hooks/useGitHubStats';
 import { AppConfig } from '../utils/config';
 import { getShowGitHubStats, getGitHubOwner, getGitHubRepo } from '../utils/runtimeConfig';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface SidebarProps {
   /**
@@ -18,8 +19,65 @@ interface SidebarProps {
 
 const MAX_TITLE_LENGTH = 100;
 
+const conversationSizeStyles: Record<
+  'small' | 'medium' | 'large',
+  {
+    cardText: string;
+    cardPadding: string;
+    cardGap: string;
+    titleText: string;
+    metaText: string;
+    metaGap: string;
+    badgePadding: string;
+    badgeText: string;
+    badgeIcon: string;
+    actionButton: string;
+    actionIcon: string;
+  }
+> = {
+  small: {
+    cardText: 'text-xs',
+    cardPadding: 'px-2.5 py-2',
+    cardGap: 'gap-0',
+    titleText: 'text-sm',
+    metaText: 'text-[10px]',
+    metaGap: 'gap-1',
+    badgePadding: 'px-1.5 py-0.5',
+    badgeText: 'text-[10px]',
+    badgeIcon: 'h-3 w-3',
+    actionButton: 'p-1.5',
+    actionIcon: 'h-3.5 w-3.5'
+  },
+  medium: {
+    cardText: 'text-sm',
+    cardPadding: 'px-3 py-3',
+    cardGap: 'gap-0',
+    titleText: 'text-sm',
+    metaText: 'text-[11px]',
+    metaGap: 'gap-1.5',
+    badgePadding: 'px-2 py-0.5',
+    badgeText: 'text-[11px]',
+    badgeIcon: 'h-3.5 w-3.5',
+    actionButton: 'p-2',
+    actionIcon: 'h-4 w-4'
+  },
+  large: {
+    cardText: 'text-base',
+    cardPadding: 'px-4 py-4',
+    cardGap: 'gap-0',
+    titleText: 'text-base',
+    metaText: 'text-sm',
+    metaGap: 'gap-2',
+    badgePadding: 'px-2.5 py-1',
+    badgeText: 'text-sm',
+    badgeIcon: 'h-4 w-4',
+    actionButton: 'p-2',
+    actionIcon: 'h-4 w-4'
+  }
+};
+
 export function Sidebar({ onRequestClose }: SidebarProps) {
-    const {
+  const {
     conversations,
     currentConversationId,
     createConversation,
@@ -54,6 +112,9 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
     isOpen: false,
     isDeleting: false
   });
+
+  const { theme } = useTheme();
+  const sizeStyles = conversationSizeStyles[theme.fontSize ?? 'medium'];
 
   const filteredConversations = conversations.filter(conv =>
     conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -265,22 +326,12 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
                 <div
                   key={conversation.id}
                   onClick={() => handleSelectConversation(conversation.id)}
-                  className={`group flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-left transition ${
+                  className={`group flex cursor-pointer items-start rounded-xl border text-left transition ${sizeStyles.cardGap} ${sizeStyles.cardPadding} ${sizeStyles.cardText} ${
                     currentConversationId === conversation.id
                       ? 'border-[#343541] bg-white shadow-sm dark:border-[#6b6f7a] dark:bg-[#2c2f36]'
                       : 'border-transparent bg-gray-100/70 hover:border-gray-300 hover:bg-white dark:bg-[#252830] dark:hover:border-[#4a4b54] dark:hover:bg-[#2f323c]'
                   }`}
                 >
-                  <div
-                    className={`rounded-xl p-2 shadow-sm ${
-                      currentConversationId === conversation.id
-                        ? 'bg-[#eceefc] text-[#1d2559] dark:bg-[#3b4055] dark:text-white'
-                        : 'bg-white text-gray-500 dark:bg-[#3a3d46] dark:text-[#bfc2cd]'
-                    }`}
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                  </div>
-                  
                   {editingId === conversation.id ? (
                     <input
                       type="text"
@@ -292,14 +343,14 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
                       }}
                       onBlur={() => handleEditSubmit(conversation.id)}
                       maxLength={MAX_TITLE_LENGTH}
-                      className="flex-1 border-none bg-transparent text-sm text-[#353740] focus:outline-none dark:text-[#ececf1]"
+                      className={`flex-1 border-none bg-transparent text-[#353740] focus:outline-none dark:text-[#ececf1] ${sizeStyles.titleText}`}
                       autoFocus
                     />
                   ) : (
                     <div className="flex-1 min-w-0 space-y-2">
-                      <div className="flex items-center gap-2">
+                      <div className={`flex items-center gap-2 ${sizeStyles.cardText}`}>
                         <h3
-                          className={`flex-1 truncate text-sm font-semibold ${
+                          className={`flex-1 truncate font-semibold ${sizeStyles.titleText} ${
                             currentConversationId === conversation.id ? 'text-[#1f2937] dark:text-white' : 'text-gray-700 dark:text-[#d4d7e2]'
                           }`}
                         >
@@ -308,31 +359,31 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
                         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <button
                             onClick={(e) => handleEditStart(e, conversation)}
-                            className="rounded-full p-2 text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
+                            className={`rounded-full text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a] ${sizeStyles.actionButton}`}
                             title="Rename conversation"
                           >
-                            <Edit2 className="h-4 w-4" />
+                            <Edit2 className={sizeStyles.actionIcon} />
                           </button>
                           <button
                             onClick={(e) => handleDeleteConversation(e, conversation)}
-                            className="rounded-full p-2 text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
+                            className={`rounded-full text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30 ${sizeStyles.actionButton}`}
                             title="Delete conversation"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className={sizeStyles.actionIcon} />
                           </button>
                         </div>
                       </div>
-                      <div className="mt-1 flex items-center gap-1.5 pr-1 text-[11px] text-gray-500 dark:text-[#a6acc5]">
-                        <span className="whitespace-nowrap leading-none">
+                      <div className={`mt-1 flex items-center overflow-hidden pr-1 text-gray-500 dark:text-[#a6acc5] ${sizeStyles.metaGap} ${sizeStyles.metaText}`}>
+                        <span className="min-w-0 flex-1 truncate leading-none">
                           {formatConversationTimestamp(conversation.updatedAt)}
                         </span>
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4] leading-none">
-                          <MessageSquare className="h-3 w-3" />
+                        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4] leading-none ${sizeStyles.badgePadding} ${sizeStyles.badgeText}`}>
+                          <MessageSquare className={sizeStyles.badgeIcon} />
                           {conversation.messages.length}
                         </span>
                         {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
-                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4] leading-none">
-                            <Paperclip className="h-3 w-3" />
+                          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4] leading-none ${sizeStyles.badgePadding} ${sizeStyles.badgeText}`}>
+                            <Paperclip className={sizeStyles.badgeIcon} />
                             {conversation.attachedFiles.length}
                           </span>
                         )}
