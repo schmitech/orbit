@@ -10,11 +10,12 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama"    # Override default inference provider
-    model: "gpt-oss:20b"            # Specific model for this adapter
-    embedding_provider: "ollama"          # Embedding provider for file chunk retrieval (matches uploaded files)
-    vision_provider: "ollama"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
-    audio_provider: "whisper"             # Audio provider for STT transcription (see sound.yaml) - local, free!
+    inference_provider: "ollama_cloud"    # Override default inference provider
+    model: "gpt-oss:120b"            # Specific model for this adapter
+    embedding_provider: "openai"          # Embedding provider for file chunk retrieval (matches uploaded files)
+    vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    stt_provider: "whisper"               # STT provider for audio transcription (see stt.yaml) - local, free!
+    tts_provider: "openai"                # TTS provider for audio output (see tts.yaml)
 
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
@@ -35,7 +36,7 @@ adapters:
       storage_backend: "filesystem"  # Future: "s3", "minio"
       storage_root: "./uploads"
       max_file_size: 52428800  # 50MB
-      
+
       # Processing configuration
       # Chunking strategy options: "fixed", "semantic", "token", "recursive"
       # These settings override global defaults in config.yaml
@@ -55,7 +56,7 @@ adapters:
 
   # Enhanced multimodal adapter with audio file transcription support
   - name: "simple-chat-with-files-audio"
-    enabled: false
+    enabled: true
     type: "passthrough"  # Passthrough adapter with file retrieval and audio transcription
     datasource: "none"
     adapter: "multimodal"
@@ -65,7 +66,8 @@ adapters:
     model: "gpt-oss:120b"
     embedding_provider: "openai"
     vision_provider: "gemini"             # For image files
-    audio_provider: "gemini"              # For audio file transcription and TTS (changed from openai)
+    stt_provider: "gemini"                # For audio file transcription (see stt.yaml)
+    tts_provider: "gemini"                # For TTS output (see tts.yaml)
 
     # Capabilities: Multimodal with audio support
     capabilities:
@@ -85,20 +87,20 @@ adapters:
       storage_backend: "filesystem"
       storage_root: "./uploads"
       max_file_size: 104857600  # 100MB (increased for audio files)
-      
+
       # Audio processing settings
       enable_audio_transcription: true
       audio_transcription_language: null  # Auto-detect language
-      
+
       # Processing configuration
       chunking_strategy: "recursive"
       chunk_size: 1000
       chunk_overlap: 200
-      
+
       # Vector store integration
       vector_store: "chroma"
       collection_prefix: "files_"
-      
+
       # Supported file types (including audio)
       supported_types:
         - "application/pdf"
@@ -117,7 +119,7 @@ adapters:
         - "audio/ogg"
         - "audio/flac"
         - "audio/webm"
-      
+
       # Q&A settings
       confidence_threshold: 0.3
       max_results: 5
@@ -127,7 +129,7 @@ adapters:
   # Upload audio files → Get transcriptions and chat about the content
   # Uses local Whisper for transcription - completely free and offline!
   - name: "local-voice-chat"
-    enabled: false
+    enabled: true
     type: "passthrough"
     datasource: "none"
     adapter: "multimodal"
@@ -137,7 +139,7 @@ adapters:
     inference_provider: "openai"
     model: "gpt-5"
     embedding_provider: "openai"
-    audio_provider: "whisper"  # Local Whisper for audio transcription (free, offline)
+    stt_provider: "whisper"  # Local Whisper for audio transcription (free, offline)
 
     # Capabilities: Audio file transcription with chat
     capabilities:
@@ -162,8 +164,8 @@ adapters:
       enable_audio_transcription: true
       audio_transcription_language: null  # Auto-detect language
 
-      # Whisper-specific settings (nested under 'sounds' for WhisperAudioService)
-      sounds:
+      # Whisper-specific settings (nested under 'stt_providers' for WhisperAudioService)
+      stt_providers:
         whisper:
           enabled: true
           model_size: "base"       # Whisper model: tiny, base, small, medium, large-v3
@@ -206,4 +208,3 @@ adapters:
       # - small: ~6x faster, better accuracy
       # - medium: ~2x faster, high quality
       # - large-v3: Best accuracy, slower
-

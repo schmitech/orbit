@@ -39,15 +39,15 @@ class AudioHandler:
         self.adapter_manager = adapter_manager
 
         # Extract TTS limits from config
-        sound_config = config.get('sound', {})
-        self.tts_limits = sound_config.get('tts_limits', {})
+        tts_config = config.get('tts', {})
+        self.tts_limits = tts_config.get('tts_limits', {})
         self.max_text_length = self.tts_limits.get('max_text_length', 4096)
         self.max_audio_size_mb = self.tts_limits.get('max_audio_size_mb', 5)
         self.truncate_text = self.tts_limits.get('truncate_text', True)
         self.warn_on_truncate = self.tts_limits.get('warn_on_truncate', True)
 
-        # Default audio provider from global config
-        self.default_provider = sound_config.get('provider', 'openai')
+        # Default TTS provider from config
+        self.default_provider = tts_config.get('provider', 'openai')
 
         # Cache for audio services to avoid repeated creation
         self._audio_services = {}
@@ -100,20 +100,24 @@ class AudioHandler:
 
     def _get_audio_provider(self, adapter_name: str) -> str:
         """
-        Get the audio provider for the given adapter.
+        Get the TTS audio provider for the given adapter.
+
+        Resolution order:
+        1. Adapter-level tts_provider
+        2. Global tts.provider (from tts.yaml)
 
         Args:
             adapter_name: The adapter name
 
         Returns:
-            Audio provider name
+            Audio provider name for TTS
         """
         if adapter_name and self.adapter_manager:
             adapter_config = self.adapter_manager.get_adapter_config(adapter_name)
             if adapter_config:
-                provider = adapter_config.get('audio_provider')
-                if provider:
-                    return provider
+                tts_provider = adapter_config.get('tts_provider')
+                if tts_provider:
+                    return tts_provider
 
         return self.default_provider
 
@@ -170,8 +174,10 @@ class AudioHandler:
         if provider in self._audio_services:
             service = self._audio_services[provider]
             # Verify service is still healthy (especially for GPU services)
+            # Skip warning if async verification is still in progress
             if hasattr(service, 'connection_verified'):
-                if not service.connection_verified:
+                verification_in_flight = getattr(service, '_verification_inflight', False)
+                if not service.connection_verified and not verification_in_flight:
                     logger.warning(f"Audio service {provider} connection not verified, reinitializing")
                     if hasattr(service, 'initialize'):
                         await service.initialize()
@@ -236,8 +242,8 @@ class AudioHandler:
         Returns:
             Audio format string
         """
-        sounds_config = self.config.get('sounds', {})
-        provider_config = sounds_config.get(provider, {})
+        tts_providers_config = self.config.get('tts_providers', {})
+        provider_config = tts_providers_config.get(provider, {})
         return provider_config.get('tts_format', 'mp3')
 
     async def generate_audio(

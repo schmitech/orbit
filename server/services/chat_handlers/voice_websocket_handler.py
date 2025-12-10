@@ -68,11 +68,21 @@ class VoiceWebSocketHandler:
         self.audio_sample_width_bytes = self.config_settings.get("audio_sample_width_bytes", 2)
         self.audio_input_channels = self.config_settings.get("audio_input_channels", 1)
 
-        # Get audio providers - support separate STT and TTS providers
-        # For backward compatibility, default to audio_provider for both
-        self.audio_provider = self.adapter_config.get("audio_provider", "gemini")
-        self.stt_provider = self.adapter_config.get("stt_provider", self.audio_provider)
-        self.tts_provider = self.adapter_config.get("tts_provider", self.audio_provider)
+        # Get audio providers - separate STT and TTS providers
+        # Resolution order:
+        # 1. Adapter-level stt_provider/tts_provider
+        # 2. Global stt.provider/tts.provider (from stt.yaml/tts.yaml)
+
+        # Get global defaults from config
+        stt_global_config = config.get('stt', {})
+        tts_global_config = config.get('tts', {})
+
+        default_stt_provider = stt_global_config.get('provider', 'whisper')
+        default_tts_provider = tts_global_config.get('provider', 'gemini')
+
+        # Adapter-level overrides
+        self.stt_provider = self.adapter_config.get("stt_provider", default_stt_provider)
+        self.tts_provider = self.adapter_config.get("tts_provider", default_tts_provider)
 
         # Initialize audio services
         self.stt_service = None  # For speech-to-text

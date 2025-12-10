@@ -268,6 +268,17 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
             )
 
 
+def _is_enabled(value) -> bool:
+    """Helper to check if a value represents 'enabled'."""
+    if value is True:
+        return True
+    if value is False:
+        return False
+    if isinstance(value, str):
+        return value.lower() != 'false'
+    return True  # Default to enabled
+
+
 def register_audio_services(config: Dict[str, Any] = None) -> None:
     """
     Register all audio service implementations with the factory.
@@ -276,22 +287,28 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
     Services with missing dependencies are skipped with a warning.
     Services that are disabled in config are not registered.
 
+    Configuration structure (from tts.yaml and stt.yaml):
+    - config['tts']['enabled'], config['stt']['enabled']
+    - config['tts_providers'][provider], config['stt_providers'][provider]
+
     Args:
         config: Optional configuration dictionary. If provided, only enabled providers
-                will be registered based on config['sound']['enabled'] and config['sounds'][provider]['enabled']
+                will be registered based on the config structure.
     """
-    # Check global sound.enabled flag first
     if config:
-        sound_config = config.get('sound', {})
-        sound_enabled = sound_config.get('enabled', True)
+        # Check global enable flags
+        tts_config = config.get('tts', {})
+        stt_config = config.get('stt', {})
+        tts_enabled = tts_config.get('enabled', True)
+        stt_enabled = stt_config.get('enabled', True)
 
-        # If sound is globally disabled, skip all audio service registration
-        if sound_enabled is False or (isinstance(sound_enabled, str) and sound_enabled.lower() == 'false'):
+        # Both TTS and STT must be disabled to skip all
+        all_disabled = (not _is_enabled(tts_enabled)) and (not _is_enabled(stt_enabled))
+
+        if all_disabled:
             logger.info(
-                "Sound services are globally disabled (sound.enabled: false) - "
-                "skipping all audio service registration. "
-                "TTS and STT functionality will not be available. "
-                "Adapters with audio_provider configured will load but audio features will be inactive."
+                "Both TTS and STT services are globally disabled - "
+                "skipping all audio service registration."
             )
             return
 
@@ -309,18 +326,31 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
         ("coqui", "CoquiAudioService", "Coqui TTS (Local)"),
     ]
 
-    # Get sounds config if available (plural form, like 'visions')
-    sounds_config = config.get('sounds', {}) if config else {}
+    # Get provider configs
+    tts_providers_config = config.get('tts_providers', {}) if config else {}
+    stt_providers_config = config.get('stt_providers', {}) if config else {}
 
     for provider_key, class_name, display_name in services:
         # Check if provider is enabled in config
         if config:
-            provider_config = sounds_config.get(provider_key, {})
-            enabled = provider_config.get('enabled', True)
-            if enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false'):
+            # Check TTS config
+            tts_provider_config = tts_providers_config.get(provider_key, {})
+            tts_provider_enabled = tts_provider_config.get('enabled', True)
+
+            # Check STT config
+            stt_provider_config = stt_providers_config.get(provider_key, {})
+            stt_provider_enabled = stt_provider_config.get('enabled', True)
+
+            # Provider is enabled if enabled in either TTS or STT config
+            provider_enabled = (
+                _is_enabled(tts_provider_enabled) or
+                _is_enabled(stt_provider_enabled)
+            )
+
+            if not provider_enabled:
                 logger.debug(f"Skipping {display_name} audio service - disabled in config")
                 continue
-        
+
         try:
             # Lazy import - only import what we can
             module = __import__('ai_services.implementations.audio', fromlist=[class_name])

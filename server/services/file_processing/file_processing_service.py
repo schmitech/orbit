@@ -140,27 +140,30 @@ class FileProcessingService:
             logger.info("Vision provider can be overridden per-upload based on API key's adapter configuration")
 
         # Audio service configuration - follows same pattern as vision/embeddings/inference
-        # Priority: adapter config > global sound config > default
-        # NOTE: Default audio provider is set here, but can be overridden per-file based on API key's adapter
-        sound_config = config.get('sound', {})
+        # Uses stt.yaml for STT (speech-to-text) configuration
+        # Priority: adapter config > global stt config > default
+        # NOTE: Default STT provider is set here, but can be overridden per-file based on API key's adapter
+        stt_config = config.get('stt', {})
 
         # Enable/disable audio processing
-        # Priority: adapter config > global sound config > default True
-        self.enable_audio = config.get('enable_audio', sound_config.get('enabled', True))
+        # Priority: adapter config > global stt config > default True
+        self.enable_audio = config.get('enable_audio', stt_config.get('enabled', True))
 
-        # Get DEFAULT audio provider (can be overridden per-upload based on adapter)
-        # Priority: adapter config > global sound config > default
-        self.default_audio_provider = config.get('audio_provider', sound_config.get('provider', 'openai'))
+        # Get DEFAULT STT provider for audio transcription (can be overridden per-upload based on adapter)
+        # Priority: adapter config > global stt config > default
+        self.default_audio_provider = config.get('stt_provider', stt_config.get('provider', 'whisper'))
 
-        # Get provider-specific configs from 'sounds' section (plural, like 'embeddings', 'inferences')
-        self.audio_config = config.get('sounds', {})
+        # Store the full config for passing to AIServiceFactory
+        # The factory expects 'stt_providers' and 'tts_providers' keys
+        self.stt_providers_config = config.get('stt_providers', {})
+        self.tts_providers_config = config.get('tts_providers', {})
 
         # Log default audio configuration
         if self.enable_audio:
-            provider_config = self.audio_config.get(self.default_audio_provider, {})
-            model = provider_config.get('stt_model', 'default')
-            logger.info(f"Default audio service configured: provider={self.default_audio_provider}, model={model}")
-            logger.info("Audio provider can be overridden per-upload based on API key's adapter configuration")
+            provider_config = self.stt_providers_config.get(self.default_audio_provider, {})
+            model = provider_config.get('stt_model', provider_config.get('model_size', 'default'))
+            logger.info(f"Default STT service configured: provider={self.default_audio_provider}, model={model}")
+            logger.info("STT provider can be overridden per-upload based on API key's adapter configuration")
     
     def _init_storage(self) -> FilesystemStorage:
         """Initialize storage backend."""
@@ -299,15 +302,15 @@ class FileProcessingService:
 
     async def _get_audio_provider_for_api_key(self, api_key: str) -> str:
         """
-        Get the audio provider for a given API key by looking up its adapter configuration.
+        Get the STT provider for a given API key by looking up its adapter configuration.
 
-        This enables adapter-specific audio provider overrides (e.g., adapter A uses OpenAI, adapter B uses Google).
+        This enables adapter-specific STT provider overrides (e.g., adapter A uses Whisper, adapter B uses Gemini).
 
         Args:
             api_key: The API key to lookup
 
         Returns:
-            Audio provider name (e.g., 'openai', 'google', 'ollama')
+            STT provider name (e.g., 'whisper', 'openai', 'gemini')
         """
         try:
             # Try to get adapter manager from app state
@@ -326,18 +329,18 @@ class FileProcessingService:
                         adapter_config = adapter_manager.get_adapter_config(adapter_name)
 
                         if adapter_config:
-                            # Check if adapter has audio_provider override
-                            audio_provider = adapter_config.get('audio_provider')
+                            # Check if adapter has stt_provider override
+                            stt_provider = adapter_config.get('stt_provider')
 
-                            if audio_provider:
-                                logger.info(f"Using adapter-specific audio provider '{audio_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
-                                return audio_provider
+                            if stt_provider:
+                                logger.info(f"Using adapter-specific STT provider '{stt_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
+                                return stt_provider
 
         except Exception as e:
-            logger.warning(f"Could not lookup adapter-specific audio provider for API key: {e}")
+            logger.warning(f"Could not lookup adapter-specific STT provider for API key: {e}")
 
-        # Fall back to default audio provider
-        logger.debug(f"Using default audio provider '{self.default_audio_provider}' for api_key: {api_key[:8]}...")
+        # Fall back to default STT provider
+        logger.debug(f"Using default STT provider '{self.default_audio_provider}' for api_key: {api_key[:8]}...")
         return self.default_audio_provider
 
     async def quick_upload(
@@ -497,20 +500,24 @@ class FileProcessingService:
         from ai_services import AIServiceFactory, ServiceType
 
         try:
-            # Get adapter-specific audio provider (or fallback to default)
+            # Get adapter-specific STT provider (or fallback to default)
             audio_provider = await self._get_audio_provider_for_api_key(api_key)
 
-            # Get audio service
+            # Get audio service - pass config with stt_providers and tts_providers keys
+            # as expected by ProviderAIService._extract_provider_config()
             try:
                 audio_service = AIServiceFactory.create_service(
                     ServiceType.AUDIO,
                     audio_provider,
-                    {'sound': self.audio_config}
+                    {
+                        'stt_providers': self.stt_providers_config,
+                        'tts_providers': self.tts_providers_config
+                    }
                 )
             except ValueError as e:
-                # This happens when sound is globally disabled or provider is not registered
+                # This happens when STT is globally disabled or provider is not registered
                 logger.error(f"Failed to create audio service: {str(e)}")
-                raise Exception(f"Audio transcription is not available. Please check that audio services are enabled in the configuration.")
+                raise Exception(f"Audio transcription is not available. Please check that STT services are enabled in the configuration.")
 
             # Initialize if needed
             if not audio_service.initialized:
@@ -538,7 +545,7 @@ class FileProcessingService:
                 'mime_type': mime_type,
                 'file_size': len(file_data),
                 'extraction_method': 'audio_transcription',
-                'audio_provider': audio_provider,
+                'stt_provider': audio_provider,
                 'transcribed_text': transcribed_text,
             }
 

@@ -42,6 +42,8 @@ class AudioCacheManager:
         """
         Build cache key for an audio service.
 
+        Uses config from tts.yaml and stt.yaml.
+
         Args:
             provider_name: Name of the audio provider
 
@@ -49,9 +51,15 @@ class AudioCacheManager:
             Cache key string
         """
         # Audio services can have separate TTS and STT models
-        sound_config = self.config.get('sounds', {}).get(provider_name, {})
+        tts_providers_config = self.config.get('tts_providers', {})
+        stt_providers_config = self.config.get('stt_providers', {})
+
+        # Get model from config
+        tts_model = tts_providers_config.get(provider_name, {}).get('tts_model', '')
+        stt_model = stt_providers_config.get(provider_name, {}).get('stt_model', '')
+
         # Use TTS model as primary identifier, fall back to STT model
-        model = sound_config.get('tts_model', sound_config.get('stt_model', ''))
+        model = tts_model or stt_model
         return f"{provider_name}:{model}" if model else provider_name
 
     def get(self, cache_key: str) -> Optional[Any]:
@@ -165,9 +173,14 @@ class AudioCacheManager:
 
         try:
             adapter_context = f" for adapter '{adapter_name}'" if adapter_name else ""
-            sound_config = self.config.get('sounds', {}).get(provider_name, {})
-            tts_model = sound_config.get('tts_model', '')
-            stt_model = sound_config.get('stt_model', '')
+
+            # Get config from tts.yaml and stt.yaml
+            tts_providers_config = self.config.get('tts_providers', {})
+            stt_providers_config = self.config.get('stt_providers', {})
+
+            # Get model info from config
+            tts_model = tts_providers_config.get(provider_name, {}).get('tts_model', '')
+            stt_model = stt_providers_config.get(provider_name, {}).get('stt_model', '')
 
             model_info = []
             if tts_model:
@@ -191,16 +204,24 @@ class AudioCacheManager:
                 audio_service = create_audio_service(provider_name, self.config)
             except ValueError as e:
                 # Check if audio is globally disabled
-                sound_config = self.config.get('sound', {})
-                is_audio_disabled = sound_config.get('enabled', True) is False or \
-                                   (isinstance(sound_config.get('enabled'), str) and
-                                    sound_config.get('enabled').lower() == 'false')
+                tts_config = self.config.get('tts', {})
+                stt_config = self.config.get('stt', {})
+
+                # Check tts.enabled and stt.enabled
+                tts_disabled = tts_config.get('enabled', True) is False or \
+                              (isinstance(tts_config.get('enabled'), str) and
+                               tts_config.get('enabled').lower() == 'false')
+                stt_disabled = stt_config.get('enabled', True) is False or \
+                              (isinstance(stt_config.get('enabled'), str) and
+                               stt_config.get('enabled').lower() == 'false')
+
+                is_audio_disabled = tts_disabled and stt_disabled
 
                 if is_audio_disabled:
                     # This is expected - audio is globally disabled
                     logger.info(
                         f"Audio service '{provider_name}' not available{adapter_context} - "
-                        f"audio is globally disabled (sound.enabled: false)"
+                        f"audio is globally disabled"
                     )
                 else:
                     # Provider not registered for another reason

@@ -11,11 +11,11 @@ adapters:
     implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    
+
     # Provider overrides
-    audio_provider: "gemini"    # Use Gemini for transcription (changed from openai)
+    stt_provider: "whisper"    # Use Gemini for transcription (see stt.yaml)
     embedding_provider: "openai"
-    
+
     # Capabilities: Audio file transcription
     capabilities:
       retrieval_behavior: "conditional"
@@ -28,18 +28,18 @@ adapters:
         - "file_ids"
         - "api_key"
         - "transcription_language"  # Optional: specify language
-    
+
     config:
       # Storage configuration
       storage_backend: "filesystem"
       storage_root: "./uploads"
       max_file_size: 104857600  # 100MB for audio files
-      
+
       # Audio-specific settings
       enable_audio_transcription: true
       transcription_language: null  # Auto-detect, or "en-US", "fr-FR", etc.
       transcription_format: "text"   # Return format: "text", "json", "srt", "vtt"
-      
+
       # Supported audio formats
       supported_types:
         - "audio/wav"
@@ -49,15 +49,15 @@ adapters:
         - "audio/ogg"
         - "audio/flac"
         - "audio/webm"
-      
+
       # Vector store for transcribed text
       vector_store: "chroma"
       collection_prefix: "audio_transcriptions_"
-      
+
       chunking_strategy: "recursive"
       chunk_size: 2000  # Larger chunks for transcriptions
       chunk_overlap: 200
-      
+
       confidence_threshold: 0.3
       max_results: 10
       return_results: 5
@@ -69,12 +69,13 @@ adapters:
     datasource: "none"
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
-    
+
     # Provider overrides
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    audio_provider: "elevenlabs"  # For both STT and TTS
-    
+    stt_provider: "whisper"       # STT provider (see stt.yaml) - local, free!
+    tts_provider: "elevenlabs"    # TTS provider (see tts.yaml) - premium quality
+
     # Capabilities: Voice-enabled chat
     capabilities:
       retrieval_behavior: "none"
@@ -89,14 +90,13 @@ adapters:
         - "session_id"
         - "return_audio"     # Whether to return audio response
         - "tts_voice"        # Voice for TTS (alloy, echo, fable, etc.)
-    
+
     config:
       # Audio processing settings
       audio_input_enabled: true
       audio_output_enabled: true
       stt_language: "en-US"     # Default language for speech-to-text
-      # tts_voice: "despina"      # Default voice
-      tts_format: "wav"         # Default output format (Gemini uses wav)
+      tts_format: "wav"         # Default output format
       return_text: true         # Also return text alongside audio
       return_audio: true        # Return audio response
 
@@ -107,12 +107,13 @@ adapters:
     datasource: "none"
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
-    
+
     # Provider overrides
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    audio_provider: "gemini"
-    
+    stt_provider: "gemini"    # STT provider (see stt.yaml)
+    tts_provider: "gemini"    # TTS provider (see tts.yaml)
+
     # Capabilities: Multilingual voice assistant
     capabilities:
       retrieval_behavior: "none"
@@ -125,24 +126,24 @@ adapters:
         - "source_language"    # Language of input audio
         - "target_language"    # Language for output audio
         - "session_id"
-    
+
     config:
       # Language settings
       default_source_language: "auto"  # Auto-detect input language
       default_target_language: "en-US" # Default output language
-      
+
       # Google TTS settings (multilingual)
       tts_model: "neural2"
       tts_voice: "en-US-Neural2-A"
       tts_language_code: "en-US"
       tts_audio_encoding: "MP3"
-      
+
       # Google STT settings
       stt_model: "latest_long"
       stt_language_code: "en-US"
       stt_sample_rate: 16000
       stt_encoding: "LINEAR16"
-      
+
       # Audio I/O
       audio_input_enabled: true
       audio_output_enabled: true
@@ -160,9 +161,8 @@ adapters:
     # Provider overrides
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    audio_provider: "elevenlabs"  # High-quality TTS
-    # Note: ElevenLabs is TTS-only, STT would need separate provider
-    # For now, this adapter expects text input (can be extended)
+    stt_provider: "whisper"       # STT provider (see stt.yaml) - local, free!
+    tts_provider: "elevenlabs"    # TTS provider (see tts.yaml) - premium quality
 
     # Capabilities: Premium voice output
     capabilities:
@@ -202,9 +202,8 @@ adapters:
     # Provider overrides
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    audio_provider: "vllm"  # vLLM for TTS (Orpheus model) - local, free
-    # NOTE: For STT, client should send text or use separate Whisper processing
-    # This adapter focuses on TTS output using local vLLM server
+    stt_provider: "whisper"   # STT provider (see stt.yaml) - local, free!
+    tts_provider: "vllm"      # TTS provider (see tts.yaml) - local Orpheus model
 
     # Capabilities: Voice output with local TTS
     capabilities:
@@ -225,7 +224,7 @@ adapters:
       tts_format: "mp3"
 
       # Audio output
-      audio_input_enabled: false  # Use Whisper separately for STT
+      audio_input_enabled: true   # STT via Whisper
       audio_output_enabled: true
       return_text: true
       return_audio: true
@@ -243,7 +242,7 @@ adapters:
     # Provider overrides
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    audio_provider: "coqui"  # Local Coqui TTS (free, offline)
+    tts_provider: "coqui"  # TTS provider (see tts.yaml) - local, free!
 
     # Capabilities: Voice output with local TTS
     capabilities:
@@ -289,9 +288,8 @@ adapters:
     # Provider overrides - ALL LOCAL
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    audio_provider: "coqui"  # Coqui TTS for speech synthesis (could be switched to whisper for STT if needed)
-    # Note: For STT, you would need to handle Whisper separately or use a multimodal approach
-    # This adapter focuses on TTS with Coqui. For full STT+TTS, consider using the multimodal adapter
+    stt_provider: "whisper"   # STT provider (see stt.yaml) - local, free!
+    tts_provider: "coqui"     # TTS provider (see tts.yaml) - local, free!
 
     # Capabilities: Fully local voice assistant
     capabilities:
@@ -318,7 +316,7 @@ adapters:
       device: "auto"  # Options: auto, cpu, cuda
 
       # Audio I/O
-      audio_input_enabled: false  # Set to true if implementing Whisper STT
+      audio_input_enabled: true   # STT via Whisper
       audio_output_enabled: true
       return_text: true
       return_audio: true
@@ -350,8 +348,8 @@ adapters:
     # Provider overrides
     inference_provider: "ollama_cloud"  # Use cloud LLM for best quality
     model: "gpt-oss:120b"
-    audio_provider: "coqui"  # Local Coqui TTS (free)
-    # For STT, could integrate Whisper in a preprocessing step
+    stt_provider: "whisper"   # STT provider (see stt.yaml) - local, free!
+    tts_provider: "coqui"     # TTS provider (see tts.yaml) - local, free!
 
     # Capabilities
     capabilities:
@@ -373,6 +371,7 @@ adapters:
       device: "cuda"  # Use GPU for best performance
 
       # Audio output
+      audio_input_enabled: true   # STT via Whisper
       audio_output_enabled: true
       return_text: true
       return_audio: true
@@ -387,7 +386,7 @@ adapters:
   # Enables phone call-like conversations with AI using mixed audio providers
   # Best for: Interactive voice assistants, customer service bots, voice-controlled apps
   - name: "real-time-voice-chat"
-    enabled: false
+    enabled: true
     type: "passthrough"
     datasource: "none"
     adapter: "conversational"
@@ -398,10 +397,8 @@ adapters:
     model: "gemini-3-pro-preview"
 
     # Audio providers - separate STT and TTS for flexibility
-    stt_provider: "whisper"      # OpenAI Whisper for speech-to-text (reliable transcription)
-    audio_provider: "elevenlabs"  # ElevenLabs or vLLM
-    tts_provider: "elevenlabs"  # Explicit TTS provider (same as audio_provider)
-    # Alternative STT providers: "whisper" (local, free), "google", "gemini"
+    stt_provider: "whisper"       # STT provider (see stt.yaml) - local, free!
+    tts_provider: "openai"    # TTS provider (see tts.yaml) - premium quality
 
     # Capabilities: Real-time WebSocket audio streaming
     capabilities:
@@ -410,8 +407,8 @@ adapters:
       supports_file_ids: false
       supports_session_tracking: true
       requires_api_key_validation: false
-      supports_interruption: true       # NEW: Supports user interruptions
-      supports_realtime_audio: true     # NEW: Supports WebSocket audio streaming
+      supports_interruption: true       # Supports user interruptions
+      supports_realtime_audio: true     # Supports WebSocket audio streaming
       optional_parameters:
         - "session_id"
         - "user_id"
@@ -429,14 +426,14 @@ adapters:
       enable_interruption: false
       interruption_timeout_ms: 500      # Time to wait for interruption
 
-      # Audio settings (uses adapter's stt_provider and audio_provider)
+      # Audio settings
       audio_input_enabled: true
       audio_output_enabled: true
-      stt_language: "en"                # Language for speech-to-text (Gemini)
+      stt_language: "en"                # Language for speech-to-text
       tts_voice: "pNInz6obpgDQGcFmaJgB"
       # Popular ElevenLabs voices: pNInz6obpgDQGcFmaJgB (Adam), EXAVITQu4vr4xnSDxMaL (Bella),
       #                           21m00Tcm4TlvDq8ikWAM (Rachel), AZnzlk1XvdvUeBnXmlld (Domi)
-      tts_format: "mp3_44100_128"       # ElevenLabs format (was "wav" for Gemini)
+      tts_format: "mp3_44100_128"       # ElevenLabs format
       return_text: false                # WebSocket mode - audio only
       return_audio: true
 

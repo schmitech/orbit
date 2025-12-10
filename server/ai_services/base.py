@@ -130,13 +130,38 @@ class ProviderAIService(AIService[T]):
         Extract provider-specific configuration from the config dictionary.
 
         This method looks for configuration in the following locations:
-        1. config[service_type.value + 's'][provider_name] (plural form, e.g., 'embeddings')
-        2. config[service_type.value][provider_name] (singular form, e.g., 'inference')
-        3. config[provider_name] (fallback)
+        1. For AUDIO services (split TTS/STT config from tts.yaml and stt.yaml):
+           a. config['tts_providers'][provider_name]
+           b. config['stt_providers'][provider_name]
+           - Configs are merged with TTS taking precedence over STT
+        2. For other services:
+           a. config[service_type.value + 's'][provider_name] (plural form, e.g., 'embeddings')
+           b. config[service_type.value][provider_name] (singular form, e.g., 'inference')
+           c. config[provider_name] (fallback)
 
         Returns:
             Provider-specific configuration dictionary
         """
+        # Special handling for AUDIO service type (split TTS/STT config)
+        if self.service_type == ServiceType.AUDIO:
+            merged_config = {}
+
+            # 1. STT providers config (lower priority)
+            stt_config = self.config.get('stt_providers', {})
+            if self.provider_name in stt_config:
+                merged_config.update(stt_config[self.provider_name])
+
+            # 2. TTS providers config (higher priority, overlays STT)
+            tts_config = self.config.get('tts_providers', {})
+            if self.provider_name in tts_config:
+                merged_config.update(tts_config[self.provider_name])
+
+            if merged_config:
+                return merged_config
+
+            # If no config found in any location, continue to standard fallback
+
+        # Standard lookup for other service types (and fallback for AUDIO)
         # Try plural form first (e.g., 'embeddings', 'moderators')
         service_key_plural = self.service_type.value + 's'
         service_config_plural = self.config.get(service_key_plural, {})
