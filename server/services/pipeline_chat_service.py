@@ -41,7 +41,7 @@ class PipelineChatService:
     def __init__(self, config: Dict[str, Any], logger_service,
                  chat_history_service=None, llm_guard_service=None, moderator_service=None,
                  retriever=None, reranker_service=None, prompt_service=None, clock_service=None,
-                 redis_service=None):
+                 redis_service=None, adapter_manager=None):
         """
         Initialize the pipeline chat service.
 
@@ -56,6 +56,9 @@ class PipelineChatService:
             prompt_service: Optional prompt service
             clock_service: Optional clock service
             redis_service: Optional Redis service for session persistence
+            adapter_manager: Optional shared adapter manager (uses app.state.adapter_manager).
+                           If provided, config changes during reload will be reflected.
+                           If not provided, creates a local instance (backward compatibility).
         """
         self.config = config
 
@@ -70,9 +73,18 @@ class PipelineChatService:
         # Create pipeline factory
         self.pipeline_factory = PipelineFactory(config)
 
-        # Create adapter manager for dynamic retrieval
-        from services.dynamic_adapter_manager import DynamicAdapterManager
-        adapter_manager = DynamicAdapterManager(config)
+        # Use provided adapter manager or create a local one (backward compatibility)
+        if adapter_manager is not None:
+            # Use the shared adapter manager - config changes during reload will be reflected
+            # For FaultTolerantAdapterManager, use base_adapter_manager for handlers
+            if hasattr(adapter_manager, 'base_adapter_manager'):
+                adapter_manager = adapter_manager.base_adapter_manager
+            logger.debug("Using shared adapter manager for pipeline chat service")
+        else:
+            # Create local adapter manager (backward compatibility, but won't reflect reloads)
+            from services.dynamic_adapter_manager import DynamicAdapterManager
+            adapter_manager = DynamicAdapterManager(config)
+            logger.debug("Created local adapter manager for pipeline chat service")
 
         # Create pipeline with services
         self.pipeline = self.pipeline_factory.create_pipeline_with_services(

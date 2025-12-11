@@ -10,6 +10,9 @@ import logging
 from typing import Any, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor
 
+from ai_services.factory import AIServiceFactory, ServiceType
+from embeddings.base import EmbeddingServiceFactory
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,35 +75,121 @@ class AdapterLoader:
         Returns:
             The initialized adapter instance
         """
-        # Preload embedding service if adapter has an override
-        if adapter_config.get('embedding_provider'):
-            embedding_provider = adapter_config['embedding_provider']
+        # Preload inference provider if adapter has an override or uses global provider
+        inference_provider = adapter_config.get('inference_provider')
+        logger.debug(f"Adapter '{adapter_name}' inference_provider from config: {inference_provider}")
+        if not inference_provider:
+            # Use global default provider
+            inference_provider = self.config.get('general', {}).get('inference_provider')
+            logger.debug(f"Using global default inference_provider: {inference_provider}")
+
+        if inference_provider:
+            model_override = adapter_config.get('model')
+            logger.info(f"Preloading inference provider '{inference_provider}' for adapter '{adapter_name}' (model: {model_override or 'default'})")
             try:
+                # Clear any stale cached instance for this provider BEFORE creating new one
+                # This ensures we get a fresh instance with properly initialized client
+                AIServiceFactory.clear_cache(service_type=ServiceType.INFERENCE, provider=inference_provider)
+                logger.debug(f"Cleared AIServiceFactory inference cache for '{inference_provider}' before preload")
+
+                await self.provider_cache.create_provider(inference_provider, model_override, adapter_name)
+                log_msg = f"Preloaded inference provider '{inference_provider}' for adapter '{adapter_name}'"
+                if model_override:
+                    log_msg += f" with model override '{model_override}'"
+                logger.info(log_msg)
+            except Exception as e:
+                logger.error(f"Failed to preload inference provider '{inference_provider}' for adapter '{adapter_name}': {str(e)}", exc_info=True)
+        else:
+            logger.warning(f"No inference provider configured for adapter '{adapter_name}' (neither in adapter config nor global config)")
+
+        # Preload embedding service if adapter has an override or uses global default
+        embedding_provider = adapter_config.get('embedding_provider')
+        if not embedding_provider:
+            # Use global default provider
+            embedding_provider = self.config.get('embedding', {}).get('provider')
+            if embedding_provider:
+                logger.debug(f"Using global default embedding_provider: {embedding_provider}")
+
+        if embedding_provider:
+            logger.info(f"Preloading embedding provider '{embedding_provider}' for adapter '{adapter_name}'")
+            try:
+                # Clear any stale cached instances for this provider BEFORE creating new one
+                AIServiceFactory.clear_cache(service_type=ServiceType.EMBEDDING, provider=embedding_provider)
+                # Also clear EmbeddingServiceFactory cache
+                factory_instances = EmbeddingServiceFactory.get_cached_instances()
+                keys_to_remove = [k for k in factory_instances.keys() if k.startswith(f"{embedding_provider}:")]
+                if keys_to_remove:
+                    with EmbeddingServiceFactory._get_lock():
+                        for key in keys_to_remove:
+                            if key in EmbeddingServiceFactory._instances:
+                                del EmbeddingServiceFactory._instances[key]
+                    logger.debug(f"Cleared EmbeddingServiceFactory cache for '{embedding_provider}' before preload")
+
                 await self.embedding_cache.create_service(embedding_provider, adapter_name)
+                logger.info(f"Preloaded embedding provider '{embedding_provider}' for adapter '{adapter_name}'")
             except Exception as e:
                 logger.warning(f"Failed to preload embedding service for adapter {adapter_name}: {str(e)}")
 
-        # Preload reranker service if adapter has an override
-        if adapter_config.get('reranker_provider'):
-            reranker_provider = adapter_config['reranker_provider']
+        # Preload reranker service if adapter has an override or uses global default
+        reranker_provider = adapter_config.get('reranker_provider')
+        if not reranker_provider:
+            # Use global default provider
+            reranker_config = self.config.get('reranker', {})
+            reranker_provider = reranker_config.get('provider_override') or reranker_config.get('provider')
+            if reranker_provider:
+                logger.debug(f"Using global default reranker_provider: {reranker_provider}")
+
+        if reranker_provider:
+            logger.info(f"Preloading reranker provider '{reranker_provider}' for adapter '{adapter_name}'")
             try:
+                # Clear any stale cached instance for this provider BEFORE creating new one
+                AIServiceFactory.clear_cache(service_type=ServiceType.RERANKING, provider=reranker_provider)
+                logger.debug(f"Cleared AIServiceFactory reranking cache for '{reranker_provider}' before preload")
+
                 await self.reranker_cache.create_service(reranker_provider, adapter_name)
+                logger.info(f"Preloaded reranker provider '{reranker_provider}' for adapter '{adapter_name}'")
             except Exception as e:
                 logger.warning(f"Failed to preload reranker service for adapter {adapter_name}: {str(e)}")
 
-        # Preload vision service if adapter has an override
-        if adapter_config.get('vision_provider') and self.vision_cache:
-            vision_provider = adapter_config['vision_provider']
+        # Preload vision service if adapter has an override or uses global default
+        vision_provider = adapter_config.get('vision_provider')
+        if not vision_provider:
+            # Use global default provider
+            vision_config = self.config.get('vision', {})
+            vision_provider = vision_config.get('provider')
+            if vision_provider:
+                logger.debug(f"Using global default vision_provider: {vision_provider}")
+
+        if vision_provider and self.vision_cache:
+            logger.info(f"Preloading vision provider '{vision_provider}' for adapter '{adapter_name}'")
             try:
+                # Clear any stale cached instance for this provider BEFORE creating new one
+                AIServiceFactory.clear_cache(service_type=ServiceType.VISION, provider=vision_provider)
+                logger.debug(f"Cleared AIServiceFactory vision cache for '{vision_provider}' before preload")
+
                 await self.vision_cache.create_service(vision_provider, adapter_name)
+                logger.info(f"Preloaded vision provider '{vision_provider}' for adapter '{adapter_name}'")
             except Exception as e:
                 logger.warning(f"Failed to preload vision service for adapter {adapter_name}: {str(e)}")
 
-        # Preload audio service if adapter has an override
-        if adapter_config.get('audio_provider') and self.audio_cache:
-            audio_provider = adapter_config['audio_provider']
+        # Preload audio service if adapter has an override or uses global default
+        audio_provider = adapter_config.get('audio_provider')
+        if not audio_provider:
+            # Use global default provider from sound config
+            sound_config = self.config.get('sound', {})
+            audio_provider = sound_config.get('provider')
+            if audio_provider:
+                logger.debug(f"Using global default audio_provider: {audio_provider}")
+
+        if audio_provider and self.audio_cache:
+            logger.info(f"Preloading audio provider '{audio_provider}' for adapter '{adapter_name}'")
             try:
+                # Clear any stale cached instance for this provider BEFORE creating new one
+                AIServiceFactory.clear_cache(service_type=ServiceType.AUDIO, provider=audio_provider)
+                logger.debug(f"Cleared AIServiceFactory audio cache for '{audio_provider}' before preload")
+
                 await self.audio_cache.create_service(audio_provider, adapter_name)
+                logger.info(f"Preloaded audio provider '{audio_provider}' for adapter '{adapter_name}'")
             except ValueError as e:
                 # Check if audio is globally disabled
                 sound_config = self.config.get('sound', {})
@@ -122,6 +211,82 @@ class AdapterLoader:
                     )
             except Exception as e:
                 logger.warning(f"Failed to preload audio service for adapter {adapter_name}: {str(e)}")
+
+        # Preload STT service if adapter has an override or uses global default (uses audio_cache)
+        stt_provider = adapter_config.get('stt_provider')
+        if not stt_provider:
+            # Use global default provider from stt config
+            stt_config = self.config.get('stt', {})
+            stt_provider = stt_config.get('provider')
+            if stt_provider:
+                logger.debug(f"Using global default stt_provider: {stt_provider}")
+
+        if stt_provider and self.audio_cache:
+            logger.info(f"Preloading STT provider '{stt_provider}' for adapter '{adapter_name}'")
+            try:
+                # Clear any stale cached instance for this provider BEFORE creating new one
+                AIServiceFactory.clear_cache(service_type=ServiceType.AUDIO, provider=stt_provider)
+                logger.debug(f"Cleared AIServiceFactory audio/STT cache for '{stt_provider}' before preload")
+
+                await self.audio_cache.create_service(stt_provider, adapter_name)
+                logger.info(f"Preloaded STT provider '{stt_provider}' for adapter '{adapter_name}'")
+            except ValueError as e:
+                # Check if STT is globally disabled
+                stt_config = self.config.get('stt', {})
+                is_stt_disabled = stt_config.get('enabled', True) is False or \
+                                 (isinstance(stt_config.get('enabled'), str) and
+                                  stt_config.get('enabled').lower() == 'false')
+
+                if is_stt_disabled:
+                    logger.debug(
+                        f"Skipping STT service preload for adapter '{adapter_name}' "
+                        f"(provider: {stt_provider}) - STT is globally disabled"
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to preload STT service for adapter '{adapter_name}' "
+                        f"(provider: {stt_provider}): {str(e)}"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to preload STT service for adapter {adapter_name}: {str(e)}")
+
+        # Preload TTS service if adapter has an override or uses global default (uses audio_cache)
+        tts_provider = adapter_config.get('tts_provider')
+        if not tts_provider:
+            # Use global default provider from tts config
+            tts_config = self.config.get('tts', {})
+            tts_provider = tts_config.get('provider')
+            if tts_provider:
+                logger.debug(f"Using global default tts_provider: {tts_provider}")
+
+        if tts_provider and self.audio_cache:
+            logger.info(f"Preloading TTS provider '{tts_provider}' for adapter '{adapter_name}'")
+            try:
+                # Clear any stale cached instance for this provider BEFORE creating new one
+                AIServiceFactory.clear_cache(service_type=ServiceType.AUDIO, provider=tts_provider)
+                logger.debug(f"Cleared AIServiceFactory audio/TTS cache for '{tts_provider}' before preload")
+
+                await self.audio_cache.create_service(tts_provider, adapter_name)
+                logger.info(f"Preloaded TTS provider '{tts_provider}' for adapter '{adapter_name}'")
+            except ValueError as e:
+                # Check if TTS is globally disabled
+                tts_config = self.config.get('tts', {})
+                is_tts_disabled = tts_config.get('enabled', True) is False or \
+                                 (isinstance(tts_config.get('enabled'), str) and
+                                  tts_config.get('enabled').lower() == 'false')
+
+                if is_tts_disabled:
+                    logger.debug(
+                        f"Skipping TTS service preload for adapter '{adapter_name}' "
+                        f"(provider: {tts_provider}) - TTS is globally disabled"
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to preload TTS service for adapter '{adapter_name}' "
+                        f"(provider: {tts_provider}): {str(e)}"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to preload TTS service for adapter {adapter_name}: {str(e)}")
 
         # Run the import and initialization in a thread pool
         loop = asyncio.get_event_loop()

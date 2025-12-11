@@ -209,6 +209,7 @@ class ServiceFactory:
         moderator_service = getattr(app.state, 'moderator_service', None)
         clock_service = getattr(app.state, 'clock_service', None)
         redis_service = getattr(app.state, 'redis_service', None)
+        adapter_manager = getattr(app.state, 'adapter_manager', None)
 
         # Use pipeline-based chat service (now the default)
         from services.pipeline_chat_service import PipelineChatService
@@ -222,7 +223,8 @@ class ServiceFactory:
             reranker_service=getattr(app.state, 'reranker_service', None),
             prompt_service=getattr(app.state, 'prompt_service', None),
             clock_service=clock_service,
-            redis_service=redis_service
+            redis_service=redis_service,
+            adapter_manager=adapter_manager  # Pass shared adapter manager for reload support
         )
         # Initialize the pipeline provider
         try:

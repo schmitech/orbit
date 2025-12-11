@@ -422,5 +422,636 @@ class TestAdapterReloader:
         self.adapter_cache.put.assert_not_called()
 
 
+class TestAdapterLoaderInferencePreload:
+    """Test AdapterLoader inference provider preload functionality"""
+
+    def setup_method(self):
+        """Setup test fixtures"""
+        self.config = {
+            'general': {
+                'inference_provider': 'default_provider'
+            },
+            'inference': {
+                'openai': {'model': 'gpt-4'},
+                'ollama': {'model': 'llama2'},
+                'default_provider': {'model': 'default-model'}
+            },
+            'adapters': []
+        }
+
+        # Create mock cache managers
+        self.provider_cache = Mock()
+        self.embedding_cache = Mock()
+        self.reranker_cache = Mock()
+        self.vision_cache = Mock()
+        self.audio_cache = Mock()
+        self.app_state = Mock()
+
+        # Setup async methods on caches
+        self.provider_cache.create_provider = AsyncMock(return_value=Mock())
+        self.embedding_cache.create_service = AsyncMock(return_value=Mock())
+        self.reranker_cache.create_service = AsyncMock(return_value=Mock())
+        self.vision_cache.create_service = AsyncMock(return_value=Mock())
+        self.audio_cache.create_service = AsyncMock(return_value=Mock())
+
+    def _create_loader(self):
+        """Create AdapterLoader with mocks"""
+        from services.loader.adapter_loader import AdapterLoader
+        return AdapterLoader(
+            self.config,
+            self.app_state,
+            self.provider_cache,
+            self.embedding_cache,
+            self.reranker_cache,
+            self.vision_cache,
+            self.audio_cache
+        )
+
+    @pytest.mark.asyncio
+    async def test_inference_provider_preload_during_adapter_load(self):
+        """Test that inference provider is preloaded when loading an adapter"""
+        adapter_config = {
+            'name': 'test_adapter',
+            'enabled': True,
+            'inference_provider': 'openai',
+            'implementation': 'retrievers.passthrough.PassthroughRetriever'
+        }
+
+        loader = self._create_loader()
+
+        # Mock the _create_adapter_sync method to avoid import chain issues
+        mock_retriever = Mock()
+        mock_retriever.domain_adapter = None
+        with patch.object(loader, '_create_adapter_sync', return_value=mock_retriever):
+            await loader.load_adapter('test_adapter', adapter_config)
+
+            # Verify inference provider was preloaded
+            self.provider_cache.create_provider.assert_called()
+            call_args = self.provider_cache.create_provider.call_args
+            assert call_args[0][0] == 'openai'  # provider_name
+            assert call_args[0][2] == 'test_adapter'  # adapter_name
+
+    @pytest.mark.asyncio
+    async def test_inference_provider_preload_with_model_override(self):
+        """Test that inference provider is preloaded with model override"""
+        adapter_config = {
+            'name': 'test_adapter',
+            'enabled': True,
+            'inference_provider': 'openai',
+            'model': 'gpt-4-turbo',
+            'implementation': 'retrievers.passthrough.PassthroughRetriever'
+        }
+
+        loader = self._create_loader()
+
+        # Mock the _create_adapter_sync method to avoid import chain issues
+        mock_retriever = Mock()
+        mock_retriever.domain_adapter = None
+        with patch.object(loader, '_create_adapter_sync', return_value=mock_retriever):
+            await loader.load_adapter('test_adapter', adapter_config)
+
+            # Verify inference provider was preloaded with model override
+            self.provider_cache.create_provider.assert_called()
+            call_args = self.provider_cache.create_provider.call_args
+            assert call_args[0][0] == 'openai'  # provider_name
+            assert call_args[0][1] == 'gpt-4-turbo'  # model_override
+            assert call_args[0][2] == 'test_adapter'  # adapter_name
+
+    @pytest.mark.asyncio
+    async def test_inference_provider_preload_uses_global_default(self):
+        """Test that global default provider is used when adapter doesn't specify one"""
+        adapter_config = {
+            'name': 'test_adapter',
+            'enabled': True,
+            # No inference_provider specified - should use global default
+            'implementation': 'retrievers.passthrough.PassthroughRetriever'
+        }
+
+        loader = self._create_loader()
+
+        # Mock the _create_adapter_sync method to avoid import chain issues
+        mock_retriever = Mock()
+        mock_retriever.domain_adapter = None
+        with patch.object(loader, '_create_adapter_sync', return_value=mock_retriever):
+            await loader.load_adapter('test_adapter', adapter_config)
+
+            # Verify inference provider was preloaded with global default
+            self.provider_cache.create_provider.assert_called()
+            call_args = self.provider_cache.create_provider.call_args
+            assert call_args[0][0] == 'default_provider'  # global default
+
+    @pytest.mark.asyncio
+    async def test_inference_provider_preload_failure_continues(self):
+        """Test that adapter loading continues even if inference provider preload fails"""
+        adapter_config = {
+            'name': 'test_adapter',
+            'enabled': True,
+            'inference_provider': 'failing_provider',
+            'implementation': 'retrievers.passthrough.PassthroughRetriever'
+        }
+
+        # Make provider preload fail
+        self.provider_cache.create_provider = AsyncMock(
+            side_effect=Exception("Provider initialization failed")
+        )
+
+        loader = self._create_loader()
+
+        # Mock the _create_adapter_sync method to avoid import chain issues
+        mock_retriever = Mock()
+        mock_retriever.domain_adapter = None
+        with patch.object(loader, '_create_adapter_sync', return_value=mock_retriever):
+            # Should not raise even though provider preload failed
+            # The adapter loading should continue and return the retriever
+            result = await loader.load_adapter('test_adapter', adapter_config)
+            assert result is mock_retriever
+
+    @pytest.mark.asyncio
+    async def test_no_inference_provider_preload_when_none_configured(self):
+        """Test that no preload happens when no provider is configured anywhere"""
+        # Remove global default
+        self.config['general'] = {}
+
+        adapter_config = {
+            'name': 'test_adapter',
+            'enabled': True,
+            # No inference_provider specified and no global default
+            'implementation': 'retrievers.passthrough.PassthroughRetriever'
+        }
+
+        loader = self._create_loader()
+
+        # Mock the _create_adapter_sync method to avoid import chain issues
+        mock_retriever = Mock()
+        mock_retriever.domain_adapter = None
+        with patch.object(loader, '_create_adapter_sync', return_value=mock_retriever):
+            await loader.load_adapter('test_adapter', adapter_config)
+
+            # Should NOT have called create_provider since no provider is configured
+            self.provider_cache.create_provider.assert_not_called()
+
+
+class TestAdapterLoaderSTTTTSPreload:
+    """Tests for STT and TTS provider preloading in AdapterLoader"""
+
+    def setup_method(self):
+        """Set up test fixtures"""
+        self.config = {
+            'general': {'inference_provider': 'default_provider'},
+            'stt': {'enabled': True},
+            'tts': {'enabled': True}
+        }
+        self.app_state = Mock()
+        self.provider_cache = Mock()
+        self.provider_cache.create_provider = AsyncMock()
+        self.embedding_cache = Mock()
+        self.embedding_cache.create_service = AsyncMock()
+        self.reranker_cache = Mock()
+        self.reranker_cache.create_service = AsyncMock()
+        self.vision_cache = Mock()
+        self.vision_cache.create_service = AsyncMock()
+        self.audio_cache = Mock()
+        self.audio_cache.create_service = AsyncMock()
+
+    def _create_loader(self):
+        from services.loader.adapter_loader import AdapterLoader
+        return AdapterLoader(
+            self.config,
+            self.app_state,
+            self.provider_cache,
+            self.embedding_cache,
+            self.reranker_cache,
+            self.vision_cache,
+            self.audio_cache
+        )
+
+    @pytest.mark.asyncio
+    async def test_stt_provider_preload(self):
+        """Test that STT provider is preloaded when specified"""
+        adapter_config = {
+            'name': 'test_adapter',
+            'enabled': True,
+            'stt_provider': 'whisper',
+            'implementation': 'retrievers.passthrough.PassthroughRetriever'
+        }
+
+        loader = self._create_loader()
+
+        mock_retriever = Mock()
+        mock_retriever.domain_adapter = None
+        with patch.object(loader, '_create_adapter_sync', return_value=mock_retriever):
+            await loader.load_adapter('test_adapter', adapter_config)
+
+            # Verify STT provider was preloaded via audio_cache
+            self.audio_cache.create_service.assert_called()
+            call_args = self.audio_cache.create_service.call_args
+            assert call_args[0][0] == 'whisper'
+
+    @pytest.mark.asyncio
+    async def test_tts_provider_preload(self):
+        """Test that TTS provider is preloaded when specified"""
+        adapter_config = {
+            'name': 'test_adapter',
+            'enabled': True,
+            'tts_provider': 'openai',
+            'implementation': 'retrievers.passthrough.PassthroughRetriever'
+        }
+
+        loader = self._create_loader()
+
+        mock_retriever = Mock()
+        mock_retriever.domain_adapter = None
+        with patch.object(loader, '_create_adapter_sync', return_value=mock_retriever):
+            await loader.load_adapter('test_adapter', adapter_config)
+
+            # Verify TTS provider was preloaded via audio_cache
+            self.audio_cache.create_service.assert_called()
+            call_args = self.audio_cache.create_service.call_args
+            assert call_args[0][0] == 'openai'
+
+    @pytest.mark.asyncio
+    async def test_both_stt_and_tts_preload(self):
+        """Test that both STT and TTS providers are preloaded when specified"""
+        adapter_config = {
+            'name': 'test_adapter',
+            'enabled': True,
+            'stt_provider': 'whisper',
+            'tts_provider': 'coqui',
+            'implementation': 'retrievers.passthrough.PassthroughRetriever'
+        }
+
+        loader = self._create_loader()
+
+        mock_retriever = Mock()
+        mock_retriever.domain_adapter = None
+        with patch.object(loader, '_create_adapter_sync', return_value=mock_retriever):
+            await loader.load_adapter('test_adapter', adapter_config)
+
+            # Verify both were called
+            assert self.audio_cache.create_service.call_count >= 2
+
+
+class TestDependencyCacheCleanerExtended:
+    """Tests for extended DependencyCacheCleaner functionality"""
+
+    def setup_method(self):
+        """Set up test fixtures"""
+        self.config = {
+            'general': {'inference_provider': 'default'},
+            'datasources': {
+                'sqlite': {'database': '/path/to/db.sqlite'}
+            }
+        }
+        self.provider_cache = Mock()
+        self.provider_cache.build_cache_key = Mock(return_value='provider:test')
+        self.provider_cache.contains = Mock(return_value=True)
+        self.provider_cache.remove = AsyncMock()
+
+        self.embedding_cache = Mock()
+        self.embedding_cache.build_cache_key = Mock(return_value='embedding:test')
+        self.embedding_cache.contains = Mock(return_value=False)
+
+        self.reranker_cache = Mock()
+        self.reranker_cache.build_cache_key = Mock(return_value='reranker:test')
+        self.reranker_cache.contains = Mock(return_value=False)
+
+        self.vision_cache = Mock()
+        self.vision_cache.build_cache_key = Mock(return_value='vision:test')
+        self.vision_cache.contains = Mock(return_value=False)
+
+        self.audio_cache = Mock()
+        self.audio_cache.build_cache_key = Mock(return_value='audio:test')
+        self.audio_cache.contains = Mock(return_value=True)
+        self.audio_cache.remove = AsyncMock()
+
+        self.app_state = Mock()
+        self.store_manager = Mock()
+        self.store_manager._stores = {}
+        self.app_state.store_manager = self.store_manager
+
+    def _create_cleaner(self):
+        from services.reload.dependency_cache_cleaner import DependencyCacheCleaner
+        return DependencyCacheCleaner(
+            self.config,
+            self.provider_cache,
+            self.embedding_cache,
+            self.reranker_cache,
+            self.vision_cache,
+            self.audio_cache,
+            self.app_state
+        )
+
+    @pytest.mark.asyncio
+    async def test_clear_stt_cache(self):
+        """Test clearing STT provider cache"""
+        adapter_config = {
+            'name': 'test_adapter',
+            'stt_provider': 'whisper'
+        }
+
+        cleaner = self._create_cleaner()
+        cleared = await cleaner._clear_stt_cache(adapter_config)
+
+        self.audio_cache.remove.assert_awaited_once()
+        assert len(cleared) == 1
+        assert cleared[0].startswith('stt:')
+
+    @pytest.mark.asyncio
+    async def test_clear_tts_cache(self):
+        """Test clearing TTS provider cache"""
+        adapter_config = {
+            'name': 'test_adapter',
+            'tts_provider': 'openai'
+        }
+
+        cleaner = self._create_cleaner()
+        cleared = await cleaner._clear_tts_cache(adapter_config)
+
+        self.audio_cache.remove.assert_awaited_once()
+        assert len(cleared) == 1
+        assert cleared[0].startswith('tts:')
+
+    @pytest.mark.asyncio
+    async def test_clear_store_cache(self):
+        """Test clearing store cache when store_name is configured"""
+        # Set up store in cache
+        mock_store = Mock()
+        mock_store.disconnect = AsyncMock()
+        self.store_manager._stores = {'qdrant': mock_store}
+
+        adapter_config = {
+            'name': 'test_adapter',
+            'config': {
+                'store_name': 'qdrant'
+            }
+        }
+
+        cleaner = self._create_cleaner()
+        cleared = await cleaner._clear_store_cache('test_adapter', adapter_config)
+
+        assert len(cleared) == 1
+        assert 'store:qdrant' in cleared
+        mock_store.disconnect.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_clear_store_cache_no_store_manager(self):
+        """Test that store cache clearing is skipped when no store_manager"""
+        self.app_state.store_manager = None
+        self.app_state.vector_store_manager = None
+
+        adapter_config = {
+            'name': 'test_adapter',
+            'config': {
+                'store_name': 'qdrant'
+            }
+        }
+
+        cleaner = self._create_cleaner()
+        cleared = await cleaner._clear_store_cache('test_adapter', adapter_config)
+
+        assert len(cleared) == 0
+
+    @pytest.mark.asyncio
+    async def test_clear_all_dependencies_includes_new_caches(self):
+        """Test that clear_adapter_dependencies includes STT, TTS, store, and datasource"""
+        adapter_config = {
+            'name': 'test_adapter',
+            'inference_provider': 'openai',
+            'stt_provider': 'whisper',
+            'tts_provider': 'coqui'
+        }
+
+        cleaner = self._create_cleaner()
+
+        # Mock _clear_stt_cache and _clear_tts_cache to verify they're called
+        cleaner._clear_stt_cache = AsyncMock(return_value=['stt:whisper'])
+        cleaner._clear_tts_cache = AsyncMock(return_value=['tts:coqui'])
+        cleaner._clear_store_cache = AsyncMock(return_value=[])
+        cleaner._clear_datasource_cache = AsyncMock(return_value=[])
+
+        cleared = await cleaner.clear_adapter_dependencies('test_adapter', adapter_config)
+
+        cleaner._clear_stt_cache.assert_awaited_once()
+        cleaner._clear_tts_cache.assert_awaited_once()
+        cleaner._clear_store_cache.assert_awaited_once()
+        cleaner._clear_datasource_cache.assert_awaited_once()
+
+
+class TestAIServiceFactoryCacheClearing:
+    """Tests for AIServiceFactory cache clearing during adapter reload"""
+
+    def setup_method(self):
+        """Set up test fixtures"""
+        self.config = {'general': {'inference_provider': 'default'}}
+        self.provider_cache = Mock()
+        self.provider_cache.build_cache_key = Mock(return_value='openai:gpt-4')
+        self.provider_cache.contains = Mock(return_value=True)
+        self.provider_cache.remove = AsyncMock()
+
+        self.embedding_cache = Mock()
+        self.embedding_cache.build_cache_key = Mock(return_value='openai')
+        self.embedding_cache.contains = Mock(return_value=True)
+        self.embedding_cache.remove = AsyncMock()
+
+        self.reranker_cache = Mock()
+        self.reranker_cache.build_cache_key = Mock(return_value='cohere')
+        self.reranker_cache.contains = Mock(return_value=True)
+        self.reranker_cache.remove = AsyncMock()
+
+        self.vision_cache = Mock()
+        self.vision_cache.build_cache_key = Mock(return_value='openai')
+        self.vision_cache.contains = Mock(return_value=True)
+        self.vision_cache.remove = AsyncMock()
+
+        self.audio_cache = Mock()
+        self.audio_cache.build_cache_key = Mock(return_value='openai')
+        self.audio_cache.contains = Mock(return_value=True)
+        self.audio_cache.remove = AsyncMock()
+
+        self.app_state = Mock()
+        self.app_state.store_manager = None
+
+    def _create_cleaner(self):
+        from services.reload.dependency_cache_cleaner import DependencyCacheCleaner
+        return DependencyCacheCleaner(
+            self.config,
+            self.provider_cache,
+            self.embedding_cache,
+            self.reranker_cache,
+            self.vision_cache,
+            self.audio_cache,
+            self.app_state
+        )
+
+    @pytest.mark.asyncio
+    async def test_provider_cache_clear_calls_factory_clear(self):
+        """Test that clearing provider cache also clears AIServiceFactory cache"""
+        adapter_config = {
+            'inference_provider': 'openai',
+            'model': 'gpt-4'
+        }
+
+        cleaner = self._create_cleaner()
+
+        with patch('services.reload.dependency_cache_cleaner.AIServiceFactory') as mock_factory:
+            cleared = await cleaner._clear_provider_cache(adapter_config)
+
+            # Verify AIServiceFactory.clear_cache was called with correct args
+            mock_factory.clear_cache.assert_called_once()
+            call_kwargs = mock_factory.clear_cache.call_args
+            # Check it was called with ServiceType.INFERENCE and provider='openai'
+            assert call_kwargs[1]['provider'] == 'openai'
+
+    @pytest.mark.asyncio
+    async def test_embedding_cache_clear_calls_factory_clear(self):
+        """Test that clearing embedding cache also clears AIServiceFactory cache"""
+        adapter_config = {
+            'embedding_provider': 'openai'
+        }
+
+        cleaner = self._create_cleaner()
+
+        with patch('services.reload.dependency_cache_cleaner.AIServiceFactory') as mock_factory:
+            cleared = await cleaner._clear_embedding_cache(adapter_config)
+
+            mock_factory.clear_cache.assert_called_once()
+            call_kwargs = mock_factory.clear_cache.call_args
+            assert call_kwargs[1]['provider'] == 'openai'
+
+    @pytest.mark.asyncio
+    async def test_audio_cache_clear_calls_factory_clear(self):
+        """Test that clearing audio cache also clears AIServiceFactory cache"""
+        adapter_config = {
+            'audio_provider': 'openai'
+        }
+
+        cleaner = self._create_cleaner()
+
+        with patch('services.reload.dependency_cache_cleaner.AIServiceFactory') as mock_factory:
+            cleared = await cleaner._clear_audio_cache(adapter_config)
+
+            mock_factory.clear_cache.assert_called_once()
+            call_kwargs = mock_factory.clear_cache.call_args
+            assert call_kwargs[1]['provider'] == 'openai'
+
+    @pytest.mark.asyncio
+    async def test_all_providers_clear_factory_cache(self):
+        """Test that all provider cache clears also clear AIServiceFactory cache"""
+        adapter_config = {
+            'inference_provider': 'ollama',
+            'embedding_provider': 'cohere',
+            'reranker_provider': 'cohere',
+            'vision_provider': 'openai',
+            'audio_provider': 'openai'
+        }
+
+        cleaner = self._create_cleaner()
+
+        with patch('services.reload.dependency_cache_cleaner.AIServiceFactory') as mock_factory:
+            await cleaner.clear_adapter_dependencies('test_adapter', adapter_config)
+
+            # Should be called once for each provider type
+            assert mock_factory.clear_cache.call_count == 5
+
+
+class TestPipelineChatServiceSharedAdapterManager:
+    """Tests for verifying PipelineChatService uses shared adapter manager correctly"""
+
+    def test_pipeline_chat_service_uses_shared_adapter_manager(self):
+        """Test that PipelineChatService uses the shared adapter manager when provided"""
+        from services.pipeline_chat_service import PipelineChatService
+        from services.config.adapter_config_manager import AdapterConfigManager
+
+        # Create a mock DynamicAdapterManager (without base_adapter_manager attribute)
+        mock_adapter_manager = Mock(spec=['get_adapter_config', 'config_manager'])
+        del mock_adapter_manager.base_adapter_manager  # Ensure it doesn't have this attribute
+        mock_config_manager = AdapterConfigManager({
+            'adapters': [{'name': 'test-adapter', 'inference_provider': 'openai'}]
+        })
+        mock_adapter_manager.config_manager = mock_config_manager
+        mock_adapter_manager.get_adapter_config = Mock(
+            return_value={'name': 'test-adapter', 'inference_provider': 'openai'}
+        )
+
+        # Create PipelineChatService with shared adapter manager
+        config = {'general': {'inference_provider': 'ollama'}}
+        mock_logger = Mock()
+
+        with patch('services.pipeline_chat_service.PipelineFactory'):
+            service = PipelineChatService(
+                config=config,
+                logger_service=mock_logger,
+                adapter_manager=mock_adapter_manager
+            )
+
+            # Verify the context builder uses the shared adapter manager
+            result = service.context_builder.get_adapter_config('test-adapter')
+            mock_adapter_manager.get_adapter_config.assert_called_with('test-adapter')
+
+    def test_pipeline_chat_service_extracts_base_adapter_manager(self):
+        """Test that PipelineChatService extracts base_adapter_manager from FaultTolerantAdapterManager"""
+        from services.pipeline_chat_service import PipelineChatService
+
+        # Create a mock FaultTolerantAdapterManager
+        mock_base_manager = Mock()
+        mock_base_manager.get_adapter_config = Mock(return_value={'inference_provider': 'openai'})
+
+        mock_fault_tolerant_manager = Mock()
+        mock_fault_tolerant_manager.base_adapter_manager = mock_base_manager
+
+        config = {'general': {'inference_provider': 'ollama'}}
+        mock_logger = Mock()
+
+        with patch('services.pipeline_chat_service.PipelineFactory'):
+            service = PipelineChatService(
+                config=config,
+                logger_service=mock_logger,
+                adapter_manager=mock_fault_tolerant_manager
+            )
+
+            # Verify the context builder uses the base_adapter_manager
+            result = service.context_builder.get_adapter_config('test-adapter')
+            mock_base_manager.get_adapter_config.assert_called_with('test-adapter')
+
+    def test_request_context_builder_sees_config_changes_after_reload(self):
+        """Test that RequestContextBuilder sees config changes when using shared adapter manager"""
+        from services.chat_handlers import RequestContextBuilder
+        from services.config.adapter_config_manager import AdapterConfigManager
+
+        # Create a config manager with initial config
+        config_manager = AdapterConfigManager({
+            'adapters': [{'name': 'test-adapter', 'inference_provider': 'deepseek', 'enabled': True}]
+        })
+
+        # Create a mock adapter manager that uses this config manager
+        mock_adapter_manager = Mock()
+        mock_adapter_manager.config_manager = config_manager
+        mock_adapter_manager.get_adapter_config = Mock(
+            side_effect=lambda name: config_manager.get(name)
+        )
+
+        # Create RequestContextBuilder
+        builder = RequestContextBuilder(
+            config={'general': {}},
+            adapter_manager=mock_adapter_manager
+        )
+
+        # Verify initial config
+        initial_provider = builder.get_inference_provider('test-adapter')
+        assert initial_provider == 'deepseek'
+
+        # Simulate config reload - update the config_manager
+        config_manager.put('test-adapter', {
+            'name': 'test-adapter',
+            'inference_provider': 'openai',
+            'enabled': True
+        })
+
+        # Verify the builder now sees the updated config
+        updated_provider = builder.get_inference_provider('test-adapter')
+        assert updated_provider == 'openai', \
+            f"Expected 'openai' after config reload, but got '{updated_provider}'"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

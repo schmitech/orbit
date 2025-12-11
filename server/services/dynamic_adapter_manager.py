@@ -102,7 +102,8 @@ class DynamicAdapterManager:
             self.embedding_cache,
             self.reranker_cache,
             self.vision_cache,
-            self.audio_cache
+            self.audio_cache,
+            self.app_state  # Pass app_state for store_manager and datasource access
         )
         self.reloader = AdapterReloader(
             self.config_manager,

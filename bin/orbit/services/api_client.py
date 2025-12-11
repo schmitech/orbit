@@ -152,9 +152,10 @@ class ApiClient:
         return self.request("GET", endpoint, headers=headers, params=params, retry=retry)
     
     def post(self, endpoint: str, headers: Optional[Dict[str, str]] = None,
-             json_data: Optional[Dict[str, Any]] = None, retry: bool = True) -> requests.Response:
+             json_data: Optional[Dict[str, Any]] = None,
+             params: Optional[Dict[str, Any]] = None, retry: bool = True) -> requests.Response:
         """Make a POST request."""
-        return self.request("POST", endpoint, headers=headers, json_data=json_data, retry=retry)
+        return self.request("POST", endpoint, headers=headers, json_data=json_data, params=params, retry=retry)
     
     def put(self, endpoint: str, headers: Optional[Dict[str, str]] = None,
             json_data: Optional[Dict[str, Any]] = None, retry: bool = True) -> requests.Response:
