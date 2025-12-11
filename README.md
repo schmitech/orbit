@@ -80,9 +80,89 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 
 There are three ways to get started with ORBIT.
 
-### Option 1: Docker
+### Option 1: Download Latest Release (Recommended)
 
-This is the fastest way to get ORBIT running. The demo image includes a self-contained server with a local model, so no additional API keys are needed.
+Download and install the latest stable release. This is the recommended approach for most users.
+
+#### Prerequisites
+
+- Python 3.12+
+- Node.js 18+ and npm
+- Optional: MongoDB, Redis, and a vector DB (Chroma, Qdrant, etc.)
+
+#### 1. Download and Extract Release
+
+```bash
+# Download the latest release archive
+# Replace v2.1.1 with the latest version from https://github.com/schmitech/orbit/releases
+curl -L https://github.com/schmitech/orbit/releases/download/v2.1.1/orbit-2.1.1.tar.gz -o orbit-2.1.1.tar.gz
+
+tar -xzf orbit-2.1.1.tar.gz
+
+cd orbit-2.1.1
+```
+
+#### 2. Configure and Install
+
+```bash
+# Add API keys if using proprietary services like OpenAI, Cohere, Anthropic, etc.
+cp env.example .env
+
+# Install packages
+./install/setup.sh
+
+# Activate Python environment
+source venv/bin/activate
+```
+
+#### 3. Download a Local Model (Optional)
+
+Get a local GGUF model for offline inference. Models are downloaded from Hugging Face.
+
+```bash
+# Available GGUF models: gemma3-270m, gemma3-1b, tinyllama-1b, phi-2, mistral-7b, granite4-micro, embeddinggemma-300m
+# You can add your own models by editing install/gguf-models.json
+./install/setup.sh --download-gguf granite4-micro
+```
+
+**Alternative: Using Ollama**
+
+If you encounter errors with llama.cpp (e.g., missing native libraries, compilation issues), you can use Ollama instead:
+
+1. **Install Ollama** (if not already installed):
+   ```bash
+   # macOS/Linux
+   curl -fsSL https://ollama.com/install.sh | sh
+   
+   # Windows: Download from https://ollama.com/download
+   ```
+
+2. **Pull the model**:
+   ```bash
+   ollama pull granite4:micro
+   ```
+
+3. **Update configuration**:
+   - Edit `config/adapters.yaml` and find the `simple-chat` adapter
+   - Change `inference_provider: "ollama"` (from `"llama_cpp"`)
+   - Change `model: "granite4:micro"` to match the Ollama model name
+   - Verify that `ollama` provider has `enabled: true` in `config/inference.yaml`
+
+#### 4. Start the Server
+
+```bash
+# Start the ORBIT server
+./bin/orbit.sh start 
+
+# Check the logs
+cat ./logs/orbit.log
+```
+
+**Note:** After starting the server, you'll need to create an API key using `./bin/orbit.sh key create` before you can use the chat clients.
+
+### Option 2: Docker
+
+The Docker image includes a self-contained server with a local model, so no additional API keys are needed.
 
 ```bash
 # Pull the ORBIT basic image
@@ -162,9 +242,9 @@ Example response:
 }
 ```
 
-### Option 2: Manual Installation
+### Option 3: Clone from Git
 
-For more control, you can install and run ORBIT locally from the source.
+For development or contributing, you can clone and run ORBIT locally from the source.
 
 #### Prerequisites
 
@@ -194,86 +274,6 @@ source venv/bin/activate
 
 # Check the logs
 tail -f ./logs/orbit.log
-```
-
-**Note:** After starting the server, you'll need to create an API key using `./bin/orbit.sh key create` before you can use the chat clients.
-
-### Option 3: Download Latest Release
-
-Download and install the latest stable release without cloning the repository.
-
-#### Prerequisites
-
-- Python 3.12+
-- Node.js 18+ and npm
-- Optional: MongoDB, Redis, and a vector DB (Chroma, Qdrant, etc.)
-
-#### 1. Download and Extract Release
-
-```bash
-# Download the latest release archive
-# Replace v2.1.1 with the latest version from https://github.com/schmitech/orbit/releases
-curl -L https://github.com/schmitech/orbit/releases/download/v2.1.1/orbit-2.1.1.tar.gz -o orbit-2.1.1.tar.gz
-
-tar -xzf orbit-2.1.1.tar.gz
-
-cd orbit-2.1.1
-```
-
-#### 2. Configure and Install
-
-```bash
-# Add API keys if using proprietary services like OpenAI, Cohere, Anthropic, etc.
-cp env.example .env
-
-# Install packages
-./install/setup.sh
-
-# Activate Python environment
-source venv/bin/activate
-```
-
-#### 3. Download a Local Model (Optional)
-
-Get a local GGUF model for offline inference. Models are downloaded from Hugging Face.
-
-```bash
-# Available GGUF models: gemma3-270m, gemma3-1b, tinyllama-1b, phi-2, mistral-7b, granite4-micro, embeddinggemma-300m
-# You can add your own models by editing install/gguf-models.json
-./install/setup.sh --download-gguf granite4-micro
-```
-
-**Alternative: Using Ollama**
-
-If you encounter errors with llama.cpp (e.g., missing native libraries, compilation issues), you can use Ollama instead:
-
-1. **Install Ollama** (if not already installed):
-   ```bash
-   # macOS/Linux
-   curl -fsSL https://ollama.com/install.sh | sh
-   
-   # Windows: Download from https://ollama.com/download
-   ```
-
-2. **Pull the model**:
-   ```bash
-   ollama pull granite4:micro
-   ```
-
-3. **Update configuration**:
-   - Edit `config/adapters.yaml` and find the `simple-chat` adapter
-   - Change `inference_provider: "ollama"` (from `"llama_cpp"`)
-   - Change `model: "granite4:micro"` to match the Ollama model name
-   - Verify that `ollama` provider has `enabled: true` in `config/inference.yaml`
-
-#### 4. Start the Server
-
-```bash
-# Start the ORBIT server
-./bin/orbit.sh start 
-
-# Check the logs
-cat ./logs/orbit.log
 ```
 
 **Note:** After starting the server, you'll need to create an API key using `./bin/orbit.sh key create` before you can use the chat clients.
