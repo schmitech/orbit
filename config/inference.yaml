@@ -63,7 +63,7 @@ inference:
   ollama_cloud:
     enabled: true
     api_key: ${OLLAMA_CLOUD_API_KEY}
-    model: "qwen3-coder:480b-cloud" # Supported models: https://docs.ollama.com/cloud
+    model: "qwen3-coder:480b" # Supported models: https://docs.ollama.com/cloud
     stream: true
     think: false  # Enable/disable think mode (shows reasoning in <think> tags)
     # Generation parameters - Optimized for large SQL result sets
@@ -101,7 +101,7 @@ inference:
     stream: true
     think: false  # Enable/disable think mode (shows reasoning in <think> tags)
     # Generation parameters - Adjust based on your use case and model
-    temperature: 0.7  # Balanced for creative yet factual outputs
+    temperature: 0.1  # Balanced for creative yet factual outputs
     top_p: 0.9  # Good diversity while maintaining coherence
     top_k: 30
     min_p: 0.0
@@ -117,7 +117,7 @@ inference:
     mirostat_eta: 0.1
     # Context settings - Adjust based on your remote server's capabilities
     num_ctx: 8192  # Context window size (depends on server's model and hardware)
-    num_keep: 1024  # Keep prompt context and chat history
+    num_keep: 2048  # Keep prompt context and chat history
     penalize_newline: false
     # Stop sequences
     stop: []
@@ -143,14 +143,69 @@ inference:
     keep_alive: "10m"
   vllm:
     enabled: false
+    # Mode: "api" (connect to vLLM server) or "direct" (load model in-process with GPU)
+    mode: "api"
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # API Mode Configuration
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Connect to a running vLLM server (started with `vllm serve` or `python -m vllm.entrypoints.openai.api_server`)
     host: "localhost"
     port: 8000
-    model: "Qwen/Qwen2.5-1.5B-Instruct"
+    base_url: null  # Override full URL (e.g., "http://localhost:8000/v1"), takes precedence over host/port
+    api_key: null   # Optional API key for secured servers
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Direct Mode Configuration
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Load model directly in-process (requires GPU and vLLM package installed)
+    # model_path: "meta-llama/Llama-3.1-8B-Instruct"  # HuggingFace model ID or local path
+
+    # GPU and Parallelism
+    tensor_parallel_size: 1       # Number of GPUs for tensor parallelism (split model across GPUs)
+    pipeline_parallel_size: 1     # Number of GPUs for pipeline parallelism
+    gpu_memory_utilization: 0.90  # Fraction of GPU memory to use (0.0-1.0)
+    max_model_len: 4096           # Maximum sequence length (context window)
+
+    # Quantization (optional, for reduced memory usage)
+    quantization: null            # Options: "awq", "gptq", "squeezellm", "fp8", null (none)
+    dtype: "auto"                 # Data type: "auto", "half", "float16", "bfloat16", "float32"
+
+    # Advanced settings
+    trust_remote_code: false      # Trust remote code in HuggingFace models (security risk)
+    enforce_eager: false          # Disable CUDA graphs (useful for debugging)
+    swap_space: 4                 # CPU swap space in GB for KV cache offloading
+    kv_cache_dtype: "auto"        # KV cache data type
+    seed: null                    # Random seed for reproducibility
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Shared Generation Parameters (used in both modes)
+    # ═══════════════════════════════════════════════════════════════════════════
+    model: "Qwen/Qwen2.5-1.5B-Instruct"  # Model to use (HuggingFace ID for direct, model name for API)
     temperature: 0.1
     top_p: 0.8
-    top_k: 20
+    top_k: 20                     # Set to -1 to disable
     max_tokens: 2048
+    repetition_penalty: 1.0       # Penalty for repeating tokens (1.0 = no penalty)
+    presence_penalty: 0.0         # Penalty for tokens already in context
+    frequency_penalty: 0.0        # Penalty based on token frequency
     stream: true
+
+    # Stop sequences
+    stop: ["<|eot_id|>"]          # Stop generation when these tokens are encountered
+
+    # Timeout configuration (API mode)
+    timeout:
+      connect: 10000              # 10 seconds
+      total: 120000               # 2 minutes
+
+    # Retry configuration (API mode)
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
   shimmy:
     enabled: false
     base_url: "http://localhost:11435"  # Shimmy server URL (OpenAI-compatible API)
@@ -326,7 +381,7 @@ inference:
     enabled: true
     api_key: ${XAI_API_KEY}
     api_base: "https://api.x.ai/v1"
-    model: "grok-3-mini-beta"
+    model: "grok-4-1-fast"
     context_window: 131072  # Grok supports 128K context
     temperature: 0.1
     top_p: 0.8
