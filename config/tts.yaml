@@ -2,7 +2,7 @@
 # Global TTS settings and provider-specific configurations
 
 tts:
-  provider: "elevenlabs"    # Global default TTS provider: openai, google, gemini, elevenlabs, ollama, vllm, coqui
+  provider: "openai"    # Global default TTS provider: openai, google, gemini, elevenlabs, ollama, vllm, coqui
   enabled: true             # Global TTS enable/disable
 
 # TTS Provider-specific configurations
@@ -135,7 +135,7 @@ tts_providers:
     # Serves audio models via vLLM's OpenAI-compatible API
     # Example: vllm serve canopylabs/orpheus-3b-0.1-ft --dtype auto --quantization fp8
     enabled: true
-    host: "3.96.176.183"
+    host: "localhost"
     port: 8000
     # TTS configuration
     tts_model: "canopylabs/orpheus-3b-0.1-ft"  # Orpheus 3B TTS model
