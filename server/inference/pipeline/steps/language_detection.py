@@ -542,6 +542,10 @@ class LanguageDetectionStep(PipelineStep):
 
     async def _get_session_language(self, context: ProcessingContext) -> Optional[str]:
         """Get previously detected language from session storage."""
+        # Skip Redis lookup if stickiness is disabled
+        if not self.enable_stickiness:
+            return None
+
         if not context.session_id:
             return getattr(context, 'detected_language', None) or None
 
@@ -562,6 +566,10 @@ class LanguageDetectionStep(PipelineStep):
 
     async def _save_session_language(self, context: ProcessingContext, result: DetectionResult) -> None:
         """Save detected language to session storage for persistence."""
+        # Skip Redis storage if stickiness is disabled
+        if not self.enable_stickiness:
+            return
+
         if not context.session_id:
             return
 

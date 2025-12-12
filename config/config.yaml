@@ -37,7 +37,7 @@ language_detection:
   min_confidence: 0.7
   min_margin: 0.2
   prefer_english_for_ascii: true
-  enable_stickiness: true
+  enable_stickiness: false
   fallback_language: "en"
   backend_timeout: 3.0  # Timeout per backend in seconds (increase for cold starts)
 
