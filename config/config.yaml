@@ -1,4 +1,5 @@
 import:
+  - "ollama.yaml"
   - "adapters.yaml"
   - "inference.yaml"
   - "datasources.yaml"
@@ -8,7 +9,8 @@ import:
   - "moderators.yaml"
   - "guardrails.yaml"
   - "vision.yaml"
-  - "sound.yaml"
+  - "tts.yaml"
+  - "stt.yaml"
 
 general:
   port: 3000
@@ -20,10 +22,10 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "llama_cpp"
+  inference_provider: "ollama"
 
 language_detection:
-  enabled: false
+  enabled: true
   backends:
     - "langdetect"
     - "langid"
