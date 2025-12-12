@@ -146,7 +146,7 @@ mkdir -p dist/build/${PACKAGE_NAME}
 
 # Create directory structure
 echo "Creating directory structure..."
-mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,config,utils,prompts,models}
+mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,config}
 
 # Copy core server files (excluding tests directory)
 echo "Copying server files..."
@@ -155,9 +155,9 @@ find server -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -path "
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
 
-# Copy install files (excluding build-tarball.sh)
+# Copy install files (excluding build-tarball.sh, orbit.db.default, and default-config directory)
 echo "Copying install files..."
-find install -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" -not -name "build-tarball.sh" -not -path "*/install/default-config/*" | while read file; do
+find install -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" -not -name "build-tarball.sh" -not -name "orbit.db.default" -not -path "*default-config*" | while read file; do
     mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
@@ -171,16 +171,6 @@ find bin -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.p
     mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
-
-# Copy default-conversational-adapter-prompt.txt to prompts (needed for creating API keys)
-echo "Copying default-conversational-adapter-prompt.txt to prompts directory..."
-if [ -f "examples/prompts/examples/default-conversational-adapter-prompt.txt" ]; then
-    mkdir -p "dist/build/${PACKAGE_NAME}/prompts"
-    cp "examples/prompts/examples/default-conversational-adapter-prompt.txt" "dist/build/${PACKAGE_NAME}/prompts/default-conversational-adapter-prompt.txt"
-    echo "✅ default-conversational-adapter-prompt.txt copied to prompts successfully"
-else
-    echo "⚠️ Warning: examples/prompts/examples/default-conversational-adapter-prompt.txt not found"
-fi
 
 # Copy default-config files as config directory
 echo "Copying default configuration files..."
@@ -219,68 +209,13 @@ else
     touch dist/build/${PACKAGE_NAME}/.env
 fi
 
-# Download and include granite4-1b model for quick start
-echo "Downloading granite4:1b model for quick start..."
-GGUF_MODELS_CONFIG="install/gguf-models.json"
-MODEL_NAME="granite4-1b"
-MODELS_DIR="models"
-
-# Function to get model info from JSON config
-get_model_info() {
-    local model_name="$1"
-    local config_file="$2"
-    if [ ! -f "$config_file" ]; then
-        return 1
-    fi
-    python3 -c "
-import json
-import sys
-try:
-    with open('$config_file', 'r') as f:
-        config = json.load(f)
-    if '$model_name' in config['models']:
-        model_info = config['models']['$model_name']
-        print(f\"{model_info['repo_id']}\")
-        print(f\"{model_info['filename']}\")
-    else:
-        sys.exit(1)
-except Exception as e:
-    sys.exit(1)
-"
-}
-
-if [ -f "$GGUF_MODELS_CONFIG" ]; then
-    model_info=$(get_model_info "$MODEL_NAME" "$GGUF_MODELS_CONFIG")
-    if [ $? -eq 0 ]; then
-        repo_id=$(echo "$model_info" | head -n 1)
-        filename=$(echo "$model_info" | tail -n 1)
-        
-        # Check if model already exists locally
-        if [ ! -f "$MODELS_DIR/$filename" ]; then
-            echo "Downloading $MODEL_NAME from $repo_id..."
-            if python3 install/download_hf_gguf_model.py \
-                --repo-id "$repo_id" \
-                --filename "$filename" \
-                --output-dir "$MODELS_DIR"; then
-                echo "✅ $MODEL_NAME downloaded successfully"
-            else
-                echo "⚠️ Warning: Failed to download $MODEL_NAME, continuing without it"
-            fi
-        else
-            echo "✅ $MODEL_NAME already exists locally"
-        fi
-        
-        # Copy model to tarball if it exists
-        if [ -f "$MODELS_DIR/$filename" ]; then
-            echo "Copying $MODEL_NAME to tarball..."
-            cp "$MODELS_DIR/$filename" "dist/build/${PACKAGE_NAME}/models/$filename"
-            echo "✅ Model included in tarball: models/$filename"
-        fi
-    else
-        echo "⚠️ Warning: $MODEL_NAME not found in $GGUF_MODELS_CONFIG"
-    fi
+# Copy default database file to distribution package root
+echo "Copying default database to distribution package..."
+if [ -f "install/orbit.db.default" ]; then
+    cp install/orbit.db.default dist/build/${PACKAGE_NAME}/orbit.db
+    echo "✅ Default database (orbit.db) copied to distribution package successfully"
 else
-    echo "⚠️ Warning: $GGUF_MODELS_CONFIG not found, skipping model download"
+    echo "⚠️ Warning: install/orbit.db.default not found, skipping default database"
 fi
 
 # Create metadata file

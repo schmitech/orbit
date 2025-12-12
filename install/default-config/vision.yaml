@@ -1,7 +1,7 @@
 # Global vision configuration
 vision:
-  provider: "openai"  # Default vision provider: openai, gemini, anthropic
-  enabled: false       # Whether vision processing is enabled globally
+  provider: "ollama"  # Default vision provider: openai, gemini, anthropic
+  enabled: false        # Whether vision processing is enabled globally
 
 # Provider-specific configurations
 visions:
@@ -68,8 +68,8 @@ visions:
       exponential_base: 2
 
   ollama:
-    enabled: true
-    base_url: "http://localhost:11434"
+    enabled: false
+    base_url: "http://35.183.132.58:11434"
     model: "qwen3-vl:8b"
     temperature: 0.0
     max_tokens: 1000
@@ -140,6 +140,27 @@ visions:
     timeout:
       connect: 15000   # 15 seconds
       total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  cohere:
+    enabled: true
+    api_key: ${COHERE_API_KEY}
+    api_base: "https://api.cohere.ai/v2"  # Must use v2 API for vision/multimodal support
+    model: "c4ai-aya-vision-32b"  # Cohere's multimodal model
+    temperature: 0.0
+    max_tokens: 1000
+    top_p: 1.0
+    stream: false
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds (increased for slow networks)
+      total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
     # Retry configuration
     retry:
       enabled: true

@@ -1,6 +1,6 @@
 # Global reranker configuration
 reranker:
-  provider: "ollama"  # Default reranker provider (options: ollama, cohere, jina, openai, anthropic, voyage)
+  provider: "cohere"  # Default reranker provider (options: ollama, cohere, jina, openai, anthropic, voyage)
   enabled: true       # Whether reranking is enabled globally
 
 # Provider-specific configurations

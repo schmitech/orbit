@@ -1,0 +1,238 @@
+# Text-to-Speech (TTS) Configuration
+# Global TTS settings and provider-specific configurations
+
+tts:
+  provider: "vllm"    # Global default TTS provider: openai, google, gemini, elevenlabs, ollama, vllm, coqui
+  enabled: false             # Global TTS enable/disable
+
+# TTS Provider-specific configurations
+tts_providers:
+  openai:
+    enabled: true
+    api_key: ${OPENAI_API_KEY}
+    api_base: "https://api.openai.com/v1"
+    # TTS configuration
+    tts_model: "gpt-4o-mini-tts"  # OpenAI TTS model: tts-1, tts-1-hd, gpt-4o-mini-tts
+    tts_voice: "coral"  # Voice options: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse
+    tts_format: "mp3"  # Output format: mp3, opus, aac, flac
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds (increased for slow networks)
+      total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  google:
+    enabled: true
+    api_key: ${GOOGLE_API_KEY}
+    # TTS configuration
+    tts_model: "neural2"  # Google TTS model: standard, neural2, news, studio
+    tts_voice: "en-US-Neural2-A"  # Voice name
+    tts_language_code: "en-US"  # Language code
+    tts_audio_encoding: "MP3"  # Output format: MP3, LINEAR16, OGG_OPUS
+    tts_speaking_rate: 1.0  # Speaking rate (0.25 to 4.0)
+    tts_pitch: 0.0  # Pitch adjustment (-20.0 to 20.0)
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds (increased for slow networks)
+      total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  gemini:
+    # Gemini - Google's multimodal AI model with native audio support
+    # Requires: pip install google-genai (NOT google-generativeai)
+    enabled: true
+    api_key: ${GOOGLE_API_KEY}
+    # TTS configuration
+    tts_model: "gemini-2.5-pro-preview-tts"  # Gemini 2.5 Flash TTS model (required for audio generation)
+    # Voice options (30 voices available):
+    # - puck (default) - Bright, upbeat
+    # - charon - Deep, authoritative
+    # - kore - Warm, friendly
+    # - fenrir - Strong, confident
+    # - aoede - Melodic, expressive
+    # - zephyr - Light, airy
+    # - leda - Gentle, soothing
+    # - orus - Firm, steady
+    # - despina, enceladus, iapetus, umbriel (celestial-themed voices)
+    # - achernar, achird, algenib, algieba, alnilam (star-themed voices)
+    # - autonoe, callirrhoe, erinome, laomedeia (mythological voices)
+    # - gacrux, pulcherrima, rasalgethi, sadachbia, sadaltager, schedar, sulafat, vindemiatrix, zubenelgenubi
+    tts_voice: "Kore"  # Default voice (warm, friendly)
+    tts_format: "wav"  # Output format: wav, mp3
+    # Transport configuration
+    transport: "rest"  # Use REST to avoid gRPC/ALTS warnings
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  elevenlabs:
+    enabled: true
+    api_key: ${ELEVENLABS_API_KEY}
+    api_base: "https://api.elevenlabs.io/v1"
+    # TTS configuration
+    tts_model: "eleven_multilingual_v2"  # Models: eleven_monolingual_v1, eleven_multilingual_v1, eleven_multilingual_v2, eleven_turbo_v2
+    tts_voice: "5opxviIE64D8KxYYJKpx"  # Default voice ID - can be replaced with any voice ID
+    tts_format: "mp3_44100_128"  # Output format: mp3_44100_128, mp3_44100_192, pcm_16000, pcm_22050, pcm_24000, pcm_44100, ulaw_8000
+    tts_stability: 0.5  # Voice stability (0.0 - 1.0)
+    tts_similarity_boost: 0.75  # Clarity + similarity enhancement (0.0 - 1.0)
+    tts_style: 0.0  # Style exaggeration (0.0 - 1.0) - only for v2 models
+    tts_use_speaker_boost: true  # Enable speaker boost for enhanced quality
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  ollama:
+    enabled: true
+    base_url: "http://localhost:11434"
+    # TTS configuration
+    tts_model: "piper"  # Ollama model for TTS (e.g., piper, kokoro)
+    tts_voice: "en_US-lessac-medium"  # Voice name for TTS
+    tts_format: "wav"  # Output format: wav, mp3
+    stream: false
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds (increased for slow networks)
+      total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
+      warmup: 60000    # 1 minute for initial warmup
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  vllm:
+    # vLLM-served audio models (e.g., Orpheus TTS)
+    # Serves audio models via vLLM's OpenAI-compatible API
+    # Example: vllm serve canopylabs/orpheus-3b-0.1-ft --dtype auto --quantization fp8
+    enabled: true
+    host: "localhost"
+    port: 8000
+    # TTS configuration
+    tts_model: "canopylabs/orpheus-3b-0.1-ft"  # Orpheus 3B TTS model
+    tts_voice: "tara"  # Voice options: tara, leah, jess, leo, dan, mia, zac, zoe
+    tts_format: "wav"  # Output format: wav, mp3
+    # Generation parameters
+    temperature: 0.6
+    top_p: 0.95
+    max_tokens: 1200  # Keep low to leave room for input in 4096 context window
+    repetition_penalty: 1.1
+    stream: false
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 120000    # 2 minutes (audio generation can be slow)
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  coqui:
+    # Coqui TTS - Local, open-source text-to-speech synthesis
+    # Based on https://github.com/coqui-ai/TTS
+    # Runs completely locally on your machine - no API costs, completely free!
+    # Requires: pip install TTS
+    enabled: false
+    # Model selection
+    # Available models can be listed with: tts --list_models
+    # Popular models:
+    # - tts_models/en/ljspeech/tacotron2-DDC (English, single speaker)
+    # - tts_models/en/vctk/vits (English, multi-speaker)
+    # - tts_models/multilingual/multi-dataset/xtts_v2 (Multilingual, voice cloning)
+    # - tts_models/en/ljspeech/glow-tts (English, fast)
+    tts_model: "tts_models/en/ljspeech/tacotron2-DDC"
+    # Vocoder model (converts mel-spectrograms to audio)
+    # Some models (like VITS, XTTS) have built-in vocoders and don't need this
+    vocoder_model: "vocoder_models/en/ljspeech/hifigan_v2"
+    # Speaker/Voice configuration
+    speaker: null  # Options: null (default), or speaker name/ID for multi-speaker models
+    # Language (for multilingual models like XTTS)
+    language: "en"  # Options: en, es, fr, de, pt, etc.
+    # Audio format configuration
+    tts_format: "wav"  # Output format: wav, mp3 (wav recommended for local synthesis)
+    # Device selection
+    device: "auto"  # Options: auto, cpu, cuda
+    # Synthesis parameters
+    speed: 1.0  # Speech speed multiplier (0.5 = half speed, 2.0 = double speed)
+    # Enable/disable features
+    use_cuda: true  # Enable CUDA acceleration if available
+    # Timeout configuration (local processing, so timeouts are less critical)
+    timeout:
+      connect: 5000    # 5 seconds (local connection)
+      total: 120000    # 2 minutes (for synthesis of long texts)
+    # Retry configuration
+    retry:
+      enabled: false   # Usually not needed for local processing
+      max_retries: 1
+      initial_wait_ms: 1000
+      max_wait_ms: 5000
+      exponential_base: 2
+
+  # Placeholder providers (no TTS support yet)
+  anthropic:
+    enabled: false  # Placeholder - Anthropic doesn't have native audio APIs yet
+    api_key: ${ANTHROPIC_API_KEY}
+    api_base: "https://api.anthropic.com/v1"
+    tts_model: null
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  cohere:
+    enabled: false  # Placeholder - Cohere doesn't have native audio APIs yet
+    api_key: ${COHERE_API_KEY}
+    api_base: "https://api.cohere.ai/v2"
+    tts_model: null
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  # Note: whisper is STT-only, configured in stt.yaml

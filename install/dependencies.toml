@@ -3,8 +3,8 @@
 # Start with minimal/basic and add profiles based on enabled adapters
 #
 # Usage:
-#   Minimal server (default, use API mode or Ollama): ./setup.sh
-#   Direct GGUF loading: ./setup.sh --profile llama-cpp
+#   Minimal server (default, Ollama included): ./setup.sh
+#   Direct GGUF loading (requires C++ tools): ./setup.sh --profile llama-cpp
 #   With cloud providers: ./setup.sh --profile providers
 #   With file support: ./setup.sh --profile providers --profile files --profile embeddings
 #   Recommended default: ./setup.sh --profile default
@@ -43,6 +43,10 @@ dependencies = [
     "pymongo>=4.15.4",
     "redis>=7.1.0",  # Redis support for caching and sessions
     "elasticsearch==9.2.0",  # Elasticsearch support for intent adapters
+    "ollama==0.6.1",  # Ollama local inference support
+    "langchain-ollama>=1.0.0",
+    "langchain-community>=0.4.1",
+    "keyring>=25.6.0"
 ]
 
 # ============================================================================
@@ -72,17 +76,6 @@ dependencies = [
     "google-generativeai==0.8.5",
     "together==1.5.29",
     "google-genai>=1.51.0",
-]
-
-# ============================================================================
-# OLLAMA - Local Ollama support
-# ============================================================================
-[profiles.ollama]
-description = "Ollama local inference support"
-dependencies = [
-    "ollama==0.6.1",
-    "langchain-ollama>=1.0.0",
-    "langchain-community>=0.4.1",
 ]
 
 # ============================================================================
@@ -173,15 +166,6 @@ dependencies = [
 ]
 
 # ============================================================================
-# KEYRING - Keyring support for secure credential storage
-# ============================================================================
-[profiles.keyring]
-description = "Keyring support for secure API key storage"
-dependencies = [
-    "keyring>=25.6.0",
-]
-
-# ============================================================================
 # FIRECRAWL - Firecrawl web scraping support
 # ============================================================================
 [profiles.firecrawl]
@@ -233,11 +217,11 @@ dependencies = [
 
 # ============================================================================
 # DEFAULT - Recommended default for basic installation
-# Includes minimal + llama-cpp + common providers
+# Includes minimal + common providers (Ollama included in minimal)
 # ============================================================================
 [profiles.default]
-description = "Recommended default (minimal + llama-cpp + providers + ollama)"
-extends = ["llama-cpp", "providers", "ollama"]
+description = "Recommended default (minimal + providers)"
+extends = ["providers"]
 dependencies = []
 
 # ============================================================================
@@ -249,14 +233,11 @@ extends = [
     "development",
     "llama-cpp",
     "providers",
-    "ollama",
     "vector-stores",
     "databases",
     "files",
     "embeddings",
-    "audio",
     "language-detection",
-    "keyring",
     "firecrawl",
     "bitnet"
 ]
@@ -286,21 +267,22 @@ dependencies = [
 # PROFILE USAGE EXAMPLES
 # ============================================================================
 # 
-# Minimal server (default, use API mode or Ollama for chat):
+# Minimal server (default, use Ollama for local inference):
 #   ./setup.sh
-#   Note: For direct GGUF loading, add --profile llama-cpp
+#   Note: Ollama is included by default - simplest option for new users
 #
 # Direct GGUF loading (for simple-chat adapter with local models):
 #   ./setup.sh --profile llama-cpp
+#   Note: Requires C++ build tools - use Ollama if you want simpler setup
 #
-# Recommended default (minimal + llama-cpp + providers + ollama):
+# Recommended default (minimal + providers, Ollama included):
 #   ./setup.sh --profile default
 #
 # Minimal + cloud providers:
 #   ./setup.sh --profile providers
 #
 # Minimal + file support (for simple-chat-with-files adapter):
-#   ./setup.sh --profile llama-cpp --profile providers --profile files --profile embeddings --profile vector-stores
+#   ./setup.sh --profile providers --profile files --profile embeddings --profile vector-stores
 #
 # With vector stores (if using ChromaDB, Pinecone, etc.):
 #   ./setup.sh --profile vector-stores
@@ -315,15 +297,16 @@ dependencies = [
 #   ./setup.sh --profile llama-cpp --profile providers --profile files --profile vector-stores
 #
 # Profile selection based on enabled adapters in default-config:
-#   - simple-chat (API mode): default (no additional profiles needed)
+#   - simple-chat (Ollama): default (no additional profiles needed)
 #   - simple-chat (direct GGUF): default + llama-cpp
-#   - simple-chat-with-files: default + llama-cpp + files + embeddings + vector-stores
+#   - simple-chat-with-files: default + files + embeddings + vector-stores
 #   - qa-sql: default + databases
 #   - intent-elasticsearch: default (elasticsearch included)
-#   - file-document-qa: default + llama-cpp + files + embeddings + vector-stores
+#   - file-document-qa: default + files + embeddings + vector-stores
 #
-# Alternative to llama-cpp profile:
-#   - Use Ollama: ./setup.sh --profile ollama (simpler, handles model management)
+# llama-cpp profile (optional):
+#   - Requires C++ compiler and build tools
+#   - Use Ollama instead for simpler setup (included in default)
 #   - Use API mode: Run llama.cpp server separately, no Python bindings needed
 #
 # ============================================================================

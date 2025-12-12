@@ -1,61 +1,25 @@
 inference:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Local Ollama Configuration
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Uses presets defined in config/ollama.yaml for easy switching between
+  # CPU/GPU configurations and different models.
+  #
+  # Available presets (defined in ollama.yaml):
+  #   - granite-cpu: Granite 4.0-1B optimized for CPU (16GB RAM)
+  #   - granite-gpu: Granite 4.0-1B with full GPU acceleration
+  #   - qwen3-4b-gpu: Qwen3 4B with GPU (larger, more capable)
+  #   - llama3-3b-cpu: Llama 3.2 3B optimized for CPU
+  #
+  # To switch configurations, simply change the use_preset value below.
+  # ═══════════════════════════════════════════════════════════════════════════
   ollama:
     enabled: true
-    base_url: "http://localhost:11434"
-    model: "granite4:1b"
-    stream: true
-    think: false  # Enable/disable think mode (shows reasoning in <think> tags)
-    # Generation parameters - Optimized for Granite 4.0-1B on CPU laptop
-    temperature: 0.4  # Balanced for creative yet factual outputs with 1B model
-    top_p: 0.9  # Good diversity while maintaining coherence
-    top_k: 50  # Slightly higher for better token selection with larger model
-    min_p: 0.0
-    typical_p: 0.7
-    num_predict: 6144  # Longer responses leveraging 1B model's improved capabilities
-    repeat_penalty: 1.2  # Higher penalty to prevent repetition in longer contexts
-    repeat_last_n: 128  # Check more tokens for repetition in extended chat history
-    presence_penalty: 0.0
-    frequency_penalty: 0.0
-    # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
-    mirostat: 0           # Mirostat sampling algorithm (0 = disabled, 1 = Mirostat v1, 2 = Mirostat v2). Enables dynamic adjustment of randomness to maintain output quality and length.
-    mirostat_tau: 0.8     # Target entropy (tau) for Mirostat. Controls the balance between randomness and coherence—lower is more focused, higher is more random.
-    mirostat_eta: 0.6     # Learning rate (eta) for the Mirostat controller. Determines how quickly Mirostat adjusts sampling to hit the target entropy.
-    # Context and memory - Optimized for Granite 4.0-1B (supports 128K, using 64K for laptop efficiency)
-    num_ctx: 65536  # 64K context - large enough for extensive chat history, practical for laptop CPU
-    num_keep: 1024  # Keep significant chat history and prompt context
-    penalize_newline: false
-    # Stop sequences
-    stop: []
-    # Threading and performance - Optimized for 1.6B parameter model on CPU
-    num_threads: 8  # Optimal for 1B model on modern laptop CPUs
-    num_batch: 6  # Increased batch size for better throughput with 1B model
-    # GPU settings
-    num_gpu: 0
-    main_gpu: 0
-    low_vram: false
-    # Memory management
-    use_mmap: true        # Use memory-mapped file access for faster model loading and lower RAM use
-    use_mlock: false      # Do not lock model file into RAM (prevents OS from swapping, but requires root)
-    vocab_only: false     # Load full model (not just vocabulary/embeddings) into memory
-    numa: false           # Disable NUMA (Non-Uniform Memory Access) optimizations (for most single-CPU setups)
-    # Random seed for reproducible outputs
-    seed: null
-    # Retry configuration for handling cold starts
-    retry:
-      enabled: true
-      max_retries: 5
-      initial_wait_ms: 2000  # Start with 2 seconds
-      max_wait_ms: 30000     # Max 30 seconds per retry
-      exponential_base: 2    # Exponential backoff multiplier
-    # Timeout configuration
-    timeout:
-      connect: 10000         # 10 seconds for connection
-      total: 120000          # 2 minutes total timeout
-      warmup: 60000          # 1 minute for initial warmup
+    use_preset: "granite-cpu"  # Reference to preset in config/ollama.yaml
   ollama_cloud:
     enabled: true
     api_key: ${OLLAMA_CLOUD_API_KEY}
-    model: "qwen3-coder:480b-cloud" # Supported models: https://docs.ollama.com/cloud
+    model: "qwen3-coder:480b" # Supported models: https://docs.ollama.com/cloud
     stream: true
     think: false  # Enable/disable think mode (shows reasoning in <think> tags)
     # Generation parameters - Optimized for large SQL result sets
@@ -86,7 +50,6 @@ inference:
   ollama_remote:
     enabled: false
     # Remote Ollama server URL (e.g., AWS EC2, self-hosted server)
-    # Example: "http://ec2-xx-xx-xx-xx.compute-1.amazonaws.com:11434"
     base_url: "http://your-remote-server:11434"
     # Optional API key for secured remote servers (leave null if not required)
     api_key: null
@@ -94,7 +57,7 @@ inference:
     stream: true
     think: false  # Enable/disable think mode (shows reasoning in <think> tags)
     # Generation parameters - Adjust based on your use case and model
-    temperature: 0.7  # Balanced for creative yet factual outputs
+    temperature: 0.1  # Balanced for creative yet factual outputs
     top_p: 0.9  # Good diversity while maintaining coherence
     top_k: 30
     min_p: 0.0
@@ -110,7 +73,7 @@ inference:
     mirostat_eta: 0.1
     # Context settings - Adjust based on your remote server's capabilities
     num_ctx: 8192  # Context window size (depends on server's model and hardware)
-    num_keep: 1024  # Keep prompt context and chat history
+    num_keep: 2048  # Keep prompt context and chat history
     penalize_newline: false
     # Stop sequences
     stop: []
@@ -136,14 +99,99 @@ inference:
     keep_alive: "10m"
   vllm:
     enabled: false
+    # Mode: "api" (connect to vLLM server) or "direct" (load model in-process with GPU)
+    mode: "api"
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # API Mode Configuration
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Connect to a running vLLM server (started with `vllm serve` or `python -m vllm.entrypoints.openai.api_server`)
     host: "localhost"
     port: 8000
-    model: "Qwen/Qwen2.5-1.5B-Instruct"
+    base_url: null  # Override full URL (e.g., "http://localhost:8000/v1"), takes precedence over host/port
+    api_key: null   # Optional API key for secured servers
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Direct Mode Configuration
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Load model directly in-process (requires GPU and vLLM package installed)
+    # model_path: "meta-llama/Llama-3.1-8B-Instruct"  # HuggingFace model ID or local path
+
+    # GPU and Parallelism
+    tensor_parallel_size: 1       # Number of GPUs for tensor parallelism (split model across GPUs)
+    pipeline_parallel_size: 1     # Number of GPUs for pipeline parallelism
+    gpu_memory_utilization: 0.90  # Fraction of GPU memory to use (0.0-1.0)
+    max_model_len: 4096           # Maximum sequence length (context window)
+
+    # Quantization (optional, for reduced memory usage)
+    quantization: null            # Options: "awq", "gptq", "squeezellm", "fp8", null (none)
+    dtype: "auto"                 # Data type: "auto", "half", "float16", "bfloat16", "float32"
+
+    # Advanced settings
+    trust_remote_code: false      # Trust remote code in HuggingFace models (security risk)
+    enforce_eager: false          # Disable CUDA graphs (useful for debugging)
+    swap_space: 4                 # CPU swap space in GB for KV cache offloading
+    kv_cache_dtype: "auto"        # KV cache data type
+    seed: null                    # Random seed for reproducibility
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Shared Generation Parameters (used in both modes)
+    # ═══════════════════════════════════════════════════════════════════════════
+    model: "Qwen/Qwen2.5-1.5B-Instruct"  # Model to use (HuggingFace ID for direct, model name for API)
     temperature: 0.1
     top_p: 0.8
-    top_k: 20
+    top_k: 20                     # Set to -1 to disable
     max_tokens: 2048
+    repetition_penalty: 1.0       # Penalty for repeating tokens (1.0 = no penalty)
+    presence_penalty: 0.0         # Penalty for tokens already in context
+    frequency_penalty: 0.0        # Penalty based on token frequency
     stream: true
+
+    # Stop sequences
+    stop: ["<|eot_id|>"]          # Stop generation when these tokens are encountered
+
+    # Timeout configuration (API mode)
+    timeout:
+      connect: 10000              # 10 seconds
+      total: 120000               # 2 minutes
+
+    # Retry configuration (API mode)
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+  shimmy:
+    enabled: false
+    base_url: "http://localhost:11435"  # Shimmy server URL (OpenAI-compatible API)
+    model: "gemma-3-1b-it-q4-0"  # Model name to request from the server (smallest available - good for quick testing)
+    api_key: null  # Optional - Shimmy doesn't require authentication
+    
+    # Generation parameters
+    temperature: 0.4  # Balanced for creative yet factual outputs
+    top_p: 0.9  # Good diversity while maintaining coherence
+    max_tokens: 4096  # Maximum tokens to generate
+    
+    # Context configuration
+    context_window: 65536  # Shimmy supports large context windows
+    stream: true
+    
+    # Stop sequences (optional)
+    stop_tokens: []
+    
+    # Timeout configuration
+    timeout:
+      connect: 10000   # 10 seconds
+      total: 120000    # 2 minutes
+    
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
   llama_cpp:
     enabled: true
     # Mode: "direct" (load model locally with Python bindings) or "api" (connect to llama.cpp server)
@@ -180,53 +228,25 @@ inference:
     stop_tokens: [
       "<|end_of_text|>",
       "<|end_of_role|>"
-    ]
-  shimmy:
-    enabled: true
-    base_url: "http://localhost:11435"  # Shimmy server URL (OpenAI-compatible API)
-    model: "gemma-3-1b-it-q4-0"  # Model name to request from the server
-    api_key: null  # Optional - Shimmy doesn't require authentication
-    
-    # Generation parameters
-    temperature: 0.4  # Balanced for creative yet factual outputs
-    top_p: 0.9  # Good diversity while maintaining coherence
-    top_k: 50  # Token selection parameter
-    max_tokens: 4096  # Maximum tokens to generate
-    repeat_penalty: 1.2  # Penalty to prevent repetition
-    
-    # Context configuration
-    context_window: 65536  # Shimmy supports large context windows
-    stream: true
-    
-    # Stop sequences (optional)
-    stop_tokens: []
-    
-    # Timeout configuration
-    timeout:
-      connect: 10000   # 10 seconds
-      total: 120000    # 2 minutes
-    
-    # Retry configuration
-    retry:
-      enabled: true
-      max_retries: 5
-      initial_wait_ms: 2000
-      max_wait_ms: 30000
-      exponential_base: 2
+    ]   
   gemini:
     enabled: true
     api_key: ${GOOGLE_API_KEY}
-    model: "gemini-3-pro-preview"
+    model: "gemini-2.5-flash"
+    context_window: 1000000  # Gemini supports up to 1M tokens
     temperature: 0.1
     top_p: 0.8
     top_k: 20
     max_tokens: 1024
     stream: true
     transport: "rest"
+    # Safety settings - set to true to disable all safety filters (useful for reducing false positives)
+    disable_safety: true
   groq:
     enabled: true
     api_key: ${GROQ_API_KEY}
     model: "llama-3.1-8b-instant"
+    context_window: 131072  # Llama 3.1 supports 128K context on Groq
     temperature: 0.1
     top_p: 0.8
     max_tokens: 32000
@@ -236,6 +256,7 @@ inference:
     api_key: ${DEEPSEEK_API_KEY}
     api_base: "https://api.deepseek.com/v1"
     model: "deepseek-chat"
+    context_window: 65536  # DeepSeek Chat supports 64K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -245,6 +266,7 @@ inference:
     project_id: "your-project-id"
     location: "us-central1"
     model: "gemini-1.5-pro"
+    context_window: 1000000  # Gemini 1.5 Pro on Vertex supports up to 1M tokens
     temperature: 0.1
     top_p: 0.8
     top_k: 20
@@ -257,6 +279,7 @@ inference:
     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
     region: "ca-central-1"
     model: "claude-sonnet-4-5-20250929"
+    context_window: 200000  # Claude on Bedrock supports 200K context
     content_type: "application/json"
     accept: "application/json"
     max_tokens: 1024
@@ -265,6 +288,7 @@ inference:
     base_url: http://azure-ai.endpoint.microsoft.com
     deployment: "azure-ai-deployment"
     api_key: ${AZURE_ACCESS_KEY}
+    context_window: 128000  # Azure OpenAI GPT-4 Turbo supports 128K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -274,6 +298,7 @@ inference:
     enabled: true
     api_key: ${OPENAI_API_KEY}
     model: "gpt-5"
+    context_window: 128000  # GPT-4 Turbo/GPT-4o supports 128K context
     temperature: 1
     top_p: 0.8
     max_tokens: 16000
@@ -283,6 +308,7 @@ inference:
     api_key: ${MISTRAL_API_KEY}
     api_base: "https://api.mistral.ai/v1"
     model: "mistral-small-latest"
+    context_window: 32768  # Mistral Small supports 32K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -292,6 +318,7 @@ inference:
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
     model: "claude-sonnet-4-20250514"
+    context_window: 200000  # Claude 3/4 supports 200K context
     temperature: 0.1
     max_tokens: 1024
     stream: true
@@ -300,6 +327,7 @@ inference:
     api_key: ${TOGETHER_API_KEY}
     api_base: "https://api.together.xyz/v1"
     model: "Qwen/Qwen3-235B-A22B-fp8-tput"
+    context_window: 32768  # Varies by model, Qwen supports 32K+
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -309,7 +337,8 @@ inference:
     enabled: true
     api_key: ${XAI_API_KEY}
     api_base: "https://api.x.ai/v1"
-    model: "grok-3-mini-beta"
+    model: "grok-4-1-fast"
+    context_window: 131072  # Grok supports 128K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 16000
@@ -328,6 +357,7 @@ inference:
     api_key: ${OPENROUTER_API_KEY}
     base_url: "https://openrouter.ai/api/v1"
     model: "meta-llama/llama-3.1-8b-instruct"
+    context_window: 131072  # Llama 3.1 supports 128K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -338,6 +368,7 @@ inference:
     api_key: ${COHERE_API_KEY}
     api_base: "https://api.cohere.ai/v2"
     model: "command-r7b-12-2024"
+    context_window: 128000  # Command R supports 128K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -349,6 +380,7 @@ inference:
     project_id: "your-project_id"
     instance_id: "openshift"
     model: "ibm/granite-3-8b-instruct"
+    context_window: 8192  # Granite 3 8B supports 8K context
     temperature: 0.1
     top_k: 20
     top_p: 0.8
@@ -365,6 +397,7 @@ inference:
     api_key: ${PERPLEXITY_API_KEY}
     api_base: "https://api.perplexity.ai"
     model: "llama-3-sonar-small-32k-online"
+    context_window: 32768  # Sonar 32K model
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -374,6 +407,7 @@ inference:
     api_key: ${FIREWORKS_API_KEY}
     api_base: "https://api.fireworks.ai/inference/v1"
     model: "accounts/fireworks/models/firellava-13b"
+    context_window: 4096  # FireLLaVA 13B context (varies by model)
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -382,6 +416,7 @@ inference:
     enabled: false
     api_key: ${REPLICATE_API_KEY}
     model: "meta/llama-2-70b-chat:02e509c789964a7ea8736978a43525956ef40397be9033abf9fd2badfe68c9e3"
+    context_window: 4096  # Llama 2 70B supports 4K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -391,6 +426,7 @@ inference:
     api_key: ${NVIDIA_API_KEY}
     api_base: "http://localhost:8000/v1"
     model: "meta/llama3-8b-instruct"
+    context_window: 8192  # Llama 3 8B supports 8K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -458,6 +494,7 @@ inference:
     api_key: ${ZAI_API_KEY}
     base_url: "https://api.z.ai/api/paas/v4/"
     model: "glm-4.6"
+    context_window: 128000  # GLM-4 supports 128K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 2000

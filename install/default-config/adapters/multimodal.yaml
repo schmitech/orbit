@@ -10,11 +10,12 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama_cloud"    # Override default inference provider
-    model: "gpt-oss:120b"            # Specific model for this adapter
-    embedding_provider: "openai"          # Embedding provider for file chunk retrieval (matches uploaded files)
-    vision_provider: "openai"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
-    audio_provider: "openai"              # Audio provider for TTS/STT (see sound.yaml)
+    inference_provider: "ollama"    # Override default inference provider
+    model: "granite4:1b"            # Specific model for this adapter
+    embedding_provider: "ollama"          # Embedding provider for file chunk retrieval (matches uploaded files)
+    vision_provider: "ollama"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    stt_provider: "whisper"               # STT provider for audio transcription (see stt.yaml) - local, free!
+    tts_provider: "ollama"                # TTS provider for audio output (see tts.yaml)
 
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
@@ -35,174 +36,20 @@ adapters:
       storage_backend: "filesystem"  # Future: "s3", "minio"
       storage_root: "./uploads"
       max_file_size: 52428800  # 50MB
-      
+
       # Processing configuration
       # Chunking strategy options: "fixed", "semantic", "token", "recursive"
       # These settings override global defaults in config.yaml
       chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive"
-      chunk_size: 1000  # Characters for fixed/semantic, tokens for token/recursive
-      chunk_overlap: 200  # Characters for fixed/semantic, tokens for token/recursive
-      
+      chunk_size: 1000  # Increased to fit token-optimized CSV/JSON summaries in single chunks
+      chunk_overlap: 100  # Characters for fixed/semantic, tokens for token/recursive
+
       # Vector store integration
       vector_store: "chroma"  # References stores.yaml
       collection_prefix: "files_"
-      
-      # Q&A settings
+
+      # Q&A settings - optimized for local LLMs with limited context (8K tokens)
+      # 3 chunks × 2000 chars ≈ 6K chars, leaving room for system prompt + response
       confidence_threshold: 0.3
-      max_results: 5
-      return_results: 3
-
-  # Enhanced multimodal adapter with audio file transcription support
-  - name: "simple-chat-with-files-audio"
-    enabled: false
-    type: "passthrough"  # Passthrough adapter with file retrieval and audio transcription
-    datasource: "none"
-    adapter: "multimodal"
-    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
-    embedding_provider: "openai"
-    vision_provider: "gemini"             # For image files
-    audio_provider: "gemini"              # For audio file transcription and TTS (changed from openai)
-
-    # Capabilities: Multimodal with audio support
-    capabilities:
-      retrieval_behavior: "conditional"
-      formatting_style: "clean"
-      supports_file_ids: true
-      supports_session_tracking: true
-      requires_api_key_validation: true
-      skip_when_no_files: true
-      optional_parameters:
-        - "file_ids"
-        - "api_key"
-        - "session_id"
-
-    config:
-      # Storage configuration
-      storage_backend: "filesystem"
-      storage_root: "./uploads"
-      max_file_size: 104857600  # 100MB (increased for audio files)
-      
-      # Audio processing settings
-      enable_audio_transcription: true
-      audio_transcription_language: null  # Auto-detect language
-      
-      # Processing configuration
-      chunking_strategy: "recursive"
-      chunk_size: 1000
-      chunk_overlap: 200
-      
-      # Vector store integration
-      vector_store: "chroma"
-      collection_prefix: "files_"
-      
-      # Supported file types (including audio)
-      supported_types:
-        - "application/pdf"
-        - "text/plain"
-        - "text/markdown"
-        - "text/csv"
-        - "application/json"
-        - "text/html"
-        - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        - "image/png"
-        - "image/jpeg"
-        - "image/tiff"
-        - "audio/wav"
-        - "audio/mpeg"
-        - "audio/mp3"
-        - "audio/ogg"
-        - "audio/flac"
-        - "audio/webm"
-      
-      # Q&A settings
-      confidence_threshold: 0.3
-      max_results: 5
-      return_results: 3
-
-  # Local audio file transcription with Whisper (no API costs!)
-  # Upload audio files → Get transcriptions and chat about the content
-  # Uses local Whisper for transcription - completely free and offline!
-  - name: "local-voice-chat"
-    enabled: false
-    type: "passthrough"
-    datasource: "none"
-    adapter: "multimodal"
-    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-
-    # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
-    embedding_provider: "openai"
-    audio_provider: "whisper"  # Local Whisper for audio transcription (free, offline)
-
-    # Capabilities: Audio file transcription with chat
-    capabilities:
-      retrieval_behavior: "conditional"  # Only retrieves when audio files are uploaded
-      formatting_style: "clean"          # Clean format (no citations)
-      supports_file_ids: true            # Accepts audio file uploads
-      supports_session_tracking: true
-      requires_api_key_validation: true  # Validates file ownership
-      skip_when_no_files: true           # Skip retrieval when no files
-      optional_parameters:
-        - "file_ids"
-        - "api_key"
-        - "session_id"
-
-    config:
-      # Storage configuration
-      storage_backend: "filesystem"
-      storage_root: "./uploads"
-      max_file_size: 104857600  # 100MB for audio files
-
-      # Audio transcription settings
-      enable_audio_transcription: true
-      audio_transcription_language: null  # Auto-detect language
-
-      # Whisper-specific settings (nested under 'sounds' for WhisperAudioService)
-      sounds:
-        whisper:
-          enabled: true
-          model_size: "base"       # Whisper model: tiny, base, small, medium, large-v3
-          device: "cpu"            # Device: auto, cpu, cuda
-          language: null           # Auto-detect language (99 languages supported)
-          task: "transcribe"       # Task: transcribe or translate
-
-      # Processing configuration
-      chunking_strategy: "recursive"
-      chunk_size: 1000
-      chunk_overlap: 200
-
-      # Vector store integration
-      vector_store: "chroma"
-      collection_prefix: "audio_files_"
-
-      # Supported audio file types (transcribed with Whisper)
-      supported_types:
-        - "audio/wav"
-        - "audio/mpeg"
-        - "audio/mp3"
-        - "audio/mp4"
-        - "audio/ogg"
-        - "audio/flac"
-        - "audio/webm"
-        - "audio/x-m4a"
-        - "audio/aac"
-
-      # Q&A settings
-      confidence_threshold: 0.3
-      max_results: 5
-      return_results: 3
-
-      # Audio output: DISABLED (Whisper doesn't support TTS)
-      return_audio: false
-
-      # Performance notes:
-      # - tiny: ~32x faster, good for quick testing
-      # - base: ~16x faster, good balance (RECOMMENDED)
-      # - small: ~6x faster, better accuracy
-      # - medium: ~2x faster, high quality
-      # - large-v3: Best accuracy, slower
-
+      max_results: 10       # Retrieve 5 chunks for good similarity matching
+      return_results: 10    # Send top 3 to LLM to stay within context limits

@@ -1,4 +1,5 @@
 import:
+  - "ollama.yaml"
   - "adapters.yaml"
   - "inference.yaml"
   - "datasources.yaml"
@@ -8,7 +9,8 @@ import:
   - "moderators.yaml"
   - "guardrails.yaml"
   - "vision.yaml"
-  - "sound.yaml"
+  - "tts.yaml"
+  - "stt.yaml"
 
 general:
   port: 3000
@@ -20,10 +22,10 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "llama_cpp"
+  inference_provider: "ollama"
 
 language_detection:
-  enabled: true
+  enabled: false
   backends:
     - "langdetect"
     - "langid"
@@ -32,16 +34,40 @@ language_detection:
     langdetect: 1.0
     langid: 1.2
     pycld2: 1.5
-  min_confidence: 0.5
-  min_margin: 0.1
-  prefer_english_for_ascii: false
+  min_confidence: 0.7
+  min_margin: 0.2
+  prefer_english_for_ascii: true
   enable_stickiness: false
   fallback_language: "en"
+  backend_timeout: 3.0  # Timeout per backend in seconds (increase for cold starts)
+
+  # Configurable heuristic nudges for voting adjustments
+  heuristic_nudges:
+    en_boost: 0.2       # Boost for English in ASCII-heavy text
+    es_penalty: 0.1     # Penalty for Spanish in pure ASCII (avoids es/en confusion)
+    script_boost: 0.2   # Boost when script detection matches ensemble winner
+
+  # Mixed language detection
+  mixed_language_threshold: 0.3  # Min confidence for secondary language to flag as mixed
+
+  # Chat history language prior (uses recent messages to stabilize detection)
+  use_chat_history_prior: true
+  chat_history_prior_weight: 0.3  # Weight given to chat history distribution
+  chat_history_messages_count: 5  # Number of recent messages to consider
+
+  # RAG retrieval language boosting (boosts documents matching user's language)
+  retrieval_match_boost: 0.1       # Boost for documents matching detected language
+  retrieval_mismatch_penalty: 0.05 # Penalty for non-matching language documents
+  retrieval_min_confidence: 0.7    # Min detection confidence to apply boost
 
 performance:
   workers: 4
   keep_alive_timeout: 30
-  
+
+  # Adapter preload timeout (seconds) - increase for Ollama cold starts
+  # This is the maximum time to wait for each adapter to initialize during startup
+  adapter_preload_timeout: 120  # 2 minutes (default was 60s)
+
   thread_pools:
     io_workers: 50              # Up from 10
     cpu_workers: 30             # CPU-bound tasks
@@ -111,7 +137,31 @@ logging:
       disabled: true
     # Reduce WebSocket message spam from inference server
     server.inference_server:
-      level: "INFO"
+      level: "WARNING"
+      propagate: false
+    # Suppress uvicorn WebSocket connection logs
+    uvicorn:
+      level: "WARNING"
+      propagate: false
+    uvicorn.access:
+      level: "WARNING"
+      propagate: false
+    uvicorn.asgi:
+      level: "WARNING"
+      propagate: false
+    # Suppress Elasticsearch client transport logs
+    elastic_transport:
+      level: "WARNING"
+      propagate: false
+    elastic_transport.transport:
+      level: "WARNING"
+      propagate: false
+    elasticsearch:
+      level: "WARNING"
+      propagate: false
+    # Suppress Elasticsearch datasource connection logs
+    datasources.implementations.elasticsearch_datasource:
+      level: "WARNING"
       propagate: false
     inference.clients.llama_cpp:
       level: "ERROR"
@@ -145,6 +195,18 @@ logging:
       level: "WARNING"
     PIL.Image:
       level: "WARNING"
+    pdfminer:
+      level: "WARNING"
+      propagate: false
+    pdfminer.psparser:
+      level: "WARNING"
+      propagate: false
+    pdfminer.pdfdocument:
+      level: "WARNING"
+      propagate: false
+    pdfminer.pdfinterp:
+      level: "WARNING"
+      propagate: false
 
 clock_service:
   enabled: true
@@ -231,7 +293,62 @@ files:
     # When disabled, docling will not be initialized until actually needed (lazy initialization)
     # Default: true (enabled)
     docling_enabled: true
-  
+
+    # MarkItDown processor configuration (Microsoft's document-to-markdown converter)
+    # Set to true to enable MarkItDown as an alternative/fallback document processor
+    # Supports: PDF, DOCX, PPTX, XLSX, XLS, HTML, CSV, JSON, XML, images, audio, ZIP, EPUB
+    # Requires: pip install markitdown[all]
+    # Default: false (opt-in)
+    markitdown_enabled: true
+
+    # Processor priority when multiple universal processors are enabled
+    # Determines which processor is tried first for overlapping MIME types
+    # Options: "docling" (default), "markitdown", "native"
+    # - docling: Try Docling first (advanced document understanding)
+    # - markitdown: Try MarkItDown first (clean markdown conversion)
+    # - native: Only use native Python processors (no universal processors)
+    processor_priority: "docling"
+
+    # MarkItDown-specific options
+    markitdown:
+      # Enable third-party plugins (default: false for security)
+      enable_plugins: false
+
+    # CSV processor settings
+    csv:
+      # For small CSVs, include ALL rows to enable exact lookups (e.g., "find ID X")
+      # Files with <= this many rows will have all data indexed, not just samples
+      # Set to 0 to always use summary mode (token-efficient but no exact lookups)
+      full_data_row_threshold: 200
+
+      # Number of sample rows to show in summary mode (for large files)
+      max_preview_rows: 5
+
+      # Maximum characters per column value before truncation
+      max_column_width: 50
+
+      # Maximum columns to show in detail (remaining columns listed by name only)
+      max_columns_full: 15
+
+    # JSON processor settings
+    json:
+      # For small JSON arrays, include ALL items to enable exact lookups (e.g., "find ID X")
+      # Arrays with <= this many items will have all data indexed, not just samples
+      # Set to 0 to always use summary mode (token-efficient but no exact lookups)
+      full_data_item_threshold: 200
+
+      # Maximum array items to show in previews (for large arrays in summary mode)
+      max_array_preview_items: 3
+
+      # Maximum depth for schema extraction
+      max_schema_depth: 4
+
+      # Maximum string length before truncation
+      max_string_length: 100
+
+      # Maximum keys to show for large objects
+      max_object_keys: 20
+
   # Tokenizer configuration (optional)
   # If not specified, uses character-based tokenization
   # Options: "character" (default), "gpt2", "tiktoken", or custom tokenizer identifier
