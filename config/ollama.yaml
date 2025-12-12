@@ -1,0 +1,285 @@
+# Ollama Presets Configuration
+# Define named presets for different Ollama configurations (CPU/GPU, different models)
+# Reference these presets from inference.yaml using: use_preset: "preset-name"
+
+ollama_presets:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Granite 4.0-1B on CPU - Optimized for Mac with 16GB RAM
+  # ═══════════════════════════════════════════════════════════════════════════
+  granite-cpu:
+    base_url: "http://localhost:11434"
+    model: "granite4:1b"
+    stream: true
+    think: false  # Enable/disable think mode (shows reasoning in <think> tags)
+    # Generation parameters - Optimized for Granite 4.0-1B on CPU Mac with 16GB RAM
+    temperature: 0.7  # Balanced for creative yet factual outputs with 1B model
+    top_p: 0.9  # Good diversity while maintaining coherence
+    top_k: 30  # Optimal token selection for 1B model (lower than larger models)
+    min_p: 0.0
+    typical_p: 0.9  # Adjusted for 1B model quality
+    num_predict: 4096  # Sufficient for detailed responses while managing memory on 16GB RAM
+    repeat_penalty: 1.15  # Moderate penalty to prevent repetition while maintaining natural flow
+    repeat_last_n: 64  # Check fewer tokens for repetition (appropriate for smaller context window)
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
+    mirostat: 0
+    mirostat_tau: 4.0  # Adjusted for 1B model
+    mirostat_eta: 0.1
+    # Context and memory - Optimized for Granite 4.0-1B on CPU Mac with 16GB RAM
+    # 1B model is memory-efficient, but 16GB RAM limits context window size
+    # Using 8K context provides good balance between functionality and memory usage
+    num_ctx: 8192  # 8K context - optimal for 16GB RAM on CPU (1B model uses ~2-3GB base, leaving room for context)
+    num_keep: 1024  # Keep reasonable chat history and prompt context for 1B model on CPU
+    penalize_newline: false
+    # Stop sequences
+    stop: []
+    # Threading and performance - Optimized for Granite 4.0-1B on CPU Mac
+    # Mac CPUs typically have 8-10 cores, using 6 threads for optimal CPU utilization
+    num_threads: 6  # Optimal for CPU inference on Mac (balances performance and system responsiveness)
+    num_batch: 64  # Smaller batch size for CPU (reduces memory pressure on 16GB RAM)
+    # CPU settings - Optimized for Mac CPU (no GPU acceleration)
+    num_gpu: 0  # CPU only (0 = no GPU layers, all computation on CPU)
+    main_gpu: 0  # Not applicable for CPU but kept for compatibility
+    low_vram: false  # Not applicable for CPU mode
+    # Memory management - Optimized for CPU with 16GB RAM
+    use_mmap: true  # Memory mapping reduces RAM usage (important for 16GB systems)
+    use_mlock: false  # Keep false for CPU to allow OS memory management
+    vocab_only: false
+    numa: false
+    # Random seed for reproducible outputs
+    seed: null
+    # Retry configuration for handling cold starts
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000  # Start with 2 seconds
+      max_wait_ms: 30000     # Max 30 seconds per retry
+      exponential_base: 2    # Exponential backoff multiplier
+    # Timeout configuration
+    timeout:
+      connect: 10000         # 10 seconds for connection
+      total: 120000          # 2 minutes total timeout
+      warmup: 120000         # 2 minutes for initial warmup (increased for cold starts)
+    # Keep alive - how long to keep model loaded in memory after requests
+    # Options: "5m", "10m", "1h", "-1" (indefinite), "0" (unload immediately)
+    # Longer values reduce cold start latency but use more VRAM
+    keep_alive: "10m"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Granite 4.0-1B on GPU - Optimized for systems with GPU/Metal acceleration
+  # ═══════════════════════════════════════════════════════════════════════════
+  granite-gpu:
+    base_url: "http://localhost:11434"
+    model: "granite4:1b"
+    stream: true
+    think: false  # Enable/disable think mode (shows reasoning in <think> tags)
+    # Generation parameters - Can be more aggressive with GPU acceleration
+    temperature: 0.7
+    top_p: 0.9
+    top_k: 40  # Slightly higher for GPU (faster processing)
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 8192  # Larger output with GPU acceleration
+    repeat_penalty: 1.15
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # Context and memory - Larger context with GPU
+    num_ctx: 16384  # 16K context with GPU acceleration
+    num_keep: 2048  # Keep more context with GPU
+    penalize_newline: false
+    # Stop sequences
+    stop: []
+    # Threading - fewer CPU threads needed when using GPU
+    num_threads: 4  # Reduced CPU threads when GPU does heavy lifting
+    num_batch: 512  # Larger batch size for GPU (faster processing)
+    # GPU settings - Full GPU acceleration
+    num_gpu: -1  # -1 = all layers on GPU (maximum acceleration)
+    main_gpu: 0  # Primary GPU device
+    low_vram: false  # Set to true if running low on VRAM
+    # Memory management
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    # Random seed for reproducible outputs
+    seed: null
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    # Timeout configuration
+    timeout:
+      connect: 10000
+      total: 120000
+      warmup: 120000
+    keep_alive: "10m"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Qwen3 4B on GPU - Larger model for more capable responses
+  # ═══════════════════════════════════════════════════════════════════════════
+  qwen3-4b-gpu:
+    base_url: "http://localhost:11434"
+    model: "qwen3:4b"
+    stream: true
+    think: true  # Qwen3 supports think mode well
+    # Generation parameters
+    temperature: 0.6
+    top_p: 0.85
+    top_k: 40
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 8192
+    repeat_penalty: 1.1
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # Context - Qwen3 supports larger context
+    num_ctx: 32768  # 32K context
+    num_keep: 4096
+    penalize_newline: false
+    stop: []
+    # GPU optimized settings
+    num_threads: 4
+    num_batch: 512
+    num_gpu: -1  # All layers on GPU
+    main_gpu: 0
+    low_vram: false
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    seed: null
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 180000  # 3 minutes for larger model
+      warmup: 180000
+    keep_alive: "15m"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Llama 3.2 3B on CPU - Good balance of capability and CPU performance
+  # ═══════════════════════════════════════════════════════════════════════════
+  llama3-3b-cpu:
+    base_url: "http://localhost:11434"
+    model: "llama3.2:3b"
+    stream: true
+    think: false
+    temperature: 0.7
+    top_p: 0.9
+    top_k: 40
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 4096
+    repeat_penalty: 1.1
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    num_ctx: 8192
+    num_keep: 1024
+    penalize_newline: false
+    stop: []
+    # CPU optimized settings
+    num_threads: 6
+    num_batch: 64
+    num_gpu: 0  # CPU only
+    main_gpu: 0
+    low_vram: false
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    seed: null
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 120000
+      warmup: 120000
+    keep_alive: "10m"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Liquid LFM2 700M on CPU - Ultra-fast edge model optimized for CPU
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Model: https://ollama.com/sam860/LFM2
+  # Card: https://huggingface.co/LiquidAI/LFM2-700M-GGUF
+  # 
+  # LFM2 uses a hybrid Liquid architecture (gated convolutions + GQA) that is
+  # 2x faster on CPU than standard transformers. Only 792MB with 125K context!
+  # Outperforms Gemma 3 1B IT despite being smaller.
+  # ═══════════════════════════════════════════════════════════════════════════
+  lfm2-700m-cpu:
+    base_url: "http://localhost:11434"
+    model: "sam860/LFM2:700m"
+    stream: true
+    think: false
+    # Generation parameters - Per Liquid AI recommendations
+    # Temperature 0.4-0.6 works best for instruction-following and reasoning
+    temperature: 0.5  # Sweet spot for LFM2 per Liquid AI docs
+    top_p: 0.9
+    top_k: 40
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 4096  # Good output length for 16GB RAM
+    repeat_penalty: 1.1  # Lighter penalty - LFM2 handles repetition well
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    # Mirostat sampling (0=disabled)
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # Context - LFM2 supports massive 125K context, but limit for 16GB RAM
+    # The model is only 792MB so we can afford larger context than bigger models
+    num_ctx: 16384  # 16K context - generous for 16GB RAM given tiny model size
+    num_keep: 2048  # Keep more context since model is so small
+    penalize_newline: false
+    stop: []
+    # Threading - LFM2 is 2x faster on CPU due to hybrid architecture
+    # Can use more threads since the model is so efficient
+    num_threads: 8  # More threads - LFM2's architecture handles parallelism well
+    num_batch: 128  # Larger batch - model is very memory efficient
+    # CPU only settings
+    num_gpu: 0  # CPU only
+    main_gpu: 0
+    low_vram: false
+    # Memory management - Model is tiny (792MB) so very RAM-friendly
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    seed: null
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 90000   # 1.5 minutes - LFM2 is fast
+      warmup: 60000  # 1 minute warmup - small model loads quickly
+    keep_alive: "15m"  # Keep loaded longer - it's so small!

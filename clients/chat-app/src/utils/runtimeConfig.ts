@@ -25,6 +25,7 @@ interface RuntimeConfig {
   enableConversationThreads: boolean;
   enableApiMiddleware: boolean;
   showGitHubStats: boolean;
+  outOfServiceMessage: string | null;
 
   // GitHub Configuration
   githubOwner: string;
@@ -78,6 +79,7 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
   enableConversationThreads: 'VITE_ENABLE_CONVERSATION_THREADS',
   enableApiMiddleware: 'VITE_ENABLE_API_MIDDLEWARE',
   showGitHubStats: 'VITE_SHOW_GITHUB_STATS',
+  outOfServiceMessage: 'VITE_OUT_OF_SERVICE_MESSAGE',
   githubOwner: 'VITE_GITHUB_OWNER',
   githubRepo: 'VITE_GITHUB_REPO',
   adapters: 'VITE_ADAPTERS',
@@ -215,6 +217,24 @@ function parseRequiredLimit(envValue: string | undefined, defaultValue: number):
   return parsed;
 }
 
+function normalizeOutOfServiceMessage(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const lowered = trimmed.toLowerCase();
+  if (lowered === 'false' || lowered === '0' || lowered === 'off' || lowered === 'disabled') {
+    return null;
+  }
+
+  return trimmed;
+}
+
 /**
  * Runtime configuration object
  * All values are resolved at runtime from the sources above
@@ -234,6 +254,10 @@ export const runtimeConfig: RuntimeConfig = {
   enableConversationThreads: getConfigValue('enableConversationThreads', true, 'boolean'),
   enableApiMiddleware: getConfigValue('enableApiMiddleware', false, 'boolean'),
   showGitHubStats: getConfigValue('showGitHubStats', true, 'boolean'),
+  outOfServiceMessage: (() => {
+    const val = getConfigValue('outOfServiceMessage', '', 'string') as string;
+    return normalizeOutOfServiceMessage(val);
+  })(),
   
   // GitHub Configuration
   githubOwner: getConfigValue('githubOwner', 'schmitech', 'string'),
@@ -344,4 +368,9 @@ export function getGitHubOwner(): string {
 
 export function getGitHubRepo(): string {
   return runtimeConfig.githubRepo;
+}
+
+export function getOutOfServiceMessage(): string | null {
+  const value = getConfigValue('outOfServiceMessage', '', 'string') as string;
+  return normalizeOutOfServiceMessage(value);
 }

@@ -1,65 +1,21 @@
 inference:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Local Ollama Configuration
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Uses presets defined in config/ollama.yaml for easy switching between
+  # CPU/GPU configurations and different models.
+  #
+  # Available presets (defined in ollama.yaml):
+  #   - granite-cpu: Granite 4.0-1B optimized for CPU (16GB RAM)
+  #   - granite-gpu: Granite 4.0-1B with full GPU acceleration
+  #   - qwen3-4b-gpu: Qwen3 4B with GPU (larger, more capable)
+  #   - llama3-3b-cpu: Llama 3.2 3B optimized for CPU
+  #
+  # To switch configurations, simply change the use_preset value below.
+  # ═══════════════════════════════════════════════════════════════════════════
   ollama:
     enabled: true
-    base_url: "http://localhost:11434"
-    model: "granite4:1b"
-    stream: true
-    think: false  # Enable/disable think mode (shows reasoning in <think> tags)
-    # Generation parameters - Optimized for Granite 4.0-1B on CPU Mac with 16GB RAM
-    temperature: 0.7  # Balanced for creative yet factual outputs with 1B model
-    top_p: 0.9  # Good diversity while maintaining coherence
-    top_k: 30  # Optimal token selection for 1B model (lower than larger models)
-    min_p: 0.0
-    typical_p: 0.9  # Adjusted for 1B model quality
-    num_predict: 4096  # Sufficient for detailed responses while managing memory on 16GB RAM
-    repeat_penalty: 1.15  # Moderate penalty to prevent repetition while maintaining natural flow
-    repeat_last_n: 64  # Check fewer tokens for repetition (appropriate for smaller context window)
-    presence_penalty: 0.0
-    frequency_penalty: 0.0
-    # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
-    mirostat: 0
-    mirostat_tau: 4.0  # Adjusted for 1B model
-    mirostat_eta: 0.1
-    # Context and memory - Optimized for Granite 4.0-1B on CPU Mac with 16GB RAM
-    # 1B model is memory-efficient, but 16GB RAM limits context window size
-    # Using 8K context provides good balance between functionality and memory usage
-    num_ctx: 8192  # 8K context - optimal for 16GB RAM on CPU (1B model uses ~2-3GB base, leaving room for context)
-    num_keep: 1024  # Keep reasonable chat history and prompt context for 1B model on CPU
-    penalize_newline: false
-    # Stop sequences
-    stop: []
-    # Threading and performance - Optimized for Granite 4.0-1B on CPU Mac
-    # Mac CPUs typically have 8-10 cores, using 6 threads for optimal CPU utilization
-    num_threads: 6  # Optimal for CPU inference on Mac (balances performance and system responsiveness)
-    num_batch: 64  # Smaller batch size for CPU (reduces memory pressure on 16GB RAM)
-    # CPU settings - Optimized for Mac CPU (no GPU acceleration)
-    num_gpu: 0  # CPU only (0 = no GPU layers, all computation on CPU)
-    main_gpu: 0  # Not applicable for CPU but kept for compatibility
-    low_vram: false  # Not applicable for CPU mode
-    # Memory management - Optimized for CPU with 16GB RAM
-    use_mmap: true  # Memory mapping reduces RAM usage (important for 16GB systems)
-    use_mlock: false  # Keep false for CPU to allow OS memory management
-    vocab_only: false
-    numa: false
-    # Random seed for reproducible outputs
-    seed: null
-    # Retry configuration for handling cold starts
-    retry:
-      enabled: true
-      max_retries: 5
-      initial_wait_ms: 2000  # Start with 2 seconds
-      max_wait_ms: 30000     # Max 30 seconds per retry
-      exponential_base: 2    # Exponential backoff multiplier
-    # Timeout configuration
-    timeout:
-      connect: 10000         # 10 seconds for connection
-      total: 120000          # 2 minutes total timeout
-      warmup: 120000         # 2 minutes for initial warmup (increased for cold starts)
-
-    # Keep alive - how long to keep model loaded in memory after requests
-    # Options: "5m", "10m", "1h", "-1" (indefinite), "0" (unload immediately)
-    # Longer values reduce cold start latency but use more VRAM
-    keep_alive: "10m"
+    use_preset: "lfm2-700m-cpu"  # Reference to preset in config/ollama.yaml
   ollama_cloud:
     enabled: true
     api_key: ${OLLAMA_CLOUD_API_KEY}

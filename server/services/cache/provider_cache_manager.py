@@ -198,8 +198,36 @@ class ProviderCacheManager:
                 if provider_name not in config_for_provider['inference']:
                     config_for_provider['inference'][provider_name] = {}
 
-                config_for_provider['inference'][provider_name]['model'] = model_override
-                logger.info(f"Loading inference provider '{provider_name}' with model override: {model_override}")
+                # For Ollama: check if model_override is actually a preset name
+                # This allows adapters to specify `model: "lfm2-700m-cpu"` to use that preset
+                if provider_name == 'ollama':
+                    ollama_presets = config_for_provider.get('ollama_presets', {})
+                    if model_override in ollama_presets:
+                        # Model override is a preset name - apply the full preset configuration
+                        preset = ollama_presets[model_override]
+                        inference_section = config_for_provider['inference'][provider_name]
+                        enabled = inference_section.get('enabled', True)
+                        
+                        # Apply preset values
+                        for key, value in preset.items():
+                            inference_section[key] = value
+                        inference_section['enabled'] = enabled
+                        inference_section['_from_preset'] = model_override
+                        
+                        logger.info(
+                            f"Loading Ollama with preset '{model_override}' (model: {preset.get('model', 'unknown')})"
+                        )
+                    else:
+                        # Model override is a raw Ollama model name
+                        config_for_provider['inference'][provider_name]['model'] = model_override
+                        # Clear preset marker since we're using a raw model
+                        if '_from_preset' in config_for_provider['inference'][provider_name]:
+                            del config_for_provider['inference'][provider_name]['_from_preset']
+                        logger.info(f"Loading Ollama with model override: {model_override}")
+                else:
+                    # Non-Ollama provider - apply model override normally
+                    config_for_provider['inference'][provider_name]['model'] = model_override
+                    logger.info(f"Loading inference provider '{provider_name}' with model override: {model_override}")
             else:
                 logger.info(f"Loading inference provider '{provider_name}' with default model")
 

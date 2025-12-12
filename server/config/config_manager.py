@@ -77,6 +77,9 @@ def load_config(config_path: Optional[str] = None):
                 # Process environment variables
                 config = _process_env_vars(config)
 
+                # Resolve Ollama preset references (must be after imports and env vars)
+                config = _resolve_ollama_presets(config)
+
                 # Normalize and validate known sections
                 config = _normalize_llm_guard_config(config)
                 
@@ -404,6 +407,93 @@ def reload_adapters_config(config_path: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error loading configuration: {str(e)}")
         raise
+
+
+def _resolve_ollama_presets(config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Resolve Ollama preset references in inference configuration.
+    
+    If inference.ollama contains a 'use_preset' key, this function looks up the
+    preset in ollama_presets and replaces the ollama config with the preset values.
+    
+    The 'enabled' flag from inference.yaml is preserved and takes precedence.
+    
+    Example:
+        # In inference.yaml:
+        inference:
+          ollama:
+            enabled: true
+            use_preset: "granite-cpu"
+        
+        # In ollama.yaml:
+        ollama_presets:
+          granite-cpu:
+            model: "granite4:1b"
+            num_gpu: 0
+            ...
+        
+        # Result after resolution:
+        inference:
+          ollama:
+            enabled: true
+            model: "granite4:1b"
+            num_gpu: 0
+            ...
+    
+    Args:
+        config: The merged configuration dictionary
+        
+    Returns:
+        The configuration with ollama presets resolved
+    """
+    try:
+        inference_config = config.get('inference', {})
+        ollama_config = inference_config.get('ollama', {})
+        ollama_presets = config.get('ollama_presets', {})
+        
+        # Check if there's a preset reference
+        preset_name = ollama_config.get('use_preset')
+        if not preset_name:
+            return config
+        
+        # Look up the preset
+        if preset_name not in ollama_presets:
+            logger.error(
+                f"Ollama preset '{preset_name}' not found in ollama_presets. "
+                f"Available presets: {list(ollama_presets.keys())}"
+            )
+            return config
+        
+        preset = ollama_presets[preset_name]
+        if not isinstance(preset, dict):
+            logger.error(f"Ollama preset '{preset_name}' is not a valid configuration dictionary")
+            return config
+        
+        # Preserve the 'enabled' flag from inference.yaml
+        enabled = ollama_config.get('enabled', True)
+        
+        # Replace ollama config with preset values
+        resolved_ollama = preset.copy()
+        resolved_ollama['enabled'] = enabled
+        
+        # Mark that this config came from a preset - adapter loader should NOT override the model
+        # This prevents adapter model overrides (e.g., "gpt-5.1") from breaking Ollama presets
+        resolved_ollama['_from_preset'] = preset_name
+        
+        # Remove use_preset from the resolved config (it's been processed)
+        if 'use_preset' in resolved_ollama:
+            del resolved_ollama['use_preset']
+        
+        # Update the config
+        config['inference']['ollama'] = resolved_ollama
+        
+        logger.info(f"Resolved Ollama configuration from preset '{preset_name}' (model={preset.get('model')})")
+        
+        return config
+        
+    except Exception as e:
+        logger.warning(f"Error resolving Ollama presets: {str(e)}")
+        return config
 
 
 def _normalize_llm_guard_config(config: Dict[str, Any]) -> Dict[str, Any]:

@@ -33,6 +33,7 @@ const DEFAULT_CONFIG = {
   enableAudioOutput: false,
   enableFeedbackButtons: false,
   enableApiMiddleware: false,
+  outOfServiceMessage: null,
   maxFilesPerConversation: 5,
   maxFileSizeMB: 50,
   maxTotalFiles: 100,
@@ -129,6 +130,9 @@ function parseArgs() {
       case '--enable-api-middleware':
         config.enableApiMiddleware = true;
         break;
+      case '--out-of-service-message':
+        config.outOfServiceMessage = args[++i];
+        break;
       case '--max-files-per-conversation':
         config.maxFilesPerConversation = parseInt(args[++i], 10);
         break;
@@ -214,6 +218,7 @@ function loadConfigFromEnv() {
     VITE_ENABLE_AUDIO_OUTPUT: 'enableAudioOutput',
     VITE_ENABLE_FEEDBACK: 'enableFeedbackButtons',
     VITE_ENABLE_API_MIDDLEWARE: 'enableApiMiddleware',
+    VITE_OUT_OF_SERVICE_MESSAGE: 'outOfServiceMessage',
     VITE_MAX_FILES_PER_CONVERSATION: 'maxFilesPerConversation',
     VITE_MAX_FILE_SIZE_MB: 'maxFileSizeMB',
     VITE_MAX_TOTAL_FILES: 'maxTotalFiles',
@@ -533,6 +538,7 @@ Options:
   --enable-audio                   Enable audio button (default: false)
   --enable-feedback                Enable feedback buttons (default: false)
   --enable-api-middleware          Enable API middleware mode (default: false)
+  --out-of-service-message TEXT    Show maintenance screen blocking access
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
   --max-total-files N              Max total files (default: 100, 0 = unlimited)

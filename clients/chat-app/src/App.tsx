@@ -5,10 +5,20 @@ import { ChatInterface } from './components/ChatInterface';
 import { Sidebar } from './components/Sidebar';
 import { Settings } from './components/Settings';
 import { X } from 'lucide-react';
+import { getOutOfServiceMessage } from './utils/runtimeConfig';
+import { OutOfServicePage } from './components/OutOfServicePage';
 
 function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const outOfServiceMessage = getOutOfServiceMessage();
+  if (outOfServiceMessage) {
+    return (
+      <ThemeProvider>
+        <OutOfServicePage message={outOfServiceMessage} />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider>

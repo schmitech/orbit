@@ -364,15 +364,56 @@ class AdapterLoader:
             provider_for_model = adapter_config.get('inference_provider') or config_with_adapter.get('general', {}).get('inference_provider')
             if provider_for_model:
                 inference_section = config_with_adapter.setdefault('inference', {}).setdefault(provider_for_model, {})
-                original_model = inference_section.get('model', 'default')
-                inference_section['model'] = adapter_config['model']
-                logger.info(
-                    "Model override for adapter '%s': '%s' -> '%s' (provider: %s)",
-                    adapter_name,
-                    original_model,
-                    adapter_config['model'],
-                    provider_for_model,
-                )
+                model_value = adapter_config['model']
+                
+                # For Ollama: check if model value is actually a preset name
+                # This allows adapters to specify `model: "lfm2-700m-cpu"` to use that preset
+                if provider_for_model == 'ollama':
+                    ollama_presets = config_with_adapter.get('ollama_presets', {})
+                    if model_value in ollama_presets:
+                        # Model value is a preset name - apply the full preset configuration
+                        preset = ollama_presets[model_value]
+                        original_preset = inference_section.get('_from_preset', 'default')
+                        
+                        # Apply preset values to inference section (preserving enabled flag)
+                        enabled = inference_section.get('enabled', True)
+                        for key, value in preset.items():
+                            inference_section[key] = value
+                        inference_section['enabled'] = enabled
+                        inference_section['_from_preset'] = model_value
+                        
+                        logger.info(
+                            "Preset override for adapter '%s': '%s' -> '%s' (model: %s)",
+                            adapter_name,
+                            original_preset,
+                            model_value,
+                            preset.get('model', 'unknown'),
+                        )
+                    else:
+                        # Model value is a raw Ollama model name - apply as regular override
+                        original_model = inference_section.get('model', 'default')
+                        inference_section['model'] = model_value
+                        # Clear preset marker since we're using a raw model
+                        if '_from_preset' in inference_section:
+                            del inference_section['_from_preset']
+                        logger.info(
+                            "Model override for adapter '%s': '%s' -> '%s' (provider: %s)",
+                            adapter_name,
+                            original_model,
+                            model_value,
+                            provider_for_model,
+                        )
+                else:
+                    # Non-Ollama provider - apply model override normally
+                    original_model = inference_section.get('model', 'default')
+                    inference_section['model'] = model_value
+                    logger.info(
+                        "Model override for adapter '%s': '%s' -> '%s' (provider: %s)",
+                        adapter_name,
+                        original_model,
+                        model_value,
+                        provider_for_model,
+                    )
 
         # Include adapter-level embedding provider override
         if adapter_config.get('embedding_provider'):
