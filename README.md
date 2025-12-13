@@ -18,18 +18,20 @@
 
 </div>
 
-# ORBIT – Unified, self‑hosted AI inference with your data
+# ORBIT – One API. Any LLM. Your data.
 
-ORBIT (Open Retrieval-Based Inference Toolkit) is a middleware platform that provides a unified API for AI inference. It acts as a central gateway, allowing you to connect various local and remote AI models with your private data sources like SQL databases and vector stores.
+Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI providers** with your databases, vector stores, and APIs—all through one self-hosted gateway.
 
-ORBIT gives you a single, consistent API to run LLMs (local or cloud) against your private data sources with portability, performance, high-availability, and security at the core.
+**Ship faster. Stay portable. Keep your data private.**
+
+<p align="center">
+  <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=for-the-badge&logo=github&label=Star%20on%20GitHub&color=yellow" alt="Star on GitHub"></a>
+</p>
 
 <video src="https://github.com/user-attachments/assets/b188a903-c6b0-44a9-85ad-5191f36778dc" controls width="800" style="display: block; margin-left: 0;">
   Your browser does not support the video tag.
 </video>
 <br/>
-
-> ⭐️ If ORBIT helps you ship faster, please consider starring the repo to support the roadmap.
 
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
 - **Updates:** Check the [changelog](CHANGELOG.md)
@@ -40,8 +42,9 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 
 - [✨ Highlights](#highlights)
 - [🛠️ Why ORBIT](#why-orbit)
+- [⭐ Why Star This Repo?](#-why-star-this-repo)
 - [🚀 Quick Start](#quick-start)
-- [⭐ Support the Project](#support-the-project)
+- [💬 Chat Clients](#-chat-clients)
 - [🏢 Commercial Support](#commercial-support)
 - [📖 Documentation](#documentation)
 - [📄 License](#license)
@@ -56,6 +59,15 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 - **Vision capabilities** with support for OpenAI, Gemini, and Anthropic vision models for image analysis and OCR.
 - **Secure by default** with token-based auth, role-aware API keys, and pluggable content moderation.
 - **Ready for teams** thanks to batteries-included clients (CLI, React widget, Node/Python SDKs).
+
+<!--
+## 💬 What Users Are Saying
+
+> "ORBIT let us switch from OpenAI to Anthropic in 5 minutes without touching our app code."
+> — *Add your testimonial here*
+
+Have a story to share? Open a PR or reach out on [LinkedIn](https://www.linkedin.com/in/remsy/).
+-->
 
 ---
 
@@ -75,19 +87,52 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 
 ---
 
+## ⭐ Why Star This Repo?
+
+Your star isn't just a vanity metric—it directly helps the project:
+
+- **Visibility** – Stars help other developers discover ORBIT in search results
+- **Releases** – Get notified when we ship new features and providers
+- **Roadmap** – Star count helps prioritize what we build next
+- **Open source** – Support independent AI infrastructure development
+
+<p align="center">
+  <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=for-the-badge&logo=github&label=Star%20ORBIT&color=yellow" alt="Star ORBIT"></a>
+</p>
+
+---
+
 
 ## 🚀 Quick Start
 
 There are three ways to get started with ORBIT.
 
-### Option 1: Download Latest Release (Recommended)
+### Option 1: Docker (Fastest)
 
-Download and install the latest stable release. This is the recommended approach for most users.
+```bash
+docker run -d --name orbit-basic -p 3000:3000 schmitech/orbit:basic
+```
+
+That's it! ORBIT is now running at `http://localhost:3000`.
+
+**Start chatting:**
+
+```bash
+npm install -g orbitchat
+orbitchat --api-url http://localhost:3000
+```
+
+### Option 2: Download Latest Release
+
+Download and install the latest stable release. Best for production deployments.
 
 #### Prerequisites
 
 - Python 3.12+
 - Node.js 18+ and npm
+- **AI Provider** (choose one or more):
+  - Local: [Ollama](https://ollama.com/), [llama.cpp](https://github.com/ggerganov/llama.cpp), or [vLLM](https://github.com/vllm-project/vllm)
+  - Cloud: Your own API keys for OpenAI, Anthropic, Cohere, Gemini, Mistral, etc.
 - Optional: MongoDB, Redis, and a vector DB (Chroma, Qdrant, etc.)
 
 #### 1. Download and Extract Release
@@ -115,19 +160,7 @@ cp env.example .env
 source venv/bin/activate
 ```
 
-#### 3. Download a Local Model (Optional)
-
-Get a local GGUF model for offline inference. Models are downloaded from Hugging Face.
-
-```bash
-# Available GGUF models: gemma3-270m, gemma3-1b, tinyllama-1b, phi-2, mistral-7b, granite4-micro, embeddinggemma-300m
-# You can add your own models by editing install/gguf-models.json
-./install/setup.sh --download-gguf granite4-micro
-```
-
-**Alternative: Using Ollama**
-
-If you encounter errors with llama.cpp (e.g., missing native libraries, compilation issues), you can use Ollama instead:
+#### 3. Install Ollama and Download a Model
 
 1. **Install Ollama** (if not already installed):
    ```bash
@@ -139,14 +172,12 @@ If you encounter errors with llama.cpp (e.g., missing native libraries, compilat
 
 2. **Pull the model**:
    ```bash
-   ollama pull granite4:micro
+   ollama pull granite4:1b
    ```
 
-3. **Update configuration**:
-   - Edit `config/adapters.yaml` and find the `simple-chat` adapter
-   - Change `inference_provider: "ollama"` (from `"llama_cpp"`)
-   - Change `model: "granite4:micro"` to match the Ollama model name
-   - Verify that `ollama` provider has `enabled: true` in `config/inference.yaml`
+3. **Configure Model**:
+   - The default model is configured as `granite4:1b` in `config/adapters/passthrough.yaml` and `config/adapters/multimodal.yaml`.
+   - You can configure model settings in `config/ollama.yaml`.
 
 #### 4. Start the Server
 
@@ -160,97 +191,24 @@ cat ./logs/orbit.log
 
 **Note:** After starting the server, you'll need to create an API key using `./bin/orbit.sh key create` before you can use the chat clients.
 
-### Option 2: Docker
+The Docker image includes a self-contained server with a local model and a pre-configured API key—no setup required.
 
-The Docker image includes a self-contained server with a local model, so no additional API keys are needed.
+**Dashboard:** `http://localhost:3000/dashboard`
 
-```bash
-# Pull the ORBIT basic image
-docker pull schmitech/orbit:basic
+For details on creating custom API keys, see the [Tutorial](docs/tutorial.md#creating-an-api-key).
 
-# Run the container
-docker run -d \
-  --name orbit-basic \
-  -p 3000:3000 \
-  schmitech/orbit:basic
-```
+### Option 3: Clone from Git (Development)
 
-The ORBIT server will be running at `http://localhost:3000`. You can monitor it by browsing to the dashboard at `http://localhost:3000/dashboard`.
-
-### Create Your First API Key
-
-Once the container is running, create a default API key to start chatting:
-
-```bash
-# Login as admin (default password: admin123). You can change it later.
-docker exec -it orbit-basic python /orbit/bin/orbit.py login --username admin --password admin123
-
-# Create a default API key with a simple prompt
-docker exec -it orbit-basic python /orbit/bin/orbit.py key create \
-  --adapter simple-chat \
-  --name "Default Chat Key" \
-  --prompt-name "Default Assistant" \
-  --prompt-text "You are a helpful assistant. Be concise and friendly."
-```
-
-The command will output your API key (starts with `orbit_`). Save it for use with the chat clients below.
-```bash
-✓ API key created successfully
-API Key: orbit_123456789ABCDEFGabcdefg
-Client: Default Chat Key
-Adapter: simple-chat
-Prompt ID: 12345-abcdefg
-```
-
-Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server.
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/d12135d9-b827-49df-8725-1350df175aed" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>ORBIT Dashboard running during unit tests. Some errors shown are expected and are part of negative test coverage.</i>
-</div>
-
-**Note:** The basic image includes the `simple-chat` adapter and the `gemma3-1b` model pre-configured, running natively via llama.cpp. No API keys from cloud or commercial AI platforms or external services are needed. For more details, see the [Docker Basic Image Guide](docker/README-BASIC.md).
-
-Quick test of the chat endpoint:
-
-```bash
-curl -X POST http://localhost:3000/v1/chat \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: orbit_123456789ABCDEFGabcdefg' \
-  -H 'X-Session-ID: test-session' \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "Hello, what is 2+2?"}
-    ],
-    "stream": false
-  }'
-```
-
-Example response:
-
-```json
-{
-  "response": "2 + 2 = 4 Let me know if you'd like to try another math problem!",
-  "sources": [],
-  "metadata": {
-    "processing_time": 0.0,
-    "pipeline_used": true
-  }
-}
-```
-
-### Option 3: Clone from Git
-
-For development or contributing, you can clone and run ORBIT locally from the source.
+For contributing or modifying ORBIT, clone and run from source.
 
 #### Prerequisites
 
 - Python 3.12+
 - Node.js 18+ and npm
 - Docker 20.10+ and Docker Compose 2.0+
+- **AI Provider** (choose one or more):
+  - Local: [Ollama](https://ollama.com/), [llama.cpp](https://github.com/ggerganov/llama.cpp), or [vLLM](https://github.com/vllm-project/vllm)
+  - Cloud: Your own API keys for OpenAI, Anthropic, Cohere, Gemini, Mistral, etc.
 - Optional: MongoDB, Redis, and a vector DB (Chroma, Qdrant, etc.)
 
 #### 1. Install ORBIT Server
@@ -322,49 +280,17 @@ orbitchat --api-url http://localhost:3000 --api-key YOUR_API_KEY --open
 
 ## 🗃️ Chat with Your Data
 
-ORBIT can connect to your databases and other data sources. Here's a quick example using a local SQLite database.
-
-**Note:** This example requires cloning the repository or using the release version. The basic Docker image (`schmitech/orbit:basic`) does not include database adapters or examples. A Docker image with database examples will be available in a future release.
-
-### Quick Setup (SQLite Example)
-
-**Prerequisites:** Clone the repository or download the release version. See [Option 2: Manual Installation](#option-2-manual-installation) above.
-
-```bash
-# 1. Set up the database and test data
-python utils/sql-intent-template/examples/sqlite/contact/generate_contact_data.py \
-  --records 100 \
-  --output utils/sql-intent-template/examples/sqlite/contact/contact.db
-
-# 2. Restart ORBIT to load pre-generated templates
-./bin/orbit.sh restart
-
-# 3. Create an API key for the SQLite adapter
-./bin/orbit.sh key create \
-  --adapter intent-sql-sqlite-contact \
-  --name "Contacts Chatbot" \
-  --prompt-file ./examples/prompts/contact-assistant-prompt.txt \
-  --prompt-name "Contacts Chatbot"
-```
-
-**Note:** The `intent-sql-sqlite-contact` adapter is enabled by pre-generated templates for this example. To connect your own database, you'll need to generate templates from your database schema. See the [`README.md`](utils/sql-intent-template/README.md) and [`tutorial.md`](utils/sql-intent-template/docs/tutorial.md) for a detailed guide.
-
-### Test with the React application:
-
-You can now use the API key you created with the React app (`orbitchat`) to have a conversation with your database.
+ORBIT connects to your databases, vector stores, and APIs so you can query them with natural language.
 
 <div align="center">
   <video src="https://github.com/user-attachments/assets/68190983-d996-458f-8024-c9c15272d1c3" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
-  <i>Chatting with a database using the React client.</i>
+  <i>Querying an HR database through natural language.</i>
 </div>
 
-### Next steps
-
-- Explore `config/adapters.yaml` to enable or customize adapters for different data sources.
-- Skim the [docs](#documentation) for deep dives on auth, configuration, and deployment patterns.
+**[See the Tutorial](docs/tutorial.md)** – Set up the HR example in 5 minutes and start chatting with your data.
 
 ---
 
@@ -450,6 +376,7 @@ Your support keeps ORBIT independent and focused on open-source innovation.
 
 For more detailed information, please refer to the official documentation.
 
+- [Tutorial: Chat with Your Data](docs/tutorial.md)
 - [Installation Guide](docs/server.md)
 - [Configuration](docs/configuration.md)
 - [Authentication](docs/authentication.md)
