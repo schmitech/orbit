@@ -2,8 +2,8 @@
 # Global STT settings and provider-specific configurations
 
 stt:
-  provider: "whisper"       # Global default STT provider: whisper, openai, google, gemini, ollama
-  enabled: false             # Global STT enable/disable
+  provider: "openai"       # Global default STT provider: whisper, openai, google, gemini, ollama
+  enabled: true             # Global STT enable/disable
 
 # STT Provider-specific configurations
 stt_providers:
@@ -11,7 +11,7 @@ stt_providers:
     # Direct integration with OpenAI's open-source Whisper (https://github.com/openai/whisper)
     # This runs Whisper locally on your machine - no API costs, completely free!
     # Requires: pip install openai-whisper
-    enabled: true
+    enabled: false
     # Model size selection (trade-off between speed and accuracy)
     # tiny: ~39M params, ~32x faster, ~1GB VRAM - Fast but less accurate
     # base: ~74M params, ~16x faster, ~1GB VRAM - Good for quick transcription
@@ -113,7 +113,7 @@ stt_providers:
       exponential_base: 2
 
   ollama:
-    enabled: true
+    enabled: false
     base_url: "http://localhost:11434"
     # STT configuration
     stt_model: "whisper"  # Ollama model for STT (e.g., whisper, faster-whisper)

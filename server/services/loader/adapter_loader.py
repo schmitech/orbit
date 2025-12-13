@@ -131,13 +131,19 @@ class AdapterLoader:
                 logger.warning(f"Failed to preload embedding service for adapter {adapter_name}: {str(e)}")
 
         # Preload reranker service if adapter has an override or uses global default
-        reranker_provider = adapter_config.get('reranker_provider')
-        if not reranker_provider:
-            # Use global default provider
-            reranker_config = self.config.get('reranker', {})
-            reranker_provider = reranker_config.get('provider_override') or reranker_config.get('provider')
-            if reranker_provider:
-                logger.debug(f"Using global default reranker_provider: {reranker_provider}")
+        # First check if reranking is globally enabled
+        reranker_global_config = self.config.get('reranker', {})
+        reranker_globally_enabled = reranker_global_config.get('enabled', True)
+        if reranker_globally_enabled is False or (isinstance(reranker_globally_enabled, str) and reranker_globally_enabled.lower() == 'false'):
+            logger.debug(f"Skipping reranker preload for adapter '{adapter_name}' - reranking is globally disabled")
+            reranker_provider = None
+        else:
+            reranker_provider = adapter_config.get('reranker_provider')
+            if not reranker_provider:
+                # Use global default provider
+                reranker_provider = reranker_global_config.get('provider_override') or reranker_global_config.get('provider')
+                if reranker_provider:
+                    logger.debug(f"Using global default reranker_provider: {reranker_provider}")
 
         if reranker_provider:
             logger.info(f"Preloading reranker provider '{reranker_provider}' for adapter '{adapter_name}'")
@@ -152,13 +158,19 @@ class AdapterLoader:
                 logger.warning(f"Failed to preload reranker service for adapter {adapter_name}: {str(e)}")
 
         # Preload vision service if adapter has an override or uses global default
-        vision_provider = adapter_config.get('vision_provider')
-        if not vision_provider:
-            # Use global default provider
-            vision_config = self.config.get('vision', {})
-            vision_provider = vision_config.get('provider')
-            if vision_provider:
-                logger.debug(f"Using global default vision_provider: {vision_provider}")
+        # First check if vision is globally enabled
+        vision_global_config = self.config.get('vision', {})
+        vision_globally_enabled = vision_global_config.get('enabled', True)
+        if vision_globally_enabled is False or (isinstance(vision_globally_enabled, str) and vision_globally_enabled.lower() == 'false'):
+            logger.debug(f"Skipping vision preload for adapter '{adapter_name}' - vision is globally disabled")
+            vision_provider = None
+        else:
+            vision_provider = adapter_config.get('vision_provider')
+            if not vision_provider:
+                # Use global default provider
+                vision_provider = vision_global_config.get('provider')
+                if vision_provider:
+                    logger.debug(f"Using global default vision_provider: {vision_provider}")
 
         if vision_provider and self.vision_cache:
             logger.info(f"Preloading vision provider '{vision_provider}' for adapter '{adapter_name}'")
@@ -172,14 +184,16 @@ class AdapterLoader:
             except Exception as e:
                 logger.warning(f"Failed to preload vision service for adapter {adapter_name}: {str(e)}")
 
-        # Preload audio service if adapter has an override or uses global default
+        # Preload audio service ONLY if the adapter explicitly specifies an audio_provider
+        # (Don't fall back to global default - most adapters don't need audio)
         audio_provider = adapter_config.get('audio_provider')
-        if not audio_provider:
-            # Use global default provider from sound config
-            sound_config = self.config.get('sound', {})
-            audio_provider = sound_config.get('provider')
-            if audio_provider:
-                logger.debug(f"Using global default audio_provider: {audio_provider}")
+        if audio_provider:
+            # Check if audio (sound) is globally enabled
+            sound_global_config = self.config.get('sound', {})
+            sound_globally_enabled = sound_global_config.get('enabled', True)
+            if sound_globally_enabled is False or (isinstance(sound_globally_enabled, str) and sound_globally_enabled.lower() == 'false'):
+                logger.debug(f"Skipping audio preload for adapter '{adapter_name}' - audio is globally disabled")
+                audio_provider = None
 
         if audio_provider and self.audio_cache:
             logger.info(f"Preloading audio provider '{audio_provider}' for adapter '{adapter_name}'")
@@ -212,14 +226,24 @@ class AdapterLoader:
             except Exception as e:
                 logger.warning(f"Failed to preload audio service for adapter {adapter_name}: {str(e)}")
 
-        # Preload STT service if adapter has an override or uses global default (uses audio_cache)
+        # Preload STT service ONLY if the adapter explicitly specifies an stt_provider
+        # (Don't fall back to global default - most adapters don't need STT)
         stt_provider = adapter_config.get('stt_provider')
-        if not stt_provider:
-            # Use global default provider from stt config
-            stt_config = self.config.get('stt', {})
-            stt_provider = stt_config.get('provider')
-            if stt_provider:
-                logger.debug(f"Using global default stt_provider: {stt_provider}")
+        if stt_provider:
+            # Check if STT is globally enabled
+            stt_global_config = self.config.get('stt', {})
+            stt_globally_enabled = stt_global_config.get('enabled', True)
+            if stt_globally_enabled is False or (isinstance(stt_globally_enabled, str) and stt_globally_enabled.lower() == 'false'):
+                logger.debug(f"Skipping STT preload for adapter '{adapter_name}' - STT is globally disabled")
+                stt_provider = None
+            else:
+                # Check if the specific provider is enabled
+                stt_providers_config = self.config.get('stt_providers', {})
+                provider_config = stt_providers_config.get(stt_provider, {})
+                provider_enabled = provider_config.get('enabled', True)
+                if provider_enabled is False or (isinstance(provider_enabled, str) and provider_enabled.lower() == 'false'):
+                    logger.debug(f"Skipping STT preload for adapter '{adapter_name}' - provider '{stt_provider}' is disabled")
+                    stt_provider = None
 
         if stt_provider and self.audio_cache:
             logger.info(f"Preloading STT provider '{stt_provider}' for adapter '{adapter_name}'")
@@ -250,14 +274,24 @@ class AdapterLoader:
             except Exception as e:
                 logger.warning(f"Failed to preload STT service for adapter {adapter_name}: {str(e)}")
 
-        # Preload TTS service if adapter has an override or uses global default (uses audio_cache)
+        # Preload TTS service ONLY if the adapter explicitly specifies a tts_provider
+        # (Don't fall back to global default - most adapters don't need TTS)
         tts_provider = adapter_config.get('tts_provider')
-        if not tts_provider:
-            # Use global default provider from tts config
-            tts_config = self.config.get('tts', {})
-            tts_provider = tts_config.get('provider')
-            if tts_provider:
-                logger.debug(f"Using global default tts_provider: {tts_provider}")
+        if tts_provider:
+            # Check if TTS is globally enabled
+            tts_global_config = self.config.get('tts', {})
+            tts_globally_enabled = tts_global_config.get('enabled', True)
+            if tts_globally_enabled is False or (isinstance(tts_globally_enabled, str) and tts_globally_enabled.lower() == 'false'):
+                logger.debug(f"Skipping TTS preload for adapter '{adapter_name}' - TTS is globally disabled")
+                tts_provider = None
+            else:
+                # Check if the specific provider is enabled
+                tts_providers_config = self.config.get('tts_providers', {})
+                provider_config = tts_providers_config.get(tts_provider, {})
+                provider_enabled = provider_config.get('enabled', True)
+                if provider_enabled is False or (isinstance(provider_enabled, str) and provider_enabled.lower() == 'false'):
+                    logger.debug(f"Skipping TTS preload for adapter '{adapter_name}' - provider '{tts_provider}' is disabled")
+                    tts_provider = None
 
         if tts_provider and self.audio_cache:
             logger.info(f"Preloading TTS provider '{tts_provider}' for adapter '{adapter_name}'")

@@ -240,7 +240,7 @@ internal_services:
     prompts_collection: system_prompts
 
   redis:
-    enabled: false
+    enabled: true
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0
@@ -382,10 +382,6 @@ files:
   # Default vector store settings (can be overridden per adapter)
   default_vector_store: "chroma"  # Default vector store to use
   default_collection_prefix: "files_"  # Default prefix for collection names
-
-reranker:
-  provider: "ollama"
-  enabled: false
 
 monitoring:
   enabled: true                    # Enable/disable monitoring dashboard

@@ -3,16 +3,16 @@
 # Supports SQL, DuckDB, PostgreSQL, Elasticsearch, MongoDB, HTTP APIs, and Firecrawl
 
 adapters:
-  - name: "intent-sql-sqlite-contact"
+  - name: "intent-sql-sqlite-hr"
     enabled: true
     type: "retriever"
     datasource: "sqlite"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
-    database: "utils/sql-intent-template/examples/sqlite/contact/hr.db"
+    database: "utils/sql-intent-template/examples/sqlite/hr/hr.db"
     # Provider overrides - intent adapters benefit from powerful models
-    inference_provider: "cohere"    # Cloud LLM for complex intent classification
-    # model: "gpt-oss:120b"           # Large model for better intent understanding
+    inference_provider: "openai"    # Cloud LLM for complex intent classification
+    model: "gpt-5.1"           # Large model for better intent understanding
     embedding_provider: "openai"          # Local embeddings for template matching
     # reranker_provider: "ollama"           # Optional: Jina AI reranker for template relevance
 
@@ -21,12 +21,12 @@ adapters:
       check_same_thread: false  # Allow multi-threaded access
 
       # Path to the domain definition file
-      domain_config_path: "utils/sql-intent-template/examples/sqlite/contact/hr-domain.yaml"
+      domain_config_path: "utils/sql-intent-template/examples/sqlite/hr/hr-domain.yaml"
       template_library_path:
-        - "utils/sql-intent-template/examples/sqlite/contact/hr-templates.yaml"
+        - "utils/sql-intent-template/examples/sqlite/hr/hr-templates.yaml"
 
       # Name for the vector store collection for templates
-      template_collection_name: "contact_intent_templates"
+      template_collection_name: "hr_intent_templates"
       # Store configuration - references stores.yaml
       store_name: "qdrant"
       confidence_threshold: 0.4
@@ -241,7 +241,7 @@ adapters:
   # This adapter demonstrates Elasticsearch Query DSL generation from natural language
   # Connection parameters are inherited from config/datasources.yaml
   - name: "intent-elasticsearch-app-logs"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "elasticsearch"  # References datasources.yaml elasticsearch config
     adapter: "intent"

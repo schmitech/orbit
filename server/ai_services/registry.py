@@ -226,7 +226,7 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
 
     Args:
         config: Optional configuration dictionary. If provided, only enabled providers
-                will be registered based on config['vision'][provider]['enabled']
+                will be registered based on config['visions'][provider]['enabled']
     """
     # Define services to register with their import paths
     services = [
@@ -240,15 +240,16 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
     ]
 
     # Get vision config if available
-    vision_config = config.get('vision', {}) if config else {}
+    # Note: Provider-specific configs are under 'visions' (plural), not 'vision' (singular)
+    visions_config = config.get('visions', {}) if config else {}
 
     for provider_key, class_name, display_name in services:
         # Check if provider is enabled in config
         if config:
-            provider_config = vision_config.get(provider_key, {})
+            provider_config = visions_config.get(provider_key, {})
             enabled = provider_config.get('enabled', True)
             if enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false'):
-                logger.debug(f"Skipping {display_name} vision service - disabled in config")
+                logger.info(f"Skipping {display_name} vision service - disabled in config")
                 continue
         
         try:
