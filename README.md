@@ -56,7 +56,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 - **Unified AI gateway** supporting 20+ LLM providers (OpenAI, Anthropic, Gemini, Cohere, Mistral, Ollama, Groq, DeepSeek, xAI, OpenRouter, and more) plus local models via Ollama, llama.cpp, and vLLM.
 - **Comprehensive data integration** with RAG adapters for SQL databases (PostgreSQL, MySQL, SQLite, DuckDB, Oracle, SQL Server, Cassandra), vector stores (Chroma, Qdrant, Pinecone, Milvus, Elasticsearch, Redis), MongoDB, HTTP APIs, and file uploads with multimodal support.
 - **Intelligent query processing** with intent-based adapters that translate natural language to SQL, Elasticsearch queries, MongoDB queries, and HTTP API calls.
-- **Vision capabilities** with support for OpenAI, Gemini, and Anthropic vision models for image analysis and OCR.
+- **Vision capabilities** with support for vLLM, OpenAI, Gemini, and Anthropic vision models for image analysis and OCR.
 - **Secure by default** with token-based auth, role-aware API keys, and pluggable content moderation.
 - **Ready for teams** thanks to batteries-included clients (CLI, React widget, Node/Python SDKs).
 
@@ -75,7 +75,6 @@ Have a story to share? Open a PR or reach out on [LinkedIn](https://www.linkedin
 
 - **Avoid vendor lock-in** by switching between LLM providers without rewriting your application code—change providers in configuration, not code.
 - **Keep your data private** with support for on-prem deployments, air-gapped installs, and local models that never leave your infrastructure.
-- **Ship faster** with production-ready adapters that handle authentication, connection pooling, error handling, and query optimization out of the box.
 - **Query your data naturally** in any language instead of writing SQL, Elasticsearch queries, or API calls—intent-based adapters handle the translation automatically.
 
 ### Built for
