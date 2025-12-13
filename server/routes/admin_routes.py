@@ -893,7 +893,7 @@ async def get_server_info(
     
     return {
         "pid": os.getpid(),
-        "version": "2.1.1",
+        "version": "2.2.0",
         "status": "running"
     }
 

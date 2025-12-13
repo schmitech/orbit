@@ -47,7 +47,7 @@ from bin.orbit.commands.config import (
 from bin.orbit.commands.admin import AdminReloadAdaptersCommand
 
 # Version information
-__version__ = "2.1.1"
+__version__ = "2.2.0"
 __author__ = "Remsy Schmilinsky"
 
 # Initialize rich console

@@ -108,7 +108,7 @@ from .registry import (
     get_embedding_service_legacy
 )
 
-__version__ = "2.1.1"
+__version__ = "2.2.0"
 
 __all__ = [
     # Core base classes

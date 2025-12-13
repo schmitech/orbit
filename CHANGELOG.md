@@ -1,5 +1,44 @@
 # Changelog
 
+## [2.2.0] - 2025-12-12
+
+### Core System Updates
+- vLLM Dual-Mode Support: Added direct mode to vLLM inference service allowing in-process model loading with GPU, similar to llama_cpp and bitnet providers
+- Audio Config Split: Split sound.yaml into separate tts.yaml and stt.yaml with independent provider configs, updated adapters to use stt_provider/tts_provider
+- Ollama Improvements: Added configurable adapter_preload_timeout (default 120s), improved warm-up with keep_alive and skip-if-loaded optimization, added ollama_remote for self-hosted servers
+- Language Detection: Skip Redis calls when stickiness is disabled, fixed confidence calculation and metadata exposure bugs
+- Jinja2 Templates: Converted intent templates to Jinja2 format with corresponding unit tests (Issue #69)
+- Qdrant Cloud: Added URL-based connection support with auto-index creation for payload fields
+- File Processing: Added MarkItDown as alternative processor, added full data mode for CSV/JSON with configurable thresholds for exact lookups
+- Adapter Config Fix: Fixed adapter config not updating after reload in chat service (Issue #92)
+- Maintenance Mode: Added runtime flag and UI for out-of-service messaging
+
+### Chat-app & UI Improvements
+- Mobile UI Enhancements: Added iOS/Android PWA meta tags, improved touch interactions, redesigned MessageInput with stacked layout, added larger touch targets (44px)
+- Dark Mode Fixes: Fixed desktop chat dark background inconsistencies, aligned chat layout with sidebar
+- Adapter Notes: Sync markdown styling with theme, fix notes not loading on startup in middleware proxy mode
+- Middleware Proxy: Auto-select first adapter on startup, replace adapters.yaml with environment variable configuration
+- Thread Improvements: Fixed markdown rendering in conversation threads
+
+### Bug Fixes & Technical Improvements
+- Middleware Proxy Security: Removed API keys and URLs from /api/adapters response, fixed undefined variable errors
+- Startup Fixes: Resolved startup errors, reduced duplicate logging, dynamically load providers from inference.yaml
+- CLI Fixes: Fixed arguments not overriding build-time env vars in orbitchat, fixed MaxListenersExceededWarning
+- Template Rendering: Fixed undefined variables in Jinja2 filters, fixed HTTP Retriever and GraphQL templates after migration
+- MongoDB: Fixed insertion error for documents containing ObjectApiResponse, deduplicate query results
+- File Cleanup: Fixed orphan files remaining after clearing conversations in middleware mode
+- Script Fixes: Fixed bash compatibility issues on Mac
+
+### API & Client Updates
+- orbitchat v2.3.9: Published new NPM package versions (v2.2.5 through v2.3.9) with UI improvements and bug fixes
+- API Middleware: Fixed integration for threads, files, and new conversations
+
+### Documentation & Configuration
+- AWS Deployment: Added ALB deployment guide with WAF configuration, Dockerfile and docker-compose for containerized deployment
+- Dependencies: Updated Ollama to 0.6.1, moved Ollama to default profile, updated tarball script with pre-configured db
+- Examples: Added Alberta Shelter Occupancy Adapter, replaced Contact with HR template examples
+- Installation: Reordered options with latest release as recommended method
+
 ## [2.1.1] - 2025-11-27
 
 ### Core System Updates

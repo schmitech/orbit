@@ -94,12 +94,12 @@ Download and install the latest stable release. This is the recommended approach
 
 ```bash
 # Download the latest release archive
-# Replace v2.1.1 with the latest version from https://github.com/schmitech/orbit/releases
-curl -L https://github.com/schmitech/orbit/releases/download/v2.1.1/orbit-2.1.1.tar.gz -o orbit-2.1.1.tar.gz
+# Replace v2.2.0 with the latest version from https://github.com/schmitech/orbit/releases
+curl -L https://github.com/schmitech/orbit/releases/download/v2.2.0/orbit-2.2.0.tar.gz -o orbit-2.2.0.tar.gz
 
-tar -xzf orbit-2.1.1.tar.gz
+tar -xzf orbit-2.2.0.tar.gz
 
-cd orbit-2.1.1
+cd orbit-2.2.0
 ```
 
 #### 2. Configure and Install
