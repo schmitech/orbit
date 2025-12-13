@@ -7,7 +7,10 @@ This guide will help you get started with the ORBIT basic Docker image - a minim
 The basic image contains:
 - **ORBIT server** with core functionality
 - **simple-chat adapter** - a conversational chatbot adapter
-- **gemma3-1b model** - pre-downloaded and ready to use
+- **Ollama** with pre-pulled models:
+  - **granite4:1b** - chat/inference model
+  - **nomic-embed-text** - embeddings model
+- **Default database** - pre-configured so no API key creation needed
 - **Default configuration** - optimized for quick start
 
 No API keys or external services required - just pull and run!
@@ -62,6 +65,7 @@ Make a simple chat request:
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
   -H 'X-Session-ID: test-session' \
   -d '{
     "messages": [
@@ -168,6 +172,7 @@ docker exec -it orbit-basic python /orbit/bin/orbit.py key list
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
   -H 'X-Session-ID: my-session' \
   -d '{
     "messages": [
@@ -182,6 +187,7 @@ curl -X POST http://localhost:3000/v1/chat \
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
   -H 'X-Session-ID: my-session' \
   -d '{
     "messages": [
@@ -192,9 +198,9 @@ curl -X POST http://localhost:3000/v1/chat \
   --no-buffer
 ```
 
-### With API Key
+### With Custom API Key
 
-First, create an API key using the CLI (see above), then use it:
+To create and use your own API key using the CLI:
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
@@ -249,18 +255,22 @@ Increase Docker's memory limit in Docker Desktop settings, or ensure you have at
 
 The model should be included in the image. If you see errors about missing models, check:
 ```bash
-docker exec orbit-basic ls -la /orbit/models/
+docker exec orbit-basic ollama list
 ```
 
-You should see `gemma-3-1b-it-Q4_0.gguf` in the output.
+You should see `granite4:1b` and `nomic-embed-text` in the output. If not, you can pull them manually:
+```bash
+docker exec orbit-basic ollama pull granite4:1b
+docker exec orbit-basic ollama pull nomic-embed-text:latest
+```
 
 ## What's Different from the Full Image?
 
 The basic image is optimized for simplicity:
 - **Only simple-chat adapter** - no file uploads, no retrieval, just chat
-- **Pre-included model** - gemma3-1b is bundled in the image
+- **Pre-included Ollama + model** - granite4:1b is pre-pulled in the image
+- **Default database included** - no need to create API keys to get started
 - **Default dependencies only** - no cloud SDKs or extra packages
-- **Smaller size** - faster to pull and run
 
 For full functionality (file uploads, multiple adapters, etc.), use the standard ORBIT Docker setup as described in the main README.
 
@@ -296,24 +306,7 @@ cd docker
 chmod +x publish-basic.sh
 ```
 
-#### 4. (Optional) Pre-download the Model
-
-To avoid downloading the model during each build (saves time when testing), you can pre-download it:
-
-```bash
-# Create models directory if it doesn't exist
-mkdir -p ../models
-
-# Download the model (if not already present)
-python3 ../install/download_hf_gguf_model.py \
-  --repo-id "unsloth/gemma-3-1b-it-GGUF" \
-  --filename "gemma-3-1b-it-Q4_0.gguf" \
-  --output-dir ../models
-```
-
-The build script will automatically detect and use the model if it exists in the `models/` directory.
-
-#### 5. Build the Image
+#### 4. Build the Image
 
 Build the Docker image locally:
 
@@ -322,16 +315,18 @@ Build the Docker image locally:
 ```
 
 This will:
-- Download the gemma3-1b model (if not already in `models/` directory)
+- Install Ollama in the image
+- Pull the granite4:1b model (chat) and nomic-embed-text (embeddings)
+- Copy the default database (orbit.db)
 - Build the Docker image
 - Tag it as `schmitech/orbit:basic` and `schmitech/orbit:latest`
 
 **Note:** The first build may take 15-30 minutes depending on your internet connection, as it needs to:
 - Install system dependencies
 - Install Python packages
-- Download the GGUF model (~700MB)
+- Install Ollama and pull the models
 
-#### 6. Test the Image Locally
+#### 5. Test the Image Locally
 
 Before publishing, test the image:
 
@@ -355,11 +350,10 @@ curl http://localhost:3000/health
 #   --name "Test Key" \
 #   --prompt-text "You are a helpful assistant."
 
-# Test a chat request (replace 'orbit_your-key-here' with your actual API key)
-# Note: API key is optional for simple-chat adapter, but recommended
+# Test a chat request using the default-key included in the image
 curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
-  -H 'X-API-Key: orbit_your-key-here' \
+  -H 'X-API-Key: default-key' \
   -H 'X-Session-ID: test-session' \
   -d '{
     "messages": [
@@ -373,7 +367,7 @@ docker stop orbit-basic-test
 docker rm orbit-basic-test
 ```
 
-#### 7. Login to Docker Hub (if Publishing)
+#### 6. Login to Docker Hub (if Publishing)
 
 If you want to publish to Docker Hub:
 
@@ -383,7 +377,7 @@ docker login
 
 Enter your Docker Hub username and password when prompted.
 
-#### 8. Publish to Docker Hub
+#### 7. Publish to Docker Hub
 
 Publish the image with the default tags:
 
@@ -423,22 +417,23 @@ The `publish-basic.sh` script supports the following options:
 
 ### Troubleshooting the Build
 
-#### Build Fails with "No models directory"
+#### Build Fails with Missing Config Files
 
-The script automatically creates the `models/` directory. If you see this error, ensure you're running from the project root:
+Ensure the required configuration files exist:
 
 ```bash
-cd /path/to/orbit/docker
-./publish-basic.sh --build
+ls install/default-config/ollama.yaml
+ls install/default-config/inference.yaml
+ls install/orbit.db.default
 ```
 
-#### Model Download Fails
+#### Ollama Model Pull Fails
 
-If the model download fails during build:
+If the model pull fails during build:
 
 1. Check your internet connection
-2. Try pre-downloading the model manually (see step 4 above)
-3. Check that `install/gguf-models.json` exists and contains the gemma3-1b entry
+2. The build starts Ollama temporarily to pull the model
+3. You can test Ollama manually: `ollama pull granite4:1b`
 
 #### Docker Build Runs Out of Memory
 
@@ -450,11 +445,10 @@ If the build fails due to memory issues:
 
 #### Image Size is Very Large
 
-The basic image should be around 2-3GB including the model. If it's larger:
+The basic image should be around 3-4GB including Ollama and the model. If it's larger:
 
 1. Check that you're using `Dockerfile.basic` (not the full Dockerfile)
 2. Ensure you're not including unnecessary files
-3. The model file itself is ~700MB, so the image will be at least that size
 
 ## Next Steps
 

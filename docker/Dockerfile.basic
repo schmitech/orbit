@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /orbit
 
-# Install system dependencies
+# Install system dependencies including curl for Ollama installation
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
@@ -16,6 +16,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Ollama
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
 # Copy dependency configuration first (for better caching)
 COPY install/dependencies.toml /orbit/install/
 COPY install/generate_requirements.py /orbit/install/
@@ -24,23 +27,17 @@ COPY install/generate_requirements.py /orbit/install/
 COPY install/setup.sh /orbit/install/
 RUN chmod +x /orbit/install/setup.sh
 
-# Install Python dependencies (llama-cpp profile for local GGUF model inference)
-# This includes llama-cpp-python and numpy which are required for the gemma3-1b model
+# Install Python dependencies (default profile - includes Ollama support, no llama-cpp needed)
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir tomli && \
     cd /orbit/install && \
-    python3 generate_requirements.py llama-cpp --output /tmp/requirements.txt && \
+    python3 generate_requirements.py --output /tmp/requirements.txt && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
-    rm /tmp/requirements.txt && \
-    python3 -c "import llama_cpp; import numpy; print('✓ llama-cpp-python and numpy imported successfully')"
+    rm /tmp/requirements.txt
 
-# Install dependencies needed for model download script and basic server functionality
+# Install additional dependencies for basic server functionality
 # Pillow is required by ai_services/vision_service (imported even if not used)
-RUN pip install --no-cache-dir requests tqdm pyyaml Pillow
-
-# Copy model download script and config
-COPY install/download_hf_gguf_model.py /orbit/install/
-COPY install/gguf-models.json /orbit/install/
+RUN pip install --no-cache-dir requests tqdm pyyaml Pillow httpx
 
 # Copy the application code
 COPY server/ /orbit/server/
@@ -49,14 +46,11 @@ COPY LICENSE* /orbit/
 
 # Copy default-config as config directory (same as tarball approach)
 # This matches exactly how build-tarball.sh copies config files
+# Includes ollama.yaml which is referenced by inference.yaml
 COPY install/default-config/ /orbit/config/
 
 # Override passthrough adapter config to only enable simple-chat
 COPY docker/config/adapters/passthrough-basic.yaml /orbit/config/adapters/passthrough.yaml
-
-# Override inference.yaml to use absolute path for model (required for Docker)
-# Replace relative model_path with absolute path
-RUN sed -i 's|model_path: "models/gemma-3-1b-it-Q4_0.gguf"|model_path: "/orbit/models/gemma-3-1b-it-Q4_0.gguf"|g' /orbit/config/inference.yaml
 
 # Enable console logging for Docker (logs to stdout/stderr for docker logs command)
 RUN sed -i '/console:/,/format:/ s/enabled: false/enabled: true/' /orbit/config/config.yaml
@@ -68,29 +62,29 @@ COPY env.example /orbit/.env
 RUN chmod +x /orbit/bin/orbit.py /orbit/bin/orbit.sh
 
 # Create necessary directories
-RUN mkdir -p /orbit/logs /orbit/data /orbit/models /orbit/gguf
+RUN mkdir -p /orbit/logs /orbit/data /orbit/models
 
-# Copy model download script
-COPY docker/download-model.py /orbit/download-model.py
-RUN chmod +x /orbit/download-model.py
+# Copy default database file (so user won't need to create a default key)
+COPY install/orbit.db.default /orbit/orbit.db
 
-# Copy models directory if it exists in build context (allows pre-downloaded models)
-# This allows testing builds without re-downloading large model files
-# The build script ensures models/ exists (even if empty) before building
-COPY models/ /orbit/models/
-
-# Download and include gemma3-1b model during build (only if not already present)
-RUN python3 /orbit/download-model.py
+# Pull the models during build
+# Start Ollama in background, pull the models, then stop it
+RUN ollama serve & \
+    sleep 5 && \
+    ollama pull granite4:1b && \
+    ollama pull nomic-embed-text:latest && \
+    pkill ollama || true
 
 # Set environment variables
 ENV PYTHONPATH=/orbit:/orbit/server
 ENV PATH="/orbit/bin:${PATH}"
+ENV OLLAMA_HOST=0.0.0.0:11434
 
-# Expose the server port
+# Expose the server port (Ollama runs internally, no need to expose 11434)
 EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
 # Copy entrypoint script
@@ -99,4 +93,3 @@ RUN chmod +x /orbit/docker-entrypoint-basic.sh
 
 # Run the entrypoint script
 ENTRYPOINT ["/orbit/docker-entrypoint-basic.sh"]
-

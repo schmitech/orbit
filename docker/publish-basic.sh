@@ -3,7 +3,7 @@
 # ORBIT Basic Docker Image Publishing Script
 # -------------------------------------------
 # This script builds and publishes a minimal ORBIT Docker image containing
-# only the simple-chat adapter and the gemma3-1b model.
+# only the simple-chat adapter using Ollama with the granite4:1b model.
 #
 # USAGE:
 #   ./publish-basic.sh [OPTIONS]
@@ -88,29 +88,6 @@ if [ "$PUBLISH" = true ]; then
     fi
 fi
 
-# Function to get model info from JSON config
-get_model_info() {
-    local model_name="$1"
-    local config_file="$2"
-    if [ ! -f "$config_file" ]; then
-        return 1
-    fi
-    python3 -c "
-import json
-import sys
-try:
-    with open('$config_file', 'r') as f:
-        config = json.load(f)
-    if '$model_name' in config['models']:
-        model_info = config['models']['$model_name']
-        print(f\"{model_info['repo_id']}\")
-        print(f\"{model_info['filename']}\")
-    else:
-        sys.exit(1)
-except Exception as e:
-    sys.exit(1)
-"
-}
 
 # Change to project root
 cd "$PROJECT_ROOT"
@@ -121,13 +98,18 @@ if [ ! -f "docker/Dockerfile.basic" ]; then
     exit 1
 fi
 
-if [ ! -f "install/gguf-models.json" ]; then
-    echo -e "${RED}❌ install/gguf-models.json not found${NC}"
+if [ ! -f "install/default-config/ollama.yaml" ]; then
+    echo -e "${RED}❌ install/default-config/ollama.yaml not found${NC}"
     exit 1
 fi
 
-if [ ! -f "install/download_hf_gguf_model.py" ]; then
-    echo -e "${RED}❌ install/download_hf_gguf_model.py not found${NC}"
+if [ ! -f "install/default-config/inference.yaml" ]; then
+    echo -e "${RED}❌ install/default-config/inference.yaml not found${NC}"
+    exit 1
+fi
+
+if [ ! -f "install/orbit.db.default" ]; then
+    echo -e "${RED}❌ install/orbit.db.default not found${NC}"
     exit 1
 fi
 
@@ -135,41 +117,25 @@ fi
 if [ "$BUILD" = true ]; then
     echo -e "${BLUE}🔨 Building ORBIT basic Docker image...${NC}"
     
-    # Verify model config
-    GGUF_MODELS_CONFIG="install/gguf-models.json"
-    MODEL_NAME="gemma3-1b"
+    # Ollama model configuration
+    CHAT_MODEL="granite4:1b"
+    EMBED_MODEL="nomic-embed-text:latest"
+    OLLAMA_PORT="11434"
     
-    if [ -f "$GGUF_MODELS_CONFIG" ]; then
-        model_info=$(get_model_info "$MODEL_NAME" "$GGUF_MODELS_CONFIG")
-        if [ $? -eq 0 ]; then
-            repo_id=$(echo "$model_info" | head -n 1)
-            filename=$(echo "$model_info" | tail -n 1)
-            echo -e "${GREEN}✅ Model configuration found: $MODEL_NAME${NC}"
-            echo -e "${BLUE}   Repository: $repo_id${NC}"
-            echo -e "${BLUE}   Filename: $filename${NC}"
-            
-            # Check if model already exists in models directory
-            if [ -f "models/$filename" ]; then
-                model_size=$(du -h "models/$filename" | cut -f1)
-                echo -e "${GREEN}✅ Model file already exists: models/$filename (${model_size})${NC}"
-                echo -e "${BLUE}   Will use existing model instead of downloading${NC}"
-            else
-                echo -e "${YELLOW}ℹ️  Model file not found in models/, will be downloaded during build${NC}"
-            fi
-        else
-            echo -e "${RED}❌ Model $MODEL_NAME not found in $GGUF_MODELS_CONFIG${NC}"
-            exit 1
-        fi
-    else
-        echo -e "${RED}❌ $GGUF_MODELS_CONFIG not found${NC}"
-        exit 1
+    echo -e "${GREEN}✅ Ollama configuration:${NC}"
+    echo -e "${BLUE}   Chat Model: $CHAT_MODEL${NC}"
+    echo -e "${BLUE}   Embeddings Model: $EMBED_MODEL${NC}"
+    echo -e "${BLUE}   Port: $OLLAMA_PORT${NC}"
+    echo -e "${BLUE}   Config: install/default-config/ollama.yaml${NC}"
+    
+    # Verify default database exists
+    if [ -f "install/orbit.db.default" ]; then
+        db_size=$(du -h "install/orbit.db.default" | cut -f1)
+        echo -e "${GREEN}✅ Default database found: install/orbit.db.default (${db_size})${NC}"
     fi
     
-    # Ensure models directory exists (even if empty) so COPY doesn't fail
-    mkdir -p models
-    
     # Build the Docker image
-    echo -e "${YELLOW}📦 Building Docker image (this may take a while, especially downloading the model)...${NC}"
+    echo -e "${YELLOW}📦 Building Docker image (this may take a while, Ollama will pull the model during build)...${NC}"
     
     if docker build \
         -f docker/Dockerfile.basic \
