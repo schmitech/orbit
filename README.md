@@ -346,31 +346,6 @@ Your support keeps ORBIT independent and focused on open-source innovation.
 
 ---
 
-## Commercial Support
-
-**[Schmitech](https://schmitech.ai/en)** is the official commercial support provider for ORBIT, offering enterprise-grade services for organizations that need dedicated assistance.
-
-### Services
-
-| Service | Description |
-|---------|-------------|
-| **Managed Hosting** | Fully managed ORBIT deployments with SLA guarantees, 24/7 monitoring, and automatic updates |
-| **Custom Development** | Custom adapters, model fine-tuning, prompt engineering, and performance optimization |
-| **Enterprise Integration** | Connect ORBIT to your existing databases, APIs, SSO, and data pipelines |
-| **Installation & Setup** | On-premise deployment, cloud infrastructure setup (AWS, GCP, Azure), and security hardening |
-| **Training & Workshops** | Hands-on training, developer bootcamps, and best practices documentation |
-| **Dedicated Support** | Priority response, dedicated support engineer, and Slack/Teams channel access |
-
-### Support Plans
-
-- **Community** – Free tier with GitHub Issues and public documentation
-- **Professional** – Email support, private Slack, installation assistance, quarterly reviews
-- **Enterprise** – 4-hour SLA, dedicated engineer, custom development hours, 24/7 emergency support
-
-👉 **[Get in touch](https://schmitech.ai/en/contact)** to discuss your requirements.
-
----
-
 ## Documentation
 
 For more detailed information, please refer to the official documentation.
