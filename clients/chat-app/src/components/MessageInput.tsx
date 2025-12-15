@@ -7,7 +7,7 @@ import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
-import { getDefaultKey, getEnableAudioOutput, getEnableUploadButton, resolveApiUrl } from '../utils/runtimeConfig';
+import { getDefaultKey, getEnableApiMiddleware, getEnableAudioOutput, getEnableUploadButton, resolveApiUrl } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
 
@@ -578,6 +578,7 @@ export function MessageInput({
     setUploadSuccessMessage(null);
 
     let pasteConversationId: string | null = null;
+    const middlewareMode = getEnableApiMiddleware();
 
     try {
       const pasteStore = useChatStore.getState();
@@ -599,12 +600,21 @@ export function MessageInput({
         }
       }
 
-      if (!currentConv || !currentConv.apiKey || currentConv.apiKey === getDefaultKey()) {
+      if (!currentConv) {
+        throw new Error('Conversation not found. Please select a conversation first.');
+      }
+
+      if (middlewareMode) {
+        if (!currentConv.adapterName) {
+          throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
+        }
+      } else if (!currentConv.apiKey || currentConv.apiKey === getDefaultKey()) {
         throw new Error('API key not configured for this conversation. Please configure API settings first.');
       }
 
       const conversationApiKey = currentConv.apiKey;
       const conversationApiUrl = resolveApiUrl(currentConv.apiUrl);
+      const conversationAdapterName = currentConv.adapterName;
       pasteConversationId = currentConv.id;
 
       setConversationUploading(pasteConversationId, true);
@@ -669,11 +679,7 @@ export function MessageInput({
             }, 2500);
           });
         };
-
         debugLog(`[MessageInput] Pasting file: ${file.name}, type: ${file.type || 'unknown'}, size: ${file.size}`);
-        const middlewareMode = typeof window !== 'undefined' &&
-          (window as Record<string, unknown>).ORBIT_CHAT_CONFIG?.enableApiMiddleware === true;
-        const conversationAdapterName = currentConversation?.adapterName;
         const uploadedAttachment = await FileUploadService.uploadFile(
           file,
           (progress) => {
@@ -720,7 +726,7 @@ export function MessageInput({
     } finally {
       setConversationUploading(pasteConversationId, false);
     }
-  }, [attachedFiles, currentConversation?.adapterName, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled]);
+  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled]);
 
   const effectivePlaceholder = (hasProcessingFiles || isUploading)
     ? 'Files are uploading/processing, please wait...'
