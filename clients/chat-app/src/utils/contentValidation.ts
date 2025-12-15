@@ -87,7 +87,8 @@ export function sanitizeMessageContent(content: string): string {
     return match; // Keep it if it might be legitimate
   });
 
-  return sanitized.trim();
+  // Don't trim - preserve leading/trailing spaces for proper streaming concatenation
+  return sanitized;
 }
 
 /**

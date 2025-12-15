@@ -12,6 +12,50 @@ import { audioStreamManager } from '../utils/audioStreamManager';
 // Default API key from runtime configuration
 const DEFAULT_API_KEY = getDefaultKey();
 
+// Streaming content buffer for batching rapid updates
+// This prevents "Maximum update depth exceeded" errors when rendering complex content like mermaid
+const streamingBuffer: Map<string, { content: string; timeoutId: ReturnType<typeof setTimeout> | null }> = new Map();
+const STREAMING_BATCH_DELAY = 50; // ms - batch updates within this window
+
+// Helper to flush streaming buffer immediately (called when streaming ends)
+const flushStreamingBuffer = (conversationId: string, setState: (fn: (state: ChatState) => Partial<ChatState>) => void) => {
+  const buffer = streamingBuffer.get(conversationId);
+  if (!buffer) return;
+
+  // Clear any pending timeout
+  if (buffer.timeoutId) {
+    clearTimeout(buffer.timeoutId);
+    buffer.timeoutId = null;
+  }
+
+  // If there's content to flush, do it
+  if (buffer.content) {
+    const contentToAppend = buffer.content;
+    buffer.content = '';
+
+    setState(state => ({
+      conversations: state.conversations.map(conv => {
+        if (conv.id !== conversationId) return conv;
+
+        const messages = [...conv.messages];
+        const lastMessage = messages[messages.length - 1];
+
+        if (lastMessage && lastMessage.role === 'assistant') {
+          messages[messages.length - 1] = {
+            ...lastMessage,
+            content: lastMessage.content + contentToAppend
+          };
+        }
+
+        return { ...conv, messages, updatedAt: new Date() };
+      })
+    }));
+  }
+
+  // Clean up buffer entry
+  streamingBuffer.delete(conversationId);
+};
+
 // Session management utilities
 const getOrCreateSessionId = (): string => {
   const stored = localStorage.getItem('chatbot-session-id');
@@ -1298,8 +1342,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               // Always append to the conversation that initiated the stream, not the current one
               get().appendToLastMessage(sanitizedText, streamingConversationId);
               receivedAnyText = true;
-              // Add a small delay to slow down the streaming effect
-              await new Promise(resolve => setTimeout(resolve, 30));
+              // Text appears immediately as chunks arrive from server
             } else if (response.text.length > 100) {
               // If text was filtered out but was long, log a warning
               debugWarn('[chatStore] Filtered out potential base64 audio data from message content');
@@ -1385,6 +1428,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         logError('Chat API error:', error);
         get().appendToLastMessage('Sorry, there was an error processing your request.', streamingConversationId);
       }
+
+      // Flush any remaining buffered content before marking streaming as complete
+      flushStreamingBuffer(streamingConversationId, set);
 
       // Mark message as no longer streaming and stop loading
       // Use the conversation that initiated the stream, not the current one
@@ -1512,38 +1558,70 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       debugWarn('[chatStore] Filtered out base64 audio data from message content');
       return;
     }
-    
+
     // Truncate extremely long content to prevent UI issues
     const finalContent = truncateLongContent(sanitizedContent);
-    
-    set(state => {
-      // Use provided conversationId or current conversation
-      const targetConversationId = conversationId || state.currentConversationId;
-      
-      return {
-        conversations: state.conversations.map(conv => {
-          // Update the conversation that's streaming, not just the current one
-          if (conv.id !== targetConversationId) return conv;
-          
-          const messages = [...conv.messages];
-          const lastMessage = messages[messages.length - 1];
-          
-          // Only append to streaming assistant messages
-          if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
-            messages[messages.length - 1] = {
-              ...lastMessage,
-              content: lastMessage.content + finalContent
+
+    // Get the target conversation ID
+    const targetConversationId = conversationId || get().currentConversationId;
+    if (!targetConversationId) return;
+
+    // Batch rapid updates to prevent "Maximum update depth exceeded" errors
+    // This is especially important for complex content like mermaid diagrams
+    const bufferKey = targetConversationId;
+    const existing = streamingBuffer.get(bufferKey);
+
+    if (existing) {
+      // Accumulate content in buffer
+      existing.content += finalContent;
+      // Clear existing timeout - we'll set a new one
+      if (existing.timeoutId) {
+        clearTimeout(existing.timeoutId);
+      }
+    } else {
+      // Create new buffer entry
+      streamingBuffer.set(bufferKey, { content: finalContent, timeoutId: null });
+    }
+
+    // Function to flush the buffer to state
+    const flushBuffer = () => {
+      const buffer = streamingBuffer.get(bufferKey);
+      if (!buffer || !buffer.content) return;
+
+      const contentToAppend = buffer.content;
+      buffer.content = ''; // Clear buffer
+      buffer.timeoutId = null;
+
+      set(state => {
+        return {
+          conversations: state.conversations.map(conv => {
+            // Update the conversation that's streaming, not just the current one
+            if (conv.id !== targetConversationId) return conv;
+
+            const messages = [...conv.messages];
+            const lastMessage = messages[messages.length - 1];
+
+            // Only append to streaming assistant messages
+            if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
+              messages[messages.length - 1] = {
+                ...lastMessage,
+                content: lastMessage.content + contentToAppend
+              };
+            }
+
+            return {
+              ...conv,
+              messages,
+              updatedAt: new Date()
             };
-          }
-          
-          return {
-            ...conv,
-            messages,
-            updatedAt: new Date()
-          };
-        })
-      };
-    });
+          })
+        };
+      });
+    };
+
+    // Set timeout to flush buffer
+    const buffer = streamingBuffer.get(bufferKey)!;
+    buffer.timeoutId = setTimeout(flushBuffer, STREAMING_BATCH_DELAY);
   },
 
   regenerateResponse: async (messageId: string) => {
@@ -1694,8 +1772,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               // Always append to the conversation that initiated the regenerate, not the current one
               get().appendToLastMessage(sanitizedText, regeneratingConversationId);
               receivedAnyText = true;
-              // Add a small delay to slow down the streaming effect
-              await new Promise(resolve => setTimeout(resolve, 30));
+              // Text appears immediately as chunks arrive from server
             } else if (response.text.length > 100) {
               // If text was filtered out but was long, log a warning
               debugWarn('[chatStore] Filtered out potential base64 audio data from regenerated message content');
@@ -1741,6 +1818,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         logError('Regenerate API error:', error);
         get().appendToLastMessage('Sorry, there was an error regenerating the response.', regeneratingConversationId);
       }
+
+      // Flush any remaining buffered content before marking streaming as complete
+      flushStreamingBuffer(regeneratingConversationId, set);
 
       // Mark as no longer streaming
       // Use the conversation that initiated the regenerate

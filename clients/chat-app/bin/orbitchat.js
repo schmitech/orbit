@@ -330,6 +330,8 @@ function createServer(distPath, config) {
         headers: {
           'X-API-Key': adapter.apiKey,
         },
+        // Critical for SSE streaming - disable response buffering
+        selfHandleResponse: false,
         onProxyReq: (proxyReq, req) => {
           // Remove adapter name header
           proxyReq.removeHeader('x-adapter-name');
@@ -359,6 +361,18 @@ function createServer(distPath, config) {
           proxyRes.headers['access-control-allow-origin'] = '*';
           proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
           proxyRes.headers['access-control-allow-headers'] = 'Content-Type, X-API-Key, X-Session-ID, X-Thread-ID, X-Adapter-Name';
+
+          // Critical for SSE streaming - disable buffering
+          const contentType = proxyRes.headers['content-type'] || '';
+          if (contentType.includes('text/event-stream')) {
+            // Disable caching and buffering for SSE
+            proxyRes.headers['cache-control'] = 'no-cache';
+            proxyRes.headers['x-accel-buffering'] = 'no';
+            // Flush response immediately
+            if (res.flushHeaders) {
+              res.flushHeaders();
+            }
+          }
         },
         onError: (err, req, res) => {
           console.error('Proxy error:', err);

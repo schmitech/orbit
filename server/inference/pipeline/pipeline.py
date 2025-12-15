@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 from typing import List, AsyncGenerator
+from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
@@ -117,9 +118,17 @@ class InferencePipeline:
         
         try:
             logger.debug(f"Starting streaming pipeline processing for message: {context.message[:50]}...")
-            
-            # Process through each step except the last one (LLM step)
-            for step in self.steps[:-1]:
+
+            # Process through each step EXCEPT the LLM step (which we'll stream separately)
+            # and ResponseValidationStep (which needs the response to exist)
+            for step in self.steps:
+                # Skip the LLM step - we'll handle it with streaming below
+                if step.get_name() == 'LLMInferenceStep':
+                    continue
+                # Skip ResponseValidationStep - it runs after streaming completes
+                if step.get_name() == 'ResponseValidationStep':
+                    continue
+
                 if not step.should_execute(context):
                     logger.debug(f"Skipping step {step.get_name()} - conditions not met")
                     continue
@@ -174,8 +183,9 @@ class InferencePipeline:
             logger.debug(f"DEBUG: LLM step found: {llm_step.get_name()}, should_execute={llm_step.should_execute(context)}, supports_streaming={llm_step.supports_streaming()}")
             
             if llm_step.should_execute(context) and llm_step.supports_streaming():
-                # If response is already generated, just stream it
+                # Safety check: If response is already generated (shouldn't happen), just yield it
                 if context.response:
+                    logger.warning("Response already generated before streaming loop - this indicates a bug in step ordering")
                     yield json.dumps({"response": context.response, "done": False})
                     yield json.dumps({"done": True})
                     return
@@ -185,13 +195,27 @@ class InferencePipeline:
                     # Pre-process step
                     await llm_step.pre_process(context)
 
-                    # Execute step with streaming
+                    # Execute step with streaming using block-aware buffering
+                    # This streams normal text word-by-word while buffering code blocks
+                    streamer = BlockAwareStreamer()
+                    chunk_count = 0
                     async for chunk in llm_step.process_stream(context):
-                        # Format as JSON for consistency
-                        chunk_json = json.dumps({"response": chunk, "done": False})
+                        # Process through block-aware streamer
+                        ready_chunks = streamer.add_text(chunk)
+                        for stream_chunk in ready_chunks:
+                            chunk_count += 1
+                            # Format as JSON for consistency
+                            chunk_json = json.dumps({"response": stream_chunk.content, "done": False})
+                            logger.debug(f"STREAM: Yielding chunk #{chunk_count}: {repr(stream_chunk.content[:50]) if len(stream_chunk.content) > 50 else repr(stream_chunk.content)}")
+                            yield chunk_json
+                            # Yield control to event loop to prevent buffering
+                            await asyncio.sleep(0)
+
+                    # Flush any remaining buffered content
+                    final_chunk = streamer.flush()
+                    if final_chunk:
+                        chunk_json = json.dumps({"response": final_chunk.content, "done": False})
                         yield chunk_json
-                        # Yield control to event loop to prevent buffering
-                        await asyncio.sleep(0)
 
                     # Post-process step
                     await llm_step.post_process(context)

@@ -62,6 +62,17 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_MIDDLEWARE_SERVER_URL,
           changeOrigin: true,
           ws: false,
+          // Critical for SSE streaming - configure proxy to not buffer responses
+          configure: (proxy) => {
+            proxy.on('proxyRes', (proxyRes, req, res) => {
+              const contentType = proxyRes.headers['content-type'] || '';
+              if (contentType.includes('text/event-stream')) {
+                // Disable buffering for SSE
+                proxyRes.headers['cache-control'] = 'no-cache';
+                proxyRes.headers['x-accel-buffering'] = 'no';
+              }
+            });
+          },
         },
       } : undefined,
     },

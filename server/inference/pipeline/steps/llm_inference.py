@@ -131,8 +131,11 @@ class LLMInferenceStep(PipelineStep):
                 kwargs['messages'] = context.messages
 
             accumulated_response = ""
+            llm_chunk_count = 0
             async for chunk in llm_provider.generate_stream(full_prompt, **kwargs):
+                llm_chunk_count += 1
                 accumulated_response += chunk
+                logger.debug(f"LLM_STREAM: Received chunk #{llm_chunk_count} from provider: {repr(chunk[:30]) if len(chunk) > 30 else repr(chunk)}")
                 yield chunk
             
             context.response = accumulated_response
