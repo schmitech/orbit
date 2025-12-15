@@ -50,6 +50,8 @@ export function Message({
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
   const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const threadRepliesRef = useRef<HTMLDivElement>(null);
+  const prevThreadContentRef = useRef<string>('');
 
   const isAssistant = message.role === 'assistant';
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
@@ -105,6 +107,27 @@ export function Message({
       setIsThreadOpen(true);
     }
   }, [threadReplyCount]);
+
+  // Auto-scroll thread replies when new messages arrive or content is streaming
+  useEffect(() => {
+    if (!isThreadOpen || threadReplies.length === 0) return;
+
+    const lastReply = threadReplies[threadReplies.length - 1];
+    const currentContent = lastReply?.content || '';
+    const contentChanged = currentContent !== prevThreadContentRef.current;
+    const isStreaming = lastReply?.isStreaming;
+
+    // Scroll when streaming or when new content arrives
+    if (isStreaming || contentChanged) {
+      requestAnimationFrame(() => {
+        if (threadRepliesRef.current) {
+          threadRepliesRef.current.scrollTop = threadRepliesRef.current.scrollHeight;
+        }
+      });
+    }
+
+    prevThreadContentRef.current = currentContent;
+  }, [isThreadOpen, threadReplies]);
 
   const timestamp = useMemo(() => {
     const value = message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp);
@@ -433,7 +456,13 @@ export function Message({
 
             {isThreadOpen && (
               <>
-                <div className="mt-3 space-y-3">{renderedThreadReplies}</div>
+                <div
+                  ref={threadRepliesRef}
+                  className="mt-3 space-y-3 max-h-96 overflow-y-auto scroll-smooth"
+                  style={{ scrollBehavior: 'auto' }}
+                >
+                  {renderedThreadReplies}
+                </div>
 
                 <div className="mt-3 rounded-xl border border-white/80 bg-white/95 p-3 shadow-sm dark:border-white/10 dark:bg-white/10">
                   {/* Mobile: stacked layout, Desktop: inline */}
