@@ -23,6 +23,11 @@
   --thread-avatar-assistant-text: #252c53;
   --thread-avatar-user-bg: #e6f4ef;
   --thread-avatar-user-text: #0f5f47;
+
+  /* Prevent scroll animation conflicts during streaming */
+  scroll-behavior: auto;
+  /* Prevent layout shifts from causing scroll jumps */
+  overflow-anchor: auto;
 }
 
 .dark .message-list {

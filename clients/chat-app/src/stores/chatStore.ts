@@ -15,7 +15,7 @@ const DEFAULT_API_KEY = getDefaultKey();
 // Streaming content buffer for batching rapid updates
 // This prevents "Maximum update depth exceeded" errors when rendering complex content like mermaid
 const streamingBuffer: Map<string, { content: string; timeoutId: ReturnType<typeof setTimeout> | null }> = new Map();
-const STREAMING_BATCH_DELAY = 50; // ms - batch updates within this window
+const STREAMING_BATCH_DELAY = 32; // ms - batch updates within this window (~30fps)
 
 // Helper to flush streaming buffer immediately (called when streaming ends)
 const flushStreamingBuffer = (conversationId: string, setState: (fn: (state: ChatState) => Partial<ChatState>) => void) => {
