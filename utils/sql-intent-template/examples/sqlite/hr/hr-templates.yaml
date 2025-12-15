@@ -2,7 +2,7 @@ status: completed
 generated_at: '2025-01-15T00:00:00.000000'
 last_updated: '2025-01-15T00:00:00.000000'
 generator_version: 1.0.0
-total_templates: 89
+total_templates: 93
 templates:
   # ============================================================================
   # EMPLOYEE SEARCH & LOOKUP TEMPLATES
@@ -191,6 +191,142 @@ templates:
       - "Find employees with salary 100000 to 150000"
       - "Get staff earning 50000 to 80000"
     tags: [filter, salary, range, employees]
+    result_format: table
+
+  - id: find_employees_earning_at_least
+    description: Find employees earning at least a specified salary amount
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, d.name AS department, p.title AS position, ep.salary
+      FROM employee_positions ep
+      INNER JOIN employees e ON ep.employee_id = e.id
+      INNER JOIN positions p ON ep.position_id = p.id
+      INNER JOIN departments d ON p.department_id = d.id
+      WHERE ep.is_primary = 1 AND ep.end_date IS NULL AND e.status = 'active' AND ep.salary >= ?
+      ORDER BY ep.salary DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: salary
+        type: decimal
+        description: Minimum salary amount
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Who earns at least 100000?"
+      - "Find employees making 75000 or more"
+      - "Show me who makes at least $50000"
+      - "List employees earning over 80000"
+    tags: [filter, salary, minimum, employees]
+    result_format: table
+
+  - id: find_employees_earning_exactly
+    description: Find employees earning exactly a specified salary amount
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, d.name AS department, p.title AS position, ep.salary
+      FROM employee_positions ep
+      INNER JOIN employees e ON ep.employee_id = e.id
+      INNER JOIN positions p ON ep.position_id = p.id
+      INNER JOIN departments d ON p.department_id = d.id
+      WHERE ep.is_primary = 1 AND ep.end_date IS NULL AND e.status = 'active' AND ep.salary = ?
+      ORDER BY e.last_name, e.first_name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: salary
+        type: decimal
+        description: Exact salary amount
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Who earns $45000?"
+      - "Find employees making exactly 75000"
+      - "Show me who makes 100000"
+      - "Which employees earn 60000?"
+    tags: [filter, salary, exact_match, employees]
+    result_format: table
+
+  - id: find_employees_earning_less_than
+    description: Find employees earning less than a specified salary amount
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, d.name AS department, p.title AS position, ep.salary
+      FROM employee_positions ep
+      INNER JOIN employees e ON ep.employee_id = e.id
+      INNER JOIN positions p ON ep.position_id = p.id
+      INNER JOIN departments d ON p.department_id = d.id
+      WHERE ep.is_primary = 1 AND ep.end_date IS NULL AND e.status = 'active' AND ep.salary < ?
+      ORDER BY ep.salary DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: salary
+        type: decimal
+        description: Maximum salary amount (exclusive)
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Who earns less than 50000?"
+      - "Find employees making under 75000"
+      - "Show me who makes below $60000"
+      - "Which employees earn less than 100000?"
+    tags: [filter, salary, maximum, employees]
+    result_format: table
+
+  - id: find_employees_earning_more_than
+    description: Find employees earning more than a specified salary amount
+    sql_template: |
+      SELECT e.id, e.first_name, e.last_name, d.name AS department, p.title AS position, ep.salary
+      FROM employee_positions ep
+      INNER JOIN employees e ON ep.employee_id = e.id
+      INNER JOIN positions p ON ep.position_id = p.id
+      INNER JOIN departments d ON p.department_id = d.id
+      WHERE ep.is_primary = 1 AND ep.end_date IS NULL AND e.status = 'active' AND ep.salary > ?
+      ORDER BY ep.salary DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: salary
+        type: decimal
+        description: Minimum salary amount (exclusive)
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Who earns more than 50000?"
+      - "Find employees making over 75000"
+      - "Show me who makes above $60000"
+      - "Which employees earn greater than 100000?"
+    tags: [filter, salary, minimum, employees]
     result_format: table
 
   # ============================================================================
