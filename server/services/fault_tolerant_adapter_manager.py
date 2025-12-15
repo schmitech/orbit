@@ -154,6 +154,19 @@ class FaultTolerantAdapterManager:
         """
         return await self.base_adapter_manager.reload_adapter_configs(config, adapter_name)
 
+    async def reload_templates(self, adapter_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Reload templates for intent adapters via base adapter manager.
+
+        Args:
+            adapter_name: Optional name of specific adapter to reload templates for.
+                         If None, reloads templates for all cached intent adapters.
+
+        Returns:
+            Summary dict with reload results
+        """
+        return await self.base_adapter_manager.reload_templates(adapter_name)
+
     async def cleanup(self):
         """Cleanup resources"""
         if self.parallel_executor:

@@ -1363,3 +1363,43 @@ templates:
       - "Rank employees by compensation percentile"
     tags: [salary, percentile, analytics, bi]
     result_format: table
+
+  - id: top_earners_company_wide
+    description: List the highest paid employees across the entire company
+    sql_template: |
+      SELECT
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        d.name as department_name,
+        p.title as position_title,
+        ep.salary,
+        ROUND((julianday('now') - julianday(e.hire_date)) / 365, 1) as years_employed
+      FROM employees e
+      INNER JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      INNER JOIN positions p ON ep.position_id = p.id
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL
+      INNER JOIN departments d ON ed.department_id = d.id
+      WHERE e.status = 'active'
+      ORDER BY ep.salary DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 10
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Who are the top earners in the company?"
+      - "Show me the highest paid employees"
+      - "List the top 10 salaries"
+      - "Who makes the most money?"
+      - "Display our best compensated staff"
+    tags: [salary, top_earners, ranking, employees]
+    result_format: table

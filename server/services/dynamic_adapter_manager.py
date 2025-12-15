@@ -610,6 +610,80 @@ class DynamicAdapterManager:
         else:
             return await self.reloader.reload_all_adapters(config)
 
+    async def reload_templates(self, adapter_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Reload templates for intent adapters.
+
+        This method reloads templates from YAML files and re-indexes them in the
+        vector store without reloading the entire adapter configuration.
+
+        Args:
+            adapter_name: Optional specific adapter to reload templates for.
+                          If None, reloads templates for all cached intent adapters.
+
+        Returns:
+            Summary dict with reload results including:
+            - templates_loaded: Total number of templates loaded
+            - adapters_updated: List of adapter names that were updated
+            - errors: List of any errors encountered
+            - details: (For single adapter) Detailed reload information
+
+        Raises:
+            ValueError: If adapter_name is provided but not found in cache,
+                       or if adapter doesn't support template reloading.
+        """
+        summary = {
+            'templates_loaded': 0,
+            'adapters_updated': [],
+            'errors': []
+        }
+
+        if adapter_name:
+            # Reload specific adapter's templates
+            if not self.adapter_cache.contains(adapter_name):
+                raise ValueError(
+                    f"Adapter '{adapter_name}' not found in cache. "
+                    f"It may need to be loaded first by making a query to it."
+                )
+
+            adapter = self.adapter_cache.get(adapter_name)
+            if not hasattr(adapter, 'reload_templates'):
+                raise ValueError(
+                    f"Adapter '{adapter_name}' does not support template reloading. "
+                    f"Only intent adapters have reloadable templates."
+                )
+
+            result = await adapter.reload_templates()
+            summary['templates_loaded'] = result.get('templates_loaded', 0)
+            summary['adapters_updated'].append(adapter_name)
+            summary['details'] = result
+
+            logger.info(f"Reloaded templates for adapter '{adapter_name}': {summary['templates_loaded']} templates")
+        else:
+            # Reload all cached intent adapters
+            cached_names = self.adapter_cache.get_cached_names()
+            logger.info(f"Reloading templates for all cached intent adapters ({len(cached_names)} total cached)")
+
+            for name in cached_names:
+                adapter = self.adapter_cache.get(name)
+                if hasattr(adapter, 'reload_templates'):
+                    try:
+                        result = await adapter.reload_templates()
+                        summary['templates_loaded'] += result.get('templates_loaded', 0)
+                        summary['adapters_updated'].append(name)
+                        logger.info(f"Reloaded templates for adapter '{name}': {result.get('templates_loaded', 0)} templates")
+                    except Exception as e:
+                        error_msg = f"{name}: {str(e)}"
+                        summary['errors'].append(error_msg)
+                        logger.error(f"Error reloading templates for adapter '{name}': {e}")
+
+            logger.info(
+                f"Template reload complete: {summary['templates_loaded']} total templates "
+                f"across {len(summary['adapters_updated'])} adapter(s)"
+            )
+
+        return summary
+
     async def close(self) -> None:
         """Clean up all resources."""
         # Close all cached providers

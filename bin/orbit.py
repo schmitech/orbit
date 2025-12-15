@@ -130,6 +130,10 @@ Admin Operations Commands:
     orbit admin reload-adapters [--adapter ADAPTER_NAME]
         Reload adapter configurations from adapters.yaml without server restart
 
+    orbit admin reload-templates [--adapter ADAPTER_NAME]
+        Reload intent templates from template library files without server restart
+        Re-indexes templates in the associated vector store
+
 Examples:
     # Authentication
     orbit login --username admin --password secret123  # Or just 'orbit login' to be prompted
@@ -198,6 +202,8 @@ Examples:
     # Admin Operations
     orbit admin reload-adapters                         # Reload all adapters
     orbit admin reload-adapters --adapter city          # Reload specific adapter
+    orbit admin reload-templates                        # Reload templates for all intent adapters
+    orbit admin reload-templates --adapter intent-sql-sqlite-hr  # Reload templates for specific adapter
 
     # Using different output formats
     orbit user list --output json                       # Output as JSON

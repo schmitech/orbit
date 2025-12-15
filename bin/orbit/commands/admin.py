@@ -83,3 +83,60 @@ class AdminReloadAdaptersCommand(BaseCommand):
         
         return 0
 
+
+class AdminReloadTemplatesCommand(BaseCommand):
+    """Command to reload intent templates."""
+
+    def __init__(self, api_service: ApiService, formatter: OutputFormatter):
+        self.api_service = api_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "admin reload-templates"
+
+    @property
+    def description(self) -> str:
+        return "Reload intent templates without server restart"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument('--adapter', type=str, help='Optional name of specific adapter to reload templates for')
+
+    def execute(self, args: argparse.Namespace) -> int:
+        result = self.api_service.reload_templates(adapter_name=args.adapter)
+        summary = result.get('summary', {})
+
+        if self.formatter.format == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success(result.get('message', 'Templates reloaded successfully'))
+
+            if args.adapter:
+                # Single adapter template reload
+                console.print(f"\n[bold]Adapter:[/bold] {args.adapter}")
+                console.print(f"[bold]Templates Loaded:[/bold] {summary.get('templates_loaded', 0)}")
+
+                if 'details' in summary:
+                    details = summary['details']
+                    if details.get('collection_name'):
+                        console.print(f"[bold]Collection:[/bold] {details['collection_name']}")
+                    if details.get('template_library_path'):
+                        console.print(f"[bold]Template Library:[/bold] {details['template_library_path']}")
+            else:
+                # Multiple adapters template reload
+                table = Table(title="Template Reload Summary")
+                table.add_column("Metric", style="cyan")
+                table.add_column("Value", style="green")
+
+                table.add_row("Total Templates", str(summary.get('templates_loaded', 0)))
+                table.add_row("Adapters Updated", str(len(summary.get('adapters_updated', []))))
+
+                console.print(table)
+
+                if summary.get('adapters_updated'):
+                    console.print(f"\n[green]Updated:[/green] {', '.join(summary['adapters_updated'])}")
+                if summary.get('errors'):
+                    console.print(f"[red]Errors:[/red] {', '.join(summary['errors'])}")
+
+        return 0
+

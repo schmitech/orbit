@@ -95,6 +95,14 @@ class AdapterReloadResponse(BaseModel):
     timestamp: str
 
 
+class TemplateReloadResponse(BaseModel):
+    """Response model for template reload operation"""
+    status: str
+    message: str
+    summary: Dict[str, Any]
+    timestamp: str
+
+
 class MCPMessage(BaseModel):
     """MCP protocol message model"""
     id: str = Field(description="Unique identifier for the message")

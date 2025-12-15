@@ -372,8 +372,23 @@ class ApiService:
         params = {}
         if adapter_name:
             params['adapter_name'] = adapter_name
-        
+
         response = self.api_client.post("/admin/reload-adapters", headers=headers, params=params)
+        response.raise_for_status()
+        return response.json()
+
+    @handle_api_errors(operation_name="Reload templates", custom_errors={
+        404: "Adapter not found or does not support template reloading",
+        503: "Adapter manager is not available"
+    })
+    def reload_templates(self, adapter_name: Optional[str] = None) -> Dict[str, Any]:
+        """Reload intent templates from template library files without server restart."""
+        headers = self._get_auth_headers()
+        params = {}
+        if adapter_name:
+            params['adapter_name'] = adapter_name
+
+        response = self.api_client.post("/admin/reload-templates", headers=headers, params=params)
         response.raise_for_status()
         return response.json()
     

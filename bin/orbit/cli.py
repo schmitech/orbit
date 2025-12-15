@@ -44,7 +44,7 @@ from bin.orbit.commands.users import (
 from bin.orbit.commands.config import (
     ConfigShowCommand, ConfigEffectiveCommand, ConfigSetCommand, ConfigResetCommand
 )
-from bin.orbit.commands.admin import AdminReloadAdaptersCommand
+from bin.orbit.commands.admin import AdminReloadAdaptersCommand, AdminReloadTemplatesCommand
 
 # Version information
 __version__ = "2.2.0"
@@ -454,12 +454,18 @@ Report issues at: https://github.com/schmitech/orbit/issues
         """Add admin management commands."""
         admin_parser = subparsers.add_parser('admin', help='Admin operations')
         admin_subparsers = admin_parser.add_subparsers(dest='admin_command', help='Admin operations', required=False)
-        
+
         # Reload adapters command
         reload_parser = admin_subparsers.add_parser('reload-adapters', help='Reload adapter configurations without server restart')
         reload_cmd = AdminReloadAdaptersCommand(self._get_api_service(), self.formatter)
         reload_cmd.add_arguments(reload_parser)
         reload_parser.set_defaults(func=lambda args, cmd=reload_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
+        # Reload templates command
+        reload_templates_parser = admin_subparsers.add_parser('reload-templates', help='Reload intent templates without server restart')
+        reload_templates_cmd = AdminReloadTemplatesCommand(self._get_api_service(), self.formatter)
+        reload_templates_cmd.add_arguments(reload_templates_parser)
+        reload_templates_parser.set_defaults(func=lambda args, cmd=reload_templates_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
     
     def execute(self, args):
         """Execute the parsed command."""

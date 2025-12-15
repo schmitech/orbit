@@ -517,6 +517,58 @@ class IntentHTTPRetriever(BaseRetriever):
             logger.error(f"Error loading templates: {e}")
             logger.error(traceback.format_exc())
 
+    async def reload_templates(self) -> Dict[str, Any]:
+        """
+        Reload templates from YAML files and re-index in vector store.
+
+        This method:
+        1. Reloads the domain adapter to re-read YAML template files from disk
+        2. Clears existing templates from the vector store collection
+        3. Re-embeds and re-indexes all templates
+
+        Returns:
+            Summary dict with templates_loaded count and other details
+        """
+        try:
+            logger.info(f"Reloading templates for collection '{self.template_collection_name}'...")
+
+            # 1. Reload domain adapter to pick up YAML changes
+            from adapters.factory import DocumentAdapterFactory
+            adapter_type = self.intent_config.get('adapter_type', 'http')
+            self.domain_adapter = DocumentAdapterFactory.create_adapter(
+                adapter_type,
+                domain_config_path=self.intent_config.get('domain_config_path'),
+                template_library_path=self.intent_config.get('template_library_path'),
+                confidence_threshold=self.intent_config.get('confidence_threshold', 0.75),
+                config=self.intent_config
+            )
+
+            # 2. Clear existing templates from vector store
+            if self.template_store:
+                await self.template_store.clear_all_templates()
+                logger.info(f"Cleared existing templates from collection '{self.template_collection_name}'")
+
+            # 3. Re-load templates (re-embed and re-index)
+            await self._load_templates()
+
+            # 4. Get stats and return summary
+            stats = await self.template_store.get_statistics() if self.template_store else {}
+            templates_loaded = stats.get('total_templates', 0)
+
+            logger.info(f"Template reload complete: {templates_loaded} templates loaded into '{self.template_collection_name}'")
+
+            return {
+                "templates_loaded": templates_loaded,
+                "collection_name": self.template_collection_name,
+                "template_library_path": self.intent_config.get('template_library_path'),
+                "domain_config_path": self.intent_config.get('domain_config_path')
+            }
+
+        except Exception as e:
+            logger.error(f"Error reloading templates: {e}")
+            logger.error(traceback.format_exc())
+            raise
+
     def _create_embedding_text(self, template: Dict[str, Any]) -> str:
         """Create text for embedding from template."""
         tags = template.get('tags', [])

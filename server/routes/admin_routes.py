@@ -18,7 +18,8 @@ from utils import is_true_value
 from models.schema import (
     ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate,
     SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse,
-    ApiKeyPromptAssociate, ChatHistoryClearResponse, AdapterReloadResponse
+    ApiKeyPromptAssociate, ChatHistoryClearResponse, AdapterReloadResponse,
+    TemplateReloadResponse
 )
 from config.config_manager import reload_adapters_config
 
@@ -756,6 +757,88 @@ async def reload_adapters(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to reload adapters: {str(e)}"
+        )
+
+
+# Template Hot Reload
+@admin_router.post("/reload-templates", response_model=TemplateReloadResponse)
+async def reload_templates(
+    request: Request,
+    adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload templates for"),
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Reload intent templates from template library files without server restart.
+
+    This endpoint reloads templates for intent-based adapters:
+    - If adapter_name is None: reloads templates for all cached intent adapters
+    - If adapter_name is provided: reloads templates only for that adapter
+
+    The adapter must already be loaded (cached). This does not reload adapter
+    configuration, only re-reads template YAML files and re-indexes in vector store.
+
+    This is useful for:
+    - Updating template definitions without restarting the server
+    - Adding new templates to an existing adapter
+    - Modifying template NL examples or descriptions
+    - Iterating on template development
+
+    Requires admin authentication.
+
+    Query Parameters:
+        adapter_name: Optional name of specific adapter to reload templates for
+
+    Returns:
+        TemplateReloadResponse with reload summary including:
+        - templates_loaded: Number of templates loaded
+        - adapters_updated: List of adapters that were updated
+        - errors: Any errors encountered during reload
+
+    Raises:
+        HTTPException 404: If adapter not found or doesn't support template reloading
+        HTTPException 503: If adapter manager is unavailable
+        HTTPException 500: If reload fails unexpectedly
+    """
+    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    if not adapter_manager:
+        raise HTTPException(
+            status_code=503,
+            detail="Adapter manager is not available"
+        )
+
+    try:
+        summary = await adapter_manager.reload_templates(adapter_name)
+
+        # Generate appropriate message
+        if adapter_name:
+            message = f"Templates for adapter '{adapter_name}' reloaded: {summary.get('templates_loaded', 0)} templates"
+        else:
+            adapters_count = len(summary.get('adapters_updated', []))
+            message = f"Templates reloaded for {adapters_count} adapter(s): {summary.get('templates_loaded', 0)} total templates"
+
+        if summary.get('errors'):
+            message += f" ({len(summary['errors'])} error(s))"
+
+        logger.info(f"Template reload completed: {message}")
+
+        return TemplateReloadResponse(
+            status="success",
+            message=message,
+            summary=summary,
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+
+    except ValueError as e:
+        logger.error(f"Template reload error: {str(e)}")
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during template reload: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to reload templates: {str(e)}"
         )
 
 
