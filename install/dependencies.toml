@@ -38,7 +38,7 @@ dependencies = [
     "environs>=14.3.0",
     "prometheus-client>=0.23.1",
     "opentelemetry-proto==1.28.0",
-    "schmitech-orbit-client==1.1.4",
+    "schmitech-orbit-client==1.1.5",
     "tqdm>=4.66.2",
     "pymongo>=4.15.4",
     "redis>=7.1.0",  # Redis support for caching and sessions
