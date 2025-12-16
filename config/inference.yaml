@@ -162,6 +162,71 @@ inference:
       initial_wait_ms: 1000
       max_wait_ms: 30000
       exponential_base: 2
+  tensorrt:
+    enabled: true
+    # Mode: "direct" (load model locally with TensorRT-LLM) or "api" (connect to trtllm-serve)
+    mode: "direct"
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # API Mode Configuration
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Connect to a running trtllm-serve server (started with `trtllm-serve model_name`)
+    host: "localhost"
+    port: 8000
+    base_url: null  # Override full URL (e.g., "http://localhost:8000/v1"), takes precedence over host/port
+    api_key: null   # Optional API key for secured servers
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Direct Mode Configuration
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Load model directly in-process (requires NVIDIA GPU and tensorrt-llm package)
+    model: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"  # HuggingFace model ID or local path
+    # Pre-quantized NVIDIA models: nvidia/Llama-3.1-8B-Instruct-FP8, nvidia/Qwen3-8B-FP8
+
+    # GPU and Parallelism
+    tensor_parallel_size: 1       # Number of GPUs for tensor parallelism (split model across GPUs)
+    pipeline_parallel_size: 1     # Number of GPUs for pipeline parallelism
+    gpu_memory_utilization: 0.90  # Fraction of GPU memory to use (0.0-1.0)
+    max_model_len: 4096           # Maximum sequence length (context window)
+
+    # Quantization (for optimized inference)
+    # Options: "fp8" (FP8 quantization), "int8" (INT8 weight-only),
+    #          "int4_awq" (AWQ 4-bit), "int4_gptq" (GPTQ 4-bit), null (none)
+    # Note: Pre-quantized models from NVIDIA (e.g., nvidia/Llama-3.1-8B-Instruct-FP8)
+    #       don't need this setting - they are already quantized
+    quantization: null
+    dtype: "auto"                 # Data type: "auto", "float16", "bfloat16", "float32"
+
+    # KV cache configuration
+    kv_cache_dtype: "auto"        # KV cache data type
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Generation Parameters (used in both modes)
+    # ═══════════════════════════════════════════════════════════════════════════
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 2048
+    repetition_penalty: 1.0       # Penalty for repeating tokens (1.0 = no penalty)
+    presence_penalty: 0.0         # Penalty for tokens already in context
+    frequency_penalty: 0.0        # Penalty based on token frequency
+    stream: true
+
+    # Stop sequences
+    stop: []                      # Stop generation when these tokens are encountered
+
+    # Timeout configuration (API mode)
+    timeout:
+      connect: 10000              # 10 seconds
+      total: 120000               # 2 minutes
+
+    # Retry configuration (API mode)
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
   shimmy:
     enabled: false
     base_url: "http://localhost:11435"  # Shimmy server URL (OpenAI-compatible API)

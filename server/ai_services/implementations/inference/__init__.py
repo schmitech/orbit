@@ -29,6 +29,7 @@ Available providers:
     - OllamaRemoteInferenceService: Ollama Remote (self-hosted) inference
     - BitNetInferenceService: BitNet (1.58-bit) inference
     - ZaiInferenceService: Z.AI inference
+    - TensorRTInferenceService: TensorRT-LLM (NVIDIA) inference
 """
 
 import logging
@@ -65,6 +66,7 @@ _implementations = [
     ('ollama_remote_inference_service', 'OllamaRemoteInferenceService'),
     ('bitnet_inference_service', 'BitNetInferenceService'),
     ('zai_inference_service', 'ZaiInferenceService'),
+    ('tensorrt_inference_service', 'TensorRTInferenceService'),
 ]
 
 for module_name, class_name in _implementations:
