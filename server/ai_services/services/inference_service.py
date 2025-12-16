@@ -8,12 +8,19 @@ providing a unified API for text generation regardless of the underlying provide
 from abc import abstractmethod
 from typing import Dict, Any, AsyncGenerator, Optional, List
 import logging
+import time
+import uuid
 
 from ..base import ProviderAIService, ServiceType
 
 
 
 logger = logging.getLogger(__name__)
+
+# OpenAI-compatible chat message payload used by helper utilities.
+ChatMessage = Dict[str, Any]
+
+
 class InferenceService(ProviderAIService):
     """
     Base class for all LLM inference services.
@@ -311,6 +318,162 @@ class InferenceResult:
             'finish_reason': self.finish_reason,
             'metadata': self.metadata
         }
+
+
+class OpenAIResponseFormatter:
+    """
+    Helper to format ORBIT responses into OpenAI-compatible payloads.
+
+    This utility consolidates shared logic so routes can expose responses that
+    the official OpenAI Python SDK (and any OpenAI-compatible client) accepts
+    without needing provider-specific transformations per endpoint.
+    """
+
+    def __init__(self, model: Optional[str], provider: Optional[str]):
+        self.model = model or "orbit"
+        self.provider = provider or "orbit"
+        self.completion_id = f"chatcmpl-{uuid.uuid4().hex}"
+        self.created = int(time.time())
+
+    def build_usage(
+        self,
+        usage: Optional[Dict[str, int]],
+        metadata: Optional[Dict[str, Any]]
+    ) -> Dict[str, int]:
+        """Return usage payload with sensible defaults."""
+        if usage:
+            return {
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
+            }
+
+        metadata = metadata or {}
+        prompt_tokens = metadata.get("prompt_tokens", 0)
+        completion_tokens = metadata.get("completion_tokens", 0)
+        total_tokens = metadata.get("total_tokens", prompt_tokens + completion_tokens)
+
+        return {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+        }
+
+    def build_orbit_extension(
+        self,
+        *,
+        sources: Optional[List[Dict[str, Any]]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        audio: Optional[str] = None,
+        audio_format: Optional[str] = None,
+        threading: Optional[Dict[str, Any]] = None,
+        extra: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Bundle ORBIT-specific metadata into a single extension block so clients
+        can opt-in without polluting the OpenAI response schema.
+        """
+        extension: Dict[str, Any] = {}
+        if sources:
+            extension["sources"] = sources
+        if metadata:
+            extension["metadata"] = metadata
+        if audio:
+            extension["audio"] = audio
+        if audio_format:
+            extension["audio_format"] = audio_format
+        if threading:
+            extension["threading"] = threading
+        if extra:
+            extension.update(extra)
+
+        return extension or None
+
+    def build_completion_response(
+        self,
+        *,
+        content: str,
+        finish_reason: str = "stop",
+        usage: Optional[Dict[str, int]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        sources: Optional[List[Dict[str, Any]]] = None,
+        audio: Optional[str] = None,
+        audio_format: Optional[str] = None,
+        threading: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Create a complete OpenAI-style chat completion response."""
+        response = {
+            "id": self.completion_id,
+            "object": "chat.completion",
+            "created": self.created,
+            "model": self.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": content
+                    },
+                    "finish_reason": finish_reason,
+                    "logprobs": None
+                }
+            ],
+            "usage": self.build_usage(usage, metadata),
+            "system_fingerprint": self.provider
+        }
+
+        orbit_extension = self.build_orbit_extension(
+            sources=sources,
+            metadata=metadata,
+            audio=audio,
+            audio_format=audio_format,
+            threading=threading
+        )
+        if orbit_extension:
+            response["orbit"] = orbit_extension
+
+        return response
+
+    def build_stream_chunk(
+        self,
+        *,
+        content: Optional[str] = None,
+        finish_reason: Optional[str] = None,
+        usage: Optional[Dict[str, int]] = None,
+        role: Optional[str] = None,
+        orbit_extension: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Build a single streaming chunk compatible with OpenAI's SSE format.
+        """
+        delta: Dict[str, Any] = {}
+        if role:
+            delta["role"] = role
+        if content is not None:
+            delta["content"] = content
+
+        chunk = {
+            "id": self.completion_id,
+            "object": "chat.completion.chunk",
+            "created": self.created,
+            "model": self.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": delta,
+                    "finish_reason": finish_reason,
+                    "logprobs": None
+                }
+            ],
+            "system_fingerprint": self.provider
+        }
+
+        if usage:
+            chunk["usage"] = usage
+        if orbit_extension:
+            chunk["orbit"] = orbit_extension
+
+        return chunk
 
 
 # Import for async operations

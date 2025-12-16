@@ -1,6 +1,14 @@
 # Tutorial: Chat with Your Data
 
-This tutorial walks you through connecting ORBIT to a database so you can query it using natural language.
+This tutorial walks you through connecting ORBIT to a database so you can query it using natural language. ORBIT connects to your databases, vector stores, and APIs so you can query them with natural language.
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/68190983-d996-458f-8024-c9c15272d1c3" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>Querying an HR database through natural language.</i>
+</div>
 
 ## Prerequisites
 
@@ -38,7 +46,7 @@ Create an API key configured for the SQLite HR adapter:
 
 ```bash
 ./bin/orbit.sh key create \
-  --adapter intent-sql-sqlite-contact \
+  --adapter intent-sql-sqlite-hr \
   --name "HR Chatbot" \
   --prompt-file ./examples/prompts/hr-assistant-prompt.txt \
   --prompt-name "HR Assistant"
@@ -132,7 +140,7 @@ Save this key—you'll need it to authenticate with ORBIT.
 
 | Option | Description |
 |--------|-------------|
-| `--adapter` | Which adapter to use (e.g., `simple-chat`, `intent-sql-sqlite-contact` for HR) |
+| `--adapter` | Which adapter to use (e.g., `simple-chat`, `intent-sql-sqlite-hr` for HR) |
 | `--name` | A friendly name for this key |
 | `--prompt-text` | Inline system prompt |
 | `--prompt-file` | Load system prompt from a file |

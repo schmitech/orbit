@@ -276,19 +276,51 @@ orbitchat --api-url http://localhost:3000 --api-key YOUR_API_KEY --open
   <i>Chatting with ORBIT using the React client.</i>
 </div>
 
+### Using the OpenAI Python SDK
+
+ORBIT exposes an OpenAI-compatible `/v1/chat/completions` endpoint, letting you use the official `openai` Python library with your ORBIT server as a drop-in backend.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="ORBIT_API_KEY",
+    base_url="http://localhost:3000/v1"
+)
+
+completion = client.chat.completions.create(
+    model="orbit",  # Value is required but ORBIT routes via your API key
+    messages=[
+        {"role": "system", "content": "You are a helpful ORBIT assistant."},
+        {"role": "user", "content": "Summarize the latest deployment status."}
+    ],
+)
+
+print(completion.choices[0].message.content)
+
+# ORBIT-specific metadata (sources, threading info, audio, etc.) is available via completion.orbit
+if completion.orbit.get("sources"):
+    print("Sources:", completion.orbit["sources"])
+```
+
+Streaming works as well:
+
+```python
+stream = client.chat.completions.create(
+    model="orbit",
+    messages=[{"role": "user", "content": "Give me an onboarding checklist."}],
+    stream=True,
+)
+
+for chunk in stream:
+    delta = chunk.choices[0].delta.content
+    if delta:
+        print(delta, end="", flush=True)
+```
+
 ---
 
 ## 🗃️ Chat with Your Data
-
-ORBIT connects to your databases, vector stores, and APIs so you can query them with natural language.
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/68190983-d996-458f-8024-c9c15272d1c3" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>Querying an HR database through natural language.</i>
-</div>
 
 **[See the Tutorial](docs/tutorial.md)** – Set up the HR example in 5 minutes and start chatting with your data.
 

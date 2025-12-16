@@ -11,16 +11,15 @@ This module handles all route setup and configuration, including:
 import json
 import uuid
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from fastapi import FastAPI, Request, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from pydantic import BaseModel
 
 from utils import is_true_value
-
-from utils import is_true_value
 from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse
+from ai_services.services.inference_service import OpenAIResponseFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -314,6 +313,41 @@ class RouteConfigurator:
             source_language: Optional[str] = None  # Source language for translation
             target_language: Optional[str] = None  # Target language for translation
 
+        class OpenAIChatCompletionRequest(BaseModel):
+            model: Optional[str] = None
+            messages: List[Dict[str, Any]]
+            stream: bool = False
+            temperature: Optional[float] = None
+            max_tokens: Optional[int] = None
+            top_p: Optional[float] = None
+            user: Optional[str] = None
+
+            class Config:
+                extra = "allow"
+
+        def _prepare_chat_parameters(chat_request: Any) -> Tuple[str, Dict[str, Any]]:
+            """Extract the last user message and shared kwargs for chat processing."""
+            messages = getattr(chat_request, "messages", None) or []
+            user_messages = [m for m in messages if m.get("role") == "user"]
+            if not user_messages:
+                raise HTTPException(status_code=400, detail="No user message found in request")
+
+            last_user_message = user_messages[-1].get("content", "")
+
+            payload = {
+                "file_ids": getattr(chat_request, "file_ids", None) or [],
+                "thread_id": getattr(chat_request, "thread_id", None),
+                "audio_input": getattr(chat_request, "audio_input", None),
+                "audio_format": getattr(chat_request, "audio_format", None),
+                "language": getattr(chat_request, "language", None),
+                "return_audio": getattr(chat_request, "return_audio", None),
+                "tts_voice": getattr(chat_request, "tts_voice", None),
+                "source_language": getattr(chat_request, "source_language", None),
+                "target_language": getattr(chat_request, "target_language", None),
+            }
+
+            return last_user_message, payload
+
         @app.post("/v1/chat", operation_id="chat")
         async def chat_endpoint(
             chat_request: ChatRequest,
@@ -332,27 +366,9 @@ class RouteConfigurator:
             client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
             api_key = request.headers.get(self.config.get('api_keys', {}).get('header_name', 'X-API-Key'))
 
-            # Extract the last user message
-            user_messages = [m for m in chat_request.messages if m.get("role") == "user"]
-            if not user_messages:
-                raise HTTPException(status_code=400, detail="No user message found in request")
-            
-            last_user_message = user_messages[-1].get("content", "")
-            
-            # Extract file_ids from request (for file context in conversations)
-            file_ids = chat_request.file_ids or []
-            
-            # Extract thread_id for follow-up questions
-            thread_id = chat_request.thread_id
-            
-            # Extract audio parameters
-            audio_input = chat_request.audio_input
-            audio_format = chat_request.audio_format
-            language = chat_request.language
-            return_audio = chat_request.return_audio
-            tts_voice = chat_request.tts_voice
-            source_language = chat_request.source_language
-            target_language = chat_request.target_language
+            last_user_message, payload_kwargs = _prepare_chat_parameters(chat_request)
+            return_audio = payload_kwargs.get("return_audio")
+            tts_voice = payload_kwargs.get("tts_voice")
 
             # Debug logging for tts_voice
             if return_audio and tts_voice:
@@ -368,15 +384,7 @@ class RouteConfigurator:
                         api_key=api_key,
                         session_id=session_id,
                         user_id=user_id,
-                        file_ids=file_ids,
-                        thread_id=thread_id,
-                        audio_input=audio_input,
-                        audio_format=audio_format,
-                        language=language,
-                        return_audio=return_audio,
-                        tts_voice=tts_voice,
-                        source_language=source_language,
-                        target_language=target_language
+                        **payload_kwargs
                     ):
                         yield chunk
 
@@ -398,17 +406,144 @@ class RouteConfigurator:
                     api_key=api_key,
                     session_id=session_id,
                     user_id=user_id,
-                    file_ids=file_ids,
-                    thread_id=thread_id,
-                    audio_input=audio_input,
-                    audio_format=audio_format,
-                    language=language,
-                    return_audio=return_audio,
-                    tts_voice=tts_voice,
-                    source_language=source_language,
-                    target_language=target_language
+                    **payload_kwargs
                 )
                 return result
+
+        @app.post("/v1/chat/completions", operation_id="chat_completions")
+        async def openai_chat_completions(
+            chat_request: OpenAIChatCompletionRequest,
+            request: Request,
+            chat_service = Depends(dependencies['get_chat_service']),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
+            session_id: str = Depends(dependencies['validate_session_id']),
+            user_id: Optional[str] = Depends(dependencies['get_user_id'])
+        ):
+            """
+            OpenAI-compatible chat completions endpoint so the official OpenAI
+            Python SDK (and other compatible clients) can talk to ORBIT.
+            """
+            adapter_name, system_prompt_id = api_key_result
+            client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
+            api_key = request.headers.get(self.config.get('api_keys', {}).get('header_name', 'X-API-Key'))
+
+            last_user_message, payload_kwargs = _prepare_chat_parameters(chat_request)
+            formatter = OpenAIResponseFormatter(
+                model=chat_request.model,
+                provider=adapter_name
+            )
+
+            if chat_request.stream:
+                async def openai_stream_generator():
+                    stream_started = False
+                    async for chunk in chat_service.process_chat_stream(
+                        message=last_user_message,
+                        client_ip=client_ip,
+                        adapter_name=adapter_name,
+                        system_prompt_id=system_prompt_id,
+                        api_key=api_key,
+                        session_id=session_id,
+                        user_id=user_id,
+                        **payload_kwargs
+                    ):
+                        if not chunk or not chunk.startswith("data:"):
+                            continue
+
+                        chunk_payload = chunk[6:].strip()
+                        if not chunk_payload:
+                            continue
+
+                        try:
+                            chunk_data = json.loads(chunk_payload)
+                        except json.JSONDecodeError:
+                            continue
+
+                        if "error" in chunk_data:
+                            error_chunk = formatter.build_stream_chunk(
+                                finish_reason="error",
+                                orbit_extension={"error": chunk_data["error"]}
+                            )
+                            yield f"data: {json.dumps(error_chunk)}\n\n"
+                            yield "data: [DONE]\n\n"
+                            return
+
+                        if chunk_data.get("done"):
+                            orbit_extension = formatter.build_orbit_extension(
+                                sources=chunk_data.get("sources"),
+                                metadata=chunk_data.get("metadata"),
+                                audio=chunk_data.get("audio"),
+                                audio_format=chunk_data.get("audioFormat"),
+                                threading=chunk_data.get("threading"),
+                                extra={
+                                    "total_audio_chunks": chunk_data.get("total_audio_chunks")
+                                } if chunk_data.get("total_audio_chunks") is not None else None
+                            )
+                            final_chunk = formatter.build_stream_chunk(
+                                finish_reason="stop",
+                                orbit_extension=orbit_extension
+                            )
+                            yield f"data: {json.dumps(final_chunk)}\n\n"
+                            yield "data: [DONE]\n\n"
+                            return
+
+                        orbit_extension = None
+                        if "audio_chunk" in chunk_data:
+                            orbit_extension = formatter.build_orbit_extension(
+                                extra={
+                                    "audio_chunk": chunk_data["audio_chunk"],
+                                    "audioFormat": chunk_data.get("audioFormat")
+                                }
+                            )
+
+                        if "response" in chunk_data and chunk_data["response"] is not None:
+                            chunk_dict = formatter.build_stream_chunk(
+                                content=chunk_data["response"],
+                                role="assistant" if not stream_started else None,
+                                orbit_extension=orbit_extension
+                            )
+                            stream_started = True
+                            yield f"data: {json.dumps(chunk_dict)}\n\n"
+                        elif orbit_extension:
+                            chunk_dict = formatter.build_stream_chunk(
+                                orbit_extension=orbit_extension
+                            )
+                            yield f"data: {json.dumps(chunk_dict)}\n\n"
+
+                    # If the upstream generator exits without emitting a done chunk,
+                    # still terminate the SSE stream so clients do not hang forever.
+                    yield "data: [DONE]\n\n"
+
+                return StreamingResponse(
+                    openai_stream_generator(),
+                    media_type="text/event-stream",
+                    headers={
+                        "Cache-Control": "no-cache",
+                        "X-Accel-Buffering": "no",
+                    }
+                )
+
+            result = await chat_service.process_chat(
+                message=last_user_message,
+                client_ip=client_ip,
+                adapter_name=adapter_name,
+                system_prompt_id=system_prompt_id,
+                api_key=api_key,
+                session_id=session_id,
+                user_id=user_id,
+                **payload_kwargs
+            )
+
+            if "error" in result:
+                raise HTTPException(status_code=500, detail=result["error"])
+
+            return formatter.build_completion_response(
+                content=result.get("response", "") or "",
+                metadata=result.get("metadata"),
+                sources=result.get("sources", []),
+                audio=result.get("audio"),
+                audio_format=result.get("audio_format"),
+                threading=result.get("threading")
+            )
     
     def _configure_health_endpoint(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
         """Configure the health check endpoint."""
