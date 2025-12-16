@@ -4,6 +4,7 @@
 # -------------------------------------------
 # This script builds and publishes a minimal ORBIT Docker image containing
 # only the simple-chat adapter using Ollama with the granite4:1b model.
+# Includes the orbitchat web app for easy browser-based interaction.
 #
 # USAGE:
 #   ./publish-basic.sh [OPTIONS]
@@ -125,8 +126,10 @@ if [ "$BUILD" = true ]; then
     echo -e "${GREEN}✅ Ollama configuration:${NC}"
     echo -e "${BLUE}   Chat Model: $CHAT_MODEL${NC}"
     echo -e "${BLUE}   Embeddings Model: $EMBED_MODEL${NC}"
-    echo -e "${BLUE}   Port: $OLLAMA_PORT${NC}"
+    echo -e "${BLUE}   Port: $OLLAMA_PORT (internal)${NC}"
     echo -e "${BLUE}   Config: install/default-config/ollama.yaml${NC}"
+    echo -e "${GREEN}✅ Web App:${NC}"
+    echo -e "${BLUE}   orbitchat on port 5173${NC}"
     
     # Verify default database exists
     if [ -f "install/orbit.db.default" ]; then
@@ -135,7 +138,7 @@ if [ "$BUILD" = true ]; then
     fi
     
     # Build the Docker image
-    echo -e "${YELLOW}📦 Building Docker image (this may take a while, Ollama will pull the model during build)...${NC}"
+    echo -e "${YELLOW}📦 Building Docker image (this may take a while - installing Node.js, orbitchat, and pulling Ollama models)...${NC}"
     
     if docker build \
         -f docker/Dockerfile.basic \
@@ -203,7 +206,9 @@ if [ "$PUBLISH" = true ]; then
     echo ""
     echo -e "${BLUE}🚀 Users can now pull and run:${NC}"
     echo -e "   docker pull ${IMAGE_NAME}:${IMAGE_TAG_BASIC}"
-    echo -e "   docker run -p 3000:3000 ${IMAGE_NAME}:${IMAGE_TAG_BASIC}"
+    echo -e "   docker run -p 5173:5173 -p 3000:3000 ${IMAGE_NAME}:${IMAGE_TAG_BASIC}"
+    echo ""
+    echo -e "${BLUE}📱 Then open http://localhost:5173 in your browser${NC}"
 fi
 
 echo -e "${GREEN}✅ Done!${NC}"

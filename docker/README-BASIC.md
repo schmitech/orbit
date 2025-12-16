@@ -6,6 +6,7 @@ This guide will help you get started with the ORBIT basic Docker image - a minim
 
 The basic image contains:
 - **ORBIT server** with core functionality
+- **orbitchat web app** - browser-based chat interface (no installation needed!)
 - **simple-chat adapter** - a conversational chatbot adapter
 - **Ollama** with pre-pulled models:
   - **granite4:1b** - chat/inference model
@@ -39,13 +40,27 @@ docker pull schmitech/orbit:latest
 ```bash
 docker run -d \
   --name orbit-basic \
+  -p 5173:5173 \
   -p 3000:3000 \
   schmitech/orbit:basic
 ```
 
+This exposes:
+- **Port 5173** - orbitchat web app (open in your browser)
+- **Port 3000** - ORBIT API (used by the web app)
+
+### 3. Open the Web App
+
+Open your browser and go to:
+```
+http://localhost:5173
+```
+
+You can start chatting immediately - no setup required!
+
 **Note:** The `ORBIT_DEFAULT_ADMIN_PASSWORD` environment variable is optional. If not set, it defaults to `admin123`. It's only needed if you want to use CLI commands (like creating API keys). The API works without authentication for the simple-chat adapter.
 
-### 3. Verify It's Running
+### 4. Verify It's Running (Optional)
 
 Check the container status:
 ```bash
@@ -59,7 +74,7 @@ curl http://localhost:3000/health
 
 You should see a response indicating the server is healthy.
 
-### 4. Test the API
+### 5. Test the API (Optional)
 
 Make a simple chat request:
 ```bash
@@ -91,6 +106,7 @@ To persist data across container restarts, mount volumes:
 ```bash
 docker run -d \
   --name orbit-basic \
+  -p 5173:5173 \
   -p 3000:3000 \
   -v orbit-data:/orbit/data \
   -v orbit-logs:/orbit/logs \
@@ -101,6 +117,7 @@ Or with a custom admin password (only needed for CLI access):
 ```bash
 docker run -d \
   --name orbit-basic \
+  -p 5173:5173 \
   -p 3000:3000 \
   -e ORBIT_DEFAULT_ADMIN_PASSWORD=your-secure-password \
   -v orbit-data:/orbit/data \
@@ -236,16 +253,16 @@ docker logs orbit-basic
 
 ### Port Already in Use
 
-Use a different port:
+Use different ports:
 ```bash
 docker run -d \
   --name orbit-basic \
+  -p 5174:5173 \
   -p 3001:3000 \
-  -e ORBIT_DEFAULT_ADMIN_PASSWORD=admin123 \
   schmitech/orbit:basic
 ```
 
-Then access at `http://localhost:3001`
+Then access the web app at `http://localhost:5174`
 
 ### Out of Memory
 
@@ -267,6 +284,7 @@ docker exec orbit-basic ollama pull nomic-embed-text:latest
 ## What's Different from the Full Image?
 
 The basic image is optimized for simplicity:
+- **Includes orbitchat web app** - ready-to-use browser interface, no npm install needed
 - **Only simple-chat adapter** - no file uploads, no retrieval, just chat
 - **Pre-included Ollama + model** - granite4:1b is pre-pulled in the image
 - **Default database included** - no need to create API keys to get started
@@ -283,7 +301,7 @@ If you want to build and publish your own basic Docker image, follow these steps
 - **Docker** (version 20.10 or higher)
 - **Git** (to clone the repository)
 - **Docker Hub account** (if publishing)
-- **10GB+ disk space** (for the build process and model download)
+- **12GB+ disk space** (for the build process, Node.js, orbitchat, and model download)
 
 ### Step-by-Step Instructions
 
@@ -315,6 +333,7 @@ Build the Docker image locally:
 ```
 
 This will:
+- Install Node.js and orbitchat web app
 - Install Ollama in the image
 - Pull the granite4:1b model (chat) and nomic-embed-text (embeddings)
 - Copy the default database (orbit.db)
@@ -323,6 +342,7 @@ This will:
 
 **Note:** The first build may take 15-30 minutes depending on your internet connection, as it needs to:
 - Install system dependencies
+- Install Node.js and orbitchat
 - Install Python packages
 - Install Ollama and pull the models
 
@@ -334,23 +354,22 @@ Before publishing, test the image:
 # Run the container
 docker run -d \
   --name orbit-basic-test \
+  -p 5173:5173 \
   -p 3000:3000 \
   schmitech/orbit:basic
 
-# Wait a few seconds for startup
-sleep 10
+# Wait for startup (Ollama and services need time to initialize)
+sleep 30
 
 # Test the health endpoint
 curl http://localhost:3000/health
 
-# (Optional) Create an API key first for authenticated requests
-# docker exec -it orbit-basic-test python /orbit/bin/orbit.py login --username admin --password admin123
-# docker exec -it orbit-basic-test python /orbit/bin/orbit.py key create \
-#   --adapter simple-chat \
-#   --name "Test Key" \
-#   --prompt-text "You are a helpful assistant."
+# Open the web app in your browser
+open http://localhost:5173  # macOS
+# or: xdg-open http://localhost:5173  # Linux
+# or manually open http://localhost:5173 in your browser
 
-# Test a chat request using the default-key included in the image
+# (Optional) Test the API directly
 curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
   -H 'X-API-Key: default-key' \
@@ -445,7 +464,7 @@ If the build fails due to memory issues:
 
 #### Image Size is Very Large
 
-The basic image should be around 3-4GB including Ollama and the model. If it's larger:
+The basic image should be around 4-5GB including Node.js, orbitchat, Ollama, and the models. If it's significantly larger:
 
 1. Check that you're using `Dockerfile.basic` (not the full Dockerfile)
 2. Ensure you're not including unnecessary files

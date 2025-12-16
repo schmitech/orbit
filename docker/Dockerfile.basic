@@ -16,6 +16,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Node.js (LTS version) for orbitchat web app
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install orbitchat globally
+RUN npm install -g orbitchat
+
 # Install Ollama
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
@@ -80,12 +89,12 @@ ENV PYTHONPATH=/orbit:/orbit/server
 ENV PATH="/orbit/bin:${PATH}"
 ENV OLLAMA_HOST=0.0.0.0:11434
 
-# Expose the server port (Ollama runs internally, no need to expose 11434)
-EXPOSE 3000
+# Expose the web app port and API port (Ollama runs internally)
+EXPOSE 5173 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+# Health check - check both the API and web app
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+  CMD curl -f http://localhost:3000/health && curl -f http://localhost:5173 || exit 1
 
 # Copy entrypoint script
 COPY docker/docker-entrypoint-basic.sh /orbit/docker-entrypoint-basic.sh

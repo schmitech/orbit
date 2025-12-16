@@ -109,17 +109,18 @@ There are three ways to get started with ORBIT.
 ### Option 1: Docker (Fastest)
 
 ```bash
-docker run -d --name orbit-basic -p 3000:3000 schmitech/orbit:basic
+docker run -d --name orbit-basic -p 5173:5173 -p 3000:3000 schmitech/orbit:basic
 ```
 
-That's it! ORBIT is now running at `http://localhost:3000`.
+That's it! Open **http://localhost:5173** in your browser and start chatting.
 
-**Start chatting:**
+The Docker image includes:
+- ORBIT server (API on port 3000)
+- orbitchat web app (browser UI on port 5173)
+- Ollama with pre-pulled models
+- Pre-configured API key (no setup needed)
 
-```bash
-npm install -g orbitchat
-orbitchat --api-url http://localhost:3000
-```
+For more Docker options, see [docker/README-BASIC.md](docker/README-BASIC.md).
 
 ### Option 2: Download Latest Release
 
