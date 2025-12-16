@@ -36,7 +36,7 @@ COPY install/generate_requirements.py /orbit/install/
 COPY install/setup.sh /orbit/install/
 RUN chmod +x /orbit/install/setup.sh
 
-# Install Python dependencies (default profile - includes Ollama support, no llama-cpp needed)
+# Install Python dependencies (default profile - includes Ollama support)
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir tomli && \
     cd /orbit/install && \

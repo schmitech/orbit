@@ -65,7 +65,11 @@ echo "✓ ORBIT server is ready"
 
 # Start orbitchat web app
 echo "Starting orbitchat web app on port 5173..."
-orbitchat --api-url http://localhost:3000 --host 0.0.0.0 &
+
+# Configure available adapters for API middleware mode
+export VITE_ADAPTERS='[{ "name": "Simple Chat", "apiKey": "default-key", "apiUrl": "http://localhost:3000" }]'
+
+orbitchat --api-url http://localhost:3000 --host 0.0.0.0 --enable-api-middleware &
 ORBITCHAT_PID=$!
 
 echo "✓ orbitchat web app started"

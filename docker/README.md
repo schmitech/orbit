@@ -1,472 +1,201 @@
-# ORBIT Docker Setup Guide
+# ORBIT Basic Docker Image - Quick Start Guide
 
-This guide will help you get ORBIT up and running with Docker in minutes. ORBIT is a flexible AI server that supports multiple inference providers, vector databases, and embedding models.
+This guide will help you get started with the ORBIT basic Docker image - a minimal, self-contained image perfect for testing and onboarding new users.
 
-## Table of Contents
-- [Prerequisites](#prerequisites)
-- [Quick Start with Basic Image](#quick-start-with-basic-image)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Running ORBIT](#running-orbit)
-- [Managing ORBIT](#managing-orbit)
-- [Advanced Usage](#advanced-usage)
-- [Troubleshooting](#troubleshooting)
+## What's Included
+
+The basic image contains:
+- **ORBIT server** with core functionality
+- **orbitchat web app** - browser-based chat interface (no installation needed!)
+- **simple-chat adapter** - a conversational chatbot adapter
+- **Ollama** with pre-pulled models:
+  - **granite4:1b** - chat/inference model
+  - **nomic-embed-text** - embeddings model
+- **Default database** - pre-configured so no API key creation needed
+- **Default configuration** - optimized for quick start
+
+No API keys or external services required - just pull and run!
 
 ## Prerequisites
 
-Before you begin, ensure you have:
-
 - **Docker** (version 20.10 or higher)
-- **Docker Compose** (version 2.0 or higher)
-- **Git** (to clone the repository)
 - **4GB+ RAM** available for Docker
-- **10GB+ disk space** for models and data
+- **2GB+ disk space** for the image
 
-Verify your installation:
+## Quick Start
+
+### 1. Pull the Image
+
 ```bash
-docker --version
-docker compose version  # or docker-compose --version
+docker pull schmitech/orbit:basic
 ```
 
-## Quick Start with Basic Image
+Or use the latest tag:
+```bash
+docker pull schmitech/orbit:latest
+```
 
-New to ORBIT? Try the basic image first! It's a minimal, self-contained image perfect for testing and onboarding.
-
-The basic image includes:
-- ORBIT server with simple-chat adapter
-- Pre-downloaded gemma3-1b model (ready to use)
-- No API keys or external services required
-
-### Pull and Run
+### 2. Run the Container
 
 ```bash
-# Pull the image
-docker pull schmitech/orbit:basic
-
-# Run it
 docker run -d \
   --name orbit-basic \
+  -p 5173:5173 \
   -p 3000:3000 \
   schmitech/orbit:basic
+```
 
-# Test it
+This exposes:
+- **Port 5173** - orbitchat web app (open in your browser)
+- **Port 3000** - ORBIT API (used by the web app)
+
+### 3. Open the Web App
+
+Open your browser and go to:
+```
+http://localhost:5173
+```
+
+You can start chatting immediately - no setup required!
+
+**Note:** The `ORBIT_DEFAULT_ADMIN_PASSWORD` environment variable is optional. If not set, it defaults to `admin123`. It's only needed if you want to use CLI commands (like creating API keys). The API works without authentication for the simple-chat adapter.
+
+### 4. Verify It's Running (Optional)
+
+Check the container status:
+```bash
+docker ps | grep orbit-basic
+```
+
+Test the health endpoint:
+```bash
 curl http://localhost:3000/health
 ```
 
-That's it! The server is running and ready to use. 
+You should see a response indicating the server is healthy.
 
-See [README-BASIC.md](README-BASIC.md) for detailed quick start instructions, API examples, and troubleshooting.
+### 5. Test the API (Optional)
 
-For full functionality (file uploads, multiple adapters, custom configurations), continue with the standard installation below.
-
-## Installation
-
-### 1. Clone the Repository
-
+Make a simple chat request:
 ```bash
-git clone https://github.com/schmitech/orbit.git
-cd orbit/docker
-```
-
-### 2. Make Scripts Executable
-
-```bash
-chmod +x docker-init.sh orbit-docker.sh
-```
-
-### 3. Create Environment File
-
-```bash
-cp env.example .env
-```
-
-Edit `.env` to configure for Docker and add your API keys:
-```bash
-# Edit with your preferred editor
-nano .env
-# or
-vim .env
-```
-
-**Optional - Add API keys to your `.env` file if using commercial providers:**
-```bash
-# API keys (only if using commercial providers)
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-**Note:** ORBIT uses SQLite as the default backend. MongoDB and Redis are optional and only needed if you configure them in your config file.
-
-### 4. Choose Your Setup Profile
-
-ORBIT supports different dependency profiles:
-
-| Profile | Description | Use Case |
-|---------|-------------|----------|
-| (none) | Core dependencies only (default) | Basic server setup |
-| `torch` | Includes PyTorch dependencies | GPU-accelerated inference |
-| `cloud` | Commercial provider SDKs | OpenAI, Anthropic, etc. |
-| `all` | Everything included | Maximum flexibility |
-
-### 5. Initialize ORBIT
-
-Basic setup with default dependencies:
-```bash
-./docker-init.sh --build
-```
-
-Setup with all features:
-```bash
-./docker-init.sh --build --profile all
-```
-
-Setup with GGUF model download:
-```bash
-./docker-init.sh --build --download-gguf gemma3-1b
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: test-session' \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Hello, what is 2+2?"}
+    ],
+    "stream": false
+  }'
 ```
 
 ## Configuration
 
-### Understanding Config Files
-
-ORBIT uses YAML configuration files to control its behavior. The main sections are:
-
-- **general**: Server settings, ports, providers
-- **inference**: LLM provider configurations
-- **datasources**: Vector database settings
-- **embeddings**: Embedding model configurations
-- **adapters**: Query processing pipelines
-
-### Important Docker Config Settings
-
-ORBIT uses SQLite as the default backend, so no additional services are required. If you want to use MongoDB or Redis (optional), you would need to:
-
-1. Add MongoDB/Redis services to your `docker-compose.yml`
-2. Configure them in your config file
-3. Set environment variables if needed
-
-**Note:** The default SQLite backend works out of the box without any additional configuration.
-
-## Running ORBIT
-
-### Starting ORBIT
-
-Use the `orbit-docker.sh` helper script:
-
-```bash
-# Start with default config
-./orbit-docker.sh start
-
-# Start with specific config
-./orbit-docker.sh start --config configs/production.yaml
-
-# Start with different profile
-./orbit-docker.sh start --profile cloud
-
-# Start on different port
-./orbit-docker.sh start --port 8080
-
-# Start in foreground (see logs)
-./orbit-docker.sh start --attach
-```
-
-### Checking Status
-
-```bash
-# View container status
-./orbit-docker.sh status
-
-# Check health endpoint
-curl http://localhost:3000/health
-```
-
-### Testing inference MCP endpoint
-Non-streaming:
-
-```bash
- curl -X POST http://localhost:3000/v1/chat -H "Content-Type: application/json" -H "X-Session-ID: test-sanity-check" -d '{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "chat", "arguments": {"messages": [{"role": "user", "content": "What is 2+2?"}], "stream": false}}, "id": "test-123"}' | jq .
-```
-
-Streaming:
-```bash
-curl -X POST http://localhost:3000/v1/chat -H "Content-Type: application/json" -H "X-Session-ID: test-streaming" -d '{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "chat", "arguments": {"messages": [{"role": "user", "content": "Explain quantum computing in one sentence"}], "stream": true}}, "id": "test-stream-123"}' --no-buffer
-```
-
-### Other sanity checks
-```bash
-docker exec orbit-server ls -la /orbit/models/
-# Check SQLite database (default backend)
-docker exec orbit-server ls -la /orbit/data/
-```
-
-### Viewing Logs
-
-```bash
-# View recent logs
-./orbit-docker.sh logs
-
-# Follow logs in real-time
-./orbit-docker.sh logs --follow
-
-# Using docker-compose directly
-docker compose logs -f orbit-server
-
-# Check application logs:
-docker exec orbit-server cat /orbit/logs/orbit.log
-```
-
-### Stopping ORBIT
-
-```bash
-# Stop all services
-./orbit-docker.sh stop
-
-# Or using docker-compose
-docker compose down
-```
-
-## Managing ORBIT
-
-### API Key Management
-
-ORBIT supports API key authentication for secure access:
-
-```bash
-# Create a new API key
-./orbit-docker.sh cli key create --name "my-app"
-
-# List all API keys
-./orbit-docker.sh cli key list
-
-# Delete an API key
-./orbit-docker.sh cli key delete <key-id>
-```
-
-### Using the CLI
-
-Access ORBIT's CLI tools inside the container using the `cli` command. This is a passthrough that lets you run any orbit CLI command that isn't directly implemented as a shortcut:
-
-```bash
-# Get CLI help
-./orbit-docker.sh cli --help
-
-# Check server status
-./orbit-docker.sh cli status
-
-# Run any orbit command
-./orbit-docker.sh cli <command> [options]
-```
-
-#### Authentication Commands (Available as shortcuts and via CLI)
-
-```bash
-# Direct shortcuts (recommended for common operations)
-./orbit-docker.sh login --username admin
-./orbit-docker.sh auth-status
-./orbit-docker.sh me
-./orbit-docker.sh logout
-./orbit-docker.sh register --username newuser --role user
-
-# Or via CLI command
-./orbit-docker.sh cli login --username admin
-./orbit-docker.sh cli auth-status
-```
-
-#### User Management Commands (Via CLI only)
-
-```bash
-# List all users
-./orbit-docker.sh cli user list
-
-# List users with filters
-./orbit-docker.sh cli user list --role admin
-./orbit-docker.sh cli user list --active-only
-
-# Reset user password
-./orbit-docker.sh cli user reset-password --username admin
-./orbit-docker.sh cli user reset-password --user-id 507f1f77bcf86cd799439011
-
-# Activate/deactivate users
-./orbit-docker.sh cli user activate --user-id 507f1f77bcf86cd799439011
-./orbit-docker.sh cli user deactivate --user-id 507f1f77bcf86cd799439011
-
-# Delete users
-./orbit-docker.sh cli user delete --user-id 507f1f77bcf86cd799439011
-
-# Change your password (interactive)
-./orbit-docker.sh cli user change-password
-```
-
-#### API Key Management Commands
-
-```bash
-# Create API keys
-./orbit-docker.sh cli key create --collection docs --name "Support Team"
-./orbit-docker.sh cli key create --collection legal --name "Legal Team" --prompt-file legal.txt
-
-# List and manage keys
-./orbit-docker.sh cli key list
-./orbit-docker.sh cli key list --collection docs --active-only
-./orbit-docker.sh cli key test --key api_abcd1234
-./orbit-docker.sh cli key status --key api_abcd1234
-./orbit-docker.sh cli key deactivate --key api_abcd1234
-./orbit-docker.sh cli key delete --key api_abcd1234
-```
-
-#### System Prompt Management Commands
-
-```bash
-# Create and manage prompts
-./orbit-docker.sh cli prompt create --name "Assistant" --file prompt.txt
-./orbit-docker.sh cli prompt list
-./orbit-docker.sh cli prompt list --name-filter "Support"
-./orbit-docker.sh cli prompt get --id 612a4b3c... --save prompt.txt
-./orbit-docker.sh cli prompt update --id 612a4b3c... --file updated.txt
-./orbit-docker.sh cli prompt delete --id 612a4b3c...
-./orbit-docker.sh cli prompt associate --key api_123 --prompt-id 612a4b3c...
-```
-
-#### Configuration Management Commands
-
-```bash
-# View and manage CLI configuration
-./orbit-docker.sh cli config show
-./orbit-docker.sh cli config effective
-./orbit-docker.sh cli config set auth.credential_storage keyring
-./orbit-docker.sh cli config reset
-```
-
-#### How the CLI Command Works
-
-The `cli` command is a passthrough that executes any orbit CLI command inside the running container:
-
-```bash
-./orbit-docker.sh cli <command> [options]
-```
-
-This translates to:
-```bash
-docker exec -it orbit-server python /orbit/bin/orbit.py <command> [options]
-```
-
-**Key Points:**
-- All CLI commands require the ORBIT server to be running
-- Authentication commands work with the same secure credential storage
-- User management commands require admin privileges
-- Use `--output json` for machine-readable output
-- Use `--help` with any command for detailed options
-
-### Accessing Container Shell
-
-```bash
-# Open bash shell in container
-./orbit-docker.sh exec bash
-
-# Run specific commands
-./orbit-docker.sh exec ls -la /orbit/logs
-```
-
-## Advanced Usage
-
-### Using Multiple Configurations
-
-Create different configs for different scenarios:
-
-```bash
-# Development setup
-./orbit-docker.sh start --config configs/development.yaml
-
-# Switch to production
-./orbit-docker.sh stop
-./orbit-docker.sh start --config configs/production.yaml
-```
+### Environment Variables
+
+Optional environment variables:
+- `ORBIT_DEFAULT_ADMIN_PASSWORD` - Admin password for CLI access (default: `admin123` if not set)
+  - Only needed if you want to use CLI commands (login, creating API keys, etc.)
+  - The API works without authentication for the simple-chat adapter
 
 ### Persistent Data
 
-ORBIT stores data in mounted volumes:
-- `../logs`: Application logs
-- `../models`: Downloaded models
-- `./config`: Configuration files
+To persist data across container restarts, mount volumes:
 
-The default SQLite database is stored in the container's `/orbit/data/` directory. To persist it, you can add a volume mount:
-
-```yaml
-volumes:
-  - ./data:/orbit/data  # Add this to persist SQLite database
-```
-
-To backup data:
 ```bash
-# Backup SQLite database (if using default backend)
-docker exec orbit-server tar czf /tmp/orbit-backup.tar.gz -C /orbit/data .
-docker cp orbit-server:/tmp/orbit-backup.tar.gz ./orbit-backup.tar.gz
-
-# Backup logs
-tar czf logs-backup.tar.gz -C ../logs .
+docker run -d \
+  --name orbit-basic \
+  -p 5173:5173 \
+  -p 3000:3000 \
+  -v orbit-data:/orbit/data \
+  -v orbit-logs:/orbit/logs \
+  schmitech/orbit:basic
 ```
 
-### Using Commercial Providers
-
-1. Add API keys to `.env`:
+Or with a custom admin password (only needed for CLI access):
 ```bash
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
+docker run -d \
+  --name orbit-basic \
+  -p 5173:5173 \
+  -p 3000:3000 \
+  -e ORBIT_DEFAULT_ADMIN_PASSWORD=your-secure-password \
+  -v orbit-data:/orbit/data \
+  -v orbit-logs:/orbit/logs \
+  schmitech/orbit:basic
 ```
 
-2. Use commercial profile:
+## Using the CLI
+
+### Using the Helper Script (Recommended)
+
+The easiest way to use the CLI is with the `orbit-docker.sh` helper script:
+
 ```bash
-./docker-init.sh --build --profile cloud
+# Login as admin (will prompt for password, default: admin123)
+./docker/orbit-docker.sh --container orbit-basic login
+
+# Create a default API key with a simple prompt (using --prompt-text)
+./docker/orbit-docker.sh --container orbit-basic cli key create \
+  --adapter simple-chat \
+  --name "Default Chat Key" \
+  --prompt-name "Default Assistant Prompt" \
+  --prompt-text "You are a helpful assistant. Be concise and friendly."
+
+# Or create a key with a prompt from a file
+./docker/orbit-docker.sh --container orbit-basic cli key create \
+  --adapter simple-chat \
+  --name "My App Key" \
+  --prompt-name "Custom Prompt" \
+  --prompt-file /path/to/prompt.txt
+
+# List API keys
+./docker/orbit-docker.sh --container orbit-basic cli key list
+
+# Check status
+./docker/orbit-docker.sh --container orbit-basic status
 ```
 
-3. Update config to use commercial provider:
-```yaml
-general:
-  inference_provider: "openai"  # or "anthropic", "gemini", etc.
-```
+### Direct Docker Exec
 
-### GPU Support
+You can also access the CLI directly:
 
-For GPU acceleration with NVIDIA:
-
-1. Install NVIDIA Container Toolkit
-2. Use the torch profile:
 ```bash
-./docker-init.sh --build --profile torch
+# Login as admin
+docker exec -it orbit-basic python /orbit/bin/orbit.py login --username admin
+
+# Create an API key with a simple prompt (using --prompt-text)
+docker exec -it orbit-basic python /orbit/bin/orbit.py key create \
+  --adapter simple-chat \
+  --name "Default Key" \
+  --prompt-name "Default Prompt" \
+  --prompt-text "You are a helpful assistant. Be concise and friendly."
+
+# Create an API key without a prompt
+docker exec -it orbit-basic python /orbit/bin/orbit.py key create \
+  --adapter simple-chat \
+  --name "My App"
+
+# List API keys
+docker exec -it orbit-basic python /orbit/bin/orbit.py key list
 ```
 
-3. Update docker-compose.yml to add GPU support:
-```yaml
-orbit-server:
-  deploy:
-    resources:
-      reservations:
-        devices:
-          - driver: nvidia
-            count: 1
-            capabilities: [gpu]
-```
+**Note:** The CLI supports both `--prompt-text` (direct string) and `--prompt-file` (file path). Use `--prompt-text` for simple prompts, and `--prompt-file` for longer prompts stored in files.
 
-## Making API Requests
+## API Examples
 
 ### Basic Chat Request
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: my-session' \
   -d '{
-    "message": "What is ORBIT?",
-    "session_id": "test-session"
-  }'
-```
-
-### With API Key
-
-```bash
-curl -X POST http://localhost:3000/v1/chat \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: orbit_your-key-here' \
-  -d '{
-    "message": "Tell me about vector databases"
+    "messages": [
+      {"role": "user", "content": "Explain quantum computing in simple terms"}
+    ],
+    "stream": false
   }'
 ```
 
@@ -475,230 +204,280 @@ curl -X POST http://localhost:3000/v1/chat \
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: my-session' \
   -d '{
-    "message": "Explain quantum computing",
+    "messages": [
+      {"role": "user", "content": "Tell me a short story"}
+    ],
     "stream": true
+  }' \
+  --no-buffer
+```
+
+### With Custom API Key
+
+To create and use your own API key using the CLI:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: orbit_your-key-here' \
+  -H 'X-Session-ID: my-session' \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "What is ORBIT?"}
+    ],
+    "stream": false
   }'
+```
+
+## Stopping the Container
+
+```bash
+# Stop the container
+docker stop orbit-basic
+
+# Remove the container
+docker rm orbit-basic
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Container Won't Start
 
-#### 1. Services Won't Start
-
-Check logs for the server:
+Check the logs:
 ```bash
-docker compose logs orbit-server
+docker logs orbit-basic
 ```
 
-#### 2. API Key Authentication Issues
+### Port Already in Use
 
-If you're getting authentication errors, ensure you've created an API key:
+Use different ports:
 ```bash
-./orbit-docker.sh cli key create --name "test-key"
+docker run -d \
+  --name orbit-basic \
+  -p 5174:5173 \
+  -p 3001:3000 \
+  schmitech/orbit:basic
 ```
 
-#### 3. Permission Errors
+Then access the web app at `http://localhost:5174`
 
-Fix permissions on directories:
+### Out of Memory
+
+Increase Docker's memory limit in Docker Desktop settings, or ensure you have at least 4GB RAM available.
+
+### Model Not Found
+
+The model should be included in the image. If you see errors about missing models, check:
 ```bash
-sudo chown -R $USER:$USER logs data gguf
+docker exec orbit-basic ollama list
 ```
 
-#### 4. Port Already in Use
-
-Change the port in `.env`:
+You should see `granite4:1b` and `nomic-embed-text` in the output. If not, you can pull them manually:
 ```bash
-ORBIT_PORT=3001
+docker exec orbit-basic ollama pull granite4:1b
+docker exec orbit-basic ollama pull nomic-embed-text:latest
 ```
 
-Or when running:
+## What's Different from the Full Image?
+
+The basic image is optimized for simplicity:
+- **Includes orbitchat web app** - ready-to-use browser interface, no npm install needed
+- **Only simple-chat adapter** - no file uploads, no retrieval, just chat
+- **Pre-included Ollama + model** - granite4:1b is pre-pulled in the image
+- **Default database included** - no need to create API keys to get started
+- **Default dependencies only** - no cloud SDKs or extra packages
+
+For full functionality (file uploads, multiple adapters, etc.), use the standard ORBIT Docker setup as described in the main README.
+
+## Building and Publishing the Basic Image
+
+If you want to build and publish your own basic Docker image, follow these steps:
+
+### Prerequisites for Building
+
+- **Docker** (version 20.10 or higher)
+- **Git** (to clone the repository)
+- **Docker Hub account** (if publishing)
+- **12GB+ disk space** (for the build process, Node.js, orbitchat, and model download)
+
+### Step-by-Step Instructions
+
+#### 1. Clone the Repository
+
 ```bash
-./orbit-docker.sh start --port 3001
+git clone https://github.com/schmitech/orbit.git
+cd orbit
 ```
 
-#### 5. Out of Memory
+#### 2. Navigate to Docker Directory
 
-Increase Docker memory limit in Docker Desktop settings or:
 ```bash
-# Check current usage
-docker stats
-
-# Restart with memory limits
-docker compose down
-docker compose up -d
+cd docker
 ```
 
-#### 6. Database Issues
+#### 3. Make the Publish Script Executable
 
-If ORBIT server won't start, check the logs:
-
-**Check service status:**
 ```bash
-# Check which services are running
-docker compose ps -a
+chmod +x publish-basic.sh
 ```
 
-**Check application logs:**
-```bash
-# Check ORBIT server logs
-docker compose logs orbit-server
+#### 4. Build the Image
 
-# Follow logs in real-time
-docker compose logs -f orbit-server
+Build the Docker image locally:
+
+```bash
+./publish-basic.sh --build
 ```
 
-**Check SQLite database (default backend):**
+This will:
+- Install Node.js and orbitchat web app
+- Install Ollama in the image
+- Pull the granite4:1b model (chat) and nomic-embed-text (embeddings)
+- Copy the default database (orbit.db)
+- Build the Docker image
+- Tag it as `schmitech/orbit:basic` and `schmitech/orbit:latest`
+
+**Note:** The first build may take 15-30 minutes depending on your internet connection, as it needs to:
+- Install system dependencies
+- Install Node.js and orbitchat
+- Install Python packages
+- Install Ollama and pull the models
+
+#### 5. Test the Image Locally
+
+Before publishing, test the image:
+
 ```bash
-# Check if database file exists
-docker exec orbit-server ls -la /orbit/data/
+# Run the container
+docker run -d \
+  --name orbit-basic-test \
+  -p 5173:5173 \
+  -p 3000:3000 \
+  schmitech/orbit:basic
 
-# Check database permissions
-docker exec orbit-server ls -l /orbit/data/
-```
+# Wait for startup (Ollama and services need time to initialize)
+sleep 30
 
-**Identify port conflicts:**
-```bash
-# Check if ORBIT port is in use
-sudo lsof -i :3000
-```
-
-**Resolve port conflicts:**
-```bash
-# Change the port in .env file
-ORBIT_PORT=3001
-```
-
-### Debug Mode
-
-Enable verbose logging:
-
-1. Update config.yaml:
-```yaml
-general:
-  verbose: true
-logging:
-  level: "DEBUG"
-```
-
-2. Restart ORBIT:
-```bash
-./orbit-docker.sh restart
-```
-
-### Health Checks
-
-Monitor service health:
-```bash
-# Check all services
-docker compose ps
-
-# Test ORBIT API
+# Test the health endpoint
 curl http://localhost:3000/health
 
-# Check SQLite database (default backend)
-docker exec orbit-server ls -la /orbit/data/
+# Open the web app in your browser
+open http://localhost:5173  # macOS
+# or: xdg-open http://localhost:5173  # Linux
+# or manually open http://localhost:5173 in your browser
+
+# (Optional) Test the API directly
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: test-session' \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Hello, what is 2+2?"}
+    ],
+    "stream": false
+  }'
+
+# Clean up
+docker stop orbit-basic-test
+docker rm orbit-basic-test
 ```
 
-### Resetting Everything
+#### 6. Login to Docker Hub (if Publishing)
 
-To start completely fresh and test the full initialization process:
-
-#### Complete Reset (Recommended)
-```bash
-# Stop the containers
-docker rm -f orbit-server
-
-# Stop and remove all containers
-docker compose down
-
-# Clean up unused Docker objects (containers, networks, images)
-docker system prune -f
-
-# Remove all unused volumes (WARNING: Deletes all data)
-docker volume prune -f
-
-# Remove the ORBIT server image to force rebuild
-docker rmi orbit-server:latest
-
-# Verify clean state (should show no containers)
-docker ps -a
-
-# Now rebuild from scratch
-./docker-init.sh --build --download-gguf gguf-model.gguf
-```
-
-#### Quick Reset (Keeps Images)
-```bash
-# Stop and remove containers + volumes
-docker compose down -v
-
-# Restart fresh
-./docker-init.sh --build
-```
-
-#### Nuclear Option (Complete Docker Reset)
-If you're still having issues, reset Docker completely:
-```bash
-# Stop Docker service
-sudo systemctl stop docker
-
-# Remove all Docker data (WARNING: Removes EVERYTHING!)
-sudo rm -rf /var/lib/docker
-
-# Start Docker service
-sudo systemctl start docker
-
-# Rebuild everything
-./docker-init.sh --build
-```
-
-#### Verify Clean Environment
-Before running docker-init.sh, ensure no port conflicts:
-```bash
-# Check for existing services on required ports
-sudo lsof -i :3000   # ORBIT
-
-# Stop any conflicting services (if needed)
-# sudo systemctl stop <service-name>
-```
-
-### 6. Docker overlay2 Storage Error
-
-If you see an error like:
-
-```
-failed to solve: failed to read dockerfile: failed to prepare  as <id>: symlink ../<id>/diff /opt/dlami/nvme/docker/overlay2/l/<id>: no such file or directory
-```
-
-This indicates a problem with Docker's internal overlay2 storage, often due to corruption or missing files. This is not a problem with your code or Dockerfile, but with Docker's storage backend.
-
-#### Solution (Non-Destructive First)
-
-Try cleaning up unused Docker objects:
+If you want to publish to Docker Hub:
 
 ```bash
-docker system prune -a --volumes
+docker login
 ```
 
-If the problem persists, you may need to reset Docker's storage (WARNING: this will delete all containers, images, and volumes!):
+Enter your Docker Hub username and password when prompted.
 
-#### Solution (Destructive - Resets Docker Storage)
+#### 7. Publish to Docker Hub
+
+Publish the image with the default tags:
 
 ```bash
-sudo systemctl stop docker
-sudo rm -rf /var/lib/docker/overlay2
-sudo rm -rf /var/lib/docker/containers
-sudo systemctl start docker
+./publish-basic.sh --publish
 ```
 
-Then rebuild your images:
+Or publish with a version tag:
 
 ```bash
-./docker-init.sh --build --download-gguf
+./publish-basic.sh --publish --tag v1.0.0
 ```
 
-**Warning:** The destructive solution will remove all Docker data. Back up any important data before proceeding.
+This will:
+- Build the image (if not already built)
+- Push `schmitech/orbit:basic`
+- Push `schmitech/orbit:latest`
+- Push `schmitech/orbit:basic-v1.0.0` (if `--tag` is specified)
+
+### Build Script Options
+
+The `publish-basic.sh` script supports the following options:
+
+```bash
+# Build only (no publish)
+./publish-basic.sh --build
+
+# Build and publish
+./publish-basic.sh --publish
+
+# Build and publish with version tag
+./publish-basic.sh --publish --tag v1.0.0
+
+# Show help
+./publish-basic.sh --help
+```
+
+### Troubleshooting the Build
+
+#### Build Fails with Missing Config Files
+
+Ensure the required configuration files exist:
+
+```bash
+ls install/default-config/ollama.yaml
+ls install/default-config/inference.yaml
+ls install/orbit.db.default
+```
+
+#### Ollama Model Pull Fails
+
+If the model pull fails during build:
+
+1. Check your internet connection
+2. The build starts Ollama temporarily to pull the model
+3. You can test Ollama manually: `ollama pull granite4:1b`
+
+#### Docker Build Runs Out of Memory
+
+If the build fails due to memory issues:
+
+1. Increase Docker's memory limit in Docker Desktop settings
+2. Close other applications to free up RAM
+3. The build process needs at least 4GB RAM available
+
+#### Image Size is Very Large
+
+The basic image should be around 4-5GB including Node.js, orbitchat, Ollama, and the models. If it's significantly larger:
+
+1. Check that you're using `Dockerfile.basic` (not the full Dockerfile)
+2. Ensure you're not including unnecessary files
+
+## Next Steps
+
+Once you're comfortable with the basic image, you can:
+1. Explore the full ORBIT capabilities using the standard Docker setup
+2. Customize the configuration for your needs
+3. Add additional adapters and models
+4. Integrate with your applications
+
+For more information, see the main [README.md](README.md).
 
 Happy Orbiting! 🚀
+
