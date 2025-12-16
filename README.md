@@ -109,7 +109,7 @@ There are three ways to get started with ORBIT.
 ### Option 1: Docker (Fastest)
 
 ```bash
-docker run -d --name orbit-basic -p 5173:5173 -p 3000:3000 schmitech/orbit:basic
+docker run -d --name orbit-basic -p 5173:5173 schmitech/orbit:basic
 ```
 
 That's it! Open **http://localhost:5173** in your browser and start chatting.
