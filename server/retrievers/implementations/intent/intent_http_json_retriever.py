@@ -177,9 +177,12 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
                     endpoint = endpoint.replace(f"{{{key}}}", str(value))
                     if old_endpoint != endpoint:
                         logger.debug(f"Substituted {{{{{key}}}}} and {{{key}}} with '{value}' -> '{endpoint}'")
-                
-                if endpoint == endpoint_template:
-                    logger.warning(f"No substitutions were made! Template: '{endpoint_template}', Parameters: {parameters}")
+
+                # Only warn if there are unsubstituted template variables remaining
+                # (not when the endpoint is intentionally static with no path parameters)
+                has_template_vars = bool(re.search(r'\{\{[^}]+\}\}|\{[^}]+\}', endpoint))
+                if has_template_vars:
+                    logger.warning(f"Unsubstituted template variables in endpoint: '{endpoint}', Parameters: {parameters}")
 
             logger.debug(f"Final processed endpoint: '{endpoint}'")
             return endpoint
@@ -207,14 +210,36 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
 
         # Process each query parameter
         for param_name, param_template in template_query_params.items():
-            # Check if this is a template variable
-            if isinstance(param_template, str) and param_template.startswith('{{') and param_template.endswith('}}'):
-                # Extract variable name
-                var_name = param_template.strip('{}')
-                if var_name in parameters and parameters[var_name] is not None:
-                    query_params[param_name] = parameters[var_name]
+            if isinstance(param_template, str):
+                # Check if this is an exact template variable match (e.g., "{{limit}}")
+                if param_template.startswith('{{') and param_template.endswith('}}'):
+                    # Extract variable name
+                    var_name = param_template.strip('{}')
+                    if var_name in parameters and parameters[var_name] is not None:
+                        query_params[param_name] = parameters[var_name]
+                # Check if this contains embedded template variables (e.g., "field={{value}}")
+                elif '{{' in param_template and '}}' in param_template:
+                    # Substitute all embedded variables
+                    processed_value = param_template
+                    all_vars_found = True
+                    for key, value in parameters.items():
+                        placeholder = f"{{{{{key}}}}}"
+                        if placeholder in processed_value:
+                            if value is not None:
+                                processed_value = processed_value.replace(placeholder, str(value))
+                            else:
+                                all_vars_found = False
+                    # Only add if all required variables were substituted
+                    if all_vars_found and '{{' not in processed_value:
+                        query_params[param_name] = processed_value
+                    elif '{{' not in processed_value:
+                        # All substitutions made (some may have been None but not required)
+                        query_params[param_name] = processed_value
+                else:
+                    # Static value with no template variables
+                    query_params[param_name] = param_template
             elif param_template is not None:
-                # Static value
+                # Non-string static value
                 query_params[param_name] = param_template
 
         # Also check if parameters specify location as 'query'
