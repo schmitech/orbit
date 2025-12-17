@@ -108,7 +108,10 @@ There are three ways to get started with ORBIT.
 ### Option 1: Docker (Fastest)
 
 ```bash
+docker pull schmitech/orbit:basic
 docker run -d --name orbit-basic -p 5173:5173 schmitech/orbit:basic
+```
+# End of Selection
 ```
 
 That's it! Open **http://localhost:5173** in your browser and start chatting.
@@ -119,7 +122,7 @@ The Docker image includes:
 - Ollama with pre-pulled models
 - Pre-configured API key (no setup needed)
 
-For more Docker options, see [docker/README-BASIC.md](docker/README-BASIC.md).
+For more Docker options, see [docker/README.md](docker/README.md).
 
 ### Option 2: Download Latest Release
 
