@@ -111,10 +111,8 @@ There are three ways to get started with ORBIT.
 docker pull schmitech/orbit:basic
 docker run -d --name orbit-basic -p 5173:5173 schmitech/orbit:basic
 ```
-# End of Selection
-```
 
-That's it! Open **http://localhost:5173** in your browser and start chatting.
+Open **http://localhost:5173** in your browser and start chatting.
 
 The Docker image includes:
 - ORBIT server (API on port 3000)
