@@ -1,0 +1,47 @@
+# To enable this adapter in orbit, copy this configuration to /config/adapters/intent.yaml
+# and set the enabled flag to true.
+  - name: "intent-http-paris-opendata"
+    enabled: true
+    type: "retriever"
+    datasource: "http"  # Uses HTTP datasource placeholder
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentHTTPJSONRetriever"
+    inference_provider: "ollama"
+    model: "gpt-oss:20b"
+    embedding_provider: "ollama"
+    config:
+      # Domain and template configuration
+      domain_config_path: "utils/http-intent-template/examples/paris-open-data/templates/paris_quoifaire_domain.yaml"
+      template_library_path:
+        - "utils/http-intent-template/examples/paris-open-data/templates/paris_quoifaire_templates.yaml"
+
+      # Vector store configuration for template matching
+      template_collection_name: "paris_opendata_http_templates"
+      store_name: "chroma"  # References stores.yaml
+
+      # Intent matching configuration
+      confidence_threshold: 0.4
+      max_templates: 5
+      return_results: 20
+      verbose: false  # Enable debug logging
+
+      # Template loading settings
+      reload_templates_on_start: true
+      force_reload_templates: true
+
+      # HTTP-specific configuration
+      base_url: "https://opendata.paris.fr"
+      default_timeout: 30
+      enable_retries: true
+      max_retries: 3
+      retry_delay: 1.0
+
+      # No authentication required for Paris Open Data
+
+    # Fault tolerance settings
+    fault_tolerance:
+      operation_timeout: 30.0
+      failure_threshold: 5
+      recovery_timeout: 60.0
+      max_retries: 3
+      retry_delay: 1.0

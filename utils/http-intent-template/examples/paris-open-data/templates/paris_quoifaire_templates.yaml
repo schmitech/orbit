@@ -1,0 +1,1097 @@
+# Paris Open Data - "Que Faire à Paris" API Templates
+# Templates for querying events and activities in Paris
+# API: https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records
+
+templates:
+  # ============================================================================
+  # BASIC EVENT LISTING TEMPLATES
+  # ============================================================================
+
+  - id: list_all_events
+    version: "1.0.0"
+    description: "List events in Paris with optional limit"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip for pagination"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "date_end"
+          path: "date_end"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "address_zipcode"
+          path: "address_zipcode"
+          type: "string"
+        - name: "price_type"
+          path: "price_type"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "What's happening in Paris?"
+      - "Show me events in Paris"
+      - "List Paris events"
+      - "What can I do in Paris?"
+      - "Que faire à Paris?"
+      - "Activités à Paris"
+      - "Things to do in Paris"
+      - "Paris activities"
+      - "Events in Paris"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "event"
+      locale: "paris"
+
+    result_format: "table"
+    tags: ["event", "list", "paris", "activities"]
+
+  # ============================================================================
+  # FREE EVENTS TEMPLATE
+  # ============================================================================
+
+  - id: list_free_events
+    version: "1.0.0"
+    description: "List free events in Paris"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      where: "price_type=\"gratuit\""
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "address_zipcode"
+          path: "address_zipcode"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "Free events in Paris"
+      - "What free things can I do in Paris?"
+      - "Show me free activities"
+      - "Événements gratuits à Paris"
+      - "Sorties gratuites"
+      - "Free stuff to do in Paris"
+      - "No cost events Paris"
+      - "Activités gratuites"
+      - "Gratuit à Paris"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "event"
+      filter_by: "price"
+      price: "free"
+
+    result_format: "table"
+    tags: ["event", "free", "gratuit", "budget"]
+
+  # ============================================================================
+  # EVENTS BY ARRONDISSEMENT TEMPLATE
+  # ============================================================================
+
+  - id: events_by_arrondissement
+    version: "1.0.0"
+    description: "List events in a specific Paris arrondissement"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      where: "address_zipcode=\"{{zipcode}}\""
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: zipcode
+        type: string
+        required: true
+        description: "Paris postal code (75001-75020)"
+        location: "query"
+        example: "75018"
+        pattern: "^750[0-2][0-9]$"
+        validation_hint: "Use format 75001 to 75020 for Paris arrondissements"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "address_street"
+          path: "address_street"
+          type: "string"
+        - name: "price_type"
+          path: "price_type"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "Events in the 18th arrondissement"
+      - "What's happening in Montmartre?"
+      - "Things to do in the 10th"
+      - "Activities in 75010"
+      - "Events in the 13th"
+      - "Sorties dans le 18ème"
+      - "Que faire dans le 20e?"
+      - "Events in the 14th arrondissement"
+      - "What to do in Belleville"
+      - "Show me events in the 1st arrondissement"
+      - "Événements dans le 10ème"
+      - "Activities in the 19th"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "event"
+      filter_by: "location"
+      location_type: "arrondissement"
+
+    result_format: "table"
+    tags: ["event", "location", "arrondissement", "neighborhood"]
+
+  # ============================================================================
+  # EVENTS BY CATEGORY TEMPLATE (using refine for exact tag match)
+  # ============================================================================
+
+  - id: events_by_category
+    version: "1.0.0"
+    description: "List events filtered by category/tag"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      refine: "qfap_tags:{{category}}"
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: category
+        type: string
+        required: true
+        description: "Event category tag"
+        location: "query"
+        example: "Concert"
+        # Actual tags from the API data:
+        enum:
+          - "Concert"
+          - "Expo"
+          - "Atelier"
+          - "Festival"
+          - "Spectacle musical"
+          - "Conférence"
+          - "Sport"
+          - "Loisirs"
+          - "Balade urbaine"
+          - "Street-art"
+          - "Photo"
+          - "Histoire"
+          - "Solidarité"
+          - "Enfants"
+          - "Littérature"
+          - "Peinture"
+          - "Brocante"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "price_type"
+          path: "price_type"
+          type: "string"
+        - name: "qfap_tags"
+          path: "qfap_tags"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "Concerts in Paris"
+      - "Show me exhibitions"
+      - "Find workshops in Paris"
+      - "List festivals"
+      - "Sports events"
+      - "Expositions à Paris"
+      - "Ateliers disponibles"
+      - "Street art tours"
+      - "Photography events"
+      - "History tours"
+      - "Events for children"
+      - "Solidarity events"
+      - "Outdoor walks"
+      - "Balades urbaines"
+      - "Conferences in Paris"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "event"
+      filter_by: "category"
+
+    result_format: "table"
+    tags: ["event", "category", "type", "filter"]
+
+  # ============================================================================
+  # SEARCH EVENTS BY TEXT TEMPLATE
+  # ============================================================================
+
+  - id: search_events
+    version: "1.0.0"
+    description: "Search events by keyword in title or description"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      where: "search(title, \"{{search_term}}\") OR search(lead_text, \"{{search_term}}\")"
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: search_term
+        type: string
+        required: true
+        description: "Search keyword or phrase"
+        location: "query"
+        example: "vélo"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "price_type"
+          path: "price_type"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "Search for vélo events"
+      - "Find events about photography"
+      - "Look for yoga classes"
+      - "Events mentioning street art"
+      - "Search Roland Garros"
+      - "Find cooking workshops"
+      - "Events about music"
+      - "Rechercher événements musique"
+      - "Trouver ateliers peinture"
+      - "Search for bike"
+      - "Find tennis"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "event"
+      search_type: "text"
+
+    result_format: "table"
+    tags: ["event", "search", "keyword", "text"]
+
+  # ============================================================================
+  # COMBINED FILTER TEMPLATE (FREE + ARRONDISSEMENT)
+  # ============================================================================
+
+  - id: free_events_by_area
+    version: "1.0.0"
+    description: "Find free events in a specific arrondissement"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      where: "price_type=\"gratuit\" AND address_zipcode=\"{{zipcode}}\""
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: zipcode
+        type: string
+        required: true
+        description: "Paris postal code (75001-75020)"
+        location: "query"
+        example: "75018"
+        pattern: "^750[0-2][0-9]$"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "Free events in Montmartre"
+      - "Free things to do in the 18th"
+      - "Free activities in the 10th"
+      - "Événements gratuits dans le 18ème"
+      - "Sorties gratuites dans le 10e"
+      - "Free events in the 13th"
+      - "No cost activities in the 14th arrondissement"
+      - "Gratuit dans le 20ème"
+      - "Free in the 19th"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "event"
+      filter_by: ["price", "location"]
+      price: "free"
+      location_type: "arrondissement"
+
+    result_format: "table"
+    tags: ["event", "free", "location", "combined"]
+
+  # ============================================================================
+  # EVENTS FOR FAMILIES/CHILDREN TEMPLATE
+  # ============================================================================
+
+  - id: family_events
+    version: "1.0.0"
+    description: "List family-friendly events and activities for children"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      refine: "qfap_tags:Enfants"
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "audience"
+          path: "audience"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "price_type"
+          path: "price_type"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "Family events in Paris"
+      - "Activities for kids"
+      - "What to do with children in Paris?"
+      - "Family-friendly activities"
+      - "Events for children"
+      - "Activités pour enfants"
+      - "Sorties en famille"
+      - "Que faire avec des enfants?"
+      - "Kids activities Paris"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "event"
+      filter_by: "audience"
+      audience: "family"
+
+    result_format: "table"
+    tags: ["event", "family", "children", "kids", "enfants"]
+
+  # ============================================================================
+  # WORKSHOP EVENTS TEMPLATE
+  # ============================================================================
+
+  - id: workshop_events
+    version: "1.0.0"
+    description: "List workshop and hands-on activities"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      refine: "qfap_tags:Atelier"
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "price_type"
+          path: "price_type"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "Workshops in Paris"
+      - "Hands-on activities"
+      - "Ateliers à Paris"
+      - "Find workshops"
+      - "DIY events"
+      - "Creative workshops"
+      - "Cours et ateliers"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "event"
+      filter_by: "category"
+      category: "workshop"
+
+    result_format: "table"
+    tags: ["event", "workshop", "atelier", "hands-on"]
+
+  # ============================================================================
+  # SPORTS EVENTS TEMPLATE
+  # ============================================================================
+
+  - id: sports_events
+    version: "1.0.0"
+    description: "List sports events and activities"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      refine: "qfap_tags:Sport"
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "price_type"
+          path: "price_type"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "Sports events in Paris"
+      - "Athletic activities"
+      - "Événements sportifs"
+      - "Sports à Paris"
+      - "Fitness events"
+      - "Sports activities"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "event"
+      filter_by: "category"
+      category: "sport"
+
+    result_format: "table"
+    tags: ["event", "sport", "fitness", "athletic"]
+
+  # ============================================================================
+  # URBAN WALKS / GUIDED TOURS TEMPLATE
+  # ============================================================================
+
+  - id: urban_walks
+    version: "1.0.0"
+    description: "List urban walks and guided tours"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      refine: "qfap_tags:Balade urbaine"
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "price_type"
+          path: "price_type"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "Guided tours in Paris"
+      - "Urban walks"
+      - "Balades urbaines"
+      - "Walking tours"
+      - "Visites guidées"
+      - "City walks Paris"
+      - "Promenades à Paris"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "event"
+      filter_by: "category"
+      category: "walk"
+
+    result_format: "table"
+    tags: ["event", "walk", "tour", "balade", "guided"]
+
+  # ============================================================================
+  # STREET ART EVENTS TEMPLATE
+  # ============================================================================
+
+  - id: street_art_events
+    version: "1.0.0"
+    description: "List street art events and tours"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      refine: "qfap_tags:Street-art"
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "price_type"
+          path: "price_type"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "Street art in Paris"
+      - "Street art tours"
+      - "Graffiti events"
+      - "Urban art Paris"
+      - "Street art à Paris"
+      - "Art urbain"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "event"
+      filter_by: "category"
+      category: "street-art"
+
+    result_format: "table"
+    tags: ["event", "street-art", "graffiti", "urban-art"]
+
+  # ============================================================================
+  # EXHIBITIONS TEMPLATE
+  # ============================================================================
+
+  - id: exhibition_events
+    version: "1.0.0"
+    description: "List exhibitions and art shows"
+
+    http_method: "GET"
+    endpoint_template: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+    headers:
+      Accept: "application/json; charset=utf-8"
+
+    query_params:
+      refine: "qfap_tags:Expo"
+      limit: "{{limit}}"
+      offset: "{{offset}}"
+      timezone: "Europe/Paris"
+      include_links: "false"
+      include_app_metas: "false"
+
+    parameters:
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of events to return"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Number of events to skip"
+        location: "query"
+        min: 0
+
+    response_mapping:
+      total_count_path: "$.total_count"
+      items_path: "results"
+      fields:
+        - name: "id"
+          path: "id"
+          type: "string"
+        - name: "title"
+          path: "title"
+          type: "string"
+        - name: "lead_text"
+          path: "lead_text"
+          type: "string"
+        - name: "date_start"
+          path: "date_start"
+          type: "datetime"
+        - name: "date_end"
+          path: "date_end"
+          type: "datetime"
+        - name: "address_name"
+          path: "address_name"
+          type: "string"
+        - name: "price_type"
+          path: "price_type"
+          type: "string"
+        - name: "url"
+          path: "url"
+          type: "string"
+
+    nl_examples:
+      - "Exhibitions in Paris"
+      - "Art shows"
+      - "Expositions à Paris"
+      - "Current exhibitions"
+      - "Museums exhibitions"
+      - "Art exhibitions"
+      - "Expo Paris"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "event"
+      filter_by: "category"
+      category: "exhibition"
+
+    result_format: "table"
+    tags: ["event", "exhibition", "expo", "art", "museum"]

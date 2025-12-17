@@ -46,6 +46,7 @@
 #   intent-firecrawl-webscrape -> web
 #   intent-mongodb-mflix -> mflix
 #   intent-http-jsonplaceholder -> rest
+#   intent-http-paris-opendata -> paris
 #   intent-graphql-spacex -> spacex
 #   file-document-qa -> files
 #
@@ -434,6 +435,7 @@ declare -a all_adapters=(
     "intent-firecrawl-webscrape|web|examples/prompts/firecrawl-knowledge-assistant-prompt.txt|Firecrawl Web Prompt"
     "intent-mongodb-mflix|mflix|examples/prompts/mongodb-mflix-assistant-prompt.txt|MongoDB MFlix Prompt"
     "intent-http-jsonplaceholder|rest|examples/prompts/jsonplaceholder-api-assistant-prompt.txt|JSONPlaceholder API Prompt"
+    "intent-http-paris-opendata|paris|utils/http-intent-template/examples/paris-open-data/paris-assistant-prompt.txt|Paris Open Data Prompt"
     "intent-graphql-spacex|spacex|examples/prompts/spacex-graphql-assistant-prompt.txt|SpaceX GraphQL Prompt"
     "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.txt|File Document QA Prompt"
 )
@@ -736,6 +738,25 @@ I can help you explore:
 Perfect for development testing and learning API concepts.
 
 **What API data would you like to explore?**
+NOTES_EOF
+            ;;
+        "intent-http-paris-opendata")
+            cat <<'NOTES_EOF'
+## Bienvenue sur l'Assistant Paris / Welcome to Paris Assistant 🗼
+
+I'm your **Paris events and activities guide** powered by the official city open data!
+
+Je peux vous aider à découvrir / I can help you discover:
+- 🎭 Concerts, exhibitions, and shows
+- 🎨 Workshops and cultural activities
+- 🏛️ Museum events and guided tours
+- 👨‍👩‍👧‍👦 Family-friendly activities
+- ♿ Accessible events (PMR, blind, deaf)
+- 🆓 Free events across all arrondissements
+
+I support both **English** and **French** responses.
+
+**Que faire à Paris? / What's happening in Paris?**
 NOTES_EOF
             ;;
         "intent-graphql-spacex")

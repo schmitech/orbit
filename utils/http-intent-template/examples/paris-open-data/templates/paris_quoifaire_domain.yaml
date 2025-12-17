@@ -1,0 +1,365 @@
+# Paris Open Data - "Que Faire à Paris" API Domain Configuration
+# Events and activities in Paris from the official city open data portal
+
+domain_name: "paris_quoifaire_api"
+domain_type: "rest_api"
+version: "2.1"
+description: "Paris Open Data API for 'Que Faire à Paris' - Events, activities, exhibitions, concerts, workshops, and cultural happenings in Paris. Uses the Opendatasoft Query Language (ODSQL) for filtering and searching."
+
+# API Configuration
+api_config:
+  base_url: "https://opendata.paris.fr"
+  api_version: "v2.1"
+  protocol: "https"
+  default_timeout: 30
+  rate_limit: null  # No explicit rate limiting documented
+
+# Authentication (None required for public datasets)
+authentication:
+  type: "none"
+  description: "Paris Open Data API requires no authentication for public datasets"
+
+# Dataset Information
+datasets:
+  que_faire_a_paris:
+    dataset_id: "que-faire-a-paris-"
+    display_name: "Que Faire à Paris"
+    description: "Events, activities, and cultural happenings in Paris"
+    endpoint: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+
+# Entity Definitions
+entities:
+  event:
+    entity_type: "resource"
+    endpoint_base: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records"
+    primary_key: "id"
+    display_name: "Event"
+    description: "An event or activity in Paris with location, dates, and details"
+
+    searchable_fields:
+      - title
+      - lead_text
+      - description
+      - address_name
+      - address_street
+      - qfap_tags
+      - audience
+      - contact_organisation_name
+
+    filterable_fields:
+      - id
+      - event_id
+      - address_zipcode
+      - address_city
+      - price_type
+      - access_type
+      - audience
+      - group
+      - locale
+      - qfap_tags
+      - pmr
+      - blind
+      - deaf
+      - date_start
+      - date_end
+
+    date_fields:
+      - date_start
+      - date_end
+      - updated_at
+
+    location_fields:
+      - lat_lon
+      - address_street
+      - address_zipcode
+      - address_city
+      - address_name
+
+# Field Definitions with Types
+field_definitions:
+  # Core identifiers
+  id:
+    type: "string"
+    description: "Unique record identifier"
+  event_id:
+    type: "integer"
+    description: "Event identifier"
+
+  # Content fields
+  title:
+    type: "string"
+    description: "Event title"
+  lead_text:
+    type: "string"
+    description: "Short summary/teaser of the event"
+  description:
+    type: "string"
+    description: "Full HTML description of the event"
+  url:
+    type: "string"
+    description: "Link to the event page on paris.fr"
+
+  # Date fields
+  date_start:
+    type: "datetime"
+    description: "Event start date and time"
+  date_end:
+    type: "datetime"
+    description: "Event end date and time"
+  date_description:
+    type: "string"
+    description: "Human-readable date description"
+  occurrences:
+    type: "string"
+    description: "List of all event occurrences"
+
+  # Location fields
+  address_name:
+    type: "string"
+    description: "Venue name"
+  address_street:
+    type: "string"
+    description: "Street address"
+  address_zipcode:
+    type: "string"
+    description: "Postal code (arrondissement: 75001-75020)"
+  address_city:
+    type: "string"
+    description: "City name"
+  lat_lon:
+    type: "geo_point"
+    description: "Geographic coordinates"
+
+  # Accessibility fields
+  pmr:
+    type: "boolean"
+    description: "Wheelchair accessible (Personnes à Mobilité Réduite)"
+  blind:
+    type: "boolean"
+    description: "Accessible for blind/visually impaired"
+  deaf:
+    type: "boolean"
+    description: "Accessible for deaf/hearing impaired"
+  sign_language:
+    type: "boolean"
+    description: "Sign language interpretation available"
+  mental:
+    type: "boolean"
+    description: "Accessible for people with mental disabilities"
+
+  # Price and access
+  price_type:
+    type: "string"
+    description: "Price category"
+    enum: ["gratuit", "payant", "gratuit sous condition"]
+  price_detail:
+    type: "string"
+    description: "Detailed pricing information"
+  access_type:
+    type: "string"
+    description: "Registration requirement"
+    enum: ["non", "obligatoire", "conseillé"]
+
+  # Categorization
+  qfap_tags:
+    type: "string"
+    description: "Event tags/categories (semicolon-separated)"
+  audience:
+    type: "string"
+    description: "Target audience"
+  group:
+    type: "string"
+    description: "Event grouping"
+
+  # Media
+  cover_url:
+    type: "string"
+    description: "Cover image URL"
+  cover_alt:
+    type: "string"
+    description: "Cover image alt text"
+
+  # Contact
+  contact_url:
+    type: "string"
+    description: "Organizer website"
+  contact_phone:
+    type: "string"
+    description: "Contact phone number"
+  contact_mail:
+    type: "string"
+    description: "Contact email"
+  contact_organisation_name:
+    type: "string"
+    description: "Organizing entity name"
+
+# Vocabulary and Synonyms (French and English)
+vocabulary:
+  entity_synonyms:
+    event: ["event", "événement", "activity", "activité", "happening", "sortie"]
+    concert: ["concert", "music", "musique", "spectacle musical"]
+    exhibition: ["exhibition", "exposition", "expo", "art show"]
+    workshop: ["workshop", "atelier", "cours", "class"]
+    festival: ["festival", "fête", "celebration"]
+    sport: ["sport", "sporting event", "match", "competition"]
+    family: ["family", "famille", "enfants", "children", "kids"]
+
+  action_synonyms:
+    list: ["list", "show", "get", "find", "display", "afficher", "montrer", "chercher"]
+    search: ["search", "find", "look for", "rechercher", "trouver"]
+    filter: ["filter", "filter by", "with", "filtrer", "par"]
+
+  location_synonyms:
+    arrondissement:
+      "1er": ["1er", "1st", "premier", "first", "75001", "Louvre", "Les Halles"]
+      "2e": ["2e", "2nd", "deuxième", "second", "75002", "Bourse"]
+      "3e": ["3e", "3rd", "troisième", "third", "75003", "Marais", "Temple"]
+      "4e": ["4e", "4th", "quatrième", "fourth", "75004", "Hôtel-de-Ville", "Notre-Dame"]
+      "5e": ["5e", "5th", "cinquième", "fifth", "75005", "Panthéon", "Latin Quarter"]
+      "6e": ["6e", "6th", "sixième", "sixth", "75006", "Luxembourg", "Saint-Germain"]
+      "7e": ["7e", "7th", "septième", "seventh", "75007", "Palais-Bourbon", "Eiffel Tower"]
+      "8e": ["8e", "8th", "huitième", "eighth", "75008", "Élysée", "Champs-Élysées"]
+      "9e": ["9e", "9th", "neuvième", "ninth", "75009", "Opéra"]
+      "10e": ["10e", "10th", "dixième", "tenth", "75010", "Enclos-Saint-Laurent", "Canal Saint-Martin"]
+      "11e": ["11e", "11th", "onzième", "eleventh", "75011", "Popincourt", "Bastille"]
+      "12e": ["12e", "12th", "douzième", "twelfth", "75012", "Reuilly", "Bercy"]
+      "13e": ["13e", "13th", "treizième", "thirteenth", "75013", "Gobelins", "Chinatown"]
+      "14e": ["14e", "14th", "quatorzième", "fourteenth", "75014", "Observatoire", "Montparnasse"]
+      "15e": ["15e", "15th", "quinzième", "fifteenth", "75015", "Vaugirard"]
+      "16e": ["16e", "16th", "seizième", "sixteenth", "75016", "Passy", "Trocadéro"]
+      "17e": ["17e", "17th", "dix-septième", "seventeenth", "75017", "Batignolles-Monceau"]
+      "18e": ["18e", "18th", "dix-huitième", "eighteenth", "75018", "Butte-Montmartre", "Montmartre"]
+      "19e": ["19e", "19th", "dix-neuvième", "nineteenth", "75019", "Buttes-Chaumont", "La Villette"]
+      "20e": ["20e", "20th", "vingtième", "twentieth", "75020", "Ménilmontant", "Belleville", "Père Lachaise"]
+
+  price_synonyms:
+    free: ["free", "gratuit", "no charge", "sans frais"]
+    paid: ["paid", "payant", "with fee", "payante"]
+    conditional: ["conditional", "gratuit sous condition", "free with conditions"]
+
+  category_synonyms:
+    atelier: ["workshop", "atelier", "hands-on", "practical"]
+    concert: ["concert", "music", "live music", "gig"]
+    exposition: ["exhibition", "expo", "art show", "gallery"]
+    festival: ["festival", "fair", "celebration"]
+    spectacle: ["show", "performance", "spectacle"]
+    conference: ["conference", "talk", "lecture", "conférence"]
+    sport: ["sport", "athletic", "fitness", "sportif"]
+    cinema: ["cinema", "film", "movie", "screening"]
+    theatre: ["theatre", "theater", "play", "drama"]
+    danse: ["dance", "danse", "ballet", "choreography"]
+    jeune_public: ["family", "kids", "children", "jeune public", "enfants"]
+    street_art: ["street art", "urban art", "graffiti"]
+    balade: ["walk", "tour", "balade", "promenade", "visite guidée"]
+
+# Response Patterns
+response_patterns:
+  collection:
+    description: "Response contains total_count and results array"
+    format: "object"
+    example: |
+      {
+        "total_count": 2764,
+        "results": [
+          {"id": "11056", "title": "..."},
+          {"id": "11142", "title": "..."}
+        ]
+      }
+
+# Common Query Parameters (ODSQL)
+common_parameters:
+  select:
+    name: "select"
+    type: "string"
+    description: "Fields to return (comma-separated, * for all)"
+    default: "*"
+
+  where:
+    name: "where"
+    type: "string"
+    description: "ODSQL filter expression"
+    examples:
+      - 'price_type="gratuit"'
+      - 'address_zipcode="75018"'
+      - 'date_start >= "2024-01-01"'
+      - 'title LIKE "concert%"'
+
+  order_by:
+    name: "order_by"
+    type: "string"
+    description: "Sort field and direction"
+    default: "date_start desc"
+
+  limit:
+    name: "limit"
+    type: "integer"
+    description: "Maximum number of results (max 100)"
+    default: 10
+    max: 100
+
+  offset:
+    name: "offset"
+    type: "integer"
+    description: "Number of results to skip"
+    default: 0
+
+  refine:
+    name: "refine"
+    type: "string"
+    description: "Facet refinement filter"
+    examples:
+      - "qfap_tags:Concert"
+      - "price_type:gratuit"
+
+  timezone:
+    name: "timezone"
+    type: "string"
+    description: "Timezone for date fields"
+    default: "Europe/Paris"
+
+  lang:
+    name: "lang"
+    type: "string"
+    description: "Response language"
+    default: "fr"
+
+# Error Handling
+error_handling:
+  400:
+    description: "Bad request - invalid query syntax"
+    action: "Check ODSQL syntax and parameter values"
+  404:
+    description: "Dataset not found"
+    action: "Verify dataset ID"
+  500:
+    description: "Server error"
+    action: "Retry with exponential backoff"
+
+# Best Practices
+best_practices:
+  - "Use ODSQL where clause for complex filtering"
+  - "Always set a reasonable limit (default 10, max 100)"
+  - "Use select to retrieve only needed fields for performance"
+  - "Filter by address_zipcode for arrondissement-specific queries"
+  - "Use refine for faceted search on categories"
+  - "Date filtering uses ISO 8601 format"
+  - "Text search is case-insensitive"
+  - "Use timezone=Europe/Paris for local Paris times"
+
+# Example Queries
+example_queries:
+  - query: "Free events in Paris"
+    endpoint: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records?where=price_type%3D%22gratuit%22&limit=20"
+    description: "List free events"
+
+  - query: "Events in the 18th arrondissement"
+    endpoint: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records?where=address_zipcode%3D%2275018%22&limit=20"
+    description: "Events in Montmartre area"
+
+  - query: "Concerts this month"
+    endpoint: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records?refine=qfap_tags%3AConcert&limit=20"
+    description: "Filter by concert category"
+
+  - query: "Wheelchair accessible events"
+    endpoint: "/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/records?where=pmr%3D1&limit=20"
+    description: "Events with wheelchair accessibility"
