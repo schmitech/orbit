@@ -1,0 +1,399 @@
+domain_name: Electric Vehicle Population Database
+description: Washington State DOL Electric Vehicle Registration Data - BEVs and PHEVs registered through the Department of Licensing
+domain_type: analytical
+semantic_types:
+  location_value:
+    description: Geographic location identifiers
+    patterns:
+    - county
+    - city
+    - location
+    - area
+    - region
+    - district
+    - zip
+    - postal
+    regex_patterns:
+    - \b\d{5}(-\d{4})?\b
+  year_value:
+    description: Model year values
+    patterns:
+    - year
+    - model year
+    - manufactured
+    regex_patterns:
+    - \b(19|20)\d{2}\b
+  identifier:
+    description: Unique identifier
+    patterns:
+    - id
+    - vin
+    - identifier
+    - number
+    regex_patterns:
+    - \b\d+\b
+  range_value:
+    description: Electric range in miles
+    patterns:
+    - range
+    - miles
+    - distance
+    regex_patterns:
+    - \d+\s*(miles?|mi)
+  vehicle_type:
+    description: Electric vehicle type (BEV/PHEV)
+    patterns:
+    - bev
+    - phev
+    - battery electric
+    - plug-in hybrid
+    - electric vehicle type
+vocabulary:
+  entity_synonyms:
+    electric_vehicles:
+    - ev
+    - evs
+    - electric vehicle
+    - electric vehicles
+    - electric car
+    - electric cars
+    - vehicle
+    - vehicles
+    - car
+    - cars
+    - registration
+    - registrations
+    bev:
+    - battery electric
+    - battery electric vehicle
+    - full electric
+    - pure electric
+    - all-electric
+    phev:
+    - plug-in hybrid
+    - plug-in hybrid electric vehicle
+    - hybrid
+    - plugin hybrid
+    tesla:
+    - tesla motors
+    county:
+    - counties
+    - region
+    - area
+    make:
+    - manufacturer
+    - brand
+    - automaker
+    - car company
+    model:
+    - vehicle model
+    - car model
+  action_verbs:
+    find:
+    - show
+    - list
+    - get
+    - find
+    - display
+    - retrieve
+    - lookup
+    - search
+    - view
+    - what
+    - which
+    filter:
+    - filter
+    - only
+    - just
+    - where
+    - with
+    - having
+    - containing
+    - in
+    - from
+    count:
+    - count
+    - number of
+    - how many
+    - total
+    - tally
+    sort:
+    - sort
+    - order
+    - arrange
+    - rank
+    - top
+    - highest
+    - lowest
+    - most
+    - least
+    calculate:
+    - calculate
+    - compute
+    - aggregate
+    - sum
+    - average
+    - avg
+    - total
+    - percentage
+    - percent
+    compare:
+    - compare
+    - vs
+    - versus
+    - difference
+    - between
+    - breakdown
+    analyze:
+    - analyze
+    - analysis
+    - trend
+    - trends
+    - growth
+    - distribution
+    - pattern
+entities:
+  electric_vehicles:
+    name: electric_vehicles
+    entity_type: primary
+    table_name: electric_vehicles
+    description: Electric vehicles registered in Washington State
+    primary_key: id
+    display_name_field: vin_prefix
+    searchable_fields:
+    - county
+    - city
+    - make
+    - model
+    - ev_type
+    common_filters:
+    - county
+    - city
+    - make
+    - model
+    - model_year
+    - ev_type
+    - cafv_eligibility
+    - electric_utility
+    - legislative_district
+    default_sort_field: model_year
+    default_sort_order: DESC
+fields:
+  electric_vehicles:
+    id:
+      name: id
+      data_type: integer
+      db_column: id
+      description: Unique record identifier
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 1
+    vin_prefix:
+      name: vin_prefix
+      data_type: string
+      db_column: vin_prefix
+      description: First 10 characters of Vehicle Identification Number
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 5
+    county:
+      name: county
+      data_type: string
+      db_column: county
+      description: Washington State county of registration
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: location_value
+      summary_priority: 9
+    city:
+      name: city
+      data_type: string
+      db_column: city
+      description: City of registration
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: location_value
+      summary_priority: 8
+    state:
+      name: state
+      data_type: string
+      db_column: state
+      description: State code (WA)
+      required: true
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: location_value
+      summary_priority: 2
+    postal_code:
+      name: postal_code
+      data_type: string
+      db_column: postal_code
+      description: ZIP code
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: location_value
+      summary_priority: 6
+    model_year:
+      name: model_year
+      data_type: integer
+      db_column: model_year
+      description: Vehicle model year
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: year_value
+      summary_priority: 10
+    make:
+      name: make
+      data_type: string
+      db_column: make
+      description: Vehicle manufacturer (Tesla, Nissan, etc.)
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    model:
+      name: model
+      data_type: string
+      db_column: model
+      description: Vehicle model (Model 3, Leaf, etc.)
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    ev_type:
+      name: ev_type
+      data_type: string
+      db_column: ev_type
+      description: Electric Vehicle Type - Battery Electric (BEV) or Plug-in Hybrid (PHEV)
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: vehicle_type
+      summary_priority: 10
+    cafv_eligibility:
+      name: cafv_eligibility
+      data_type: string
+      db_column: cafv_eligibility
+      description: Clean Alternative Fuel Vehicle eligibility status
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    electric_range:
+      name: electric_range
+      data_type: integer
+      db_column: electric_range
+      description: Electric range in miles (0 if unknown)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: range_value
+      summary_priority: 8
+    legislative_district:
+      name: legislative_district
+      data_type: integer
+      db_column: legislative_district
+      description: Washington State legislative district number
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 6
+    dol_vehicle_id:
+      name: dol_vehicle_id
+      data_type: bigint
+      db_column: dol_vehicle_id
+      description: Department of Licensing unique vehicle identifier
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 3
+    vehicle_location:
+      name: vehicle_location
+      data_type: string
+      db_column: vehicle_location
+      description: Geographic coordinates (POINT format)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: location_value
+      summary_priority: 2
+    longitude:
+      name: longitude
+      data_type: double
+      db_column: longitude
+      description: Longitude coordinate
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: location_value
+      summary_priority: 2
+    latitude:
+      name: latitude
+      data_type: double
+      db_column: latitude
+      description: Latitude coordinate
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: location_value
+      summary_priority: 2
+    electric_utility:
+      name: electric_utility
+      data_type: string
+      db_column: electric_utility
+      description: Electric utility provider(s) serving the area
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    census_tract:
+      name: census_tract
+      data_type: bigint
+      db_column: census_tract
+      description: 2020 Census tract identifier
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 3
+relationships: []
+query_patterns: []
+metadata:
+  generated_at: '2025-01-27T12:00:00.000000'
+  generator_version: 1.0.0
+  auto_generated: true
+  data_source: Washington State Department of Licensing (DOL)
+  data_url: https://catalog.data.gov/dataset/electric-vehicle-population-data

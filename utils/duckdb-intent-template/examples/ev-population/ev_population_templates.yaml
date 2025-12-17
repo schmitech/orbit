@@ -1,0 +1,1671 @@
+status: completed
+generated_at: '2025-01-27T12:00:00.000000'
+last_updated: '2025-01-27T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 45
+templates:
+
+# ============================================================================
+# BASIC OVERVIEW QUERIES
+# ============================================================================
+
+- id: total_ev_count
+  description: Get the total count of registered electric vehicles
+  sql: SELECT COUNT(*) AS total_vehicles FROM electric_vehicles
+  parameters: []
+  nl_examples:
+  - How many electric vehicles are registered in Washington?
+  - What's the total number of EVs?
+  - Count all electric vehicles
+  - How many EVs do we have?
+  - Total registered electric vehicles
+  - Show me the EV count
+  - What is the total EV registration count?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: count
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - count
+  - overview
+  - summary
+
+- id: ev_type_breakdown
+  description: Show breakdown of BEV vs PHEV registrations
+  sql: |
+    SELECT
+        ev_type,
+        COUNT(*) AS vehicle_count,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 2) AS percentage
+    FROM electric_vehicles
+    GROUP BY ev_type
+    ORDER BY vehicle_count DESC
+  parameters: []
+  nl_examples:
+  - Show me BEV vs PHEV breakdown
+  - How many battery electric vs plug-in hybrid vehicles?
+  - What's the split between BEVs and PHEVs?
+  - Compare BEV and PHEV registrations
+  - Electric vehicle type distribution
+  - How many pure electric vs hybrid?
+  - BEV to PHEV ratio
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - ev_type
+  tags:
+  - compare
+  - bev
+  - phev
+  - breakdown
+
+- id: ev_overview_stats
+  description: Comprehensive overview statistics for EV registrations
+  sql: |
+    SELECT
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        COUNT(DISTINCT make) AS unique_manufacturers,
+        COUNT(DISTINCT model) AS unique_models,
+        COUNT(DISTINCT county) AS counties_covered,
+        COUNT(DISTINCT city) AS cities_covered,
+        MIN(model_year) AS oldest_model_year,
+        MAX(model_year) AS newest_model_year,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_electric_range
+    FROM electric_vehicles
+  parameters: []
+  nl_examples:
+  - Give me an overview of EV registrations
+  - Show me EV statistics
+  - Summary of electric vehicle data
+  - What are the key EV metrics?
+  - Electric vehicle dashboard summary
+  - Overview of the EV population
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - overview
+  - statistics
+  - summary
+  - dashboard
+
+# ============================================================================
+# GEOGRAPHIC ANALYSIS - COUNTY
+# ============================================================================
+
+- id: ev_by_county
+  description: Show EV registrations grouped by county
+  sql: |
+    SELECT
+        county,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        ROUND(100.0 * COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) / COUNT(*), 1) AS bev_percentage,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    GROUP BY county
+    ORDER BY total_vehicles DESC
+  parameters: []
+  nl_examples:
+  - Show me EVs by county
+  - Which counties have the most electric vehicles?
+  - EV registrations per county
+  - County breakdown of electric vehicles
+  - How are EVs distributed across counties?
+  - List counties by EV count
+  - Geographic distribution of EVs by county
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - county
+  tags:
+  - county
+  - geographic
+  - distribution
+
+- id: top_counties_ev
+  description: Find top N counties with most EV registrations
+  sql: |
+    SELECT
+        county,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        COUNT(DISTINCT make) AS unique_makes,
+        COUNT(DISTINCT city) AS cities_in_county
+    FROM electric_vehicles
+    GROUP BY county
+    ORDER BY total_vehicles DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of top counties to return
+    required: false
+    default: 10
+  nl_examples:
+  - Show me top 10 counties for EV adoption
+  - Which counties lead in electric vehicle registrations?
+  - Top counties by EV count
+  - Leading counties for EVs
+  - Best performing counties for electric vehicles
+  - Show me the top 5 counties with most EVs
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - county
+  tags:
+  - top
+  - county
+  - ranking
+
+- id: ev_in_specific_county
+  description: Get EV statistics for a specific county
+  sql: |
+    SELECT
+        county,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        COUNT(DISTINCT make) AS unique_manufacturers,
+        COUNT(DISTINCT model) AS unique_models,
+        COUNT(DISTINCT city) AS cities,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range,
+        MIN(model_year) AS oldest_year,
+        MAX(model_year) AS newest_year
+    FROM electric_vehicles
+    WHERE LOWER(county) = LOWER(:county)
+    GROUP BY county
+  parameters:
+  - name: county
+    type: string
+    description: County name to filter by
+    required: true
+  nl_examples:
+  - Show me EVs in King County
+  - How many electric vehicles are in Pierce County?
+  - EV statistics for Snohomish County
+  - What's the EV situation in Clark County?
+  - Electric vehicle data for Spokane County
+  - How many EVs in Thurston County?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - county
+  tags:
+  - county
+  - filter
+  - specific
+
+# ============================================================================
+# GEOGRAPHIC ANALYSIS - CITY
+# ============================================================================
+
+- id: ev_by_city
+  description: Show EV registrations grouped by city
+  sql: |
+    SELECT
+        city,
+        county,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        COUNT(DISTINCT make) AS unique_makes
+    FROM electric_vehicles
+    GROUP BY city, county
+    ORDER BY total_vehicles DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of cities to return
+    required: false
+    default: 50
+  nl_examples:
+  - Show me EVs by city
+  - Which cities have the most electric vehicles?
+  - EV registrations per city
+  - City breakdown of electric vehicles
+  - Top cities for EV adoption
+  - List cities by EV count
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - city
+  tags:
+  - city
+  - geographic
+  - distribution
+
+- id: ev_in_specific_city
+  description: Get EV statistics for a specific city
+  sql: |
+    SELECT
+        city,
+        county,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        COUNT(DISTINCT make) AS unique_manufacturers,
+        COUNT(DISTINCT model) AS unique_models,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    WHERE LOWER(city) = LOWER(:city)
+    GROUP BY city, county
+  parameters:
+  - name: city
+    type: string
+    description: City name to filter by
+    required: true
+  nl_examples:
+  - Show me EVs in Seattle
+  - How many electric vehicles are registered in Bellevue?
+  - EV statistics for Tacoma
+  - What's the EV count in Spokane?
+  - Electric vehicles in Olympia
+  - How many EVs in Vancouver?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - city
+  tags:
+  - city
+  - filter
+  - specific
+
+# ============================================================================
+# LEGISLATIVE DISTRICT ANALYSIS
+# ============================================================================
+
+- id: ev_by_legislative_district
+  description: Show EV registrations by legislative district
+  sql: |
+    SELECT
+        legislative_district,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        ROUND(100.0 * COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) / COUNT(*), 1) AS bev_percentage,
+        COUNT(DISTINCT county) AS counties_in_district,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    WHERE legislative_district IS NOT NULL
+    GROUP BY legislative_district
+    ORDER BY total_vehicles DESC
+  parameters: []
+  nl_examples:
+  - Show me EVs by legislative district
+  - Which legislative districts have the most EVs?
+  - EV registrations per legislative district
+  - District-by-district EV breakdown
+  - How are EVs distributed across legislative districts?
+  - Legislative district EV analysis
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - legislative_district
+  tags:
+  - legislative
+  - district
+  - political
+
+- id: ev_in_specific_district
+  description: Get EV statistics for a specific legislative district
+  sql: |
+    SELECT
+        legislative_district,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        COUNT(DISTINCT county) AS counties,
+        COUNT(DISTINCT city) AS cities,
+        COUNT(DISTINCT make) AS unique_manufacturers,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    WHERE legislative_district = :district
+    GROUP BY legislative_district
+  parameters:
+  - name: district
+    type: integer
+    description: Legislative district number
+    required: true
+  nl_examples:
+  - Show me EVs in district 43
+  - How many electric vehicles in legislative district 37?
+  - EV statistics for district 11
+  - What's the EV count in my district?
+  - Electric vehicles in legislative district 1
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - legislative_district
+  tags:
+  - legislative
+  - district
+  - filter
+
+- id: top_districts_ev
+  description: Top legislative districts by EV adoption
+  sql: |
+    SELECT
+        legislative_district,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        STRING_AGG(DISTINCT county, ', ' ORDER BY county) AS counties
+    FROM electric_vehicles
+    WHERE legislative_district IS NOT NULL
+    GROUP BY legislative_district
+    ORDER BY total_vehicles DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of top districts to return
+    required: false
+    default: 10
+  nl_examples:
+  - Top 10 legislative districts for EV adoption
+  - Which districts lead in electric vehicle registrations?
+  - Best performing legislative districts for EVs
+  - Show me districts with highest EV counts
+  - Leading legislative districts for electric vehicles
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - legislative_district
+  tags:
+  - legislative
+  - district
+  - ranking
+  - top
+
+# ============================================================================
+# MANUFACTURER (MAKE) ANALYSIS
+# ============================================================================
+
+- id: ev_by_make
+  description: Show EV registrations grouped by manufacturer
+  sql: |
+    SELECT
+        make,
+        COUNT(*) AS total_vehicles,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 2) AS market_share,
+        COUNT(DISTINCT model) AS models_available,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        ROUND(AVG(model_year), 0) AS avg_model_year,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    GROUP BY make
+    ORDER BY total_vehicles DESC
+  parameters: []
+  nl_examples:
+  - Show me EVs by manufacturer
+  - Which car brands have the most EVs?
+  - EV market share by make
+  - Top EV manufacturers
+  - Brand breakdown of electric vehicles
+  - Which automakers lead in EV registrations?
+  - Compare EV manufacturers
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - make
+  tags:
+  - make
+  - manufacturer
+  - market_share
+
+- id: ev_specific_make
+  description: Get detailed statistics for a specific manufacturer
+  sql: |
+    SELECT
+        make,
+        COUNT(*) AS total_vehicles,
+        COUNT(DISTINCT model) AS models,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        COUNT(DISTINCT county) AS counties_present,
+        MIN(model_year) AS oldest_model_year,
+        MAX(model_year) AS newest_model_year,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range,
+        MAX(CASE WHEN electric_range > 0 THEN electric_range END) AS max_range
+    FROM electric_vehicles
+    WHERE LOWER(make) = LOWER(:make)
+    GROUP BY make
+  parameters:
+  - name: make
+    type: string
+    description: Manufacturer name
+    required: true
+  nl_examples:
+  - Show me all Tesla vehicles
+  - How many Nissan EVs are registered?
+  - Tesla statistics
+  - What about Chevrolet electric vehicles?
+  - BMW EV data
+  - How many Ford EVs?
+  - Rivian registrations
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - make
+  tags:
+  - make
+  - manufacturer
+  - filter
+
+- id: top_makes_by_county
+  description: Top manufacturers in a specific county
+  sql: |
+    SELECT
+        make,
+        COUNT(*) AS total_vehicles,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 2) AS county_market_share,
+        COUNT(DISTINCT model) AS models,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    WHERE LOWER(county) = LOWER(:county)
+    GROUP BY make
+    ORDER BY total_vehicles DESC
+    LIMIT :limit
+  parameters:
+  - name: county
+    type: string
+    description: County name
+    required: true
+  - name: limit
+    type: integer
+    description: Number of manufacturers to return
+    required: false
+    default: 10
+  nl_examples:
+  - Top EV brands in King County
+  - Which manufacturers are popular in Pierce County?
+  - Leading EV makes in Snohomish County
+  - Most popular EV brands in Seattle area
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - make
+    - county
+  tags:
+  - make
+  - county
+  - market_share
+
+# ============================================================================
+# MODEL ANALYSIS
+# ============================================================================
+
+- id: ev_by_model
+  description: Show EV registrations grouped by model
+  sql: |
+    SELECT
+        make,
+        model,
+        ev_type,
+        COUNT(*) AS total_vehicles,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 2) AS market_share,
+        MIN(model_year) AS first_year,
+        MAX(model_year) AS latest_year,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    GROUP BY make, model, ev_type
+    ORDER BY total_vehicles DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of models to return
+    required: false
+    default: 25
+  nl_examples:
+  - Show me the most popular EV models
+  - Top selling electric vehicle models
+  - Which models are most registered?
+  - EV model breakdown
+  - Most common electric cars
+  - Popular EV models in Washington
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - model
+  tags:
+  - model
+  - popularity
+  - ranking
+
+- id: models_by_make
+  description: Show all models for a specific manufacturer
+  sql: |
+    SELECT
+        model,
+        ev_type,
+        COUNT(*) AS total_vehicles,
+        MIN(model_year) AS first_year,
+        MAX(model_year) AS latest_year,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range,
+        MAX(CASE WHEN electric_range > 0 THEN electric_range END) AS max_range
+    FROM electric_vehicles
+    WHERE LOWER(make) = LOWER(:make)
+    GROUP BY model, ev_type
+    ORDER BY total_vehicles DESC
+  parameters:
+  - name: make
+    type: string
+    description: Manufacturer name
+    required: true
+  nl_examples:
+  - Show me all Tesla models
+  - What Nissan EV models are registered?
+  - List all BMW electric models
+  - Chevrolet EV lineup
+  - Ford electric vehicle models
+  - Which Tesla models are most popular?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - model
+    - make
+  tags:
+  - model
+  - make
+  - filter
+
+# ============================================================================
+# MODEL YEAR / ADOPTION TRENDS
+# ============================================================================
+
+- id: ev_by_model_year
+  description: Show EV registrations by model year (adoption trends)
+  sql: |
+    SELECT
+        model_year,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        ROUND(100.0 * COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) / COUNT(*), 1) AS bev_percentage,
+        COUNT(DISTINCT make) AS unique_makes,
+        COUNT(DISTINCT model) AS unique_models,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    GROUP BY model_year
+    ORDER BY model_year DESC
+  parameters: []
+  nl_examples:
+  - Show me EV adoption by year
+  - How has EV registration grown over time?
+  - EV trends by model year
+  - Year-over-year EV growth
+  - Electric vehicle adoption trends
+  - Show me the growth in EV registrations
+  - Historical EV data by year
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - model_year
+  tags:
+  - trends
+  - model_year
+  - growth
+  - adoption
+
+- id: ev_growth_analysis
+  description: Analyze year-over-year growth in EV registrations
+  sql: |
+    WITH yearly_counts AS (
+        SELECT
+            model_year,
+            COUNT(*) AS total_vehicles,
+            COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+            COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count
+        FROM electric_vehicles
+        GROUP BY model_year
+    )
+    SELECT
+        model_year,
+        total_vehicles,
+        bev_count,
+        phev_count,
+        LAG(total_vehicles) OVER (ORDER BY model_year) AS prev_year_total,
+        CASE
+            WHEN LAG(total_vehicles) OVER (ORDER BY model_year) > 0
+            THEN ROUND(100.0 * (total_vehicles - LAG(total_vehicles) OVER (ORDER BY model_year))
+                 / LAG(total_vehicles) OVER (ORDER BY model_year), 1)
+            ELSE NULL
+        END AS yoy_growth_pct
+    FROM yearly_counts
+    WHERE model_year >= 2015
+    ORDER BY model_year DESC
+  parameters: []
+  nl_examples:
+  - Show me year-over-year EV growth
+  - What's the EV growth rate?
+  - Analyze EV adoption growth
+  - How fast are EVs growing?
+  - EV growth trends analysis
+  - Show me EV growth percentage by year
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - model_year
+  tags:
+  - growth
+  - trends
+  - yoy
+  - analysis
+
+- id: recent_ev_registrations
+  description: Show EVs registered in recent model years
+  sql: |
+    SELECT
+        model_year,
+        make,
+        model,
+        ev_type,
+        COUNT(*) AS vehicle_count,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    WHERE model_year >= :min_year
+    GROUP BY model_year, make, model, ev_type
+    ORDER BY model_year DESC, vehicle_count DESC
+    LIMIT :limit
+  parameters:
+  - name: min_year
+    type: integer
+    description: Minimum model year to include
+    required: false
+    default: 2023
+  - name: limit
+    type: integer
+    description: Number of records to return
+    required: false
+    default: 50
+  nl_examples:
+  - Show me recent EV registrations
+  - What EVs from 2024 are registered?
+  - New electric vehicles registered
+  - Latest EV models on the road
+  - 2023 and newer EVs
+  - Show me the newest electric cars
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - model_year
+  tags:
+  - recent
+  - new
+  - model_year
+
+# ============================================================================
+# ELECTRIC RANGE ANALYSIS
+# ============================================================================
+
+- id: ev_range_distribution
+  description: Show distribution of electric range across vehicles
+  sql: |
+    SELECT
+        CASE
+            WHEN electric_range = 0 THEN 'Unknown/Not Reported'
+            WHEN electric_range < 50 THEN 'Under 50 miles'
+            WHEN electric_range < 100 THEN '50-99 miles'
+            WHEN electric_range < 150 THEN '100-149 miles'
+            WHEN electric_range < 200 THEN '150-199 miles'
+            WHEN electric_range < 250 THEN '200-249 miles'
+            WHEN electric_range < 300 THEN '250-299 miles'
+            WHEN electric_range < 350 THEN '300-349 miles'
+            ELSE '350+ miles'
+        END AS range_category,
+        COUNT(*) AS vehicle_count,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 2) AS percentage
+    FROM electric_vehicles
+    GROUP BY range_category
+    ORDER BY
+        CASE range_category
+            WHEN 'Unknown/Not Reported' THEN 0
+            WHEN 'Under 50 miles' THEN 1
+            WHEN '50-99 miles' THEN 2
+            WHEN '100-149 miles' THEN 3
+            WHEN '150-199 miles' THEN 4
+            WHEN '200-249 miles' THEN 5
+            WHEN '250-299 miles' THEN 6
+            WHEN '300-349 miles' THEN 7
+            ELSE 8
+        END
+  parameters: []
+  nl_examples:
+  - Show me electric range distribution
+  - How far can registered EVs travel?
+  - EV range breakdown
+  - What's the range distribution of EVs?
+  - Electric vehicle range analysis
+  - How many EVs have over 200 miles range?
+  - Range capabilities of registered EVs
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - electric_range
+  tags:
+  - range
+  - distribution
+  - analysis
+
+- id: ev_range_statistics
+  description: Statistical analysis of electric range
+  sql: |
+    SELECT
+        ev_type,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN electric_range > 0 THEN 1 END) AS vehicles_with_range,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range,
+        MIN(CASE WHEN electric_range > 0 THEN electric_range END) AS min_range,
+        MAX(electric_range) AS max_range,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CASE WHEN electric_range > 0 THEN electric_range END) AS median_range
+    FROM electric_vehicles
+    GROUP BY ev_type
+  parameters: []
+  nl_examples:
+  - What's the average EV range?
+  - Electric range statistics
+  - Compare BEV and PHEV ranges
+  - Average range by vehicle type
+  - EV range summary statistics
+  - Median electric vehicle range
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - electric_range
+  tags:
+  - range
+  - statistics
+  - average
+
+- id: longest_range_evs
+  description: Find EVs with longest electric range
+  sql: |
+    SELECT
+        make,
+        model,
+        ev_type,
+        MAX(electric_range) AS max_range,
+        COUNT(*) AS vehicles_registered,
+        MAX(model_year) AS latest_model_year
+    FROM electric_vehicles
+    WHERE electric_range > 0
+    GROUP BY make, model, ev_type
+    ORDER BY max_range DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of models to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which EVs have the longest range?
+  - Top range electric vehicles
+  - Best range EVs registered
+  - Show me EVs with highest range
+  - Longest range electric cars
+  - Which models go the farthest?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - electric_range
+  tags:
+  - range
+  - top
+  - ranking
+
+- id: range_improvement_over_time
+  description: Show how average EV range has improved over model years
+  sql: |
+    SELECT
+        model_year,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN electric_range > 0 THEN 1 END) AS vehicles_with_known_range,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range,
+        MAX(CASE WHEN electric_range > 0 THEN electric_range END) AS max_range,
+        COUNT(CASE WHEN electric_range >= 200 THEN 1 END) AS vehicles_200plus_range,
+        COUNT(CASE WHEN electric_range >= 300 THEN 1 END) AS vehicles_300plus_range
+    FROM electric_vehicles
+    GROUP BY model_year
+    ORDER BY model_year DESC
+  parameters: []
+  nl_examples:
+  - How has EV range improved over time?
+  - Show me range improvements by year
+  - EV range trends
+  - Are EVs getting better range?
+  - Historical EV range data
+  - Range evolution over model years
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - electric_range
+    - model_year
+  tags:
+  - range
+  - trends
+  - improvement
+
+# ============================================================================
+# CAFV ELIGIBILITY ANALYSIS
+# ============================================================================
+
+- id: cafv_eligibility_breakdown
+  description: Show Clean Alternative Fuel Vehicle eligibility distribution
+  sql: |
+    SELECT
+        cafv_eligibility,
+        COUNT(*) AS vehicle_count,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 2) AS percentage,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    GROUP BY cafv_eligibility
+    ORDER BY vehicle_count DESC
+  parameters: []
+  nl_examples:
+  - Show me CAFV eligibility breakdown
+  - How many vehicles are eligible for clean fuel incentives?
+  - Clean Alternative Fuel Vehicle eligibility
+  - Which EVs qualify for CAFV?
+  - CAFV eligible vehicles
+  - Incentive eligibility distribution
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - cafv_eligibility
+  tags:
+  - cafv
+  - eligibility
+  - incentives
+
+- id: cafv_eligible_by_county
+  description: CAFV eligible vehicles by county
+  sql: |
+    SELECT
+        county,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN cafv_eligibility LIKE '%Eligible%' AND cafv_eligibility NOT LIKE '%Not eligible%' THEN 1 END) AS cafv_eligible,
+        ROUND(100.0 * COUNT(CASE WHEN cafv_eligibility LIKE '%Eligible%' AND cafv_eligibility NOT LIKE '%Not eligible%' THEN 1 END) / COUNT(*), 1) AS eligible_percentage
+    FROM electric_vehicles
+    GROUP BY county
+    ORDER BY cafv_eligible DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of counties to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which counties have the most CAFV eligible vehicles?
+  - CAFV eligibility by county
+  - Counties with eligible clean fuel vehicles
+  - Where are the most incentive-eligible EVs?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - cafv_eligibility
+    - county
+  tags:
+  - cafv
+  - eligibility
+  - county
+
+# ============================================================================
+# ELECTRIC UTILITY ANALYSIS
+# ============================================================================
+
+- id: ev_by_utility
+  description: Show EV registrations by electric utility provider
+  sql: |
+    SELECT
+        electric_utility,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        COUNT(DISTINCT county) AS counties_served,
+        COUNT(DISTINCT city) AS cities_served,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    WHERE electric_utility IS NOT NULL
+    GROUP BY electric_utility
+    ORDER BY total_vehicles DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of utilities to return
+    required: false
+    default: 20
+  nl_examples:
+  - Show me EVs by electric utility
+  - Which utilities serve the most EVs?
+  - EV distribution by power company
+  - Electric utility EV analysis
+  - How many EVs does each utility serve?
+  - Charging infrastructure by utility
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - electric_utility
+  tags:
+  - utility
+  - infrastructure
+  - distribution
+
+- id: utility_infrastructure_needs
+  description: Analyze potential charging infrastructure needs by utility
+  sql: |
+    SELECT
+        electric_utility,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range,
+        COUNT(CASE WHEN electric_range > 0 AND electric_range < 150 THEN 1 END) AS short_range_vehicles,
+        COUNT(CASE WHEN model_year >= 2022 THEN 1 END) AS recent_registrations,
+        COUNT(DISTINCT city) AS cities_covered
+    FROM electric_vehicles
+    WHERE electric_utility IS NOT NULL
+    GROUP BY electric_utility
+    HAVING COUNT(*) > 100
+    ORDER BY total_vehicles DESC
+  parameters: []
+  nl_examples:
+  - Show me charging infrastructure needs by utility
+  - Which utilities need more charging stations?
+  - Utility infrastructure planning data
+  - EV charging demand by power company
+  - Infrastructure requirements by utility
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: analyze
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - electric_utility
+  tags:
+  - utility
+  - infrastructure
+  - planning
+  - charging
+
+# ============================================================================
+# COMPARATIVE ANALYSIS
+# ============================================================================
+
+- id: county_comparison
+  description: Compare EV adoption across multiple counties
+  sql: |
+    SELECT
+        county,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        ROUND(100.0 * COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) / COUNT(*), 1) AS bev_percentage,
+        COUNT(DISTINCT make) AS unique_makes,
+        COUNT(DISTINCT model) AS unique_models,
+        ROUND(AVG(model_year), 0) AS avg_model_year,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range
+    FROM electric_vehicles
+    GROUP BY county
+    ORDER BY total_vehicles DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of counties to compare
+    required: false
+    default: 15
+  nl_examples:
+  - Compare EV adoption across counties
+  - County-by-county EV comparison
+  - How do counties compare for EVs?
+  - Side-by-side county EV analysis
+  - Regional EV comparison
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: compare
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - county
+  tags:
+  - compare
+  - county
+  - analysis
+
+- id: make_comparison
+  description: Compare statistics across EV manufacturers
+  sql: |
+    SELECT
+        make,
+        COUNT(*) AS total_vehicles,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 2) AS market_share,
+        COUNT(DISTINCT model) AS models,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        ROUND(AVG(model_year), 0) AS avg_model_year,
+        ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) AS avg_range,
+        MAX(CASE WHEN electric_range > 0 THEN electric_range END) AS max_range
+    FROM electric_vehicles
+    GROUP BY make
+    ORDER BY total_vehicles DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of manufacturers to compare
+    required: false
+    default: 15
+  nl_examples:
+  - Compare EV manufacturers
+  - How do EV brands compare?
+  - Manufacturer comparison analysis
+  - Compare Tesla vs Nissan vs Chevrolet
+  - Side-by-side automaker comparison
+  - Which manufacturer is best?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: compare
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - make
+  tags:
+  - compare
+  - make
+  - manufacturer
+
+- id: bev_vs_phev_by_county
+  description: Compare BEV vs PHEV adoption rates by county
+  sql: |
+    SELECT
+        county,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        ROUND(100.0 * COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) / COUNT(*), 1) AS bev_percentage,
+        ROUND(100.0 * COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) / COUNT(*), 1) AS phev_percentage
+    FROM electric_vehicles
+    GROUP BY county
+    HAVING COUNT(*) >= 100
+    ORDER BY bev_percentage DESC
+  parameters: []
+  nl_examples:
+  - Compare BEV vs PHEV by county
+  - Which counties prefer pure electric?
+  - BEV adoption rates by county
+  - Where are PHEVs more popular than BEVs?
+  - County BEV/PHEV ratio comparison
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: compare
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - ev_type
+    - county
+  tags:
+  - compare
+  - bev
+  - phev
+  - county
+
+# ============================================================================
+# DETAILED SEARCH QUERIES
+# ============================================================================
+
+- id: search_vehicles
+  description: Search for vehicles matching specific criteria
+  sql: |
+    SELECT
+        vin_prefix,
+        model_year,
+        make,
+        model,
+        ev_type,
+        electric_range,
+        county,
+        city,
+        cafv_eligibility
+    FROM electric_vehicles
+    WHERE (:make IS NULL OR LOWER(make) = LOWER(:make))
+      AND (:model IS NULL OR LOWER(model) LIKE LOWER('%' || :model || '%'))
+      AND (:county IS NULL OR LOWER(county) = LOWER(:county))
+      AND (:min_year IS NULL OR model_year >= :min_year)
+      AND (:ev_type IS NULL OR ev_type LIKE '%' || :ev_type || '%')
+    ORDER BY model_year DESC, make, model
+    LIMIT :limit
+  parameters:
+  - name: make
+    type: string
+    description: Vehicle manufacturer
+    required: false
+    default: null
+  - name: model
+    type: string
+    description: Vehicle model (partial match)
+    required: false
+    default: null
+  - name: county
+    type: string
+    description: County name
+    required: false
+    default: null
+  - name: min_year
+    type: integer
+    description: Minimum model year
+    required: false
+    default: null
+  - name: ev_type
+    type: string
+    description: Electric vehicle type (BEV or PHEV)
+    required: false
+    default: null
+  - name: limit
+    type: integer
+    description: Maximum results to return
+    required: false
+    default: 100
+  nl_examples:
+  - Find Tesla Model 3 in King County
+  - Search for 2023 EVs in Seattle
+  - Show me Nissan Leafs in Pierce County
+  - Find BEVs registered after 2020
+  - Search for electric vehicles
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - search
+  - filter
+  - detailed
+
+- id: find_all_vehicles
+  description: Retrieve all electric vehicles with pagination
+  sql: |
+    SELECT
+        id,
+        vin_prefix,
+        model_year,
+        make,
+        model,
+        ev_type,
+        electric_range,
+        county,
+        city,
+        cafv_eligibility
+    FROM electric_vehicles
+    ORDER BY model_year DESC, make, model
+    LIMIT :limit OFFSET :offset
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum records to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of records to skip
+    required: false
+    default: 0
+  nl_examples:
+  - Show me all electric vehicles
+  - List all EVs
+  - Get all registered electric vehicles
+  - Display all EV records
+  - Show every electric vehicle
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - all
+  - list
+
+# ============================================================================
+# EXECUTIVE SUMMARY QUERIES (FOR OFFICIALS)
+# ============================================================================
+
+- id: executive_summary
+  description: Executive summary of EV adoption in Washington State
+  sql: |
+    SELECT
+        'Total Registered EVs' AS metric,
+        COUNT(*)::VARCHAR AS value
+    FROM electric_vehicles
+    UNION ALL
+    SELECT
+        'Battery Electric (BEV)',
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END)::VARCHAR || ' (' ||
+        ROUND(100.0 * COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) / COUNT(*), 1)::VARCHAR || '%)'
+    FROM electric_vehicles
+    UNION ALL
+    SELECT
+        'Plug-in Hybrid (PHEV)',
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END)::VARCHAR || ' (' ||
+        ROUND(100.0 * COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) / COUNT(*), 1)::VARCHAR || '%)'
+    FROM electric_vehicles
+    UNION ALL
+    SELECT 'Unique Manufacturers', COUNT(DISTINCT make)::VARCHAR FROM electric_vehicles
+    UNION ALL
+    SELECT 'Unique Models', COUNT(DISTINCT model)::VARCHAR FROM electric_vehicles
+    UNION ALL
+    SELECT 'Counties with EVs', COUNT(DISTINCT county)::VARCHAR FROM electric_vehicles
+    UNION ALL
+    SELECT 'Cities with EVs', COUNT(DISTINCT city)::VARCHAR FROM electric_vehicles
+    UNION ALL
+    SELECT 'Average Electric Range', ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1)::VARCHAR || ' miles' FROM electric_vehicles
+    UNION ALL
+    SELECT 'CAFV Eligible Vehicles', COUNT(CASE WHEN cafv_eligibility LIKE '%Eligible%' AND cafv_eligibility NOT LIKE '%Not eligible%' THEN 1 END)::VARCHAR FROM electric_vehicles
+    UNION ALL
+    SELECT 'Model Year Range', MIN(model_year)::VARCHAR || ' - ' || MAX(model_year)::VARCHAR FROM electric_vehicles
+  parameters: []
+  nl_examples:
+  - Give me an executive summary
+  - EV dashboard summary
+  - Key EV metrics for Washington
+  - High-level EV statistics
+  - Summary report for executives
+  - Overview for leadership
+  - Quick EV facts
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - executive
+  - summary
+  - dashboard
+  - overview
+
+- id: state_progress_report
+  description: Comprehensive state progress report on EV adoption
+  sql: |
+    WITH recent_growth AS (
+        SELECT
+            COUNT(CASE WHEN model_year >= 2023 THEN 1 END) AS recent_vehicles,
+            COUNT(CASE WHEN model_year >= 2020 AND model_year < 2023 THEN 1 END) AS prev_period
+        FROM electric_vehicles
+    ),
+    top_county AS (
+        SELECT county, COUNT(*) AS cnt
+        FROM electric_vehicles
+        GROUP BY county
+        ORDER BY cnt DESC
+        LIMIT 1
+    ),
+    top_make AS (
+        SELECT make, COUNT(*) AS cnt
+        FROM electric_vehicles
+        GROUP BY make
+        ORDER BY cnt DESC
+        LIMIT 1
+    )
+    SELECT
+        (SELECT COUNT(*) FROM electric_vehicles) AS total_evs,
+        (SELECT county FROM top_county) AS leading_county,
+        (SELECT cnt FROM top_county) AS leading_county_count,
+        (SELECT make FROM top_make) AS top_manufacturer,
+        (SELECT cnt FROM top_make) AS top_manufacturer_count,
+        (SELECT recent_vehicles FROM recent_growth) AS vehicles_2023_plus,
+        (SELECT prev_period FROM recent_growth) AS vehicles_2020_2022,
+        (SELECT COUNT(DISTINCT legislative_district) FROM electric_vehicles WHERE legislative_district IS NOT NULL) AS districts_with_evs,
+        (SELECT ROUND(AVG(CASE WHEN electric_range > 0 THEN electric_range END), 1) FROM electric_vehicles) AS avg_range
+  parameters: []
+  nl_examples:
+  - State progress report on EV adoption
+  - How is Washington doing on EV adoption?
+  - EV progress report
+  - State EV adoption status
+  - Washington EV progress
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - progress
+  - report
+  - state
+  - adoption
+
+- id: policy_impact_analysis
+  description: Analysis to support EV policy decisions
+  sql: |
+    SELECT
+        'CAFV Eligible Vehicles' AS category,
+        COUNT(CASE WHEN cafv_eligibility LIKE '%Eligible%' AND cafv_eligibility NOT LIKE '%Not eligible%' THEN 1 END) AS count,
+        ROUND(100.0 * COUNT(CASE WHEN cafv_eligibility LIKE '%Eligible%' AND cafv_eligibility NOT LIKE '%Not eligible%' THEN 1 END) / COUNT(*), 1) AS percentage,
+        'Vehicles qualifying for clean fuel incentives' AS description
+    FROM electric_vehicles
+    UNION ALL
+    SELECT
+        'Short Range EVs (<150 mi)',
+        COUNT(CASE WHEN electric_range > 0 AND electric_range < 150 THEN 1 END),
+        ROUND(100.0 * COUNT(CASE WHEN electric_range > 0 AND electric_range < 150 THEN 1 END) / COUNT(CASE WHEN electric_range > 0 THEN 1 END), 1),
+        'May need more frequent charging'
+    FROM electric_vehicles
+    UNION ALL
+    SELECT
+        'Long Range EVs (200+ mi)',
+        COUNT(CASE WHEN electric_range >= 200 THEN 1 END),
+        ROUND(100.0 * COUNT(CASE WHEN electric_range >= 200 THEN 1 END) / COUNT(CASE WHEN electric_range > 0 THEN 1 END), 1),
+        'Suitable for longer commutes'
+    FROM electric_vehicles
+    UNION ALL
+    SELECT
+        'Recent Models (2022+)',
+        COUNT(CASE WHEN model_year >= 2022 THEN 1 END),
+        ROUND(100.0 * COUNT(CASE WHEN model_year >= 2022 THEN 1 END) / COUNT(*), 1),
+        'Newer technology with better features'
+    FROM electric_vehicles
+    UNION ALL
+    SELECT
+        'Pure Electric (BEV)',
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END),
+        ROUND(100.0 * COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) / COUNT(*), 1),
+        'Zero direct emissions'
+    FROM electric_vehicles
+  parameters: []
+  nl_examples:
+  - Show me policy impact analysis
+  - Data to support EV policy decisions
+  - Policy-relevant EV statistics
+  - Information for policymakers
+  - EV data for policy planning
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: analyze
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - policy
+  - analysis
+  - planning
+  - government
+
+# ============================================================================
+# ZIP CODE ANALYSIS
+# ============================================================================
+
+- id: ev_by_zip_code
+  description: Show EV registrations by ZIP code
+  sql: |
+    SELECT
+        postal_code,
+        county,
+        city,
+        COUNT(*) AS total_vehicles,
+        COUNT(CASE WHEN ev_type LIKE '%BEV%' THEN 1 END) AS bev_count,
+        COUNT(CASE WHEN ev_type LIKE '%PHEV%' THEN 1 END) AS phev_count,
+        COUNT(DISTINCT make) AS unique_makes
+    FROM electric_vehicles
+    WHERE postal_code IS NOT NULL
+    GROUP BY postal_code, county, city
+    ORDER BY total_vehicles DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of ZIP codes to return
+    required: false
+    default: 50
+  nl_examples:
+  - Show me EVs by ZIP code
+  - Which ZIP codes have the most EVs?
+  - EV distribution by postal code
+  - Top ZIP codes for electric vehicles
+  - EV density by ZIP
+  result_format: table
+  version: 1.0.0
+  approved: true
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: electric_vehicles
+    secondary_entity: null
+    qualifiers:
+    - postal_code
+  tags:
+  - zip
+  - postal_code
+  - geographic
