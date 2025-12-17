@@ -92,7 +92,6 @@ Your star isn't just a vanity metric—it directly helps the project:
 
 - **Visibility** – Stars help other developers discover ORBIT in search results
 - **Releases** – Get notified when we ship new features and providers
-- **Roadmap** – Star count helps prioritize what we build next
 - **Open source** – Support independent AI infrastructure development
 
 <p align="center">
@@ -254,7 +253,7 @@ orbit-chat --api-key YOUR_API_KEY
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/6ea2ba0c-eb59-43be-9bbd-0ff0dd90b587" controls>
+  <video src="https://github.com/user-attachments/assets/c53ddc9b-147d-4bf6-b5e0-982573e1e2b9" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
@@ -269,7 +268,7 @@ orbitchat --api-url http://localhost:3000 --api-key YOUR_API_KEY --open
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/c8a4523d-82fe-4d32-93b8-acb6c97820dc" controls>
+  <video src="https://github.com/user-attachments/assets/a51df9ca-a0bf-494c-8fdf-c922501f19e1" controls>
     Your browser does not support the video tag.
   </video>
   <br/>

@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 
 # Script to recreate all API keys for adapters when starting from scratch
 # This script creates keys for each adapter and renames them to easier-to-remember names
@@ -428,7 +428,7 @@ declare -a all_adapters=(
     # "qa-vector-qdrant-demo|demo-key|..." excluded: requires special Qdrant deployment
     "intent-sql-sqlite-contact|contact|examples/prompts/hr-assistant-prompt.txt|HR Assistant Prompt"
     "intent-sql-sqlite-classified|classified|examples/prompts/analytics-assistant-prompt.txt|Classified Data Prompt"
-    "intent-duckdb-analytics|analytical|examples/prompts/analytics-assistant-prompt.txt|DuckDB Analytics Prompt"
+    "intent-duckdb-analytics|analytical|utils/duckdb-intent-template/examples/analytics/analytics-assistant-prompt.txt|DuckDB Analytics Prompt"
     "intent-sql-postgres|postgres|examples/postgres/prompts/customer-assistant-enhanced-prompt.txt|PostgreSQL Customer Orders Prompt"
     "intent-elasticsearch-app-logs|elasticsearch|examples/prompts/elasticsearch-log-assistant-prompt.txt|Elasticsearch Logs Prompt"
     "intent-firecrawl-webscrape|web|examples/prompts/firecrawl-knowledge-assistant-prompt.txt|Firecrawl Web Prompt"
