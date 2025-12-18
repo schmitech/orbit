@@ -40,9 +40,11 @@ export interface CustomColors {
     icon: string;
   }
   
-  export interface ThemeConfig {
+export interface ThemeConfig {
     primary: string;
     secondary: string;
+    background?: string;
+    mode?: 'light' | 'dark' | 'system';
     questionsBackground: string;
     text: {
       primary: string;

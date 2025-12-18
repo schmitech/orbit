@@ -3,6 +3,7 @@ import { configureApi, streamChat } from '@schmitech/chatbot-api';
 import { getApiUrl, getApiKey } from '../index';
 import { getOrCreateSessionId, setSessionId } from '../utils/sessionManager';
 import { CHAT_CONSTANTS } from '../shared/styles';
+import { sanitizeMessageContent } from '../utils/contentFiltering';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
@@ -199,17 +200,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let receivedAnyText = false;
       try {
         // Use the streamChat function
-        for await (const chunk of streamChat(safeContent)) {
-          if (chunk.audioChunk) {
-            enqueueAudioChunk(chunk.audioChunk).catch(err => {
+        for await (const chunk of streamChat(safeContent, true)) {
+          const audioChunk = chunk.audio_chunk || chunk.audioChunk;
+          if (audioChunk) {
+            enqueueAudioChunk(audioChunk).catch(err => {
               console.error('Audio chunk playback failed', err);
             });
           }
 
-          if (chunk.text) {
-            // Append the text to the last message
-            get().appendToLastMessage(chunk.text);
-            receivedAnyText = true;
+          const chunkText = chunk.text ?? chunk.content ?? '';
+          if (chunkText) {
+            const sanitizedText = sanitizeMessageContent(chunkText);
+            if (sanitizedText) {
+              get().appendToLastMessage(sanitizedText);
+              receivedAnyText = true;
+            }
           }
         }
         // If we didn't receive any text, show an error message

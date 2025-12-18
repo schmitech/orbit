@@ -60,8 +60,11 @@ export const useScrollManagement = (isAnimating: boolean): ScrollManagementRetur
   const handleScroll = useCallback(() => {
     if (messagesContainerRef.current && !isAnimating) {
       const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-      const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < CHAT_CONSTANTS.SCROLL_THRESHOLDS.BOTTOM_THRESHOLD;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      const isAtBottom = Math.abs(distanceFromBottom) < CHAT_CONSTANTS.SCROLL_THRESHOLDS.BOTTOM_THRESHOLD;
       const isAtTop = scrollTop < CHAT_CONSTANTS.SCROLL_THRESHOLDS.TOP_THRESHOLD;
+
+      shouldScrollRef.current = isAtBottom;
       
       setShowScrollTop(!isAtTop && scrollTop > CHAT_CONSTANTS.SCROLL_THRESHOLDS.SHOW_SCROLL_TOP_OFFSET);
       setShowScrollBottom(!isAtBottom);

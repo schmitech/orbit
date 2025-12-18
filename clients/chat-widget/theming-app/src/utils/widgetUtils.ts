@@ -6,40 +6,109 @@ export const MAX_PROMPT_LENGTH = window.REACT_APP_MAX_PROMPT_LENGTH || 1000;
 // Track if widget has been initialized to prevent duplicates
 let widgetInitialized = false;
 
-// Generate theme configuration from custom colors
-export const generateThemeConfig = (customColors: CustomColors): ThemeConfig => ({
-  primary: customColors.primary,
-  secondary: customColors.secondary,
-  questionsBackground: customColors.questionsBackground,
-  text: {
-    primary: customColors.textPrimary,
-    secondary: customColors.textSecondary,
-    inverse: customColors.textInverse
-  },
-  input: {
-    background: customColors.inputBackground,
-    border: customColors.inputBorder
-  },
-  message: {
-    user: customColors.userBubble,
-    assistant: customColors.assistantBubble,
-    userText: customColors.userText,
-    assistantText: customColors.assistantText
-  },
-  suggestedQuestions: {
-    text: customColors.suggestedText,
-    questionsBackground: customColors.questionsBackground,
-    highlightedBackground: customColors.highlightedBackground
-  },
-  chatButton: {
-    background: customColors.chatButtonBg,
-    hoverBackground: customColors.chatButtonHover,
-    iconColor: customColors.iconColor,
-    iconBorderColor: customColors.iconBorderColor,
-    borderColor: customColors.buttonBorderColor,
-    iconName: customColors.iconName
+const parseHexColor = (hex?: string): [number, number, number] | null => {
+  if (!hex) return null;
+  let normalized = hex.trim();
+  if (!normalized.startsWith('#')) {
+    return null;
   }
-});
+  normalized = normalized.slice(1);
+  if (normalized.length === 3) {
+    normalized = normalized.split('').map(char => char + char).join('');
+  }
+  if (normalized.length !== 6) {
+    return null;
+  }
+  const intValue = Number.parseInt(normalized, 16);
+  if (Number.isNaN(intValue)) {
+    return null;
+  }
+  return [
+    (intValue >> 16) & 255,
+    (intValue >> 8) & 255,
+    intValue & 255
+  ];
+};
+
+const getLuminance = (hex?: string): number => {
+  const rgb = parseHexColor(hex);
+  if (!rgb) {
+    return 1;
+  }
+
+  const [r, g, b] = rgb.map(value => {
+    const channel = value / 255;
+    return channel <= 0.03928
+      ? channel / 12.92
+      : Math.pow((channel + 0.055) / 1.055, 2.4);
+  });
+
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+const determineThemeMode = (customColors: CustomColors): 'light' | 'dark' => {
+  const backgroundCandidates = [
+    customColors.inputBackground,
+    customColors.questionsBackground,
+    customColors.assistantBubble,
+    customColors.primary
+  ];
+
+  const backgroundColor = backgroundCandidates.find(Boolean) || '#ffffff';
+  const luminance = getLuminance(backgroundColor);
+  return luminance < 0.5 ? 'dark' : 'light';
+};
+
+const resolveThemeBackground = (customColors: CustomColors): string => {
+  return (
+    customColors.inputBackground ||
+    customColors.questionsBackground ||
+    customColors.assistantBubble ||
+    '#ffffff'
+  );
+};
+
+// Generate theme configuration from custom colors
+export const generateThemeConfig = (customColors: CustomColors): ThemeConfig => {
+  const mode = determineThemeMode(customColors);
+  const background = resolveThemeBackground(customColors);
+
+  return {
+    primary: customColors.primary,
+    secondary: customColors.secondary,
+    background,
+    mode,
+    questionsBackground: customColors.questionsBackground,
+    text: {
+      primary: customColors.textPrimary,
+      secondary: customColors.textSecondary,
+      inverse: customColors.textInverse
+    },
+    input: {
+      background: customColors.inputBackground,
+      border: customColors.inputBorder
+    },
+    message: {
+      user: customColors.userBubble,
+      assistant: customColors.assistantBubble,
+      userText: customColors.userText,
+      assistantText: customColors.assistantText
+    },
+    suggestedQuestions: {
+      text: customColors.suggestedText,
+      questionsBackground: customColors.questionsBackground,
+      highlightedBackground: customColors.highlightedBackground
+    },
+    chatButton: {
+      background: customColors.chatButtonBg,
+      hoverBackground: customColors.chatButtonHover,
+      iconColor: customColors.iconColor,
+      iconBorderColor: customColors.iconBorderColor,
+      borderColor: customColors.buttonBorderColor,
+      iconName: customColors.iconName
+    }
+  };
+};
 
 // Initialize widget
 export const initializeWidget = (

@@ -148,7 +148,7 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
       
       <div
         ref={messagesContainerRef}
-        className="h-full w-full overflow-y-auto scroll-smooth relative messages-container"
+        className="h-full w-full overflow-y-auto relative messages-container"
         style={{
           background: opaqueBackground,
           backgroundColor: opaqueBackground,

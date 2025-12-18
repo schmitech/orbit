@@ -6,6 +6,7 @@ export interface ChatConfig {
     primary: string;
     secondary: string;
     background: string;
+    mode?: 'light' | 'dark' | 'system';
     text: {
       primary: string;
       secondary: string;
@@ -49,6 +50,7 @@ export const defaultTheme = {
   primary: '#EC994B',
   secondary: '#1E3A8A',
   background: '#FFFFFF',
+  mode: 'light' as const,
   text: {
     primary: '#1F2937',
     secondary: '#6B7280',

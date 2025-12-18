@@ -1,8 +1,49 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { Copy, Check } from 'lucide-react';
 import clsx from 'clsx';
 import { Message as MessageType } from '../store/chatStore';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
+import { sanitizeMessageContent, truncateLongContent } from '../utils/contentFiltering';
+
+type ThemeMode = 'light' | 'dark';
+
+const parseHexColor = (color?: string): [number, number, number] | null => {
+  if (!color) return null;
+  let hex = color.trim();
+  if (!hex.startsWith('#')) {
+    return null;
+  }
+  hex = hex.replace('#', '');
+  if (hex.length === 3) {
+    hex = hex.split('').map(char => char + char).join('');
+  }
+  if (hex.length !== 6) {
+    return null;
+  }
+  const int = parseInt(hex, 16);
+  return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
+};
+
+const isColorDark = (color?: string): boolean => {
+  const rgb = parseHexColor(color);
+  if (!rgb) {
+    return false;
+  }
+  const [r, g, b] = rgb.map(value => value / 255);
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance < 0.5;
+};
+
+const resolveThemeMode = (theme: any): ThemeMode => {
+  const declaredMode = theme?.mode;
+  if (declaredMode === 'dark' || declaredMode === 'light') {
+    return declaredMode;
+  }
+  if (declaredMode === 'system' && typeof window !== 'undefined' && window.matchMedia) {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return isColorDark(theme?.background) ? 'dark' : 'light';
+};
 
 export interface MessageProps {
   message: MessageType;
@@ -47,6 +88,16 @@ const MessageComponent: React.FC<MessageProps> = ({
   formatTime,
   lastMessageRef,
 }) => {
+  const themeMode = useMemo<ThemeMode>(() => resolveThemeMode(theme), [theme]);
+  const syntaxTheme: 'dark' | 'light' = themeMode === 'dark' ? 'dark' : 'light';
+  const markdownRendererClassName = useMemo(
+    () => clsx('w-full min-w-0', themeMode),
+    [themeMode]
+  );
+  const safeAssistantContent = useMemo(
+    () => truncateLongContent(sanitizeMessageContent(message.content || '')),
+    [message.content]
+  );
   // Generate timestamp (using relative offset since messages lack explicit timestamps)
   const timestamp = new Date();
   timestamp.setMinutes(timestamp.getMinutes() - (messagesLength - index));
@@ -175,7 +226,11 @@ const MessageComponent: React.FC<MessageProps> = ({
                 scrollbarColor: 'rgba(0, 0, 0, 0.4) rgba(0, 0, 0, 0.15)',
               }}
             >
-              <MarkdownRenderer content={message.content} />
+              <MarkdownRenderer
+                content={safeAssistantContent}
+                className={markdownRendererClassName}
+                syntaxTheme={syntaxTheme}
+              />
             </div>
           )
         ) : (
