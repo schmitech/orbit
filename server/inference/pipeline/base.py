@@ -50,6 +50,7 @@ class ProcessingContext:
     session_id: Optional[str] = None
     api_key: Optional[str] = None
     timezone: Optional[str] = None
+    time_format: Optional[str] = None  # Per-adapter time format override
     
     # File context
     file_ids: List[str] = field(default_factory=list)  # Optional list of file IDs for file context

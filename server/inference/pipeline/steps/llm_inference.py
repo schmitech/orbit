@@ -337,21 +337,31 @@ class LLMInferenceStep(PipelineStep):
     def _build_time_instruction(self, context: ProcessingContext) -> str:
         """
         Build time instruction based on clock service and context.
+
+        Uses the clock service to generate a formatted time instruction
+        that can be injected into the prompt. Supports per-adapter
+        timezone and format overrides.
+
+        Args:
+            context: The processing context containing timezone and time_format
+
+        Returns:
+            Formatted time instruction string, or empty string if disabled
         """
         if not self.container.has('clock_service'):
             return ""
-            
+
         clock_service = self.container.get('clock_service')
         if not clock_service or not clock_service.enabled:
             return ""
-            
+
+        # Get timezone and format from context (per-adapter overrides)
         timezone = getattr(context, 'timezone', None)
-        current_time_str = clock_service.get_current_time_str(timezone)
-        
-        if current_time_str:
-            return f"System: The current date and time is {current_time_str}."
-        
-        return ""
+        time_format = getattr(context, 'time_format', None)
+
+        # Use the clock service's get_time_instruction method which handles
+        # the instruction template and formatting
+        return clock_service.get_time_instruction(timezone, time_format)
     
     async def _get_system_prompt(self, context: ProcessingContext) -> str:
         """

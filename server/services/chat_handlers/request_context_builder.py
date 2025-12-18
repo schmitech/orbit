@@ -83,6 +83,23 @@ class RequestContextBuilder:
         custom_config = adapter_config.get('config') or {}
         return custom_config.get('timezone')
 
+    def get_time_format(self, adapter_name: str) -> Optional[str]:
+        """
+        Get the time format setting for an adapter.
+
+        This allows per-adapter customization of the time format
+        used in the clock service timestamp injection.
+
+        Args:
+            adapter_name: The adapter name
+
+        Returns:
+            Time format string (strftime format) or None to use global default
+        """
+        adapter_config = self.get_adapter_config(adapter_name)
+        custom_config = adapter_config.get('config') or {}
+        return custom_config.get('time_format')
+
     def build_context(
         self,
         message: str,
@@ -128,6 +145,7 @@ class RequestContextBuilder:
         # Get adapter-specific settings
         inference_provider = self.get_inference_provider(adapter_name)
         timezone = self.get_timezone(adapter_name)
+        time_format = self.get_time_format(adapter_name)
 
         # Get tts_voice from adapter config if not provided in request
         if tts_voice is None:
@@ -148,6 +166,7 @@ class RequestContextBuilder:
             session_id=session_id,
             api_key=api_key,
             timezone=timezone,
+            time_format=time_format,
             file_ids=file_ids or [],
             thread_id=thread_id,
             audio_input=audio_input,
