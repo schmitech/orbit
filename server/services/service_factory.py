@@ -173,7 +173,10 @@ class ServiceFactory:
         """Initialize services that are used in both modes."""
         # Initialize Logger Service (always needed)
         await self._initialize_logger_service(app)
-        
+
+        # Initialize Audit Service (for audit trail storage)
+        await self._initialize_audit_service(app)
+
         # Initialize Metrics Service (for monitoring dashboard)
         await self._initialize_metrics_service(app)
         
@@ -213,6 +216,7 @@ class ServiceFactory:
 
         # Use pipeline-based chat service (now the default)
         from services.pipeline_chat_service import PipelineChatService
+        audit_service = getattr(app.state, 'audit_service', None)
         app.state.chat_service = PipelineChatService(
             config=self.config,
             logger_service=app.state.logger_service,
@@ -224,7 +228,8 @@ class ServiceFactory:
             prompt_service=getattr(app.state, 'prompt_service', None),
             clock_service=clock_service,
             redis_service=redis_service,
-            adapter_manager=adapter_manager  # Pass shared adapter manager for reload support
+            adapter_manager=adapter_manager,  # Pass shared adapter manager for reload support
+            audit_service=audit_service  # Pass audit service for audit trail storage
         )
         # Initialize the pipeline provider
         try:
@@ -491,7 +496,33 @@ class ServiceFactory:
         app.state.logger_service = LoggerService(self.config)
         await app.state.logger_service.initialize_elasticsearch()
         logger.info("Logger Service initialized successfully")
-    
+
+    async def _initialize_audit_service(self, app: FastAPI) -> None:
+        """Initialize Audit Service for audit trail storage."""
+        try:
+            audit_config = self.config.get('internal_services', {}).get('audit', {})
+            audit_enabled = audit_config.get('enabled', True)
+
+            if not audit_enabled:
+                app.state.audit_service = None
+                logger.info("Audit Service disabled by configuration")
+                return
+
+            from services.audit import AuditService
+
+            # Get database service if available (for SQLite/MongoDB backends)
+            database_service = getattr(app.state, 'database_service', None)
+
+            app.state.audit_service = AuditService(self.config, database_service)
+            await app.state.audit_service.initialize()
+
+            logger.info(f"Audit Service initialized with {app.state.audit_service.backend_name} backend")
+
+        except Exception as e:
+            logger.warning(f"Failed to initialize Audit Service: {str(e)}")
+            # Don't fail startup if audit service fails
+            app.state.audit_service = None
+
     async def _initialize_metrics_service(self, app: FastAPI) -> None:
         """Initialize Metrics Service for monitoring."""
         try:

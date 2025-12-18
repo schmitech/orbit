@@ -228,6 +228,21 @@ internal_services:
     username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
     password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
 
+  # Audit trail storage configuration
+  # Stores conversation audit logs for compliance and analytics
+  audit:
+    enabled: true
+    # Storage backend for audit logs
+    # Options: "elasticsearch", "sqlite", "mongodb", "database"
+    # "database" means use the same backend as internal_services.backend.type
+    storage_backend: "database"
+    # Collection/table name for audit logs
+    collection_name: "audit_logs"
+    # Enable gzip compression for response field (saves storage, reduces I/O)
+    # Set to false for debugging/testing to see plain text responses
+    # Compressed responses are stored as base64-encoded gzip data
+    compress_responses: false
+
   mongodb:
     host: ${INTERNAL_SERVICES_MONGODB_HOST}
     port: ${INTERNAL_SERVICES_MONGODB_PORT}

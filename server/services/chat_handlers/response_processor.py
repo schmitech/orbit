@@ -21,7 +21,8 @@ class ResponseProcessor:
         self,
         config: Dict[str, Any],
         conversation_handler: ConversationHistoryHandler,
-        logger_service
+        logger_service,
+        audit_service=None
     ):
         """
         Initialize the response processor.
@@ -29,11 +30,13 @@ class ResponseProcessor:
         Args:
             config: Application configuration
             conversation_handler: Conversation history handler
-            logger_service: Logger service for conversation logging
+            logger_service: Logger service for conversation logging (Elasticsearch)
+            audit_service: Optional audit service for audit trail storage (SQLite/MongoDB/ES)
         """
         self.config = config
         self.conversation_handler = conversation_handler
         self.logger_service = logger_service
+        self.audit_service = audit_service
 
     def format_response(self, text: str) -> str:
         """
@@ -119,6 +122,7 @@ class ResponseProcessor:
             session_id: Optional session ID
             user_id: Optional user ID
         """
+        # Log to Elasticsearch via LoggerService (existing behavior)
         try:
             await self.logger_service.log_conversation(
                 query=query,
@@ -131,7 +135,23 @@ class ResponseProcessor:
                 user_id=user_id
             )
         except Exception as e:
-            logger.error(f"Error logging conversation: {str(e)}", exc_info=True)
+            logger.error(f"Error logging conversation to LoggerService: {str(e)}", exc_info=True)
+
+        # Log to AuditService (SQLite/MongoDB/Elasticsearch based on config)
+        if self.audit_service:
+            try:
+                await self.audit_service.log_conversation(
+                    query=query,
+                    response=response,
+                    ip=client_ip,
+                    backend=backend,
+                    blocked=False,
+                    api_key=api_key,
+                    session_id=session_id,
+                    user_id=user_id
+                )
+            except Exception as e:
+                logger.error(f"Error logging conversation to AuditService: {str(e)}", exc_info=True)
 
     async def process_response(
         self,

@@ -230,6 +230,26 @@ class SQLiteService(DatabaseService):
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (file_id) REFERENCES uploaded_files(id)
                 )
+            ''',
+            'audit_logs': '''
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id TEXT PRIMARY KEY,
+                    timestamp TEXT NOT NULL,
+                    query TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    response_compressed INTEGER NOT NULL DEFAULT 0,
+                    backend TEXT,
+                    blocked INTEGER NOT NULL DEFAULT 0,
+                    ip TEXT,
+                    ip_type TEXT,
+                    ip_is_local INTEGER DEFAULT 0,
+                    ip_source TEXT,
+                    ip_original_value TEXT,
+                    api_key_value TEXT,
+                    api_key_timestamp TEXT,
+                    session_id TEXT,
+                    user_id TEXT
+                )
             '''
         }
 
@@ -267,6 +287,13 @@ class SQLiteService(DatabaseService):
             ],
             'file_chunks': [
                 'CREATE INDEX IF NOT EXISTS idx_file_chunks_file_id ON file_chunks(file_id)',
+            ],
+            'audit_logs': [
+                'CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_logs_session_id ON audit_logs(session_id)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_logs_blocked ON audit_logs(blocked)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_logs_backend ON audit_logs(backend)',
             ],
         }
 

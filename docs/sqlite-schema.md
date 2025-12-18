@@ -13,6 +13,7 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 - `chat_history` - Chat message history
 - `chat_history_archive` - Archived chat messages
 - `conversation_threads` - Conversation threading for intent adapters
+- `audit_logs` - Audit trail records for conversation logging and compliance
 
 ## Database File Location
 
@@ -251,6 +252,75 @@ CREATE TABLE IF NOT EXISTS conversation_threads (
 - `idx_conversation_threads_parent_session` on `parent_session_id`
 - `idx_conversation_threads_thread_session` on `thread_session_id`
 - `idx_conversation_threads_expires_at` on `expires_at`
+
+---
+
+### audit_logs
+
+Stores audit trail records for conversation logging and compliance.
+
+```sql
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id TEXT PRIMARY KEY,
+    timestamp TEXT NOT NULL,
+    query TEXT NOT NULL,
+    response TEXT NOT NULL,
+    response_compressed INTEGER NOT NULL DEFAULT 0,
+    backend TEXT,
+    blocked INTEGER NOT NULL DEFAULT 0,
+    ip TEXT,
+    ip_type TEXT,
+    ip_is_local INTEGER DEFAULT 0,
+    ip_source TEXT,
+    ip_original_value TEXT,
+    api_key_value TEXT,
+    api_key_timestamp TEXT,
+    session_id TEXT,
+    user_id TEXT
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Unique audit record ID (UUID)
+- `timestamp` (TEXT): ISO format timestamp of the conversation
+- `query` (TEXT): The user's query/message
+- `response` (TEXT): The system's response (plain text or base64-encoded gzip if compressed)
+- `response_compressed` (INTEGER): Whether response is compressed (1=compressed, 0=plain text)
+- `backend` (TEXT): The inference backend used (e.g., "ollama", "openai")
+- `blocked` (INTEGER): Whether the query was blocked (1=blocked, 0=allowed)
+- `ip` (TEXT): Client IP address
+- `ip_type` (TEXT): IP address type ("ipv4", "ipv6", "local", "unknown")
+- `ip_is_local` (INTEGER): Whether the IP is local/private (1=true, 0=false)
+- `ip_source` (TEXT): IP source ("direct", "proxy", "unknown")
+- `ip_original_value` (TEXT): Original IP value before processing
+- `api_key_value` (TEXT): API key used for the request (if any)
+- `api_key_timestamp` (TEXT): ISO timestamp when API key was used
+- `session_id` (TEXT): Session identifier for the conversation
+- `user_id` (TEXT): User identifier (if authenticated)
+
+**Indexes:**
+- `idx_audit_logs_timestamp` on `timestamp`
+- `idx_audit_logs_session_id` on `session_id`
+- `idx_audit_logs_user_id` on `user_id`
+- `idx_audit_logs_blocked` on `blocked`
+- `idx_audit_logs_backend` on `backend`
+
+**Configuration:**
+The audit storage backend is configured in `config/config.yaml`:
+
+```yaml
+internal_services:
+  audit:
+    enabled: true
+    storage_backend: "database"  # "elasticsearch", "sqlite", "mongodb", or "database"
+    collection_name: "audit_logs"
+    compress_responses: false    # Enable gzip compression for response field
+```
+
+When `storage_backend` is set to `"database"`, the audit service uses the same backend as configured in `internal_services.backend.type`.
+
+**Response Compression:**
+When `compress_responses: true`, the response field is stored as base64-encoded gzip data. This typically reduces storage by 70-90% for LLM responses. The `response_compressed` field indicates whether decompression is needed when reading. Set to `false` during development/testing to see plain text responses in the database.
 
 ---
 
