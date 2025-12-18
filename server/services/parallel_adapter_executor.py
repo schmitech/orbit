@@ -9,6 +9,7 @@ import asyncio
 import time
 import logging
 import random
+import threading
 from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass, field
 from enum import Enum
@@ -25,7 +26,7 @@ class CircuitState(Enum):
 
 @dataclass
 class CircuitBreakerStats:
-    """Simple stats for circuit breaker with memory leak prevention"""
+    """Simple stats for circuit breaker with memory leak prevention and thread safety"""
     failure_count: int = 0
     success_count: int = 0
     last_failure_time: Optional[float] = None
@@ -41,36 +42,62 @@ class CircuitBreakerStats:
     call_history: List[Dict[str, Any]] = field(default_factory=list)
     state_transitions: List[Dict[str, Any]] = field(default_factory=list)
     
+    # Max history size to cap list growth between cleanups (0 = unlimited)
+    max_history_size: int = 10000
+    max_transitions_size: int = 1000
+    
+    # Thread safety lock (not serialized)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+    
     def add_call_record(self, timestamp: float, success: bool, execution_time: float = 0.0):
-        """Add a call record to history"""
-        self.call_history.append({
-            'timestamp': timestamp,
-            'success': success,
-            'execution_time': execution_time
-        })
+        """Add a call record to history (thread-safe)"""
+        with self._lock:
+            self.call_history.append({
+                'timestamp': timestamp,
+                'success': success,
+                'execution_time': execution_time
+            })
+            # Enforce max size cap to prevent unbounded growth
+            if self.max_history_size > 0 and len(self.call_history) > self.max_history_size:
+                # Remove oldest records (keep most recent)
+                self.call_history = self.call_history[-self.max_history_size:]
     
     def add_state_transition(self, timestamp: float, from_state: str, to_state: str, reason: str = ""):
-        """Add a state transition record"""
-        self.state_transitions.append({
-            'timestamp': timestamp,
-            'from_state': from_state,
-            'to_state': to_state,
-            'reason': reason
-        })
+        """Add a state transition record (thread-safe)"""
+        with self._lock:
+            self.state_transitions.append({
+                'timestamp': timestamp,
+                'from_state': from_state,
+                'to_state': to_state,
+                'reason': reason
+            })
+            # Enforce max size cap to prevent unbounded growth
+            if self.max_transitions_size > 0 and len(self.state_transitions) > self.max_transitions_size:
+                # Remove oldest transitions (keep most recent)
+                self.state_transitions = self.state_transitions[-self.max_transitions_size:]
     
     def cleanup_old_records(self, cutoff_time: float):
-        """Remove records older than cutoff_time"""
-        # Clean up call history
-        self.call_history = [
-            record for record in self.call_history 
-            if record['timestamp'] >= cutoff_time
-        ]
-        
-        # Clean up state transitions
-        self.state_transitions = [
-            transition for transition in self.state_transitions 
-            if transition['timestamp'] >= cutoff_time
-        ]
+        """Remove records older than cutoff_time (thread-safe)"""
+        with self._lock:
+            # Clean up call history in-place to reduce memory spike
+            self.call_history[:] = [
+                record for record in self.call_history 
+                if record['timestamp'] >= cutoff_time
+            ]
+            
+            # Clean up state transitions in-place
+            self.state_transitions[:] = [
+                transition for transition in self.state_transitions 
+                if transition['timestamp'] >= cutoff_time
+            ]
+    
+    def get_history_sizes(self) -> Dict[str, int]:
+        """Get current history sizes (thread-safe)"""
+        with self._lock:
+            return {
+                'call_history_size': len(self.call_history),
+                'state_transitions_size': len(self.state_transitions)
+            }
 
 @dataclass
 class AdapterExecutionContext:
@@ -263,6 +290,7 @@ class SimpleCircuitBreaker:
                  recovery_timeout: float = 60.0, success_threshold: int = 3,
                  max_recovery_timeout: float = 300.0, enable_exponential_backoff: bool = True,
                  cleanup_interval: float = 3600.0, retention_period: float = 86400.0,
+                 max_history_size: int = 10000, max_transitions_size: int = 1000,
                  event_handler: Optional[CircuitBreakerEventHandler] = None):
         self.adapter_name = adapter_name
         self.failure_threshold = failure_threshold
@@ -274,6 +302,8 @@ class SimpleCircuitBreaker:
         # Memory leak prevention settings
         self.cleanup_interval = cleanup_interval  # How often to run cleanup (default: 1 hour)
         self.retention_period = retention_period  # How long to keep data (default: 24 hours)
+        self.max_history_size = max_history_size  # Max call history records (default: 10000)
+        self.max_transitions_size = max_transitions_size  # Max state transitions (default: 1000)
         self._last_cleanup = time.time()
         
         # Event handling
@@ -284,7 +314,10 @@ class SimpleCircuitBreaker:
         self.current_recovery_timeout = recovery_timeout
         
         self.state = CircuitState.CLOSED
-        self.stats = CircuitBreakerStats()
+        self.stats = CircuitBreakerStats(
+            max_history_size=max_history_size,
+            max_transitions_size=max_transitions_size
+        )
         self._state_changed_at = time.time()
     
     def _calculate_recovery_timeout(self) -> float:
@@ -442,10 +475,13 @@ class SimpleCircuitBreaker:
             )
     
     def get_status(self) -> Dict[str, Any]:
-        """Get circuit breaker status"""
+        """Get circuit breaker status (thread-safe)"""
         success_rate = 0.0
         if self.stats.total_calls > 0:
             success_rate = self.stats.total_successes / self.stats.total_calls
+        
+        # Get history sizes in a thread-safe manner
+        history_sizes = self.stats.get_history_sizes()
             
         return {
             "state": self.state.value,
@@ -456,8 +492,10 @@ class SimpleCircuitBreaker:
             "last_failure_time": self.stats.last_failure_time,
             "last_success_time": self.stats.last_success_time,
             "memory_usage": {
-                "call_history_size": len(self.stats.call_history),
-                "state_transitions_size": len(self.stats.state_transitions),
+                "call_history_size": history_sizes['call_history_size'],
+                "state_transitions_size": history_sizes['state_transitions_size'],
+                "max_history_size": self.max_history_size,
+                "max_transitions_size": self.max_transitions_size,
                 "last_cleanup": self._last_cleanup,
                 "cleanup_interval": self.cleanup_interval,
                 "retention_period": self.retention_period
@@ -479,16 +517,18 @@ class SimpleCircuitBreaker:
         if current_time - self._last_cleanup > self.cleanup_interval:
             cutoff_time = current_time - self.retention_period
             
-            # Get counts before cleanup
-            call_history_before = len(self.stats.call_history)
-            transitions_before = len(self.stats.state_transitions)
+            # Get counts before cleanup (thread-safe)
+            sizes_before = self.stats.get_history_sizes()
+            call_history_before = sizes_before['call_history_size']
+            transitions_before = sizes_before['state_transitions_size']
             
-            # Perform cleanup
+            # Perform cleanup (thread-safe)
             self.stats.cleanup_old_records(cutoff_time)
             
-            # Get counts after cleanup
-            call_history_after = len(self.stats.call_history)
-            transitions_after = len(self.stats.state_transitions)
+            # Get counts after cleanup (thread-safe)
+            sizes_after = self.stats.get_history_sizes()
+            call_history_after = sizes_after['call_history_size']
+            transitions_after = sizes_after['state_transitions_size']
             
             # Update last cleanup time
             self._last_cleanup = current_time
@@ -504,16 +544,18 @@ class SimpleCircuitBreaker:
         current_time = time.time()
         cutoff_time = current_time - self.retention_period
         
-        # Get counts before cleanup
-        call_history_before = len(self.stats.call_history)
-        transitions_before = len(self.stats.state_transitions)
+        # Get counts before cleanup (thread-safe)
+        sizes_before = self.stats.get_history_sizes()
+        call_history_before = sizes_before['call_history_size']
+        transitions_before = sizes_before['state_transitions_size']
         
-        # Perform cleanup
+        # Perform cleanup (thread-safe)
         self.stats.cleanup_old_records(cutoff_time)
         
-        # Get counts after cleanup
-        call_history_after = len(self.stats.call_history)
-        transitions_after = len(self.stats.state_transitions)
+        # Get counts after cleanup (thread-safe)
+        sizes_after = self.stats.get_history_sizes()
+        call_history_after = sizes_after['call_history_size']
+        transitions_after = sizes_after['state_transitions_size']
         
         # Update last cleanup time
         self._last_cleanup = current_time
@@ -525,7 +567,10 @@ class SimpleCircuitBreaker:
     def reset(self):
         """Reset the circuit breaker stats and state"""
         self.state = CircuitState.CLOSED
-        self.stats = CircuitBreakerStats()
+        self.stats = CircuitBreakerStats(
+            max_history_size=self.max_history_size,
+            max_transitions_size=self.max_transitions_size
+        )
         self._state_changed_at = time.time()
         
         # Reset exponential backoff state
@@ -561,12 +606,19 @@ class ParallelAdapterExecutor:
         
         # Circuit breaker configuration
         ft_config = config.get('fault_tolerance', {})
+        cb_config = ft_config.get('circuit_breaker', {})
         exec_config = ft_config.get('execution', {})
-        self.failure_threshold = ft_config.get('failure_threshold', 5)
-        self.recovery_timeout = ft_config.get('recovery_timeout', 60.0)
-        self.success_threshold = ft_config.get('success_threshold', 3)
+        self.failure_threshold = ft_config.get('failure_threshold', cb_config.get('failure_threshold', 5))
+        self.recovery_timeout = ft_config.get('recovery_timeout', cb_config.get('recovery_timeout', 60.0))
+        self.success_threshold = ft_config.get('success_threshold', cb_config.get('success_threshold', 3))
         # Use execution.timeout if available, else fallback
         self.operation_timeout = exec_config.get('timeout', ft_config.get('operation_timeout', 30.0))
+        
+        # Memory leak prevention global defaults (from circuit_breaker config)
+        self.cleanup_interval = cb_config.get('cleanup_interval', 3600.0)  # 1 hour default
+        self.retention_period = cb_config.get('retention_period', 86400.0)  # 24 hours default
+        self.max_history_size = cb_config.get('max_history_size', 10000)  # Max call history records
+        self.max_transitions_size = cb_config.get('max_transitions_size', 1000)  # Max state transitions
         
         # Execution configuration
         self.max_concurrent = exec_config.get('max_concurrent_adapters', ft_config.get('max_concurrent_adapters', 10))
@@ -677,9 +729,11 @@ class ParallelAdapterExecutor:
                         f"max_recovery_timeout={max_recovery_timeout}, "
                         f"exponential_backoff={enable_exponential_backoff}")
             
-            # Get memory leak prevention settings
-            cleanup_interval = ft_config.get('cleanup_interval', 3600.0)  # 1 hour default
-            retention_period = ft_config.get('retention_period', 86400.0)  # 24 hours default
+            # Get memory leak prevention settings with fallback to global config
+            cleanup_interval = ft_config.get('cleanup_interval', self.cleanup_interval)
+            retention_period = ft_config.get('retention_period', self.retention_period)
+            max_history_size = ft_config.get('max_history_size', self.max_history_size)
+            max_transitions_size = ft_config.get('max_transitions_size', self.max_transitions_size)
             
             # Get event handler configuration
             event_handler_config = ft_config.get('event_handler', {})
@@ -694,6 +748,8 @@ class ParallelAdapterExecutor:
                 enable_exponential_backoff,
                 cleanup_interval,
                 retention_period,
+                max_history_size,
+                max_transitions_size,
                 event_handler
             )
         return self.circuit_breakers[adapter_name]
@@ -1062,14 +1118,19 @@ class ParallelAdapterExecutor:
         logger.info(f"Forced cleanup of {total_cleaned} circuit breakers")
     
     def get_memory_usage_summary(self) -> Dict[str, Any]:
-        """Get memory usage summary for all circuit breakers"""
+        """Get memory usage summary for all circuit breakers (thread-safe)"""
         total_call_history = 0
         total_transitions = 0
         memory_by_adapter = {}
         
+        # Estimate ~250 bytes per record (dict overhead, strings, floats)
+        BYTES_PER_RECORD = 250
+        
         for adapter_name, cb in self.circuit_breakers.items():
-            call_history_size = len(cb.stats.call_history)
-            transitions_size = len(cb.stats.state_transitions)
+            # Use thread-safe accessor
+            sizes = cb.stats.get_history_sizes()
+            call_history_size = sizes['call_history_size']
+            transitions_size = sizes['state_transitions_size']
             
             total_call_history += call_history_size
             total_transitions += transitions_size
@@ -1077,6 +1138,8 @@ class ParallelAdapterExecutor:
             memory_by_adapter[adapter_name] = {
                 "call_history_size": call_history_size,
                 "state_transitions_size": transitions_size,
+                "max_history_size": cb.max_history_size,
+                "max_transitions_size": cb.max_transitions_size,
                 "last_cleanup": cb._last_cleanup,
                 "cleanup_interval": cb.cleanup_interval,
                 "retention_period": cb.retention_period
@@ -1085,7 +1148,7 @@ class ParallelAdapterExecutor:
         return {
             "total_call_history_records": total_call_history,
             "total_state_transition_records": total_transitions,
-            "total_memory_usage_estimate": (total_call_history + total_transitions) * 100,  # Rough estimate in bytes
+            "total_memory_usage_estimate": (total_call_history + total_transitions) * BYTES_PER_RECORD,
             "by_adapter": memory_by_adapter
         }
     

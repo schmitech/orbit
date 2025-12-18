@@ -8,7 +8,7 @@ The `SimpleCircuitBreaker` now includes comprehensive memory leak prevention to 
 
 ### 1. Time-Series Data Tracking
 
-The circuit breaker now tracks detailed historical data:
+The circuit breaker now tracks detailed historical data with thread-safe operations:
 
 ```python
 @dataclass
@@ -18,6 +18,13 @@ class CircuitBreakerStats:
     # Time-series data for memory leak prevention
     call_history: List[Dict[str, Any]] = field(default_factory=list)
     state_transitions: List[Dict[str, Any]] = field(default_factory=list)
+    
+    # Max history size to cap list growth between cleanups (0 = unlimited)
+    max_history_size: int = 10000
+    max_transitions_size: int = 1000
+    
+    # Thread safety lock (not serialized)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 ```
 
 **Call History Records:**
@@ -31,7 +38,14 @@ class CircuitBreakerStats:
 - `to_state`: New circuit state
 - `reason`: Why the transition happened
 
-### 2. Automatic Cleanup
+### 2. Thread Safety
+
+All list operations on `call_history` and `state_transitions` are protected by a `threading.Lock` to prevent race conditions during concurrent adapter execution. This ensures data integrity when:
+- Multiple coroutines record success/failure simultaneously
+- Cleanup runs while new records are being added
+- Status queries access history sizes
+
+### 3. Automatic Cleanup
 
 Circuit breakers automatically clean up old data based on configurable intervals:
 
@@ -39,18 +53,24 @@ Circuit breakers automatically clean up old data based on configurable intervals
 class SimpleCircuitBreaker:
     def __init__(self, adapter_name: str, 
                  cleanup_interval: float = 3600.0,    # 1 hour
-                 retention_period: float = 86400.0):  # 24 hours
+                 retention_period: float = 86400.0,   # 24 hours
+                 max_history_size: int = 10000,       # Max call history records
+                 max_transitions_size: int = 1000):   # Max state transitions
         self.cleanup_interval = cleanup_interval
         self.retention_period = retention_period
+        self.max_history_size = max_history_size
+        self.max_transitions_size = max_transitions_size
         self._last_cleanup = time.time()
 ```
 
 **Cleanup Process:**
 - Runs automatically every `cleanup_interval` seconds
 - Removes records older than `retention_period` seconds
+- Enforces `max_history_size` and `max_transitions_size` caps on every record
+- Uses in-place list filtering to reduce memory spike during cleanup
 - Logs cleanup statistics for monitoring
 
-### 3. Manual Cleanup
+### 4. Manual Cleanup
 
 Force immediate cleanup when needed:
 
@@ -62,7 +82,7 @@ cb.force_cleanup()
 executor.force_cleanup_all_circuit_breakers()
 ```
 
-### 4. Memory Usage Monitoring
+### 5. Memory Usage Monitoring
 
 Track memory usage across all circuit breakers:
 
@@ -74,11 +94,13 @@ memory_summary = executor.get_memory_usage_summary()
 {
     "total_call_history_records": 1250,
     "total_state_transition_records": 45,
-    "total_memory_usage_estimate": 129500,  # bytes
+    "total_memory_usage_estimate": 323750,  # bytes (~250 bytes per record)
     "by_adapter": {
         "qa-sql": {
             "call_history_size": 500,
             "state_transitions_size": 15,
+            "max_history_size": 10000,
+            "max_transitions_size": 1000,
             "last_cleanup": 1640995200.0,
             "cleanup_interval": 3600.0,
             "retention_period": 86400.0
@@ -96,8 +118,10 @@ Configure default cleanup behavior in `config.yaml`:
 ```yaml
 fault_tolerance:
   circuit_breaker:
-    cleanup_interval: 3600.0    # Default: 1 hour
-    retention_period: 86400.0   # Default: 24 hours
+    cleanup_interval: 3600.0      # Default: 1 hour
+    retention_period: 86400.0     # Default: 24 hours
+    max_history_size: 10000       # Default: 10000 call records max
+    max_transitions_size: 1000    # Default: 1000 state transitions max
 ```
 
 ### Adapter-Specific Settings
@@ -111,12 +135,16 @@ adapters:
       # ... other settings ...
       cleanup_interval: 3600.0         # Clean up every hour
       retention_period: 86400.0        # Keep data for 24 hours
+      max_history_size: 10000          # Max call records
+      max_transitions_size: 1000       # Max state transitions
       
   - name: "qa-vector-chroma"
     fault_tolerance:
       # ... other settings ...
       cleanup_interval: 1800.0         # Clean up every 30 minutes
       retention_period: 43200.0        # Keep data for 12 hours
+      max_history_size: 5000           # Lower max for high-traffic adapter
+      max_transitions_size: 500        # Lower max for high-traffic adapter
 ```
 
 ## Usage Examples
@@ -139,8 +167,10 @@ executor = ParallelAdapterExecutor(adapter_manager, config)
 # Create circuit breaker with custom cleanup settings
 cb = SimpleCircuitBreaker(
     adapter_name="my-adapter",
-    cleanup_interval=1800.0,    # Clean up every 30 minutes
-    retention_period=43200.0    # Keep data for 12 hours
+    cleanup_interval=1800.0,      # Clean up every 30 minutes
+    retention_period=43200.0,     # Keep data for 12 hours
+    max_history_size=5000,        # Cap at 5000 call records
+    max_transitions_size=500      # Cap at 500 state transitions
 )
 ```
 
@@ -174,21 +204,29 @@ print(f"QA-SQL call history: {adapter_info['call_history_size']} records")
 - Prevents unbounded memory growth
 - Automatically removes old data
 - Configurable retention periods
+- Hard caps on list sizes prevent runaway growth
 
-### 2. **Performance Optimization**
+### 2. **Thread Safety**
+- All list operations are protected by locks
+- Safe for concurrent adapter execution
+- No race conditions during cleanup
+
+### 3. **Performance Optimization**
 - Reduces memory pressure
 - Faster status queries
 - Better garbage collection
+- In-place list filtering reduces memory spikes
 
-### 3. **Monitoring and Debugging**
+### 4. **Monitoring and Debugging**
 - Preserves recent history for analysis
 - Tracks state transitions over time
-- Provides memory usage insights
+- Provides accurate memory usage estimates (~250 bytes/record)
 
-### 4. **Operational Control**
+### 5. **Operational Control**
 - Manual cleanup when needed
 - Configurable cleanup intervals
 - Adapter-specific settings
+- Configurable max sizes for fine-grained control
 
 ## Configuration Guidelines
 
@@ -200,6 +238,8 @@ For adapters with high call volumes:
 fault_tolerance:
   cleanup_interval: 1800.0      # Clean up every 30 minutes
   retention_period: 43200.0     # Keep data for 12 hours
+  max_history_size: 5000        # Lower cap for high traffic
+  max_transitions_size: 500     # Lower cap for high traffic
 ```
 
 ### Low-Traffic Adapters
@@ -210,6 +250,8 @@ For adapters with low call volumes:
 fault_tolerance:
   cleanup_interval: 7200.0      # Clean up every 2 hours
   retention_period: 172800.0    # Keep data for 48 hours
+  max_history_size: 10000       # Standard cap
+  max_transitions_size: 1000    # Standard cap
 ```
 
 ### Network Services
@@ -220,6 +262,8 @@ For external network services:
 fault_tolerance:
   cleanup_interval: 1800.0      # More frequent cleanup
   retention_period: 43200.0     # Shorter retention
+  max_history_size: 5000        # Moderate cap
+  max_transitions_size: 500     # Moderate cap
 ```
 
 ### Local Services
@@ -230,6 +274,8 @@ For local database operations:
 fault_tolerance:
   cleanup_interval: 3600.0      # Standard cleanup
   retention_period: 86400.0     # Standard retention
+  max_history_size: 10000       # Standard cap
+  max_transitions_size: 1000    # Standard cap
 ```
 
 ## Monitoring and Alerts
@@ -305,6 +351,8 @@ If memory usage is high:
    fault_tolerance:
      cleanup_interval: 1800.0      # More frequent
      retention_period: 21600.0     # Shorter retention
+     max_history_size: 5000        # Lower cap
+     max_transitions_size: 500     # Lower cap
    ```
 
 ### Cleanup Not Working
@@ -315,6 +363,7 @@ If cleanup isn't working:
 2. **Verify cleanup interval settings**
 3. **Check if circuit breakers are being used**
 4. **Force manual cleanup to test**
+5. **Note:** Cleanup only triggers when adapters receive new traffic
 
 ### Performance Impact
 
@@ -322,7 +371,35 @@ If cleanup impacts performance:
 
 1. **Increase cleanup interval**
 2. **Reduce retention period**
-3. **Monitor cleanup timing**
-4. **Consider background cleanup**
+3. **Lower max_history_size and max_transitions_size**
+4. **Monitor cleanup timing**
+
+## Technical Notes
+
+### Thread Safety
+
+All operations on `call_history` and `state_transitions` are protected by a `threading.Lock`:
+
+```python
+def add_call_record(self, timestamp: float, success: bool, execution_time: float = 0.0):
+    """Add a call record to history (thread-safe)"""
+    with self._lock:
+        self.call_history.append({...})
+        # Enforce max size cap
+        if self.max_history_size > 0 and len(self.call_history) > self.max_history_size:
+            self.call_history = self.call_history[-self.max_history_size:]
+```
+
+### Memory Estimation
+
+Memory usage is estimated at ~250 bytes per record, which accounts for:
+- Dictionary overhead
+- String keys and values
+- Float timestamps and execution times
+- Python object overhead
+
+### Max Size Enforcement
+
+The `max_history_size` and `max_transitions_size` parameters provide a hard cap on list growth. When exceeded, the oldest records are discarded to maintain the cap. This prevents unbounded memory growth even between cleanup intervals.
 
 This memory leak prevention system ensures that your circuit breakers remain efficient and don't consume excessive memory over time, while still providing valuable historical data for monitoring and debugging. 

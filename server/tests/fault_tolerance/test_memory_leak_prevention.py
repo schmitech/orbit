@@ -151,7 +151,9 @@ class TestMemoryLeakPrevention:
         cb = SimpleCircuitBreaker(
             adapter_name="test-adapter",
             cleanup_interval=3600.0,
-            retention_period=86400.0
+            retention_period=86400.0,
+            max_history_size=10000,
+            max_transitions_size=1000
         )
         
         # Add some records
@@ -168,6 +170,8 @@ class TestMemoryLeakPrevention:
         
         assert "call_history_size" in memory_info
         assert "state_transitions_size" in memory_info
+        assert "max_history_size" in memory_info
+        assert "max_transitions_size" in memory_info
         assert "last_cleanup" in memory_info
         assert "cleanup_interval" in memory_info
         assert "retention_period" in memory_info
@@ -175,6 +179,8 @@ class TestMemoryLeakPrevention:
         assert memory_info["call_history_size"] == 3
         assert memory_info["cleanup_interval"] == 3600.0
         assert memory_info["retention_period"] == 86400.0
+        assert memory_info["max_history_size"] == 10000
+        assert memory_info["max_transitions_size"] == 1000
     
     @pytest.mark.asyncio
     async def test_state_transition_recording(self):
@@ -263,6 +269,63 @@ class TestMemoryLeakPrevention:
         assert cb1.retention_period == 43200.0
         assert cb2.cleanup_interval == 7200.0
         assert cb2.retention_period == 172800.0
+    
+    def test_max_history_size_cap(self):
+        """Test that max_history_size caps the call history"""
+        cb = SimpleCircuitBreaker(
+            adapter_name="test-adapter",
+            max_history_size=5,
+            max_transitions_size=3
+        )
+        
+        # Add more records than the max
+        for i in range(10):
+            cb.record_success(execution_time=0.1)
+        
+        # Should be capped at max_history_size
+        assert len(cb.stats.call_history) == 5
+        
+        # Add state transitions
+        for i in range(5):
+            cb.stats.add_state_transition(time.time(), "closed", "open", f"test-{i}")
+        
+        # Should be capped at max_transitions_size
+        assert len(cb.stats.state_transitions) == 3
+    
+    def test_thread_safe_get_history_sizes(self):
+        """Test that get_history_sizes is thread-safe"""
+        cb = SimpleCircuitBreaker(adapter_name="test-adapter")
+        
+        # Add some records
+        cb.record_success(execution_time=0.1)
+        cb.record_failure(execution_time=0.2)
+        cb.stats.add_state_transition(time.time(), "closed", "open", "test")
+        
+        # Get sizes using thread-safe method
+        sizes = cb.stats.get_history_sizes()
+        
+        assert sizes['call_history_size'] == 2
+        assert sizes['state_transitions_size'] == 1
+    
+    @pytest.mark.asyncio
+    async def test_reset_preserves_max_size_settings(self):
+        """Test that reset preserves max size settings"""
+        cb = SimpleCircuitBreaker(
+            adapter_name="test-adapter",
+            max_history_size=100,
+            max_transitions_size=50
+        )
+        
+        # Add some records
+        cb.record_success(execution_time=0.1)
+        
+        # Reset
+        cb.reset()
+        await asyncio.sleep(0.01)  # Allow async tasks to complete
+        
+        # Verify max size settings are preserved
+        assert cb.stats.max_history_size == 100
+        assert cb.stats.max_transitions_size == 50
 
 
 if __name__ == "__main__":
