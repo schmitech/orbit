@@ -276,6 +276,32 @@ orbitchat --api-url http://localhost:3000 --api-key YOUR_API_KEY --open
   <i>Chatting with ORBIT using the React client.</i>
 </div>
 
+### Using the Node.js SDK
+
+ORBIT provides a native TypeScript/JavaScript client for seamless integration into Node.js, web, or mobile applications.
+
+```bash
+npm install @schmitech/chatbot-api
+```
+
+```typescript
+import { ApiClient } from '@schmitech/chatbot-api';
+
+const client = new ApiClient({
+    apiUrl: "http://localhost:3000",
+    apiKey: "YOUR_API_KEY"
+});
+
+async function chat() {
+    const stream = client.streamChat("How can I integrate ORBIT into my application?");
+    for await (const chunk of stream) {
+        process.stdout.write(chunk.text);
+    }
+}
+
+chat();
+```
+
 ### Using the OpenAI Python SDK
 
 ORBIT exposes an OpenAI-compatible `/v1/chat/completions` endpoint, letting you use the official `openai` Python library with your ORBIT server as a drop-in backend.

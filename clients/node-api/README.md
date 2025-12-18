@@ -12,12 +12,12 @@ npm install @schmitech/chatbot-api
 
 ### Configuration
 
-First, configure the API client with your server details:
+First, initialize the API client with your server details:
 
 ```typescript
-import { configureApi, streamChat } from '@schmitech/chatbot-api';
+import { ApiClient } from '@schmitech/chatbot-api';
 
-configureApi({
+const client = new ApiClient({
   apiUrl: 'https://your-api-server.com',
   apiKey: 'your-api-key',
   sessionId: 'optional-session-id' // Optional, for conversation tracking
@@ -28,7 +28,9 @@ configureApi({
 
 ```typescript
 async function chat() {
-  for await (const response of streamChat('Hello, how can I help?', true)) {
+  const stream = client.streamChat('Hello, how can I help?');
+  
+  for await (const response of stream) {
     console.log(response.text);
     if (response.done) {
       console.log('Chat complete!');
@@ -89,28 +91,40 @@ node test/test-npm-package.js "how many r are in a strawberry?" "http://localhos
 Here's how to use the API in a React component:
 
 ```tsx
-import React, { useState } from 'react';
-import { configureApi, streamChat } from '@schmitech/chatbot-api';
-
-// Configure once at app startup
-configureApi({
-  apiUrl: 'https://your-api-server.com',
-  apiKey: 'your-api-key',
-  sessionId: 'user_123_session_456' // Optional
-});
+import React, { useState, useMemo } from 'react';
+import { ApiClient } from '@schmitech/chatbot-api';
 
 function ChatComponent() {
   const [messages, setMessages] = useState<Array<{ text: string; isUser: boolean }>>([]);
   const [input, setInput] = useState('');
 
+  // Initialize client (memoize to avoid re-creation on every render)
+  const client = useMemo(() => new ApiClient({
+    apiUrl: 'https://your-api-server.com',
+    apiKey: 'your-api-key',
+    sessionId: 'user_123_session_456' // Optional
+  }), []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!input.trim()) return;
+
     setMessages(prev => [...prev, { text: input, isUser: true }]);
 
     let responseText = '';
-    for await (const response of streamChat(input, true)) {
+    const stream = client.streamChat(input);
+
+    for await (const response of stream) {
       responseText += response.text;
-      setMessages(prev => [...prev, { text: responseText, isUser: false }]);
+      setMessages(prev => {
+        const newMessages = [...prev];
+        if (newMessages.length > 0 && !newMessages[newMessages.length - 1].isUser && responseText.startsWith(newMessages[newMessages.length - 1].text)) {
+           // Update existing bot message if it's the last one
+           newMessages[newMessages.length - 1] = { text: responseText, isUser: false };
+           return newMessages;
+        }
+        return [...prev, { text: responseText, isUser: false }];
+      });
       if (response.done) break;
     }
     setInput('');
