@@ -38,7 +38,7 @@
 #   qa-sql -> sql-key
 #   qa-vector-chroma -> chroma-key
 #   qa-vector-qdrant-demo -> demo-key (EXCLUDED: requires special Qdrant deployment)
-#   intent-sql-sqlite-contact -> contact
+#   intent-sql-sqlite-hr -> hr
 #   intent-sql-sqlite-classified -> classified
 #   intent-duckdb-analytics -> analytical
 #   intent-sql-postgres -> postgres
@@ -427,7 +427,7 @@ declare -a all_adapters=(
     "qa-sql|sql-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|SQL QA Prompt"
     "qa-vector-chroma|chroma-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|Chroma QA Prompt"
     # "qa-vector-qdrant-demo|demo-key|..." excluded: requires special Qdrant deployment
-    "intent-sql-sqlite-contact|contact|examples/prompts/hr-assistant-prompt.txt|HR Assistant Prompt"
+    "intent-sql-sqlite-hr|hr|examples/prompts/hr-assistant-prompt.txt|HR Assistant Prompt"
     "intent-sql-sqlite-classified|classified|examples/prompts/analytics-assistant-prompt.txt|Classified Data Prompt"
     "intent-duckdb-analytics|analytical|utils/duckdb-intent-template/examples/analytics/analytics-assistant-prompt.txt|DuckDB Analytics Prompt"
     "intent-sql-postgres|postgres|examples/postgres/prompts/customer-assistant-enhanced-prompt.txt|PostgreSQL Customer Orders Prompt"
@@ -604,7 +604,7 @@ I can help you find information about:
 **What would you like to know about your city?**
 NOTES_EOF
             ;;
-        "intent-sql-sqlite-contact")
+        "intent-sql-sqlite-hr")
             cat <<'NOTES_EOF'
 ## Welcome to ORBIT HR Assistant 👥
 
