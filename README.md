@@ -189,13 +189,21 @@ source venv/bin/activate
 cat ./logs/orbit.log
 ```
 
-**Note:** After starting the server, you'll need to create an API key using `./bin/orbit.sh key create` before you can use the chat clients.
+#### 5. Access the Dashboard
 
-The Docker image includes a self-contained server with a local model and a pre-configured API key—no setup required.
+Once the server is running, open your browser and navigate to:
 
-**Dashboard:** `http://localhost:3000/dashboard`
+**🖥️ Dashboard:** [`http://localhost:3000/dashboard`](http://localhost:3000/dashboard)
 
-For details on creating custom API keys, see the [Tutorial](docs/tutorial.md#creating-an-api-key).
+The dashboard provides a visual interface to manage adapters, monitor conversations, and configure your ORBIT instance.
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/ec9bda9b-3b86-488f-af16-ec8e9d964697" controls width="100%">
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <em>The ORBIT Dashboard in action</em>
+</div>
 
 ### Option 3: Clone from Git (Development)
 
