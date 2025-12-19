@@ -266,7 +266,7 @@ orbit-chat --api-key YOUR_API_KEY
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/c53ddc9b-147d-4bf6-b5e0-982573e1e2b9" controls>
+  <video src="https://github.com/user-attachments/assets/97a872f3-0752-4c22-a690-bd75635a0741" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
