@@ -100,8 +100,12 @@ Your star isn't just a vanity metric—it directly helps the project:
 
 ---
 
+🧪 **Sandbox Environment:** https://orbit.schmitech.ai/
 
-## 🚀 Quick Start
+*This environment is unstable and may be unavailable at any given time. Not for production use—just examples showing ORBIT functionality. Prompts are not retained.*
+
+
+## 🚀 Deployment Guide
 
 There are three ways to get started with ORBIT.
 
