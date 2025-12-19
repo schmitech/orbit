@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  middleware-proxy:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - LOG_REQUESTS=true
+      # Configure these for your deployment:
+      # - ALLOWED_ORIGINS=https://app.example.com,https://widget.example.com
+      # - RATE_LIMIT_WINDOW_MS=60000
+      # - RATE_LIMIT_MAX_REQUESTS=100
+      # - ORBIT_ADAPTERS=${ORBIT_ADAPTERS}
+    # For using environment file:
+    # env_file:
+    #   - .env
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    restart: unless-stopped
+    # Resource limits (adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M

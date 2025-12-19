@@ -1,0 +1,66 @@
+{
+  "name": "@schmitech/middleware-proxy",
+  "version": "1.0.0",
+  "description": "Standalone middleware proxy for ORBIT chat applications - hides API keys and provides rate limiting",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "middleware-proxy": "./bin/middleware-proxy.js"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node bin/middleware-proxy.js",
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.0.1",
+    "express-rate-limit": "^7.1.5",
+    "http-proxy-middleware": "^3.0.5",
+    "pino": "^8.17.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^20.11.0",
+    "pino-pretty": "^10.3.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "orbit",
+    "middleware",
+    "proxy",
+    "api",
+    "chat",
+    "rate-limiting"
+  ],
+  "author": "Schmitech",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/schmitech/orbit.git",
+    "directory": "clients/middleware-proxy"
+  }
+}
