@@ -27,6 +27,7 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.styles import Style
 from prompt_toolkit.shortcuts import CompleteStyle
+from prompt_toolkit.layout import menus as prompt_menus
 
 # Initialize Rich console
 console = Console()
@@ -74,6 +75,24 @@ prompt_style = Style.from_dict({
     'prompt': 'fg:#7aa2f7 bold',
     '': 'fg:#c0caf5',
 })
+
+# Remove the default left padding so slash command completions line up with the cursor.
+_original_menu_fragment_fn = getattr(prompt_menus, "_get_menu_item_fragments", None)
+if _original_menu_fragment_fn and not getattr(prompt_menus, "_orbit_menu_patch", False):
+    def _flush_left_menu_item_fragments(*args, _orig=_original_menu_fragment_fn, **kwargs):
+        fragments = _orig(*args, **kwargs)
+        if fragments:
+            style, text = fragments[0]
+            if text.startswith(" "):
+                trimmed = text[1:]
+                if trimmed:
+                    fragments[0] = (style, trimmed)
+                else:
+                    del fragments[0]
+        return fragments
+
+    prompt_menus._get_menu_item_fragments = _flush_left_menu_item_fragments
+    prompt_menus._orbit_menu_patch = True
 
 
 def _normalize_api_url(api_url: str) -> str:
