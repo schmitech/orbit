@@ -400,6 +400,26 @@ def clean_response(text):
             text = text[len(prefix):].lstrip()
     return text.strip()
 
+
+# Precompiled patterns we treat as a hint that the response is Markdown.
+MARKDOWN_PATTERNS = [
+    re.compile(r"(^|\n)\s{0,3}#{1,6}\s+\S"),  # headings
+    re.compile(r"```"),  # fenced code blocks
+    re.compile(r"(^|\n)\s{0,3}[-*+]\s+\S"),  # unordered lists
+    re.compile(r"(^|\n)\s{0,3}\d+\.\s+\S"),  # ordered lists
+    re.compile(r"(^|\n)>\s+\S"),  # block quotes
+    re.compile(r"`[^`]+`"),  # inline code
+    re.compile(r"\|.+\|"),  # tables
+    re.compile(r"\*\*[^*]+\*\*"),  # bold text
+]
+
+
+def contains_markdown(text: str) -> bool:
+    """Returns True if the text contains Markdown syntax we want to render."""
+    if not text:
+        return False
+    return any(pattern.search(text) for pattern in MARKDOWN_PATTERNS)
+
 def handle_slash_command(command, session_id, args, session=None):
     """Handle slash commands like /help, /clear, etc."""
     cmd = command.lower().strip()
@@ -551,94 +571,114 @@ def stream_chat(url, message, api_key=None, session_id=None, debug=False, progre
         first_token_time = None
         full_response = ""
         buffer = ""
+        live_display = Live(
+            Text("", style=ASSISTANT_STYLE),
+            console=console,
+            refresh_per_second=10,
+            transient=False
+        )
+        live_started = False
+        render_markdown = False
 
         # Use httpx for true streaming - it doesn't buffer like requests
-        with httpx.Client(timeout=60.0) as client:
-            with client.stream("POST", url, headers=headers, json=data) as response:
-                if response.status_code != 200:
-                    # Stop progress immediately on error
-                    if progress:
-                        progress.stop()
-                    console.print(f"❌ Error: Server returned status code {response.status_code}", style=ERROR_STYLE)
-                    try:
-                        error_detail = response.json()
-                        console.print(f"Error details: {error_detail}", style=ERROR_STYLE)
-                    except:
-                        console.print(f"Error response: {response.text}", style=ERROR_STYLE)
-                    if debug:
-                        console.print(Panel(response.text, title="Full Response", border_style="red"))
-                    return None, None
-
-                try:
-                    line_buffer = ""
-                    chunk_count = 0
-                    last_printed_len = 0
-
-                    # iter_text() yields text as it arrives - no buffering
-                    for chunk in response.iter_text():
-                        if not chunk:
-                            continue
-
-                        chunk_count += 1
+        try:
+            with httpx.Client(timeout=60.0) as client:
+                with client.stream("POST", url, headers=headers, json=data) as response:
+                    if response.status_code != 200:
+                        # Stop progress immediately on error
+                        if progress:
+                            progress.stop()
+                        console.print(f"❌ Error: Server returned status code {response.status_code}", style=ERROR_STYLE)
+                        try:
+                            error_detail = response.json()
+                            console.print(f"Error details: {error_detail}", style=ERROR_STYLE)
+                        except:
+                            console.print(f"Error response: {response.text}", style=ERROR_STYLE)
                         if debug:
-                            console.print(f"[dim]CHUNK #{chunk_count}: {len(chunk)} bytes[/dim]")
+                            console.print(Panel(response.text, title="Full Response", border_style="red"))
+                        return None, None
 
-                        line_buffer += chunk
+                    try:
+                        line_buffer = ""
+                        chunk_count = 0
 
-                        # Process complete lines (SSE format ends with \n)
-                        while '\n' in line_buffer:
-                            line, line_buffer = line_buffer.split('\n', 1)
-                            line = line.strip()
-
-                            if not line or not line.startswith('data: '):
+                        # iter_text() yields text as it arrives - no buffering
+                        for chunk in response.iter_text():
+                            if not chunk:
                                 continue
 
-                            data_text = line[6:].strip()
-                            if not data_text or data_text == "[DONE]":
-                                continue
+                            chunk_count += 1
+                            if debug:
+                                console.print(f"[dim]CHUNK #{chunk_count}: {len(chunk)} bytes[/dim]")
 
-                            try:
-                                chunk_data = json.loads(data_text)
-                                if first_token_time is None:
-                                    first_token_time = time.time()
-                                    # Stop the progress spinner immediately on first token
-                                    if progress:
-                                        progress.stop()
-                                        progress = None
+                            line_buffer += chunk
 
-                                if "response" in chunk_data:
-                                    new_text = chunk_data.get("response", "")
-                                    buffer += new_text
-                                    # Print new text directly for real-time streaming
-                                    if new_text:
-                                        print(new_text, end="", flush=True)
+                            # Process complete lines (SSE format ends with \n)
+                            while '\n' in line_buffer:
+                                line, line_buffer = line_buffer.split('\n', 1)
+                                line = line.strip()
 
-                                elif "error" in chunk_data:
-                                    error_msg = chunk_data.get("error", "Unknown error")
-                                    if isinstance(error_msg, dict):
-                                        error_msg = error_msg.get("message", "Unknown error")
-                                    console.print(f"\n❌ Error from server: {error_msg}", style=ERROR_STYLE)
-                                    return error_msg, None
+                                if not line or not line.startswith('data: '):
+                                    continue
 
-                            except json.JSONDecodeError as e:
-                                if debug:
-                                    console.print(f"\n❌ JSON decode error: {e} for data: {data_text}", style=ERROR_STYLE)
-                                continue
-                            except Exception as e:
-                                if debug:
-                                    console.print(f"\n❌ Error processing chunk: {e}", style=ERROR_STYLE)
-                                continue
+                                data_text = line[6:].strip()
+                                if not data_text or data_text == "[DONE]":
+                                    continue
 
-                    # Print newline after streaming completes
-                    print()
+                                try:
+                                    chunk_data = json.loads(data_text)
+                                    if first_token_time is None:
+                                        first_token_time = time.time()
+                                        # Stop the progress spinner immediately on first token
+                                        if progress:
+                                            progress.stop()
+                                            progress = None
 
-                    # Set the final cleaned response
-                    full_response = clean_response(buffer)
+                                    if "response" in chunk_data:
+                                        new_text = chunk_data.get("response", "")
+                                        if new_text:
+                                            buffer += new_text
+                                            if not live_started:
+                                                live_display.start()
+                                                live_started = True
+                                            render_markdown = render_markdown or contains_markdown(buffer)
+                                            if render_markdown:
+                                                live_display.update(Markdown(buffer))
+                                            else:
+                                                live_display.update(Text(buffer, style=ASSISTANT_STYLE))
 
-                except Exception as e:
-                    if debug:
-                        console.print(f"\n❌ Streaming error: {e}", style=ERROR_STYLE)
-                    raise
+                                    elif "error" in chunk_data:
+                                        error_msg = chunk_data.get("error", "Unknown error")
+                                        if isinstance(error_msg, dict):
+                                            error_msg = error_msg.get("message", "Unknown error")
+                                        console.print(f"\n❌ Error from server: {error_msg}", style=ERROR_STYLE)
+                                        return error_msg, None
+
+                                except json.JSONDecodeError as e:
+                                    if debug:
+                                        console.print(f"\n❌ JSON decode error: {e} for data: {data_text}", style=ERROR_STYLE)
+                                    continue
+                                except Exception as e:
+                                    if debug:
+                                        console.print(f"\n❌ Error processing chunk: {e}", style=ERROR_STYLE)
+                                    continue
+
+                        # Set the final cleaned response
+                        full_response = clean_response(buffer)
+                        if live_started and full_response:
+                            final_markdown = contains_markdown(full_response)
+                            if final_markdown:
+                                live_display.update(Markdown(full_response))
+                            else:
+                                live_display.update(Text(full_response, style=ASSISTANT_STYLE))
+
+                    except Exception as e:
+                        if debug:
+                            console.print(f"\n❌ Streaming error: {e}", style=ERROR_STYLE)
+                        raise
+        finally:
+            if live_started:
+                live_display.stop()
 
         end_time = time.time()
         total_time = end_time - start_time
