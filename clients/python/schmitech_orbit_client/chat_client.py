@@ -28,6 +28,8 @@ from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.styles import Style
 from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.layout import menus as prompt_menus
+from prompt_toolkit.layout.controls import BufferControl
+from prompt_toolkit.layout.screen import Point
 
 # Initialize Rich console
 console = Console()
@@ -93,6 +95,19 @@ if _original_menu_fragment_fn and not getattr(prompt_menus, "_orbit_menu_patch",
 
     prompt_menus._get_menu_item_fragments = _flush_left_menu_item_fragments
     prompt_menus._orbit_menu_patch = True
+
+_buffer_control_create_content = getattr(BufferControl, "create_content", None)
+if _buffer_control_create_content and not getattr(BufferControl, "_orbit_menu_shift_patch", False):
+    def _buffer_control_create_content_with_shift(self, *args, **kwargs):
+        content = _buffer_control_create_content(self, *args, **kwargs)
+        shift = getattr(self.buffer, "_orbit_completion_shift", 0)
+        if shift and content.menu_position:
+            new_x = max(0, content.menu_position.x + shift)
+            content.menu_position = Point(x=new_x, y=content.menu_position.y)
+        return content
+
+    BufferControl.create_content = _buffer_control_create_content_with_shift
+    BufferControl._orbit_menu_shift_patch = True
 
 
 def _normalize_api_url(api_url: str) -> str:
@@ -759,6 +774,7 @@ def main():
         style=prompt_style,
         complete_style=CompleteStyle.COLUMN
     )
+    setattr(session.default_buffer, "_orbit_completion_shift", -1)
 
     # Welcome banner
     welcome_panel = Panel.fit(
@@ -802,6 +818,7 @@ def main():
                         style=prompt_style,
                         complete_style=CompleteStyle.COLUMN
                     )
+                    setattr(session.default_buffer, "_orbit_completion_shift", -1)
                 continue
             
             # Add to conversation history
