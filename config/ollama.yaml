@@ -174,6 +174,61 @@ ollama_presets:
     keep_alive: "15m"
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # Qwen3 4B on GPU - Capable inference model with GPU acceleration
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Model: https://ollama.com/library/qwen3
+  # 
+  # Qwen3 4B is a capable language model for general inference tasks.
+  # Good balance of performance and resource usage with GPU acceleration.
+  # ═══════════════════════════════════════════════════════════════════════════
+  qwen3:4b-gpu:
+    base_url: "http://localhost:11434"
+    model: "qwen3:4b"
+    stream: true
+    think: true  # Qwen3 supports think mode well
+    # Generation parameters
+    temperature: 0.6
+    top_p: 0.85
+    top_k: 40
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 8192
+    repeat_penalty: 1.1
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # Context - Qwen3 supports larger context
+    num_ctx: 32768  # 32K context
+    num_keep: 4096
+    penalize_newline: false
+    stop: []
+    # GPU optimized settings
+    num_threads: 4  # Reduced CPU threads when GPU does heavy lifting
+    num_batch: 512  # Larger batch for GPU efficiency
+    num_gpu: -1  # All layers on GPU
+    main_gpu: 0
+    low_vram: false  # Set to true if running low on VRAM (4B needs ~5-6GB VRAM)
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    seed: null
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 180000  # 3 minutes for 4B model
+      warmup: 180000
+    keep_alive: "15m"
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # Llama 3.2 3B on CPU - Good balance of capability and CPU performance
   # ═══════════════════════════════════════════════════════════════════════════
   llama3-3b-cpu:
