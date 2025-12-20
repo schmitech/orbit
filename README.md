@@ -28,11 +28,6 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
   <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=for-the-badge&logo=github&label=Star%20on%20GitHub&color=yellow" alt="Star on GitHub"></a>
 </p>
 
-<video src="https://github.com/user-attachments/assets/b188a903-c6b0-44a9-85ad-5191f36778dc" controls width="800" style="display: block; margin-left: 0;">
-  Your browser does not support the video tag.
-</video>
-<br/>
-
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
 - **Updates:** Check the [changelog](CHANGELOG.md)
 - **Commercial Support:** [schmitech.ai](https://schmitech.ai/en)
@@ -54,7 +49,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 ## Highlights
 
 - **Unified AI gateway** supporting 20+ LLM providers (OpenAI, Anthropic, Gemini, Cohere, Mistral, Ollama, Groq, DeepSeek, xAI, OpenRouter, and more) plus local models via Ollama, llama.cpp, and vLLM.
-- **Comprehensive data integration** with RAG adapters for SQL databases (PostgreSQL, MySQL, SQLite, DuckDB, Oracle, SQL Server, Cassandra), vector stores (Chroma, Qdrant, Pinecone, Milvus, Elasticsearch, Redis), MongoDB, HTTP APIs, and file uploads with multimodal support.
+- **Data integration** with RAG adapters for SQL databases (PostgreSQL, MySQL, SQLite, DuckDB, Oracle, SQL Server, Cassandra), vector stores (Chroma, Qdrant, Pinecone, Milvus, Elasticsearch, Redis), MongoDB, HTTP APIs, and file uploads with multimodal support.
 - **Intelligent query processing** with intent-based adapters that translate natural language to SQL, Elasticsearch queries, MongoDB queries, and HTTP API calls.
 - **Vision capabilities** with support for vLLM, OpenAI, Gemini, and Anthropic vision models for image analysis and OCR.
 - **Secure by default** with token-based auth, role-aware API keys, and pluggable content moderation.
@@ -287,6 +282,43 @@ orbitchat --api-url http://localhost:3000 --api-key YOUR_API_KEY --open
   <br/>
   <i>Chatting with ORBIT using the React client.</i>
 </div>
+
+### Using the Embeddable Chat Widget
+
+Add an AI chatbot to any website with the [@schmitech/chatbot-widget](https://www.npmjs.com/package/@schmitech/chatbot-widget). Supports floating and embedded modes with full theme customization.
+
+```html
+<!-- Add to your HTML -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.umd.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.css">
+
+<script>
+  window.addEventListener('load', function() {
+    window.initChatbotWidget({
+      apiUrl: 'http://localhost:3000',
+      apiKey: 'YOUR_API_KEY',
+      sessionId: 'session-' + Date.now(),
+      widgetConfig: {
+        header: { title: "ORBIT Assistant" },
+        welcome: { title: "Hello! 👋", description: "How can I help you today?" }
+      }
+    });
+  });
+</script>
+```
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/13166436-d4e1-4753-8c6c-c665c34874d8" controls width="100%">
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <em>The embeddable chat widget in action. Try the <a href="clients/chat-widget/theming-app/">theming app</a> to customize and preview your widget.</em>
+</div>
+
+
+For full configuration options, themes, and integration guides, see [clients/chat-widget/README.md](clients/chat-widget/README.md).
 
 ### Using the Node.js SDK
 
