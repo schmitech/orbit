@@ -38,4 +38,25 @@ declare module '@schmitech/chatbot-api' {
     apiKey?: string | null,
     sessionId?: string | null
   ): void;
+
+  export class ApiClient {
+    constructor(config: {
+      apiUrl: string;
+      apiKey?: string | null;
+      sessionId?: string | null;
+    });
+
+    deleteConversationWithFiles(
+      sessionId?: string,
+      fileIds?: string[]
+    ): Promise<{
+      status: string;
+      message: string;
+      session_id: string;
+      deleted_messages: number;
+      deleted_files: number;
+      file_deletion_errors: string[] | null;
+      timestamp: string;
+    }>;
+  }
 }

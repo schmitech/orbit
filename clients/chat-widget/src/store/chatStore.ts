@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { configureApi, streamChat } from '@schmitech/chatbot-api';
+import { ApiClient, configureApi, streamChat } from '@schmitech/chatbot-api';
 import { getApiUrl, getApiKey } from '../index';
 import { getOrCreateSessionId, setSessionId } from '../utils/sessionManager';
 import { CHAT_CONSTANTS } from '../shared/styles';
@@ -20,12 +20,15 @@ interface ChatState {
   sessionId: string;
   sendMessage: (content: string) => Promise<void>;
   appendToLastMessage: (content: string) => void;
+  deleteConversation: () => Promise<void>;
   clearMessages: () => void;
   getSessionId: () => string;
 }
 
 // Track if API is configured
 let isApiConfigured = false;
+let configuredApiUrl: string | null = null;
+let configuredApiKey: string | null = null;
 
 function ensureApiConfigured(): boolean {
   if (isApiConfigured) {
@@ -67,6 +70,8 @@ function ensureApiConfigured(): boolean {
       }
 
       configureApi(apiUrl, apiKey, sessionId);
+      configuredApiUrl = apiUrl;
+      configuredApiKey = apiKey;
       isApiConfigured = true;
       return true;
     }
@@ -74,6 +79,38 @@ function ensureApiConfigured(): boolean {
     console.error('Failed to configure API:', err);
   }
   return false;
+}
+
+function resolveApiCredentials(): { apiUrl: string; apiKey: string } | null {
+  let apiUrl: string | null = configuredApiUrl;
+  let apiKey: string | null = configuredApiKey;
+
+  if (typeof window !== 'undefined') {
+    apiUrl = apiUrl || window.CHATBOT_API_URL || null;
+    apiKey = apiKey || window.CHATBOT_API_KEY || null;
+  }
+
+  if (!apiUrl) {
+    try {
+      apiUrl = getApiUrl();
+    } catch {
+      apiUrl = null;
+    }
+  }
+
+  if (!apiKey) {
+    try {
+      apiKey = getApiKey();
+    } catch {
+      apiKey = null;
+    }
+  }
+
+  if (apiUrl && apiKey) {
+    return { apiUrl, apiKey };
+  }
+
+  return null;
 }
 
 // Helper function to generate unique IDs
@@ -250,6 +287,36 @@ export const useChatStore = create<ChatState>((set, get) => ({
       
       return { messages };
     });
+  },
+  
+  deleteConversation: async () => {
+    const sessionId = get().sessionId || getOrCreateSessionId();
+
+    // Attempt to ensure API is configured before deletion
+    const apiReady = ensureApiConfigured();
+    if (!apiReady) {
+      console.warn('API not fully configured. Attempting to delete with available credentials.');
+    }
+
+    const credentials = resolveApiCredentials();
+    if (!credentials) {
+      console.warn('Missing API credentials. Clearing local messages without server deletion.');
+      set({ messages: [], isLoading: false });
+      return;
+    }
+
+    try {
+      const apiClient = new ApiClient({
+        apiUrl: credentials.apiUrl,
+        apiKey: credentials.apiKey,
+        sessionId
+      });
+      await apiClient.deleteConversationWithFiles(sessionId);
+    } catch (error) {
+      console.error('Failed to delete conversation from server:', error);
+    } finally {
+      set({ messages: [], isLoading: false });
+    }
   },
   
   clearMessages: () => {

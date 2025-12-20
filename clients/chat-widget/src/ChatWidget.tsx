@@ -139,7 +139,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     messages,
     isLoading,
     sendMessage,
-    clearMessages
+    deleteConversation
   } = useChatStore();
 
   // Use input management hook
@@ -189,6 +189,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
       console.error('Failed to copy text: ', err);
     }
   }, []);
+
+  const handleDeleteConversation = useCallback(async () => {
+    try {
+      await deleteConversation();
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+    } finally {
+      clearAnimationTrackers();
+    }
+  }, [deleteConversation, clearAnimationTrackers]);
 
   // Format timestamp (note: uses a relative offset since messages lack explicit timestamps)
   const formatTime = useCallback((date: Date): string => {
@@ -386,10 +396,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             </div>
             <div className="flex items-center space-x-2 relative z-10">
               <button
-                onClick={() => {
-                  clearMessages();
-                  clearAnimationTrackers();
-                }}
+                onClick={handleDeleteConversation}
                 className="btn-modern transition-all duration-200 p-2 rounded-xl hover:bg-white hover:bg-opacity-20 animate-button-hover"
                 style={{ color: theme.text.inverse }}
                 aria-label="Clear conversation"

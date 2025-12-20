@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@schmitech/chatbot-api": "^2.1.2",
-    "@schmitech/markdown-renderer": "^0.7.0",
+    "@schmitech/markdown-renderer": "^0.7.4",
     "express": "^5.0.1",
     "http-proxy-middleware": "^3.0.5",
     "js-yaml": "^4.1.1",

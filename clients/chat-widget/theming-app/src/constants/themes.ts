@@ -34,24 +34,24 @@ export const defaultWidgetConfig: WidgetConfig = {
   },
   suggestedQuestions: [
     {
-      text: '🤔 What is the Theming App?',
-      query: 'What is this platform?'
+      text: '👋 Introduce yourself',
+      query: 'Hello! Please introduce yourself and tell me what you can help with.'
     },
     {
-      text: '🎨 How do I customize the widget?',
-      query: 'How do I customize the widget?'
+      text: '💡 Explain quantum computing',
+      query: 'Explain quantum computing in simple terms.'
     },
     {
-      text: '🔑 Where do I set the API key?',
-      query: 'Where do I set the API key?'
+      text: '🍳 Give me a recipe',
+      query: 'What is a quick and easy pasta recipe?'
     },
     {
-      text: '📤 How do I export code?',
-      query: 'How do I export code?'
+      text: '🧠 Tell me a fun fact',
+      query: 'Tell me a surprising fun fact I probably don\'t know.'
     },
     {
-      text: '🧪 Is it in beta and free?',
-      query: 'Is it in beta and free?'
+      text: '📝 Write a haiku',
+      query: 'Write a haiku about technology.'
     }
   ],
   maxSuggestedQuestionLength: 120,
