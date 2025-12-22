@@ -265,9 +265,15 @@ class ChromaStore(BaseVectorStore):
             return formatted_results
             
         except Exception as e:
+            # Check if this is a stale collection error and invalidate cache
+            error_str = str(e).lower()
+            if "does not exist" in error_str or "not found" in error_str:
+                if collection_name in self._collections:
+                    del self._collections[collection_name]
+                    logger.warning(f"Invalidated stale collection cache for {collection_name}")
             logger.error(f"Error searching vectors in ChromaDB: {e}")
             return []
-    
+
     async def get_vector(self, 
                         vector_id: str, 
                         collection_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -517,7 +523,15 @@ class ChromaStore(BaseVectorStore):
         """Get a ChromaDB collection object."""
         # Check cache first
         if collection_name in self._collections:
-            return self._collections[collection_name]
+            cached_collection = self._collections[collection_name]
+            # Validate the cached collection still exists
+            try:
+                cached_collection.count()  # This will fail if collection no longer exists
+                return cached_collection
+            except Exception:
+                # Collection no longer exists, remove stale entry from cache
+                del self._collections[collection_name]
+                logger.debug(f"Removed stale collection {collection_name} from cache")
 
         try:
             collection = self._client.get_collection(name=collection_name)
