@@ -97,6 +97,7 @@ export function MessageInput({
   const [isHoveringMic, setIsHoveringMic] = useState(false);
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
   const voiceMessageRef = useRef('');
@@ -125,6 +126,19 @@ export function MessageInput({
 
   const { createConversation, currentConversationId, conversations, isLoading, syncConversationFiles } = useChatStore();
   const currentConversation = conversations.find(c => c.id === currentConversationId);
+  const conversationMessagesCount = currentConversation
+    ? currentConversation.messages.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length
+    : 0;
+  const totalMessagesCount = conversations.reduce(
+    (total, conv) => total + conv.messages.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length,
+    0
+  );
+  const conversationMessageLimitReached =
+    !!currentConversation &&
+    AppConfig.maxMessagesPerConversation !== null &&
+    conversationMessagesCount >= AppConfig.maxMessagesPerConversation;
+  const workspaceMessageLimitReached =
+    AppConfig.maxTotalMessages !== null && totalMessagesCount >= AppConfig.maxTotalMessages;
 
   const handleVoiceCompletion = useCallback(() => {
     setVoiceCompletionCount((count) => count + 1);
@@ -150,6 +164,16 @@ export function MessageInput({
 
   // Check if any files are currently uploading or processing
   const conversationFiles = currentConversation?.attachedFiles || [];
+  const totalFilesAcrossConversations = conversations.reduce(
+    (total, conv) => total + (conv.attachedFiles?.length || 0),
+    0
+  );
+  const conversationFileLimitReached =
+    AppConfig.maxFilesPerConversation !== null &&
+    AppConfig.maxFilesPerConversation > 0 &&
+    conversationFiles.length >= AppConfig.maxFilesPerConversation;
+  const workspaceFileLimitReached =
+    AppConfig.maxTotalFiles !== null && totalFilesAcrossConversations >= AppConfig.maxTotalFiles;
   
   // Check if adapter supports file processing
   const isFileSupported = currentConversation?.adapterInfo?.isFileSupported ?? false;
@@ -181,11 +205,13 @@ export function MessageInput({
   const hasAnyUploadingConversations = Object.values(conversationUploadingState).some(Boolean);
 
   // Disable input if files are uploading, processing, or if already disabled
-  const isInputDisabled = disabled || hasProcessingFiles || isUploading;
+  const messageLimitActive = conversationMessageLimitReached || workspaceMessageLimitReached;
+  const isInputDisabled = disabled || hasProcessingFiles || isUploading || messageLimitActive;
   
   const canUseFileUploads = uploadFeatureEnabled && isFileSupported;
   // Disable file upload button if feature disabled, adapter doesn't support files, or input is disabled
-  const isFileUploadDisabled = !canUseFileUploads || isInputDisabled;
+  const fileLimitActive = conversationFileLimitReached || workspaceFileLimitReached;
+  const isFileUploadDisabled = !canUseFileUploads || isInputDisabled || fileLimitActive;
 
   // Auto-resize textarea with maximum height limit
   useEffect(() => {
@@ -719,6 +745,9 @@ export function MessageInput({
       debugError('[MessageInput] Paste error:', error);
       playSoundEffect('error', settings.soundEnabled);
       setPasteError(errorMessage);
+      if (errorMessage.toLowerCase().includes('maximum')) {
+        setUploadError(errorMessage);
+      }
       setTimeout(() => {
         setPasteError(null);
       }, 5000);
@@ -728,11 +757,31 @@ export function MessageInput({
     }
   }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled]);
 
-  const effectivePlaceholder = (hasProcessingFiles || isUploading)
+  const basePlaceholder = (hasProcessingFiles || isUploading)
     ? 'Files are uploading/processing, please wait...'
     : canUseFileUploads
     ? 'Message ORBIT or drop files here'
     : placeholder;
+  const effectivePlaceholder = workspaceMessageLimitReached
+    ? `Workspace limit of ${AppConfig.maxTotalMessages} messages reached. Delete or archive old conversations to continue.`
+    : conversationMessageLimitReached
+    ? `This chat hit the ${AppConfig.maxMessagesPerConversation} message limit. Start a new conversation to continue.`
+    : basePlaceholder;
+
+  const limitWarnings: string[] = [];
+  if (workspaceMessageLimitReached && AppConfig.maxTotalMessages !== null) {
+    limitWarnings.push(
+      `Workspace limit of ${AppConfig.maxTotalMessages} total messages reached. Delete or export older conversations to continue.`
+    );
+  }
+  if (conversationMessageLimitReached && AppConfig.maxMessagesPerConversation !== null) {
+    limitWarnings.push(
+      `This conversation reached the ${AppConfig.maxMessagesPerConversation} message limit. Start a new conversation to keep chatting.`
+    );
+  }
+  if (uploadError) {
+    limitWarnings.push(uploadError);
+  }
 
   // Play sound when voice error appears
   useEffect(() => {
@@ -741,6 +790,14 @@ export function MessageInput({
     }
     playSoundEffect('error', settings.soundEnabled);
   }, [audioFeatureEnabled, settings.soundEnabled, voiceError]);
+
+  useEffect(() => {
+    if (!uploadError) {
+      return;
+    }
+    const timeout = setTimeout(() => setUploadError(null), 5000);
+    return () => clearTimeout(timeout);
+  }, [uploadError]);
 
   const contentMaxWidth = isCentered ? 'max-w-3xl' : 'max-w-5xl';
   const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
@@ -762,6 +819,15 @@ export function MessageInput({
           <div className="mb-3 w-full flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200">
             <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
             <span>{uploadSuccessMessage}</span>
+          </div>
+        )}
+        {limitWarnings.length > 0 && (
+          <div className="mb-3 w-full rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-[#2f2410] dark:text-amber-100">
+            <ul className="list-disc space-y-1 pl-4">
+              {limitWarnings.map((warning, index) => (
+                <li key={`${warning}-${index}`}>{warning}</li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -830,6 +896,10 @@ export function MessageInput({
                   title={
                     !isFileSupported
                       ? 'File upload not supported by this adapter'
+                      : fileLimitActive && conversationFileLimitReached && AppConfig.maxFilesPerConversation !== null
+                      ? `Maximum of ${AppConfig.maxFilesPerConversation} files reached in this conversation. Start a new chat to upload more.`
+                      : fileLimitActive && workspaceFileLimitReached && AppConfig.maxTotalFiles !== null
+                      ? `Workspace limit of ${AppConfig.maxTotalFiles} total files reached. Remove files from other conversations first.`
                       : isInputDisabled
                       ? 'Files are uploading/processing. Please wait...'
                       : attachedFiles.length > 0
@@ -1030,6 +1100,7 @@ export function MessageInput({
               onFilesSelected={handleFilesSelected}
               onUploadError={(error) => {
                 debugError('File upload error:', error);
+                setUploadError(error);
               }}
               onUploadingChange={setConversationUploading}
               onUploadSuccess={handleUploadSuccessToast}

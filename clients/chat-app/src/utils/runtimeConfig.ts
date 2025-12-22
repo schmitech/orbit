@@ -10,7 +10,7 @@
 
 export const DEFAULT_API_URL = 'http://localhost:3000';
 
-interface RuntimeConfig {
+export interface RuntimeConfig {
   // API Configuration
   apiUrl: string;
   defaultKey: string;
@@ -45,6 +45,7 @@ interface RuntimeConfig {
   // Conversation Limits
   maxConversations: number | null; // null = unlimited
   maxMessagesPerConversation: number | null; // null = unlimited
+  maxMessagesPerThread: number | null; // null = unlimited
   maxTotalMessages: number | null; // null = unlimited
 
   // Message Limits
@@ -88,6 +89,7 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
   maxTotalFiles: 'VITE_MAX_TOTAL_FILES',
   maxConversations: 'VITE_MAX_CONVERSATIONS',
   maxMessagesPerConversation: 'VITE_MAX_MESSAGES_PER_CONVERSATION',
+  maxMessagesPerThread: 'VITE_MAX_MESSAGES_PER_THREAD',
   maxTotalMessages: 'VITE_MAX_TOTAL_MESSAGES',
   maxMessageLength: 'VITE_MAX_MESSAGE_LENGTH',
 };
@@ -284,6 +286,10 @@ export const runtimeConfig: RuntimeConfig = {
   })(),
   maxMessagesPerConversation: (() => {
     const val = getConfigValue('maxMessagesPerConversation', '1000', 'string') as string;
+    return parseLimit(val, 1000);
+  })(),
+  maxMessagesPerThread: (() => {
+    const val = getConfigValue('maxMessagesPerThread', '1000', 'string') as string;
     return parseLimit(val, 1000);
   })(),
   maxTotalMessages: (() => {

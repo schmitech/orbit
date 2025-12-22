@@ -26,9 +26,9 @@ export const AppConfig = {
   // Conversation Limits
   maxConversations: runtimeConfig.maxConversations,
   maxMessagesPerConversation: runtimeConfig.maxMessagesPerConversation,
+  maxMessagesPerThread: runtimeConfig.maxMessagesPerThread,
   maxTotalMessages: runtimeConfig.maxTotalMessages,
   
   // Message Limits
   maxMessageLength: runtimeConfig.maxMessageLength,
 } as const;
-

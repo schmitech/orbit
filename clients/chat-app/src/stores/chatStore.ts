@@ -88,6 +88,10 @@ const generateUniqueSessionId = (): string => {
   return `session_${timestamp}_${random}`;
 };
 
+const countNonStreamingMessages = (messages: Message[]): number => {
+  return messages.filter(m => !m.isThreadMessage && !(m.role === 'assistant' && m.isStreaming)).length;
+};
+
 // Extended chat state for the store
 interface ExtendedChatState extends ChatState {
   sessionId: string;
@@ -342,17 +346,15 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           };
           
           set(state => {
-            let updatedConversations = [newConversation, ...state.conversations];
-            
-            // Enforce maximum conversations limit
             const maxConversations = AppConfig.maxConversations;
-            if (maxConversations !== null && updatedConversations.length > maxConversations) {
-              // Remove oldest conversations (keep the most recent ones)
-              updatedConversations = updatedConversations.slice(0, maxConversations);
+            if (maxConversations !== null && state.conversations.length >= maxConversations) {
+              const limitMessage = `Maximum of ${maxConversations} conversations reached. Please delete an existing conversation before starting a new one.`;
+              debugWarn(limitMessage);
+              return state;
             }
-            
+
             return {
-              conversations: updatedConversations,
+              conversations: [newConversation, ...state.conversations],
               currentConversationId: newId,
               sessionId: newSessionId
             };
@@ -451,22 +453,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     };
 
     // Update state with new conversation and switch to its session
-    set((state: ExtendedChatState) => {
-      let updatedConversations = [newConversation, ...state.conversations];
-      
-      // Enforce maximum conversations limit
-      const maxConversations = AppConfig.maxConversations;
-      if (maxConversations !== null && updatedConversations.length > maxConversations) {
-        // Remove oldest conversations (keep the most recent ones)
-        updatedConversations = updatedConversations.slice(0, maxConversations);
-      }
-      
-      return {
-        conversations: updatedConversations,
-        currentConversationId: id,
-        sessionId: newSessionId
-      };
-    });
+    set((state: ExtendedChatState) => ({
+      conversations: [newConversation, ...state.conversations],
+      currentConversationId: id,
+      sessionId: newSessionId
+    }));
 
     // Reconfigure API with the new session ID and the default API key/adapter
     ensureApiConfigured().then(isConfigured => {
@@ -1031,8 +1022,27 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         }
       }
 
-      // Check message limits before adding messages
-      // We'll handle cleanup in the set() call below to ensure atomic updates
+      // Enforce message limits before creating new entries
+      const nonStreamingMessages = countNonStreamingMessages(conversation.messages);
+      const maxMessagesPerConversation = AppConfig.maxMessagesPerConversation;
+      if (maxMessagesPerConversation !== null && nonStreamingMessages >= maxMessagesPerConversation) {
+        debugWarn(`[chatStore] Conversation ${conversationId} reached the message limit (${maxMessagesPerConversation}).`);
+        set({ isLoading: false });
+        return;
+      }
+
+      const maxTotalMessages = AppConfig.maxTotalMessages;
+      if (maxTotalMessages !== null) {
+        const totalMessages = get().conversations.reduce(
+          (total, conv) => total + countNonStreamingMessages(conv.messages),
+          0
+        );
+        if (totalMessages >= maxTotalMessages) {
+          debugWarn(`[chatStore] Workspace reached the total message limit (${maxTotalMessages}).`);
+          set({ isLoading: false });
+          return;
+        }
+      }
 
       // Add user message and assistant streaming message in a single atomic update
       // Store file attachments with the message if provided
@@ -1061,12 +1071,25 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         assistantMessage.isThreadMessage = true;
         assistantMessage.threadId = activeThreadId;
         assistantMessage.parentMessageId = threadParentMessage.id;
+
+        const maxMessagesPerThread = AppConfig.maxMessagesPerThread;
+        if (maxMessagesPerThread !== null) {
+          const existingThreadMessages = conversation.messages.filter(msg => {
+            if (!msg.isThreadMessage) return false;
+            const matchesThread =
+              msg.threadId === activeThreadId ||
+              msg.parentMessageId === threadParentMessage.id;
+            return matchesThread && !(msg.role === 'assistant' && msg.isStreaming);
+          });
+          if (existingThreadMessages.length >= maxMessagesPerThread) {
+            debugWarn(`[chatStore] Thread ${activeThreadId} reached the message limit (${maxMessagesPerThread}).`);
+            set({ isLoading: false });
+            return;
+          }
+        }
       }
 
-      let trimmedPerConversation = false;
-      let trimmedTotalMessages = false;
-
-      // Single atomic update for both messages with message limit cleanup
+      // Single atomic update for both messages
       set(state => {
         // Clean up any existing streaming messages first
         const currentConv = state.conversations.find(c => c.id === conversationId);
@@ -1075,45 +1098,19 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           debugWarn(`Cleaning up ${streamingMsgs.length} existing streaming messages`);
         }
 
-        // Apply message limit cleanup before adding new messages
         const updatedConversations = state.conversations.map(conv => {
           if (conv.id !== conversationId) {
-            // For other conversations, check per-conversation limit
-            const maxMessagesPerConversation = AppConfig.maxMessagesPerConversation;
-            if (maxMessagesPerConversation !== null) {
-              const nonStreamingMessages = conv.messages.filter(m => !(m.role === 'assistant' && m.isStreaming));
-              if (nonStreamingMessages.length >= maxMessagesPerConversation) {
-                trimmedPerConversation = true;
-                // Remove oldest messages to make room (keep at least 1 message for context)
-                const messagesToKeep = Math.max(1, maxMessagesPerConversation - 1);
-                const filteredMessages = nonStreamingMessages.slice(-messagesToKeep);
-                const streamingMessages = conv.messages.filter(m => m.role === 'assistant' && m.isStreaming);
-                return {
-                  ...conv,
-                  messages: [...filteredMessages, ...streamingMessages]
-                };
-              }
-            }
-            return conv;
+            return {
+              ...conv,
+              messages: conv.messages
+            };
           }
-          
-          // For current conversation, prepare messages for new message addition
-          const nonStreamingMessages = conv.messages.filter(m => !(m.role === 'assistant' && m.isStreaming));
-          
-          // Check per-conversation message limit
-          const maxMessagesPerConversation = AppConfig.maxMessagesPerConversation;
-          let messagesToAdd = nonStreamingMessages;
-          if (maxMessagesPerConversation !== null && nonStreamingMessages.length >= maxMessagesPerConversation) {
-            trimmedPerConversation = true;
-            // Remove oldest messages to make room (keep at least 1 message for context)
-            const messagesToKeep = Math.max(1, maxMessagesPerConversation - 1);
-            messagesToAdd = nonStreamingMessages.slice(-messagesToKeep);
-          }
-          
+
+          const existingMessages = conv.messages.filter(m => !(m.role === 'assistant' && m.isStreaming));
           return {
             ...conv,
             messages: [
-              ...messagesToAdd,
+              ...existingMessages,
               userMessage,
               assistantMessage
             ],
@@ -1124,71 +1121,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           };
         });
 
-        // Check total messages limit across all conversations
-        const maxTotalMessages = AppConfig.maxTotalMessages;
-        if (maxTotalMessages !== null) {
-          const totalMessages = updatedConversations.reduce(
-            (total, conv) => total + conv.messages.filter(m => !(m.role === 'assistant' && m.isStreaming)).length,
-            0
-          );
-          
-          if (totalMessages > maxTotalMessages) {
-            trimmedTotalMessages = true;
-            // Remove oldest messages from oldest conversations
-            let remainingToRemove = totalMessages - maxTotalMessages;
-            const sortedConversations = [...updatedConversations].sort((a, b) => 
-              a.updatedAt.getTime() - b.updatedAt.getTime()
-            );
-            
-            for (const conv of sortedConversations) {
-              if (remainingToRemove <= 0) break;
-              
-              const nonStreamingMessages = conv.messages.filter(m => !(m.role === 'assistant' && m.isStreaming));
-              if (nonStreamingMessages.length > 0) {
-                const toRemove = Math.min(remainingToRemove, nonStreamingMessages.length);
-                const streamingMessages = conv.messages.filter(m => m.role === 'assistant' && m.isStreaming);
-                const updatedMessages = [
-                  ...nonStreamingMessages.slice(toRemove),
-                  ...streamingMessages
-                ];
-                
-                const convIndex = updatedConversations.findIndex(c => c.id === conv.id);
-                if (convIndex !== -1) {
-                  updatedConversations[convIndex] = {
-                    ...conv,
-                    messages: updatedMessages
-                  };
-                }
-                
-                remainingToRemove -= toRemove;
-              }
-            }
-          }
-        }
-
         return {
           conversations: updatedConversations,
           isLoading: true,
           error: null
         };
       });
-
-      if (trimmedPerConversation || trimmedTotalMessages) {
-        const notices: string[] = [];
-        if (trimmedPerConversation && AppConfig.maxMessagesPerConversation !== null) {
-          notices.push(
-            `Only the most recent ${AppConfig.maxMessagesPerConversation} messages are kept per conversation. Older messages in this chat were removed automatically.`
-          );
-        }
-        if (trimmedTotalMessages && AppConfig.maxTotalMessages !== null) {
-          notices.push(
-            `There is a workspace limit of ${AppConfig.maxTotalMessages} total messages. Older conversations were trimmed to stay within that limit.`
-          );
-        }
-        if (notices.length > 0) {
-          set({ error: notices.join(' ') });
-        }
-      }
 
       // Store conversationId in a variable so we can use it even if user switches conversations
       const streamingConversationId = conversationId;

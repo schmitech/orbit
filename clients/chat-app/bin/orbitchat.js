@@ -39,6 +39,7 @@ const DEFAULT_CONFIG = {
   maxTotalFiles: 100,
   maxConversations: 10,
   maxMessagesPerConversation: 1000,
+  maxMessagesPerThread: 1000,
   maxTotalMessages: 10000,
   maxMessageLength: 1000,
 };
@@ -148,6 +149,9 @@ function parseArgs() {
       case '--max-messages-per-conversation':
         config.maxMessagesPerConversation = parseInt(args[++i], 10);
         break;
+      case '--max-messages-per-thread':
+        config.maxMessagesPerThread = parseInt(args[++i], 10);
+        break;
       case '--max-total-messages':
         config.maxTotalMessages = parseInt(args[++i], 10);
         break;
@@ -224,6 +228,7 @@ function loadConfigFromEnv() {
     VITE_MAX_TOTAL_FILES: 'maxTotalFiles',
     VITE_MAX_CONVERSATIONS: 'maxConversations',
     VITE_MAX_MESSAGES_PER_CONVERSATION: 'maxMessagesPerConversation',
+    VITE_MAX_MESSAGES_PER_THREAD: 'maxMessagesPerThread',
     VITE_MAX_TOTAL_MESSAGES: 'maxTotalMessages',
     VITE_MAX_MESSAGE_LENGTH: 'maxMessageLength',
   };
@@ -558,6 +563,7 @@ Options:
   --max-total-files N              Max total files (default: 100, 0 = unlimited)
   --max-conversations N            Max conversations (default: 10, 0 = unlimited)
   --max-messages-per-conversation N Max messages per conversation (default: 1000, 0 = unlimited)
+  --max-messages-per-thread N      Max messages per thread (default: 1000, 0 = unlimited)
   --max-total-messages N           Max total messages (default: 10000, 0 = unlimited)
   --max-message-length N           Max message length (default: 1000)
   --port PORT                      Server port (default: 5173)

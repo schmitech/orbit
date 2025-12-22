@@ -57,10 +57,17 @@ export function Message({
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
   // Count only assistant responses, not user questions
   const threadReplyCount = threadReplies.filter(msg => msg.role === 'assistant').length;
+  const threadMessageCount = threadReplies.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length;
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
   const locale = import.meta.env.VITE_LOCALE || 'en-US';
   const threadsEnabled = getEnableConversationThreads();
   const threadCharLimit = AppConfig.maxMessageLength;
+  const threadLimit = AppConfig.maxMessagesPerThread;
+  const threadLimitReached = threadLimit !== null && threadMessageCount >= threadLimit;
+  const threadLimitMessage =
+    threadLimitReached && threadLimit !== null
+      ? `This thread reached the ${threadLimit} message limit. Start a new conversation for more follow-ups.`
+      : null;
   const { theme, isDark } = useTheme();
 
   const forcedThemeClass =
@@ -182,7 +189,7 @@ export function Message({
   }, [locale]);
 
   const handleThreadSubmit = async () => {
-    if (!onSendThreadMessage || !message.threadInfo) {
+    if (!onSendThreadMessage || !message.threadInfo || threadLimitReached) {
       return;
     }
     const trimmed = threadInput.trim();
@@ -224,7 +231,8 @@ export function Message({
     !onSendThreadMessage ||
     isThreadSendDisabled ||
     threadHasStreaming ||
-    isSendingThreadMessage;
+    isSendingThreadMessage ||
+    threadLimitReached;
 
   useEffect(() => {
     if (!isThreadOpen || threadComposerDisabled) {
@@ -463,6 +471,12 @@ export function Message({
                 >
                   {renderedThreadReplies}
                 </div>
+
+                {threadLimitMessage && (
+                  <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-[#2f2410] dark:text-amber-100">
+                    {threadLimitMessage}
+                  </div>
+                )}
 
                 <div className="mt-3 rounded-xl border border-white/80 bg-white/95 p-3 shadow-sm dark:border-white/10 dark:bg-white/10">
                   {/* Mobile: stacked layout, Desktop: inline */}
