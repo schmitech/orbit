@@ -12,6 +12,7 @@ from qdrant_client import QdrantClient
 
 from ...base.abstract_vector_retriever import AbstractVectorRetriever
 from ...base.base_retriever import RetrieverFactory
+from utils.vector_utils import DIMENSION_MISMATCH_PATTERN
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -308,9 +309,18 @@ class QdrantRetriever(AbstractVectorRetriever):
             return formatted_results
             
         except Exception as e:
-            logger.error(f"Error querying Qdrant: {str(e)}")
-            import traceback
-            logger.error(traceback.format_exc())
+            error_msg = str(e)
+            if DIMENSION_MISMATCH_PATTERN.search(error_msg):
+                query_dim = len(query_embedding)
+                logger.error(
+                    f"Embedding dimension mismatch for Qdrant collection '{self.collection_name}': "
+                    f"Query embedding has {query_dim} dimensions but collection expects a different size. "
+                    f"Please ensure the embedding model matches the one used to create the Qdrant collection."
+                )
+            else:
+                logger.error(f"Error querying Qdrant: {error_msg}")
+                import traceback
+                logger.error(traceback.format_exc())
             return []
 
     def calculate_similarity_from_distance(self, distance: float) -> float:

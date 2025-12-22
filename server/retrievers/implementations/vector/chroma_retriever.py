@@ -7,6 +7,7 @@ import logging
 import os
 from typing import Dict, Any, List, Optional
 from chromadb import HttpClient, PersistentClient
+from chromadb.errors import InvalidArgumentError
 from fastapi import HTTPException
 from pathlib import Path
 
@@ -205,7 +206,21 @@ class ChromaRetriever(AbstractVectorRetriever):
                     })
             
             return search_results
-            
+        
+        except InvalidArgumentError as e:
+            error_msg = str(e)
+            # Handle embedding dimension mismatch gracefully
+            # ChromaDB error format: "Collection expecting embedding with dimension of X, got Y"
+            if "expecting embedding with dimension" in error_msg.lower():
+                query_dim = len(query_embedding)
+                logger.error(
+                    f"Embedding dimension mismatch for collection '{self.collection_name}': "
+                    f"Query embedding has {query_dim} dimensions but collection expects a different size. "
+                    f"Please ensure the embedding model matches the one used to create the collection."
+                )
+            else:
+                logger.error(f"ChromaDB invalid argument error: {error_msg}")
+            return []
         except Exception as e:
             logger.error(f"Error querying ChromaDB: {str(e)}")
             return []

@@ -11,6 +11,7 @@ from .qa_vector_base import QAVectorRetrieverBase
 from ...base.base_retriever import RetrieverFactory
 from adapters.registry import ADAPTER_REGISTRY
 from ..vector.pinecone_retriever import PineconeRetriever
+from utils.vector_utils import DIMENSION_MISMATCH_PATTERN
 
 logger = logging.getLogger(__name__)
 
@@ -154,8 +155,17 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
                 return []
 
         except Exception as e:
-            logger.error(f"Error querying Pinecone: {str(e)}")
-            logger.debug(traceback.format_exc())
+            error_msg = str(e)
+            if DIMENSION_MISMATCH_PATTERN.search(error_msg):
+                query_dim = len(query_embedding)
+                logger.error(
+                    f"Embedding dimension mismatch for Pinecone index '{collection_name}': "
+                    f"Query embedding has {query_dim} dimensions but index expects a different size. "
+                    f"Please ensure the embedding model matches the one used to create the Pinecone index."
+                )
+            else:
+                logger.error(f"Error querying Pinecone: {error_msg}")
+                logger.debug(traceback.format_exc())
             return []
 
     def extract_document_data(self, result: Any) -> Tuple[str, Dict[str, Any], float]:

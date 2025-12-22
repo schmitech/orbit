@@ -8,6 +8,7 @@ from fastapi import HTTPException
 
 from ...base.abstract_vector_retriever import AbstractVectorRetriever
 from ...base.base_retriever import RetrieverFactory
+from utils.vector_utils import DIMENSION_MISMATCH_PATTERN
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -169,7 +170,16 @@ class PineconeRetriever(AbstractVectorRetriever):
             return search_results
             
         except Exception as e:
-            logger.error(f"Error querying Pinecone: {str(e)}")
+            error_msg = str(e)
+            if DIMENSION_MISMATCH_PATTERN.search(error_msg):
+                query_dim = len(query_embedding)
+                logger.error(
+                    f"Embedding dimension mismatch for Pinecone index '{self.index_name}': "
+                    f"Query embedding has {query_dim} dimensions but index expects a different size. "
+                    f"Please ensure the embedding model matches the one used to create the Pinecone index."
+                )
+            else:
+                logger.error(f"Error querying Pinecone: {error_msg}")
             return []
 
     def calculate_similarity_from_distance(self, distance: float) -> float:

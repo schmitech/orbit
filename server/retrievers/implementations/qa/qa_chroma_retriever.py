@@ -6,6 +6,7 @@ import logging
 import traceback
 from typing import Dict, Any, List, Optional, Tuple
 from chromadb import HttpClient, PersistentClient
+from chromadb.errors import InvalidArgumentError
 from fastapi import HTTPException
 
 from .qa_vector_base import QAVectorRetrieverBase
@@ -129,6 +130,21 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
             else:
                 logger.error("Collection object does not have a query method")
                 return None
+        except InvalidArgumentError as e:
+            error_msg = str(e)
+            # Handle embedding dimension mismatch gracefully
+            # ChromaDB error format: "Collection expecting embedding with dimension of X, got Y"
+            if "expecting embedding with dimension" in error_msg.lower():
+                query_dim = len(query_embedding)
+                coll_name = collection_name or self.collection_name
+                logger.error(
+                    f"Embedding dimension mismatch for collection '{coll_name}': "
+                    f"Query embedding has {query_dim} dimensions but collection expects a different size. "
+                    f"Please ensure the embedding model matches the one used to create the collection."
+                )
+            else:
+                logger.error(f"ChromaDB invalid argument error: {error_msg}")
+            return None
         except Exception as e:
             logger.error(f"Error querying ChromaDB: {str(e)}")
             logger.error(traceback.format_exc())

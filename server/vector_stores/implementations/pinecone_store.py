@@ -8,6 +8,7 @@ import time
 
 from ..base.base_vector_store import BaseVectorStore
 from ..base.base_store import StoreConfig, StoreStatus
+from utils.vector_utils import DIMENSION_MISMATCH_PATTERN
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +190,16 @@ class PineconeStore(BaseVectorStore):
             return True
 
         except Exception as e:
-            logger.error(f"Error adding vectors to Pinecone: {e}")
+            error_msg = str(e)
+            if DIMENSION_MISMATCH_PATTERN.search(error_msg):
+                vec_dim = len(vectors[0]) if vectors else "unknown"
+                logger.error(
+                    f"Embedding dimension mismatch for Pinecone index '{index_name}': "
+                    f"Input vectors have {vec_dim} dimensions but index expects a different size. "
+                    f"Please ensure the embedding model matches the one used to create the Pinecone index."
+                )
+            else:
+                logger.error(f"Error adding vectors to Pinecone: {e}")
             return False
 
     async def search_vectors(self,
@@ -248,7 +258,16 @@ class PineconeStore(BaseVectorStore):
             return results
 
         except Exception as e:
-            logger.error(f"Error searching vectors in Pinecone: {e}")
+            error_msg = str(e)
+            if DIMENSION_MISMATCH_PATTERN.search(error_msg):
+                query_dim = len(query_vector)
+                logger.error(
+                    f"Embedding dimension mismatch for Pinecone index '{index_name}': "
+                    f"Query embedding has {query_dim} dimensions but index expects a different size. "
+                    f"Please ensure the embedding model matches the one used to create the Pinecone index."
+                )
+            else:
+                logger.error(f"Error searching vectors in Pinecone: {e}")
             return []
 
     async def get_vector(self,

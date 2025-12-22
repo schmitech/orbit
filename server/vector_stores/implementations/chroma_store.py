@@ -271,7 +271,17 @@ class ChromaStore(BaseVectorStore):
                 if collection_name in self._collections:
                     del self._collections[collection_name]
                     logger.warning(f"Invalidated stale collection cache for {collection_name}")
-            logger.error(f"Error searching vectors in ChromaDB: {e}")
+            
+            # Handle embedding dimension mismatch gracefully
+            if "expecting embedding with dimension" in error_str:
+                query_dim = len(query_vector)
+                logger.error(
+                    f"Embedding dimension mismatch for collection '{collection_name}': "
+                    f"Query embedding has {query_dim} dimensions but collection expects a different size. "
+                    f"Please ensure the embedding model matches the one used to create the collection."
+                )
+            else:
+                logger.error(f"Error searching vectors in ChromaDB: {e}")
             return []
 
     async def get_vector(self, 

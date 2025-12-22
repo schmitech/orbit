@@ -1,3 +1,4 @@
+
 """
 Qdrant store implementation for vector operations.
 """
@@ -7,11 +8,13 @@ from typing import Dict, Any, Optional, List
 
 from ..base.base_vector_store import BaseVectorStore
 from ..base.base_store import StoreConfig, StoreStatus
+from utils.vector_utils import DIMENSION_MISMATCH_PATTERN
 
 logger = logging.getLogger(__name__)
 
 
 class QdrantStore(BaseVectorStore):
+
     """
     Qdrant store implementation providing vector storage and similarity search.
 
@@ -211,7 +214,16 @@ class QdrantStore(BaseVectorStore):
             return True
 
         except Exception as e:
-            logger.error(f"Error adding vectors to Qdrant: {e}")
+            error_msg = str(e)
+            if DIMENSION_MISMATCH_PATTERN.search(error_msg):
+                vec_dim = len(vectors[0]) if vectors else "unknown"
+                logger.error(
+                    f"Embedding dimension mismatch for Qdrant collection '{collection_name}': "
+                    f"Input vectors have {vec_dim} dimensions but collection expects a different size. "
+                    f"Please ensure the embedding model matches the one used to create the Qdrant collection."
+                )
+            else:
+                logger.error(f"Error adding vectors to Qdrant: {e}")
             return False
 
     async def search_vectors(self,
@@ -768,6 +780,17 @@ class QdrantStore(BaseVectorStore):
 
         except Exception as e:
             error_str = str(e)
+            
+            # Handle embedding dimension mismatch
+            if DIMENSION_MISMATCH_PATTERN.search(error_str):
+                query_dim = len(query_vector)
+                logger.error(
+                    f"Embedding dimension mismatch for Qdrant collection '{collection_name}': "
+                    f"Query embedding has {query_dim} dimensions but collection expects a different size. "
+                    f"Please ensure the embedding model matches the one used to create the Qdrant collection."
+                )
+                return []
+                
             # Check if this is a missing index error from Qdrant Cloud
             if 'Index required' in error_str and retry_count < 1:
                 logger.info(f"Missing payload index detected, creating indexes for filter fields: {filter_fields}")
