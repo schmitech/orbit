@@ -94,6 +94,11 @@ class ThreadDatasetService:
             config: Application configuration
             redis_service: Optional pre-initialized Redis service (avoids creating duplicates)
         """
+        # Guard against re-initialization (singleton pattern - __init__ is called even when __new__ returns existing instance)
+        if hasattr(self, '_singleton_initialized') and self._singleton_initialized:
+            logger.debug("ThreadDatasetService already initialized (singleton), skipping re-initialization")
+            return
+
         self.config = config
 
         # Threading configuration

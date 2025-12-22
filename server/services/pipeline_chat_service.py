@@ -41,7 +41,8 @@ class PipelineChatService:
     def __init__(self, config: Dict[str, Any], logger_service,
                  chat_history_service=None, llm_guard_service=None, moderator_service=None,
                  retriever=None, reranker_service=None, prompt_service=None, clock_service=None,
-                 redis_service=None, adapter_manager=None, audit_service=None):
+                 redis_service=None, adapter_manager=None, audit_service=None,
+                 database_service=None, thread_dataset_service=None):
         """
         Initialize the pipeline chat service.
 
@@ -60,6 +61,8 @@ class PipelineChatService:
             audit_service: Optional audit service for audit trail storage.
                            If provided, config changes during reload will be reflected.
                            If not provided, creates a local instance (backward compatibility).
+            database_service: Optional database service (SQLite/MongoDB) for thread operations.
+            thread_dataset_service: Optional thread dataset service for conversation threading.
         """
         self.config = config
 
@@ -99,7 +102,9 @@ class PipelineChatService:
             logger_service=logger_service,
             adapter_manager=adapter_manager,
             clock_service=self.clock_service,
-            redis_service=self.redis_service
+            redis_service=self.redis_service,
+            database_service=database_service,
+            thread_dataset_service=thread_dataset_service
         )
 
         # Initialize handlers with shared adapter_manager

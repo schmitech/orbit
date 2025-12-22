@@ -209,10 +209,17 @@ class ContextRetrievalStep(PipelineStep):
                 if self.container.has('thread_service'):
                     thread_service = self.container.get('thread_service')
                 else:
-                    # Create thread service if not in container
+                    # Create thread service if not in container, using shared services
                     from services.thread_service import ThreadService
                     config = self.container.get('config')
-                    thread_service = ThreadService(config)
+                    # Get shared services from container to avoid creating duplicates
+                    database_service = self.container.get('database_service') if self.container.has('database_service') else None
+                    thread_dataset_service = self.container.get('thread_dataset_service') if self.container.has('thread_dataset_service') else None
+                    thread_service = ThreadService(
+                        config,
+                        database_service=database_service,
+                        dataset_service=thread_dataset_service
+                    )
                     await thread_service.initialize()
                 
                 # Get stored dataset from thread

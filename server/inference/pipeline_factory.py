@@ -50,7 +50,9 @@ class PipelineFactory:
         logger_service=None,
         adapter_manager=None,
         clock_service=None,
-        redis_service=None
+        redis_service=None,
+        database_service=None,
+        thread_dataset_service=None
     ) -> ServiceContainer:
         """
         Create a service container with all required services.
@@ -66,6 +68,8 @@ class PipelineFactory:
             adapter_manager: Optional dynamic adapter manager
             clock_service: Optional clock service
             redis_service: Optional Redis service for session persistence
+            database_service: Optional database service (SQLite/MongoDB)
+            thread_dataset_service: Optional thread dataset service
 
         Returns:
             Configured service container
@@ -114,6 +118,14 @@ class PipelineFactory:
         if redis_service:
             container.register_singleton('redis_service', redis_service)
             logger.info("Registered Redis service for session persistence")
+
+        # Register database service for thread operations
+        if database_service:
+            container.register_singleton('database_service', database_service)
+
+        # Register thread dataset service for conversation threading
+        if thread_dataset_service:
+            container.register_singleton('thread_dataset_service', thread_dataset_service)
 
         logger.info(f"Created service container with {len(container.list_services())} services")
         return container
@@ -184,6 +196,8 @@ class PipelineFactory:
         adapter_manager=None,
         clock_service=None,
         redis_service=None,
+        database_service=None,
+        thread_dataset_service=None,
         pipeline_type: str = "standard"
     ) -> InferencePipeline:
         """
@@ -203,6 +217,8 @@ class PipelineFactory:
             adapter_manager: Optional dynamic adapter manager
             clock_service: Optional clock service
             redis_service: Optional Redis service for session persistence
+            database_service: Optional database service (SQLite/MongoDB)
+            thread_dataset_service: Optional thread dataset service
             pipeline_type: Type of pipeline to create (default: "standard")
 
         Returns:
@@ -218,7 +234,9 @@ class PipelineFactory:
             logger_service=logger_service,
             adapter_manager=adapter_manager,
             clock_service=clock_service,
-            redis_service=redis_service
+            redis_service=redis_service,
+            database_service=database_service,
+            thread_dataset_service=thread_dataset_service
         )
 
         return self.create_pipeline(container, pipeline_type) 

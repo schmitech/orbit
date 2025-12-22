@@ -217,6 +217,8 @@ class ServiceFactory:
         # Use pipeline-based chat service (now the default)
         from services.pipeline_chat_service import PipelineChatService
         audit_service = getattr(app.state, 'audit_service', None)
+        database_service = getattr(app.state, 'database_service', None)
+        thread_dataset_service = getattr(app.state, 'thread_dataset_service', None)
         app.state.chat_service = PipelineChatService(
             config=self.config,
             logger_service=app.state.logger_service,
@@ -229,7 +231,9 @@ class ServiceFactory:
             clock_service=clock_service,
             redis_service=redis_service,
             adapter_manager=adapter_manager,  # Pass shared adapter manager for reload support
-            audit_service=audit_service  # Pass audit service for audit trail storage
+            audit_service=audit_service,  # Pass audit service for audit trail storage
+            database_service=database_service,  # Pass shared database service for thread operations
+            thread_dataset_service=thread_dataset_service  # Pass shared thread dataset service
         )
         # Initialize the pipeline provider
         try:
