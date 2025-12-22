@@ -56,6 +56,7 @@ class AuditService:
         # Get audit configuration
         audit_config = config.get('internal_services', {}).get('audit', {})
         self._enabled = audit_config.get('enabled', True)
+        self._clear_on_startup = audit_config.get('clear_on_startup', False)
 
         # Get the inference provider from config (for default backend value)
         self._inference_provider = config.get('general', {}).get('inference_provider', 'ollama')
@@ -118,6 +119,15 @@ class AuditService:
             if self._strategy.is_initialized():
                 logger.info(f"Audit service initialized with {self._strategy.backend_name} backend")
                 self._initialized = True
+
+                # Clear audit logs if configured
+                if self._clear_on_startup:
+                    logger.warning("clear_on_startup is enabled - clearing all audit logs")
+                    success = await self._strategy.clear()
+                    if success:
+                        logger.info("Audit logs cleared successfully on startup")
+                    else:
+                        logger.warning("Failed to clear audit logs on startup")
             else:
                 logger.warning(f"Audit strategy {self._strategy.backend_name} failed to initialize")
 

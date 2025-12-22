@@ -1005,6 +1005,41 @@ class SQLiteService(DatabaseService):
             logger.error(f"Error deleting documents from {collection_name}: {str(e)}")
             return 0
 
+    async def clear_collection(self, collection_name: str) -> int:
+        """
+        Delete ALL records from a table.
+
+        This is an explicit method for clearing entire tables, bypassing
+        the safety guard in delete_many that prevents deletion without WHERE clause.
+
+        Args:
+            collection_name: Name of the table to clear
+
+        Returns:
+            Number of records deleted
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            sql = f"DELETE FROM {collection_name}"
+
+            loop = asyncio.get_event_loop()
+            cursor = await loop.run_in_executor(
+                self.executor,
+                self._execute_sql,
+                sql,
+                ()
+            )
+
+            deleted_count = cursor.rowcount
+            logger.info(f"Cleared {deleted_count} records from table '{collection_name}'")
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"Error clearing table {collection_name}: {str(e)}")
+            return 0
+
     async def execute_transaction(
         self,
         operations: Callable[[Any], Awaitable[Any]]

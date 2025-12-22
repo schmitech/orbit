@@ -812,5 +812,207 @@ class TestSQLiteAuditCompression:
         SQLiteService.clear_cache()
 
 
+# ============================================================================
+# Clear on Startup Tests
+# ============================================================================
+
+class TestClearOnStartup:
+    """Tests for clear_on_startup functionality."""
+
+    @pytest.mark.asyncio
+    async def test_sqlite_clear_method(self, sqlite_service_with_audit, sample_audit_record):
+        """Test that SQLite clear() method removes all audit records."""
+        services = sqlite_service_with_audit
+        strategy = services['audit']._strategy
+
+        # Store multiple records
+        for i in range(5):
+            record = AuditRecord(
+                timestamp=datetime.now(),
+                query=f"Query {i}",
+                response=f"Response {i}",
+                backend="test",
+                blocked=False,
+                ip="127.0.0.1"
+            )
+            await strategy.store(record)
+
+        # Verify records exist
+        results = await strategy.query({})
+        assert len(results) == 5
+
+        # Clear all records
+        success = await strategy.clear()
+        assert success is True
+
+        # Verify all records are deleted
+        results = await strategy.query({})
+        assert len(results) == 0
+
+    @pytest.mark.asyncio
+    async def test_mongodb_clear_method(self):
+        """Test that MongoDB clear() method removes all audit records (mocked)."""
+        mock_db = AsyncMock()
+        mock_db._initialized = True
+        mock_db.create_index = AsyncMock()
+        mock_db.clear_collection = AsyncMock(return_value=10)
+
+        config = {
+            'internal_services': {
+                'audit': {
+                    'collection_name': 'audit_logs'
+                }
+            }
+        }
+
+        strategy = MongoDBDAuditStrategy(config, mock_db)
+        await strategy.initialize()
+
+        success = await strategy.clear()
+
+        assert success is True
+        mock_db.clear_collection.assert_called_once_with('audit_logs')
+
+    @pytest.mark.asyncio
+    async def test_clear_on_startup_enabled(self, tmp_path):
+        """Test that clear_on_startup=True clears audit logs during initialization."""
+        db_path = os.path.join(tmp_path, "test_clear_startup.db")
+        config = {
+            'general': {'inference_provider': 'test'},
+            'internal_services': {
+                'backend': {
+                    'type': 'sqlite',
+                    'sqlite': {'database_path': db_path}
+                },
+                'audit': {
+                    'enabled': True,
+                    'storage_backend': 'sqlite',
+                    'collection_name': 'audit_logs',
+                    'clear_on_startup': False  # Initially disabled
+                }
+            }
+        }
+
+        # First, create service and add some records
+        sqlite_service = SQLiteService(config)
+        await sqlite_service.initialize()
+
+        audit_service = AuditService(config, sqlite_service)
+        await audit_service.initialize()
+
+        # Store some records
+        for i in range(3):
+            await audit_service.log_conversation(
+                query=f"Query {i}",
+                response=f"Response {i}",
+                session_id="startup_test"
+            )
+
+        # Verify records exist
+        results = await audit_service.query_audit_logs({})
+        assert len(results) == 3
+
+        await audit_service.close()
+
+        # Now enable clear_on_startup and create a new service
+        config['internal_services']['audit']['clear_on_startup'] = True
+
+        audit_service2 = AuditService(config, sqlite_service)
+        await audit_service2.initialize()
+
+        # Records should be cleared
+        results = await audit_service2.query_audit_logs({})
+        assert len(results) == 0
+
+        await audit_service2.close()
+        sqlite_service.close()
+        SQLiteService.clear_cache()
+
+    @pytest.mark.asyncio
+    async def test_clear_on_startup_disabled(self, tmp_path):
+        """Test that clear_on_startup=False preserves audit logs during initialization."""
+        db_path = os.path.join(tmp_path, "test_no_clear_startup.db")
+        config = {
+            'general': {'inference_provider': 'test'},
+            'internal_services': {
+                'backend': {
+                    'type': 'sqlite',
+                    'sqlite': {'database_path': db_path}
+                },
+                'audit': {
+                    'enabled': True,
+                    'storage_backend': 'sqlite',
+                    'collection_name': 'audit_logs',
+                    'clear_on_startup': False
+                }
+            }
+        }
+
+        # Create service and add records
+        sqlite_service = SQLiteService(config)
+        await sqlite_service.initialize()
+
+        audit_service = AuditService(config, sqlite_service)
+        await audit_service.initialize()
+
+        for i in range(3):
+            await audit_service.log_conversation(
+                query=f"Query {i}",
+                response=f"Response {i}",
+                session_id="preserve_test"
+            )
+
+        await audit_service.close()
+
+        # Create new service (clear_on_startup still False)
+        audit_service2 = AuditService(config, sqlite_service)
+        await audit_service2.initialize()
+
+        # Records should be preserved
+        results = await audit_service2.query_audit_logs({})
+        assert len(results) == 3
+
+        await audit_service2.close()
+        sqlite_service.close()
+        SQLiteService.clear_cache()
+
+    @pytest.mark.asyncio
+    async def test_clear_on_startup_default_is_false(self, tmp_path):
+        """Test that clear_on_startup defaults to False when not specified."""
+        db_path = os.path.join(tmp_path, "test_default_clear.db")
+        config = {
+            'general': {'inference_provider': 'test'},
+            'internal_services': {
+                'backend': {
+                    'type': 'sqlite',
+                    'sqlite': {'database_path': db_path}
+                },
+                'audit': {
+                    'enabled': True,
+                    'storage_backend': 'sqlite',
+                    'collection_name': 'audit_logs'
+                    # clear_on_startup not specified
+                }
+            }
+        }
+
+        audit_service = AuditService(config)
+        assert audit_service._clear_on_startup is False
+
+    @pytest.mark.asyncio
+    async def test_clear_empty_table(self, sqlite_service_with_audit):
+        """Test that clear() works on an empty table."""
+        services = sqlite_service_with_audit
+        strategy = services['audit']._strategy
+
+        # Clear empty table should succeed
+        success = await strategy.clear()
+        assert success is True
+
+        # Verify still empty
+        results = await strategy.query({})
+        assert len(results) == 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

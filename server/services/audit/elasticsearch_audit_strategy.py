@@ -304,6 +304,34 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             logger.error(f"Failed to query audit records from Elasticsearch: {e}")
             return []
 
+    async def clear(self) -> bool:
+        """
+        Clear all audit records from the Elasticsearch index.
+
+        This deletes all documents in the audit index using delete_by_query.
+
+        Returns:
+            True if cleared successfully, False otherwise
+        """
+        if not self._initialized or not self._es_client:
+            logger.debug("Elasticsearch not available, skipping clear operation")
+            return False
+
+        try:
+            # Delete all documents in the index
+            response = await self._es_client.delete_by_query(
+                index=self._index_name,
+                query={"match_all": {}},
+                refresh=True
+            )
+            deleted_count = response.get('deleted', 0)
+            logger.info(f"Cleared {deleted_count} audit records from Elasticsearch index '{self._index_name}'")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error clearing audit records from Elasticsearch: {e}")
+            return False
+
     async def close(self) -> None:
         """Close the Elasticsearch client."""
         if self._es_client:

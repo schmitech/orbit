@@ -257,6 +257,19 @@ class AuditStorageStrategy(ABC):
         """
         pass
 
+    @abstractmethod
+    async def clear(self) -> bool:
+        """
+        Clear all audit records from the storage backend.
+
+        This method deletes all records from the audit table/collection.
+        Use with caution - this operation is irreversible.
+
+        Returns:
+            True if the clear operation was successful, False otherwise
+        """
+        pass
+
     def is_initialized(self) -> bool:
         """Check if the storage backend is initialized."""
         return self._initialized

@@ -39,7 +39,7 @@ language_detection:
   prefer_english_for_ascii: true
   enable_stickiness: false
   fallback_language: "en"
-  backend_timeout: 3.0  # Timeout per backend in seconds (increase for cold starts)
+  backend_timeout: 5.0  # Timeout per backend in seconds (increase for cold starts)
 
   # Configurable heuristic nudges for voting adjustments
   heuristic_nudges:
@@ -242,6 +242,10 @@ internal_services:
     # Set to false for debugging/testing to see plain text responses
     # Compressed responses are stored as base64-encoded gzip data
     compress_responses: false
+    # Clear audit logs on server startup
+    # WARNING: This will delete ALL audit logs when the server starts
+    # Use with caution - only recommended for development/testing environments
+    clear_on_startup: true
 
   mongodb:
     host: ${INTERNAL_SERVICES_MONGODB_HOST}
@@ -255,7 +259,7 @@ internal_services:
     prompts_collection: system_prompts
 
   redis:
-    enabled: true
+    enabled: false
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0

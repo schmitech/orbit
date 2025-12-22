@@ -203,6 +203,28 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error querying audit records from MongoDB: {e}")
             return []
 
+    async def clear(self) -> bool:
+        """
+        Clear all audit records from the MongoDB audit_logs collection.
+
+        Returns:
+            True if cleared successfully, False otherwise
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            # Use clear_collection to delete all records
+            deleted_count = await self._database_service.clear_collection(
+                self._collection_name
+            )
+            logger.info(f"Cleared {deleted_count} audit records from MongoDB collection '{self._collection_name}'")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error clearing audit records from MongoDB: {e}")
+            return False
+
     async def close(self) -> None:
         """
         Close the MongoDB storage backend.

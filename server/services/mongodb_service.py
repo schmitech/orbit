@@ -472,7 +472,32 @@ class MongoDBService(DatabaseService):
         except Exception as e:
             logger.error(f"Error deleting documents from {collection_name}: {str(e)}")
             return 0
-    
+
+    async def clear_collection(self, collection_name: str) -> int:
+        """
+        Delete ALL documents from a collection.
+
+        This is an explicit method for clearing entire collections.
+
+        Args:
+            collection_name: Name of the collection to clear
+
+        Returns:
+            Number of documents deleted
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            collection = self.get_collection(collection_name)
+            result = await collection.delete_many({})
+            deleted_count = result.deleted_count
+            logger.info(f"Cleared {deleted_count} documents from collection '{collection_name}'")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"Error clearing collection {collection_name}: {str(e)}")
+            return 0
+
     async def ensure_id_is_object_id(self, id_value: Union[str, ObjectId]) -> ObjectId:
         """
         Ensure that an ID is an ObjectId

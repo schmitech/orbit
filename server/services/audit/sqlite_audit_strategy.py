@@ -210,6 +210,28 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
 
         return result
 
+    async def clear(self) -> bool:
+        """
+        Clear all audit records from the SQLite audit_logs table.
+
+        Returns:
+            True if cleared successfully, False otherwise
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            # Use clear_collection to delete all records
+            deleted_count = await self._database_service.clear_collection(
+                self._collection_name
+            )
+            logger.info(f"Cleared {deleted_count} audit records from SQLite table '{self._collection_name}'")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error clearing audit records from SQLite: {e}")
+            return False
+
     async def close(self) -> None:
         """
         Close the SQLite storage backend.
