@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
-import { Plus, Search, MessageSquare, Trash2, Edit2, Trash, Paperclip } from 'lucide-react';
+import React, { FormEvent, MouseEvent, useEffect, useState } from 'react';
+import { Plus, Search, MessageSquare, Trash2, Edit2, Trash, Paperclip, Settings, Eye, EyeOff } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { debugWarn, debugError } from '../utils/debug';
 import { useGitHubStats } from '../hooks/useGitHubStats';
 import { AppConfig } from '../utils/config';
-import { getShowGitHubStats, getGitHubOwner, getGitHubRepo } from '../utils/runtimeConfig';
+import { getShowGitHubStats, getGitHubOwner, getGitHubRepo, getApiUrl, getDefaultKey, getEnableApiMiddleware } from '../utils/runtimeConfig';
 import { useTheme } from '../contexts/ThemeContext';
+import { AdapterSelector } from './AdapterSelector';
+import { PACKAGE_VERSION } from '../utils/version';
 
 interface SidebarProps {
   /**
@@ -15,6 +17,7 @@ interface SidebarProps {
    * (e.g. selecting a conversation or creating a new one).
    */
   onRequestClose?: () => void;
+  onOpenSettings?: () => void;
 }
 
 const MAX_TITLE_LENGTH = 100;
@@ -76,7 +79,7 @@ const conversationSizeStyles: Record<
   }
 };
 
-export function Sidebar({ onRequestClose }: SidebarProps) {
+export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   const {
     conversations,
     currentConversationId,
@@ -86,7 +89,9 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
     deleteAllConversations,
     updateConversationTitle,
     canCreateNewConversation,
-    getConversationCount
+    getConversationCount,
+    configureApiSettings,
+    clearError
   } = useChatStore();
   
   const currentConversation = conversations.find(conv => conv.id === currentConversationId);
@@ -112,9 +117,32 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
     isOpen: false,
     isDeleting: false
   });
+  const [showConfig, setShowConfig] = useState(false);
+  const [apiUrl, setApiUrl] = useState(() => getApiUrl());
+  const [apiKey, setApiKey] = useState(() => getDefaultKey());
+  const [selectedAdapter, setSelectedAdapter] = useState<string | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
+  const isMiddlewareEnabled = getEnableApiMiddleware();
+  const canConfigureApi = !currentConversation || currentConversation.messages.length === 0;
   const { theme } = useTheme();
   const sizeStyles = conversationSizeStyles[theme.fontSize ?? 'medium'];
+  useEffect(() => {
+    if (!isMiddlewareEnabled) {
+      setSelectedAdapter(null);
+      return;
+    }
+    if (currentConversation?.adapterName) {
+      setSelectedAdapter(currentConversation.adapterName);
+    } else {
+      setSelectedAdapter(null);
+    }
+  }, [isMiddlewareEnabled, currentConversation?.adapterName]);
+  useEffect(() => {
+    setValidationError(null);
+  }, [currentConversationId]);
 
   const filteredConversations = conversations.filter(conv =>
     conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -145,6 +173,81 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
     getGitHubOwner(),
     getGitHubRepo()
   );
+
+  const handleOpenConfigureModal = () => {
+    const runtimeApiUrl = getApiUrl();
+    const conversationApiUrl = currentConversation?.apiUrl;
+    const currentApiUrl = conversationApiUrl && conversationApiUrl !== runtimeApiUrl
+      ? conversationApiUrl
+      : runtimeApiUrl;
+    const currentApiKey = currentConversation?.apiKey || getDefaultKey();
+
+    setApiUrl(currentApiUrl);
+    setApiKey(currentApiKey);
+    setValidationError(null);
+    setShowApiKey(false);
+    setShowConfig(true);
+  };
+
+  const handleConfigureApi = async (event?: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement>) => {
+    if (event) {
+      event.preventDefault();
+    }
+
+    if (isMiddlewareEnabled) {
+      if (apiUrl && selectedAdapter) {
+        setIsValidating(true);
+        setValidationError(null);
+        try {
+          await configureApiSettings(apiUrl, undefined, undefined, selectedAdapter);
+          clearError();
+          setShowConfig(false);
+        } catch (error) {
+          debugError('Failed to configure adapter:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Failed to configure adapter';
+          setValidationError(errorMessage);
+        } finally {
+          setIsValidating(false);
+        }
+      }
+    } else if (apiUrl && apiKey) {
+      setIsValidating(true);
+      setValidationError(null);
+      try {
+        await configureApiSettings(apiUrl, apiKey);
+        clearError();
+        setValidationError(null);
+        setShowApiKey(false);
+        setShowConfig(false);
+      } catch (error) {
+        debugError('Failed to configure API:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to configure API settings';
+        setValidationError(errorMessage);
+      } finally {
+        setIsValidating(false);
+      }
+    }
+  };
+
+  const handleInlineAdapterChange = async (adapterName: string) => {
+    if (!canConfigureApi) {
+      return;
+    }
+    setSelectedAdapter(adapterName);
+    setValidationError(null);
+    setIsValidating(true);
+    try {
+      const runtimeApiUrl = currentConversation?.apiUrl || getApiUrl();
+      await configureApiSettings(runtimeApiUrl, undefined, undefined, adapterName);
+      clearError();
+    } catch (error) {
+      debugError('Failed to configure adapter:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to configure adapter';
+      setValidationError(errorMessage);
+    } finally {
+      setIsValidating(false);
+    }
+  };
 
   const handleNewChat = () => {
     try {
@@ -264,8 +367,106 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
 
   return (
     <>
-      <div className="flex h-full w-full md:w-72 flex-col border-r border-b border-gray-200 bg-gray-50 dark:border-[#4a4b54] dark:bg-[#202123]">
-        <div className="border-b border-gray-200 p-4 dark:border-[#4a4b54]">
+      {/* API Configuration Modal */}
+      {showConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <form
+            onSubmit={handleConfigureApi}
+            className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]"
+          >
+            <h2 className="mb-4 text-lg font-medium text-[#353740] dark:text-[#ececf1]">
+              {isMiddlewareEnabled ? 'Select Adapter' : 'Configure API Settings'}
+            </h2>
+            <div className="space-y-5">
+              {!isMiddlewareEnabled && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#353740] dark:text-[#d1d5db]">
+                    API URL
+                  </label>
+                  <input
+                    type="text"
+                    value={apiUrl}
+                    onChange={(e) => setApiUrl(e.target.value)}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
+                    placeholder="https://api.example.com"
+                  />
+                </div>
+              )}
+              {isMiddlewareEnabled ? (
+                <AdapterSelector
+                  selectedAdapter={selectedAdapter || currentConversation?.adapterName || null}
+                  onAdapterChange={(adapterName) => {
+                    setSelectedAdapter(adapterName);
+                    setValidationError(null);
+                  }}
+                  disabled={isValidating}
+                />
+              ) : (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#353740] dark:text-[#d1d5db]">
+                    API Key
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={apiKey}
+                      onChange={(e) => {
+                        setApiKey(e.target.value);
+                        setValidationError(null);
+                      }}
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-10 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
+                      placeholder="your-api-key"
+                      disabled={isValidating}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 hover:text-gray-700 dark:text-[#d1d5db] dark:hover:text-white"
+                      aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                      disabled={isValidating}
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {validationError && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
+                  {validationError}
+                </div>
+              )}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentApiUrl = currentConversation?.apiUrl || getApiUrl();
+                    const currentApiKey = currentConversation?.apiKey || getDefaultKey();
+                    setApiUrl(currentApiUrl);
+                    setApiKey(currentApiKey);
+                    setValidationError(null);
+                    setShowApiKey(false);
+                    setShowConfig(false);
+                  }}
+                  className="rounded-md border border-transparent px-4 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-[#d1d5db] dark:hover:text-white"
+                  disabled={isValidating}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isValidating || (isMiddlewareEnabled ? !selectedAdapter : (!apiUrl || !apiKey))}
+                  className="rounded-md bg-[#343541] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#282b32] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
+                >
+                  {isValidating ? 'Validating...' : 'Update'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="flex h-full w-full md:w-72 flex-col border-r border-b border-gray-200 bg-gradient-to-b from-white via-gray-50 to-gray-100 dark:border-[#4a4b54] dark:bg-[#202123] dark:bg-none">
+        <div className="border-b border-gray-200 bg-white/95 p-4 shadow-sm dark:border-[#4a4b54] dark:bg-[#202123] dark:shadow-none">
           <button
             onClick={handleNewChat}
             disabled={!canStartNew}
@@ -297,9 +498,46 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
               </button>
             )}
           </div>
+          <div className="mt-4 space-y-3 border-t border-gray-200 pt-4 dark:border-[#4a4b54]">
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-[#bfc2cd]">
+              <span>Version</span>
+              <span className="text-gray-900 dark:text-white">v{PACKAGE_VERSION}</span>
+            </div>
+            {isMiddlewareEnabled ? (
+              <div className="space-y-1.5">
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-[#bfc2cd]">
+                  AGENT
+                </div>
+                <AdapterSelector
+                  selectedAdapter={selectedAdapter || currentConversation?.adapterName || null}
+                  onAdapterChange={handleInlineAdapterChange}
+                  disabled={!canConfigureApi || isValidating}
+                />
+              </div>
+            ) : (
+              <button
+                onClick={handleOpenConfigureModal}
+                disabled={!canConfigureApi}
+                className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a] dark:hover:border-[#6b6f7a] dark:disabled:hover:bg-transparent dark:disabled:hover:border-[#4a4b54]"
+              >
+                Configure API
+              </button>
+            )}
+            <button
+              onClick={onOpenSettings}
+              disabled={!onOpenSettings}
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#343541] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2c2f36] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </button>
+            {validationError && !showConfig && (
+              <p className="text-xs text-red-600 dark:text-red-400">{validationError}</p>
+            )}
+          </div>
         </div>
 
-        <div className="border-b border-gray-200 px-4 py-3 dark:border-[#4a4b54]">
+        <div className="border-b border-gray-200 bg-white/90 px-4 py-3 shadow-sm dark:border-[#4a4b54] dark:bg-[#202123] dark:bg-none dark:shadow-none">
           <div className="relative flex items-center">
             <Search className="pointer-events-none absolute left-3 h-4 w-4 text-gray-400" />
             <input
@@ -307,14 +545,14 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
               placeholder="Search conversations"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-[#353740] placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
+              className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-[#353740] placeholder-gray-400 shadow-inner focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1] dark:shadow-none"
             />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-3">
+        <div className="flex-1 overflow-y-auto px-3 py-3 dark:bg-[#202123] dark:bg-none">
           {filteredConversations.length === 0 ? (
-            <div className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-[#4a4b54] dark:text-[#bfc2cd]">
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white/90 p-6 text-center text-sm text-gray-500 shadow-sm dark:border-[#4a4b54] dark:bg-[#252830] dark:text-[#bfc2cd] dark:shadow-none">
               <MessageSquare className="mx-auto mb-3 h-6 w-6 text-gray-400 dark:text-[#6b6f7a]" />
               <p>
                 {searchQuery ? 'No conversations found' : 'No conversations yet'}
@@ -326,10 +564,10 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
                 <div
                   key={conversation.id}
                   onClick={() => handleSelectConversation(conversation.id)}
-                  className={`group flex cursor-pointer items-start rounded-xl border text-left transition ${sizeStyles.cardGap} ${sizeStyles.cardPadding} ${sizeStyles.cardText} ${
+                  className={`group flex cursor-pointer items-start rounded-xl border text-left transition shadow-sm ${sizeStyles.cardGap} ${sizeStyles.cardPadding} ${sizeStyles.cardText} dark:shadow-none ${
                     currentConversationId === conversation.id
-                      ? 'border-[#343541] bg-white shadow-sm dark:border-[#6b6f7a] dark:bg-[#2c2f36]'
-                      : 'border-transparent bg-gray-100/70 hover:border-gray-300 hover:bg-white dark:bg-[#252830] dark:hover:border-[#4a4b54] dark:hover:bg-[#2f323c]'
+                      ? 'border-[#343541] bg-white dark:border-[#6b6f7a] dark:bg-[#2c2f36]'
+                      : 'border-gray-100 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-transparent dark:bg-[#252830] dark:hover:border-[#4a4b54] dark:hover:bg-[#2f323c]'
                   }`}
                 >
                   {editingId === conversation.id ? (

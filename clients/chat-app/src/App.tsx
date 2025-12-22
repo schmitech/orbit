@@ -25,7 +25,7 @@ function App() {
       <SettingsProvider>
         <div className="min-h-screen flex flex-col md:flex-row bg-white dark:bg-[#212121] text-slate-900 dark:text-slate-100">
           <div className="hidden md:flex md:min-h-screen">
-            <Sidebar />
+            <Sidebar onOpenSettings={() => setIsSettingsOpen(true)} />
           </div>
           <div className="flex-1 flex justify-center w-full">
             <ChatInterface
@@ -46,7 +46,13 @@ function App() {
                 aria-hidden="true"
               />
               <div className="relative z-10 h-full w-[min(18rem,85vw)] animate-slideIn">
-                <Sidebar onRequestClose={() => setIsMobileSidebarOpen(false)} />
+                <Sidebar
+                  onRequestClose={() => setIsMobileSidebarOpen(false)}
+                  onOpenSettings={() => {
+                    setIsSettingsOpen(true);
+                    setIsMobileSidebarOpen(false);
+                  }}
+                />
                 <button
                   onClick={() => setIsMobileSidebarOpen(false)}
                   className="absolute -right-3 top-[max(env(safe-area-inset-top),0.75rem)] rounded-full bg-white/95 p-2.5 text-gray-600 shadow-lg active:scale-95 transition-transform dark:bg-[#2d2f39] dark:text-[#ececf1]"

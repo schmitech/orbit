@@ -67,7 +67,7 @@ export function AdapterSelector({ selectedAdapter, onAdapterChange, disabled }: 
   const selectedAdapterObj = adapters.find(a => a.name === selectedAdapter);
 
   return (
-    <div className="relative w-full sm:w-[220px]">
+    <div className="relative w-full">
       <label className="sr-only">Adapter</label>
       <div className="relative">
         <button

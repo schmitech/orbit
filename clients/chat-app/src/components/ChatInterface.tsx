@@ -1,13 +1,11 @@
-import { useState, useEffect, useRef, FormEvent, MouseEvent } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
-import { AdapterSelector } from './AdapterSelector';
 import { useChatStore } from '../stores/chatStore';
-import { Eye, EyeOff, Settings, RefreshCw, Menu } from 'lucide-react';
+import { Settings, RefreshCw, Menu } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
-import { getDefaultKey, getApiUrl, getEnableApiMiddleware } from '../utils/runtimeConfig';
-import { PACKAGE_VERSION } from '../utils/version';
+import { getApiUrl, getEnableApiMiddleware } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
@@ -23,7 +21,7 @@ const MOBILE_INPUT_WRAPPER_CLASSES =
 const MOBILE_HEADER_CLASSES =
   'sticky top-0 z-10 -mx-4 px-4 pt-2 pb-4 bg-white/95 backdrop-blur-xl dark:bg-[#1c1d23]/95 border-b border-white/50 dark:border-white/10 md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:backdrop-blur-0 md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
 
-// Note: We use getApiUrl() and getDefaultKey() directly when needed
+// Note: We use getApiUrl() directly when needed
 // to ensure we always read the latest runtime config (including CLI args)
 
 interface ChatInterfaceProps {
@@ -57,26 +55,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     .filter(Boolean)
     .join(' ');
 
-  // Configuration state for API settings
-  const [showConfig, setShowConfig] = useState(false);
-  // Initialize with runtime config defaults (will be updated when modal opens)
-  const [apiUrl, setApiUrl] = useState(() => getApiUrl());
-  const [apiKey, setApiKey] = useState(() => getDefaultKey());
-  const [selectedAdapter, setSelectedAdapter] = useState<string | null>(null);
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [isValidating, setIsValidating] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
   const [isRefreshingAdapterInfo, setIsRefreshingAdapterInfo] = useState(false);
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
   const isMiddlewareEnabled = getEnableApiMiddleware();
-
-  // Initialize selected adapter from conversation
-  useEffect(() => {
-    if (isMiddlewareEnabled && currentConversation?.adapterName) {
-      setSelectedAdapter(currentConversation.adapterName);
-    }
-  }, [isMiddlewareEnabled, currentConversation?.adapterName]);
 
   // Debug: Log current conversation state for middleware mode debugging
   useEffect(() => {
@@ -129,10 +111,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     };
     loadMissingAdapterInfo();
   }, [isMiddlewareEnabled, currentConversation?.adapterName, currentConversation?.adapterInfo, currentConversation?.apiUrl, configureApiSettings]);
-
-  // Disable Configure API button once conversation has started (has messages)
-  // API key should remain immutable per conversation to prevent issues with conversation history
-  const canConfigureApi = !currentConversation || currentConversation.messages.length === 0;
 
   // Clean up any orphaned streaming messages on mount (only once, not on every render)
   // Removed automatic cleanup to preserve streaming state when switching conversations
@@ -251,167 +229,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     }
   };
 
-  const handleConfigureApi = async (event?: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement>) => {
-    if (event) {
-      event.preventDefault();
-    }
-    
-    if (isMiddlewareEnabled) {
-      // Middleware mode: use adapter name
-      if (apiUrl && selectedAdapter) {
-        setIsValidating(true);
-        setValidationError(null);
-        
-        try {
-          await configureApiSettings(apiUrl, undefined, undefined, selectedAdapter);
-          clearError();
-          setValidationError(null);
-          setShowConfig(false);
-        } catch (error) {
-          debugError('Failed to configure adapter:', error);
-          const errorMessage = error instanceof Error ? error.message : 'Failed to configure adapter';
-          setValidationError(errorMessage);
-        } finally {
-          setIsValidating(false);
-        }
-      }
-    } else {
-      // Normal mode: use API key
-      if (apiUrl && apiKey) {
-        setIsValidating(true);
-        setValidationError(null);
-        
-        try {
-          await configureApiSettings(apiUrl, apiKey);
-          // Clear any existing error after successful configuration
-          clearError();
-          // After successful configuration, the conversation now has the new API key
-          // So we keep the configured values (they'll be loaded next time the modal opens)
-          // But we still close the modal
-          setValidationError(null);
-          setShowApiKey(false);
-          setShowConfig(false);
-        } catch (error) {
-          debugError('Failed to configure API:', error);
-          // Set validation error for display in the modal
-          const errorMessage = error instanceof Error ? error.message : 'Failed to configure API settings';
-          setValidationError(errorMessage);
-          // Also set error in the store for global error banner
-          // (The store will handle this, but we can also show it in the modal)
-          // Don't reset fields on error - let user see what they entered
-        } finally {
-          setIsValidating(false);
-        }
-      }
-    }
-  };
-
-  const handleAdapterChange = (adapterName: string) => {
-    setSelectedAdapter(adapterName);
-    setValidationError(null);
-  };
-
   return (
     <div className="flex-1 flex flex-col bg-gray-50 dark:bg-[#202123] overflow-hidden">
       <div className="flex h-full w-full flex-col px-3 sm:px-6 overflow-hidden">
         <div className={`mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden ${MOBILE_FRAME_CLASSES}`}>
-
-          {/* API Configuration Modal */}
-          {showConfig && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-              <form
-                onSubmit={handleConfigureApi}
-                className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]"
-              >
-                <h2 className="text-lg font-medium text-[#353740] dark:text-[#ececf1] mb-4">
-                  {isMiddlewareEnabled ? 'Select Adapter' : 'Configure API Settings'}
-                </h2>
-                <div className="space-y-5">
-                  {!isMiddlewareEnabled && (
-                    <div>
-                      <label className="block text-sm font-medium text-[#353740] dark:text-[#d1d5db] mb-2">
-                        API URL
-                      </label>
-                      <input
-                        type="text"
-                        value={apiUrl}
-                        onChange={(e) => setApiUrl(e.target.value)}
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
-                        placeholder="https://api.example.com"
-                      />
-                    </div>
-                  )}
-                  {isMiddlewareEnabled ? (
-                    <AdapterSelector
-                      selectedAdapter={selectedAdapter}
-                      onAdapterChange={handleAdapterChange}
-                      disabled={isValidating}
-                    />
-                  ) : (
-                    <div>
-                      <label className="block text-sm font-medium text-[#353740] dark:text-[#d1d5db] mb-2">
-                        API Key
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showApiKey ? 'text' : 'password'}
-                          value={apiKey}
-                          onChange={(e) => {
-                            setApiKey(e.target.value);
-                            setValidationError(null); // Clear validation error when user types
-                          }}
-                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-10 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
-                          placeholder="your-api-key"
-                          disabled={isValidating}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowApiKey(!showApiKey)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 hover:text-gray-700 dark:text-[#d1d5db] dark:hover:text-white"
-                          aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-                          disabled={isValidating}
-                        >
-                          {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {validationError && (
-                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
-                      {validationError}
-                    </div>
-                  )}
-                  <div className="flex justify-end gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Reset to current conversation's values when canceling (or defaults if none)
-                        // Read dynamically to ensure we get the latest runtime config
-                        const currentApiUrl = currentConversation?.apiUrl || getApiUrl();
-                        const currentApiKey = currentConversation?.apiKey || getDefaultKey();
-                        setApiUrl(currentApiUrl);
-                        setApiKey(currentApiKey);
-                        setValidationError(null);
-                        setShowApiKey(false);
-                        setShowConfig(false);
-                      }}
-                      className="rounded-md border border-transparent px-4 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-[#d1d5db] dark:hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={isValidating}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isValidating || (isMiddlewareEnabled ? !selectedAdapter : (!apiUrl || !apiKey))}
-                      className="rounded-md bg-[#343541] px-4 py-2 text-sm font-medium text-white hover:bg-[#282b32] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
-                    >
-                      {isValidating ? 'Validating...' : 'Update'}
-                    </button>
-                  </div>
-                </div>
-              </form>
-            </div>
-          )}
 
           {/* Error Banner */}
           {error && (
@@ -469,7 +290,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       <div className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]">
                         <span>Agent</span>
                         <span className="text-gray-800 normal-case dark:text-[#ececf1]">
-                          {currentConversation.adapterInfo.client_name}
+                          {currentConversation.adapterName ||
+                            currentConversation.adapterInfo.adapter_name ||
+                            'Configured Agent'}
                         </span>
                       </div>
                       <button
@@ -494,62 +317,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     )}
                   </div>
                 )}
-              </div>
-              <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:flex-nowrap sm:justify-end">
-                <span className="text-sm text-gray-500 dark:text-[#bfc2cd] sm:text-right">
-                  v{PACKAGE_VERSION}
-                </span>
-                {!isMiddlewareEnabled && (
-                  <button
-                    onClick={() => {
-                      // Load current conversation's API settings if available, otherwise use defaults
-                      // This allows users to see and modify their previously configured API key
-                      // Always use runtime config defaults (from CLI args) when no conversation exists
-                      // Read dynamically to ensure we get the latest runtime config
-                      const runtimeApiUrl = getApiUrl();
-                      const conversationApiUrl = currentConversation?.apiUrl;
-                      const currentApiUrl = conversationApiUrl && conversationApiUrl !== runtimeApiUrl
-                        ? conversationApiUrl
-                        : runtimeApiUrl;
-                      const currentApiKey = currentConversation?.apiKey || getDefaultKey();
-                      setApiUrl(currentApiUrl);
-                      setApiKey(currentApiKey);
-                      setValidationError(null);
-                      setShowApiKey(false);
-                      setShowConfig(true);
-                    }}
-                    disabled={!canConfigureApi}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-gray-300 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a] dark:hover:border-[#6b6f7a] dark:disabled:hover:bg-transparent dark:disabled:hover:border-[#4a4b54] sm:w-auto"
-                    title={!canConfigureApi ? "API key cannot be changed once conversation has started. Create a new conversation to use a different API key." : "Configure API settings"}
-                  >
-                    Configure API
-                  </button>
-                )}
-                {isMiddlewareEnabled && (
-                  <div className="w-full sm:w-auto">
-                    <AdapterSelector
-                      selectedAdapter={selectedAdapter || currentConversation?.adapterName || null}
-                      onAdapterChange={async (adapterName) => {
-                        setSelectedAdapter(adapterName);
-                        const apiUrl = currentConversation?.apiUrl || getApiUrl();
-                        try {
-                          await configureApiSettings(apiUrl, undefined, undefined, adapterName);
-                          clearError();
-                        } catch (error) {
-                          debugError('Failed to configure adapter:', error);
-                        }
-                      }}
-                      disabled={!canConfigureApi}
-                    />
-                  </div>
-                )}
-                <button
-                  onClick={onOpenSettings}
-                  className="hidden rounded-md bg-[#343541] p-2 text-white hover:bg-[#282b32] transition-colors dark:bg-[#565869] dark:hover:bg-[#6b6f7a] md:inline-flex"
-                  title="Settings"
-                >
-                  <Settings className="h-4 w-4" />
-                </button>
               </div>
             </div>
           </div>

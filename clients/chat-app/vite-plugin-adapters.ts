@@ -101,6 +101,9 @@ export function adaptersPlugin(): Plugin {
   return {
     name: 'adapters-plugin',
     configureServer(server) {
+      if (server.httpServer?.setMaxListeners) {
+        server.httpServer.setMaxListeners(0);
+      }
       // Serve /api/adapters endpoint
       server.middlewares.use('/api/adapters', (req, res, next) => {
         if (req.method !== 'GET') {
