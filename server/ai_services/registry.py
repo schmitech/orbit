@@ -41,6 +41,7 @@ def register_embedding_services() -> None:
         ("mistral", "MistralEmbeddingService", "Mistral"),
         ("jina", "JinaEmbeddingService", "Jina"),
         ("llama_cpp", "LlamaCppEmbeddingService", "Llama.cpp"),
+        ("openrouter", "OpenRouterEmbeddingService", "OpenRouter"),
     ]
 
     for provider_key, class_name, display_name in services:

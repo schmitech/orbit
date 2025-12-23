@@ -9,6 +9,7 @@ Available providers:
     - JinaEmbeddingService: Jina AI embeddings
     - LlamaCppEmbeddingService: Llama.cpp embeddings
     - SentenceTransformersEmbeddingService: Sentence Transformers embeddings
+    - OpenRouterEmbeddingService: OpenRouter embeddings
 """
 
 import logging
@@ -25,6 +26,7 @@ _implementations = [
     ('jina_embedding_service', 'JinaEmbeddingService'),
     ('llama_cpp_embedding_service', 'LlamaCppEmbeddingService'),
     ('sentence_transformers_embedding_service', 'SentenceTransformersEmbeddingService'),
+    ('openrouter_embedding_service', 'OpenRouterEmbeddingService'),
 ]
 
 for module_name, class_name in _implementations:

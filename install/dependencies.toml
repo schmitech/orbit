@@ -73,6 +73,7 @@ dependencies = [
     "zai-sdk==0.0.4",
     "deepseek==1.0.0",
     "mistralai==1.9.11",
+    "openrouter>=0.1.1",
     "google-generativeai==0.8.5",
     "together==1.5.29",
     "google-genai>=1.51.0",
