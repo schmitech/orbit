@@ -41,8 +41,7 @@ As of 2025-08-10, the Elasticsearch logger service captures:
     "prompt_injection_score": 0.15,
     "jailbreak_attempt": false,
     "sensitive_data_detected": false,
-    "toxicity_score": 0.02,
-    "llm_guard_result": "pass"
+    "toxicity_score": 0.02
   }
   ```
 - `safety_interventions`: Array of applied safety measures

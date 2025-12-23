@@ -47,7 +47,6 @@ async def test_full_flow():
         config=config,
         logger_service=None,
         chat_history_service=None,
-        llm_guard_service=None,
         moderator_service=None,
         retriever=None,
         reranker_service=None,

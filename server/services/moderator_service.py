@@ -341,9 +341,56 @@ Query: """
                         logger.error(f"Error processing moderation categories: {str(category_error)}")
                         logger.info(f"🛑 MODERATION BLOCKED: Query was flagged as UNSAFE (categories unavailable)")
 
-                # Return appropriate response
-                refusal_message = None if is_safe else "I cannot assist with that type of request."
-                return is_safe, refusal_message
+                # Return appropriate response with category information for transparency
+                if is_safe:
+                    return True, None
+                else:
+                    # Get the primary flagged category to help users understand why
+                    try:
+                        flagged_categories = {k: v for k, v in result.categories.items() if v > 0.5}
+                        if flagged_categories:
+                            # Get the highest scoring category
+                            primary_category = max(flagged_categories, key=flagged_categories.get)
+                            # Map internal category names to user-friendly descriptions
+                            # Supports OpenAI, Llama Guard 3, and Anthropic category names
+                            category_descriptions = {
+                                # OpenAI moderation categories
+                                'harassment': 'harassment content',
+                                'harassment_threatening': 'threatening content',
+                                'hate': 'hateful content',
+                                'hate_threatening': 'threatening hateful content',
+                                'illicit': 'potentially harmful activities',
+                                'illicit_violent': 'violent or harmful activities',
+                                'self_harm': 'self-harm content',
+                                'self_harm_instructions': 'self-harm instructions',
+                                'self_harm_intent': 'self-harm related content',
+                                'sexual': 'inappropriate content',
+                                'sexual_minors': 'inappropriate content involving minors',
+                                'violence': 'violent content',
+                                'violence_graphic': 'graphic violence',
+                                # Llama Guard 3 / MLCommons taxonomy categories
+                                'violent_crimes': 'violent criminal activities',
+                                'non_violent_crimes': 'illegal activities',
+                                'sex_related_crimes': 'sex-related criminal content',
+                                'child_exploitation': 'content involving minors',
+                                'defamation': 'defamatory content',
+                                'specialized_advice': 'potentially dangerous advice',
+                                'privacy': 'privacy violations',
+                                'intellectual_property': 'intellectual property concerns',
+                                'indiscriminate_weapons': 'weapons of mass destruction',
+                                'elections': 'election misinformation',
+                                'code_interpreter_abuse': 'system abuse attempts',
+                                # Generic/fallback categories
+                                'policy_violation': 'content policy violation',
+                                'interpreted_unsafe': 'potentially unsafe content',
+                            }
+                            category_desc = category_descriptions.get(primary_category, 'content policy violation')
+                            refusal_message = f"I cannot assist with requests involving {category_desc}."
+                        else:
+                            refusal_message = "I cannot assist with that type of request."
+                    except Exception:
+                        refusal_message = "I cannot assist with that type of request."
+                    return False, refusal_message
                 
             except Exception as e:
                 logger.error(f"❌ Error in moderator safety check: {str(e)}", exc_info=True)

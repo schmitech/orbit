@@ -3,28 +3,19 @@ Moderation service interface and base implementations.
 
 This module defines the common interface for all content moderation services,
 providing a unified API regardless of the underlying provider.
+
+Supported providers return various category taxonomies:
+- OpenAI: harassment, hate, illicit, self_harm, sexual, violence (with subcategories)
+- Llama Guard 3: MLCommons taxonomy (violent_crimes, non_violent_crimes, etc.)
+- Anthropic: Combined taxonomy matching Llama Guard 3 categories
 """
 
 from abc import abstractmethod
 from typing import Dict, Any, List, Optional
-from enum import Enum, auto
 import logging
 import time
 
 from ..base import ProviderAIService, ServiceType
-
-
-class ModerationCategory(Enum):
-    """Categories for content moderation"""
-    HATE = auto()
-    HARASSMENT = auto()
-    SEXUAL = auto()
-    VIOLENCE = auto()
-    SELF_HARM = auto()
-    EXPLICIT = auto()
-    ILLICIT = auto()
-    PROHIBITED = auto()
-    OTHER = auto()
 
 
 class ModerationResult:

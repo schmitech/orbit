@@ -124,7 +124,6 @@ Secure your ORBIT deployment.
 | [Authentication](authentication.md) | User authentication and session management |
 | [API Keys](api-keys.md) | Create and manage API keys |
 | [Role-Based Access Control](authentication.md#rbac) | Configure user roles and permissions |
-| [Content Moderation](llm-guard-service.md) | LLM Guard for content safety |
 
 ---
 

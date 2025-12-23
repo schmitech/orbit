@@ -14,7 +14,6 @@ __all__ = [
     'ApiKeyService',
     'PromptService',
     'HealthService',
-    'LLMGuardService',
     'FaultTolerantAdapterManager',
     'ParallelAdapterExecutor',
     'DynamicAdapterManager'

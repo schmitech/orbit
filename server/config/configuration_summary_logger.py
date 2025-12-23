@@ -178,19 +178,6 @@ class ConfigurationSummaryLogger:
                 max_body_size = request_limits.get('max_body_size_mb', 10)
                 self._log_message(f"📦 Request Limits: max body size {max_body_size}MB")
 
-            # LLM Guard Configuration
-            llm_guard_config = self.config.get('llm_guard', {})
-            llm_guard_enabled = bool(llm_guard_config) and llm_guard_config.get('enabled', True)
-            self._log_message(f"LLM Guard: {'enabled' if llm_guard_enabled else 'disabled'}")
-
-            if llm_guard_enabled:
-                service_config = llm_guard_config.get('service', {})
-                security_config = llm_guard_config.get('security', {})
-                self._log_message(f"LLM Guard service URL: {service_config.get('base_url', 'http://localhost:8000')}", indent=2)
-                self._log_message(f"Default risk threshold: {security_config.get('risk_threshold', 0.6)}", indent=2)
-                self._log_message("Available input scanners: 7 (default)", indent=2)
-                self._log_message("Available output scanners: 4 (default)", indent=2)
-
             # Safety Configuration
             safety_config = self.config.get('safety', {})
             safety_enabled = is_true_value(safety_config.get('enabled', False))
@@ -491,12 +478,6 @@ class ConfigurationSummaryLogger:
                         'default_admin_username': self.config.get('auth', {}).get('default_admin_username', 'admin'),
                         'pbkdf2_iterations': self.config.get('auth', {}).get('pbkdf2_iterations', 600000),
                         'credential_storage': self.config.get('auth', {}).get('credential_storage', 'keyring')
-                    },
-                    'llm_guard': {
-                        'enabled': self._get_llm_guard_enabled_status(),
-                        'base_url': self._get_llm_guard_base_url(),
-                        'default_risk_threshold': self._get_llm_guard_risk_threshold(),
-                        'fallback_behavior': self._get_llm_guard_fallback_behavior()
                     }
                 },
                 'api': {
@@ -532,27 +513,3 @@ class ConfigurationSummaryLogger:
                 'server_mode': {'rag_enabled': True}
             }
     
-    def _get_llm_guard_enabled_status(self) -> bool:
-        """Get LLM Guard enabled status from either configuration structure"""
-        llm_guard_config = self.config.get('llm_guard', {})
-        if llm_guard_config:
-            if 'enabled' in llm_guard_config:
-                return llm_guard_config.get('enabled', False)
-            else:
-                return True
-        return False
-    
-    def _get_llm_guard_base_url(self) -> str:
-        """Get LLM Guard base URL from either configuration structure"""
-        llm_guard_config = self.config.get('llm_guard', {})
-        return llm_guard_config.get('service', {}).get('base_url', 'http://localhost:8000')
-    
-    def _get_llm_guard_risk_threshold(self) -> float:
-        """Get LLM Guard risk threshold from either configuration structure"""
-        llm_guard_config = self.config.get('llm_guard', {})
-        return llm_guard_config.get('security', {}).get('risk_threshold', 0.6)
-    
-    def _get_llm_guard_fallback_behavior(self) -> str:
-        """Get LLM Guard fallback behavior from either configuration structure"""
-        llm_guard_config = self.config.get('llm_guard', {})
-        return llm_guard_config.get('fallback', {}).get('on_error', 'allow')

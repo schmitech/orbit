@@ -62,14 +62,14 @@ class ServiceFactory:
             logger.debug("Initializing full RAG mode services")
             await self._initialize_full_mode_services(app)
             
-            # Initialize shared services (Logger, LLM Guard, Reranker)
+            # Initialize shared services (Logger, Moderator, Reranker)
             await self._initialize_shared_services(app)
             
             # Initialize fault tolerance services (always enabled)
             logger.debug("Initializing fault tolerance services")
             # Fault tolerance is now handled by FaultTolerantAdapterManager directly
             
-            # Initialize LLM client (after LLM Guard service)
+            # Initialize LLM client
             await self._initialize_llm_client(app)
             
             # Initialize dependent services (chat service and health service)
@@ -186,9 +186,6 @@ class ServiceFactory:
         # Initialize Moderator Service if enabled
         await self._initialize_moderator_service(app)
         
-        # Initialize LLM Guard Service if enabled
-        await self._initialize_llm_guard_service(app)
-        
         # Initialize File Processing Service (for file upload API)
         await self._initialize_file_processing_service(app)
 
@@ -208,7 +205,6 @@ class ServiceFactory:
         """Initialize services that depend on other services."""
         # Initialize Chat Service (always needed)
         chat_history_service = getattr(app.state, 'chat_history_service', None)
-        llm_guard_service = getattr(app.state, 'llm_guard_service', None)
         moderator_service = getattr(app.state, 'moderator_service', None)
         clock_service = getattr(app.state, 'clock_service', None)
         redis_service = getattr(app.state, 'redis_service', None)
@@ -223,7 +219,6 @@ class ServiceFactory:
             config=self.config,
             logger_service=app.state.logger_service,
             chat_history_service=chat_history_service,
-            llm_guard_service=llm_guard_service,
             moderator_service=moderator_service,
             retriever=getattr(app.state, 'retriever', None),
             reranker_service=getattr(app.state, 'reranker_service', None),
@@ -583,38 +578,6 @@ class ServiceFactory:
             app.state.moderator_service = None
             logger.info("Safety is disabled, skipping Moderator Service initialization")
     
-    async def _initialize_llm_guard_service(self, app: FastAPI) -> None:
-        """Initialize LLM Guard Service if enabled."""
-        # Get LLM Guard configuration
-        llm_guard_config = self.config.get('llm_guard', {})
-        
-        # Check if enabled (explicit field) or if section exists (simplified structure)
-        if llm_guard_config:
-            if 'enabled' in llm_guard_config:
-                # Structure with explicit enabled field
-                is_enabled = llm_guard_config.get('enabled', False)
-            else:
-                # Simplified structure - if section exists, it's enabled
-                is_enabled = True
-        else:
-            is_enabled = False
-        
-        if is_enabled:
-            from services.llm_guard_service import LLMGuardService
-            # Ensure singleton usage to avoid multiple instantiations
-            app.state.llm_guard_service = LLMGuardService.get_instance(self.config)
-            logger.info("Initializing LLM Guard Service...")
-            try:
-                await app.state.llm_guard_service.initialize()
-                logger.info("LLM Guard Service initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize LLM Guard Service: {str(e)}")
-                # Don't raise here - allow server to continue without LLM Guard
-                app.state.llm_guard_service = None
-                logger.warning("Continuing without LLM Guard Service")
-        else:
-            app.state.llm_guard_service = None
-            logger.info("LLM Guard is disabled, skipping LLM Guard Service initialization")
     
     async def _initialize_file_processing_service(self, app: FastAPI) -> None:
         """Initialize File Processing Service for file upload API."""

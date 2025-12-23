@@ -44,7 +44,6 @@ class PipelineFactory:
         retriever=None,
         reranker_service=None,
         prompt_service=None,
-        llm_guard_service=None,
         moderator_service=None,
         chat_history_service=None,
         logger_service=None,
@@ -61,7 +60,6 @@ class PipelineFactory:
             retriever: Optional retriever service
             reranker_service: Optional reranker service
             prompt_service: Optional prompt service
-            llm_guard_service: Optional LLM Guard service
             moderator_service: Optional moderator service
             chat_history_service: Optional chat history service
             logger_service: Optional logger service
@@ -98,9 +96,6 @@ class PipelineFactory:
             container.register_singleton('prompt_service', prompt_service)
 
         # Register security services if available
-        if llm_guard_service:
-            container.register_singleton('llm_guard_service', llm_guard_service)
-
         if moderator_service:
             container.register_singleton('moderator_service', moderator_service)
 
@@ -189,7 +184,6 @@ class PipelineFactory:
         retriever=None,
         reranker_service=None,
         prompt_service=None,
-        llm_guard_service=None,
         moderator_service=None,
         chat_history_service=None,
         logger_service=None,
@@ -210,7 +204,6 @@ class PipelineFactory:
             retriever: Optional retriever service
             reranker_service: Optional reranker service
             prompt_service: Optional prompt service
-            llm_guard_service: Optional LLM Guard service
             moderator_service: Optional moderator service
             chat_history_service: Optional chat history service
             logger_service: Optional logger service
@@ -228,7 +221,6 @@ class PipelineFactory:
             retriever=retriever,
             reranker_service=reranker_service,
             prompt_service=prompt_service,
-            llm_guard_service=llm_guard_service,
             moderator_service=moderator_service,
             chat_history_service=chat_history_service,
             logger_service=logger_service,

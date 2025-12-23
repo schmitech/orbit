@@ -28,7 +28,6 @@ from .inference_service import (
 from .moderation_service import (
     ModerationService,
     ModerationResult,
-    ModerationCategory,
     create_moderation_service
 )
 
@@ -64,7 +63,6 @@ __all__ = [
     # Moderation
     'ModerationService',
     'ModerationResult',
-    'ModerationCategory',
     'create_moderation_service',
 
     # Reranking

@@ -284,7 +284,7 @@ class InferencePipelineBuilder:
         steps = []
         
         # Add all steps by default (pipeline config section removed)
-        # Safety filter only if safety/llm_guard services are available
+        # Safety filter only if moderator service is available
         steps.append(SafetyFilterStep(container))
 
         # Language detection (if enabled)
@@ -299,7 +299,7 @@ class InferencePipelineBuilder:
         # LLM inference is always needed
         steps.append(LLMInferenceStep(container))
         
-        # Response validation only if safety/llm_guard services are available
+        # Response validation only if moderator service is available
         steps.append(ResponseValidationStep(container))
         
         return InferencePipeline(steps, container)

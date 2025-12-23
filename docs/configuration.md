@@ -232,29 +232,6 @@ safety:
   request_timeout: 10
   allow_on_timeout: false
   disable_on_fallback: true  # Disable safety if no moderators are available
-
-llm_guard:
-  enabled: false
-  service:
-    base_url: "http://localhost:8000"
-    timeout: 30
-  security:
-    risk_threshold: 0.6
-    # Scanner configurations for different content types
-    scanners:
-      prompt:  # Scanners for user input (prompts)
-        - "ban_substrings"
-        - "ban_topics" 
-        - "prompt_injection"
-        - "toxicity"
-        - "secrets"
-      response:  # Scanners for AI output (responses)
-        - "no_refusal"
-        - "sensitive"
-        - "bias"
-        - "relevance"
-  fallback:
-    on_error: "allow"
 ```
 
 ### Reranker Configuration

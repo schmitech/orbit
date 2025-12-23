@@ -23,10 +23,9 @@ class ResponseValidationStep(PipelineStep):
         Determine if this step should execute.
         
         Returns:
-            True if guardrail service is available, response exists, and not blocked
+            True if moderator service is available, response exists, and not blocked
         """
-        return (self.container.has('llm_guard_service') or 
-                self.container.has('moderator_service')) and context.response and not context.is_blocked
+        return self.container.has('moderator_service') and context.response and not context.is_blocked
     
     async def process(self, context: ProcessingContext) -> ProcessingContext:
         """
@@ -42,34 +41,6 @@ class ResponseValidationStep(PipelineStep):
             return context
         
         logger.debug(f"Validating response: {context.response[:100]}...")
-        
-        # Check with LLM Guard service first if available
-        if self.container.has('llm_guard_service'):
-            try:
-                llm_guard = self.container.get('llm_guard_service')
-                
-                # Prepare metadata for the security check
-                metadata = {}
-                if context.session_id:
-                    metadata["session_id"] = context.session_id
-                
-                # Perform LLM Guard security check on response
-                security_result = await llm_guard.check_security(
-                    content=context.response,
-                    content_type="response",
-                    user_id=context.user_id,
-                    metadata=metadata
-                )
-                
-                if not security_result.get("is_safe", True):
-                    logger.warning(f"Response blocked by LLM Guard: {security_result.get('flagged_scanners', [])}")
-                    context.set_error("Response blocked by security scanner", block=True)
-                    context.response = ""  # Clear the unsafe response
-                    return context
-                    
-            except Exception as e:
-                logger.error(f"Error during LLM Guard response check: {str(e)}")
-                # Continue with other checks on error
         
         # Check with Moderator Service if available
         if self.container.has('moderator_service'):

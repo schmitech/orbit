@@ -79,9 +79,6 @@ def load_config(config_path: Optional[str] = None):
 
                 # Resolve Ollama preset references (must be after imports and env vars)
                 config = _resolve_ollama_presets(config)
-
-                # Normalize and validate known sections
-                config = _normalize_llm_guard_config(config)
                 
                 # Log key configuration values
                 _log_config_summary(config, config_path)
@@ -496,68 +493,3 @@ def _resolve_ollama_presets(config: Dict[str, Any]) -> Dict[str, Any]:
         return config
 
 
-def _normalize_llm_guard_config(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Validate and normalize llm_guard configuration with safe defaults.
-
-    This ensures new optional settings are present with sane defaults and
-    that types are coerced when users provide strings via env vars.
-    """
-    try:
-        llm_guard = config.get('llm_guard')
-        if not isinstance(llm_guard, dict):
-            return config
-
-        service = llm_guard.setdefault('service', {}) if isinstance(llm_guard.get('service'), dict) else {}
-        llm_guard['service'] = service
-
-        def to_int(value, default):
-            try:
-                v = int(value)
-                return v if v >= 0 else default
-            except Exception:
-                return default
-
-        def to_pos_int(value, default):
-            v = to_int(value, default)
-            return v if v > 0 else default
-
-        def to_float(value, default):
-            try:
-                v = float(value)
-                return v if v >= 0 else default
-            except Exception:
-                return default
-
-        def to_list(value, default):
-            if isinstance(value, list):
-                return value
-            return default
-
-        # Base timeouts
-        timeout = to_pos_int(service.get('timeout', 30), 30)
-        service['timeout'] = timeout
-        service['connect_timeout'] = to_pos_int(service.get('connect_timeout', 5), 5)
-        service['read_timeout'] = to_pos_int(service.get('read_timeout', timeout), timeout)
-        service['total_timeout'] = to_pos_int(service.get('total_timeout', timeout), timeout)
-
-        # Per-request timeout defaults to min(total_timeout, 10)
-        default_req_to = min(service['total_timeout'], 10)
-        service['request_timeout'] = to_pos_int(service.get('request_timeout', default_req_to), default_req_to)
-
-        # Retry behavior
-        service['max_attempts'] = max(1, to_int(service.get('max_attempts', 2), 2))
-        service['backoff_factor'] = to_float(service.get('backoff_factor', 0.4), 0.4)
-        service['retry_status_codes'] = to_list(service.get('retry_status_codes', [500, 502, 503, 504]), [500, 502, 503, 504])
-
-        # Health settings
-        service['health_interval'] = to_pos_int(service.get('health_interval', 30), 30)
-        service['health_timeout'] = to_pos_int(service.get('health_timeout', 5), 5)
-
-        # Circuit breaker
-        service['failure_threshold'] = max(1, to_int(service.get('failure_threshold', 3), 3))
-        service['circuit_reset_timeout'] = to_pos_int(service.get('circuit_reset_timeout', 60), 60)
-
-        return config
-    except Exception as e:
-        logger.warning(f"Error normalizing llm_guard config: {str(e)}")
-        return config

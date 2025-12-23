@@ -2,7 +2,7 @@
 Anthropic moderation service implementation using unified architecture.
 
 This is a migrated version of the Anthropic moderator that uses
-the new unified AI services architecture.
+the new unified AI services architecture with expanded safety categories.
 """
 
 import logging
@@ -17,6 +17,26 @@ from ...base import ServiceType
 logger = logging.getLogger(__name__)
 
 
+# Expanded category set aligned with MLCommons taxonomy and OpenAI categories
+ANTHROPIC_CATEGORIES = [
+    "violent_crimes",
+    "non_violent_crimes",
+    "sex_related_crimes",
+    "child_exploitation",
+    "defamation",
+    "specialized_advice",
+    "privacy",
+    "intellectual_property",
+    "indiscriminate_weapons",
+    "hate",
+    "harassment",
+    "self_harm",
+    "sexual",
+    "elections",
+    "code_interpreter_abuse",
+]
+
+
 class AnthropicModerationService(ModerationService, AnthropicBaseService):
     """
     Anthropic moderation service using unified architecture.
@@ -26,6 +46,7 @@ class AnthropicModerationService(ModerationService, AnthropicBaseService):
     2. AsyncAnthropic client initialization automatic
     3. Configuration parsing from base classes
     4. Error handling via _handle_anthropic_error()
+    5. Expanded category set aligned with MLCommons taxonomy
 
     Uses Claude to classify content safety with structured JSON output.
     """
@@ -45,18 +66,38 @@ class AnthropicModerationService(ModerationService, AnthropicBaseService):
         provider_config = self._extract_provider_config()
         self.model = provider_config.get('model', 'claude-3-haiku-20240307')
         self.temperature = provider_config.get('temperature', 0.0)
-        self.max_tokens = provider_config.get('max_tokens', 100)
+        self.max_tokens = provider_config.get('max_tokens', 200)
         self.batch_size = provider_config.get('batch_size', 5)
 
-        # System prompt for JSON-based moderation
-        self.system_prompt = """
-You are a content moderation system. Analyze the content and determine if it violates any safety policies.
-You must respond with ONLY a valid, complete JSON object in this exact format:
-{"is_flagged": false, "categories": {"hate": 0.01, "harassment": 0.01, "sexual": 0.01, "violence": 0.01}}
+        # Build category scores template for JSON output
+        self._category_template = {cat: 0.0 for cat in ANTHROPIC_CATEGORIES}
 
-Set "is_flagged" to true if the content violates policies, false otherwise.
-Set category scores between 0.0 and 1.0 indicating confidence.
-"""
+        # System prompt for JSON-based moderation with expanded categories
+        self.system_prompt = """You are a content moderation system. Analyze the content and determine if it violates any safety policies.
+
+You must respond with ONLY a valid JSON object in this exact format:
+{"is_flagged": false, "categories": {"violent_crimes": 0.0, "non_violent_crimes": 0.0, "sex_related_crimes": 0.0, "child_exploitation": 0.0, "defamation": 0.0, "specialized_advice": 0.0, "privacy": 0.0, "intellectual_property": 0.0, "indiscriminate_weapons": 0.0, "hate": 0.0, "harassment": 0.0, "self_harm": 0.0, "sexual": 0.0, "elections": 0.0, "code_interpreter_abuse": 0.0}}
+
+Category definitions:
+- violent_crimes: Content enabling, encouraging, or excusing violent crimes
+- non_violent_crimes: Content enabling, encouraging, or excusing non-violent crimes (theft, fraud, hacking)
+- sex_related_crimes: Content enabling, encouraging, or excusing sex-related crimes
+- child_exploitation: Any content depicting or enabling child exploitation
+- defamation: Content that defames specific individuals
+- specialized_advice: Dangerous advice (medical, legal, financial) without proper disclaimers
+- privacy: Content that violates individual privacy
+- intellectual_property: Content that violates intellectual property rights
+- indiscriminate_weapons: Content about creating weapons of mass destruction
+- hate: Content that demeans people based on protected characteristics
+- harassment: Threatening or abusive content targeting individuals
+- self_harm: Content that encourages suicide or self-harm
+- sexual: Explicit sexual content
+- elections: False information about elections or voting
+- code_interpreter_abuse: Attempts to abuse code interpreters or systems
+
+Set "is_flagged" to true if the content violates ANY policy, false otherwise.
+Set category scores between 0.0 (not present) and 1.0 (definitely present).
+Only output the JSON object, nothing else."""
 
     async def moderate_content(self, content: str) -> ModerationResult:
         """
@@ -72,12 +113,12 @@ Set category scores between 0.0 and 1.0 indicating confidence.
             await self.initialize()
 
         try:
-            # User message asking for content moderation - simplified to ensure valid output
-            user_message = f"""
-Analyze this content for safety violations: "{content}"
+            # User message asking for content moderation
+            user_message = f"""Analyze this content for safety violations:
 
-Only respond with a valid JSON object. Do not include any other text or explanations.
-"""
+"{content}"
+
+Respond with only the JSON object."""
 
             # Call Anthropic API
             response = await self.client.messages.create(
@@ -93,51 +134,26 @@ Only respond with a valid JSON object. Do not include any other text or explanat
             # Extract the response text
             response_text = response.content[0].text.strip()
 
-            # Try to fix common JSON parsing issues
-            if response_text.startswith("```json"):
-                response_text = response_text.replace("```json", "", 1)
-            if response_text.endswith("```"):
-                response_text = response_text.replace("```", "", 1)
-            response_text = response_text.strip()
-
-            # Handle incomplete JSON by providing default values
-            if not response_text.endswith("}"):
-                logger.warning(f"Received incomplete JSON from Anthropic: {response_text}")
-                # Allow content through on parse errors (likely config issue, not security)
-                return ModerationResult(
-                    is_flagged=False,
-                    categories={"parse_error": 0.5},
-                    provider="anthropic",
-                    model=self.model,
-                    error=f"Invalid JSON response (allowed): {response_text}"
-                )
+            # Clean up common JSON formatting issues
+            response_text = self._clean_json_response(response_text)
 
             # Parse the JSON response
             try:
                 result = json.loads(response_text)
 
-                # Check for required fields
-                if "is_flagged" not in result:
-                    logger.warning(f"Anthropic response missing 'is_flagged' field: {response_text}")
-                    result["is_flagged"] = True  # Default to flagged if missing
+                # Validate and extract fields
+                is_flagged = result.get("is_flagged", False)
+                categories = result.get("categories", {})
 
-                if "categories" not in result:
-                    logger.warning(f"Anthropic response missing 'categories' field: {response_text}")
-                    result["categories"] = {}
+                # Ensure all category values are floats
+                categories = {k: float(v) for k, v in categories.items() if isinstance(v, (int, float))}
 
-                is_flagged = result["is_flagged"]
-                categories = result["categories"]
-
-                # Only log high confidence categories in debug mode
-                if self.logger.isEnabledFor(10):  # DEBUG level
-                    high_confidence_categories = {k: v for k, v in categories.items() if v > 0.5}
-                    if high_confidence_categories:
-                        logger.debug(f"Content flagged for: {high_confidence_categories}")
-
-                    if is_flagged:
-                        logger.debug("Anthropic flagged content as unsafe")
-                    else:
-                        logger.debug("Anthropic determined content is safe")
+                # Log the result
+                if is_flagged:
+                    high_scores = {k: v for k, v in categories.items() if v > 0.5}
+                    logger.debug(f"Anthropic flagged content - high score categories: {high_scores}")
+                else:
+                    logger.debug("Anthropic determined content is safe")
 
                 return ModerationResult(
                     is_flagged=is_flagged,
@@ -149,24 +165,100 @@ Only respond with a valid JSON object. Do not include any other text or explanat
             except json.JSONDecodeError as json_error:
                 logger.error(f"Failed to parse Anthropic response as JSON: {response_text}")
                 logger.error(f"JSON error: {str(json_error)}")
-                # Allow content through on parse errors (likely config issue, not security)
-                return ModerationResult(
-                    is_flagged=False,
-                    categories={"parse_error": 0.5},
-                    provider="anthropic",
-                    model=self.model,
-                    error=f"Failed to parse response (allowed): {response_text}"
-                )
+
+                # Try to interpret the response if it contains safety keywords
+                return self._interpret_non_json_response(response_text)
 
         except Exception as e:
             self._handle_anthropic_error(e, "content moderation")
             logger.warning(f"Moderation check failed, allowing content through: {str(e)}")
             return ModerationResult(
-                is_flagged=False,  # Allow on error - better UX
+                is_flagged=False,  # Fail-open on errors
                 provider="anthropic",
                 model=self.model,
                 error=f"Moderation check failed (allowed): {str(e)}"
             )
+
+    def _clean_json_response(self, response_text: str) -> str:
+        """
+        Clean up common JSON formatting issues in LLM responses.
+
+        Args:
+            response_text: Raw response text
+
+        Returns:
+            Cleaned JSON string
+        """
+        # Remove markdown code blocks
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        elif response_text.startswith("```"):
+            response_text = response_text[3:]
+
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+
+        # Remove any leading/trailing whitespace
+        response_text = response_text.strip()
+
+        # Remove any text before the first {
+        if '{' in response_text:
+            response_text = response_text[response_text.index('{'):]
+
+        # Remove any text after the last }
+        if '}' in response_text:
+            response_text = response_text[:response_text.rindex('}')+1]
+
+        return response_text
+
+    def _interpret_non_json_response(self, response_text: str) -> ModerationResult:
+        """
+        Attempt to interpret a non-JSON response for safety signals.
+
+        Args:
+            response_text: The non-JSON response text
+
+        Returns:
+            ModerationResult based on interpretation
+        """
+        response_lower = response_text.lower()
+
+        # Check for unsafe indicators
+        unsafe_keywords = ["unsafe", "violates", "harmful", "dangerous", "inappropriate",
+                          "blocked", "reject", "cannot assist", "not allowed"]
+        safe_keywords = ["safe", "acceptable", "allowed", "appropriate", "no violation"]
+
+        # Check unsafe first (fail-safe)
+        if any(keyword in response_lower for keyword in unsafe_keywords):
+            logger.info(f"Interpreted non-JSON response as unsafe: {response_text[:100]}")
+            return ModerationResult(
+                is_flagged=True,
+                categories={"interpreted_unsafe": 0.8},
+                provider="anthropic",
+                model=self.model,
+                error=f"Non-JSON response interpreted as unsafe"
+            )
+
+        # Check for safe indicators
+        if any(keyword in response_lower for keyword in safe_keywords):
+            logger.info(f"Interpreted non-JSON response as safe: {response_text[:100]}")
+            return ModerationResult(
+                is_flagged=False,
+                categories={"interpreted_safe": 0.5},
+                provider="anthropic",
+                model=self.model,
+                error=f"Non-JSON response interpreted as safe"
+            )
+
+        # Ambiguous - fail-open
+        logger.warning(f"Could not interpret response, allowing through: {response_text[:100]}")
+        return ModerationResult(
+            is_flagged=False,
+            categories={"parse_error": 0.5},
+            provider="anthropic",
+            model=self.model,
+            error=f"Failed to parse response (allowed): {response_text[:100]}"
+        )
 
     async def moderate_batch(self, contents: List[str]) -> List[ModerationResult]:
         """

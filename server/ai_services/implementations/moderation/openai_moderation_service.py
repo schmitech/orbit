@@ -77,12 +77,11 @@ class OpenAIModerationService(ModerationService, OpenAIBaseService):
                     categories[category_name] = score
 
             # Log moderation details at DEBUG level
-            if self.logger.isEnabledFor(10):  # DEBUG level
-                logger.debug(f"OpenAI Moderation - flagged={is_flagged}, all_scores={categories}")
-                # Also log high confidence categories
-                high_scores = {k: v for k, v in categories.items() if v > 0.5}
-                if high_scores:
-                    logger.debug(f"High confidence categories (>0.5): {high_scores}")
+            logger.debug(f"OpenAI Moderation - flagged={is_flagged}, all_scores={categories}")
+            # Also log high confidence categories
+            high_scores = {k: v for k, v in categories.items() if v > 0.5}
+            if high_scores:
+                logger.debug(f"High confidence categories (>0.5): {high_scores}")
 
             return ModerationResult(
                 is_flagged=is_flagged,

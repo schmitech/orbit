@@ -1080,7 +1080,6 @@ async def execute_workflow(request: WorkflowExecutionRequest):
 
 ### Synergies with Other Components
 - **🔄 Concurrency & Performance**: Message queues handle load spikes better than thread pools
-- **🛡️ LLM Guard Integration**: Async security scanning for complex content
 - **⚡ Workflow Adapters**: Event-driven multi-step processing workflows
 - **📊 Enterprise Features**: Advanced job analytics and resource monitoring
 

@@ -350,9 +350,6 @@ class InferenceServer:
         
         if hasattr(app.state, 'embedding_service'):
             add_shutdown_task(app.state.embedding_service, 'Embedding Service')
-        
-        if hasattr(app.state, 'llm_guard_service'):
-            add_shutdown_task(app.state.llm_guard_service, 'LLM Guard Service')
             
         # Close Moderator Service
         if hasattr(app.state, 'moderator_service'):

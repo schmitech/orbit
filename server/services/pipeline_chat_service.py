@@ -39,7 +39,7 @@ class PipelineChatService:
     """
 
     def __init__(self, config: Dict[str, Any], logger_service,
-                 chat_history_service=None, llm_guard_service=None, moderator_service=None,
+                 chat_history_service=None, moderator_service=None,
                  retriever=None, reranker_service=None, prompt_service=None, clock_service=None,
                  redis_service=None, adapter_manager=None, audit_service=None,
                  database_service=None, thread_dataset_service=None):
@@ -50,7 +50,6 @@ class PipelineChatService:
             config: Application configuration
             logger_service: Logger service
             chat_history_service: Optional chat history service
-            llm_guard_service: Optional LLM Guard service
             moderator_service: Optional moderator service
             retriever: Optional retriever service
             reranker_service: Optional reranker service
@@ -69,7 +68,6 @@ class PipelineChatService:
         # Store services for direct access
         self.logger_service = logger_service
         self.chat_history_service = chat_history_service
-        self.llm_guard_service = llm_guard_service
         self.moderator_service = moderator_service
         self.clock_service = clock_service
         self.redis_service = redis_service
@@ -96,7 +94,6 @@ class PipelineChatService:
             retriever=retriever,
             reranker_service=reranker_service,
             prompt_service=prompt_service,
-            llm_guard_service=llm_guard_service,
             moderator_service=moderator_service,
             chat_history_service=chat_history_service,
             logger_service=logger_service,

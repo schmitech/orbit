@@ -55,7 +55,7 @@ flowchart TD
 
     Step1[Step 1: Safety Check<br/>Pre-Moderation] --> SafetyServices
 
-    SafetyServices[LLM Guard Framework<br/>+<br/>Moderation Services] --> SafetyProviders
+    SafetyServices[Moderation Services] --> SafetyProviders
 
     SafetyProviders[OpenAI Moderation<br/>Google Perspective API<br/>Azure Content Safety] --> SafetyCheck{Content<br/>Safe?}
 

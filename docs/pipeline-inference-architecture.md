@@ -208,7 +208,7 @@ class ResponseValidationStep(PipelineStep):
 
 Steps are automatically included in the pipeline based on the available services and mode of operation. Each step uses its `should_execute()` method to determine whether it should run based on the current context and available services:
 
-- **SafetyFilterStep**: Executes when `llm_guard_service` or `moderator_service` is available
+- **SafetyFilterStep**: Executes when `moderator_service` is available
 - **LanguageDetectionStep**: Executes when `language_detection` is enabled in general configuration
 - **ContextRetrievalStep**: Executes when a retriever or adapter manager is available
 - **LLMInferenceStep**: Always executes when an LLM provider is available
@@ -222,12 +222,6 @@ safety:
   enabled: true  # Enables moderator service
   mode: "fuzzy"
   moderator: "ollama"
-
-# LLM Guard configuration  
-llm_guard:
-  enabled: true  # Enables LLM Guard service
-  service:
-    base_url: "http://localhost:8000"
 
 # Language detection configuration
 general:
@@ -412,7 +406,7 @@ The pipeline architecture is now the default and only inference mode in ORBIT. T
 
 1. **Available Services**: Steps execute only when their required services are available
 2. **Adapter Configuration**: RAG steps execute based on adapter type (passthrough adapters skip retrieval)
-3. **Safety Settings**: Safety and validation steps are controlled by `safety` and `llm_guard` configuration sections
+3. **Safety Settings**: Safety and validation steps are controlled by the `safety` configuration section
 
 ### Key Configuration Sections
 
@@ -426,15 +420,6 @@ safety:
   enabled: true                 # Enable content moderation
   mode: "fuzzy"
   moderator: "ollama"
-
-# LLM Guard for advanced security
-llm_guard:
-  enabled: true                 # Enable LLM Guard checks
-  service:
-    base_url: "http://localhost:8000"
-    timeout: 30
-  security:
-    risk_threshold: 0.6
 ```
 
 ### Provider Configuration
@@ -614,7 +599,7 @@ The pipeline architecture is now the default and only mode in ORBIT. The legacy 
 
 1. **No Pipeline Configuration**: The `pipeline:` configuration section has been removed. Steps are automatically configured based on available services.
 2. **Automatic Step Inclusion**: All steps are included by default and use their internal logic to determine execution.
-3. **Service-Based Control**: Enable/disable features through their respective service configurations (`safety:`, `llm_guard:`, etc.) rather than pipeline step configuration.
+3. **Service-Based Control**: Enable/disable features through their respective service configurations (`safety:`, etc.) rather than pipeline step configuration.
 4. **Default Mode**: There's no need to enable pipeline mode - it's always active.
 
 ## Conclusion

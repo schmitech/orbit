@@ -30,8 +30,6 @@ Scaling ORBIT to handle thousands of concurrent requests:
 - Auto-scaling and circuit breaker patterns
 - Real-time performance monitoring
 
-**Implementation Status**: The LLM Guard service has been fully integrated into Orbit. See the [LLM Guard Service Documentation](../llm-guard-service.md) for configuration and usage details.
-
 ### 4. [Asynchronous Messaging & Multi-Modal Processing](async-messaging-integration.md)
 Scalable async processing with message queue protocols:
 - Multi-platform message queue support (RabbitMQ, Kafka, Pub/Sub)

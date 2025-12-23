@@ -1,15 +1,13 @@
 """
-Ollama moderation service implementation using unified architecture.
+Ollama moderation service implementation using Llama Guard 3.
 
-This is a migrated version of the Ollama moderator that uses
-the new unified AI services architecture and integrates with existing
-ollama_utils for maximum compatibility.
+This implementation uses Meta's Llama Guard 3 model which is specifically
+designed for content safety classification using the MLCommons taxonomy.
 """
 
 import logging
 from typing import Dict, Any, List
 import asyncio
-import json
 
 from ...providers import OllamaBaseService
 from ...services import ModerationService, ModerationResult
@@ -18,18 +16,37 @@ from ...base import ServiceType
 logger = logging.getLogger(__name__)
 
 
+# Llama Guard 3 hazard categories (MLCommons taxonomy)
+LLAMA_GUARD_CATEGORIES = {
+    "S1": "violent_crimes",
+    "S2": "non_violent_crimes",
+    "S3": "sex_related_crimes",
+    "S4": "child_exploitation",
+    "S5": "defamation",
+    "S6": "specialized_advice",
+    "S7": "privacy",
+    "S8": "intellectual_property",
+    "S9": "indiscriminate_weapons",
+    "S10": "hate",
+    "S11": "self_harm",
+    "S12": "sexual",
+    "S13": "elections",
+    "S14": "code_interpreter_abuse",
+}
+
+
 class OllamaModerationService(ModerationService, OllamaBaseService):
     """
-    Ollama moderation service using unified architecture.
+    Ollama moderation service using Llama Guard 3.
 
     This implementation leverages:
-    1. Ollama utilities integration from OllamaBaseService
-    2. Model warm-up and retry logic inherited
-    3. Configuration parsing from base classes
-    4. Connection verification automatic
+    1. Meta's Llama Guard 3 model for content safety classification
+    2. MLCommons hazard taxonomy with 14 categories
+    3. Simple "safe" / "unsafe" output parsing
+    4. Ollama utilities integration from OllamaBaseService
 
-    Uses a local model (typically Gemma 3:12b) to classify content safety
-    with structured JSON output.
+    Llama Guard 3 is specifically trained for content moderation and
+    provides more accurate classification than general-purpose LLMs.
     """
 
     def __init__(self, config: Dict[str, Any]):
@@ -47,34 +64,68 @@ class OllamaModerationService(ModerationService, OllamaBaseService):
         provider_config = self._extract_provider_config()
         self.batch_size = provider_config.get('batch_size', 1)
 
-        # System prompt for JSON-based moderation
-        self.system_prompt = """
-You are a content moderation system. Analyze the content and determine if it violates any safety policies.
-You must respond with ONLY a valid, complete JSON object in this exact format:
-{"is_flagged": false, "categories": {"hate": 0.01, "harassment": 0.01, "sexual": 0.01, "violence": 0.01}}
-
-Set "is_flagged" to true if the content violates policies, false otherwise.
-Set category scores between 0.0 and 1.0 indicating confidence.
-
-IMPORTANT: You must respond with ONLY the JSON object. No other text, no explanations, no markdown formatting.
-"""
+        # Override model to use Llama Guard 3 by default
+        if not provider_config.get('model'):
+            self.model = "llama-guard3:8b"
+            logger.info(f"Using default Llama Guard 3 model: {self.model}")
 
     async def initialize(self) -> bool:
         """
         Initialize the Ollama moderation service.
 
-        Uses the base class initialization with chat endpoint warmup.
+        Uses the base class initialization with generate endpoint warmup
+        since Llama Guard 3 uses the generate API.
 
         Returns:
             True if initialization was successful, False otherwise
         """
-        # Use base class initialization - it automatically determines the warmup endpoint
-        # based on service type (moderation -> chat)
         return await OllamaBaseService.initialize(self)
+
+    def _parse_llama_guard_response(self, response_text: str) -> tuple[bool, Dict[str, float]]:
+        """
+        Parse Llama Guard 3's response format.
+
+        Llama Guard 3 returns:
+        - "safe" for safe content
+        - "unsafe\\nS1" (or other S-code) for unsafe content
+
+        Args:
+            response_text: Raw response from Llama Guard 3
+
+        Returns:
+            Tuple of (is_flagged, categories_dict)
+        """
+        response_text = response_text.strip().lower()
+
+        # Check for safe response
+        if response_text == "safe" or response_text.startswith("safe"):
+            return False, {}
+
+        # Check for unsafe response
+        if "unsafe" in response_text:
+            categories = {}
+            lines = response_text.split('\n')
+
+            for line in lines:
+                line = line.strip().upper()
+                # Look for S-codes (S1-S14)
+                for code, category_name in LLAMA_GUARD_CATEGORIES.items():
+                    if code in line:
+                        categories[category_name] = 1.0
+
+            # If no specific category found but marked unsafe, use generic
+            if not categories:
+                categories["policy_violation"] = 1.0
+
+            return True, categories
+
+        # Ambiguous response - log and treat as safe (fail-open)
+        logger.warning(f"Ambiguous Llama Guard response: '{response_text}', treating as safe")
+        return False, {"ambiguous_response": 0.5}
 
     async def moderate_content(self, content: str) -> ModerationResult:
         """
-        Moderate content using a local Ollama model with JSON-based moderation.
+        Moderate content using Llama Guard 3.
 
         Args:
             content: The text content to moderate
@@ -86,33 +137,56 @@ IMPORTANT: You must respond with ONLY the JSON object. No other text, no explana
             if not await self.initialize():
                 raise ValueError("Failed to initialize Ollama moderation service")
 
-        # User message asking for content moderation
-        user_message = f"""
-Analyze this content for safety violations: "{content}"
+        # Llama Guard 3 prompt format
+        # The model expects content in a specific format for classification
+        prompt = f"""<|begin_of_text|><|start_header_id|>user<|end_header_id|>
 
-Respond with ONLY a valid JSON object in this format:
-{{"is_flagged": false, "categories": {{"hate": 0.01, "harassment": 0.01, "sexual": 0.01, "violence": 0.01}}}}
+Task: Check if there is unsafe content in 'User' messages in conversations according to our safety policy with the below categories.
 
-No other text or explanations.
+<BEGIN UNSAFE CONTENT CATEGORIES>
+S1: Violent Crimes - Content that enables, encourages, or excuses violent crimes.
+S2: Non-Violent Crimes - Content that enables, encourages, or excuses non-violent crimes.
+S3: Sex-Related Crimes - Content that enables, encourages, or excuses sex-related crimes.
+S4: Child Sexual Exploitation - Content that depicts child sexual exploitation.
+S5: Defamation - Content that defames specific individuals.
+S6: Specialized Advice - Content that provides specialized advice without disclaimers.
+S7: Privacy - Content that violates privacy of individuals.
+S8: Intellectual Property - Content that violates intellectual property rights.
+S9: Indiscriminate Weapons - Content about creating weapons of mass destruction.
+S10: Hate - Content that demeans people based on protected characteristics.
+S11: Suicide & Self-Harm - Content that encourages suicide or self-harm.
+S12: Sexual Content - Explicit sexual content.
+S13: Elections - Content that contains false information about elections.
+S14: Code Interpreter Abuse - Content that attempts to abuse code interpreters.
+<END UNSAFE CONTENT CATEGORIES>
+
+<BEGIN CONVERSATION>
+
+User: {content}
+
+<END CONVERSATION>
+
+Provide your safety assessment for 'User' in the above conversation:
+- First line must read 'safe' or 'unsafe'.
+- If unsafe, a second line must include a comma-separated list of violated categories.<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
 """
 
         async def _moderate():
             # Get a session
             session = await self.session_manager.get_session()
 
-            # Send the request to Ollama
+            # Send the request to Ollama using generate endpoint
             async with session.post(
-                f"{self.base_url}/api/chat",
+                f"{self.base_url}/api/generate",
                 json={
                     "model": self.model,
-                    "messages": [
-                        {"role": "system", "content": self.system_prompt},
-                        {"role": "user", "content": user_message}
-                    ],
+                    "prompt": prompt,
                     "stream": False,
-                    "temperature": 0.0,  # Using 0 temperature for consistency
                     "options": {
-                        "num_predict": 100  # Limit response length
+                        "temperature": 0.0,  # Deterministic output
+                        "num_predict": 50,   # Short response expected
+                        "stop": ["<|eot_id|>", "\n\n"]  # Stop tokens
                     }
                 }
             ) as response:
@@ -120,111 +194,34 @@ No other text or explanations.
                     error_text = await response.text()
                     logger.error(f"Ollama API error: {error_text}")
                     return ModerationResult(
-                        is_flagged=True,
-                        categories={},
+                        is_flagged=False,  # Fail-open on API errors
+                        categories={"api_error": 0.5},
                         provider="ollama",
                         model=self.model,
-                        error=f"API error: {error_text}"
+                        error=f"API error (allowed): {error_text}"
                     )
 
                 data = await response.json()
 
             # Extract the response
-            response_text = data.get("message", {}).get("content", "").strip()
+            response_text = data.get("response", "").strip()
+            logger.debug(f"Llama Guard raw response: '{response_text}'")
 
-            # Try to fix common JSON parsing issues
-            if response_text.startswith("```json"):
-                response_text = response_text.replace("```json", "", 1)
-            if response_text.endswith("```"):
-                response_text = response_text.replace("```", "", 1)
-            response_text = response_text.strip()
+            # Parse the response
+            is_flagged, categories = self._parse_llama_guard_response(response_text)
 
-            # Clean up the response text - remove newlines and extra whitespace
-            response_text = ' '.join(response_text.split())
+            # Log the result
+            if is_flagged:
+                logger.debug(f"Llama Guard flagged content - categories: {categories}")
+            else:
+                logger.debug("Llama Guard determined content is safe")
 
-            # Handle incomplete JSON responses more intelligently
-            if not response_text.endswith("}"):
-                logger.warning(f"Received incomplete JSON from Ollama: {response_text}")
-
-                # Try to interpret partial responses
-                response_lower = response_text.lower()
-
-                # If the model says "unsafe" or similar, treat as unsafe (check this first)
-                if any(word in response_lower for word in ["unsafe", "bad", "harmful", "dangerous", "inappropriate", "block"]):
-                    logger.info(f"Interpreting partial response '{response_text}' as unsafe")
-                    return ModerationResult(
-                        is_flagged=True,
-                        categories={"interpreted": 0.8},
-                        provider="ollama",
-                        model=self.model,
-                        error=f"Partial response interpreted: {response_text}"
-                    )
-
-                # If the model just says "safe" or similar, treat as safe
-                if any(word in response_lower for word in ["safe", "ok", "good", "fine", "acceptable", "pass"]):
-                    logger.info(f"Interpreting partial response '{response_text}' as safe")
-                    return ModerationResult(
-                        is_flagged=False,
-                        categories={"interpreted": 0.5},
-                        provider="ollama",
-                        model=self.model,
-                        error=f"Partial response interpreted: {response_text}"
-                    )
-
-                # Allow content through on parse errors (likely config issue, not security)
-                return ModerationResult(
-                    is_flagged=False,
-                    categories={"parse_error": 0.5},
-                    provider="ollama",
-                    model=self.model,
-                    error=f"Invalid JSON response (allowed): {response_text}"
-                )
-
-            # Parse the JSON response
-            try:
-                result = json.loads(response_text)
-
-                # Check for required fields
-                if "is_flagged" not in result:
-                    logger.warning(f"Ollama response missing 'is_flagged' field: {response_text}")
-                    result["is_flagged"] = True  # Default to flagged if missing
-
-                if "categories" not in result:
-                    logger.warning(f"Ollama response missing 'categories' field: {response_text}")
-                    result["categories"] = {}
-
-                is_flagged = result["is_flagged"]
-                categories = result["categories"]
-
-                # Only log high confidence categories in debug mode
-                if self.logger.isEnabledFor(10):  # DEBUG level
-                    high_confidence_categories = {k: v for k, v in categories.items() if v > 0.5}
-                    if high_confidence_categories:
-                        logger.debug(f"Content flagged for: {high_confidence_categories}")
-
-                    if is_flagged:
-                        logger.debug("Ollama flagged content as unsafe")
-                    else:
-                        logger.debug("Ollama determined content is safe")
-
-                return ModerationResult(
-                    is_flagged=is_flagged,
-                    categories=categories,
-                    provider="ollama",
-                    model=self.model
-                )
-
-            except json.JSONDecodeError as json_error:
-                logger.error(f"Failed to parse Ollama response as JSON: {response_text}")
-                logger.error(f"JSON error: {str(json_error)}")
-                # Allow content through on parse errors (likely config issue, not security)
-                return ModerationResult(
-                    is_flagged=False,
-                    categories={"parse_error": 0.5},
-                    provider="ollama",
-                    model=self.model,
-                    error=f"Failed to parse response (allowed): {response_text}"
-                )
+            return ModerationResult(
+                is_flagged=is_flagged,
+                categories=categories,
+                provider="ollama",
+                model=self.model
+            )
 
         try:
             # Execute with retry logic from Ollama base class
@@ -234,7 +231,7 @@ No other text or explanations.
             logger.error(f"Error in Ollama moderation: {str(e)}")
             logger.warning(f"Moderation check failed, allowing content through: {str(e)}")
             return ModerationResult(
-                is_flagged=False,  # Allow on error - better UX
+                is_flagged=False,  # Fail-open on errors
                 provider="ollama",
                 model=self.model,
                 error=f"Moderation check failed (allowed): {str(e)}"
