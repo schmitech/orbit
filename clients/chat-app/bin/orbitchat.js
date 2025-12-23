@@ -328,8 +328,12 @@ function createServer(distPath, config) {
       proxyInstances[adapterName] = createProxyMiddleware({
         target: adapter.apiUrl,
         changeOrigin: true,
-        pathRewrite: {
-          '^/api/proxy': '', // Remove /api/proxy prefix
+        // Restore /api prefix for backend paths that need it (files, threads)
+        pathRewrite: (path) => {
+          if (path.startsWith('/files') || path.startsWith('/threads')) {
+            return '/api' + path;
+          }
+          return path;
         },
         // Set headers directly - this is more reliable than onProxyReq for some cases
         headers: {
@@ -399,7 +403,12 @@ function createServer(distPath, config) {
     });
 
     // Proxy middleware for API requests - must be before body parsers to preserve request stream
-    app.use('/api/proxy', (req, res, next) => {
+    // Note: Uses /api path instead of /api/proxy for security (hides proxy nature)
+    app.use('/api', (req, res, next) => {
+      // Skip the /api/adapters route - it's handled separately above
+      if (req.path === '/adapters') {
+        return next('route');
+      }
       const adapterName = req.headers['x-adapter-name'];
 
       if (!adapterName) {

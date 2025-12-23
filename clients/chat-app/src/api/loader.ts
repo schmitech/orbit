@@ -219,7 +219,7 @@ function createMiddlewareApi(): ApiFunctions {
         if (sourceLanguage) requestBody.source_language = sourceLanguage;
         if (targetLanguage) requestBody.target_language = targetLanguage;
 
-        const response = await fetch('/api/proxy/v1/chat', {
+        const response = await fetch('/api/v1/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -306,7 +306,7 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async createThread(messageId: string, sessId: string) {
-        const response = await fetch('/api/proxy/api/threads', {
+        const response = await fetch('/api/threads', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -320,7 +320,7 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async getThreadInfo(threadId: string) {
-        const response = await fetch(`/api/proxy/api/threads/${threadId}`, {
+        const response = await fetch(`/api/threads/${threadId}`, {
           headers: {
             'X-Adapter-Name': adapterName!,
           },
@@ -330,7 +330,7 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async deleteThread(threadId: string) {
-        const response = await fetch(`/api/proxy/api/threads/${threadId}`, {
+        const response = await fetch(`/api/threads/${threadId}`, {
           method: 'DELETE',
           headers: {
             'X-Adapter-Name': adapterName!,
@@ -341,7 +341,7 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async clearConversationHistory(sessId?: string) {
-        const response = await fetch(`/api/proxy/admin/chat-history/${sessId || sessionId}`, {
+        const response = await fetch(`/api/admin/chat-history/${sessId || sessionId}`, {
           method: 'DELETE',
           headers: {
             'X-Adapter-Name': adapterName!,
@@ -355,7 +355,7 @@ function createMiddlewareApi(): ApiFunctions {
         const targetSession = sessId || sessionId;
         // Send file_ids as query parameters to match direct API behavior
         const fileIdsParam = fileIds && fileIds.length > 0 ? `?file_ids=${fileIds.join(',')}` : '';
-        const response = await fetch(`/api/proxy/admin/conversations/${targetSession}${fileIdsParam}`, {
+        const response = await fetch(`/api/admin/conversations/${targetSession}${fileIdsParam}`, {
           method: 'DELETE',
           headers: {
             'X-Adapter-Name': adapterName!,
@@ -370,7 +370,7 @@ function createMiddlewareApi(): ApiFunctions {
       async uploadFile(file: File) {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await fetch('/api/proxy/api/files/upload', {
+        const response = await fetch('/api/files/upload', {
           method: 'POST',
           headers: {
             'X-Adapter-Name': adapterName!,
@@ -382,7 +382,7 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async listFiles() {
-        const response = await fetch('/api/proxy/api/files', {
+        const response = await fetch('/api/files', {
           headers: {
             'X-Adapter-Name': adapterName!,
           },
@@ -394,7 +394,7 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async getFileInfo(fileId: string) {
-        const response = await fetch(`/api/proxy/api/files/${fileId}`, {
+        const response = await fetch(`/api/files/${fileId}`, {
           headers: {
             'X-Adapter-Name': adapterName!,
           },
@@ -404,7 +404,7 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async queryFile(fileId: string, query: string, maxResults?: number) {
-        const response = await fetch(`/api/proxy/api/files/${fileId}/query`, {
+        const response = await fetch(`/api/files/${fileId}/query`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -417,7 +417,7 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async deleteFile(fileId: string) {
-        const response = await fetch(`/api/proxy/api/files/${fileId}`, {
+        const response = await fetch(`/api/files/${fileId}`, {
           method: 'DELETE',
           headers: {
             'X-Adapter-Name': adapterName!,
@@ -428,7 +428,7 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async validateApiKey() {
-        const response = await fetch(`/api/proxy/admin/api-keys/${adapterName}/status`, {
+        const response = await fetch(`/api/admin/api-keys/${adapterName}/status`, {
           headers: {
             'X-Adapter-Name': adapterName!,
           },
@@ -438,7 +438,7 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async getAdapterInfo() {
-        const response = await fetch('/api/proxy/admin/api-keys/info', {
+        const response = await fetch('/api/admin/api-keys/info', {
           headers: {
             'X-Adapter-Name': adapterName!,
           },

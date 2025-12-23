@@ -133,8 +133,13 @@ export function adaptersPlugin(): Plugin {
         }
       });
 
-      // Proxy /api/proxy/* requests
-      server.middlewares.use('/api/proxy', (req, res, next) => {
+      // Proxy /api/* requests (security: no "proxy" in URL path)
+      // Note: /api/adapters is handled above, this catches other /api/* routes
+      server.middlewares.use('/api', (req, res, next) => {
+        // Skip /api/adapters - handled by the route above
+        if (req.url?.startsWith('/adapters')) {
+          return next();
+        }
         const adapterName = req.headers['x-adapter-name'] as string;
         
         if (!adapterName) {
@@ -161,8 +166,12 @@ export function adaptersPlugin(): Plugin {
         const proxyOptions: Options = {
           target: adapter.apiUrl,
           changeOrigin: true,
-          pathRewrite: {
-            '^/api/proxy': '',
+          // Restore /api prefix for backend paths that need it (files, threads)
+          pathRewrite: (path: string) => {
+            if (path.startsWith('/files') || path.startsWith('/threads')) {
+              return '/api' + path;
+            }
+            return path;
           },
           headers: {
             'X-API-Key': adapter.apiKey,

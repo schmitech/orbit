@@ -115,7 +115,7 @@ You can prevent API keys from ever reaching the browser by enabling the built-in
    ```
 2. Start the CLI with `--enable-api-middleware` (or export `VITE_ENABLE_API_MIDDLEWARE=true`). The Express server now:
    - Serves `GET /api/adapters` so the React app can list safe adapter names.
-   - Proxies all chat/file/thread/admin calls through `/api/proxy/...`, injecting the adapter’s real `X-API-Key`.
+   - Proxies all chat/file/thread/admin calls through `/api/...`, injecting the adapter's real `X-API-Key`.
 3. The UI automatically swaps the API-key modal for an Adapter Selector and stores adapter names per conversation.
 
 Keep `adapters.yaml` out of source control and run the CLI behind HTTPS (or another reverse proxy) when deploying.

@@ -169,13 +169,13 @@ Returns available adapter names (no API keys or URLs exposed):
 ### Proxy Requests
 
 ```
-* /api/proxy/*
+* /api/*
 ```
 
 Proxies requests to ORBIT server. Requires `X-Adapter-Name` header:
 
 ```bash
-curl -X POST https://middleware-proxy.example.com/api/proxy/v1/chat \
+curl -X POST https://middleware-proxy.example.com/api/v1/chat \
   -H "Content-Type: application/json" \
   -H "X-Adapter-Name: Simple Chat" \
   -H "X-Session-ID: session-123" \
@@ -193,7 +193,7 @@ Point your client's `apiUrl` to the middleware proxy:
 const apiUrl = 'https://orbit-server.example.com';
 
 // After: Through middleware proxy
-const apiUrl = 'https://middleware-proxy.example.com/api/proxy';
+const apiUrl = 'https://middleware-proxy.example.com/api';
 ```
 
 The client must include the `X-Adapter-Name` header with each request:

@@ -149,9 +149,9 @@ The CLI can run an Express middleware layer that injects API keys server-side so
 
 2. **Enable the proxy** – pass `--enable-api-middleware` or export `VITE_ENABLE_API_MIDDLEWARE=true` before running `orbitchat`. The Express server exposes:
    - `GET /api/adapters` – returns adapter names/URLs for the dropdown
-   - `/api/proxy/*` – forwards chat, file, thread, and admin calls while injecting the adapter’s real `X-API-Key`
+   - `/api/*` – forwards chat, file, thread, and admin calls while injecting the adapter's real `X-API-Key`
 
-3. **Client experience** – once enabled, the UI hides the API-key modal, shows an Adapter Selector, and routes every request through `/api/proxy/...` using an `X-Adapter-Name` header. Conversations remember adapter names instead of keys.
+3. **Client experience** – once enabled, the UI hides the API-key modal, shows an Adapter Selector, and routes every request through `/api/...` using an `X-Adapter-Name` header. Conversations remember adapter names instead of keys.
 
 4. **Deployment checklist**
    - Keep `adapters.yaml` out of source control; treat it like secrets.

@@ -57,8 +57,8 @@ export default defineConfig(({ mode }) => {
         ],
       },
       proxy: enableMiddleware && env.VITE_MIDDLEWARE_SERVER_URL ? {
-        // Proxy API proxy requests to Express server when middleware is enabled
-        '/api/proxy': {
+        // Proxy API requests to Express server when middleware is enabled
+        '/api': {
           target: env.VITE_MIDDLEWARE_SERVER_URL,
           changeOrigin: true,
           ws: false,

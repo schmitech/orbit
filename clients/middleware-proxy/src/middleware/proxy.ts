@@ -32,8 +32,13 @@ export function createProxyInstances(adapters: AdapterConfig[]): ProxyInstances 
     const proxyOptions: Options = {
       target: adapter.apiUrl,
       changeOrigin: true,
-      pathRewrite: {
-        '^/api/proxy': '', // Remove /api/proxy prefix
+      // Restore /api prefix for backend paths that need it (files, threads)
+      // Express mount at /api strips the prefix, so we add it back for specific paths
+      pathRewrite: (path: string) => {
+        if (path.startsWith('/files') || path.startsWith('/threads')) {
+          return '/api' + path;
+        }
+        return path;
       },
       // Set headers directly for reliability
       headers: {

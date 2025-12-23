@@ -65,7 +65,7 @@ The middleware proxy pattern ensures sensitive credentials never reach the brows
 ### How It Works
 
 1. Browser requests `/api/adapters` → receives only adapter names
-2. Browser sends chat request to `/api/proxy/v1/chat` with header `X-Adapter-Name: "Simple Chat"`
+2. Browser sends chat request to `/api/v1/chat` with header `X-Adapter-Name: "Simple Chat"`
 3. Server looks up the adapter's `apiKey` and `apiUrl` from environment
 4. Server proxies request to backend with `X-API-Key` header injected
 5. Response streams back through the proxy to the browser
@@ -486,7 +486,7 @@ docker run -d --name orbitchat --restart unless-stopped -p 3000:3000 \
 |----------|--------|---------|
 | `/` | GET | Serve React app |
 | `/api/adapters` | GET | List adapter names (health check) |
-| `/api/proxy/*` | POST | Proxy API requests to backend |
+| `/api/*` | POST | Proxy API requests to backend |
 
 ---
 

@@ -33,11 +33,12 @@ export function createServer(config: ProxyConfig): Express {
   // Health check routes (before other middleware to keep them lightweight)
   app.use(createHealthRouter(config.adapters));
 
-  // API routes - Proxy routes MUST be before body parsers to preserve request stream
-  app.use('/api/proxy', createProxyRouter(config.adapters, config.rateLimit));
-
-  // Adapters endpoint
+  // API routes - Adapters endpoint MUST come before proxy to handle /api/adapters
+  // Proxy routes MUST be before body parsers to preserve request stream
   app.use('/api', createAdaptersRouter(config.adapters));
+  
+  // Proxy catch-all for other /api/* paths (security: no "proxy" in URL path)
+  app.use('/api', createProxyRouter(config.adapters, config.rateLimit));
 
   // Body parsers - after proxy routes to preserve request body stream for streaming uploads
   app.use(express.json());

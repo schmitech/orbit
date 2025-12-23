@@ -1,7 +1,7 @@
 /**
  * Proxy Routes
  *
- * * /api/proxy/* - Proxy requests to ORBIT server based on X-Adapter-Name header
+ * /api/* - Proxy requests to ORBIT server based on X-Adapter-Name header
  */
 
 import { Router } from 'express';
