@@ -640,7 +640,11 @@ export class ApiClient {
                 }
 
               } catch (parseError: any) {
-                // Log more details for debugging
+                // Re-throw intentional errors (like moderation blocks) - don't swallow them
+                if (parseError?.message?.startsWith('Server error:')) {
+                  throw parseError;
+                }
+                // Log JSON parse errors for debugging
                 console.warn('[ApiClient] Unable to parse server response. This may be a temporary issue.');
                 console.warn('[ApiClient] Parse error details:', parseError?.message);
                 console.warn('[ApiClient] JSON text length:', jsonText?.length);

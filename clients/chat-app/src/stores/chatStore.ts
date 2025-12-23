@@ -1364,7 +1364,18 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         }
       } catch (error) {
         logError('Chat API error:', error);
-        get().appendToLastMessage('Sorry, there was an error processing your request.', streamingConversationId);
+        // Extract meaningful error message for the user
+        let errorMessage = 'Sorry, there was an error processing your request.';
+        if (error instanceof Error) {
+          // Handle moderation/server errors - show the actual message
+          if (error.message.startsWith('Server error:')) {
+            // Extract the message after "Server error: "
+            errorMessage = error.message.substring('Server error: '.length);
+          } else if (error.message.includes('Could not connect') || error.message.includes('timed out')) {
+            errorMessage = error.message;
+          }
+        }
+        get().appendToLastMessage(errorMessage, streamingConversationId);
       }
 
       // Flush any remaining buffered content before marking streaming as complete
@@ -1754,7 +1765,17 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         }
       } catch (error) {
         logError('Regenerate API error:', error);
-        get().appendToLastMessage('Sorry, there was an error regenerating the response.', regeneratingConversationId);
+        // Extract meaningful error message for the user
+        let errorMessage = 'Sorry, there was an error regenerating the response.';
+        if (error instanceof Error) {
+          // Handle moderation/server errors - show the actual message
+          if (error.message.startsWith('Server error:')) {
+            errorMessage = error.message.substring('Server error: '.length);
+          } else if (error.message.includes('Could not connect') || error.message.includes('timed out')) {
+            errorMessage = error.message;
+          }
+        }
+        get().appendToLastMessage(errorMessage, regeneratingConversationId);
       }
 
       // Flush any remaining buffered content before marking streaming as complete
