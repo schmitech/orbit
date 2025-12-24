@@ -1,7 +1,7 @@
 # Global reranker configuration
 reranker:
   provider: "ollama"  # Default reranker provider (options: ollama, cohere, jina, openai, anthropic, voyage)
-  enabled: true       # Whether reranking is enabled globally
+  enabled: false       # Whether reranking is enabled globally
 
 # Provider-specific configurations
 # Choose the provider that best fits your needs:
@@ -17,7 +17,7 @@ rerankers:
   ollama:
     enabled: false
     base_url: "http://localhost:11434"
-    model: "qllama/bge-reranker-v2-m3:latest"
+    model: "ollama/bge-reranker-v2-m3:latest"
     temperature: 0.0
     batch_size: 5
     top_n: null  # Optional default top_n
