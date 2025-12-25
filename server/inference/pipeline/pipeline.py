@@ -206,7 +206,8 @@ class InferencePipeline:
                             chunk_count += 1
                             # Format as JSON for consistency
                             chunk_json = json.dumps({"response": stream_chunk.content, "done": False})
-                            logger.debug(f"STREAM: Yielding chunk #{chunk_count}: {repr(stream_chunk.content[:50]) if len(stream_chunk.content) > 50 else repr(stream_chunk.content)}")
+                            # Uncomment to debug streaming
+                            # logger.debug(f"STREAM: Yielding chunk #{chunk_count}: {repr(stream_chunk.content[:50]) if len(stream_chunk.content) > 50 else repr(stream_chunk.content)}")
                             yield chunk_json
                             # Yield control to event loop to prevent buffering
                             await asyncio.sleep(0)
