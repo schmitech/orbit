@@ -125,7 +125,12 @@ class OpenRouterInferenceService(InferenceService):
                 **kwargs
             )
 
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            if content:
+                # Filter out specific model artifacts
+                content = content.replace("<|begin_of_box|>", "").replace("<|end_of_box|>", "")
+            
+            return content
 
         except Exception as e:
             self._handle_error(e, "text generation")

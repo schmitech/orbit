@@ -185,6 +185,7 @@ async def processing_service(tmp_path):
             'text/markdown',
             'application/pdf',
             'text/csv',
+            'application/x-sql',
         ],
         'internal_services': {
             'backend': {

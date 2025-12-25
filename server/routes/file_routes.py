@@ -162,7 +162,7 @@ def create_file_router() -> APIRouter:
                             # Code file extensions
                             'py': 'text/x-python',
                             'java': 'text/x-java-source',
-                            'sql': 'text/x-sql',
+                            'sql': 'application/x-sql',
                             'js': 'text/javascript',
                             'mjs': 'text/javascript',
                             'ts': 'text/typescript',

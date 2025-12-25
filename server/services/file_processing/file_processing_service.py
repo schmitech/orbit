@@ -75,6 +75,8 @@ class FileProcessingService:
             'text/x-java-source',
             'text/x-java',
             'text/x-sql',
+            'application/x-sql',
+            'application/sql',
             'text/javascript',
             'application/javascript',
             'text/typescript',

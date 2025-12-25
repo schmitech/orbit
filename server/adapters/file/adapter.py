@@ -195,7 +195,7 @@ class FileAdapter(DocumentAdapter):
         if mime_type in ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                           'application/vnd.ms-excel', 'text/csv']:
             return 'spreadsheet'
-        elif mime_type.startswith('text/'):
+        elif mime_type.startswith('text/') or mime_type in ['application/x-sql', 'application/sql']:
             return 'text'
         elif mime_type == 'application/pdf':
             return 'document'
