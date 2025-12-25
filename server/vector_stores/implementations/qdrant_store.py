@@ -654,13 +654,14 @@ class QdrantStore(BaseVectorStore):
         await self.ensure_connected()
 
         try:
-            from qdrant_client.models import FilterSelector
+            from qdrant_client.models import FilterSelector, Filter
 
             # Delete all points in the collection
+            # Note: Empty Filter() matches all points (None is not valid in newer qdrant-client versions)
             self._client.delete(
                 collection_name=collection_name,
                 points_selector=FilterSelector(
-                    filter=None  # No filter = delete all
+                    filter=Filter()  # Empty filter = delete all
                 )
             )
 
