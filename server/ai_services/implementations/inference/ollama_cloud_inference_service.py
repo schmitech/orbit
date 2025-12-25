@@ -72,6 +72,9 @@ class OllamaCloudInferenceService(InferenceService):
 
         self._stop_sequences: List[str] = provider_config.get("stop", [])
 
+        # Think mode (shows reasoning in <think> tags) - matches local Ollama behavior
+        self.think: bool = provider_config.get("think", False)
+
         self.client: Optional[AsyncClient] = None
 
     async def initialize(self) -> bool:
@@ -167,14 +170,18 @@ class OllamaCloudInferenceService(InferenceService):
             if stop:
                 options["stop"] = stop
 
+            # Extract think parameter (shows reasoning in <think> tags)
+            think = kwargs.pop("think", self.think)
+
             response = await self.client.chat(
                 model=self.model,
                 messages=messages,
                 options=options,
+                think=think,
                 **kwargs,
             )
 
-            return response.get("message", {}).get("content", "")
+            return self._extract_content(response)
         except Exception as exc:
             logger.error("Error generating response with Ollama Cloud: %s", exc)
             raise
@@ -196,16 +203,20 @@ class OllamaCloudInferenceService(InferenceService):
             if stop:
                 options["stop"] = stop
 
+            # Extract think parameter (shows reasoning in <think> tags)
+            think = kwargs.pop("think", self.think)
+
             stream = await self.client.chat(
                 model=self.model,
                 messages=messages,
                 options=options,
                 stream=True,
+                think=think,
                 **kwargs,
             )
 
             async for chunk in stream:
-                content = chunk.get("message", {}).get("content")
+                content = self._extract_content(chunk)
                 if content:
                     yield content
         except Exception as exc:
@@ -242,3 +253,39 @@ class OllamaCloudInferenceService(InferenceService):
         if messages is None:
             return [{"role": "user", "content": prompt}]
         return messages
+
+    @staticmethod
+    def _extract_content(response: Any) -> str:
+        """Extract content from Ollama SDK response.
+
+        The Ollama SDK returns ChatResponse Pydantic objects, not dicts.
+        This method handles both object attribute access and dict-style access
+        for compatibility with different SDK versions.
+
+        Args:
+            response: The response from ollama.chat() - either ChatResponse object or dict
+
+        Returns:
+            The message content as a string, or empty string if not found
+        """
+        # Try attribute access first (Pydantic model / ChatResponse object)
+        if hasattr(response, 'message'):
+            message = response.message
+            if hasattr(message, 'content'):
+                return message.content or ""
+            # Fallback to dict-style access on message
+            if isinstance(message, dict):
+                return message.get('content', '')
+            return ""
+
+        # Fallback to dict-style access (legacy or raw response)
+        if isinstance(response, dict):
+            return response.get("message", {}).get("content", "")
+
+        # If response has a model_dump method (Pydantic v2), use it
+        if hasattr(response, 'model_dump'):
+            data = response.model_dump()
+            return data.get("message", {}).get("content", "")
+
+        logger.warning(f"Unexpected response type from Ollama Cloud: {type(response)}")
+        return ""

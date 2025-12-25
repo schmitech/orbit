@@ -26,21 +26,12 @@ inference:
     temperature: 0.3  # Lower for more factual, deterministic outputs
     top_p: 0.8  # More focused outputs for data analysis
     top_k: 40
-    min_p: 0.0
-    typical_p: 0.7
     num_predict: 4096  # Increased to handle comprehensive analysis of hundreds of records
     repeat_penalty: 1.1
     repeat_last_n: 32
-    presence_penalty: 0.0
-    frequency_penalty: 0.0
-    # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
-    mirostat: 0
-    mirostat_tau: 0.8
-    mirostat_eta: 0.6
-    # Context and memory - Optimized for hundreds of SQL records
-    num_ctx: 16384  # Large context window to fit hundreds of records + analysis
-    num_keep: 200  # Keep prompt instructions and query context
-    penalize_newline: false
+    # Context window - large enough for system prompt + hundreds of SQL rows + response
+    # Calculation: ~1K system prompt + ~10-20K SQL results + ~4K response = ~25K minimum
+    num_ctx: 32768  # 32K context for large SQL result sets
     # Stop sequences
     stop: []
     # Cloud service - these settings are managed by Ollama Cloud infrastructure
