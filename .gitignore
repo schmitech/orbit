@@ -67,3 +67,4 @@ results/
 *.db-shm
 *.db-wal
 *.duckdb
+*performance_results*

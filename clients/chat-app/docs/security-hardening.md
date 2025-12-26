@@ -4,7 +4,7 @@ The changes made for backend synchronization and adapter endpoint obfuscation ar
 
 1. **Protect the middleware proxy**
    - Add lightweight authentication (shared secret header or token) so only trusted clients can reach `/api/*` when the proxy is exposed over a network.
-   - Rate-limit or log adapter selection attempts to detect brute-force adapter-name probes.
+   - ~~Rate-limit or log adapter selection attempts to detect brute-force adapter-name probes.~~ ✅ **DONE** - Redis-backed rate limiting implemented (see `docs/rate-limiting-architecture.md`). Limits apply per IP (60/min, 1000/hr) and per API key (120/min, 5000/hr). Exceeded limits are logged with IP/API key info.
 
 2. **Tighten CORS/CSRF posture**
    - In `config/middleware_configurator.py`, restrict `allow_origins` to the actual UI origin instead of `"*"`.

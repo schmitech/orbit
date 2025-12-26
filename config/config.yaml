@@ -285,7 +285,7 @@ chat_history:
 conversation_threading:
   enabled: true
   dataset_ttl_hours: 24  # Global default TTL for stored datasets
-  storage_backend: "redis"  # redis, sqlite, mongodb (fallback order: redis -> sqlite/mongodb)
+  storage_backend: "sqlite"  # redis, sqlite, mongodb (fallback order: redis -> sqlite/mongodb)
   redis_key_prefix: "thread_dataset:"
 
 files:
@@ -489,4 +489,45 @@ security:
   error_handling:
     # Never expose detailed errors in production
     # Set to true only for development/debugging
-    expose_details: false
+    expose_details: true
+
+  # Rate limiting configuration (requires Redis to be enabled)
+  rate_limiting:
+    enabled: false                    # Master switch (requires Redis to be enabled)
+
+    # Proxy header trust configuration
+    # SECURITY: Only enable trust_proxy_headers when behind a trusted reverse proxy
+    # When false (default), X-Forwarded-For and X-Real-IP headers are ignored
+    # to prevent IP spoofing attacks that bypass rate limiting
+    trust_proxy_headers: false
+
+    # Optional: List of trusted proxy IPs/CIDRs that are allowed to set proxy headers
+    # Only used when trust_proxy_headers is true
+    # If empty, all proxy headers are trusted (use only in controlled environments)
+    trusted_proxies: []
+    # Example trusted_proxies configuration:
+    # trusted_proxies:
+    #   - "10.0.0.0/8"        # Private network
+    #   - "172.16.0.0/12"     # Private network
+    #   - "192.168.0.0/16"    # Private network
+    #   - "127.0.0.1"         # Localhost
+
+    # IP-based limits (applies to all requests)
+    ip_limits:
+      requests_per_minute: 60        # Max requests per IP per minute
+      requests_per_hour: 1000        # Max requests per IP per hour
+
+    # API key limits (higher limits for authenticated requests)
+    api_key_limits:
+      requests_per_minute: 120       # Max requests per API key per minute
+      requests_per_hour: 5000        # Max requests per API key per hour
+
+    # Paths to exclude from rate limiting
+    exclude_paths:
+      - "/health"
+      - "/favicon.ico"
+      - "/metrics"
+      - "/static"
+
+    # Response configuration
+    retry_after_seconds: 60          # Retry-After header value when limited

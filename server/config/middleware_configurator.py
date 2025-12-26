@@ -89,6 +89,7 @@ class MiddlewareConfigurator:
         - CORS middleware for cross-origin requests
         - Custom logging middleware for request/response tracking
         - Metrics middleware for monitoring
+        - Rate limiting middleware for abuse prevention
 
         Args:
             app: The FastAPI application instance
@@ -106,6 +107,9 @@ class MiddlewareConfigurator:
 
         # Configure metrics middleware (if available)
         MiddlewareConfigurator._configure_metrics_middleware(app, logger)
+        
+        # Configure rate limiting middleware (added last, executed first)
+        MiddlewareConfigurator._configure_rate_limit_middleware(app, config, logger)
 
     @staticmethod
     def _configure_security_headers_middleware(app: FastAPI, config: Dict[str, Any], logger: logging.Logger) -> None:
@@ -286,3 +290,51 @@ class MiddlewareConfigurator:
             logger.warning("MetricsMiddleware not available - metrics collection disabled")
         except Exception as e:
             logger.warning(f"Failed to configure metrics middleware: {e}")
+    
+    @staticmethod
+    def _configure_rate_limit_middleware(app: FastAPI, config: Dict[str, Any], logger: logging.Logger) -> None:
+        """
+        Configure rate limiting middleware for abuse prevention.
+        
+        Rate limiting is only enabled when:
+        1. security.rate_limiting.enabled is true in config
+        2. Redis service is enabled (required for distributed rate limiting)
+        
+        Args:
+            app: The FastAPI application instance
+            config: The application configuration dictionary
+            logger: Logger instance for rate limit logging
+        """
+        # Check if rate limiting is enabled in config
+        security_config = config.get('security', {}) or {}
+        rate_limit_config = security_config.get('rate_limiting', {}) or {}
+        
+        if not rate_limit_config.get('enabled', False):
+            _logger.info("Rate limiting middleware is disabled in configuration")
+            logger.info("Rate limiting middleware is disabled in configuration")
+            return
+        
+        # Check if Redis is enabled (required for rate limiting)
+        redis_config = config.get('internal_services', {}).get('redis', {}) or {}
+        if not redis_config.get('enabled', False):
+            _logger.warning(
+                "Rate limiting is enabled but Redis is disabled. "
+                "Rate limiting requires Redis - middleware will not be active."
+            )
+            logger.warning(
+                "Rate limiting is enabled but Redis is disabled. "
+                "Rate limiting requires Redis - middleware will not be active."
+            )
+            return
+        
+        try:
+            from server.middleware.rate_limit_middleware import RateLimitMiddleware
+            app.add_middleware(RateLimitMiddleware, config=config)
+            _logger.info("Rate limiting middleware configured successfully")
+            logger.info("Rate limiting middleware configured successfully")
+        except ImportError as e:
+            _logger.warning(f"RateLimitMiddleware not available - rate limiting disabled: {e}")
+            logger.warning(f"RateLimitMiddleware not available - rate limiting disabled: {e}")
+        except Exception as e:
+            _logger.warning(f"Failed to configure rate limit middleware: {e}")
+            logger.warning(f"Failed to configure rate limit middleware: {e}")

@@ -39,6 +39,9 @@ class TestResult:
     timestamp: float
     success: bool
     error_message: Optional[str] = None
+    rate_limited: bool = False
+    rate_limit: Optional[int] = None
+    rate_remaining: Optional[int] = None
 
 
 class PerformanceMetrics:
@@ -58,17 +61,20 @@ class PerformanceMetrics:
         """Generate a summary of all test results."""
         if not self.results:
             return {}
-        
+
         successful_results = [r for r in self.results if r.success]
         failed_results = [r for r in self.results if not r.success]
-        
+        rate_limited_results = [r for r in self.results if r.rate_limited]
+
         if successful_results:
             response_times = [r.response_time for r in successful_results]
             summary = {
                 "total_requests": len(self.results),
                 "successful_requests": len(successful_results),
                 "failed_requests": len(failed_results),
+                "rate_limited_requests": len(rate_limited_results),
                 "success_rate": len(successful_results) / len(self.results) * 100,
+                "rate_limit_rate": len(rate_limited_results) / len(self.results) * 100,
                 "response_time_stats": {
                     "min": min(response_times),
                     "max": max(response_times),
@@ -85,12 +91,14 @@ class PerformanceMetrics:
                 "total_requests": len(self.results),
                 "successful_requests": 0,
                 "failed_requests": len(failed_results),
+                "rate_limited_requests": len(rate_limited_results),
                 "success_rate": 0.0,
+                "rate_limit_rate": len(rate_limited_results) / max(1, len(self.results)) * 100,
                 "response_time_stats": {},
                 "requests_per_second": 0.0,
                 "test_duration": time.time() - self.start_time
             }
-        
+
         return summary
     
     def _percentile(self, data: List[float], percentile: int) -> float:
@@ -109,9 +117,10 @@ class PerformanceMetrics:
     def export_csv(self, filename: str):
         """Export results to CSV file."""
         with open(filename, 'w', newline='') as csvfile:
-            fieldnames = ['timestamp', 'endpoint', 'method', 'status_code', 'response_time', 'success', 'error_message']
+            fieldnames = ['timestamp', 'endpoint', 'method', 'status_code', 'response_time',
+                         'success', 'rate_limited', 'rate_limit', 'rate_remaining', 'error_message']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            
+
             writer.writeheader()
             for result in self.results:
                 writer.writerow({
@@ -121,18 +130,23 @@ class PerformanceMetrics:
                     'status_code': result.status_code,
                     'response_time': result.response_time,
                     'success': result.success,
+                    'rate_limited': result.rate_limited,
+                    'rate_limit': result.rate_limit or '',
+                    'rate_remaining': result.rate_remaining or '',
                     'error_message': result.error_message or ''
                 })
 
 
 class LoadGenerator:
     """Generates different types of load patterns."""
-    
+
     def __init__(self, base_url: str, api_key: Optional[str] = None):
         self.base_url = base_url.rstrip('/')
         self.api_key = api_key
         self.session: Optional[aiohttp.ClientSession] = None
         self.metrics = PerformanceMetrics()
+        self.session_id = f"perf_test_{int(time.time())}"
+        self._request_counter = 0
     
     async def __aenter__(self):
         """Async context manager entry."""
@@ -149,38 +163,53 @@ class LoadGenerator:
         """Make a single HTTP request and record metrics."""
         if not self.session:
             raise RuntimeError("Session not initialized")
-        
+
+        self._request_counter += 1
         url = f"{self.base_url}{endpoint}"
-        headers = kwargs.get('headers', {})
-        
+        headers = kwargs.pop('headers', {}).copy()
+
+        # Add API key if configured
         if self.api_key:
             headers['X-API-Key'] = self.api_key
-        
+
+        # Add session ID for endpoints that require it
+        if 'X-Session-ID' not in headers:
+            headers['X-Session-ID'] = f"{self.session_id}_{self._request_counter}"
+
+        kwargs['headers'] = headers
         start_time = time.time()
-        
+
         try:
             async with self.session.request(method, url, **kwargs) as response:
                 response_time = time.time() - start_time
-                
+
+                # Check for rate limiting
+                is_rate_limited = response.status == 429
+                rate_limit = self._safe_int(response.headers.get('X-RateLimit-Limit'))
+                rate_remaining = self._safe_int(response.headers.get('X-RateLimit-Remaining'))
+
                 result = TestResult(
                     endpoint=endpoint,
                     method=method,
                     status_code=response.status,
                     response_time=response_time,
                     timestamp=start_time,
-                    success=200 <= response.status < 400
+                    success=200 <= response.status < 400,
+                    rate_limited=is_rate_limited,
+                    rate_limit=rate_limit,
+                    rate_remaining=rate_remaining
                 )
-                
+
                 if not result.success:
                     try:
                         error_data = await response.json()
                         result.error_message = str(error_data)
                     except:
                         result.error_message = f"HTTP {response.status}"
-                
+
                 self.metrics.add_result(result)
                 return result
-                
+
         except Exception as e:
             response_time = time.time() - start_time
             result = TestResult(
@@ -194,6 +223,15 @@ class LoadGenerator:
             )
             self.metrics.add_result(result)
             return result
+
+    def _safe_int(self, value: Optional[str]) -> Optional[int]:
+        """Safely convert string to int."""
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return None
     
     async def health_check_load(self, duration: int, requests_per_second: int):
         """Generate health check load."""
@@ -224,43 +262,35 @@ class LoadGenerator:
         if not self.api_key:
             print("Warning: No API key provided, skipping chat load test")
             return
-        
+
         print(f"Generating chat load: {requests_per_second} req/s for {duration}s")
-        
-        interval = 1.0 / requests_per_second
+
         end_time = time.time() + duration
-        
+
         while time.time() < end_time:
             start_batch = time.time()
-            
+
             # Create batch of chat requests
             tasks = []
             for i in range(requests_per_second):
+                # REST API format for /v1/chat endpoint
                 chat_data = {
-                    "jsonrpc": "2.0",
-                    "method": "tools/call",
-                    "params": {
-                        "name": "chat",
-                        "arguments": {
-                            "messages": [
-                                {
-                                    "role": "user",
-                                    "content": f"Performance test message {i}: Hello, this is a test."
-                                }
-                            ]
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": f"Performance test message {i}: Hello, this is a test."
                         }
-                    },
-                    "id": i
+                    ],
+                    "stream": False
                 }
-                
+
                 headers = {
-                    "Content-Type": "application/json",
-                    "X-Session-ID": f"perf_test_{int(time.time())}_{i}"
+                    "Content-Type": "application/json"
                 }
-                
+
                 task = self.make_request('POST', '/v1/chat', json=chat_data, headers=headers)
                 tasks.append(task)
-            
+
             # Execute batch
             await asyncio.gather(*tasks, return_exceptions=True)
             
@@ -277,7 +307,7 @@ class LoadGenerator:
             ('GET', '/health'),
             ('GET', '/health/ready'),
             ('GET', '/health/adapters'),
-            ('GET', '/upload/status')
+            ('GET', '/health/system')
         ]
         
         if self.api_key:
@@ -410,8 +440,10 @@ async def main():
         print("=" * 50)
         print(f"Total Requests: {summary.get('total_requests', 0)}")
         print(f"Successful: {summary.get('successful_requests', 0)}")
-        print(f"Failed: {summary.get('failed_requests', 0)}")
+        print(f"Rate Limited (429): {summary.get('rate_limited_requests', 0)}")
+        print(f"Failed (other): {summary.get('failed_requests', 0)}")
         print(f"Success Rate: {summary.get('success_rate', 0):.2f}%")
+        print(f"Rate Limit Rate: {summary.get('rate_limit_rate', 0):.2f}%")
         print(f"Requests/Second: {summary.get('requests_per_second', 0):.2f}")
         print(f"Test Duration: {summary.get('test_duration', 0):.2f}s")
         
@@ -493,12 +525,20 @@ def generate_html_report(summary: Dict[str, Any], args: argparse.Namespace, time
                     <div class="stat-label">Successful</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value danger">{summary.get('failed_requests', 0)}</div>
-                    <div class="stat-label">Failed</div>
+                    <div class="stat-value warning">{summary.get('rate_limited_requests', 0)}</div>
+                    <div class="stat-label">Rate Limited (429)</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value {summary.get('success_rate', 0) >= 95 and 'success' or summary.get('success_rate', 0) >= 80 and 'warning' or 'danger'}">{summary.get('success_rate', 0):.1f}%</div>
+                    <div class="stat-value danger">{summary.get('failed_requests', 0)}</div>
+                    <div class="stat-label">Failed (other)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value {'success' if summary.get('success_rate', 0) >= 95 else 'warning' if summary.get('success_rate', 0) >= 80 else 'danger'}">{summary.get('success_rate', 0):.1f}%</div>
                     <div class="stat-label">Success Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value warning">{summary.get('rate_limit_rate', 0):.1f}%</div>
+                    <div class="stat-label">Rate Limit Rate</div>
                 </div>
             </div>
         </div>
