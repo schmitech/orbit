@@ -14,6 +14,7 @@ export interface RuntimeConfig {
   // API Configuration
   apiUrl: string;
   defaultKey: string;
+  applicationName: string;
   useLocalApi: boolean;
   localApiPath?: string;
   consoleDebug: boolean;
@@ -71,6 +72,7 @@ function isRuntimeConfig(obj: unknown): obj is Partial<RuntimeConfig> {
 const envKeyMap: Record<keyof RuntimeConfig, string> = {
   apiUrl: 'VITE_API_URL',
   defaultKey: 'VITE_DEFAULT_KEY',
+  applicationName: 'VITE_APPLICATION_NAME',
   useLocalApi: 'VITE_USE_LOCAL_API',
   localApiPath: 'VITE_LOCAL_API_PATH',
   consoleDebug: 'VITE_CONSOLE_DEBUG',
@@ -245,6 +247,7 @@ export const runtimeConfig: RuntimeConfig = {
   // API Configuration
   apiUrl: getConfigValue('apiUrl', DEFAULT_API_URL, 'string'),
   defaultKey: getConfigValue('defaultKey', 'default-key', 'string'),
+  applicationName: getConfigValue('applicationName', 'ORBIT Chat', 'string'),
   useLocalApi: getConfigValue('useLocalApi', false, 'boolean'),
   localApiPath: getConfigValue('localApiPath', undefined, 'string'),
   consoleDebug: getConfigValue('consoleDebug', false, 'boolean'),
@@ -322,6 +325,11 @@ export function resolveApiUrl(url?: string | null): string {
 export function getDefaultKey(): string {
   // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
   return getConfigValue('defaultKey', 'default-key', 'string');
+}
+
+export function getApplicationName(): string {
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  return getConfigValue('applicationName', 'ORBIT Chat', 'string');
 }
 
 export function getUseLocalApi(): boolean {

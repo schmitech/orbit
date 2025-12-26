@@ -26,6 +26,7 @@ const __dirname = dirname(__filename);
 const DEFAULT_CONFIG = {
   apiUrl: 'http://localhost:3000',
   defaultKey: 'default-key',
+  applicationName: 'ORBIT Chat',
   useLocalApi: false,
   localApiPath: undefined,
   consoleDebug: false,
@@ -109,6 +110,9 @@ function parseArgs() {
       case '--api-key':
       case '--default-key':
         config.defaultKey = args[++i];
+        break;
+      case '--application-name':
+        config.applicationName = args[++i];
         break;
       case '--use-local-api':
         config.useLocalApi = true;
@@ -215,6 +219,7 @@ function loadConfigFromEnv() {
   const envMap = {
     VITE_API_URL: 'apiUrl',
     VITE_DEFAULT_KEY: 'defaultKey',
+    VITE_APPLICATION_NAME: 'applicationName',
     VITE_USE_LOCAL_API: 'useLocalApi',
     VITE_LOCAL_API_PATH: 'localApiPath',
     VITE_CONSOLE_DEBUG: 'consoleDebug',
@@ -299,6 +304,19 @@ function injectConfig(html, config) {
     /<script id="orbit-chat-config" type="application\/json">[\s\S]*?<\/script>/,
     '<!-- Config injected in head -->'
   );
+
+  // Replace the title tag with the configured application name
+  if (config.applicationName) {
+    html = html.replace(
+      /<title>.*?<\/title>/i,
+      `<title>${config.applicationName}</title>`
+    );
+    // Also update apple-mobile-web-app-title meta tag
+    html = html.replace(
+      /<meta name="apple-mobile-web-app-title" content="[^"]*" \/>/i,
+      `<meta name="apple-mobile-web-app-title" content="${config.applicationName}" />`
+    );
+  }
 
   // Inject the config script at the START of <head>, before any other scripts
   // This ensures window.ORBIT_CHAT_CONFIG is available when the main JS bundle loads
@@ -559,6 +577,7 @@ Usage: orbitchat [options]
 Options:
   --api-url URL                    API URL (default: http://localhost:3000)
   --api-key KEY                    Default API key (default: default-key)
+  --application-name NAME          Application name shown in browser tab (default: ORBIT Chat)
   --use-local-api                  Use local API build (default: false)
   --local-api-path PATH            Path to local API
   --console-debug                  Enable console debug (default: false)

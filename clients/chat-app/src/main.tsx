@@ -4,6 +4,10 @@ import App from './App.tsx';
 import './index.css';
 import { getVersionInfo } from './utils/version';
 import { debugLog } from './utils/debug';
+import { getApplicationName } from './utils/runtimeConfig';
+
+// Set document title from runtime config
+document.title = getApplicationName();
 
 // Log version information on startup
 getVersionInfo().then(versionInfo => {
