@@ -402,6 +402,10 @@ export function MessageInput({
     }
   }, [currentConversationId, currentConversation, conversations, attachedFiles.length]);
 
+  // Track the last conversation/file signature we synced to avoid redundant fetch loops
+  const lastSyncedConversationRef = useRef<string | null>(null);
+  const lastSyncedSignatureRef = useRef<string>('');
+
   // Sync and poll file status when switching to a conversation
   useEffect(() => {
     const middlewareMode = typeof window !== 'undefined' &&
@@ -424,12 +428,28 @@ export function MessageInput({
       f.processing_status === 'uploading'
     );
 
-    // Always sync files when switching to a conversation (to get latest status)
-    if (hasFiles) {
+    const fileSignature = hasFiles
+      ? `${convFiles.length}:${convFiles.map(f => f.file_id).join('|')}`
+      : '';
+
+    const shouldSyncOnChange =
+      hasFiles &&
+      (
+        lastSyncedConversationRef.current !== currentConversationId ||
+        lastSyncedSignatureRef.current !== fileSignature
+      );
+
+    if (shouldSyncOnChange) {
       debugLog(`[MessageInput] Syncing ${convFiles.length} files for conversation ${currentConversationId}...`);
+      lastSyncedConversationRef.current = currentConversationId;
+      lastSyncedSignatureRef.current = fileSignature;
       syncConversationFiles(currentConversationId).catch(error => {
         debugError('[MessageInput] Failed to sync conversation files:', error);
       });
+    } else if (!hasFiles) {
+      // Reset signature when conversation has no files to ensure next upload triggers a sync
+      lastSyncedConversationRef.current = currentConversationId;
+      lastSyncedSignatureRef.current = '';
     }
 
     // Only poll if there are files still processing

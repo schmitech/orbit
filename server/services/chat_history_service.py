@@ -953,7 +953,15 @@ class ChatHistoryService:
             # Process messages
             processed_messages = []
             for msg in messages:
+                message_id = msg.get("_id") or msg.get("id")
+                if message_id is not None:
+                    try:
+                        message_id = str(message_id)
+                    except Exception:
+                        message_id = str(message_id)
+
                 processed_msg = {
+                    "message_id": message_id,
                     "role": msg.get("role"),
                     "content": msg.get("content"),
                     "timestamp": msg.get("timestamp")

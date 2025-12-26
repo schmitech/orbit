@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getApi, ApiClient } from '../api/loader';
+import { getApi, ApiClient, ConversationHistoryMessage } from '../api/loader';
 import { Message, Conversation, ChatState, FileAttachment, AdapterInfo } from '../types';
 import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
@@ -92,6 +92,122 @@ const countNonStreamingMessages = (messages: Message[]): number => {
   return messages.filter(m => !m.isThreadMessage && !(m.role === 'assistant' && m.isStreaming)).length;
 };
 
+const toDateOrFallback = (
+  value: string | number | Date | null | undefined,
+  fallback?: Date
+): Date => {
+  if (value instanceof Date) {
+    return new Date(value);
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return fallback ? new Date(fallback) : new Date();
+};
+
+const convertHistoryMessages = (
+  historyMessages: ConversationHistoryMessage[],
+  existingMessages: Message[]
+): Message[] => {
+  const existingByDbId = new Map<string, { message: Message; index: number }>();
+  existingMessages.forEach((msg, index) => {
+    if (msg.databaseMessageId) {
+      existingByDbId.set(msg.databaseMessageId, { message: msg, index });
+    }
+  });
+  const consumedIndices = new Set<number>();
+
+  return historyMessages.map((historyMsg, idx) => {
+    const normalizedRole: 'user' | 'assistant' =
+      historyMsg.role === 'user' ? 'user' : 'assistant';
+    const dbId = typeof historyMsg.message_id === 'string' && historyMsg.message_id.length > 0
+      ? historyMsg.message_id
+      : undefined;
+
+    let reusedMessage: Message | undefined;
+    if (dbId && existingByDbId.has(dbId)) {
+      const found = existingByDbId.get(dbId)!;
+      reusedMessage = found.message;
+      consumedIndices.add(found.index);
+    } else {
+      for (let i = 0; i < existingMessages.length; i++) {
+        if (consumedIndices.has(i)) continue;
+        if (existingMessages[i].role === normalizedRole) {
+          reusedMessage = existingMessages[i];
+          consumedIndices.add(i);
+          break;
+        }
+      }
+    }
+
+    const timestamp = historyMsg.timestamp
+      ? toDateOrFallback(historyMsg.timestamp, reusedMessage?.timestamp)
+      : (reusedMessage?.timestamp ? new Date(reusedMessage.timestamp) : new Date());
+
+    const baseMessage: Message = reusedMessage
+      ? {
+          ...reusedMessage,
+          content: historyMsg.content ?? reusedMessage.content,
+          timestamp
+        }
+      : {
+          id: dbId ? `srv_${dbId}` : generateUniqueMessageId(normalizedRole),
+          content: historyMsg.content || '',
+          role: normalizedRole,
+          timestamp
+        };
+
+    baseMessage.isStreaming = false;
+    if (dbId) {
+      baseMessage.databaseMessageId = dbId;
+    }
+
+    if (!baseMessage.supportsThreading && historyMsg.metadata && typeof historyMsg.metadata === 'object') {
+      const metadata = historyMsg.metadata as Record<string, any>;
+      const retrievedDocs = metadata?.retrieved_docs;
+      if (Array.isArray(retrievedDocs) && retrievedDocs.length > 0) {
+        baseMessage.supportsThreading = true;
+      }
+    }
+
+    return baseMessage;
+  });
+};
+
+const haveSameMessages = (current: Message[], nextMessages: Message[]): boolean => {
+  if (current.length !== nextMessages.length) {
+    return false;
+  }
+
+  for (let i = 0; i < current.length; i++) {
+    const existing = current[i];
+    const incoming = nextMessages[i];
+    if (existing.role !== incoming.role) {
+      return false;
+    }
+    if (existing.content !== incoming.content) {
+      return false;
+    }
+    if ((existing.databaseMessageId || null) !== (incoming.databaseMessageId || null)) {
+      return false;
+    }
+    if (+existing.timestamp !== +incoming.timestamp) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 // Extended chat state for the store
 interface ExtendedChatState extends ChatState {
   sessionId: string;
@@ -115,6 +231,7 @@ interface ExtendedChatState extends ChatState {
   removeFileFromConversation: (conversationId: string, fileId: string) => Promise<void>;
   loadConversationFiles: (conversationId: string) => Promise<void>;
   syncConversationFiles: (conversationId: string) => Promise<void>;
+  syncConversationsWithBackend: () => Promise<void>;
 }
 
 // API configuration state
@@ -2109,6 +2226,140 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   // Sync files when switching conversations
   syncConversationFiles: async (conversationId: string) => {
     await get().loadConversationFiles(conversationId);
+  },
+
+  syncConversationsWithBackend: async () => {
+    try {
+      const state = get();
+      if (state.conversations.length === 0) {
+        return;
+      }
+
+      const api = await getApi();
+      const isMiddlewareEnabled = getEnableApiMiddleware();
+      const limit = AppConfig.maxMessagesPerConversation !== null
+        ? AppConfig.maxMessagesPerConversation || undefined
+        : undefined;
+
+      let historyEndpointUnsupported = false;
+
+      const syncResults = await Promise.all(
+        state.conversations.map(async (conversation) => {
+          if (!conversation.sessionId) {
+            return null;
+          }
+
+          if (isMiddlewareEnabled && !conversation.adapterName) {
+            debugWarn(`[chatStore] Skipping backend sync for conversation ${conversation.id} - adapter not configured`);
+            return null;
+          }
+
+          try {
+            const apiClient = new api.ApiClient({
+              apiUrl: resolveApiUrl(conversation.apiUrl),
+              apiKey: isMiddlewareEnabled ? null : (conversation.apiKey || DEFAULT_API_KEY),
+              sessionId: conversation.sessionId,
+              adapterName: isMiddlewareEnabled ? conversation.adapterName : null
+            });
+
+            if (typeof apiClient.getConversationHistory !== 'function') {
+              if (!historyEndpointUnsupported) {
+                historyEndpointUnsupported = true;
+                debugWarn('[chatStore] Conversation history endpoint not supported by current API client');
+              }
+              return null;
+            }
+
+            const history = await apiClient.getConversationHistory(conversation.sessionId, limit);
+            const historyMessages = Array.isArray(history?.messages) ? history.messages : [];
+
+            if (historyMessages.length === 0) {
+              if (conversation.messages.length === 0) {
+                return null;
+              }
+              return {
+                id: conversation.id,
+                sessionId: history?.session_id || conversation.sessionId,
+                messages: [] as Message[],
+                cleared: true,
+                updatedAt: new Date()
+              };
+            }
+
+            const normalizedMessages = convertHistoryMessages(historyMessages, conversation.messages);
+            if (haveSameMessages(conversation.messages, normalizedMessages)) {
+              return null;
+            }
+
+            return {
+              id: conversation.id,
+              sessionId: history?.session_id || conversation.sessionId,
+              messages: normalizedMessages,
+              cleared: false,
+              updatedAt: normalizedMessages[normalizedMessages.length - 1]?.timestamp || new Date()
+            };
+          } catch (error) {
+            debugWarn(`[chatStore] Failed to sync session ${conversation.sessionId}:`, error);
+            return null;
+          }
+        })
+      );
+
+      const updates = syncResults.filter((result): result is {
+        id: string;
+        sessionId?: string;
+        messages: Message[];
+        cleared: boolean;
+        updatedAt: Date;
+      } => Boolean(result));
+
+      if (updates.length === 0) {
+        return;
+      }
+
+      set(currentState => {
+        const updateMap = new Map(updates.map(update => [update.id, update]));
+        const updatedConversations = currentState.conversations.map(conv => {
+          const update = updateMap.get(conv.id);
+          if (!update) {
+            return conv;
+          }
+
+          if (update.cleared) {
+            return {
+              ...conv,
+              sessionId: update.sessionId || conv.sessionId,
+              messages: [],
+              attachedFiles: [],
+              title: 'New Chat',
+              updatedAt: update.updatedAt
+            };
+          }
+
+          return {
+            ...conv,
+            sessionId: update.sessionId || conv.sessionId,
+            messages: update.messages,
+            updatedAt: update.updatedAt
+          };
+        });
+
+        return {
+          conversations: updatedConversations,
+          currentConversationId: currentState.currentConversationId
+        };
+      });
+
+      setTimeout(() => {
+        const currentState = get();
+        localStorage.setItem('chat-state', JSON.stringify({
+          conversations: currentState.conversations,
+          currentConversationId: currentState.currentConversationId
+        }));
+      }, 0);
+    } catch (error) {
+      debugWarn('Failed to synchronize conversations with backend:', error);
+    }
   }
 }));
 
@@ -2499,6 +2750,13 @@ const initializeStore = async () => {
     }
   } catch (error) {
     logError('Failed to initialize API:', error);
+  }
+
+  // After initializing base state and API configuration, reconcile with backend history
+  try {
+    await useChatStore.getState().syncConversationsWithBackend();
+  } catch (syncError) {
+    debugWarn('Conversation history sync skipped:', syncError);
   }
 };
 

@@ -22,6 +22,20 @@ export interface StreamResponse {
   };
 }
 
+export interface ConversationHistoryMessage {
+  message_id?: string | null;
+  role: string;
+  content: string;
+  timestamp: string | number | Date | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ConversationHistoryResponse {
+  session_id: string;
+  messages: ConversationHistoryMessage[];
+  count: number;
+}
+
 export interface ApiClient {
   streamChat(
     message: string, 
@@ -134,6 +148,7 @@ export interface ApiClient {
     isFileSupported?: boolean;
     notes?: string | null;
   }>;
+  getConversationHistory?(sessionId?: string, limit?: number): Promise<ConversationHistoryResponse>;
 }
 
 export interface ApiFunctions {
@@ -351,6 +366,24 @@ function createMiddlewareApi(): ApiFunctions {
         return response.json();
       },
 
+      async getConversationHistory(sessId?: string, limit?: number) {
+        const targetSession = sessId || sessionId;
+        if (!targetSession) {
+          throw new Error('No session ID available for conversation history');
+        }
+        const limitParam =
+          typeof limit === 'number' && Number.isFinite(limit) && limit > 0
+            ? `?limit=${Math.floor(limit)}`
+            : '';
+        const response = await fetch(`/api/admin/chat-history/${targetSession}${limitParam}`, {
+          headers: {
+            'X-Adapter-Name': adapterName!,
+          },
+        });
+        if (!response.ok) throw new Error(`Failed to load history: ${response.statusText}`);
+        return response.json();
+      },
+
       async deleteConversationWithFiles(sessId?: string, fileIds?: string[]) {
         const targetSession = sessId || sessionId;
         // Send file_ids as query parameters to match direct API behavior
@@ -438,11 +471,19 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async getAdapterInfo() {
-        const response = await fetch('/api/admin/api-keys/info', {
-          headers: {
-            'X-Adapter-Name': adapterName!,
-          },
-        });
+        const adapterInfoPath = '/api/admin/adapters/info';
+
+        const makeRequest = async (path: string) => {
+          const response = await fetch(path, {
+            headers: {
+              'X-Adapter-Name': adapterName!,
+            },
+          });
+          return response;
+        };
+
+        const response = await makeRequest(adapterInfoPath);
+
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Failed to get adapter info: ${response.status} ${response.statusText} - ${errorText}`);
@@ -499,6 +540,7 @@ function createMiddlewareApi(): ApiFunctions {
       get getThreadInfo() { return this.client.getThreadInfo?.bind(this.client); }
       get deleteThread() { return this.client.deleteThread?.bind(this.client); }
       get clearConversationHistory() { return this.client.clearConversationHistory?.bind(this.client); }
+      get getConversationHistory() { return this.client.getConversationHistory?.bind(this.client); }
       get deleteConversationWithFiles() { return this.client.deleteConversationWithFiles?.bind(this.client); }
       get getSessionId() { return this.client.getSessionId?.bind(this.client); }
       get uploadFile() { return this.client.uploadFile?.bind(this.client); }
@@ -673,6 +715,7 @@ export async function loadApi(): Promise<ApiFunctions> {
         get getThreadInfo() { return this.client.getThreadInfo?.bind(this.client); }
         get deleteThread() { return this.client.deleteThread?.bind(this.client); }
         get clearConversationHistory() { return this.client.clearConversationHistory?.bind(this.client); }
+        get getConversationHistory() { return this.client.getConversationHistory?.bind(this.client); }
         get deleteConversationWithFiles() { return this.client.deleteConversationWithFiles?.bind(this.client); }
         get getSessionId() { return this.client.getSessionId?.bind(this.client); }
         get uploadFile() { return this.client.uploadFile?.bind(this.client); }
@@ -784,6 +827,7 @@ export async function loadApi(): Promise<ApiFunctions> {
           get getThreadInfo() { return this.client.getThreadInfo?.bind(this.client); }
           get deleteThread() { return this.client.deleteThread?.bind(this.client); }
           get clearConversationHistory() { return this.client.clearConversationHistory?.bind(this.client); }
+          get getConversationHistory() { return this.client.getConversationHistory?.bind(this.client); }
           get deleteConversationWithFiles() { return this.client.deleteConversationWithFiles?.bind(this.client); }
           get getSessionId() { return this.client.getSessionId?.bind(this.client); }
           get uploadFile() { return this.client.uploadFile?.bind(this.client); }

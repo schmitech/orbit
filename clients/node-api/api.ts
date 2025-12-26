@@ -141,6 +141,20 @@ export interface AdapterInfo {
   notes?: string | null;
 }
 
+export interface ConversationHistoryMessage {
+  message_id?: string | null;
+  role: string;
+  content: string;
+  timestamp: string | number | Date | null;
+  metadata?: Record<string, any>;
+}
+
+export interface ConversationHistoryResponse {
+  session_id: string;
+  messages: ConversationHistoryMessage[];
+  count: number;
+}
+
 export class ApiClient {
   private readonly apiUrl: string;
   private readonly apiKey: string | null;
@@ -306,7 +320,7 @@ export class ApiClient {
     }
 
     try {
-      const response = await fetch(`${this.apiUrl}/admin/api-keys/info`, {
+      const response = await fetch(`${this.apiUrl}/admin/adapters/info`, {
         ...this.getFetchOptions({
           method: 'GET'
         })
@@ -678,6 +692,64 @@ export class ApiClient {
       if (error.name === 'AbortError') {
         throw new Error('Connection timed out. Please check if the server is running.');
       } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  public async getConversationHistory(
+    sessionId?: string,
+    limit?: number
+  ): Promise<ConversationHistoryResponse> {
+    /**
+     * Retrieve persisted conversation history for a session.
+     *
+     * @param sessionId - Optional session ID to fetch. If not provided, uses current session.
+     * @param limit - Optional maximum number of messages to return
+     * @returns Promise resolving to conversation history payload
+     */
+    const targetSessionId = sessionId || this.sessionId;
+
+    if (!targetSessionId) {
+      throw new Error('No session ID provided and no current session available');
+    }
+
+    const headers: Record<string, string> = {};
+    if (this.apiKey) {
+      headers['X-API-Key'] = this.apiKey;
+    }
+
+    try {
+      const url = new URL(`${this.apiUrl}/admin/chat-history/${targetSessionId}`);
+      if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
+        url.searchParams.set('limit', String(Math.floor(limit)));
+      }
+
+      const response = await fetch(url.toString(), {
+        ...this.getFetchOptions({
+          method: 'GET',
+          headers
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch conversation history: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      const messages = Array.isArray(result?.messages) ? result.messages : [];
+      const count = typeof result?.count === 'number' ? result.count : messages.length;
+
+      return {
+        session_id: result?.session_id || targetSessionId,
+        messages,
+        count
+      };
+    } catch (error: any) {
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
         throw new Error('Could not connect to the server. Please check if the server is running.');
       } else {
         throw error;
@@ -1179,4 +1251,3 @@ export async function* streamChat(
     targetLanguage
   );
 }
-

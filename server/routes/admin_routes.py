@@ -384,6 +384,21 @@ async def delete_api_key(
     return {"status": "success", "message": "API key deleted"}
 
 
+async def _get_adapter_info_response(
+    request: Request,
+    x_api_key: str
+):
+    """
+    Shared handler for adapter info endpoints.
+    """
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    check_service_availability(api_key_service, "API key service")
+
+    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    adapter_info = await api_key_service.get_adapter_info(x_api_key, adapter_manager)
+    return adapter_info
+
+
 @admin_router.get("/api-keys/info")
 async def get_adapter_info(
     request: Request,
@@ -391,33 +406,19 @@ async def get_adapter_info(
 ):
     """
     Get adapter information for the current API key.
-
-    This endpoint returns information about the adapter and model being used
-    by the provided API key. This is useful for clients to display configuration
-    details to users.
-
-    The API key is read from the X-API-Key header (same as other endpoints).
-
-    Returns:
-        Dictionary containing:
-            - client_name: Name of the client associated with this API key
-            - adapter_name: Name of the adapter being used
-            - model: Model name (from adapter config or global default)
-
-    Raises:
-        HTTPException: If API key is invalid, disabled, or adapter not found
     """
-    # Get API key service
-    api_key_service = getattr(request.app.state, 'api_key_service', None)
-    check_service_availability(api_key_service, "API key service")
+    return await _get_adapter_info_response(request, x_api_key)
 
-    # Get adapter manager to ensure we read live config (respects hot-reload)
-    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
 
-    # Get adapter info - pass adapter_manager to get live config
-    adapter_info = await api_key_service.get_adapter_info(x_api_key, adapter_manager)
-
-    return adapter_info
+@admin_router.get("/adapters/info")
+async def get_adapter_info_alias(
+    request: Request,
+    x_api_key: str = Header(..., alias="X-API-Key")
+):
+    """
+    Alias for adapter info endpoint used by middleware proxies to reduce API key exposure.
+    """
+    return await _get_adapter_info_response(request, x_api_key)
 
 
 @admin_router.post("/api-keys/{api_key}/prompt")
