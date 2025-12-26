@@ -1115,18 +1115,20 @@ export function MessageInput({
                 ))}
               </div>
             )}
-            <FileUpload
-              conversationId={currentConversationId}
-              onFilesSelected={handleFilesSelected}
-              onUploadError={(error) => {
-                debugError('File upload error:', error);
-                setUploadError(error);
-              }}
-              onUploadingChange={setConversationUploading}
-              onUploadSuccess={handleUploadSuccessToast}
-              maxFiles={AppConfig.maxFilesPerConversation}
-              disabled={isFileUploadDisabled}
-            />
+            <div className={showFileUpload ? 'block' : 'hidden'} aria-hidden={!showFileUpload}>
+              <FileUpload
+                conversationId={currentConversationId}
+                onFilesSelected={handleFilesSelected}
+                onUploadError={(error) => {
+                  debugError('File upload error:', error);
+                  setUploadError(error);
+                }}
+                onUploadingChange={setConversationUploading}
+                onUploadSuccess={handleUploadSuccessToast}
+                maxFiles={AppConfig.maxFilesPerConversation}
+                disabled={isFileUploadDisabled}
+              />
+            </div>
           </div>
         )}
 
