@@ -17,6 +17,30 @@ const DEFAULT_API_KEY = getDefaultKey();
 const streamingBuffer: Map<string, { content: string; timeoutId: ReturnType<typeof setTimeout> | null }> = new Map();
 const STREAMING_BATCH_DELAY = 32; // ms - batch updates within this window (~30fps)
 
+const DEFAULT_ADAPTER_STORAGE_KEY = 'chat-default-adapter-name';
+let initialAdapterName: string | null = null;
+const setInitialAdapterName = (adapterName: string | null | undefined) => {
+  if (!adapterName || !adapterName.trim()) {
+    return;
+  }
+  initialAdapterName = adapterName;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(DEFAULT_ADAPTER_STORAGE_KEY, adapterName);
+    } catch {
+      // ignore storage errors
+    }
+  }
+};
+
+if (typeof window !== 'undefined') {
+  try {
+    initialAdapterName = localStorage.getItem(DEFAULT_ADAPTER_STORAGE_KEY);
+  } catch {
+    initialAdapterName = null;
+  }
+}
+
 // Helper to flush streaming buffer immediately (called when streaming ends)
 const flushStreamingBuffer = (conversationId: string, setState: (fn: (state: ChatState) => Partial<ChatState>) => void) => {
   const buffer = streamingBuffer.get(conversationId);
@@ -555,6 +579,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     const storedAdapterName = isMiddlewareEnabled
       ? (typeof window !== 'undefined' ? localStorage.getItem('chat-adapter-name') : null)
       : null;
+    const adapterNameForNewConversation = isMiddlewareEnabled
+      ? (initialAdapterName || storedAdapterName || undefined)
+      : undefined;
 
     const newConversation: Conversation = {
       id,
@@ -566,7 +593,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       // In middleware mode, use adapter name instead of API key
       apiKey: isMiddlewareEnabled ? undefined : defaultApiKey,
       apiUrl: defaultApiUrl,
-      adapterName: storedAdapterName || undefined
+      adapterName: adapterNameForNewConversation
     };
 
     // Update state with new conversation and switch to its session
@@ -581,8 +608,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       if (isConfigured) {
         getApi().then(api => {
           // Configure API based on mode
-          if (isMiddlewareEnabled && storedAdapterName) {
-            api.configureApi(defaultApiUrl, null, newSessionId, storedAdapterName);
+          if (isMiddlewareEnabled && adapterNameForNewConversation) {
+            api.configureApi(defaultApiUrl, null, newSessionId, adapterNameForNewConversation);
           } else {
             api.configureApi(defaultApiUrl, defaultApiKey, newSessionId);
           }
@@ -593,7 +620,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               apiUrl: defaultApiUrl,
               apiKey: isMiddlewareEnabled ? null : defaultApiKey,
               sessionId: null,
-              adapterName: isMiddlewareEnabled ? storedAdapterName : null
+              adapterName: isMiddlewareEnabled ? adapterNameForNewConversation : null
             });
 
             if (typeof validationClient.getAdapterInfo === 'function') {
@@ -2606,6 +2633,9 @@ const initializeStore = async () => {
 
           // Store adapter name in localStorage for persistence
           localStorage.setItem('chat-adapter-name', firstAdapter.name);
+          if (!initialAdapterName) {
+            setInitialAdapterName(firstAdapter.name);
+          }
 
           // Validate and load adapter info
           try {
@@ -2662,6 +2692,9 @@ const initializeStore = async () => {
         currentApiUrl = apiUrlToUse;
         apiConfigured = true;
         debugLog('✅ Using existing adapter from conversation:', existingAdapterName);
+        if (!initialAdapterName && existingAdapterName) {
+          setInitialAdapterName(existingAdapterName);
+        }
 
         // Load adapter info if not already loaded
         if (!currentConversation?.adapterInfo) {
