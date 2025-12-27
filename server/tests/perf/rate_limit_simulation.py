@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-Rate Limiting Simulation Script
+Rate Limiting & Throttling Simulation Script
 
-Simulates API traffic to test rate limiting behavior with a running ORBIT server.
-Supports multiple test modes: burst, sustained, and random patterns.
+Simulates API traffic to test rate limiting and throttling behavior with a running ORBIT server.
+Supports multiple test modes: burst, sustained, random, and throttle-specific patterns.
 
 Usage:
     python rate_limit_simulation.py [options]
@@ -20,6 +20,12 @@ Examples:
 
     # Test with API key (higher limits)
     python rate_limit_simulation.py --mode burst --api-key default-key
+
+    # Throttle test - observe progressive delays as quota increases
+    python rate_limit_simulation.py --mode throttle --api-key default-key --requests 200
+
+    # Quota exhaustion test - run until quota is exhausted
+    python rate_limit_simulation.py --mode exhaust --api-key default-key
 
     # Custom endpoint
     python rate_limit_simulation.py --url http://localhost:3000/health --mode burst
@@ -47,10 +53,19 @@ class RequestResult:
     """Result of a single request."""
     timestamp: float
     status_code: int
+    # Rate limit headers
     rate_limit: Optional[int] = None
     rate_remaining: Optional[int] = None
     rate_reset: Optional[int] = None
     retry_after: Optional[int] = None
+    # Throttle/quota headers
+    throttle_delay_ms: Optional[int] = None
+    quota_daily_remaining: Optional[int] = None
+    quota_monthly_remaining: Optional[int] = None
+    quota_daily_reset: Optional[int] = None
+    quota_monthly_reset: Optional[int] = None
+    quota_exceeded: Optional[str] = None  # 'daily' or 'monthly' if exceeded
+    # Timing
     response_time_ms: float = 0
     error: Optional[str] = None
 
@@ -61,8 +76,12 @@ class SimulationStats:
     total_requests: int = 0
     successful_requests: int = 0
     rate_limited_requests: int = 0
+    quota_exceeded_requests: int = 0
+    throttled_requests: int = 0  # Requests with delay > 0
     failed_requests: int = 0
     total_response_time_ms: float = 0
+    total_throttle_delay_ms: float = 0
+    max_throttle_delay_ms: int = 0
     results: List[RequestResult] = field(default_factory=list)
 
     @property
@@ -70,8 +89,20 @@ class SimulationStats:
         return self.total_response_time_ms / max(1, self.total_requests)
 
     @property
+    def avg_throttle_delay_ms(self) -> float:
+        return self.total_throttle_delay_ms / max(1, self.throttled_requests) if self.throttled_requests else 0
+
+    @property
     def rate_limit_percentage(self) -> float:
         return (self.rate_limited_requests / max(1, self.total_requests)) * 100
+
+    @property
+    def throttle_percentage(self) -> float:
+        return (self.throttled_requests / max(1, self.total_requests)) * 100
+
+    @property
+    def quota_exceeded_percentage(self) -> float:
+        return (self.quota_exceeded_requests / max(1, self.total_requests)) * 100
 
 
 class RateLimitSimulator:
@@ -129,6 +160,21 @@ class RateLimitSimulator:
             result.rate_reset = self._safe_int(response.headers.get("X-RateLimit-Reset"))
             result.retry_after = self._safe_int(response.headers.get("Retry-After"))
 
+            # Extract throttle/quota headers
+            result.throttle_delay_ms = self._safe_int(response.headers.get("X-Throttle-Delay"))
+            result.quota_daily_remaining = self._safe_int(response.headers.get("X-Quota-Daily-Remaining"))
+            result.quota_monthly_remaining = self._safe_int(response.headers.get("X-Quota-Monthly-Remaining"))
+            result.quota_daily_reset = self._safe_int(response.headers.get("X-Quota-Daily-Reset"))
+            result.quota_monthly_reset = self._safe_int(response.headers.get("X-Quota-Monthly-Reset"))
+
+            # Check for quota exceeded in response body
+            if response.status_code == 429:
+                try:
+                    body = response.json()
+                    result.quota_exceeded = body.get("quota_exceeded")
+                except Exception:
+                    pass
+
         except requests.exceptions.Timeout:
             result.error = "Request timeout"
             result.status_code = 0
@@ -156,7 +202,7 @@ class RateLimitSimulator:
             timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
             print(f"[{timestamp}] {message}")
 
-    def _log_result(self, result: RequestResult, request_num: int) -> None:
+    def _log_result(self, result: RequestResult, request_num: int, show_throttle: bool = False) -> None:
         """Log a single request result."""
         if not self.verbose:
             return
@@ -166,16 +212,32 @@ class RateLimitSimulator:
             429: "\033[93m⚠\033[0m",  # Yellow warning
         }.get(result.status_code, "\033[91m✗\033[0m")  # Red X for errors
 
+        # Rate limit info
         rate_info = ""
         if result.rate_remaining is not None:
             rate_info = f" | Remaining: {result.rate_remaining}/{result.rate_limit}"
         if result.retry_after:
             rate_info += f" | Retry-After: {result.retry_after}s"
 
+        # Throttle info
+        throttle_info = ""
+        if show_throttle or result.throttle_delay_ms:
+            if result.throttle_delay_ms is not None:
+                delay_color = "\033[92m" if result.throttle_delay_ms == 0 else (
+                    "\033[93m" if result.throttle_delay_ms < 1000 else "\033[91m"
+                )
+                throttle_info = f" | Delay: {delay_color}{result.throttle_delay_ms}ms\033[0m"
+            if result.quota_daily_remaining is not None:
+                throttle_info += f" | Daily: {result.quota_daily_remaining}"
+            if result.quota_monthly_remaining is not None:
+                throttle_info += f" | Monthly: {result.quota_monthly_remaining}"
+            if result.quota_exceeded:
+                throttle_info += f" | \033[91mQUOTA EXCEEDED ({result.quota_exceeded})\033[0m"
+
         self._log(
             f"{status_icon} Request #{request_num:3d} | "
             f"Status: {result.status_code} | "
-            f"Time: {result.response_time_ms:6.1f}ms{rate_info}"
+            f"Time: {result.response_time_ms:6.1f}ms{rate_info}{throttle_info}"
         )
 
     def _update_stats(self, result: RequestResult) -> None:
@@ -187,9 +249,19 @@ class RateLimitSimulator:
         if result.status_code == 200:
             self.stats.successful_requests += 1
         elif result.status_code == 429:
-            self.stats.rate_limited_requests += 1
+            if result.quota_exceeded:
+                self.stats.quota_exceeded_requests += 1
+            else:
+                self.stats.rate_limited_requests += 1
         else:
             self.stats.failed_requests += 1
+
+        # Track throttle stats
+        if result.throttle_delay_ms is not None and result.throttle_delay_ms > 0:
+            self.stats.throttled_requests += 1
+            self.stats.total_throttle_delay_ms += result.throttle_delay_ms
+            if result.throttle_delay_ms > self.stats.max_throttle_delay_ms:
+                self.stats.max_throttle_delay_ms = result.throttle_delay_ms
 
     def run_burst_test(
         self,
@@ -294,6 +366,100 @@ class RateLimitSimulator:
 
         return self.stats
 
+    def run_throttle_test(
+        self,
+        num_requests: int = 200,
+        endpoint: str = "/v1/chat",
+        method: str = "POST"
+    ) -> SimulationStats:
+        """
+        Throttle test: Send requests to observe progressive throttle delays.
+
+        Requires an API key to trigger throttle middleware.
+        Shows how delays increase as quota usage grows.
+
+        Args:
+            num_requests: Number of requests to send
+            endpoint: API endpoint to test
+            method: HTTP method (GET or POST)
+        """
+        if not self.api_key:
+            self._log("\033[93mWARNING: Throttle test requires --api-key to observe throttling behavior\033[0m")
+
+        self._log(f"Starting THROTTLE test: {num_requests} requests to observe progressive delays")
+        self._log(f"API Key: {'Yes' if self.api_key else 'No'}")
+        self._log("-" * 60)
+
+        for i in range(num_requests):
+            result = self._make_request(endpoint, method)
+            self._update_stats(result)
+            self._log_result(result, i + 1, show_throttle=True)
+
+            # Stop if quota exceeded
+            if result.quota_exceeded:
+                self._log(f"\n\033[91mQuota exceeded ({result.quota_exceeded}), stopping test\033[0m")
+                break
+
+            # Stop if too many failures
+            if self.stats.failed_requests > 10:
+                self._log("Too many failures, stopping test")
+                break
+
+        return self.stats
+
+    def run_exhaust_test(
+        self,
+        endpoint: str = "/v1/chat",
+        method: str = "POST",
+        max_requests: int = 50000
+    ) -> SimulationStats:
+        """
+        Quota exhaustion test: Send requests until quota is exhausted.
+
+        Requires an API key. Will continue until daily or monthly quota
+        is exceeded (429 with quota_exceeded in response).
+
+        Args:
+            endpoint: API endpoint to test
+            method: HTTP method (GET or POST)
+            max_requests: Safety limit to prevent infinite loops
+        """
+        if not self.api_key:
+            self._log("\033[91mERROR: Exhaust test requires --api-key\033[0m")
+            return self.stats
+
+        self._log(f"Starting EXHAUST test: Run until quota is exhausted (max {max_requests} requests)")
+        self._log(f"API Key: Yes ({self.api_key[:8]}...)")
+        self._log("-" * 60)
+
+        request_num = 0
+        quota_exhausted = False
+
+        while not quota_exhausted and request_num < max_requests:
+            request_num += 1
+            result = self._make_request(endpoint, method)
+            self._update_stats(result)
+
+            # Log every 10th request or when throttling/quota exceeded
+            if request_num % 10 == 0 or result.throttle_delay_ms or result.quota_exceeded:
+                self._log_result(result, request_num, show_throttle=True)
+
+            # Check for quota exceeded
+            if result.quota_exceeded:
+                quota_exhausted = True
+                self._log(f"\n\033[91mQuota exhausted ({result.quota_exceeded}) at request #{request_num}\033[0m")
+                break
+
+            # Stop if too many non-quota failures
+            if self.stats.failed_requests > 10:
+                self._log("Too many failures, stopping test")
+                break
+
+        if not quota_exhausted:
+            self._log(f"\nReached max requests ({max_requests}) without exhausting quota")
+
+        return self.stats
+
     def print_summary(self) -> None:
         """Print summary statistics."""
         print("\n" + "=" * 60)
@@ -302,24 +468,55 @@ class RateLimitSimulator:
         print(f"Total Requests:      {self.stats.total_requests}")
         print(f"Successful (200):    {self.stats.successful_requests}")
         print(f"Rate Limited (429):  {self.stats.rate_limited_requests} ({self.stats.rate_limit_percentage:.1f}%)")
+        print(f"Quota Exceeded:      {self.stats.quota_exceeded_requests} ({self.stats.quota_exceeded_percentage:.1f}%)")
         print(f"Failed (other):      {self.stats.failed_requests}")
         print(f"Avg Response Time:   {self.stats.avg_response_time_ms:.1f}ms")
+
+        # Throttle statistics
+        if self.stats.throttled_requests > 0:
+            print("\n" + "-" * 40)
+            print("THROTTLE STATISTICS")
+            print("-" * 40)
+            print(f"Throttled Requests:  {self.stats.throttled_requests} ({self.stats.throttle_percentage:.1f}%)")
+            print(f"Avg Throttle Delay:  {self.stats.avg_throttle_delay_ms:.1f}ms")
+            print(f"Max Throttle Delay:  {self.stats.max_throttle_delay_ms}ms")
+
+            # Find when throttling started
+            for i, result in enumerate(self.stats.results):
+                if result.throttle_delay_ms and result.throttle_delay_ms > 0:
+                    print(f"Throttling started:  Request #{i + 1}")
+                    break
 
         # Show when rate limiting kicked in
         for i, result in enumerate(self.stats.results):
             if result.status_code == 429:
-                print(f"\nRate limiting triggered at request #{i + 1}")
+                if result.quota_exceeded:
+                    print(f"\nQuota exceeded ({result.quota_exceeded}) at request #{i + 1}")
+                else:
+                    print(f"\nRate limiting triggered at request #{i + 1}")
                 break
         else:
-            if self.stats.rate_limited_requests == 0:
-                print("\nNo rate limiting triggered during this test")
+            if self.stats.rate_limited_requests == 0 and self.stats.quota_exceeded_requests == 0:
+                print("\nNo rate limiting or quota exceeded during this test")
+
+        # Show final quota status if available
+        if self.stats.results:
+            last_result = self.stats.results[-1]
+            if last_result.quota_daily_remaining is not None or last_result.quota_monthly_remaining is not None:
+                print("\n" + "-" * 40)
+                print("FINAL QUOTA STATUS")
+                print("-" * 40)
+                if last_result.quota_daily_remaining is not None:
+                    print(f"Daily Remaining:     {last_result.quota_daily_remaining}")
+                if last_result.quota_monthly_remaining is not None:
+                    print(f"Monthly Remaining:   {last_result.quota_monthly_remaining}")
 
         print("=" * 60)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Rate Limiting Simulation Script",
+        description="Rate Limiting & Throttling Simulation Script",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -334,6 +531,12 @@ Examples:
 
   # Test with API key (gets higher rate limits)
   python rate_limit_simulation.py --mode burst --api-key default-key
+
+  # Throttle test - observe progressive delays as quota increases
+  python rate_limit_simulation.py --mode throttle --api-key default-key --requests 200
+
+  # Quota exhaustion test - run until quota is exceeded
+  python rate_limit_simulation.py --mode exhaust --api-key default-key
 
   # Test health endpoint (GET request, usually excluded from rate limiting)
   python rate_limit_simulation.py --endpoint /health --method GET --mode burst
@@ -362,15 +565,21 @@ Examples:
     )
     parser.add_argument(
         "--mode",
-        choices=["burst", "sustained", "random"],
+        choices=["burst", "sustained", "random", "throttle", "exhaust"],
         default="burst",
-        help="Test mode (default: burst)"
+        help="Test mode: burst, sustained, random, throttle, or exhaust (default: burst)"
     )
     parser.add_argument(
         "--requests",
         type=int,
         default=100,
-        help="Number of requests for burst/random mode (default: 100)"
+        help="Number of requests for burst/random/throttle mode (default: 100)"
+    )
+    parser.add_argument(
+        "--max-requests",
+        type=int,
+        default=50000,
+        help="Maximum requests for exhaust mode safety limit (default: 50000)"
     )
     parser.add_argument(
         "--duration",
@@ -405,7 +614,7 @@ Examples:
     args = parser.parse_args()
 
     print("\n" + "=" * 60)
-    print("ORBIT Rate Limiting Simulation")
+    print("ORBIT Rate Limiting & Throttling Simulation")
     print("=" * 60)
     print(f"Server:    {args.url}")
     print(f"Endpoint:  {args.endpoint}")
@@ -443,6 +652,18 @@ Examples:
                 max_delay_ms=args.max_delay,
                 endpoint=args.endpoint,
                 method=args.method
+            )
+        elif args.mode == "throttle":
+            simulator.run_throttle_test(
+                num_requests=args.requests,
+                endpoint=args.endpoint,
+                method=args.method
+            )
+        elif args.mode == "exhaust":
+            simulator.run_exhaust_test(
+                endpoint=args.endpoint,
+                method=args.method,
+                max_requests=args.max_requests
             )
     except KeyboardInterrupt:
         print("\n\nTest interrupted by user")

@@ -19,7 +19,8 @@ from models.schema import (
     ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate,
     SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse,
     ApiKeyPromptAssociate, ChatHistoryClearResponse, AdapterReloadResponse,
-    TemplateReloadResponse
+    TemplateReloadResponse, ApiKeyQuota, ApiKeyQuotaUpdate, ApiKeyUsage,
+    ApiKeyQuotaResponse
 )
 from config.config_manager import reload_adapters_config
 
@@ -430,11 +431,297 @@ async def associate_prompt_with_api_key(
 ):
     """Associate a system prompt with an API key"""
     success = await api_key_service.update_api_key_system_prompt(api_key, data.prompt_id)
-    
+
     if not success:
         raise HTTPException(status_code=404, detail="API key not found or prompt not associated")
-    
+
     return {"status": "success", "message": "System prompt associated with API key"}
+
+
+# API Key Quota Management Routes
+@admin_router.get("/api-keys/{api_key}/quota", response_model=ApiKeyQuotaResponse)
+async def get_api_key_quota(
+    api_key: str,
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Get quota configuration and current usage for an API key.
+
+    Returns quota limits, current usage statistics, and remaining quota.
+    If throttling is disabled, returns an error.
+
+    Args:
+        api_key: The API key to get quota for
+        request: The incoming request
+        authorized: Authentication check result
+
+    Returns:
+        ApiKeyQuotaResponse with quota config and usage statistics
+
+    Raises:
+        HTTPException 404: If API key not found
+        HTTPException 503: If quota service is not available
+    """
+    # Check if quota service is available
+    quota_service = getattr(request.app.state, 'quota_service', None)
+    if not quota_service or not quota_service.enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="Quota service is not available. Ensure throttling is enabled in configuration."
+        )
+
+    # Verify API key exists
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    if api_key_service:
+        status = await api_key_service.get_api_key_status(api_key)
+        if not status.get('exists'):
+            raise HTTPException(status_code=404, detail="API key not found")
+
+    # Get quota config and usage
+    quota_config, usage_stats = await quota_service.get_quota_and_usage(api_key)
+    daily_remaining, monthly_remaining = quota_service.calculate_remaining(quota_config, usage_stats)
+
+    # Calculate current throttle delay (for informational purposes)
+    throttle_delay_ms = 0
+    if quota_config.get('throttle_enabled', True):
+        daily_limit = quota_config.get('daily_limit')
+        monthly_limit = quota_config.get('monthly_limit')
+        daily_used = usage_stats.get('daily_used', 0)
+        monthly_used = usage_stats.get('monthly_used', 0)
+
+        # Calculate usage percentage for delay estimation
+        percentages = []
+        if daily_limit and daily_limit > 0:
+            percentages.append(daily_used / daily_limit)
+        if monthly_limit and monthly_limit > 0:
+            percentages.append(monthly_used / monthly_limit)
+
+        if percentages:
+            usage_pct = max(percentages)
+            threshold = 0.7  # Default threshold
+            if usage_pct >= threshold:
+                normalized = (usage_pct - threshold) / (1.0 - threshold)
+                normalized = min(1.0, max(0.0, normalized))
+                # Exponential curve estimation
+                throttle_delay_ms = int(100 + (5000 - 100) * (normalized ** 2))
+
+    # Mask API key for response
+    masked_key = f"***{api_key[-4:]}" if len(api_key) >= 4 else "***"
+
+    return ApiKeyQuotaResponse(
+        api_key_masked=masked_key,
+        quota=ApiKeyQuota(
+            daily_limit=quota_config.get('daily_limit'),
+            monthly_limit=quota_config.get('monthly_limit'),
+            throttle_enabled=quota_config.get('throttle_enabled', True),
+            throttle_priority=quota_config.get('throttle_priority', 5)
+        ),
+        usage=ApiKeyUsage(
+            daily_used=usage_stats.get('daily_used', 0),
+            monthly_used=usage_stats.get('monthly_used', 0),
+            daily_reset_at=usage_stats.get('daily_reset_at', 0),
+            monthly_reset_at=usage_stats.get('monthly_reset_at', 0),
+            last_request_at=usage_stats.get('last_request_at')
+        ),
+        daily_remaining=daily_remaining,
+        monthly_remaining=monthly_remaining,
+        throttle_delay_ms=throttle_delay_ms
+    )
+
+
+@admin_router.put("/api-keys/{api_key}/quota")
+async def update_api_key_quota(
+    api_key: str,
+    quota_data: ApiKeyQuotaUpdate,
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Update quota settings for an API key.
+
+    Allows updating daily/monthly limits, enabling/disabling throttling,
+    and setting the throttle priority.
+
+    Args:
+        api_key: The API key to update quota for
+        quota_data: The quota update request data
+        request: The incoming request
+        authorized: Authentication check result
+
+    Returns:
+        Success message with updated quota
+
+    Raises:
+        HTTPException 404: If API key not found
+        HTTPException 503: If quota service is not available
+    """
+    # Check if quota service is available
+    quota_service = getattr(request.app.state, 'quota_service', None)
+    if not quota_service or not quota_service.enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="Quota service is not available. Ensure throttling is enabled in configuration."
+        )
+
+    # Verify API key exists
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    if api_key_service:
+        status = await api_key_service.get_api_key_status(api_key)
+        if not status.get('exists'):
+            raise HTTPException(status_code=404, detail="API key not found")
+
+    # Update quota config
+    success = await quota_service.update_quota_config(
+        api_key,
+        daily_limit=quota_data.daily_limit,
+        monthly_limit=quota_data.monthly_limit,
+        throttle_enabled=quota_data.throttle_enabled,
+        throttle_priority=quota_data.throttle_priority
+    )
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update quota configuration")
+
+    # Log with masked API key
+    masked_key = f"***{api_key[-4:]}" if len(api_key) >= 4 else "***"
+    logger.info(f"Updated quota for API key: {masked_key}")
+
+    return {"status": "success", "message": "Quota configuration updated successfully"}
+
+
+@admin_router.post("/api-keys/{api_key}/quota/reset")
+async def reset_api_key_quota(
+    api_key: str,
+    request: Request,
+    period: str = Query("daily", pattern="^(daily|monthly|all)$"),
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Reset quota usage counters for an API key.
+
+    Allows resetting daily usage, monthly usage, or both.
+
+    Args:
+        api_key: The API key to reset quota for
+        period: The period to reset ("daily", "monthly", or "all")
+        request: The incoming request
+        authorized: Authentication check result
+
+    Returns:
+        Success message confirming reset
+
+    Raises:
+        HTTPException 404: If API key not found
+        HTTPException 503: If quota service is not available
+    """
+    # Check if quota service is available
+    quota_service = getattr(request.app.state, 'quota_service', None)
+    if not quota_service or not quota_service.enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="Quota service is not available. Ensure throttling is enabled in configuration."
+        )
+
+    # Verify API key exists
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    if api_key_service:
+        status = await api_key_service.get_api_key_status(api_key)
+        if not status.get('exists'):
+            raise HTTPException(status_code=404, detail="API key not found")
+
+    # Reset usage
+    success = await quota_service.reset_usage(api_key, period)
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to reset quota usage")
+
+    # Log with masked API key
+    masked_key = f"***{api_key[-4:]}" if len(api_key) >= 4 else "***"
+    logger.info(f"Reset {period} quota for API key: {masked_key}")
+
+    return {"status": "success", "message": f"Quota usage ({period}) reset successfully"}
+
+
+@admin_router.get("/quotas/usage-report")
+async def get_quota_usage_report(
+    request: Request,
+    period: str = Query("daily", pattern="^(daily|monthly)$"),
+    limit: int = Query(100, ge=1, le=1000),
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Get a usage report for all API keys.
+
+    Returns aggregated usage statistics for the specified period.
+
+    Args:
+        period: The period for the report ("daily" or "monthly")
+        limit: Maximum number of keys to include (default: 100, max: 1000)
+        request: The incoming request
+        authorized: Authentication check result
+
+    Returns:
+        List of API keys with their usage statistics
+
+    Raises:
+        HTTPException 503: If quota service is not available
+    """
+    # Check if quota service is available
+    quota_service = getattr(request.app.state, 'quota_service', None)
+    if not quota_service or not quota_service.enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="Quota service is not available. Ensure throttling is enabled in configuration."
+        )
+
+    # Get all API keys
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    if not api_key_service:
+        raise HTTPException(status_code=503, detail="API key service is not available")
+
+    try:
+        # Get API keys from database
+        api_keys = await api_key_service.database.find_many(
+            api_key_service.collection_name,
+            {"active": True},
+            limit=limit
+        )
+
+        # Build usage report
+        report = []
+        for key_doc in api_keys:
+            api_key = key_doc.get('api_key', '')
+            if not api_key:
+                continue
+
+            # Get usage for this key
+            usage_stats = await quota_service.get_usage(api_key)
+            quota_config = await quota_service.get_quota_config(api_key)
+
+            # Mask API key
+            masked_key = f"***{api_key[-4:]}" if len(api_key) >= 4 else "***"
+
+            report.append({
+                "api_key_masked": masked_key,
+                "client_name": key_doc.get('client_name', 'Unknown'),
+                "adapter_name": key_doc.get('adapter_name'),
+                "period": period,
+                "used": usage_stats.get(f'{period}_used', 0),
+                "limit": quota_config.get(f'{period}_limit'),
+                "throttle_enabled": quota_config.get('throttle_enabled', True),
+                "throttle_priority": quota_config.get('throttle_priority', 5)
+            })
+
+        return {
+            "period": period,
+            "total_keys": len(report),
+            "usage": report
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating quota usage report: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate usage report: {str(e)}")
 
 
 # System Prompts Management Routes

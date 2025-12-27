@@ -50,6 +50,41 @@ class ApiKeyDeactivate(BaseModel):
     api_key: str
 
 
+class ApiKeyQuota(BaseModel):
+    """Quota configuration for an API key"""
+    daily_limit: Optional[int] = Field(default=None, description="Daily request limit (None = unlimited)")
+    monthly_limit: Optional[int] = Field(default=None, description="Monthly request limit (None = unlimited)")
+    throttle_enabled: bool = Field(default=True, description="Enable throttling for this key")
+    throttle_priority: int = Field(default=5, ge=1, le=10, description="Priority 1-10, lower = less delay")
+
+
+class ApiKeyQuotaUpdate(BaseModel):
+    """Request model for updating API key quota"""
+    daily_limit: Optional[int] = Field(default=None, description="Daily request limit (None = unlimited)")
+    monthly_limit: Optional[int] = Field(default=None, description="Monthly request limit (None = unlimited)")
+    throttle_enabled: Optional[bool] = Field(default=None, description="Enable throttling for this key")
+    throttle_priority: Optional[int] = Field(default=None, ge=1, le=10, description="Priority 1-10")
+
+
+class ApiKeyUsage(BaseModel):
+    """Current usage statistics for an API key"""
+    daily_used: int = Field(default=0, description="Requests used today")
+    monthly_used: int = Field(default=0, description="Requests used this month")
+    daily_reset_at: float = Field(description="Unix timestamp of daily reset")
+    monthly_reset_at: float = Field(description="Unix timestamp of monthly reset")
+    last_request_at: Optional[float] = Field(default=None, description="Unix timestamp of last request")
+
+
+class ApiKeyQuotaResponse(BaseModel):
+    """Response model for quota status endpoint"""
+    api_key_masked: str = Field(description="Masked API key for display")
+    quota: ApiKeyQuota = Field(description="Quota configuration")
+    usage: ApiKeyUsage = Field(description="Current usage statistics")
+    daily_remaining: Optional[int] = Field(default=None, description="Requests remaining today (None if unlimited)")
+    monthly_remaining: Optional[int] = Field(default=None, description="Requests remaining this month (None if unlimited)")
+    throttle_delay_ms: int = Field(default=0, description="Current throttle delay in milliseconds")
+
+
 class SystemPromptCreate(BaseModel):
     """System prompt creation request model"""
     name: str

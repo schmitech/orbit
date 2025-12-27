@@ -45,6 +45,9 @@ from bin.orbit.commands.config import (
     ConfigShowCommand, ConfigEffectiveCommand, ConfigSetCommand, ConfigResetCommand
 )
 from bin.orbit.commands.admin import AdminReloadAdaptersCommand, AdminReloadTemplatesCommand
+from bin.orbit.commands.quota import (
+    QuotaGetCommand, QuotaSetCommand, QuotaResetCommand, QuotaReportCommand
+)
 
 # Version information
 __version__ = "2.2.0"
@@ -234,7 +237,10 @@ Report issues at: https://github.com/schmitech/orbit/issues
         
         # Admin management commands
         self._add_admin_commands(subparsers)
-        
+
+        # Quota management commands
+        self._add_quota_commands(subparsers)
+
         return parser
     
     def _add_server_commands(self, subparsers):
@@ -466,7 +472,36 @@ Report issues at: https://github.com/schmitech/orbit/issues
         reload_templates_cmd = AdminReloadTemplatesCommand(self._get_api_service(), self.formatter)
         reload_templates_cmd.add_arguments(reload_templates_parser)
         reload_templates_parser.set_defaults(func=lambda args, cmd=reload_templates_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
-    
+
+    def _add_quota_commands(self, subparsers):
+        """Add quota management commands."""
+        quota_parser = subparsers.add_parser('quota', help='Manage API key quotas and throttling')
+        quota_subparsers = quota_parser.add_subparsers(dest='quota_command', help='Quota operations', required=False)
+
+        # Get command
+        get_parser = quota_subparsers.add_parser('get', help='Get quota and usage for an API key')
+        get_cmd = QuotaGetCommand(self._get_api_service(), self.formatter)
+        get_cmd.add_arguments(get_parser)
+        get_parser.set_defaults(func=lambda args, cmd=get_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
+        # Set command
+        set_parser = quota_subparsers.add_parser('set', help='Set quota limits for an API key')
+        set_cmd = QuotaSetCommand(self._get_api_service(), self.formatter)
+        set_cmd.add_arguments(set_parser)
+        set_parser.set_defaults(func=lambda args, cmd=set_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
+        # Reset command
+        reset_parser = quota_subparsers.add_parser('reset', help='Reset quota usage for an API key')
+        reset_cmd = QuotaResetCommand(self._get_api_service(), self.formatter)
+        reset_cmd.add_arguments(reset_parser)
+        reset_parser.set_defaults(func=lambda args, cmd=reset_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
+        # Report command
+        report_parser = quota_subparsers.add_parser('report', help='Generate quota usage report')
+        report_cmd = QuotaReportCommand(self._get_api_service(), self.formatter)
+        report_cmd.add_arguments(report_parser)
+        report_parser.set_defaults(func=lambda args, cmd=report_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
     def execute(self, args):
         """Execute the parsed command."""
         try:

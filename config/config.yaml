@@ -39,7 +39,7 @@ language_detection:
   prefer_english_for_ascii: true
   enable_stickiness: false
   fallback_language: "en"
-  backend_timeout: 5.0  # Timeout per backend in seconds (increase for cold starts)
+  backend_timeout: 10.0  # Timeout per backend in seconds (increase for cold starts)
 
   # Configurable heuristic nudges for voting adjustments
   heuristic_nudges:
@@ -531,3 +531,42 @@ security:
 
     # Response configuration
     retry_after_seconds: 60          # Retry-After header value when limited
+
+  # Throttling configuration (executes BEFORE rate limiting)
+  # Delays requests progressively instead of rejecting them
+  throttling:
+    enabled: false                    # Master switch for throttling
+
+    # Default quotas for API keys (can be overridden per-key)
+    default_quotas:
+      daily_limit: 10000             # Default daily request limit
+      monthly_limit: 100000          # Default monthly request limit
+
+    # Delay calculation parameters
+    delay:
+      min_ms: 100                    # Minimum delay when throttling starts
+      max_ms: 5000                   # Maximum delay before quota rejection
+      curve: "exponential"           # "linear" or "exponential"
+      threshold_percent: 70          # Start throttling at 70% of quota
+
+    # Priority-based delay multipliers (priority 1-10)
+    # Higher multiplier = more delay for that priority level
+    priority_multipliers:
+      1: 0.5                         # Premium tier: half delay
+      5: 1.0                         # Standard tier: normal delay
+      10: 2.0                        # Low priority: double delay
+
+    # Paths to exclude from throttling
+    exclude_paths: []
+
+    # Redis configuration
+    redis_key_prefix: "quota:"
+    usage_sync_interval_seconds: 60  # Sync Redis usage to database
+
+    # Response headers
+    headers:
+      delay: "X-Throttle-Delay"
+      daily_remaining: "X-Quota-Daily-Remaining"
+      monthly_remaining: "X-Quota-Monthly-Remaining"
+      daily_reset: "X-Quota-Daily-Reset"
+      monthly_reset: "X-Quota-Monthly-Reset"

@@ -95,6 +95,9 @@ class ServiceFactory:
         # Initialize thread dataset service (shared instance, requires Redis to be initialized first)
         await self._initialize_thread_dataset_service(app)
 
+        # Initialize quota service for rate throttling (requires Redis)
+        await self._initialize_quota_service(app)
+
         # Initialize authentication service (requires database to be initialized first)
         await self._initialize_auth_service_if_available(app, auth_enabled)
     
@@ -359,6 +362,55 @@ class ServiceFactory:
         else:
             app.state.thread_dataset_service = None
             logger.debug("ThreadDatasetService is disabled (conversation_threading not enabled)")
+
+    async def _initialize_quota_service(self, app: FastAPI) -> None:
+        """Initialize Quota Service for rate throttling."""
+        throttle_config = self.config.get('security', {}).get('throttling', {})
+        throttle_enabled = is_true_value(throttle_config.get('enabled', False))
+
+        if not throttle_enabled:
+            app.state.quota_service = None
+            app.state.quota_background_tasks = None
+            logger.info("Quota Service disabled (throttling not enabled)")
+            return
+
+        # Throttling requires Redis
+        redis_service = getattr(app.state, 'redis_service', None)
+        if not redis_service or not redis_service.enabled:
+            app.state.quota_service = None
+            app.state.quota_background_tasks = None
+            logger.warning("Quota Service requires Redis - throttling will be disabled")
+            return
+
+        try:
+            from services.quota_service import QuotaService
+            from services.quota_background_tasks import QuotaBackgroundTasks
+
+            # Get database service for quota persistence
+            database_service = getattr(app.state, 'database_service', None)
+
+            # Create quota service
+            app.state.quota_service = QuotaService(
+                self.config,
+                database_service=database_service,
+                redis_service=redis_service
+            )
+            await app.state.quota_service.initialize()
+
+            # Start background tasks for periodic sync
+            sync_interval = throttle_config.get('usage_sync_interval_seconds', 60)
+            app.state.quota_background_tasks = QuotaBackgroundTasks(
+                app.state.quota_service,
+                sync_interval=sync_interval
+            )
+            await app.state.quota_background_tasks.start()
+
+            logger.info("Quota Service initialized successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize Quota Service: {str(e)}")
+            app.state.quota_service = None
+            app.state.quota_background_tasks = None
     
     async def _initialize_chat_history_service(self, app: FastAPI) -> None:
         """Initialize Chat History Service."""

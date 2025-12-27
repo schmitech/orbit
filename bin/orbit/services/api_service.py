@@ -449,3 +449,50 @@ class ApiService:
                 }
             }
 
+    # Quota management methods
+    @handle_api_errors(operation_name="Get quota", custom_errors={
+        404: "API key not found",
+        503: "Quota service is not available (throttling may be disabled)"
+    })
+    def get_quota(self, api_key: str) -> Dict[str, Any]:
+        """Get quota configuration and usage for an API key."""
+        headers = self._get_auth_headers()
+        response = self.api_client.get(f"/admin/api-keys/{api_key}/quota", headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    @handle_api_errors(operation_name="Update quota", custom_errors={
+        404: "API key not found",
+        503: "Quota service is not available (throttling may be disabled)"
+    })
+    def update_quota(self, api_key: str, quota_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update quota settings for an API key."""
+        headers = self._get_auth_headers()
+        headers["Content-Type"] = "application/json"
+        response = self.api_client.put(f"/admin/api-keys/{api_key}/quota", headers=headers, json_data=quota_data)
+        response.raise_for_status()
+        return response.json()
+
+    @handle_api_errors(operation_name="Reset quota", custom_errors={
+        404: "API key not found",
+        503: "Quota service is not available (throttling may be disabled)"
+    })
+    def reset_quota(self, api_key: str, period: str = "daily") -> Dict[str, Any]:
+        """Reset quota usage for an API key."""
+        headers = self._get_auth_headers()
+        params = {"period": period}
+        response = self.api_client.post(f"/admin/api-keys/{api_key}/quota/reset", headers=headers, params=params)
+        response.raise_for_status()
+        return response.json()
+
+    @handle_api_errors(operation_name="Get quota report", custom_errors={
+        503: "Quota service is not available (throttling may be disabled)"
+    })
+    def get_quota_report(self, period: str = "daily", limit: int = 100) -> Dict[str, Any]:
+        """Get quota usage report for all API keys."""
+        headers = self._get_auth_headers()
+        params = {"period": period, "limit": str(limit)}
+        response = self.api_client.get("/admin/quotas/usage-report", headers=headers, params=params)
+        response.raise_for_status()
+        return response.json()
+

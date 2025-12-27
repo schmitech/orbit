@@ -108,8 +108,11 @@ class MiddlewareConfigurator:
         # Configure metrics middleware (if available)
         MiddlewareConfigurator._configure_metrics_middleware(app, logger)
         
-        # Configure rate limiting middleware (added last, executed first)
+        # Configure rate limiting middleware (rejects requests over hard limits)
         MiddlewareConfigurator._configure_rate_limit_middleware(app, config, logger)
+
+        # Configure throttle middleware (added last, executed first - delays requests before rate limiting)
+        MiddlewareConfigurator._configure_throttle_middleware(app, config, logger)
 
     @staticmethod
     def _configure_security_headers_middleware(app: FastAPI, config: Dict[str, Any], logger: logging.Logger) -> None:
@@ -338,3 +341,55 @@ class MiddlewareConfigurator:
         except Exception as e:
             _logger.warning(f"Failed to configure rate limit middleware: {e}")
             logger.warning(f"Failed to configure rate limit middleware: {e}")
+
+    @staticmethod
+    def _configure_throttle_middleware(app: FastAPI, config: Dict[str, Any], logger: logging.Logger) -> None:
+        """
+        Configure throttle middleware for quota-based request delays.
+
+        Throttle middleware delays requests progressively as quota usage increases,
+        providing smoother traffic control than hard rejection. Executes BEFORE
+        rate limiting middleware.
+
+        Throttling is only enabled when:
+        1. security.throttling.enabled is true in config
+        2. Redis service is enabled (required for quota tracking)
+
+        Args:
+            app: The FastAPI application instance
+            config: The application configuration dictionary
+            logger: Logger instance for throttle logging
+        """
+        # Check if throttling is enabled in config
+        security_config = config.get('security', {}) or {}
+        throttle_config = security_config.get('throttling', {}) or {}
+
+        if not throttle_config.get('enabled', False):
+            _logger.info("Throttle middleware is disabled in configuration")
+            logger.info("Throttle middleware is disabled in configuration")
+            return
+
+        # Check if Redis is enabled (required for throttling)
+        redis_config = config.get('internal_services', {}).get('redis', {}) or {}
+        if not redis_config.get('enabled', False):
+            _logger.warning(
+                "Throttling is enabled but Redis is disabled. "
+                "Throttling requires Redis - middleware will not be active."
+            )
+            logger.warning(
+                "Throttling is enabled but Redis is disabled. "
+                "Throttling requires Redis - middleware will not be active."
+            )
+            return
+
+        try:
+            from server.middleware.throttle_middleware import ThrottleMiddleware
+            app.add_middleware(ThrottleMiddleware, config=config)
+            _logger.info("Throttle middleware configured successfully")
+            logger.info("Throttle middleware configured successfully")
+        except ImportError as e:
+            _logger.warning(f"ThrottleMiddleware not available - throttling disabled: {e}")
+            logger.warning(f"ThrottleMiddleware not available - throttling disabled: {e}")
+        except Exception as e:
+            _logger.warning(f"Failed to configure throttle middleware: {e}")
+            logger.warning(f"Failed to configure throttle middleware: {e}")
