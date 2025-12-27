@@ -190,12 +190,92 @@ async def test_cleanup(redis_service: RedisService):
     keys = ["test:key1", "test:key2", "test:key3"]
     for key in keys:
         await redis_service.set(key, "test_value")
-    
+
     # Delete keys
     deleted = await redis_service.delete(*keys)
     assert deleted == len(keys), f"Expected to delete {len(keys)} keys, deleted {deleted}"
-    
+
     # Verify keys are gone
     for key in keys:
         exists = await redis_service.exists(key)
         assert not exists, f"Key {key} should have been deleted"
+
+
+@pytest.mark.asyncio
+async def test_clear_keys_by_pattern(redis_service: RedisService):
+    """Test clearing keys by pattern"""
+    # Create keys with a specific pattern
+    pattern_keys = ["testpattern:key1", "testpattern:key2", "testpattern:key3"]
+    other_keys = ["other:key1", "other:key2"]
+
+    for key in pattern_keys + other_keys:
+        await redis_service.set(key, "test_value")
+
+    # Clear only pattern keys
+    deleted = await redis_service._clear_keys_by_pattern("testpattern:*", "test pattern")
+    assert deleted == len(pattern_keys), f"Expected to delete {len(pattern_keys)} keys, deleted {deleted}"
+
+    # Verify pattern keys are gone
+    for key in pattern_keys:
+        exists = await redis_service.exists(key)
+        assert not exists, f"Key {key} should have been deleted"
+
+    # Verify other keys still exist
+    for key in other_keys:
+        exists = await redis_service.exists(key)
+        assert exists, f"Key {key} should still exist"
+
+    # Cleanup other keys
+    await redis_service.delete(*other_keys)
+
+
+@pytest.mark.asyncio
+async def test_clear_keys_by_pattern_no_matches(redis_service: RedisService):
+    """Test clearing keys by pattern when no keys match"""
+    # Clear a pattern that doesn't exist
+    deleted = await redis_service._clear_keys_by_pattern("nonexistent:*", "nonexistent")
+    assert deleted == 0, f"Expected to delete 0 keys, deleted {deleted}"
+
+
+@pytest.mark.asyncio
+async def test_clear_all_application_cache(redis_service: RedisService):
+    """Test clearing all application cache patterns"""
+    # Create keys matching various application patterns
+    test_keys = {
+        "prompt:test1": "prompt data",
+        "session:test1": "session data",
+        "thread:test1": "thread data",
+        "thread_dataset:test1": "thread dataset data",
+        "rate_limit:test1": "rate limit data",
+        "cache:test1": "cache data",
+        "temp:test1": "temp data",
+        "unrelated:test1": "should not be deleted",
+    }
+
+    for key, value in test_keys.items():
+        await redis_service.set(key, value)
+
+    # Clear all application cache
+    results = await redis_service.clear_all_application_cache()
+
+    # Verify results contain expected categories
+    assert "prompt cache" in results
+    assert "session data" in results
+    assert "thread data" in results
+    assert "thread dataset data" in results
+    assert "rate limit data" in results
+    assert "general cache" in results
+    assert "temporary data" in results
+
+    # Verify application keys are gone
+    for key in test_keys:
+        if not key.startswith("unrelated:"):
+            exists = await redis_service.exists(key)
+            assert not exists, f"Key {key} should have been deleted"
+
+    # Verify unrelated key still exists
+    exists = await redis_service.exists("unrelated:test1")
+    assert exists, "Unrelated key should still exist"
+
+    # Cleanup
+    await redis_service.delete("unrelated:test1")

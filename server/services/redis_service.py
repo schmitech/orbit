@@ -193,8 +193,12 @@ class RedisService:
             await self.client.ping()
             logger.info("Successfully connected to Redis")
 
-            # Clear prompt cache on startup to ensure fresh data
-            await self._clear_prompt_cache_on_startup()
+            # Clear application cache on startup to prevent orphaned/stale data
+            # This is configurable via clear_cache_on_startup (defaults to True)
+            if redis_config.get("clear_cache_on_startup", True):
+                await self.clear_all_application_cache()
+            else:
+                logger.debug("Cache clearing on startup is disabled")
 
             self.initialized = True
             return True
@@ -207,25 +211,88 @@ class RedisService:
             return False
 
     async def _clear_prompt_cache_on_startup(self) -> None:
-        """Clear all prompt cache keys on server startup"""
+        """Clear all prompt cache keys on server startup (deprecated, use clear_all_application_cache)"""
+        await self._clear_keys_by_pattern("prompt:*", "prompt cache")
+
+    async def _clear_keys_by_pattern(self, pattern: str, description: str) -> int:
+        """
+        Clear all keys matching a pattern using SCAN for efficiency.
+
+        Args:
+            pattern: Redis key pattern to match (e.g., "prompt:*")
+            description: Human-readable description for logging
+
+        Returns:
+            Number of keys deleted
+        """
+        if not self.client:
+            return 0
+
         try:
-            # Get all keys matching the prompt pattern
-            prompt_keys = []
+            keys_to_delete = []
             cursor = 0
             while True:
-                cursor, keys = await self.client.scan(cursor, match="prompt:*", count=100)
-                prompt_keys.extend(keys)
+                cursor, keys = await self.client.scan(cursor, match=pattern, count=100)
+                keys_to_delete.extend(keys)
                 if cursor == 0:
                     break
 
-            if prompt_keys:
-                deleted_count = await self.client.delete(*prompt_keys)
-                logger.debug(f"Cleared {deleted_count} prompt cache entries from Redis")
+            if keys_to_delete:
+                deleted_count = await self.client.delete(*keys_to_delete)
+                logger.debug(f"Cleared {deleted_count} {description} entries from Redis")
+                return deleted_count
             else:
-                logger.debug("No prompt cache entries found to clear")
+                logger.debug(f"No {description} entries found to clear")
+                return 0
 
         except Exception as e:
-            logger.warning(f"Failed to clear prompt cache on startup: {str(e)}")
+            logger.warning(f"Failed to clear {description} on startup: {str(e)}")
+            return 0
+
+    async def clear_all_application_cache(self) -> Dict[str, int]:
+        """
+        Clear all application-related cache keys on startup to prevent orphaned data.
+
+        This method clears cache entries that could become stale or orphaned if the
+        server was previously terminated unexpectedly.
+
+        Returns:
+            Dictionary mapping cache type to number of keys deleted
+        """
+        if not self.enabled or not self.client:
+            logger.debug("Redis not available, skipping cache clearing")
+            return {}
+
+        # Define all application cache patterns that should be cleared on startup
+        # These are patterns for data that is session-specific or could become stale
+        cache_patterns = [
+            ("prompt:*", "prompt cache"),
+            ("session:*", "session data"),
+            ("thread:*", "thread data"),
+            ("thread_dataset:*", "thread dataset data"),  # conversation_threading.redis_key_prefix
+            ("rate_limit:*", "rate limit data"),
+            ("cache:*", "general cache"),
+            ("temp:*", "temporary data"),
+        ]
+
+        results = {}
+        total_cleared = 0
+
+        for pattern, description in cache_patterns:
+            try:
+                deleted = await self._clear_keys_by_pattern(pattern, description)
+                results[description] = deleted
+                total_cleared += deleted
+            except Exception as e:
+                logger.warning(f"Error clearing {description}: {str(e)}")
+                results[description] = 0
+
+        if total_cleared > 0:
+            logger.info(f"Cleared {total_cleared} total cache entries from Redis on startup")
+        else:
+            logger.debug("No cache entries found to clear on startup")
+
+        return results
     
     async def get(self, key: str) -> Optional[str]:
         """
