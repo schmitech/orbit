@@ -4,6 +4,23 @@
 
 **Yes, capabilities apply to ALL adapter types!** Use this guide as a quick reference.
 
+## All Available Capabilities
+
+| Capability | Type | Default | Description |
+|------------|------|---------|-------------|
+| `retrieval_behavior` | enum | `"always"` | `"none"`, `"always"`, or `"conditional"` - controls when retrieval occurs |
+| `formatting_style` | enum | `"standard"` | `"standard"` (with citations), `"clean"` (no citations), or `"custom"` |
+| `supports_file_ids` | bool | `false` | Whether adapter can filter by file IDs |
+| `supports_session_tracking` | bool | `false` | Whether adapter tracks sessions |
+| `requires_api_key_validation` | bool | `false` | Whether API key validation is required |
+| `supports_threading` | bool | `false` | Whether adapter supports conversation threading on cached datasets |
+| `supports_language_filtering` | bool | `false` | Whether adapter can filter/boost by detected language |
+| `skip_when_no_files` | bool | `false` | Skip retrieval when file_ids is empty (for conditional retrieval) |
+| `required_parameters` | list | `[]` | Parameters that MUST be provided to the retriever |
+| `optional_parameters` | list | `[]` | Parameters that CAN be provided to the retriever |
+
+---
+
 ## Capability Templates by Adapter Type
 
 ### Passthrough - Conversational
@@ -49,12 +66,15 @@ capabilities:
   formatting_style: "standard"
   supports_file_ids: false
   supports_session_tracking: false
+  supports_threading: false        # QA adapters: simple Q&A, no follow-up threading
   requires_api_key_validation: false
   optional_parameters:
     - "api_key"
 ```
 
 **Adapters:** qa-sql, qa-postgres, qa-mysql, qa-oracle, any SQL QA
+
+**Note:** QA adapters have `supports_threading: false` because they are simple question-answer agents that don't require follow-up conversations with cached resultsets.
 
 ---
 
@@ -66,6 +86,7 @@ capabilities:
   formatting_style: "standard"
   supports_file_ids: false
   supports_session_tracking: false
+  supports_threading: false        # QA adapters: simple Q&A, no follow-up threading
   requires_api_key_validation: false
   optional_parameters:
     - "api_key"
@@ -83,12 +104,15 @@ capabilities:
   formatting_style: "standard"
   supports_file_ids: false
   supports_session_tracking: false
+  supports_threading: true         # Intent adapters: support follow-up on cached datasets
   requires_api_key_validation: false
   optional_parameters:
     - "api_key"
 ```
 
 **Adapters:** intent-sql-postgres, intent-sql-sqlite, intent-duckdb-*, any SQL intent
+
+**Note:** Intent adapters have `supports_threading: true` because they return complex datasets that users may want to ask follow-up questions about without re-querying the database.
 
 ---
 
@@ -100,6 +124,7 @@ capabilities:
   formatting_style: "standard"
   supports_file_ids: false
   supports_session_tracking: false
+  supports_threading: true         # Intent adapters: support follow-up on cached datasets
   requires_api_key_validation: false
   optional_parameters:
     - "api_key"
@@ -117,6 +142,7 @@ capabilities:
   formatting_style: "standard"
   supports_file_ids: false
   supports_session_tracking: false
+  supports_threading: true         # Intent adapters: support follow-up on cached datasets
   requires_api_key_validation: false
   optional_parameters:
     - "api_key"
@@ -187,6 +213,37 @@ capabilities:
 
 **Use case:** Only retrieve when certain conditions are met
 
+### Enable Conversation Threading (Intent Adapters)
+
+```yaml
+capabilities:
+  supports_threading: true  # Enable follow-up questions on cached datasets
+```
+
+**Use case:** Allow users to ask follow-up questions about retrieved data without re-querying the datasource. The dataset is cached (in Redis or database) for a configurable TTL.
+
+**Best for:** Intent adapters that return complex datasets (SQL results, API responses, etc.)
+
+### Disable Conversation Threading (QA Adapters)
+
+```yaml
+capabilities:
+  supports_threading: false  # Disable threading for simple Q&A
+```
+
+**Use case:** Simple question-answer flows where each query is independent and doesn't need follow-up on previous results.
+
+**Best for:** QA adapters, passthrough adapters, simple FAQ bots
+
+### Enable Language Filtering (Multilingual Adapters)
+
+```yaml
+capabilities:
+  supports_language_filtering: true  # Filter/boost by detected language
+```
+
+**Use case:** Boost or filter search results based on the detected language of the user's query.
+
 ---
 
 ## Decision Tree
@@ -238,20 +295,39 @@ A: Yes, but auto-inference is fine for disabled/example adapters.
 
 A: Yes! Use `optional_parameters` list in capabilities.
 
+**Q: What is `supports_threading` and when should I use it?**
+
+A: `supports_threading` enables conversation threading - caching retrieved datasets so users can ask follow-up questions without re-querying the datasource. Use `true` for Intent adapters (complex datasets), `false` for QA adapters (simple Q&A).
+
+**Q: What's the difference between `required_parameters` and `optional_parameters`?**
+
+A: `required_parameters` are mandatory - retrieval will fail without them. `optional_parameters` are passed to the retriever if provided but aren't required. Common optional parameters: `api_key`, `file_ids`, `session_id`.
+
 ---
 
 ## Quick Copy-Paste
 
-### Most Common: Standard Retriever (QA/Intent)
+### QA Adapter (Simple Q&A, No Threading)
 
 ```yaml
 capabilities:
   retrieval_behavior: "always"
   formatting_style: "standard"
   supports_file_ids: false
+  supports_threading: false
 ```
 
-### Second Most Common: Clean Formatting (File/Multimodal)
+### Intent Adapter (Complex Datasets, With Threading)
+
+```yaml
+capabilities:
+  retrieval_behavior: "always"
+  formatting_style: "standard"
+  supports_file_ids: false
+  supports_threading: true
+```
+
+### File/Multimodal Adapter (Clean Formatting)
 
 ```yaml
 capabilities:
@@ -261,7 +337,7 @@ capabilities:
   requires_api_key_validation: true
 ```
 
-### Least Common: No Retrieval (Pure Chat)
+### Passthrough Adapter (No Retrieval)
 
 ```yaml
 capabilities:
@@ -272,4 +348,4 @@ capabilities:
 
 ---
 
-**Remember: Capabilities are universal - they work with EVERY adapter type!** 🎯
+**Remember: Capabilities are universal - they work with EVERY adapter type!**

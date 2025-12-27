@@ -4,6 +4,41 @@
 
 The capability system is **UNIVERSAL** and applies to **ALL adapter types** in ORBIT, not just passthrough or file-based adapters.
 
+## Complete Capability Reference
+
+All available capabilities that can be configured for any adapter:
+
+| Capability | Type | Default | Description |
+|------------|------|---------|-------------|
+| `retrieval_behavior` | enum | `"always"` | Controls when retrieval occurs: `"none"` (no retrieval), `"always"` (always retrieve), `"conditional"` (based on conditions) |
+| `formatting_style` | enum | `"standard"` | How results are formatted: `"standard"` (with citations/confidence), `"clean"` (no citations), `"custom"` (adapter provides formatting) |
+| `supports_file_ids` | bool | `false` | Whether adapter can filter results by file IDs |
+| `supports_session_tracking` | bool | `false` | Whether adapter tracks and uses session IDs |
+| `requires_api_key_validation` | bool | `false` | Whether API key validation is required for ownership checks |
+| `supports_threading` | bool | `false` | Whether adapter supports conversation threading on cached datasets (see Threading section below) |
+| `supports_language_filtering` | bool | `false` | Whether adapter can filter/boost results by detected query language |
+| `skip_when_no_files` | bool | `false` | For conditional retrieval: skip when file_ids is empty |
+| `required_parameters` | list | `[]` | Parameters that MUST be provided to the retriever |
+| `optional_parameters` | list | `[]` | Parameters that CAN be provided (e.g., `api_key`, `file_ids`, `session_id`) |
+
+### Conversation Threading (`supports_threading`)
+
+Conversation threading allows users to ask follow-up questions about retrieved data without re-querying the datasource:
+
+- **How it works:** When enabled, the retrieved dataset is cached (in Redis with TTL, or database) after the initial query. Follow-up messages use the cached data instead of hitting the datasource again.
+- **Use `true` for:** Intent adapters that return complex datasets (SQL results, API responses, aggregations) where users often want to explore the data further.
+- **Use `false` for:** QA adapters that provide simple question-answer flows, passthrough adapters, and any adapter where each query should be independent.
+
+```yaml
+# Intent adapter - enable threading for follow-up questions
+capabilities:
+  supports_threading: true
+
+# QA adapter - disable threading for simple Q&A
+capabilities:
+  supports_threading: false
+```
+
 ## Universal Applicability
 
 ### ✅ Works with ALL Adapter Types
@@ -117,12 +152,15 @@ The capability system is **UNIVERSAL** and applies to **ALL adapter types** in O
     formatting_style: "standard"       # With citations
     supports_file_ids: false
     supports_session_tracking: false
+    supports_threading: false          # Simple Q&A - no follow-up threading needed
     requires_api_key_validation: false
     optional_parameters:
       - "api_key"
 ```
 
 **Use case:** Q&A from SQL database (SQLite, PostgreSQL, MySQL, etc.)
+
+**Why `supports_threading: false`?** QA adapters are simple question-answer agents. Each query is independent and doesn't require follow-up conversations with cached resultsets.
 
 **Also applies to:**
 - `qa-postgres`
@@ -143,6 +181,7 @@ The capability system is **UNIVERSAL** and applies to **ALL adapter types** in O
     formatting_style: "standard"       # With citations and confidence
     supports_file_ids: false
     supports_session_tracking: false
+    supports_threading: false          # Simple Q&A - no follow-up threading needed
     requires_api_key_validation: false
 ```
 
@@ -167,10 +206,13 @@ The capability system is **UNIVERSAL** and applies to **ALL adapter types** in O
     formatting_style: "standard"       # With query results
     supports_file_ids: false
     supports_session_tracking: false
+    supports_threading: true           # Enable follow-up questions on cached datasets
     requires_api_key_validation: false
 ```
 
 **Use case:** Natural language to SQL query generation
+
+**Why `supports_threading: true`?** Intent adapters return complex datasets (SQL results, aggregations) that users often want to explore further. Threading caches the dataset so follow-up questions don't re-query the database.
 
 **Also applies to:**
 - `intent-sql-sqlite`
@@ -191,6 +233,7 @@ The capability system is **UNIVERSAL** and applies to **ALL adapter types** in O
     formatting_style: "standard"       # With aggregation results
     supports_file_ids: false
     supports_session_tracking: false
+    supports_threading: true           # Enable follow-up questions on cached datasets
     requires_api_key_validation: false
 ```
 
@@ -213,6 +256,7 @@ The capability system is **UNIVERSAL** and applies to **ALL adapter types** in O
     formatting_style: "standard"       # With API responses
     supports_file_ids: false
     supports_session_tracking: false
+    supports_threading: true           # Enable follow-up questions on cached datasets
     requires_api_key_validation: false
 ```
 
@@ -363,27 +407,43 @@ Look at your adapter's `type` and `adapter` fields:
 
 Based on adapter type, use appropriate template:
 
-| Adapter Type | Template |
-|--------------|----------|
-| Passthrough (no retrieval) | `retrieval_behavior: "none"` |
-| Passthrough (multimodal) | `retrieval_behavior: "conditional"` |
-| QA (any datasource) | `retrieval_behavior: "always"`, `formatting_style: "standard"` |
-| Intent (any datasource) | `retrieval_behavior: "always"`, `formatting_style: "standard"` |
-| File | `retrieval_behavior: "always"`, `formatting_style: "clean"` |
+| Adapter Type | Template | `supports_threading` |
+|--------------|----------|---------------------|
+| Passthrough (no retrieval) | `retrieval_behavior: "none"` | `false` |
+| Passthrough (multimodal) | `retrieval_behavior: "conditional"` | `false` |
+| QA (any datasource) | `retrieval_behavior: "always"`, `formatting_style: "standard"` | `false` |
+| Intent (any datasource) | `retrieval_behavior: "always"`, `formatting_style: "standard"` | `true` |
+| File | `retrieval_behavior: "always"`, `formatting_style: "clean"` | `false` |
 
 ### Step 3: Add Capabilities Section
 
+**For QA adapters:**
 ```yaml
-- name: "your-adapter"
+- name: "your-qa-adapter"
   type: "retriever"
   adapter: "qa"
 
-  # Add this section:
   capabilities:
     retrieval_behavior: "always"
     formatting_style: "standard"
     supports_file_ids: false
     supports_session_tracking: false
+    supports_threading: false          # QA: simple Q&A
+    requires_api_key_validation: false
+```
+
+**For Intent adapters:**
+```yaml
+- name: "your-intent-adapter"
+  type: "retriever"
+  adapter: "intent"
+
+  capabilities:
+    retrieval_behavior: "always"
+    formatting_style: "standard"
+    supports_file_ids: false
+    supports_session_tracking: false
+    supports_threading: true           # Intent: enable follow-up
     requires_api_key_validation: false
 ```
 
@@ -425,6 +485,7 @@ capabilities:
     formatting_style: "standard"
     supports_file_ids: false
     supports_session_tracking: false
+    supports_threading: false          # QA: simple Q&A, no threading
     requires_api_key_validation: false
 ```
 
@@ -452,6 +513,7 @@ capabilities:
     formatting_style: "standard"
     supports_file_ids: false
     supports_session_tracking: false
+    supports_threading: true           # Intent: enable follow-up questions
     requires_api_key_validation: false
 ```
 
@@ -526,6 +588,16 @@ Pipeline code automatically uses new capabilities!
 | Are capabilities optional? | ✅ Yes (auto-inferred if not specified) |
 | Are capabilities recommended? | ✅ Yes (for production adapters) |
 
+### Threading Quick Reference
+
+| Adapter Type | `supports_threading` | Reason |
+|--------------|---------------------|--------|
+| QA (all types) | `false` | Simple Q&A - each query independent |
+| Intent (all types) | `true` | Complex datasets - users need follow-up |
+| Passthrough | `false` | No retrieval or simple chat |
+| File | `false` | Document Q&A - each query independent |
+| Multimodal | `false` | File-based retrieval - each query independent |
+
 ### Key Takeaways
 
 1. **Universal** - Works with ALL adapter types
@@ -533,8 +605,9 @@ Pipeline code automatically uses new capabilities!
 3. **Recommended** - Explicit is better for production
 4. **Flexible** - Customize any adapter's behavior via config
 5. **Future-proof** - Add new capabilities without code changes
+6. **Threading** - Use `supports_threading: true` for Intent adapters, `false` for QA/passthrough
 
-**You can (and should) add capabilities to ANY adapter, not just passthrough/file adapters!** 🎯
+**You can (and should) add capabilities to ANY adapter, not just passthrough/file adapters!**
 
 ## Next Steps
 

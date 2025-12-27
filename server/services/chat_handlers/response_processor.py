@@ -305,26 +305,44 @@ class ResponseProcessor:
     def _adapter_supports_threading(self, adapter_name: str) -> bool:
         """
         Check if an adapter supports threading.
-        
+
+        Reads the `capabilities.supports_threading` setting from the adapter configuration.
+        Falls back to name-based inference if capability is not explicitly set.
+
         Args:
             adapter_name: Name of the adapter
-            
+
         Returns:
-            True if adapter supports threading (intent or QA adapters)
+            True if adapter supports threading based on config or name inference
         """
         if not adapter_name:
             return False
-        
-        # Intent adapters support threading
+
+        # Look up adapter configuration to check explicit capability setting
+        adapters = self.config.get('adapters', [])
+        adapter_config = None
+        for adapter in adapters:
+            if isinstance(adapter, dict) and adapter.get('name') == adapter_name:
+                adapter_config = adapter
+                break
+
+        # If adapter config found, check explicit capability setting
+        if adapter_config:
+            capabilities = adapter_config.get('capabilities', {})
+            if 'supports_threading' in capabilities:
+                return bool(capabilities.get('supports_threading'))
+
+        # Fall back to name-based inference if capability not explicitly set
+        # Intent adapters support threading by default
         if adapter_name.startswith('intent-'):
             return True
-        
-        # QA adapters support threading
+
+        # QA adapters do NOT support threading by default (simple Q&A)
         if adapter_name.startswith('qa-') or 'qa' in adapter_name.lower():
-            return True
-        
+            return False
+
         # Conversational and multimodal adapters do not support threading
         if 'conversational' in adapter_name.lower() or 'multimodal' in adapter_name.lower():
             return False
-        
+
         return False
