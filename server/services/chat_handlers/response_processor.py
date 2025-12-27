@@ -284,11 +284,24 @@ class ResponseProcessor:
             }
         }
 
-        # Add threading metadata if adapter supports it and has results
+        # Add threading metadata if adapter supports it and has meaningful results
         # Only enable threading when there are actual sources/results to thread on
+        # Filter out zero-confidence placeholder documents (e.g., "no matching templates found")
         if assistant_message_id and session_id and adapter_name:
             supports_threading = self._adapter_supports_threading(adapter_name)
-            has_results = sources and len(sources) > 0
+
+            # Check for meaningful results (exclude zero-confidence placeholders)
+            has_results = False
+            if sources and len(sources) > 0:
+                # Filter out documents with zero or very low confidence (placeholders)
+                # Valid results have top-level 'confidence' or 'metadata.similarity'
+                # Placeholders have 'metadata.confidence' = 0.0
+                meaningful_sources = [
+                    src for src in sources
+                    if (src.get('confidence', 0) > 0.01 or
+                        src.get('metadata', {}).get('similarity', 0) > 0.01)
+                ]
+                has_results = len(meaningful_sources) > 0
 
             if supports_threading and has_results:
                 result["threading"] = {

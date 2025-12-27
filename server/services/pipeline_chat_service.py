@@ -540,10 +540,23 @@ class PipelineChatService:
 
         # Check if adapter supports threading and add metadata
         # Only enable threading if there are actual retrieved results to thread on
+        # Filter out zero-confidence placeholder documents (e.g., "no matching templates found")
         threading_metadata = None
         if assistant_message_id and session_id and adapter_name:
             supports_threading = self.response_processor._adapter_supports_threading(adapter_name)
-            has_results = context.retrieved_docs and len(context.retrieved_docs) > 0
+
+            # Check for meaningful results (exclude zero-confidence placeholders)
+            has_results = False
+            if context.retrieved_docs and len(context.retrieved_docs) > 0:
+                # Filter out documents with zero or very low confidence (placeholders)
+                # Valid results have top-level 'confidence' or 'metadata.similarity'
+                # Placeholders have 'metadata.confidence' = 0.0
+                meaningful_docs = [
+                    doc for doc in context.retrieved_docs
+                    if (doc.get('confidence', 0) > 0.01 or
+                        doc.get('metadata', {}).get('similarity', 0) > 0.01)
+                ]
+                has_results = len(meaningful_docs) > 0
 
             if supports_threading and has_results:
                 threading_metadata = {
@@ -552,11 +565,12 @@ class PipelineChatService:
                     "session_id": session_id,
                 }
                 logger.debug(
-                    f"Adding threading metadata to done chunk: adapter={adapter_name}, message_id={assistant_message_id}, session_id={session_id}, results_count={len(context.retrieved_docs)}"
+                    f"Adding threading metadata to done chunk: adapter={adapter_name}, message_id={assistant_message_id}, session_id={session_id}, meaningful_results={len(meaningful_docs)}"
                 )
             elif supports_threading and not has_results:
+                total_docs = len(context.retrieved_docs) if context.retrieved_docs else 0
                 logger.debug(
-                    f"Adapter {adapter_name} supports threading but no results found - threading disabled for this response"
+                    f"Adapter {adapter_name} supports threading but no meaningful results found (total_docs={total_docs}, all low-confidence placeholders) - threading disabled"
                 )
             else:
                 logger.debug(
