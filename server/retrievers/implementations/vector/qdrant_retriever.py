@@ -25,22 +25,63 @@ class QdrantClientManager:
     _manager_lock = threading.Lock()
 
     @classmethod
-    def get_client(cls, host: str, port: int, **kwargs) -> QdrantClient:
+    def _make_key(cls, url: Optional[str], host: str, port: int, api_key: Optional[str]) -> str:
+        """Create a unique key for client caching."""
+        if url:
+            return f"url:{url}:{api_key}"
+        return f"{host}:{port}:{api_key}"
+
+    @classmethod
+    def get_client(cls, host: str = 'localhost', port: int = 6333, url: Optional[str] = None, **kwargs) -> QdrantClient:
+        """
+        Get or create a Qdrant client.
+        
+        Supports two connection modes:
+        - Cloud mode: use 'url' parameter (e.g., https://xxx.cloud.qdrant.io:6333)
+        - Self-hosted mode: use 'host' + 'port' parameters
+        """
         api_key = kwargs.get('api_key')
-        key = f"{host}:{port}:{api_key}"
+        key = cls._make_key(url, host, port, api_key)
+        
         with cls._manager_lock:
             if key not in cls._clients:
-                logger.info(f"Creating new Qdrant client instance for {host}:{port}")
-                cls._clients[key] = QdrantClient(host=host, port=port, **kwargs)
+                if url:
+                    # Qdrant Cloud mode - use URL-based connection
+                    logger.info(f"Creating new Qdrant Cloud client instance for {url[:50]}...")
+                    init_kwargs = {
+                        'url': url,
+                        'timeout': kwargs.get('timeout', 60),
+                        'prefer_grpc': kwargs.get('prefer_grpc', False),
+                    }
+                    if api_key:
+                        init_kwargs['api_key'] = api_key
+                    cls._clients[key] = QdrantClient(**init_kwargs)
+                else:
+                    # Self-hosted mode - use host:port connection
+                    logger.info(f"Creating new Qdrant client instance for {host}:{port}")
+                    init_kwargs = {
+                        'host': host,
+                        'port': port,
+                        'timeout': kwargs.get('timeout', 60),
+                        'prefer_grpc': kwargs.get('prefer_grpc', False),
+                        'https': kwargs.get('https', False),
+                    }
+                    if api_key:
+                        init_kwargs['api_key'] = api_key
+                    cls._clients[key] = QdrantClient(**init_kwargs)
+                
                 cls._locks[key] = asyncio.Lock()
                 cls._connected[key] = False
             else:
-                logger.info(f"Reusing existing Qdrant client instance for {host}:{port}")
+                if url:
+                    logger.info(f"Reusing existing Qdrant Cloud client instance")
+                else:
+                    logger.info(f"Reusing existing Qdrant client instance for {host}:{port}")
             return cls._clients[key]
 
     @classmethod
-    async def test_connection(cls, client: QdrantClient, host: str, port: int, api_key: Optional[str]):
-        key = f"{host}:{port}:{api_key}"
+    async def test_connection(cls, client: QdrantClient, url: Optional[str], host: str, port: int, api_key: Optional[str]):
+        key = cls._make_key(url, host, port, api_key)
         if key not in cls._locks:
             with cls._manager_lock:
                 if key not in cls._locks:
@@ -50,27 +91,29 @@ class QdrantClientManager:
         lock = cls._locks[key]
         async with lock:
             if not cls._connected.get(key):
-                logger.info(f"Testing Qdrant connection for {host}:{port}...")
+                conn_desc = url[:50] if url else f"{host}:{port}"
+                logger.info(f"Testing Qdrant connection for {conn_desc}...")
                 try:
                     collections = client.get_collections()
                     logger.info(f"Successfully connected to Qdrant. Found {len(collections.collections)} collections")
                     cls._connected[key] = True
                 except Exception as e:
-                    logger.error(f"Failed to connect to Qdrant at {host}:{port}: {e}")
+                    logger.error(f"Failed to connect to Qdrant at {conn_desc}: {e}")
                     cls._connected[key] = False
                     raise
             else:
-                logger.info(f"Connection to {host}:{port} already verified.")
+                conn_desc = url[:50] if url else f"{host}:{port}"
+                logger.info(f"Connection to {conn_desc} already verified.")
 
     @classmethod
-    def is_connected(cls, host: str, port: int, api_key: Optional[str]) -> bool:
-        key = f"{host}:{port}:{api_key}"
+    def is_connected(cls, url: Optional[str], host: str, port: int, api_key: Optional[str]) -> bool:
+        key = cls._make_key(url, host, port, api_key)
         with cls._manager_lock:
             return cls._connected.get(key, False)
 
     @classmethod
-    def set_connected_status(cls, host: str, port: int, api_key: Optional[str], status: bool):
-        key = f"{host}:{port}:{api_key}"
+    def set_connected_status(cls, url: Optional[str], host: str, port: int, api_key: Optional[str], status: bool):
+        key = cls._make_key(url, host, port, api_key)
         with cls._manager_lock:
             if key in cls._connected:
                 cls._connected[key] = status
@@ -96,6 +139,9 @@ class QdrantRetriever(AbstractVectorRetriever):
         super().__init__(config=config, embeddings=embeddings, domain_adapter=domain_adapter, **kwargs)
         
         # Qdrant-specific settings
+        # Cloud mode: use 'url' parameter (e.g., https://xxx.cloud.qdrant.io:6333)
+        # Self-hosted mode: use 'host' + 'port' parameters
+        self.url = self.datasource_config.get('url')  # For Qdrant Cloud
         self.host = self.datasource_config.get('host', 'localhost')
         self.port = int(self.datasource_config.get('port', 6333))
         self.timeout = int(self.datasource_config.get('timeout', 5))  # Reduced from 30 to 5 seconds
@@ -103,6 +149,14 @@ class QdrantRetriever(AbstractVectorRetriever):
         self.prefer_grpc = self.datasource_config.get('prefer_grpc', False)
         self.api_key = self.datasource_config.get('api_key', None)
         self.https = self.datasource_config.get('https', False)
+        
+        # Clean up empty url (from ${VAR:-} syntax resolving to empty string)
+        if self.url == '' or self.url is None:
+            self.url = None
+        
+        # Clean up empty api_key
+        if self.api_key == '' or self.api_key is None:
+            self.api_key = None
         
         # Distance metric configuration
         self.distance_metric = self.datasource_config.get('distance_metric', 'Cosine').lower()
@@ -130,9 +184,13 @@ class QdrantRetriever(AbstractVectorRetriever):
     async def initialize_client(self, test_connection: bool = False) -> None:
         """Initialize the Qdrant client using the client manager."""
         try:
-            logger.info(f"Initializing Qdrant client for {self.host}:{self.port} with timeout={self.timeout}")
+            if self.url:
+                logger.info(f"Initializing Qdrant Cloud client for {self.url[:50]}... with timeout={self.timeout}")
+            else:
+                logger.info(f"Initializing Qdrant client for {self.host}:{self.port} with timeout={self.timeout}")
             
             self.qdrant_client = QdrantClientManager.get_client(
+                url=self.url,
                 host=self.host,
                 port=self.port,
                 timeout=self.timeout,
@@ -143,7 +201,9 @@ class QdrantRetriever(AbstractVectorRetriever):
             )
             
             if test_connection:
-                await QdrantClientManager.test_connection(self.qdrant_client, self.host, self.port, self.api_key)
+                await QdrantClientManager.test_connection(
+                    self.qdrant_client, self.url, self.host, self.port, self.api_key
+                )
                 
                 if self.collection_name:
                     try:
@@ -179,8 +239,9 @@ class QdrantRetriever(AbstractVectorRetriever):
             await self.initialize_client(test_connection=True)
             return
         
-        if not QdrantClientManager.is_connected(self.host, self.port, self.api_key):
-             logger.warning(f"Connection to {self.host}:{self.port} is not marked as active. Re-initializing.")
+        if not QdrantClientManager.is_connected(self.url, self.host, self.port, self.api_key):
+             conn_desc = self.url[:50] if self.url else f"{self.host}:{self.port}"
+             logger.warning(f"Connection to {conn_desc} is not marked as active. Re-initializing.")
              await self.initialize_client(test_connection=True)
              return
 
@@ -190,7 +251,7 @@ class QdrantRetriever(AbstractVectorRetriever):
             logger.debug(f"Connection verified - found {len(collections.collections)} collections")
         except Exception as e:
             logger.warning(f"Connection test failed: {str(e)}, reinitializing...")
-            QdrantClientManager.set_connected_status(self.host, self.port, self.api_key, False)
+            QdrantClientManager.set_connected_status(self.url, self.host, self.port, self.api_key, False)
             await self.initialize_client(test_connection=True)
 
     async def set_collection(self, collection_name: str) -> None:
