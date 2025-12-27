@@ -26,7 +26,7 @@ export interface AdaptersResponse {
 declare global {
   interface Window {
     ORBIT_CHAT_CONFIG?: Partial<RuntimeConfig> & {
-      adapters?: unknown[];
+      adapters?: RuntimeConfig['adapters'];
     };
   }
 }

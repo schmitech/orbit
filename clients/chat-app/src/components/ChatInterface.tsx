@@ -5,7 +5,7 @@ import { useChatStore } from '../stores/chatStore';
 import { Settings, RefreshCw, Menu } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
-import { getApiUrl, getEnableApiMiddleware } from '../utils/runtimeConfig';
+import { getApiUrl, getDefaultInputPlaceholder, getEnableApiMiddleware } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
@@ -59,6 +59,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
   const isMiddlewareEnabled = getEnableApiMiddleware();
+  const defaultInputPlaceholder = getDefaultInputPlaceholder();
 
   // Debug: Log current conversation state for middleware mode debugging
   useEffect(() => {
@@ -71,7 +72,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
         notes: currentConversation?.adapterInfo?.notes?.substring(0, 50) + '...'
       });
     }
-  }, [isMiddlewareEnabled, currentConversation?.adapterName, currentConversation?.adapterInfo]);
+  }, [isMiddlewareEnabled, currentConversation]);
 
   // Load adapter info if in middleware mode and adapter is selected but info is missing or incomplete
   // This handles: 1) race conditions, 2) stale localStorage without notes field
@@ -348,7 +349,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     <MessageInput
                       onSend={handleSendMessage}
                       disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
-                      placeholder="Message ORBIT..."
+                      placeholder={defaultInputPlaceholder}
                     />
                   </div>
                 </div>
@@ -375,7 +376,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 <MessageInput
                   onSend={handleSendMessage}
                   disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
-                  placeholder="Message ORBIT..."
+                  placeholder={defaultInputPlaceholder}
                 />
               </div>
             </div>

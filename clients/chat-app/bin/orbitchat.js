@@ -27,6 +27,7 @@ const DEFAULT_CONFIG = {
   apiUrl: 'http://localhost:3000',
   defaultKey: 'default-key',
   applicationName: 'ORBIT Chat',
+  defaultInputPlaceholder: 'Message ORBIT...',
   useLocalApi: false,
   localApiPath: undefined,
   consoleDebug: false,
@@ -139,6 +140,9 @@ function parseArgs() {
       case '--application-name':
         config.applicationName = args[++i];
         break;
+      case '--default-input-placeholder':
+        config.defaultInputPlaceholder = args[++i];
+        break;
       case '--use-local-api':
         config.useLocalApi = true;
         break;
@@ -245,6 +249,7 @@ function loadConfigFromEnv() {
     VITE_API_URL: 'apiUrl',
     VITE_DEFAULT_KEY: 'defaultKey',
     VITE_APPLICATION_NAME: 'applicationName',
+    VITE_DEFAULT_INPUT_PLACEHOLDER: 'defaultInputPlaceholder',
     VITE_USE_LOCAL_API: 'useLocalApi',
     VITE_LOCAL_API_PATH: 'localApiPath',
     VITE_CONSOLE_DEBUG: 'consoleDebug',
@@ -604,6 +609,7 @@ Options:
   --default-adapter NAME           Default adapter to preselect (middleware mode)
   --api-key KEY                    Default API key (default: default-key)
   --application-name NAME          Application name shown in browser tab (default: ORBIT Chat)
+  --default-input-placeholder TEXT Message input placeholder text (default: Message ORBIT...)
   --use-local-api                  Use local API build (default: false)
   --local-api-path PATH            Path to local API
   --console-debug                  Enable console debug (default: false)

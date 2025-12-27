@@ -198,7 +198,7 @@ const convertHistoryMessages = (
   });
   const consumedIndices = new Set<number>();
 
-  return historyMessages.map((historyMsg, idx) => {
+  return historyMessages.map((historyMsg) => {
     const normalizedRole: 'user' | 'assistant' =
       historyMsg.role === 'user' ? 'user' : 'assistant';
     const dbId = typeof historyMsg.message_id === 'string' && historyMsg.message_id.length > 0
@@ -244,7 +244,7 @@ const convertHistoryMessages = (
     }
 
     if (!baseMessage.supportsThreading && historyMsg.metadata && typeof historyMsg.metadata === 'object') {
-      const metadata = historyMsg.metadata as Record<string, any>;
+      const metadata = historyMsg.metadata as Record<string, unknown>;
       const retrievedDocs = metadata?.retrieved_docs;
       if (Array.isArray(retrievedDocs) && retrievedDocs.length > 0) {
         baseMessage.supportsThreading = true;

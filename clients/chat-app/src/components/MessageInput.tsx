@@ -7,7 +7,7 @@ import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
-import { getDefaultKey, getEnableApiMiddleware, getEnableAudioOutput, getEnableUploadButton, resolveApiUrl } from '../utils/runtimeConfig';
+import { getDefaultInputPlaceholder, getDefaultKey, getEnableApiMiddleware, getEnableAudioOutput, getEnableUploadButton, resolveApiUrl } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
 
@@ -83,7 +83,7 @@ function prepareClipboardFile(file: File, index: number): File {
 export function MessageInput({ 
   onSend, 
   disabled = false, 
-  placeholder = "Ask me anything...",
+  placeholder = getDefaultInputPlaceholder(),
   isCentered = false
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
@@ -408,8 +408,7 @@ export function MessageInput({
 
   // Sync and poll file status when switching to a conversation
   useEffect(() => {
-    const middlewareMode = typeof window !== 'undefined' &&
-      (window as Record<string, unknown>).ORBIT_CHAT_CONFIG?.enableApiMiddleware === true;
+    const middlewareMode = getEnableApiMiddleware();
     
     if (!currentConversationId || !currentConversation) {
       return;
@@ -1115,7 +1114,11 @@ export function MessageInput({
                 ))}
               </div>
             )}
-            <div className={showFileUpload ? 'block' : 'hidden'} aria-hidden={!showFileUpload}>
+            {/*
+              Keep FileUpload mounted while uploads are in progress so progress bars stay visible
+              even if the widget was auto-hidden after selecting files.
+            */}
+            <div className={showFileUpload || isUploading ? 'block' : 'hidden'} aria-hidden={!(showFileUpload || isUploading)}>
               <FileUpload
                 conversationId={currentConversationId}
                 onFilesSelected={handleFilesSelected}

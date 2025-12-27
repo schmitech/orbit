@@ -64,7 +64,7 @@ export default defineConfig(({ mode }) => {
           ws: false,
           // Critical for SSE streaming - configure proxy to not buffer responses
           configure: (proxy) => {
-            proxy.on('proxyRes', (proxyRes, req, res) => {
+            proxy.on('proxyRes', (proxyRes) => {
               const contentType = proxyRes.headers['content-type'] || '';
               if (contentType.includes('text/event-stream')) {
                 // Disable buffering for SSE
