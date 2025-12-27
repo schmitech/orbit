@@ -317,3 +317,90 @@ sudo docker stop qdrant
 ```
 
 This will gracefully stop the Qdrant service running in the background.
+
+---
+
+# Qdrant Utility Scripts
+
+This directory contains Python utility scripts for managing Qdrant collections. All scripts support both **self-hosted Qdrant** and **Qdrant Cloud**.
+
+## Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| `create_qdrant_collection.py` | Creates, populates, or updates collections from Q&A JSON files |
+| `query_qdrant_collection.py` | Queries collections with semantic search |
+| `list_qdrant_collections.py` | Lists all available collections |
+| `delete_qdrant_collection.py` | Deletes a specified collection |
+
+## Connection Modes
+
+### Self-Hosted Qdrant (Default)
+
+Uses `DATASOURCE_QDRANT_HOST` and `DATASOURCE_QDRANT_PORT` from your `.env` file.
+
+```bash
+# List collections from self-hosted Qdrant
+python list_qdrant_collections.py
+
+# Create a collection
+python create_qdrant_collection.py city_faq data/city_faq.json
+
+# Query a collection
+python query_qdrant_collection.py city_faq "What are the parking rules?"
+
+# Delete a collection
+python delete_qdrant_collection.py city_faq
+```
+
+### Qdrant Cloud
+
+Use the `--cloud` flag to connect to Qdrant Cloud. Requires `DATASOURCE_QDRANT_URL` and `DATASOURCE_QDRANT_API_KEY` in your `.env` file.
+
+```bash
+# List collections from Qdrant Cloud
+python list_qdrant_collections.py --cloud
+
+# Create a collection on Qdrant Cloud
+python create_qdrant_collection.py city_faq data/city_faq.json --cloud
+
+# Query a collection on Qdrant Cloud
+python query_qdrant_collection.py city_faq "What are the parking rules?" --cloud
+
+# Delete a collection from Qdrant Cloud
+python delete_qdrant_collection.py city_faq --cloud
+```
+
+### Update Mode (Cost-Saving)
+
+Use the `--update` flag to add new records to an existing collection without deleting and re-creating it. This saves embedding costs when using paid services like OpenAI.
+
+```bash
+# Add more records to an existing collection (self-hosted)
+python create_qdrant_collection.py city_faq data/new_qa_pairs.json --update
+
+# Add more records to a Qdrant Cloud collection
+python create_qdrant_collection.py city_faq data/new_qa_pairs.json --cloud --update
+```
+
+**How it works:**
+- Finds the highest existing ID in the collection
+- Assigns new IDs starting from max_id + 1
+- Only embeds and uploads the new records
+- Preserves all existing data in the collection
+
+## Environment Variables
+
+Add these to your `.env` file based on your connection mode:
+
+```bash
+# For self-hosted Qdrant (default)
+DATASOURCE_QDRANT_HOST=localhost
+DATASOURCE_QDRANT_PORT=6333
+
+# For Qdrant Cloud (--cloud flag)
+DATASOURCE_QDRANT_URL=https://your-cluster-id.region.cloud.qdrant.io:6333
+DATASOURCE_QDRANT_API_KEY=your-qdrant-api-key
+```
+
+For more information, visit the [official Qdrant documentation](https://qdrant.tech/documentation/).

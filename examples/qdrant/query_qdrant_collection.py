@@ -7,30 +7,40 @@ It takes a query string, generates an embedding using the same provider as durin
 and retrieves the most relevant Q&A pairs.
 
 Usage:
-    python query_qa_pairs_qdrant.py [collection_name] <query_text>
+    python query_qdrant_collection.py [collection_name] <query_text> [--cloud]
 
 Arguments:
     collection_name      (Optional) Name of the Qdrant collection to query
                          If not provided, uses the collection specified in config.yaml
     query_text           The search query text (in quotes if it contains spaces)
+    --cloud              Use Qdrant Cloud instead of self-hosted Qdrant
 
 Examples:
-    # Query Qdrant server (basic usage)
-    python query_qa_pairs_qdrant.py "What are the parking rules?"
+    # Query self-hosted Qdrant server (uses DATASOURCE_QDRANT_HOST/PORT from .env)
+    python query_qdrant_collection.py city_faq "What are the parking rules?"
     
-    # Query specific collection on server
-    python query_qa_pairs_qdrant.py city_faq "What are the parking rules?"
+    # Query Qdrant Cloud (uses DATASOURCE_QDRANT_URL and DATASOURCE_QDRANT_API_KEY from .env)
+    python query_qdrant_collection.py city_faq "What are the parking rules?" --cloud
 
 Requirements:
     - config.yaml file with embedding and Qdrant configuration
     - Running embedding service matching what was used during creation
     - Running Qdrant server with an existing collection
 
+Environment Variables:
+    For self-hosted Qdrant (default):
+        DATASOURCE_QDRANT_HOST - Qdrant server host (default: localhost)
+        DATASOURCE_QDRANT_PORT - Qdrant server port (default: 6333)
+    
+    For Qdrant Cloud (--cloud flag):
+        DATASOURCE_QDRANT_URL  - Qdrant Cloud URL (required)
+        DATASOURCE_QDRANT_API_KEY - Qdrant Cloud API key (required)
+
 Notes:
     - The script uses server connection details from config.yaml and .env file
     - This script is part of a suite of Qdrant utilities:
-      * create_qa_pairs_collection_qdrant.py - Creates and populates collections
-      * query_qa_pairs_qdrant.py - Queries collections with semantic search
+      * create_qdrant_collection.py - Creates and populates collections
+      * query_qdrant_collection.py - Queries collections with semantic search
       * list_qdrant_collections.py - Lists available collections
       * delete_qdrant_collection.py - Deletes collections
 """
@@ -102,14 +112,28 @@ def load_config():
     return config
 
 def resolve_env_placeholder(value):
-    """Resolve environment variable placeholders like ${VAR_NAME}"""
+    """Resolve environment variable placeholders like ${VAR_NAME} or ${VAR_NAME:-default}"""
     if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
-        env_var = value[2:-1]  # Remove ${ and }
-        return os.getenv(env_var, value)  # Return original if env var not found
+        inner = value[2:-1]  # Remove ${ and }
+        # Handle ${VAR:-default} syntax
+        if ':-' in inner:
+            env_var, default = inner.split(':-', 1)
+            return os.getenv(env_var, default)
+        else:
+            return os.getenv(inner, '')  # Return empty string if env var not found
     return value
 
-def get_qdrant_config():
-    """Get Qdrant configuration with proper fallbacks"""
+def get_qdrant_config(use_cloud: bool = False):
+    """Get Qdrant configuration with proper fallbacks
+    
+    Args:
+        use_cloud: If True, use cloud configuration (URL + API key), 
+                   otherwise use self-hosted (host + port)
+    
+    Returns:
+        For cloud mode: tuple(url, api_key, None, None)
+        For self-hosted: tuple(None, None, host, port)
+    """
     # Load environment variables from main project directory
     project_env_path = Path(__file__).resolve().parents[2] / ".env"
     if project_env_path.exists():
@@ -124,48 +148,92 @@ def get_qdrant_config():
     # Get Qdrant config with fallbacks
     qdrant_config = config.get('datasources', {}).get('qdrant', {})
     
-    # Resolve environment variable placeholders
-    host = resolve_env_placeholder(qdrant_config.get('host', 'localhost'))
-    port = resolve_env_placeholder(qdrant_config.get('port', 6333))
-    
-    # Debug output to show what values are being used
-    print(f"Qdrant config from config.yaml: host={qdrant_config.get('host')}, port={qdrant_config.get('port')}")
-    print(f"Resolved values: host={host}, port={port}")
-    
-    # Convert port to int if it's a string
-    if isinstance(port, str):
-        try:
-            port = int(port)
-        except ValueError:
-            print(f"Warning: Invalid port value '{port}', using default port 6333")
-            port = 6333
-    
-    return host, port
+    if use_cloud:
+        # Cloud mode: use URL and API key
+        url = resolve_env_placeholder(qdrant_config.get('url', ''))
+        api_key = resolve_env_placeholder(qdrant_config.get('api_key', ''))
+        
+        # Also check direct environment variables as fallback
+        if not url:
+            url = os.getenv('DATASOURCE_QDRANT_URL', '')
+        if not api_key:
+            api_key = os.getenv('DATASOURCE_QDRANT_API_KEY', '')
+        
+        if not url:
+            raise ValueError("DATASOURCE_QDRANT_URL is required for cloud mode. "
+                           "Please set it in your .env file.")
+        if not api_key:
+            raise ValueError("DATASOURCE_QDRANT_API_KEY is required for cloud mode. "
+                           "Please set it in your .env file.")
+        
+        print(f"Qdrant Cloud config: url={url[:50]}...")
+        return url, api_key, None, None
+    else:
+        # Self-hosted mode: use host and port
+        host = resolve_env_placeholder(qdrant_config.get('host', 'localhost'))
+        port = resolve_env_placeholder(qdrant_config.get('port', 6333))
+        
+        # Also check direct environment variables as fallback
+        if not host or host == 'localhost':
+            env_host = os.getenv('DATASOURCE_QDRANT_HOST')
+            if env_host:
+                host = env_host
+        
+        env_port = os.getenv('DATASOURCE_QDRANT_PORT')
+        if env_port:
+            port = env_port
+        
+        # Debug output to show what values are being used
+        print(f"Qdrant config from config.yaml: host={qdrant_config.get('host')}, port={qdrant_config.get('port')}")
+        print(f"Resolved values: host={host}, port={port}")
+        
+        # Convert port to int if it's a string
+        if isinstance(port, str):
+            try:
+                port = int(port)
+            except ValueError:
+                print(f"Warning: Invalid port value '{port}', using default port 6333")
+                port = 6333
+        
+        return None, None, host, port
 
-async def test_qdrant_query(test_query: str, collection_name: str = None):
+async def test_qdrant_query(test_query: str, collection_name: str = None, use_cloud: bool = False):
     config = load_config()
 
     # Get the same embedding provider that was used during creation
     embedding_provider = config['embedding']['provider']
     
     # Get Qdrant connection details
-    qdrant_host, qdrant_port = get_qdrant_config()
+    qdrant_url, qdrant_api_key, qdrant_host, qdrant_port = get_qdrant_config(use_cloud=use_cloud)
     
     # Print configuration variables
     print("\nConfiguration Variables:")
     print(f"Embedding Provider: {embedding_provider}")
-    print(f"QDRANT_HOST: {qdrant_host}")
-    print(f"QDRANT_PORT: {qdrant_port}")
+    if use_cloud:
+        print(f"Qdrant Cloud mode enabled")
+    else:
+        print(f"QDRANT_HOST: {qdrant_host}")
+        print(f"QDRANT_PORT: {qdrant_port}")
     print(f"QDRANT_COLLECTION: {collection_name}\n")
     
-    # Initialize Qdrant client
+    # Initialize Qdrant client based on cloud or self-hosted mode
     try:
-        client = QdrantClient(
-            host=qdrant_host,
-            port=qdrant_port,
-            timeout=30
-        )
-        print(f"Using Qdrant server at: {qdrant_host}:{qdrant_port}")
+        if qdrant_url and qdrant_api_key:
+            # Cloud mode: use URL and API key
+            client = QdrantClient(
+                url=qdrant_url,
+                api_key=qdrant_api_key,
+                timeout=30
+            )
+            print(f"Connected to Qdrant Cloud at {qdrant_url[:50]}...")
+        else:
+            # Self-hosted mode: use host and port
+            client = QdrantClient(
+                host=qdrant_host,
+                port=qdrant_port,
+                timeout=30
+            )
+            print(f"Using Qdrant server at: {qdrant_host}:{qdrant_port}")
     except Exception as e:
         print(f"Failed to connect to Qdrant server: {str(e)}")
         return
@@ -252,6 +320,8 @@ async def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Query a Qdrant collection using semantic search')
     parser.add_argument('query_args', nargs='+', help='Collection name (optional) followed by query text')
+    parser.add_argument('--cloud', action='store_true', 
+                        help='Use Qdrant Cloud (requires DATASOURCE_QDRANT_URL and DATASOURCE_QDRANT_API_KEY in .env)')
     args = parser.parse_args()
     
     # Check if first argument might be a collection name
@@ -263,7 +333,7 @@ async def main():
         collection_name = "default_collection"  # You might want to set this in config
         test_query = args.query_args[0]
     
-    await test_qdrant_query(test_query, collection_name)
+    await test_qdrant_query(test_query, collection_name, use_cloud=args.cloud)
 
 if __name__ == "__main__":
     asyncio.run(main())
