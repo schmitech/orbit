@@ -284,11 +284,13 @@ class ResponseProcessor:
             }
         }
 
-        # Add threading metadata if adapter supports it
+        # Add threading metadata if adapter supports it and has results
+        # Only enable threading when there are actual sources/results to thread on
         if assistant_message_id and session_id and adapter_name:
-            # Check if adapter supports threading (intent or QA adapters)
             supports_threading = self._adapter_supports_threading(adapter_name)
-            if supports_threading:
+            has_results = sources and len(sources) > 0
+
+            if supports_threading and has_results:
                 result["threading"] = {
                     "supports_threading": True,
                     "message_id": assistant_message_id,

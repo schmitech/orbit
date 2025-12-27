@@ -6,7 +6,7 @@ import { ConfirmationModal } from './ConfirmationModal';
 import { debugWarn, debugError } from '../utils/debug';
 import { useGitHubStats } from '../hooks/useGitHubStats';
 import { AppConfig } from '../utils/config';
-import { getShowGitHubStats, getGitHubOwner, getGitHubRepo, getApiUrl, getDefaultKey, getEnableApiMiddleware } from '../utils/runtimeConfig';
+import { getShowGitHubStats, getGitHubOwner, getGitHubRepo, getApiUrl, getDefaultKey, getEnableApiMiddleware, getDefaultAdapterName } from '../utils/runtimeConfig';
 import { useTheme } from '../contexts/ThemeContext';
 import { AdapterSelector } from './AdapterSelector';
 import { PACKAGE_VERSION } from '../utils/version';
@@ -126,6 +126,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const isMiddlewareEnabled = getEnableApiMiddleware();
+  const defaultAdapterName = isMiddlewareEnabled ? getDefaultAdapterName() : null;
   const canConfigureApi = !currentConversation || currentConversation.messages.length === 0;
   const { theme } = useTheme();
   const sizeStyles = conversationSizeStyles[theme.fontSize ?? 'medium'];
@@ -400,6 +401,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                     setValidationError(null);
                   }}
                   disabled={isValidating}
+                  defaultAdapterName={defaultAdapterName}
                 />
               ) : (
                 <div>
@@ -512,6 +514,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                   selectedAdapter={selectedAdapter || currentConversation?.adapterName || null}
                   onAdapterChange={handleInlineAdapterChange}
                   disabled={!canConfigureApi || isValidating}
+                  defaultAdapterName={defaultAdapterName}
                 />
               </div>
             ) : (

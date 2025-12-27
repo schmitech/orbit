@@ -45,6 +45,39 @@ const DEFAULT_CONFIG = {
   maxMessageLength: 1000,
 };
 
+function parseAdaptersListFromEnv() {
+  const envValue = process.env.ORBIT_ADAPTERS || process.env.VITE_ADAPTERS;
+  if (!envValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(envValue);
+    if (!Array.isArray(parsed)) {
+      console.warn('Warning: ORBIT_ADAPTERS/VITE_ADAPTERS must be a JSON array');
+      return [];
+    }
+
+    const adapters = [];
+    for (const adapter of parsed) {
+      if (!adapter.name) {
+        console.warn('Warning: Each adapter must have a "name" property');
+        continue;
+      }
+      adapters.push({
+        name: adapter.name,
+        apiKey: adapter.apiKey || DEFAULT_CONFIG.defaultKey,
+        apiUrl: adapter.apiUrl || DEFAULT_CONFIG.apiUrl,
+      });
+    }
+
+    return adapters;
+  } catch (error) {
+    console.warn('Warning: Could not parse ORBIT_ADAPTERS/VITE_ADAPTERS:', error.message);
+    return [];
+  }
+}
+
 /**
  * Load adapter mappings from environment variable
  * Format: JSON array of adapter objects
@@ -52,39 +85,25 @@ const DEFAULT_CONFIG = {
  * @returns {object|null} - Adapters object or null if not found/invalid
  */
 function loadAdaptersConfig() {
-  const envValue = process.env.ORBIT_ADAPTERS || process.env.VITE_ADAPTERS;
-  if (!envValue) {
+  const adapterList = parseAdaptersListFromEnv();
+  if (adapterList.length === 0) {
     return null;
   }
 
-  try {
-    const parsed = JSON.parse(envValue);
-    if (!Array.isArray(parsed)) {
-      console.warn('Warning: ORBIT_ADAPTERS/VITE_ADAPTERS must be a JSON array');
-      return null;
-    }
-
-    // Convert array to object format expected by the rest of the code
-    const adapters = {};
-    for (const adapter of parsed) {
-      if (!adapter.name) {
-        console.warn('Warning: Each adapter must have a "name" property');
-        continue;
-      }
-      adapters[adapter.name] = {
-        apiKey: adapter.apiKey || 'default-key',
-        apiUrl: adapter.apiUrl || 'http://localhost:3000',
-      };
-    }
-
-    if (Object.keys(adapters).length > 0) {
-      return adapters;
-    }
-    return null;
-  } catch (error) {
-    console.warn('Warning: Could not parse ORBIT_ADAPTERS/VITE_ADAPTERS:', error.message);
-    return null;
+  const adapters = {};
+  for (const adapter of adapterList) {
+    adapters[adapter.name] = {
+      apiKey: adapter.apiKey || DEFAULT_CONFIG.defaultKey,
+      apiUrl: adapter.apiUrl || DEFAULT_CONFIG.apiUrl,
+    };
   }
+
+  return Object.keys(adapters).length > 0 ? adapters : null;
+}
+
+function getDefaultAdapterFromEnv() {
+  const adapterList = parseAdaptersListFromEnv();
+  return adapterList.length > 0 ? adapterList[0].name : null;
 }
 
 /**
@@ -108,7 +127,13 @@ function parseArgs() {
         config.apiUrl = args[++i];
         break;
       case '--api-key':
+        config.defaultKey = args[++i];
+        break;
+      case '--default-adapter':
+        config.defaultKey = args[++i];
+        break;
       case '--default-key':
+        console.warn('Warning: --default-key is deprecated. Use --default-adapter instead.');
         config.defaultKey = args[++i];
         break;
       case '--application-name':
@@ -576,6 +601,7 @@ Usage: orbitchat [options]
 
 Options:
   --api-url URL                    API URL (default: http://localhost:3000)
+  --default-adapter NAME           Default adapter to preselect (middleware mode)
   --api-key KEY                    Default API key (default: default-key)
   --application-name NAME          Application name shown in browser tab (default: ORBIT Chat)
   --use-local-api                  Use local API build (default: false)
@@ -640,6 +666,17 @@ function main() {
   const { config: cliConfig, serverConfig } = parseArgs();
   const config = mergeConfig(cliConfig, serverConfig);
 
+  if (config.enableApiMiddleware) {
+    const trimmedDefaultKey = (config.defaultKey || '').trim();
+    if (!trimmedDefaultKey || trimmedDefaultKey === DEFAULT_CONFIG.defaultKey) {
+      const fallbackAdapter = getDefaultAdapterFromEnv();
+      if (fallbackAdapter) {
+        config.defaultKey = fallbackAdapter;
+        console.debug(`ℹ️ Using '${fallbackAdapter}' as the default adapter (first entry from VITE_ADAPTERS).`);
+      }
+    }
+  }
+
   // Find dist directory
   // Use __dirname which we defined at the top of the file
   const distPath = path.join(__dirname, '..', 'dist');
@@ -657,7 +694,7 @@ function main() {
     console.debug(`\n🚀 ORBIT Chat App is running at ${url}\n`);
     console.debug('Configuration:');
     console.debug(`  API URL: ${config.apiUrl}`);
-    console.debug(`  Default Key: ${config.defaultKey}`);
+    console.debug(`  Default Key/Adapter: ${config.defaultKey || '(not set)'}`);
     console.debug(`  Port: ${serverConfig.port}`);
     console.debug(`  Host: ${serverConfig.host}`);
     if (config.enableApiMiddleware) {

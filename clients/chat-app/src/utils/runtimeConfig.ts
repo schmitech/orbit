@@ -96,6 +96,51 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
   maxMessageLength: 'VITE_MAX_MESSAGE_LENGTH',
 };
 
+function getFirstConfiguredAdapterName(): string | null {
+  const normalizeAdapterName = (candidate: unknown): string | null => {
+    if (!candidate || typeof candidate !== 'object') {
+      return null;
+    }
+    const adapter = candidate as { name?: unknown };
+    if (typeof adapter.name !== 'string') {
+      return null;
+    }
+    const trimmed = adapter.name.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+
+  if (typeof window !== 'undefined') {
+    const runtimeAdapters = window.ORBIT_CHAT_CONFIG?.adapters;
+    if (Array.isArray(runtimeAdapters)) {
+      for (const adapter of runtimeAdapters) {
+        const normalized = normalizeAdapterName(adapter);
+        if (normalized) {
+          return normalized;
+        }
+      }
+    }
+  }
+
+  const envAdapters = import.meta.env.VITE_ADAPTERS;
+  if (envAdapters) {
+    try {
+      const parsed = JSON.parse(envAdapters);
+      if (Array.isArray(parsed)) {
+        for (const adapter of parsed) {
+          const normalized = normalizeAdapterName(adapter);
+          if (normalized) {
+            return normalized;
+          }
+        }
+      }
+    } catch {
+      // Ignore parse errors - fallback remains null
+    }
+  }
+
+  return null;
+}
+
 /**
  * Check if window.ORBIT_CHAT_CONFIG has been injected by CLI
  * This is set by the orbitchat CLI when serving the app
@@ -370,6 +415,28 @@ export function getEnableConversationThreads(): boolean {
 export function getEnableApiMiddleware(): boolean {
   // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
   return getConfigValue('enableApiMiddleware', false, 'boolean');
+}
+
+/**
+ * Helper to resolve the default adapter name when middleware mode is active.
+ * Falls back to null when middleware is disabled or no default adapter is configured.
+ */
+export function getDefaultAdapterName(): string | null {
+  if (!getEnableApiMiddleware()) {
+    return null;
+  }
+
+  const adapterName = getDefaultKey()?.trim();
+  if (adapterName && adapterName !== 'default-key') {
+    return adapterName;
+  }
+
+  const fallbackAdapter = getFirstConfiguredAdapterName();
+  if (fallbackAdapter) {
+    return fallbackAdapter;
+  }
+
+  return adapterName && adapterName.length > 0 ? adapterName : null;
 }
 
 export function getShowGitHubStats(): boolean {

@@ -4,13 +4,14 @@ import { Message, Conversation, ChatState, FileAttachment, AdapterInfo } from '.
 import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { getDefaultKey, getApiUrl, resolveApiUrl, DEFAULT_API_URL, getEnableApiMiddleware } from '../utils/runtimeConfig';
+import { getDefaultKey, getApiUrl, resolveApiUrl, DEFAULT_API_URL, getEnableApiMiddleware, getDefaultAdapterName } from '../utils/runtimeConfig';
 import { getFirstAdapter } from '../utils/middlewareConfig';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { audioStreamManager } from '../utils/audioStreamManager';
 
 // Default API key from runtime configuration
 const DEFAULT_API_KEY = getDefaultKey();
+const DEFAULT_ADAPTER_NAME = getDefaultAdapterName();
 
 // Streaming content buffer for batching rapid updates
 // This prevents "Maximum update depth exceeded" errors when rendering complex content like mermaid
@@ -18,26 +19,73 @@ const streamingBuffer: Map<string, { content: string; timeoutId: ReturnType<type
 const STREAMING_BATCH_DELAY = 32; // ms - batch updates within this window (~30fps)
 
 const DEFAULT_ADAPTER_STORAGE_KEY = 'chat-default-adapter-name';
-let initialAdapterName: string | null = null;
+const normalizedDefaultAdapter =
+  DEFAULT_ADAPTER_NAME && DEFAULT_ADAPTER_NAME.trim().length > 0
+    ? DEFAULT_ADAPTER_NAME.trim()
+    : null;
+let initialAdapterName: string | null = normalizedDefaultAdapter;
 const setInitialAdapterName = (adapterName: string | null | undefined) => {
   if (!adapterName || !adapterName.trim()) {
     return;
   }
-  initialAdapterName = adapterName;
+  const normalizedName = adapterName.trim();
+  initialAdapterName = normalizedName;
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(DEFAULT_ADAPTER_STORAGE_KEY, adapterName);
+      localStorage.setItem(DEFAULT_ADAPTER_STORAGE_KEY, normalizedName);
+      localStorage.setItem('chat-adapter-name', normalizedName);
     } catch {
       // ignore storage errors
     }
   }
 };
 
+const resolvePreferredAdapterName = (): string | undefined => {
+  const runtimeAdapterName = getDefaultAdapterName();
+  if (runtimeAdapterName && runtimeAdapterName.trim().length > 0) {
+    return runtimeAdapterName.trim();
+  }
+
+  if (initialAdapterName && initialAdapterName.trim().length > 0) {
+    return initialAdapterName.trim();
+  }
+
+  return undefined;
+};
+
+const buildDefaultConversation = (conversationId: string, sessionId: string, apiUrl: string): Conversation => {
+  const middlewareEnabled = getEnableApiMiddleware();
+  const adapterName = middlewareEnabled ? resolvePreferredAdapterName() : undefined;
+
+  if (middlewareEnabled && adapterName) {
+    setInitialAdapterName(adapterName);
+  }
+
+  return {
+    id: conversationId,
+    sessionId,
+    title: 'New Chat',
+    messages: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    apiKey: middlewareEnabled ? undefined : DEFAULT_API_KEY,
+    apiUrl,
+    adapterName
+  };
+};
+
 if (typeof window !== 'undefined') {
   try {
-    initialAdapterName = localStorage.getItem(DEFAULT_ADAPTER_STORAGE_KEY);
+    const storedAdapter = localStorage.getItem(DEFAULT_ADAPTER_STORAGE_KEY);
+    if (normalizedDefaultAdapter) {
+      if (storedAdapter !== normalizedDefaultAdapter) {
+        localStorage.setItem(DEFAULT_ADAPTER_STORAGE_KEY, normalizedDefaultAdapter);
+      }
+    } else if (storedAdapter) {
+      initialAdapterName = storedAdapter;
+    }
   } catch {
-    initialAdapterName = null;
+    initialAdapterName = normalizedDefaultAdapter;
   }
 }
 
@@ -576,11 +624,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     // Check if middleware mode is enabled
     const isMiddlewareEnabled = getEnableApiMiddleware();
     // Get stored adapter name from localStorage if in middleware mode
+    const runtimePreferredAdapter = resolvePreferredAdapterName();
     const storedAdapterName = isMiddlewareEnabled
       ? (typeof window !== 'undefined' ? localStorage.getItem('chat-adapter-name') : null)
       : null;
     const adapterNameForNewConversation = isMiddlewareEnabled
-      ? (initialAdapterName || storedAdapterName || undefined)
+      ? (runtimePreferredAdapter || storedAdapterName || undefined)
       : undefined;
 
     const newConversation: Conversation = {
@@ -608,14 +657,23 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       if (isConfigured) {
         getApi().then(api => {
           // Configure API based on mode
-          if (isMiddlewareEnabled && adapterNameForNewConversation) {
-            api.configureApi(defaultApiUrl, null, newSessionId, adapterNameForNewConversation);
+          if (isMiddlewareEnabled) {
+            if (adapterNameForNewConversation) {
+              api.configureApi(defaultApiUrl, null, newSessionId, adapterNameForNewConversation);
+              setInitialAdapterName(adapterNameForNewConversation);
+            } else {
+              debugWarn('API middleware is enabled, but no default adapter is configured for the new conversation.');
+            }
           } else {
             api.configureApi(defaultApiUrl, defaultApiKey, newSessionId);
           }
 
           // Load adapter info for the new conversation
           try {
+            if (isMiddlewareEnabled && !adapterNameForNewConversation) {
+              return;
+            }
+
             const validationClient = new api.ApiClient({
               apiUrl: defaultApiUrl,
               apiKey: isMiddlewareEnabled ? null : defaultApiKey,
@@ -829,6 +887,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const defaultSessionId = generateUniqueSessionId();
         const defaultApiUrl = getApiUrl();
+        const isMiddlewareEnabled = getEnableApiMiddleware();
+        const adapterNamePreference = isMiddlewareEnabled ? resolvePreferredAdapterName() : undefined;
         const defaultConversation: Conversation = {
           id: defaultConversationId,
           sessionId: defaultSessionId,
@@ -836,24 +896,83 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           messages: [],
           createdAt: new Date(),
           updatedAt: new Date(),
-          apiKey: DEFAULT_API_KEY,
-          apiUrl: defaultApiUrl
+          apiKey: isMiddlewareEnabled ? undefined : DEFAULT_API_KEY,
+          apiUrl: defaultApiUrl,
+          adapterName: adapterNamePreference
         };
 
         // Configure API with default key and validate it
         ensureApiConfigured().then(isConfigured => {
-          if (isConfigured) {
-            getApi().then(api => {
+          if (!isConfigured) {
+            return;
+          }
+          getApi().then(async api => {
+            if (isMiddlewareEnabled) {
+              const configureAdapter = async (adapterName: string) => {
+                api.configureApi(defaultApiUrl, null, defaultSessionId, adapterName);
+                setInitialAdapterName(adapterName);
+
+                try {
+                  const validationClient = new api.ApiClient({
+                    apiUrl: defaultApiUrl,
+                    apiKey: null,
+                    sessionId: null,
+                    adapterName
+                  });
+
+                  if (typeof validationClient.getAdapterInfo === 'function') {
+                    const adapterInfo = await validationClient.getAdapterInfo();
+                    debugLog('✅ Adapter info loaded for default adapter:', adapterInfo);
+                    const currentState = useChatStore.getState();
+                    useChatStore.setState({
+                      conversations: currentState.conversations.map(conv =>
+                        conv.id === defaultConversationId
+                          ? { ...conv, adapterName, adapterInfo, updatedAt: new Date() }
+                          : conv
+                      )
+                    });
+                    setTimeout(() => {
+                      const updatedState = useChatStore.getState();
+                      localStorage.setItem('chat-state', JSON.stringify({
+                        conversations: updatedState.conversations,
+                        currentConversationId: updatedState.currentConversationId
+                      }));
+                    }, 0);
+                  }
+                } catch (error) {
+                  debugWarn('Failed to load adapter info for default adapter:', error);
+                }
+              };
+
+              if (adapterNamePreference) {
+                try {
+                  await configureAdapter(adapterNamePreference);
+                  return;
+                } catch (error) {
+                  debugWarn('Failed to configure default adapter after deleting all conversations:', error);
+                }
+              }
+
+              try {
+                const firstAdapter = await getFirstAdapter();
+                if (firstAdapter) {
+                  await configureAdapter(firstAdapter.name);
+                } else {
+                  debugWarn('No adapters available to configure after deleting all conversations');
+                }
+              } catch (error) {
+                debugWarn('Failed to configure adapter after deleting all conversations:', error);
+              }
+            } else {
               api.configureApi(defaultApiUrl, DEFAULT_API_KEY, defaultSessionId);
-              
-              // Validate and load adapter info for default key
+
               try {
                 const validationClient = new api.ApiClient({
                   apiUrl: defaultApiUrl,
                   apiKey: DEFAULT_API_KEY,
                   sessionId: null
                 });
-                
+
                 if (typeof validationClient.validateApiKey === 'function') {
                   validationClient.validateApiKey().then(() => {
                     debugLog('✅ Default API key validated after creating new conversation');
@@ -861,11 +980,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     debugWarn('Failed to validate default API key');
                   });
                 }
-                
+
                 if (typeof validationClient.getAdapterInfo === 'function') {
                   validationClient.getAdapterInfo().then(adapterInfo => {
                     debugLog('✅ Adapter info loaded for default key:', adapterInfo);
-                    // Update the conversation with adapter info
                     const currentState = useChatStore.getState();
                     useChatStore.setState({
                       conversations: currentState.conversations.map(conv =>
@@ -881,8 +999,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               } catch (error) {
                 debugWarn('Failed to validate default API key:', error);
               }
-            });
-          }
+            }
+          });
         });
 
         // Save to localStorage
@@ -2490,16 +2608,11 @@ const initializeStore = async () => {
       if (!parsedState.conversations || parsedState.conversations.length === 0) {
         const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const defaultSessionId = generateUniqueSessionId();
-        const defaultConversation: Conversation = {
-          id: defaultConversationId,
-          sessionId: defaultSessionId,
-          title: 'New Chat',
-          messages: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          apiKey: DEFAULT_API_KEY, // Always use default-key when no conversations exist
-          apiUrl: getApiUrl() // Use runtime config (from CLI args or env vars)
-        };
+        const defaultConversation = buildDefaultConversation(
+          defaultConversationId,
+          defaultSessionId,
+          getApiUrl()
+        );
         
         useChatStore.setState({
           conversations: [defaultConversation],
@@ -2544,17 +2657,11 @@ const initializeStore = async () => {
       // If loading fails, create a default conversation
       const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const defaultSessionId = generateUniqueSessionId();
-      const defaultApiUrl = getApiUrl();
-      const defaultConversation: Conversation = {
-        id: defaultConversationId,
-        sessionId: defaultSessionId,
-        title: 'New Chat',
-        messages: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        apiKey: DEFAULT_API_KEY,
-        apiUrl: defaultApiUrl
-      };
+      const defaultConversation = buildDefaultConversation(
+        defaultConversationId,
+        defaultSessionId,
+        getApiUrl()
+      );
       
       useChatStore.setState({
         conversations: [defaultConversation],
@@ -2569,17 +2676,11 @@ const initializeStore = async () => {
     // Always use default-key when there are no conversations, regardless of localStorage
     const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const defaultSessionId = generateUniqueSessionId();
-    const defaultApiUrl = getApiUrl();
-    const defaultConversation: Conversation = {
-      id: defaultConversationId,
-      sessionId: defaultSessionId,
-      title: 'New Chat',
-      messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      apiKey: DEFAULT_API_KEY, // Always use default-key when no conversations exist
-      apiUrl: defaultApiUrl
-    };
+    const defaultConversation = buildDefaultConversation(
+      defaultConversationId,
+      defaultSessionId,
+      getApiUrl()
+    );
     
     useChatStore.setState({
       conversations: [defaultConversation],
@@ -2620,30 +2721,28 @@ const initializeStore = async () => {
       const existingAdapterName = currentConversation?.adapterName;
 
       if (!existingAdapterName) {
-        // Auto-select the first adapter from VITE_ADAPTERS
-        const firstAdapter = await getFirstAdapter();
+        const preferredAdapterName = resolvePreferredAdapterName();
 
-        if (firstAdapter) {
-          debugLog('🔄 Auto-selecting first adapter:', firstAdapter.name);
+        const configureAutoAdapter = async (adapterName: string) => {
+          debugLog('🔄 Auto-selecting adapter:', adapterName);
 
-          // Configure API with the first adapter
-          api.configureApi(apiUrlToUse, null, sessionId, firstAdapter.name);
+          api.configureApi(apiUrlToUse, null, sessionId, adapterName);
           currentApiUrl = apiUrlToUse;
           apiConfigured = true;
 
-          // Store adapter name in localStorage for persistence
-          localStorage.setItem('chat-adapter-name', firstAdapter.name);
-          if (!initialAdapterName) {
-            setInitialAdapterName(firstAdapter.name);
+          try {
+            localStorage.setItem('chat-adapter-name', adapterName);
+          } catch {
+            // ignore storage failures
           }
+          setInitialAdapterName(adapterName);
 
-          // Validate and load adapter info
           try {
             const validationClient = new api.ApiClient({
               apiUrl: apiUrlToUse,
               apiKey: null,
               sessionId: null,
-              adapterName: firstAdapter.name
+              adapterName
             });
 
             let adapterInfo: AdapterInfo | undefined;
@@ -2652,7 +2751,6 @@ const initializeStore = async () => {
               debugLog('✅ Adapter info loaded for auto-selected adapter:', adapterInfo);
             }
 
-            // Update the current conversation with adapter name and info
             const stateAfterAutoSelect = useChatStore.getState();
             if (stateAfterAutoSelect.currentConversationId) {
               useChatStore.setState({
@@ -2660,17 +2758,16 @@ const initializeStore = async () => {
                   conv.id === stateAfterAutoSelect.currentConversationId
                     ? {
                         ...conv,
-                        adapterName: firstAdapter.name,
-                        adapterInfo: adapterInfo,
+                        adapterName,
+                        adapterInfo,
                         apiUrl: apiUrlToUse,
-                        apiKey: undefined, // Clear API key in middleware mode
+                        apiKey: undefined,
                         updatedAt: new Date()
                       }
                     : conv
                 )
               });
 
-              // Save to localStorage
               setTimeout(() => {
                 const updatedState = useChatStore.getState();
                 localStorage.setItem('chat-state', JSON.stringify({
@@ -2681,10 +2778,19 @@ const initializeStore = async () => {
             }
           } catch (error) {
             debugWarn('Failed to validate auto-selected adapter on startup:', error);
-            // Don't fail initialization if validation fails
           }
+        };
+
+        if (preferredAdapterName) {
+          await configureAutoAdapter(preferredAdapterName);
         } else {
-          debugWarn('No adapters available for auto-selection in middleware mode');
+          const firstAdapter = await getFirstAdapter();
+
+          if (firstAdapter) {
+            await configureAutoAdapter(firstAdapter.name);
+          } else {
+            debugWarn('No adapters available for auto-selection in middleware mode');
+          }
         }
       } else {
         // Use existing adapter from conversation

@@ -7,9 +7,15 @@ interface AdapterSelectorProps {
   selectedAdapter: string | null;
   onAdapterChange: (adapterName: string) => void;
   disabled?: boolean;
+  defaultAdapterName?: string | null;
 }
 
-export function AdapterSelector({ selectedAdapter, onAdapterChange, disabled }: AdapterSelectorProps) {
+export function AdapterSelector({
+  selectedAdapter,
+  onAdapterChange,
+  disabled,
+  defaultAdapterName
+}: AdapterSelectorProps) {
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,8 +51,8 @@ export function AdapterSelector({ selectedAdapter, onAdapterChange, disabled }: 
     };
   }, []);
 
-  const hasInitialized = useRef(false);
   const onAdapterChangeRef = useRef(onAdapterChange);
+  const hasAutoSelectedDefault = useRef(false);
 
   useEffect(() => {
     onAdapterChangeRef.current = onAdapterChange;
@@ -54,15 +60,22 @@ export function AdapterSelector({ selectedAdapter, onAdapterChange, disabled }: 
 
   useEffect(() => {
     if (selectedAdapter) {
-      hasInitialized.current = true;
+      hasAutoSelectedDefault.current = true;
       return;
     }
 
-    if (!hasInitialized.current && adapters.length > 0) {
-      hasInitialized.current = true;
-      // Wait for user interaction before selecting
+    if (!defaultAdapterName || hasAutoSelectedDefault.current || adapters.length === 0) {
+      return;
     }
-  }, [adapters, selectedAdapter]);
+
+    const hasMatchingAdapter = adapters.some(adapter => adapter.name === defaultAdapterName);
+    if (!hasMatchingAdapter) {
+      return;
+    }
+
+    hasAutoSelectedDefault.current = true;
+    onAdapterChangeRef.current(defaultAdapterName);
+  }, [adapters, selectedAdapter, defaultAdapterName]);
 
   const selectedAdapterObj = adapters.find(a => a.name === selectedAdapter);
 

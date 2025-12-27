@@ -539,17 +539,24 @@ class PipelineChatService:
                     logger.warning(f"Failed to generate audio: {str(e)}", exc_info=True)
 
         # Check if adapter supports threading and add metadata
+        # Only enable threading if there are actual retrieved results to thread on
         threading_metadata = None
         if assistant_message_id and session_id and adapter_name:
             supports_threading = self.response_processor._adapter_supports_threading(adapter_name)
-            if supports_threading:
+            has_results = context.retrieved_docs and len(context.retrieved_docs) > 0
+
+            if supports_threading and has_results:
                 threading_metadata = {
                     "supports_threading": True,
                     "message_id": assistant_message_id,
                     "session_id": session_id,
                 }
                 logger.debug(
-                    f"Adding threading metadata to done chunk: adapter={adapter_name}, message_id={assistant_message_id}, session_id={session_id}"
+                    f"Adding threading metadata to done chunk: adapter={adapter_name}, message_id={assistant_message_id}, session_id={session_id}, results_count={len(context.retrieved_docs)}"
+                )
+            elif supports_threading and not has_results:
+                logger.debug(
+                    f"Adapter {adapter_name} supports threading but no results found - threading disabled for this response"
                 )
             else:
                 logger.debug(

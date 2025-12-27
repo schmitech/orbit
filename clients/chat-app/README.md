@@ -34,6 +34,7 @@ orbitchat [options]
 
 Options:
   --api-url URL                    API URL (default: http://localhost:3000)
+  --default-adapter NAME           Default adapter to preselect when middleware is enabled
   --api-key KEY                    Default API key (default: default-key)
   --use-local-api BOOLEAN          Use local API build (default: false)
   --local-api-path PATH            Path to local API
@@ -130,6 +131,10 @@ VITE_DEFAULT_KEY=default-key
 VITE_ENABLE_UPLOAD=false
 VITE_CONSOLE_DEBUG=false
 # ... etc
+
+`VITE_DEFAULT_KEY` is dual-purpose:
+- When **middleware is disabled**, it should contain the literal API key that the frontend will send to the backend (same as before).
+- When **middleware is enabled**, set it to the adapter name you want preselected (or pass `--default-adapter`). If you leave it as `default-key` or empty, the app automatically falls back to the first adapter defined in `VITE_ADAPTERS`/`ORBIT_ADAPTERS`.
 ```
 
 ## Development
@@ -152,7 +157,7 @@ Create a `.env.local` file in the root directory:
 
 ```bash
 VITE_API_URL=https://your-api-endpoint.com
-VITE_DEFAULT_KEY=default-key      # Default API key used when no key is configured
+VITE_DEFAULT_KEY=default-key      # API key in direct mode, or adapter name in middleware mode
 VITE_USE_LOCAL_API=true          # Set to 'true' to use local API build
 VITE_LOCAL_API_PATH=/api.mjs      # Path to local API (defaults to /api.mjs from public directory)
 VITE_CONSOLE_DEBUG=false          # Enable debug logging
@@ -215,6 +220,13 @@ The local API files will be copied to `src/api/local/` directory. When `VITE_USE
 - **Error Handling**: Comprehensive error handling with user-friendly messages
 - **Conversation Persistence**: Chat history is saved to localStorage
 - **API Configuration**: Flexible API configuration options
+
+## Security
+
+- When **API middleware** is enabled, the browser never sees your real API keys. The CLI proxy serves `/api/adapters` with adapter names only and injects the real `X-API-Key` on the server before calling the backend. Keep `ORBIT_ADAPTERS` / `VITE_ADAPTERS` on the server (out of git) and run the proxy behind HTTPS so users cannot intercept traffic.
+- Even though the app falls back to the first adapter in `VITE_ADAPTERS`, the adapters list itself is still server-side; clients only learn the names you expose. Someone would need filesystem or shell access to the machine running `bin/orbitchat.js` to read the adapters config and extract the real keys.
+- In direct mode (middleware disabled), the browser stores API keys locally to send them with requests—treat that mode as developer-only unless you’re comfortable distributing the key to end users.
+- Regardless of mode, secure the host running the CLI and restrict who can reach it; a compromised host or misconfigured reverse proxy can leak the adapters file or intercept proxied traffic.
 
 ## Usage
 
