@@ -1,11 +1,10 @@
 import React, { FormEvent, MouseEvent, useEffect, useState } from 'react';
-import { Plus, Search, MessageSquare, Trash2, Edit2, Trash, Paperclip, Settings, Eye, EyeOff } from 'lucide-react';
+import { Search, MessageSquare, Trash2, Edit2, Trash, Paperclip, Settings, Eye, EyeOff } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
-import { debugWarn, debugError } from '../utils/debug';
+import { debugError } from '../utils/debug';
 import { useGitHubStats } from '../hooks/useGitHubStats';
-import { AppConfig } from '../utils/config';
 import { getShowGitHubStats, getGitHubOwner, getGitHubRepo, getApiUrl, getDefaultKey, getEnableApiMiddleware, getDefaultAdapterName } from '../utils/runtimeConfig';
 import { useTheme } from '../contexts/ThemeContext';
 import { AdapterSelector } from './AdapterSelector';
@@ -83,12 +82,10 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   const {
     conversations,
     currentConversationId,
-    createConversation,
     selectConversation,
     deleteConversation,
     deleteAllConversations,
     updateConversationTitle,
-    canCreateNewConversation,
     getConversationCount,
     configureApiSettings,
     clearError
@@ -152,22 +149,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     )
   );
 
-  const canStartNew = canCreateNewConversation();
   const totalConversations = getConversationCount();
-  const maxConversationsLimit = AppConfig.maxConversations;
-  const atConversationLimit = maxConversationsLimit !== null && totalConversations >= maxConversationsLimit;
-  const currentConversationEmpty = currentConversation ? currentConversation.messages.length === 0 : false;
-  const conversationCountLabel = maxConversationsLimit !== null
-    ? `${totalConversations}/${maxConversationsLimit} conversations`
-    : `${totalConversations} conversation${totalConversations === 1 ? '' : 's'}`;
-  const newChatTooltip = canStartNew
-    ? 'Start a new conversation'
-    : atConversationLimit
-      ? `Maximum ${maxConversationsLimit} conversations reached. Delete a conversation to create a new one.`
-      : currentConversationEmpty
-        ? 'Current conversation is empty. Send a message first to create a new conversation.'
-        : 'Finish your current conversation before starting a new one.';
-
   // GitHub stats for ORBIT project info
   const showGitHubStats = getShowGitHubStats();
   const githubStats = useGitHubStats(
@@ -190,28 +172,34 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     setShowConfig(true);
   };
 
+  const handleAdapterSelection = async (adapterName: string) => {
+    if (!isMiddlewareEnabled || !canConfigureApi || !adapterName) {
+      return;
+    }
+
+    setSelectedAdapter(adapterName);
+    setValidationError(null);
+    setIsValidating(true);
+    try {
+      const runtimeApiUrl = currentConversation?.apiUrl || getApiUrl();
+      await configureApiSettings(runtimeApiUrl, undefined, undefined, adapterName);
+      clearError();
+      setShowConfig(false);
+    } catch (error) {
+      debugError('Failed to configure adapter:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to configure adapter';
+      setValidationError(errorMessage);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
   const handleConfigureApi = async (event?: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement>) => {
     if (event) {
       event.preventDefault();
     }
 
-    if (isMiddlewareEnabled) {
-      if (apiUrl && selectedAdapter) {
-        setIsValidating(true);
-        setValidationError(null);
-        try {
-          await configureApiSettings(apiUrl, undefined, undefined, selectedAdapter);
-          clearError();
-          setShowConfig(false);
-        } catch (error) {
-          debugError('Failed to configure adapter:', error);
-          const errorMessage = error instanceof Error ? error.message : 'Failed to configure adapter';
-          setValidationError(errorMessage);
-        } finally {
-          setIsValidating(false);
-        }
-      }
-    } else if (apiUrl && apiKey) {
+    if (!isMiddlewareEnabled && apiUrl && apiKey) {
       setIsValidating(true);
       setValidationError(null);
       try {
@@ -227,15 +215,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
       } finally {
         setIsValidating(false);
       }
-    }
-  };
-
-  const handleNewChat = () => {
-    try {
-      createConversation();
-      onRequestClose?.();
-    } catch (error) {
-      debugWarn('Cannot create new conversation:', error instanceof Error ? error.message : 'Unknown error');
     }
   };
 
@@ -366,7 +345,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
             className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]"
           >
             <h2 className="mb-4 text-lg font-medium text-[#353740] dark:text-[#ececf1]">
-              {isMiddlewareEnabled ? 'Select Adapter' : 'Configure API Settings'}
+              {isMiddlewareEnabled ? 'Select an Agent' : 'Configure API Settings'}
             </h2>
             <div className="space-y-5">
               {!isMiddlewareEnabled && (
@@ -386,15 +365,12 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
               {isMiddlewareEnabled ? (
                 <AdapterSelector
                   selectedAdapter={selectedAdapter || currentConversation?.adapterName || null}
-                  onAdapterChange={(adapterName) => {
-                    setSelectedAdapter(adapterName);
-                    setValidationError(null);
-                  }}
+                  onAdapterChange={handleAdapterSelection}
                   disabled={isValidating}
                   defaultAdapterName={defaultAdapterName}
-                  label="Select an agent"
                   variant="prominent"
                   showDescriptions
+                  showLabel={false}
                 />
               ) : (
                 <div>
@@ -443,17 +419,19 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                     setShowConfig(false);
                   }}
                   className="rounded-md border border-transparent px-4 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-[#d1d5db] dark:hover:text-white"
-                  disabled={isValidating}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isValidating || (isMiddlewareEnabled ? !selectedAdapter : (!apiUrl || !apiKey))}
-                  className="rounded-md bg-[#343541] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#282b32] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
-                >
-                  {isValidating ? 'Validating...' : 'Update'}
-                </button>
+                    disabled={isValidating}
+                  >
+                    Cancel
+                  </button>
+                {!isMiddlewareEnabled && (
+                  <button
+                    type="submit"
+                    disabled={isValidating || (!apiUrl || !apiKey)}
+                    className="rounded-md bg-[#343541] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#282b32] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
+                  >
+                    {isValidating ? 'Validating...' : 'Update'}
+                  </button>
+                )}
               </div>
             </div>
           </form>
@@ -462,26 +440,19 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
 
       <div className="flex h-full w-full md:w-72 flex-col border-r border-b border-gray-200 bg-gradient-to-b from-white via-gray-50 to-gray-100 dark:border-[#4a4b54] dark:bg-[#202123] dark:bg-none">
         <div className="border-b border-gray-200 bg-white/95 p-4 shadow-sm dark:border-[#4a4b54] dark:bg-[#202123] dark:shadow-none">
-          <button
-            onClick={handleNewChat}
-            disabled={!canStartNew}
-            className={`flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
-              canStartNew
-                ? 'bg-[#343541] text-white hover:bg-[#2c2f36] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]'
-                : 'cursor-not-allowed bg-gray-200 text-gray-500 dark:bg-[#3c3f4a] dark:text-[#6b6f7a]'
-            }`}
-            title={newChatTooltip}
-          >
-            <Plus className="h-4 w-4" />
-            New Conversation
-          </button>
-          
-          <div className="mt-3 space-y-2">
-            <div className="text-center">
-              <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">
-                {conversationCountLabel}
-              </span>
+          <div className="space-y-3 border-b border-gray-200 pb-3 dark:border-[#4a4b54]">
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-[#bfc2cd]">
+              <span>Version</span>
+              <span className="text-gray-900 dark:text-white">v{PACKAGE_VERSION}</span>
             </div>
+            <button
+              onClick={onOpenSettings}
+              disabled={!onOpenSettings}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a] dark:hover:border-[#6b6f7a] dark:disabled:hover:bg-transparent dark:disabled:hover:border-[#4a4b54]"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </button>
             {conversations.length > 0 && conversations.some(conv => conv.messages.length > 0) && (
               <button
                 onClick={handleClearAll}
@@ -493,20 +464,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
               </button>
             )}
           </div>
-          <div className="mt-4 space-y-3 border-t border-gray-200 pt-4 dark:border-[#4a4b54]">
-            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-[#bfc2cd]">
-              <span>Version</span>
-              <span className="text-gray-900 dark:text-white">v{PACKAGE_VERSION}</span>
-            </div>
-            {isMiddlewareEnabled && (
-              <button
-                onClick={handleOpenConfigureModal}
-                disabled={!canConfigureApi || isValidating}
-                className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a] dark:hover:border-[#6b6f7a] dark:disabled:hover:bg-transparent dark:disabled:hover:border-[#4a4b54]"
-              >
-                Change agent
-              </button>
-            )}
+          <div className="mt-4 space-y-3">
             {!isMiddlewareEnabled && (
               <button
                 onClick={handleOpenConfigureModal}
@@ -516,14 +474,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                 Configure API
               </button>
             )}
-            <button
-              onClick={onOpenSettings}
-              disabled={!onOpenSettings}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#343541] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2c2f36] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
-            >
-              <Settings className="h-4 w-4" />
-              Settings
-            </button>
             {validationError && !showConfig && (
               <p className="text-xs text-red-600 dark:text-red-400">{validationError}</p>
             )}

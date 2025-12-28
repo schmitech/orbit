@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
-import { Settings, RefreshCw, Menu } from 'lucide-react';
+import { Settings, RefreshCw, Menu, Plus } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
 import { getApiUrl, getDefaultInputPlaceholder, getEnableApiMiddleware, getDefaultAdapterName } from '../utils/runtimeConfig';
@@ -34,6 +34,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const {
     conversations,
     currentConversationId,
+    createConversation,
+    canCreateNewConversation,
     sendMessage,
     regenerateResponse,
     isLoading,
@@ -68,7 +70,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   );
   const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
   const showProminentAdapterSelector = isMiddlewareEnabled && showEmptyState;
-  const messageInputWidthClass = showProminentAdapterSelector ? 'mx-auto w-full max-w-2xl' : 'w-full';
+  const prominentWidthClass = 'mx-auto w-full max-w-4xl';
+  const messageInputWidthClass = showProminentAdapterSelector ? prominentWidthClass : 'w-full';
+  const canStartNewConversation = canCreateNewConversation();
+  const newConversationTooltip = canStartNewConversation
+    ? 'Start a new conversation'
+    : 'Finish your current conversation before starting a new one.';
 
   // Debug: Log current conversation state for middleware mode debugging
   useEffect(() => {
@@ -187,6 +194,14 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
   const handleSendThreadMessage = async (threadId: string, _parentMessageId: string, content: string) => {
     await sendMessage(content, undefined, threadId);
+  };
+
+  const handleStartNewConversation = () => {
+    try {
+      createConversation();
+    } catch (error) {
+      debugWarn('Cannot create new conversation:', error instanceof Error ? error.message : 'Unknown error');
+    }
   };
 
   const handleEmptyStateAdapterChange = async (adapterName: string) => {
@@ -344,6 +359,21 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   </div>
                 )}
               </div>
+              <div className="flex items-start justify-end">
+                <button
+                  onClick={handleStartNewConversation}
+                  disabled={!canStartNewConversation}
+                  className={`inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                    canStartNewConversation
+                      ? 'border-[#343541] text-[#343541] hover:bg-[#f2f3f5] dark:border-[#565869] dark:text-[#ececf1] dark:hover:bg-[#2c2f36]'
+                      : 'cursor-not-allowed border-gray-200 text-gray-400 dark:border-[#3c3f4a] dark:text-[#6b6f7a]'
+                  }`}
+                  title={newConversationTooltip}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New Conversation
+                </button>
+              </div>
             </div>
           </div>
 
@@ -354,13 +384,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
               <div className="flex-1 flex flex-col justify-between md:justify-start md:flex-none">
                 <div className="w-full space-y-6">
                   {showProminentAdapterSelector ? (
-                    <div className="mx-auto w-full max-w-2xl rounded-3xl border border-gray-200/80 bg-white/95 p-6 text-center shadow-sm dark:border-[#3b3c49] dark:bg-[#1c1d23]/90">
-                      <h2 className="text-2xl font-semibold text-[#11121a] dark:text-white">
-                        {currentConversation?.adapterName
-                          ? `You're chatting with ${currentConversation.adapterName}`
-                          : 'Select an agent to get started'}
-                      </h2>
-                      <div className="mt-4">
+                    <div className={`${prominentWidthClass} rounded-3xl border border-gray-200/80 bg-white/95 p-6 text-center shadow-sm dark:border-[#3b3c49] dark:bg-[#1c1d23]/90`}>
+                      <div>
                         <AdapterSelector
                           selectedAdapter={currentConversation?.adapterName || null}
                           onAdapterChange={handleEmptyStateAdapterChange}
@@ -390,7 +415,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       </div>
                     </div>
                   ) : (
-                    <div className="mb-2">
+                    <div className={`${prominentWidthClass} mb-2`}>
                       {currentConversation?.adapterInfo?.notes ? (
                         // Show adapter notes as the main prompt with markdown rendering
                         <div className="text-base text-gray-600 dark:text-[#bfc2cd] leading-relaxed">
