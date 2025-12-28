@@ -46,7 +46,8 @@ dependencies = [
     "ollama==0.6.1",  # Ollama local inference support
     "langchain-ollama>=1.0.0",
     "langchain-community>=0.4.1",
-    "keyring>=25.6.0"
+    "keyring>=25.7.0",
+    "keyrings.alt>=5.0.2"
 ]
 
 # ============================================================================
