@@ -69,6 +69,8 @@ function parseAdaptersListFromEnv() {
         name: adapter.name,
         apiKey: adapter.apiKey || DEFAULT_CONFIG.defaultKey,
         apiUrl: adapter.apiUrl || DEFAULT_CONFIG.apiUrl,
+        description: adapter.description || adapter.summary,
+        notes: adapter.notes,
       });
     }
 
@@ -96,6 +98,8 @@ function loadAdaptersConfig() {
     adapters[adapter.name] = {
       apiKey: adapter.apiKey || DEFAULT_CONFIG.defaultKey,
       apiUrl: adapter.apiUrl || DEFAULT_CONFIG.apiUrl,
+      description: adapter.description,
+      notes: adapter.notes,
     };
   }
 
@@ -446,6 +450,8 @@ function createServer(distPath, config) {
     app.get('/api/adapters', (req, res) => {
       const adapterList = Object.keys(adapters).map(name => ({
         name,
+        description: adapters[name]?.description,
+        notes: adapters[name]?.notes,
       }));
       res.json({ adapters: adapterList });
     });

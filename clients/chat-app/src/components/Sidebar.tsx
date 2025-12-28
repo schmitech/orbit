@@ -230,26 +230,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     }
   };
 
-  const handleInlineAdapterChange = async (adapterName: string) => {
-    if (!canConfigureApi) {
-      return;
-    }
-    setSelectedAdapter(adapterName);
-    setValidationError(null);
-    setIsValidating(true);
-    try {
-      const runtimeApiUrl = currentConversation?.apiUrl || getApiUrl();
-      await configureApiSettings(runtimeApiUrl, undefined, undefined, adapterName);
-      clearError();
-    } catch (error) {
-      debugError('Failed to configure adapter:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to configure adapter';
-      setValidationError(errorMessage);
-    } finally {
-      setIsValidating(false);
-    }
-  };
-
   const handleNewChat = () => {
     try {
       createConversation();
@@ -366,6 +346,16 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     return `${formattedDate} · ${formattedTime}`;
   };
 
+  const getConversationAgentLabel = (conversation: Conversation): string | null => {
+    if (conversation.adapterName && conversation.adapterName.trim().length > 0) {
+      return conversation.adapterName;
+    }
+    if (conversation.adapterInfo?.adapter_name && conversation.adapterInfo.adapter_name.trim().length > 0) {
+      return conversation.adapterInfo.adapter_name;
+    }
+    return null;
+  };
+
   return (
     <>
       {/* API Configuration Modal */}
@@ -402,6 +392,9 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                   }}
                   disabled={isValidating}
                   defaultAdapterName={defaultAdapterName}
+                  label="Select an agent"
+                  variant="prominent"
+                  showDescriptions
                 />
               ) : (
                 <div>
@@ -505,19 +498,16 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
               <span>Version</span>
               <span className="text-gray-900 dark:text-white">v{PACKAGE_VERSION}</span>
             </div>
-            {isMiddlewareEnabled ? (
-              <div className="space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-[#bfc2cd]">
-                  AGENT
-                </div>
-                <AdapterSelector
-                  selectedAdapter={selectedAdapter || currentConversation?.adapterName || null}
-                  onAdapterChange={handleInlineAdapterChange}
-                  disabled={!canConfigureApi || isValidating}
-                  defaultAdapterName={defaultAdapterName}
-                />
-              </div>
-            ) : (
+            {isMiddlewareEnabled && (
+              <button
+                onClick={handleOpenConfigureModal}
+                disabled={!canConfigureApi || isValidating}
+                className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a] dark:hover:border-[#6b6f7a] dark:disabled:hover:bg-transparent dark:disabled:hover:border-[#4a4b54]"
+              >
+                Change agent
+              </button>
+            )}
+            {!isMiddlewareEnabled && (
               <button
                 onClick={handleOpenConfigureModal}
                 disabled={!canConfigureApi}
@@ -563,76 +553,89 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredConversations.map((conversation) => (
-                <div
-                  key={conversation.id}
-                  onClick={() => handleSelectConversation(conversation.id)}
-                  className={`group flex cursor-pointer items-start rounded-xl border text-left transition shadow-sm ${sizeStyles.cardGap} ${sizeStyles.cardPadding} ${sizeStyles.cardText} dark:shadow-none ${
-                    currentConversationId === conversation.id
-                      ? 'border-[#343541] bg-white dark:border-[#6b6f7a] dark:bg-[#2c2f36]'
-                      : 'border-gray-100 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-transparent dark:bg-[#252830] dark:hover:border-[#4a4b54] dark:hover:bg-[#2f323c]'
-                  }`}
-                >
-                  {editingId === conversation.id ? (
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value.slice(0, MAX_TITLE_LENGTH))}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleEditSubmit(conversation.id);
-                        if (e.key === 'Escape') handleEditCancel();
-                      }}
-                      onBlur={() => handleEditSubmit(conversation.id)}
-                      maxLength={MAX_TITLE_LENGTH}
-                      className={`flex-1 border-none bg-transparent text-[#353740] focus:outline-none dark:text-[#ececf1] ${sizeStyles.titleText}`}
-                      autoFocus
-                    />
-                  ) : (
-                    <div className="flex-1 min-w-0 space-y-2">
-                      <div className={`flex items-center gap-2 ${sizeStyles.cardText}`}>
-                        <h3
-                          className={`flex-1 truncate font-semibold ${sizeStyles.titleText} ${
-                            currentConversationId === conversation.id ? 'text-[#1f2937] dark:text-white' : 'text-gray-700 dark:text-[#d4d7e2]'
-                          }`}
-                        >
-                          {conversation.title}
-                        </h3>
-                        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                          <button
-                            onClick={(e) => handleEditStart(e, conversation)}
-                            className={`rounded-full text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a] ${sizeStyles.actionButton}`}
-                            title="Rename conversation"
+              {filteredConversations.map((conversation) => {
+                const agentLabel = getConversationAgentLabel(conversation);
+                return (
+                  <div
+                    key={conversation.id}
+                    onClick={() => handleSelectConversation(conversation.id)}
+                    className={`group flex cursor-pointer items-start rounded-xl border text-left transition shadow-sm ${sizeStyles.cardGap} ${sizeStyles.cardPadding} ${sizeStyles.cardText} dark:shadow-none ${
+                      currentConversationId === conversation.id
+                        ? 'border-[#343541] bg-white dark:border-[#6b6f7a] dark:bg-[#2c2f36]'
+                        : 'border-gray-100 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-transparent dark:bg-[#252830] dark:hover:border-[#4a4b54] dark:hover:bg-[#2f323c]'
+                    }`}
+                  >
+                    {editingId === conversation.id ? (
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value.slice(0, MAX_TITLE_LENGTH))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleEditSubmit(conversation.id);
+                          if (e.key === 'Escape') handleEditCancel();
+                        }}
+                        onBlur={() => handleEditSubmit(conversation.id)}
+                        maxLength={MAX_TITLE_LENGTH}
+                        className={`flex-1 border-none bg-transparent text-[#353740] focus:outline-none dark:text-[#ececf1] ${sizeStyles.titleText}`}
+                        autoFocus
+                      />
+                    ) : (
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className={`flex items-center gap-2 ${sizeStyles.cardText}`}>
+                          <h3
+                            className={`flex-1 truncate font-semibold ${sizeStyles.titleText} ${
+                              currentConversationId === conversation.id ? 'text-[#1f2937] dark:text-white' : 'text-gray-700 dark:text-[#d4d7e2]'
+                            }`}
                           >
-                            <Edit2 className={sizeStyles.actionIcon} />
-                          </button>
-                          <button
-                            onClick={(e) => handleDeleteConversation(e, conversation)}
-                            className={`rounded-full text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30 ${sizeStyles.actionButton}`}
-                            title="Delete conversation"
-                          >
-                            <Trash2 className={sizeStyles.actionIcon} />
-                          </button>
+                            {conversation.title}
+                          </h3>
+                          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                            <button
+                              onClick={(e) => handleEditStart(e, conversation)}
+                              className={`rounded-full text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a] ${sizeStyles.actionButton}`}
+                              title="Rename conversation"
+                            >
+                              <Edit2 className={sizeStyles.actionIcon} />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteConversation(e, conversation)}
+                              className={`rounded-full text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30 ${sizeStyles.actionButton}`}
+                              title="Delete conversation"
+                            >
+                              <Trash2 className={sizeStyles.actionIcon} />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <div className={`mt-1 flex items-center overflow-hidden pr-1 text-gray-500 dark:text-[#a6acc5] ${sizeStyles.metaGap} ${sizeStyles.metaText}`}>
-                        <span className="min-w-0 flex-1 truncate leading-none">
-                          {formatConversationTimestamp(conversation.updatedAt)}
-                        </span>
-                        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4] leading-none ${sizeStyles.badgePadding} ${sizeStyles.badgeText}`}>
-                          <MessageSquare className={sizeStyles.badgeIcon} />
-                          {conversation.messages.length}
-                        </span>
-                        {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
-                          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4] leading-none ${sizeStyles.badgePadding} ${sizeStyles.badgeText}`}>
-                            <Paperclip className={sizeStyles.badgeIcon} />
-                            {conversation.attachedFiles.length}
+                        <div className={`mt-1 flex items-center overflow-hidden pr-1 text-gray-500 dark:text-[#a6acc5] ${sizeStyles.metaGap} ${sizeStyles.metaText}`}>
+                          <span className="min-w-0 flex-1 truncate leading-none">
+                            {formatConversationTimestamp(conversation.updatedAt)}
                           </span>
+                          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4] leading-none ${sizeStyles.badgePadding} ${sizeStyles.badgeText}`}>
+                            <MessageSquare className={sizeStyles.badgeIcon} />
+                            {conversation.messages.length}
+                          </span>
+                          {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
+                            <span className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-white/80 font-medium text-gray-600 shadow-sm dark:bg-white/10 dark:text-[#e5e7f4] leading-none ${sizeStyles.badgePadding} ${sizeStyles.badgeText}`}>
+                              <Paperclip className={sizeStyles.badgeIcon} />
+                              {conversation.attachedFiles.length}
+                            </span>
+                          )}
+                        </div>
+                        {agentLabel && (
+                          <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-gray-500 dark:text-[#a6acc5]">
+                            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+                              Agent
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-gray-600 dark:text-[#d4d7e2]">
+                              {agentLabel}
+                            </span>
+                          </div>
                         )}
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -693,7 +696,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
         onClose={cancelDelete}
         onConfirm={confirmDelete}
         title="Delete Conversation"
-        message={`Are you sure you want to delete "${deleteConfirmation.conversationTitle}"? This will clear the conversation history from both the server and your local storage. This action cannot be undone.`}
+        message={`Are you sure you want to delete "${deleteConfirmation.conversationTitle}"? This will clear the conversation history.`}
         confirmText="Delete"
         cancelText="Cancel"
         type="danger"
@@ -706,7 +709,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
         onClose={cancelClearAll}
         onConfirm={confirmClearAll}
         title="Clear All Conversations"
-        message={`Are you sure you want to delete all ${totalConversations} conversation${totalConversations !== 1 ? 's' : ''}? This will clear all conversation history from both the server and your local storage. This action cannot be undone.`}
+        message={`Are you sure you want to delete all ${totalConversations} conversation${totalConversations !== 1 ? 's' : ''}? This will clear all conversation history.`}
         confirmText="Clear All"
         cancelText="Cancel"
         type="danger"

@@ -17,6 +17,8 @@ import { debugLog, debugError } from './debug';
 export interface Adapter {
   name: string;
   apiUrl?: string; // Only used for non-middleware mode; not exposed by server in middleware mode
+  description?: string; // Short description for dropdown previews
+  notes?: string; // Longer markdown notes/description when available
 }
 
 export interface AdaptersResponse {
@@ -31,23 +33,64 @@ declare global {
   }
 }
 
+const toTrimmedString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
 const normalizeAdapter = (input: unknown): Adapter | null => {
   if (!input || typeof input !== 'object') {
     return null;
   }
-  const candidate = input as { name?: unknown; apiUrl?: unknown };
-  if (typeof candidate.name !== 'string' || candidate.name.trim().length === 0) {
+
+  const candidate = input as {
+    name?: unknown;
+    apiUrl?: unknown;
+    description?: unknown;
+    summary?: unknown;
+    notes?: unknown;
+  };
+
+  const name = toTrimmedString(candidate.name);
+  if (!name) {
     return null;
   }
-  // In middleware mode, apiUrl is optional - the proxy handles routing
-  const apiUrl =
-    typeof candidate.apiUrl === 'string' && candidate.apiUrl.trim().length > 0
-      ? candidate.apiUrl
-      : undefined;
-  return {
-    name: candidate.name.trim(),
-    ...(apiUrl && { apiUrl }),
-  };
+
+  const apiUrl = toTrimmedString(candidate.apiUrl);
+  const notes = typeof candidate.notes === 'string' ? candidate.notes.trim() : undefined;
+  let description =
+    toTrimmedString(candidate.description) ||
+    toTrimmedString(candidate.summary);
+
+  if (!description && typeof notes === 'string') {
+    const firstLine = notes.split(/\r?\n/).find(line => line.trim().length > 0);
+    description = firstLine ? firstLine.trim() : undefined;
+  }
+
+  const normalized: Adapter = { name };
+  if (apiUrl) {
+    normalized.apiUrl = apiUrl;
+  }
+  if (description) {
+    normalized.description = description;
+  }
+  if (notes) {
+    normalized.notes = notes;
+  }
+
+  return normalized;
+};
+
+const normalizeAdapterList = (list: unknown): Adapter[] => {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return list
+    .map(normalizeAdapter)
+    .filter((adapter): adapter is Adapter => adapter !== null);
 };
 
 let adaptersCache: Adapter[] | null = null;
@@ -70,9 +113,7 @@ function loadAdaptersFromConfig(): Adapter[] | null {
     const config = window.ORBIT_CHAT_CONFIG;
     if (config?.adapters && Array.isArray(config.adapters)) {
       debugLog('Loading adapters from window.ORBIT_CHAT_CONFIG');
-      const runtimeAdapters = config.adapters
-        .map(normalizeAdapter)
-        .filter((adapter): adapter is Adapter => adapter !== null);
+      const runtimeAdapters = normalizeAdapterList(config.adapters);
 
       if (runtimeAdapters.length > 0) {
         return runtimeAdapters;
@@ -87,9 +128,7 @@ function loadAdaptersFromConfig(): Adapter[] | null {
       const parsed = JSON.parse(envValue);
       if (Array.isArray(parsed)) {
         debugLog('Loading adapters from VITE_ADAPTERS environment variable');
-        const parsedAdapters = parsed
-          .map(normalizeAdapter)
-          .filter((adapter): adapter is Adapter => adapter !== null);
+        const parsedAdapters = normalizeAdapterList(parsed);
         if (parsedAdapters.length > 0) {
           return parsedAdapters;
         }
@@ -118,9 +157,13 @@ export async function fetchAdapters(): Promise<Adapter[]> {
     const response = await fetch('/api/adapters');
     if (response.ok) {
       const data: AdaptersResponse = await response.json();
-      adaptersCache = data.adapters;
-      debugLog('Fetched adapters from /api/adapters:', adaptersCache);
-      return adaptersCache;
+      const normalized = normalizeAdapterList(data.adapters);
+      if (normalized.length > 0) {
+        adaptersCache = normalized;
+        debugLog('Fetched adapters from /api/adapters:', adaptersCache);
+        return adaptersCache;
+      }
+      debugLog('/api/adapters response did not contain valid adapters, trying fallback');
     }
     debugLog(`/api/adapters returned ${response.status}, trying fallback`);
   } catch (error) {

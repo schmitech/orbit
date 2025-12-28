@@ -297,7 +297,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                   onClick={closeResetDialog}
                   className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
-                  Keep my data
+                  Cancel
                 </button>
                 <button
                   onClick={handleResetApplication}
@@ -308,7 +308,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                       : 'bg-red-200 text-red-600/60 dark:bg-red-900/20 dark:text-red-400/60 cursor-not-allowed'
                   }`}
                 >
-                  Delete everything
+                  Reset
                 </button>
               </div>
             </div>

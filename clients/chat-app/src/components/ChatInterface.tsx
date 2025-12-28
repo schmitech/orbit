@@ -1,15 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
 import { Settings, RefreshCw, Menu } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
-import { getApiUrl, getDefaultInputPlaceholder, getEnableApiMiddleware } from '../utils/runtimeConfig';
+import { getApiUrl, getDefaultInputPlaceholder, getEnableApiMiddleware, getDefaultAdapterName } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 import { useTheme } from '../contexts/ThemeContext';
+import { AdapterSelector } from './AdapterSelector';
 
 const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-white/95 px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-[0_25px_60px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-[#2f303d] dark:bg-[#1c1d23]/95 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
@@ -56,10 +57,18 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     .join(' ');
 
   const [isRefreshingAdapterInfo, setIsRefreshingAdapterInfo] = useState(false);
+  const [isConfiguringAdapter, setIsConfiguringAdapter] = useState(false);
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
   const isMiddlewareEnabled = getEnableApiMiddleware();
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
+  const defaultAdapterName = useMemo(
+    () => (isMiddlewareEnabled ? getDefaultAdapterName() : null),
+    [isMiddlewareEnabled]
+  );
+  const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
+  const showProminentAdapterSelector = isMiddlewareEnabled && showEmptyState;
+  const messageInputWidthClass = showProminentAdapterSelector ? 'mx-auto w-full max-w-2xl' : 'w-full';
 
   // Debug: Log current conversation state for middleware mode debugging
   useEffect(() => {
@@ -178,6 +187,22 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
   const handleSendThreadMessage = async (threadId: string, _parentMessageId: string, content: string) => {
     await sendMessage(content, undefined, threadId);
+  };
+
+  const handleEmptyStateAdapterChange = async (adapterName: string) => {
+    if (!isMiddlewareEnabled || !adapterName) {
+      return;
+    }
+    setIsConfiguringAdapter(true);
+    try {
+      const runtimeApiUrl = currentConversation?.apiUrl || getApiUrl();
+      await configureApiSettings(runtimeApiUrl, undefined, undefined, adapterName);
+      clearError();
+    } catch (error) {
+      debugError('Failed to configure adapter from empty state:', error);
+    } finally {
+      setIsConfiguringAdapter(false);
+    }
   };
 
   const handleRefreshAdapterInfo = async () => {
@@ -323,32 +348,72 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           </div>
 
           {/* Messages and Input - Conditional Layout */}
-          {!currentConversation || currentConversation.messages.length === 0 ? (
+          {showEmptyState ? (
             // Empty state: Flex layout that pushes input to bottom on mobile, left-aligned on desktop
             <div className="flex flex-1 flex-col min-h-0 pt-4 md:pt-6">
               <div className="flex-1 flex flex-col justify-between md:justify-start md:flex-none">
-                <div className="w-full space-y-3">
-                  <div className="mb-2">
-                    {currentConversation?.adapterInfo?.notes ? (
-                      // Show adapter notes as the main prompt with markdown rendering
-                      <div className="text-base text-gray-600 dark:text-[#bfc2cd] leading-relaxed">
-                        <MarkdownRenderer
-                          content={currentConversation.adapterInfo.notes}
-                          className={adapterNotesMarkdownClass}
-                          syntaxTheme={syntaxTheme}
+                <div className="w-full space-y-6">
+                  {showProminentAdapterSelector ? (
+                    <div className="mx-auto w-full max-w-2xl rounded-3xl border border-gray-200/80 bg-white/95 p-6 text-center shadow-sm dark:border-[#3b3c49] dark:bg-[#1c1d23]/90">
+                      <h2 className="text-2xl font-semibold text-[#11121a] dark:text-white">
+                        {currentConversation?.adapterName
+                          ? `You're chatting with ${currentConversation.adapterName}`
+                          : 'Select an agent to get started'}
+                      </h2>
+                      <div className="mt-4">
+                        <AdapterSelector
+                          selectedAdapter={currentConversation?.adapterName || null}
+                          onAdapterChange={handleEmptyStateAdapterChange}
+                          disabled={isConfiguringAdapter || isLoading}
+                          defaultAdapterName={defaultAdapterName}
+                          showDescriptions
+                          variant="prominent"
+                          showLabel={false}
                         />
                       </div>
-                    ) : (
-                      // Fallback to default message
-                      <h2 className="text-xl md:text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
-                        How can I assist you today?
-                      </h2>
-                    )}
-                  </div>
-                  <div className={MOBILE_INPUT_WRAPPER_CLASSES}>
+                      <div className="mt-6 rounded-2xl border border-gray-200 bg-white/70 p-4 text-left dark:border-[#3b3c49] dark:bg-[#232430]/80">
+                        {currentConversation?.adapterInfo?.notes ? (
+                          <MarkdownRenderer
+                            content={currentConversation.adapterInfo.notes}
+                            className={adapterNotesMarkdownClass}
+                            syntaxTheme={syntaxTheme}
+                          />
+                        ) : currentConversation?.adapterName ? (
+                          <p className="text-sm text-gray-600 dark:text-[#bfc2cd]">
+                            Fetching agent overview… this only takes a moment.
+                          </p>
+                        ) : (
+                          <p className="text-sm text-gray-600 dark:text-[#bfc2cd] text-center">
+                            Choose an agent above to see its detailed description.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mb-2">
+                      {currentConversation?.adapterInfo?.notes ? (
+                        // Show adapter notes as the main prompt with markdown rendering
+                        <div className="text-base text-gray-600 dark:text-[#bfc2cd] leading-relaxed">
+                          <MarkdownRenderer
+                            content={currentConversation.adapterInfo.notes}
+                            className={adapterNotesMarkdownClass}
+                            syntaxTheme={syntaxTheme}
+                          />
+                        </div>
+                      ) : (
+                        // Fallback to default message
+                        <h2 className="text-xl md:text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
+                          How can I assist you today?
+                        </h2>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className={MOBILE_INPUT_WRAPPER_CLASSES}>
+                  <div className={messageInputWidthClass}>
                     <MessageInput
                       onSend={handleSendMessage}
-                      disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
+                      disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation?.adapterName : !currentConversation?.apiKey)}
                       placeholder={defaultInputPlaceholder}
                     />
                   </div>
@@ -373,11 +438,13 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 isLoading={isLoading}
               />
               <div className={MOBILE_INPUT_WRAPPER_CLASSES}>
-                <MessageInput
-                  onSend={handleSendMessage}
-                  disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
-                  placeholder={defaultInputPlaceholder}
-                />
+                <div className="w-full">
+                  <MessageInput
+                    onSend={handleSendMessage}
+                    disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
+                    placeholder={defaultInputPlaceholder}
+                  />
+                </div>
               </div>
             </div>
           )}

@@ -7,16 +7,26 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 import type { Options } from 'http-proxy-middleware';
 import type { IncomingMessage, ServerResponse, ClientRequest } from 'http';
 
-let adaptersCache: Record<string, { apiKey: string; apiUrl: string }> | null = null;
+interface AdapterConfig {
+  apiKey: string;
+  apiUrl: string;
+  description?: string;
+  notes?: string;
+}
+
+let adaptersCache: Record<string, AdapterConfig> | null = null;
 let loadedEnv: Record<string, string> | null = null;
 
 interface AdapterEntry {
   name: string;
   apiKey?: string;
   apiUrl?: string;
+  description?: string;
+  summary?: string;
+  notes?: string;
 }
 
-function loadAdaptersFromEnv(): Record<string, { apiKey: string; apiUrl: string }> | null {
+function loadAdaptersFromEnv(): Record<string, AdapterConfig> | null {
   // Load env vars using Vite's loadEnv if not already loaded
   if (!loadedEnv) {
     const mode = process.env.NODE_ENV || 'development';
@@ -34,12 +44,14 @@ function loadAdaptersFromEnv(): Record<string, { apiKey: string; apiUrl: string 
       return null;
     }
 
-    const adapters: Record<string, { apiKey: string; apiUrl: string }> = {};
+    const adapters: Record<string, AdapterConfig> = {};
     for (const entry of parsed) {
       if (entry.name && typeof entry.name === 'string') {
         adapters[entry.name] = {
           apiKey: entry.apiKey || 'default-key',
           apiUrl: entry.apiUrl || 'http://localhost:3000',
+          description: entry.description || entry.summary,
+          notes: entry.notes,
         };
       }
     }
@@ -55,7 +67,7 @@ function loadAdaptersFromEnv(): Record<string, { apiKey: string; apiUrl: string 
   return null;
 }
 
-function loadAdaptersConfig(): Record<string, { apiKey: string; apiUrl: string }> | null {
+function loadAdaptersConfig(): Record<string, AdapterConfig> | null {
   if (adaptersCache) {
     return adaptersCache;
   }
@@ -78,9 +90,18 @@ function loadAdaptersConfig(): Record<string, { apiKey: string; apiUrl: string }
     try {
       if (fs.existsSync(configPath)) {
         const content = fs.readFileSync(configPath, 'utf8');
-        const config = yaml.load(content) as { adapters?: Record<string, { apiKey: string; apiUrl: string }> };
+        const config = yaml.load(content) as { adapters?: Record<string, AdapterConfig> };
         if (config && config.adapters) {
-          adaptersCache = config.adapters;
+          const normalized: Record<string, AdapterConfig> = {};
+          for (const [name, adapter] of Object.entries(config.adapters)) {
+            normalized[name] = {
+              apiKey: adapter.apiKey || 'default-key',
+              apiUrl: adapter.apiUrl || 'http://localhost:3000',
+              description: adapter.description,
+              notes: adapter.notes,
+            };
+          }
+          adaptersCache = normalized;
           console.log(`[adapters-plugin] Loaded adapters from ${configPath}`);
           return adaptersCache;
         }
@@ -120,9 +141,11 @@ export function adaptersPlugin(): Plugin {
           }
 
           // Return adapter list without exposing API keys or URLs
-          const adapterList = Object.keys(adapters).map(name => ({
-            name,
-          }));
+        const adapterList = Object.keys(adapters).map(name => ({
+          name,
+          description: adapters[name]?.description,
+          notes: adapters[name]?.notes,
+        }));
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ adapters: adapterList }));

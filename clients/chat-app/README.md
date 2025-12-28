@@ -110,10 +110,22 @@ You can prevent API keys from ever reaching the browser by enabling the built-in
      local-dev:
        apiKey: orbit_dev_key
        apiUrl: http://localhost:3000
+       description: Local development agent
+       notes: >
+         Use this agent for local testing against http://localhost:3000.
+         Markdown is supported in notes and will appear inside the chat UI.
      production:
        apiKey: orbit_prod_key
        apiUrl: https://api.example.com
+       description: Production agent
+       notes: |
+         ### Production adapter
+         - Connects to https://api.example.com
+         - Requires valid credentials
    ```
+   - `description` is a short, single-line summary that shows inside dropdowns.
+   - `notes` is optional markdown surfaced in the chat empty state so end users immediately understand the agent’s capabilities.
+   - If you only have `notes`, the first non-empty line is automatically reused as a fallback `description`.
 2. Start the CLI with `--enable-api-middleware` (or export `VITE_ENABLE_API_MIDDLEWARE=true`). The Express server now:
    - Serves `GET /api/adapters` so the React app can list safe adapter names.
    - Proxies all chat/file/thread/admin calls through `/api/...`, injecting the adapter's real `X-API-Key`.
@@ -136,6 +148,13 @@ VITE_CONSOLE_DEBUG=false
 - When **middleware is disabled**, it should contain the literal API key that the frontend will send to the backend (same as before).
 - When **middleware is enabled**, set it to the adapter name you want preselected (or pass `--default-adapter`). If you leave it as `default-key` or empty, the app automatically falls back to the first adapter defined in `VITE_ADAPTERS`/`ORBIT_ADAPTERS`.
 ```
+
+### Understanding the Agent Selector UX
+
+- When middleware mode is enabled and a conversation has no messages, the main chat canvas now shows a centered agent selector with the adapter’s notes rendered directly beneath it. This is the primary place users choose or review agents.
+- Once an adapter is selected, the input field unlocks and aligns with the selector/notes card to keep the first-time experience focused.
+- Sidebar cards display the agent assigned to each conversation under the timestamp/badges so it is easy to scan which assistant was used.
+- To change the adapter after messages exist, open the “Change agent” action in the sidebar (or configure API modal) and select a new adapter. This ensures there is a single, predictable entry point instead of multiple dropdowns.
 
 ## Development
 
