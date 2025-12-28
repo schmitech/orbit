@@ -150,6 +150,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   );
 
   const totalConversations = getConversationCount();
+  const conversationLabel = totalConversations === 1 ? 'conversation' : 'conversations';
   // GitHub stats for ORBIT project info
   const showGitHubStats = getShowGitHubStats();
   const githubStats = useGitHubStats(
@@ -439,8 +440,8 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
       )}
 
       <div className="flex h-full w-full md:w-72 flex-col border-r border-b border-gray-200 bg-gradient-to-b from-white via-gray-50 to-gray-100 dark:border-[#4a4b54] dark:bg-[#202123] dark:bg-none">
-        <div className="border-b border-gray-200 bg-white/95 p-4 shadow-sm dark:border-[#4a4b54] dark:bg-[#202123] dark:shadow-none">
-          <div className="space-y-3 border-b border-gray-200 pb-3 dark:border-[#4a4b54]">
+        <div className="bg-white/95 p-4 shadow-sm dark:border-[#4a4b54] dark:bg-[#202123] dark:shadow-none">
+          <div className="space-y-3 pb-3">
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-[#bfc2cd]">
               <span>Version</span>
               <span className="text-gray-900 dark:text-white">v{PACKAGE_VERSION}</span>
@@ -460,7 +461,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                 title="Delete all conversations"
               >
                 <Trash className="h-4 w-4" />
-                Clear All
+                Delete Conversations
               </button>
             )}
           </div>
@@ -478,18 +479,17 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
               <p className="text-xs text-red-600 dark:text-red-400">{validationError}</p>
             )}
           </div>
-        </div>
-
-        <div className="border-b border-gray-200 bg-white/90 px-4 py-3 shadow-sm dark:border-[#4a4b54] dark:bg-[#202123] dark:bg-none dark:shadow-none">
-          <div className="relative flex items-center">
-            <Search className="pointer-events-none absolute left-3 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search conversations"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-[#353740] placeholder-gray-400 shadow-inner focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1] dark:shadow-none"
-            />
+          <div className="border-t border-gray-200 pt-4 mt-4 dark:border-[#4a4b54]">
+            <div className="relative flex items-center">
+              <Search className="pointer-events-none absolute left-3 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search Conversations"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-[#353740] placeholder-gray-400 shadow-inner focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1] dark:shadow-none"
+              />
+            </div>
           </div>
         </div>
 
@@ -659,7 +659,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
         onClose={cancelClearAll}
         onConfirm={confirmClearAll}
         title="Clear All Conversations"
-        message={`Are you sure you want to delete all ${totalConversations} conversation${totalConversations !== 1 ? 's' : ''}? This will clear all conversation history.`}
+        message={`Are you sure you want to delete all ${totalConversations} ${conversationLabel}? This will clear all conversation history.`}
         confirmText="Clear All"
         cancelText="Cancel"
         type="danger"
