@@ -28,10 +28,10 @@
 #     ./setup.sh --profile providers              # Cloud providers (OpenAI, Anthropic, etc.)
 #     ./setup.sh --profile all                    # Everything
 #
-#   Install multiple profiles (space-separated):
-#     ./setup.sh --profile llama-cpp providers
-#     ./setup.sh --profile llama-cpp files embeddings
-#     ./setup.sh --profile default database files
+#   Install multiple profiles (space-separated or comma-separated):
+#     ./setup.sh --profile llama-cpp providers files
+#     ./setup.sh --profiles "default, database, files"
+#     ./setup.sh --profiles "llama-cpp,providers,embeddings"
 #
 #   With GGUF model download:
 #     ./setup.sh --profile llama-cpp --download-gguf gemma3-270m
@@ -429,6 +429,22 @@ while [[ $# -gt 0 ]]; do
                 shift
             done
             ;;
+        --profiles)
+            if [ -z "$2" ]; then
+                print_message "red" "Error: --profiles requires a comma-separated list"
+                exit 1
+            fi
+            # Parse comma-separated list, trimming whitespace from each item
+            IFS=',' read -ra PROFILE_LIST <<< "$2"
+            for profile in "${PROFILE_LIST[@]}"; do
+                # Trim leading/trailing whitespace
+                profile=$(echo "$profile" | xargs)
+                if [ -n "$profile" ]; then
+                    PROFILES+=("$profile")
+                fi
+            done
+            shift 2
+            ;;
         --download-gguf)
             DOWNLOAD_GGUF=true
             if [[ -n "$2" && "${2:0:1}" != "-" ]]; then
@@ -466,6 +482,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --profile, -p <names>   Install dependencies for specified profile(s)"
             echo "                          Accepts multiple space-separated names"
+            echo "  --profiles <list>       Comma-separated list of profiles (e.g., \"default, database, files\")"
             echo "  --list-profiles, --list List available dependency profiles"
             echo "  --download-gguf [model] Download GGUF model(s) by name (optional model name)"
             echo "  --gguf-models-config <f>Path to GGUF models .json config (default: ./gguf-models.json)"
@@ -483,8 +500,8 @@ while [[ $# -gt 0 ]]; do
             echo "  $0 --profile llama-cpp --download-gguf gemma3-270m"
             echo "  $0 --profile default --download-gguf gemma3-270m"
             echo "  $0 --download-gguf gemma3-270m        # Download only, no dependency installation"
-            echo "  $0 --profile llama-cpp providers files # Multiple profiles at once"
-            echo "  $0 --profile default database files   # Mix profiles as needed"
+            echo "  $0 --profile llama-cpp providers files # Space-separated profiles"
+            echo "  $0 --profiles \"default, database, files\" # Comma-separated profiles"
             exit 0
             ;;
         *)
