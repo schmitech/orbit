@@ -173,7 +173,8 @@ class EmbeddingServiceFactory:
             'mistral': 'MistralEmbeddingService',
             'jina': 'JinaEmbeddingService',
             'llama_cpp': 'LlamaCppEmbeddingService',
-            'sentence_transformers': 'SentenceTransformersEmbeddingService'
+            'sentence_transformers': 'SentenceTransformersEmbeddingService',
+            'openrouter': 'OpenRouterEmbeddingService'
         }
 
         if provider_name not in class_name_map:
