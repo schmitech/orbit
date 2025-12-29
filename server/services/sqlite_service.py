@@ -248,7 +248,8 @@ class SQLiteService(DatabaseService):
                     api_key_value TEXT,
                     api_key_timestamp TEXT,
                     session_id TEXT,
-                    user_id TEXT
+                    user_id TEXT,
+                    adapter_name TEXT
                 )
             '''
         }
@@ -294,6 +295,7 @@ class SQLiteService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id)',
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_blocked ON audit_logs(blocked)',
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_backend ON audit_logs(backend)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_logs_adapter_name ON audit_logs(adapter_name)',
             ],
         }
 

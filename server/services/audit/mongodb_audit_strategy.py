@@ -108,6 +108,12 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
                 'backend'
             )
 
+            # Index on adapter_name for adapter-based queries
+            await self._database_service.create_index(
+                self._collection_name,
+                'adapter_name'
+            )
+
             # Compound index for common query patterns
             await self._database_service.create_index(
                 self._collection_name,

@@ -108,7 +108,8 @@ class ResponseProcessor:
         backend: str,
         api_key: Optional[str] = None,
         session_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        adapter_name: Optional[str] = None
     ) -> None:
         """
         Log conversation asynchronously.
@@ -121,6 +122,7 @@ class ResponseProcessor:
             api_key: Optional API key
             session_id: Optional session ID
             user_id: Optional user ID
+            adapter_name: Optional adapter name used for this request
         """
         # Log to Elasticsearch via LoggerService (existing behavior)
         try:
@@ -148,7 +150,8 @@ class ResponseProcessor:
                     blocked=False,
                     api_key=api_key,
                     session_id=session_id,
-                    user_id=user_id
+                    user_id=user_id,
+                    adapter_name=adapter_name
                 )
             except Exception as e:
                 logger.error(f"Error logging conversation to AuditService: {str(e)}", exc_info=True)
@@ -238,7 +241,8 @@ class ResponseProcessor:
             backend=backend,
             api_key=api_key,
             session_id=session_id,
-            user_id=user_id
+            user_id=user_id,
+            adapter_name=adapter_name
         )
 
         return processed_response, assistant_message_id

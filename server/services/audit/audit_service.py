@@ -18,6 +18,7 @@ from .audit_storage_strategy import AuditStorageStrategy, AuditRecord
 from .sqlite_audit_strategy import SQLiteAuditStrategy
 from .mongodb_audit_strategy import MongoDBDAuditStrategy
 from .elasticsearch_audit_strategy import ElasticsearchAuditStrategy
+from utils.text_utils import mask_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +235,8 @@ class AuditService:
         blocked: bool = False,
         api_key: Optional[str] = None,
         session_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        adapter_name: Optional[str] = None
     ) -> None:
         """
         Log a conversation interaction to the configured audit backend.
@@ -250,6 +252,7 @@ class AuditService:
             api_key: The API key used for the request
             session_id: The session ID for the conversation
             user_id: The user ID if available
+            adapter_name: The name of the adapter used for this request
         """
         if not self._enabled or not self._strategy or not self._strategy.is_initialized():
             return
@@ -262,11 +265,11 @@ class AuditService:
             # Use provided backend or fall back to inference provider
             used_backend = backend or self._inference_provider
 
-            # Build API key metadata if provided
+            # Build API key metadata if provided (masked for security)
             api_key_data = None
             if api_key:
                 api_key_data = {
-                    "key": api_key,
+                    "key": mask_api_key(api_key, show_last=True, num_chars=6),
                     "timestamp": timestamp.isoformat()
                 }
 
@@ -281,7 +284,8 @@ class AuditService:
                 ip_metadata=ip_metadata,
                 api_key=api_key_data,
                 session_id=session_id,
-                user_id=user_id
+                user_id=user_id,
+                adapter_name=adapter_name
             )
 
             # Store the record

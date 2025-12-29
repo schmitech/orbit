@@ -149,7 +149,8 @@ def sample_audit_record():
             "timestamp": datetime.now().isoformat()
         },
         session_id="session_abc123",
-        user_id="user_xyz789"
+        user_id="user_xyz789",
+        adapter_name="intent-sql-sqlite-hr"
     )
 
 
@@ -186,6 +187,7 @@ class TestAuditRecord:
         assert 'ip_metadata' in result
         assert 'api_key' in result
         assert result['session_id'] == "session_abc123"
+        assert result['adapter_name'] == "intent-sql-sqlite-hr"
 
     def test_audit_record_to_flat_dict(self, sample_audit_record):
         """Test converting AuditRecord to flat dictionary for SQLite."""
@@ -199,6 +201,7 @@ class TestAuditRecord:
         assert result['ip_source'] == "direct"
         assert result['api_key_value'] == "test_api_key_123"
         assert result['session_id'] == "session_abc123"
+        assert result['adapter_name'] == "intent-sql-sqlite-hr"
 
 
 # ============================================================================
@@ -373,6 +376,54 @@ class TestAuditService:
         assert len(results) == 1
 
     @pytest.mark.asyncio
+    async def test_log_conversation_with_adapter_name(self, sqlite_service_with_audit):
+        """Test that adapter_name is stored and retrievable."""
+        services = sqlite_service_with_audit
+        audit = services['audit']
+
+        # Call with adapter_name
+        await audit.log_conversation(
+            query="Test query with adapter",
+            response="Test response",
+            ip="192.168.1.1",
+            backend="ollama",
+            api_key="test_key",
+            session_id="session_adapter_test",
+            adapter_name="intent-mongodb-mflix"
+        )
+
+        # Verify record was stored with adapter_name
+        results = await audit.query_audit_logs({'session_id': 'session_adapter_test'})
+        assert len(results) == 1
+        assert results[0]['adapter_name'] == "intent-mongodb-mflix"
+
+    @pytest.mark.asyncio
+    async def test_api_key_is_masked_in_audit_logs(self, sqlite_service_with_audit):
+        """Test that API keys are masked when stored in audit logs."""
+        services = sqlite_service_with_audit
+        audit = services['audit']
+
+        # Use a realistic API key
+        full_api_key = "api_abc123def456ghi789jkl012mno345"
+
+        await audit.log_conversation(
+            query="Test query",
+            response="Test response",
+            api_key=full_api_key,
+            session_id="session_mask_test"
+        )
+
+        # Verify API key is masked (should show last 6 chars only)
+        results = await audit.query_audit_logs({'session_id': 'session_mask_test'})
+        assert len(results) == 1
+
+        stored_api_key = results[0]['api_key']['key']
+        # Should be masked, not the full key
+        assert stored_api_key != full_api_key
+        # Should be in format "...{last_6_chars}"
+        assert stored_api_key == "...mno345"
+
+    @pytest.mark.asyncio
     async def test_disabled_audit_service(self, tmp_path):
         """Test that disabled audit service doesn't store records."""
         config = {
@@ -544,8 +595,8 @@ class TestMongoDBDAuditStrategy:
         strategy = MongoDBDAuditStrategy(config, mock_db)
         await strategy.initialize()
 
-        # Verify indexes were created
-        assert mock_db.create_index.call_count >= 5  # timestamp, session_id, user_id, blocked, backend, compound
+        # Verify indexes were created (timestamp, session_id, user_id, blocked, backend, adapter_name, compound)
+        assert mock_db.create_index.call_count >= 6
 
     @pytest.mark.asyncio
     async def test_mongodb_query(self, sample_audit_record):
@@ -594,7 +645,8 @@ class TestAuditServiceIntegration:
             ip="10.0.0.1",
             backend="test_llm",
             session_id="lifecycle_test",
-            user_id="test_user"
+            user_id="test_user",
+            adapter_name="intent-duckdb-analytics"
         )
 
         # Query the log
@@ -606,6 +658,7 @@ class TestAuditServiceIntegration:
         assert record['response'] == "It's sunny today."
         assert record['backend'] == "test_llm"
         assert record['user_id'] == "test_user"
+        assert record['adapter_name'] == "intent-duckdb-analytics"
 
     @pytest.mark.asyncio
     async def test_error_handling_graceful(self, sqlite_service_with_audit):

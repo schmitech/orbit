@@ -205,6 +205,8 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             result['session_id'] = flat_record.get('session_id')
         if flat_record.get('user_id'):
             result['user_id'] = flat_record.get('user_id')
+        if flat_record.get('adapter_name'):
+            result['adapter_name'] = flat_record.get('adapter_name')
         if flat_record.get('_id'):
             result['_id'] = flat_record.get('_id')
 

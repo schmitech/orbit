@@ -145,7 +145,8 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                                 }
                             },
                             "session_id": {"type": "keyword"},
-                            "user_id": {"type": "keyword"}
+                            "user_id": {"type": "keyword"},
+                            "adapter_name": {"type": "keyword"}
                         }
                     }
                 )
@@ -203,6 +204,9 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
 
             if record.user_id:
                 document["user_id"] = record.user_id
+
+            if record.adapter_name:
+                document["adapter_name"] = record.adapter_name
 
             # Index document
             result = await self._es_client.index(

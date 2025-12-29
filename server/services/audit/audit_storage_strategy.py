@@ -87,6 +87,7 @@ class AuditRecord:
     api_key: Optional[Dict[str, Any]] = None
     session_id: Optional[str] = None
     user_id: Optional[str] = None
+    adapter_name: Optional[str] = None  # Name of the adapter used for this request
     response_compressed: bool = False  # Flag indicating if response is compressed
 
     def to_dict(self, compress: bool = False) -> Dict[str, Any]:
@@ -123,6 +124,8 @@ class AuditRecord:
             result['session_id'] = self.session_id
         if self.user_id:
             result['user_id'] = self.user_id
+        if self.adapter_name:
+            result['adapter_name'] = self.adapter_name
 
         return result
 
@@ -176,6 +179,11 @@ class AuditRecord:
             result['user_id'] = self.user_id
         else:
             result['user_id'] = None
+
+        if self.adapter_name:
+            result['adapter_name'] = self.adapter_name
+        else:
+            result['adapter_name'] = None
 
         return result
 
