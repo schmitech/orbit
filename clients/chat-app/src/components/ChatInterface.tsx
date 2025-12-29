@@ -1,16 +1,16 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
 import { Settings, RefreshCw, Menu, Plus } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
-import { getApiUrl, getDefaultInputPlaceholder, getEnableApiMiddleware, getDefaultAdapterName } from '../utils/runtimeConfig';
+import { getApiUrl, getDefaultInputPlaceholder, getEnableApiMiddleware } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 import { useTheme } from '../contexts/ThemeContext';
-import { AdapterSelector } from './AdapterSelector';
+import { AgentSelectionList } from './AgentSelectionList';
 
 const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-white/95 px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-[0_25px_60px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-[#2f303d] dark:bg-[#1c1d23]/95 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
@@ -64,18 +64,42 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const currentConversation = conversations.find(c => c.id === currentConversationId);
   const isMiddlewareEnabled = getEnableApiMiddleware();
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
-  const defaultAdapterName = useMemo(
-    () => (isMiddlewareEnabled ? getDefaultAdapterName() : null),
-    [isMiddlewareEnabled]
-  );
   const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
-  const showProminentAdapterSelector = isMiddlewareEnabled && showEmptyState;
+  const initialAgentSelectionVisible = isMiddlewareEnabled && showEmptyState;
+  const [isAgentSelectionVisible, setIsAgentSelectionVisible] = useState(initialAgentSelectionVisible);
+  const agentSelectionConversationRef = useRef<string | null>(null);
+  const shouldShowAgentSelectionList =
+    isMiddlewareEnabled && showEmptyState && isAgentSelectionVisible;
+  const shouldShowAdapterNotesPanel =
+    isMiddlewareEnabled && showEmptyState && !isAgentSelectionVisible && !!currentConversation?.adapterName;
   const prominentWidthClass = 'mx-auto w-full max-w-4xl';
-  const messageInputWidthClass = showProminentAdapterSelector ? prominentWidthClass : 'w-full';
+  const messageInputWidthClass = shouldShowAdapterNotesPanel ? prominentWidthClass : 'w-full';
   const canStartNewConversation = canCreateNewConversation();
   const newConversationTooltip = canStartNewConversation
     ? 'Start a new conversation'
     : 'Finish your current conversation before starting a new one.';
+  const showHeaderMetadata = !!(currentConversation?.adapterInfo && !shouldShowAgentSelectionList);
+  const headerBorderClass = shouldShowAgentSelectionList
+    ? 'border-transparent dark:border-transparent md:border-transparent md:dark:border-transparent'
+    : '';
+  const headerClasses = `${MOBILE_HEADER_CLASSES} ${headerBorderClass}`.trim();
+
+  // Reset agent selection visibility when conversations change
+  useEffect(() => {
+    if (!isMiddlewareEnabled || !showEmptyState) {
+      if (isAgentSelectionVisible) {
+        setIsAgentSelectionVisible(false);
+      }
+      agentSelectionConversationRef.current = currentConversation?.id || null;
+      return;
+    }
+
+    const conversationId = currentConversation?.id || null;
+    if (agentSelectionConversationRef.current !== conversationId) {
+      agentSelectionConversationRef.current = conversationId;
+      setIsAgentSelectionVisible(true);
+    }
+  }, [isMiddlewareEnabled, showEmptyState, currentConversation?.id, isAgentSelectionVisible]);
 
   // Debug: Log current conversation state for middleware mode debugging
   useEffect(() => {
@@ -220,6 +244,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     }
   };
 
+  const handleAgentCardSelection = (adapterName: string) => {
+    setIsAgentSelectionVisible(false);
+    void handleEmptyStateAdapterChange(adapterName);
+  };
+
   const handleRefreshAdapterInfo = async () => {
     if (!currentConversation || (!currentConversation.apiKey && !currentConversation.adapterName)) {
       debugWarn('Cannot refresh adapter info: no conversation or API key/adapter');
@@ -292,7 +321,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           )}
 
           {/* Chat Header */}
-          <div className={MOBILE_HEADER_CLASSES}>
+          <div className={headerClasses}>
             {/* Mobile navigation buttons - inside header so they stick with it */}
             {onOpenSidebar && (
               <div className="mb-4 grid grid-cols-2 gap-3 md:hidden">
@@ -317,10 +346,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 {/* Adapter Info - show first when available */}
-                {currentConversation?.adapterInfo && (
+                {showHeaderMetadata && (
                   <div className="mb-4">
                     <div className="flex flex-wrap items-center gap-2 mb-3">
-                      {currentConversation.adapterInfo.model && (
+                      {currentConversation?.adapterInfo?.model && (
                         <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]">
                           <span>Model</span>
                           <span className="text-gray-800 normal-case dark:text-[#ececf1]">
@@ -331,8 +360,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       <div className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]">
                         <span>Agent</span>
                         <span className="text-gray-800 normal-case dark:text-[#ececf1]">
-                          {currentConversation.adapterName ||
-                            currentConversation.adapterInfo.adapter_name ||
+                          {currentConversation?.adapterName ||
+                            currentConversation?.adapterInfo?.adapter_name ||
                             'Configured Agent'}
                         </span>
                       </div>
@@ -359,21 +388,23 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   </div>
                 )}
               </div>
-              <div className="flex items-start justify-end">
-                <button
-                  onClick={handleStartNewConversation}
-                  disabled={!canStartNewConversation}
-                  className={`inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
-                    canStartNewConversation
-                      ? 'border-[#343541] text-[#343541] hover:bg-[#f2f3f5] dark:border-[#565869] dark:text-[#ececf1] dark:hover:bg-[#2c2f36]'
-                      : 'cursor-not-allowed border-gray-200 text-gray-400 dark:border-[#3c3f4a] dark:text-[#6b6f7a]'
-                  }`}
-                  title={newConversationTooltip}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  New Conversation
-                </button>
-              </div>
+              {!shouldShowAgentSelectionList && (
+                <div className="flex items-start justify-end">
+                  <button
+                    onClick={handleStartNewConversation}
+                    disabled={!canStartNewConversation}
+                    className={`inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                      canStartNewConversation
+                        ? 'border-[#343541] text-[#343541] hover:bg-[#f2f3f5] dark:border-[#565869] dark:text-[#ececf1] dark:hover:bg-[#2c2f36]'
+                        : 'cursor-not-allowed border-gray-200 text-gray-400 dark:border-[#3c3f4a] dark:text-[#6b6f7a]'
+                    }`}
+                    title={newConversationTooltip}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    New Conversation
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -383,33 +414,37 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
             <div className="flex flex-1 flex-col min-h-0 pt-4 md:pt-6">
               <div className="flex-1 flex flex-col justify-between md:justify-start md:flex-none">
                 <div className="w-full space-y-6">
-                  {showProminentAdapterSelector ? (
-                    <div className={`${prominentWidthClass} rounded-3xl border border-gray-200/80 bg-white/95 p-6 text-center shadow-sm dark:border-[#3b3c49] dark:bg-[#1c1d23]/90`}>
-                      <div>
-                        <AdapterSelector
-                          selectedAdapter={currentConversation?.adapterName || null}
-                          onAdapterChange={handleEmptyStateAdapterChange}
-                          disabled={isConfiguringAdapter || isLoading}
-                          defaultAdapterName={defaultAdapterName}
-                          showDescriptions
-                          variant="prominent"
-                          showLabel={false}
-                        />
+                  {shouldShowAgentSelectionList ? (
+                    <AgentSelectionList
+                      onAdapterSelect={handleAgentCardSelection}
+                      className={prominentWidthClass}
+                    />
+                  ) : shouldShowAdapterNotesPanel ? (
+                    <div className={`${prominentWidthClass} rounded-3xl border border-gray-200/80 bg-white/95 p-6 shadow-sm dark:border-[#3b3c49] dark:bg-[#1c1d23]/90`}>
+                      <div className="flex items-start justify-between pb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Agent overview</h3>
+                        <button
+                          type="button"
+                          onClick={() => setIsAgentSelectionVisible(true)}
+                          className="text-sm font-semibold text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300 dark:hover:text-blue-200"
+                        >
+                          Change Agent
+                        </button>
                       </div>
-                      <div className="mt-6 rounded-2xl border border-gray-200 bg-white/70 p-4 text-left dark:border-[#3b3c49] dark:bg-[#232430]/80">
+                      <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 dark:border-[#3b3c49] dark:bg-[#232430]/80">
                         {currentConversation?.adapterInfo?.notes ? (
                           <MarkdownRenderer
                             content={currentConversation.adapterInfo.notes}
                             className={adapterNotesMarkdownClass}
                             syntaxTheme={syntaxTheme}
                           />
-                        ) : currentConversation?.adapterName ? (
+                        ) : isConfiguringAdapter ? (
                           <p className="text-sm text-gray-600 dark:text-[#bfc2cd]">
-                            Fetching agent overview… this only takes a moment.
+                            Configuring your agent… hang tight for just a moment.
                           </p>
                         ) : (
-                          <p className="text-sm text-gray-600 dark:text-[#bfc2cd] text-center">
-                            Choose an agent above to see its detailed description.
+                          <p className="text-sm text-gray-600 dark:text-[#bfc2cd]">
+                            Fetching agent overview… this only takes a moment.
                           </p>
                         )}
                       </div>
@@ -434,15 +469,21 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     </div>
                   )}
                 </div>
-                <div className={MOBILE_INPUT_WRAPPER_CLASSES}>
-                  <div className={messageInputWidthClass}>
-                    <MessageInput
-                      onSend={handleSendMessage}
-                      disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation?.adapterName : !currentConversation?.apiKey)}
-                      placeholder={defaultInputPlaceholder}
-                    />
+                {!shouldShowAgentSelectionList && (
+                  <div className={MOBILE_INPUT_WRAPPER_CLASSES}>
+                    <div className={messageInputWidthClass}>
+                      <MessageInput
+                        onSend={handleSendMessage}
+                        disabled={
+                          isLoading ||
+                          !currentConversation ||
+                          (isMiddlewareEnabled ? !currentConversation?.adapterName : !currentConversation?.apiKey)
+                        }
+                        placeholder={defaultInputPlaceholder}
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           ) : (
@@ -466,7 +507,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 <div className="w-full">
                   <MessageInput
                     onSend={handleSendMessage}
-                    disabled={isLoading || !currentConversation || (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey)}
+                    disabled={
+                      isLoading ||
+                      !currentConversation ||
+                      (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey) ||
+                      (isMiddlewareEnabled && isAgentSelectionVisible)
+                    }
                     placeholder={defaultInputPlaceholder}
                   />
                 </div>

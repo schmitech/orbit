@@ -10,7 +10,7 @@ export function OutOfServicePage({ message }: { message: string }) {
           </div>
         </div>
         <div className="space-y-2">
-          <p className="text-2xl font-semibold tracking-tight">ORBIT is temporarily unavailable</p>
+          <p className="text-2xl font-semibold tracking-tight">Temporarily Unavailable</p>
         </div>
         <p className="text-sm text-white/60">
           {message}
