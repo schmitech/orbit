@@ -17,9 +17,9 @@ const SKELETON_CARD_HEIGHT = 'h-[96px]';
 export function AgentSelectionList({
   onAdapterSelect,
   className = '',
-  title = 'Choose an agent to get started',
+  title = '',
   subtitle = 'Each agent is tuned for a specific expertise. Pick one to start a focused conversation.',
-  eyebrow = 'Meet the specialists'
+  eyebrow = 'Pick an Agent'
 }: AgentSelectionListProps) {
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -132,7 +132,7 @@ export function AgentSelectionList({
       <div className="relative">
         <div
           ref={scrollContainerRef}
-          className="max-h-[75vh] lg:max-h-[70vh] overflow-y-auto pr-1"
+          className="max-h-[75vh] lg:max-h-[70vh] overflow-y-auto pr-1 pt-3 pb-1"
           onScroll={() => {
             const el = scrollContainerRef.current;
             if (!el) return;
@@ -179,7 +179,7 @@ export function AgentSelectionList({
           )}
         </div>
       )}
-      <div className="relative max-w-xl">
+      <div className="relative w-full">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
