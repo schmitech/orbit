@@ -11,6 +11,7 @@ import { audioStreamManager } from '../utils/audioStreamManager';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 import { useTheme } from '../contexts/ThemeContext';
 import { AgentSelectionList } from './AgentSelectionList';
+import { GitHubStatsBanner } from './GitHubStatsBanner';
 
 const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-white/95 px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-[0_25px_60px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-[#2f303d] dark:bg-[#1c1d23]/95 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
@@ -343,12 +344,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 </button>
               </div>
             )}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="min-w-0 flex-1">
                 {/* Adapter Info - show first when available */}
                 {showHeaderMetadata && (
-                  <div className="mb-4">
-                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2 justify-start">
                       {currentConversation?.adapterInfo?.model && (
                         <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]">
                           <span>Model</span>
@@ -375,36 +376,38 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         <span className="hidden sm:inline">Refresh</span>
                       </button>
                     </div>
-                    {/* Title and metadata */}
-                    <h1 className="text-2xl font-semibold text-[#353740] dark:text-[#ececf1] mb-2">
-                      {currentConversation?.title || 'New Chat'}
-                    </h1>
-                    {currentConversation && (
-                      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-[#bfc2cd]">
-                        <span className="font-medium">{currentConversation.messages.length}</span>
-                        <span>Updated {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      </div>
-                    )}
+                    <div className="space-y-1">
+                      <h1 className="text-2xl font-semibold text-[#353740] dark:text-[#ececf1]">
+                        {currentConversation?.title || 'New Chat'}
+                      </h1>
+                      {currentConversation && (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-[#bfc2cd]">
+                          <span className="font-medium">{currentConversation.messages.length}</span>
+                          <span>Updated {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
-              {!shouldShowAgentSelectionList && (
-                <div className="flex items-start justify-end">
+              <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+                <GitHubStatsBanner className="order-1 sm:order-2 sm:min-w-[220px]" />
+                {!shouldShowAgentSelectionList && (
                   <button
                     onClick={handleStartNewConversation}
                     disabled={!canStartNewConversation}
-                    className={`inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                    className={`order-2 sm:order-1 inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2.5 text-sm font-semibold uppercase tracking-wide transition-all ${
                       canStartNewConversation
-                        ? 'border-[#343541] text-[#343541] hover:bg-[#f2f3f5] dark:border-[#565869] dark:text-[#ececf1] dark:hover:bg-[#2c2f36]'
-                        : 'cursor-not-allowed border-gray-200 text-gray-400 dark:border-[#3c3f4a] dark:text-[#6b6f7a]'
+                        ? 'border-[#343541] text-[#1f1f21] bg-white/80 shadow-[0_2px_8px_rgba(15,23,42,0.06)] hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_8px_20px_rgba(15,23,42,0.12)] dark:border-[#565869] dark:text-[#ececf1] dark:bg-[#2c2f36] dark:hover:bg-[#353947]'
+                        : 'cursor-not-allowed border-gray-200 text-gray-400 bg-white/40 dark:border-[#3c3f4a] dark:text-[#6b6f7a] dark:bg-transparent'
                     }`}
                     title={newConversationTooltip}
                   >
                     <Plus className="h-3.5 w-3.5" />
                     New Conversation
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
