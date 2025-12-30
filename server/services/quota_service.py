@@ -307,6 +307,10 @@ class QuotaService:
         if not self.enabled or not self.redis_service or not self.redis_service.enabled:
             return (0, 0, 86400, 2592000)
 
+        if not self.redis_service.client:
+            logger.warning("Redis client not initialized, skipping quota increment")
+            return (0, 0, 86400, 2592000)
+
         try:
             daily_key = self._get_daily_key(api_key)
             monthly_key = self._get_monthly_key(api_key)
@@ -345,6 +349,16 @@ class QuotaService:
             Dict with usage statistics
         """
         if not self.enabled or not self.redis_service or not self.redis_service.enabled:
+            return {
+                'daily_used': 0,
+                'monthly_used': 0,
+                'daily_reset_at': self._calculate_daily_reset_timestamp(),
+                'monthly_reset_at': self._calculate_monthly_reset_timestamp(),
+                'last_request_at': None
+            }
+
+        if not self.redis_service.client:
+            logger.warning("Redis client not initialized, returning empty usage")
             return {
                 'daily_used': 0,
                 'monthly_used': 0,
@@ -456,6 +470,10 @@ class QuotaService:
             True if reset successfully, False otherwise
         """
         if not self.redis_service or not self.redis_service.enabled:
+            return False
+
+        if not self.redis_service.client:
+            logger.warning("Redis client not initialized, cannot reset usage")
             return False
 
         try:
