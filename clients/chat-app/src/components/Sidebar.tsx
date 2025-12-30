@@ -142,13 +142,14 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     setValidationError(null);
   }, [currentConversationId]);
 
-  const filteredConversations = conversations.filter(conv =>
+  const conversationsWithHistory = conversations.filter(conv => conv.messages.length > 0);
+  const filteredConversations = conversationsWithHistory.filter(conv =>
     conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     conv.messages.some(msg => 
       msg.content.toLowerCase().includes(searchQuery.toLowerCase())
     )
   );
-
+  const visibleConversations = conversationsWithHistory.length > 0 ? filteredConversations : [];
   const totalConversations = getConversationCount();
   const conversationLabel = totalConversations === 1 ? 'conversation' : 'conversations';
   // GitHub stats for ORBIT project info
@@ -494,7 +495,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-3 dark:bg-[#202123] dark:bg-none">
-          {filteredConversations.length === 0 ? (
+          {visibleConversations.length === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-300 bg-white/90 p-6 text-center text-sm text-gray-500 shadow-sm dark:border-[#4a4b54] dark:bg-[#252830] dark:text-[#bfc2cd] dark:shadow-none">
               <MessageSquare className="mx-auto mb-3 h-6 w-6 text-gray-400 dark:text-[#6b6f7a]" />
               <p>
@@ -503,7 +504,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredConversations.map((conversation) => {
+              {visibleConversations.map((conversation) => {
                 const agentLabel = getConversationAgentLabel(conversation);
                 return (
                   <div
