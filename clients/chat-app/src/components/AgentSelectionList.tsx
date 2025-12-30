@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Search } from 'lucide-react';
 import { AgentCard } from './AgentCard';
 import { fetchAdapters, type Adapter } from '../utils/middlewareConfig';
 import { debugError } from '../utils/debug';
@@ -25,6 +26,19 @@ export function AgentSelectionList({
   const [error, setError] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollHint, setShowScrollHint] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredAdapters = useMemo(() => {
+    const trimmedQuery = searchQuery.trim().toLowerCase();
+    if (!trimmedQuery) {
+      return adapters;
+    }
+    return adapters.filter(adapter => {
+      const nameMatches = adapter.name.toLowerCase().includes(trimmedQuery);
+      const descriptionMatches = adapter.description?.toLowerCase().includes(trimmedQuery) ?? false;
+      return nameMatches || descriptionMatches;
+    });
+  }, [adapters, searchQuery]);
 
   useEffect(() => {
     let mounted = true;
@@ -34,8 +48,9 @@ export function AgentSelectionList({
         setIsLoading(true);
         setError(null);
         const adapterList = await fetchAdapters();
+        const sortedAdapters = adapterList.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
         if (mounted) {
-          setAdapters(adapterList);
+          setAdapters(sortedAdapters);
         }
       } catch (err) {
         debugError('[AgentSelectionList] Failed to load adapters', err);
@@ -73,7 +88,7 @@ export function AgentSelectionList({
     return () => {
       window.removeEventListener('resize', updateScrollHint);
     };
-  }, [adapters, isLoading, error]);
+  }, [filteredAdapters, isLoading, error]);
 
   const renderContent = () => {
     if (isLoading) {
@@ -105,6 +120,14 @@ export function AgentSelectionList({
       );
     }
 
+    if (filteredAdapters.length === 0) {
+      return (
+        <div className="rounded-2xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-600 dark:border-[#3b3c49] dark:bg-[#22232b] dark:text-gray-300">
+          No agents match your search.
+        </div>
+      );
+    }
+
     return (
       <div className="relative">
         <div
@@ -118,7 +141,7 @@ export function AgentSelectionList({
           }}
         >
           <div className="grid gap-3">
-            {adapters.map(adapter => (
+            {filteredAdapters.map(adapter => (
               <AgentCard key={adapter.name} adapter={adapter} onSelect={selected => onAdapterSelect(selected.name)} />
             ))}
           </div>
@@ -156,6 +179,17 @@ export function AgentSelectionList({
           )}
         </div>
       )}
+      <div className="relative max-w-xl">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search agents"
+          value={searchQuery}
+          disabled={isLoading || !!error || adapters.length === 0}
+          onChange={event => setSearchQuery(event.target.value)}
+          className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 shadow-inner focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#3b3c49] dark:bg-[#1f2027] dark:text-white dark:shadow-none"
+        />
+      </div>
       {renderContent()}
     </div>
   );
