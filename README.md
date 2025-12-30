@@ -78,9 +78,9 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
   </a>
 </div>
 
-**[Civic Chat](https://www.civicchat.ca)** — An AI-powered tool for exploring Canadian open data across municipal, provincial, and federal levels of government. Civic Chat uses ORBIT's intent-based adapters to translate natural language queries into SQL and API calls, enabling citizens to explore public datasets through conversation.
+<a href="https://www.civicchat.ca" target="_blank"><strong>Civic Chat</strong></a> — An AI-powered tool for exploring Canadian open data across municipal, provincial, and federal levels of government. Civic Chat uses ORBIT's intent-based adapters to translate natural language queries into SQL and API calls, enabling citizens to explore public datasets through conversation.
 
-> *Using ORBIT in production? [Let us know](https://github.com/schmitech/orbit/issues) and we'll feature your project here.*
+> *Using ORBIT in production? [Let us know](https://schmitech.ai/en/contact){:target="_blank"} and we'll feature your project here.*
 
 ---
 
