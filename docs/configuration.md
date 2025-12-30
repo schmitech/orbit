@@ -2,79 +2,163 @@
 
 ## Overview
 
-ORBIT uses a flexible configuration system that combines YAML configuration files with environment variables. The configuration is managed by the `config_manager.py` module, which provides:
+ORBIT uses a modular configuration system combining YAML files with environment variables. Configuration is managed by `config_manager.py`, which provides:
 
 - Default configuration values
-- Environment variable substitution
-- Configuration validation
-- Secure credential handling
-- Logging of configuration changes
+- Environment variable substitution (`${VAR_NAME}` syntax)
+- Configuration validation and secure credential handling
+- Import support for splitting configuration into multiple files
+- Logging of configuration changes with sensitive value masking
 
-## Configuration Sources
+## Configuration Files
 
-The system looks for configuration in the following order:
-
-1. User-specified config path
-2. `../config/config.yaml`
-3. `../../config/config.yaml`
-4. `config.yaml` in current directory
-5. Default configuration (if no file is found)
-
-### Import Support
-
-The configuration system supports importing external YAML files using the `import` directive:
+The main `config.yaml` imports specialized configuration files:
 
 ```yaml
-# Import external configuration files
 import:
-  - "adapters.yaml"
-  - "inference.yaml"
-  - "datasources.yaml"
-  - "embeddings.yaml"
-  - "rerankers.yaml"
-  - "moderators.yaml"
+  - "ollama.yaml"          # Ollama-specific inference settings
+  - "adapters.yaml"        # Retriever adapter definitions
+  - "inference.yaml"       # LLM inference providers
+  - "datasources.yaml"     # Database connections
+  - "embeddings.yaml"      # Embedding providers
+  - "rerankers.yaml"       # Reranking providers
+  - "stores.yaml"          # Vector store layer
+  - "moderators.yaml"      # Content moderation
+  - "guardrails.yaml"      # Safety guardrails
+  - "vision.yaml"          # Vision/image processing
+  - "tts.yaml"             # Text-to-speech
+  - "stt.yaml"             # Speech-to-text
 ```
 
-This allows you to separate large configuration sections into dedicated files for better maintainability. The main `config.yaml` file imports all the specialized configuration files.
-
-## Configuration Structure
+## Core Configuration Sections
 
 ### General Settings
 
 ```yaml
 general:
-  port: 3000                    # Port number for HTTP server
-  verbose: false                # Enable detailed logging for debugging
+  port: 3000                      # HTTP server port
   https:
-    enabled: false              # Enable HTTPS for secure connections
-    port: 3443                  # Port number for HTTPS server
-    cert_file: "./cert.pem"     # Path to SSL certificate file
-    key_file: "./key.pem"       # Path to SSL private key file
+    enabled: false                # Enable HTTPS
+    port: 3443                    # HTTPS port
+    cert_file: "./cert.pem"       # SSL certificate path
+    key_file: "./key.pem"         # SSL private key path
   session_id:
-    header_name: "X-Session-ID" # HTTP header name for session ID
-    required: true              # Whether session ID is required
-  inference_provider: "ollama"  # Default AI model provider
+    header_name: "X-Session-ID"   # Session ID header name
+    required: true                # Whether session ID is required
+  inference_provider: "ollama"    # Default AI model provider
 ```
 
-### Fault Tolerance Configuration
+### Performance Configuration
+
+```yaml
+performance:
+  workers: 4                          # Number of worker processes
+  keep_alive_timeout: 30              # Keep-alive timeout in seconds
+  adapter_preload_timeout: 120        # Max time to wait for adapter initialization (seconds)
+  thread_pools:
+    io_workers: 50                    # I/O-bound task workers
+    cpu_workers: 30                   # CPU-bound task workers
+    inference_workers: 20             # Model inference workers
+    embedding_workers: 15             # Embedding generation workers
+    db_workers: 25                    # Database operation workers
+```
+
+### Language Detection
+
+```yaml
+language_detection:
+  enabled: true
+  backends:
+    - "langdetect"
+    - "langid"
+    - "pycld2"
+  backend_weights:
+    langdetect: 1.0
+    langid: 1.2
+    pycld2: 1.5
+  min_confidence: 0.7               # Minimum detection confidence
+  min_margin: 0.2                   # Minimum margin between top languages
+  prefer_english_for_ascii: true    # Boost English for ASCII text
+  enable_stickiness: false          # Keep detected language across messages
+  fallback_language: "en"           # Default when detection fails
+  backend_timeout: 10.0             # Timeout per backend (seconds)
+  
+  # Heuristic adjustments
+  heuristic_nudges:
+    en_boost: 0.2                   # Boost for English in ASCII text
+    es_penalty: 0.1                 # Penalty for Spanish in pure ASCII
+    script_boost: 0.2               # Boost when script matches ensemble winner
+  
+  # Mixed language detection
+  mixed_language_threshold: 0.3     # Min confidence for secondary language
+  
+  # Chat history language prior
+  use_chat_history_prior: true
+  chat_history_prior_weight: 0.3
+  chat_history_messages_count: 5
+  
+  # RAG retrieval language boosting
+  retrieval_match_boost: 0.1        # Boost for matching language docs
+  retrieval_mismatch_penalty: 0.05  # Penalty for non-matching docs
+  retrieval_min_confidence: 0.7
+```
+
+### Fault Tolerance
 
 ```yaml
 fault_tolerance:
   circuit_breaker:
-    failure_threshold: 5
-    recovery_timeout: 30
-    success_threshold: 3
-    timeout: 30
-    max_recovery_timeout: 300.0      # Maximum recovery timeout (5 minutes)
-    enable_exponential_backoff: true # Enable exponential backoff by default
+    failure_threshold: 5              # Failures before circuit opens
+    recovery_timeout: 30              # Seconds before attempting recovery
+    success_threshold: 3              # Successes to close circuit
+    timeout: 30                       # Operation timeout
+    max_recovery_timeout: 300.0       # Maximum recovery timeout
+    enable_exponential_backoff: true  # Enable exponential backoff
   execution:
-    strategy: "all"  # "all", "first_success", "best_effort"
-    timeout: 35  # Reduced from 60 to work better with circuit breaker timeout
-    max_retries: 3
-    retry_delay: 1
+    strategy: "all"                   # "all", "first_success", "best_effort"
+    timeout: 35                       # Execution timeout
+    max_retries: 3                    # Maximum retry attempts
+    retry_delay: 1                    # Delay between retries
 ```
 
-### Messages Configuration
+### Authentication
+
+```yaml
+auth:
+  session_duration_hours: 12
+  default_admin_username: admin
+  default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
+  pbkdf2_iterations: 600000
+  # Credential storage: "keyring" (system keychain) or "file" (~/.orbit/.env)
+  credential_storage: file
+```
+
+### API Key Management
+
+```yaml
+api_keys:
+  header_name: "X-API-Key"     # HTTP header for API key
+  prefix: "orbit_"             # Prefix for generated keys
+```
+
+### Clock Service
+
+```yaml
+clock_service:
+  enabled: true
+  default_timezone: "America/Toronto"
+  format: "%A, %B %d, %Y at %I:%M:%S %p %Z"
+```
+
+### Prompt Service
+
+```yaml
+prompt_service:
+  cache:
+    ttl_seconds: 3600          # How long to cache prompts in Redis
+```
+
+### Messages
 
 ```yaml
 messages:
@@ -82,112 +166,143 @@ messages:
   collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
 ```
 
-### Authentication Configuration
-
-```yaml
-auth:
-  enabled: true
-  session_duration_hours: 12
-  default_admin_username: admin
-  default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
-  pbkdf2_iterations: 600000
-  # Credential storage method: "keyring" (default) or "file"
-  # - keyring: Uses system keychain (macOS Keychain, Linux Secret Service)
-  # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
-  credential_storage: file
-```
-
-### Embedding Configuration
-
-```yaml
-embedding:
-  provider: "ollama"            # Default embedding provider
-  enabled: true                 # Enable embedding functionality
-```
-
-### API Key Management
-
-```yaml
-api_keys:
-  header_name: "X-API-Key"      # HTTP header name for API key
-  prefix: "orbit_"             # Prefix for generated API keys
-```
-
-### Logging Configuration
+### Logging
 
 ```yaml
 logging:
-  level: "INFO"                # Logging level (DEBUG, INFO, WARNING, ERROR)
-  handlers:                    # Logging handlers configuration
+  level: "INFO"                      # DEBUG, INFO, WARNING, ERROR
+  handlers:
     file:
-      enabled: true              # Enable logging to file
-      directory: "logs"          # Directory for log files
-      filename: "orbit.log"     # Name of the log file
-      max_size_mb: 10           # Maximum size of each log file in megabytes
-      backup_count: 30          # Number of backup log files to keep
-      rotation: "midnight"      # When to rotate logs (midnight, hourly, daily)
-      format: "text"            # Log format (json for machine parsing, text for human reading)
+      enabled: true
+      directory: "logs"
+      filename: "orbit.log"
+      max_size_mb: 10
+      backup_count: 30
+      rotation: "midnight"           # midnight, hourly, daily
+      format: "text"                 # text, json
     console:
-      enabled: false            # Enable logging to console
-      format: "text"            # Console log format
-  capture_warnings: true      # Capture Python warnings in logs
-  propagate: false            # Prevent log propagation to parent loggers
-  loggers:                    # Specific logger configurations
-    inference.clients.llama_cpp:
+      enabled: false
+      format: "text"
+  capture_warnings: true
+  propagate: false
+  loggers:
+    # Suppress specific loggers
+    py.warnings:
       level: "ERROR"
-    llama_cpp:
-      level: "ERROR"
-    llama_cpp.llama:
-      level: "ERROR"
-    ggml:
-      level: "ERROR"
-    metal:
-      level: "ERROR"
+      propagate: false
+      disabled: true
+    uvicorn:
+      level: "WARNING"
+      propagate: false
+    httpx:
+      level: "WARNING"
+    # Add more loggers as needed
 ```
 
-### Chat History Configuration
+### Chat History
 
 ```yaml
 chat_history:
-  enabled: true                     # Enable chat history functionality
-  collection_name: "chat_history"   # MongoDB collection name for chat history
-  store_metadata: true              # Store additional metadata with messages
-  retention_days: 90                # How long to keep chat history (days)
-  max_tracked_sessions: 10000       # Maximum number of sessions to track
+  enabled: true
+  collection_name: "chat_history"
+  store_metadata: true
+  retention_days: 90
+  max_tracked_sessions: 10000
   session:
-    auto_generate: false            # Auto-generate session IDs if not provided
-    required: true                  # Whether session is required
-    header_name: "X-Session-ID"     # HTTP header name for session ID
+    auto_generate: false
+    required: true
+    header_name: "X-Session-ID"
   user:
-    header_name: "X-User-ID"        # HTTP header name for user ID
-    required: false                 # Whether user ID is required
+    header_name: "X-User-ID"
+    required: false
 ```
 
-### File Upload Configuration
+### Conversation Threading
 
 ```yaml
-file_upload:
-  enabled: true                     # Enable file upload functionality
-  max_size_mb: 10                   # Maximum file size in megabytes
-  max_files_per_batch: 10           # Maximum files per upload batch
-  allowed_extensions:               # List of allowed file extensions
-    - ".txt"
-    - ".pdf"
-    - ".docx"
-    - ".doc"
-    - ".xlsx"
-    - ".xls"
-    - ".csv"
-    - ".md"
-    - ".json"
-  upload_directory: "uploads"       # Directory to store uploaded files
-  save_to_disk: true                # Save files to disk
-  auto_store_in_vector_db: true     # Automatically add to vector database
-  chunk_size: 1000                  # Text chunk size for processing
-  chunk_overlap: 200                # Overlap between text chunks
+conversation_threading:
+  enabled: true
+  dataset_ttl_hours: 24              # TTL for stored datasets
+  storage_backend: "sqlite"          # redis, sqlite, mongodb
+  redis_key_prefix: "thread_dataset:"
 ```
 
-### Internal Services Configuration
+### Monitoring
+
+```yaml
+monitoring:
+  enabled: true
+  metrics:
+    collection_interval: 5           # Seconds between metric collections
+    time_window: 300                 # Seconds of historical data (5 min)
+    prometheus:
+      enabled: true                  # Enable /metrics endpoint
+    dashboard:
+      enabled: true                  # Enable /dashboard web UI
+      websocket_update_interval: 5   # WebSocket update frequency
+  alerts:
+    cpu_threshold: 90
+    memory_threshold: 85
+    error_rate_threshold: 5
+    response_time_threshold: 5000
+```
+
+## Internal Services
+
+### Backend Database
+
+```yaml
+internal_services:
+  backend:
+    type: "sqlite"                   # sqlite or mongodb
+    sqlite:
+      database_path: "orbit.db"      # SQLite file path
+```
+
+### Audit Trail
+
+```yaml
+internal_services:
+  audit:
+    enabled: true
+    storage_backend: "database"      # elasticsearch, sqlite, mongodb, database
+    collection_name: "audit_logs"
+    compress_responses: false        # Gzip compression for response field
+    clear_on_startup: true           # WARNING: Deletes all logs on startup
+```
+
+### MongoDB
+
+```yaml
+internal_services:
+  mongodb:
+    host: ${INTERNAL_SERVICES_MONGODB_HOST}
+    port: ${INTERNAL_SERVICES_MONGODB_PORT}
+    username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
+    password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
+    database: ${INTERNAL_SERVICES_MONGODB_DB}
+    users_collection: users
+    sessions_collection: sessions
+    apikey_collection: api_keys
+    prompts_collection: system_prompts
+```
+
+### Redis
+
+```yaml
+internal_services:
+  redis:
+    enabled: true
+    host: ${INTERNAL_SERVICES_REDIS_HOST}
+    port: ${INTERNAL_SERVICES_REDIS_PORT}
+    db: 0
+    username: ${INTERNAL_SERVICES_REDIS_USERNAME}
+    password: ${INTERNAL_SERVICES_REDIS_PASSWORD}
+    use_ssl: false
+    ttl: 3600                        # 1 hour
+```
+
+### Elasticsearch
 
 ```yaml
 internal_services:
@@ -197,276 +312,292 @@ internal_services:
     index: 'orbit'
     username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
     password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
+```
 
-  mongodb:
-    host: ${INTERNAL_SERVICES_MONGODB_HOST}
-    port: ${INTERNAL_SERVICES_MONGODB_PORT}
-    username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
-    password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
-    database: "orbit"
-    users_collection: users
-    sessions_collection: sessions
-    apikey_collection: api_keys
-    prompts_collection: system_prompts
+## File Processing Configuration
 
-  redis:
+```yaml
+files:
+  # Default storage settings
+  storage_root: "./uploads"
+  
+  # Default chunking settings
+  default_chunking_strategy: "recursive"   # fixed, semantic, token, recursive
+  default_chunk_size: 2048
+  default_chunk_overlap: 200
+  
+  # Processor configuration
+  processing:
+    docling_enabled: true              # Enable Docling document processor
+    markitdown_enabled: true           # Enable MarkItDown processor
+    processor_priority: "docling"      # docling, markitdown, native
+    
+    markitdown:
+      enable_plugins: false            # Third-party plugins (security)
+    
+    csv:
+      full_data_row_threshold: 200     # Include all rows below this threshold
+      max_preview_rows: 5
+      max_column_width: 50
+      max_columns_full: 15
+    
+    json:
+      full_data_item_threshold: 200
+      max_array_preview_items: 3
+      max_schema_depth: 4
+      max_string_length: 100
+      max_object_keys: 20
+  
+  # Tokenizer configuration
+  tokenizer: null                      # character, gpt2, tiktoken
+  use_tokens: false
+  
+  # Strategy-specific options
+  chunking_options:
+    model_name: null                   # Sentence-transformer model
+    use_advanced: false                # Advanced semantic chunking
+    chunk_size_tokens: null
+    min_characters_per_chunk: 24
+    threshold: 0.8                     # Similarity threshold
+    similarity_window: 3
+    min_sentences_per_chunk: 1
+    min_characters_per_sentence: 24
+  
+  # Vector store defaults
+  default_vector_store: "chroma"
+  default_collection_prefix: "files_"
+```
+
+## Security Configuration
+
+### CORS
+
+```yaml
+security:
+  cors:
+    allowed_origins: ["*"]             # Use specific origins in production
+    allow_credentials: false           # Cannot be true with wildcard origins
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+    allowed_headers:
+      - "Authorization"
+      - "Content-Type"
+      - "X-API-Key"
+      - "X-Session-ID"
+      - "X-User-ID"
+      - "X-Request-ID"
+    expose_headers:
+      - "X-Request-ID"
+      - "X-RateLimit-Limit"
+      - "X-RateLimit-Remaining"
+      - "X-RateLimit-Reset"
+    max_age: 600                       # Preflight cache duration
+```
+
+### Security Headers
+
+```yaml
+security:
+  headers:
+    enabled: true
+    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; ..."
+    strict_transport_security: "max-age=31536000; includeSubDomains"
+    x_content_type_options: "nosniff"
+    x_frame_options: "SAMEORIGIN"
+    x_xss_protection: "1; mode=block"
+    referrer_policy: "strict-origin-when-cross-origin"
+    permissions_policy: "geolocation=(), microphone=(), camera=()"
+```
+
+### Rate Limiting
+
+```yaml
+security:
+  rate_limiting:
+    enabled: true                      # Requires Redis
+    trust_proxy_headers: false         # Only enable behind trusted proxy
+    trusted_proxies: []                # List of trusted proxy IPs/CIDRs
+    
+    ip_limits:
+      requests_per_minute: 60
+      requests_per_hour: 1000
+    
+    api_key_limits:
+      requests_per_minute: 120
+      requests_per_hour: 5000
+    
+    exclude_paths:
+      - "/health"
+      - "/favicon.ico"
+      - "/metrics"
+      - "/static"
+    
+    retry_after_seconds: 60
+```
+
+### Throttling
+
+```yaml
+security:
+  throttling:
+    enabled: true
+    
+    default_quotas:
+      daily_limit: 10000
+      monthly_limit: 100000
+    
+    delay:
+      min_ms: 100
+      max_ms: 5000
+      curve: "exponential"             # linear or exponential
+      threshold_percent: 70            # Start throttling at 70% quota
+    
+    priority_multipliers:
+      1: 0.5                           # Premium: half delay
+      5: 1.0                           # Standard: normal delay
+      10: 2.0                          # Low priority: double delay
+    
+    redis_key_prefix: "quota:"
+    usage_sync_interval_seconds: 60
+```
+
+### Request Limits & Error Handling
+
+```yaml
+security:
+  request_limits:
+    max_body_size_mb: 10
+  
+  error_handling:
+    expose_details: true               # Set false in production
+```
+
+## Vector Stores Configuration (stores.yaml)
+
+The unified store layer manages vector databases:
+
+```yaml
+store_manager:
+  enabled: true
+  cleanup_interval: 300              # 5 minutes
+  ephemeral_max_age: 3600            # 1 hour
+  auto_cleanup: true
+
+vector_stores:
+  chroma:
+    enabled: true
+    connection_params:
+      persist_directory: "./chroma_db"
+      distance_function: "cosine"    # cosine, l2, ip
+      allow_reset: false
+    pool_size: 5
+    timeout: 30
+    cache_ttl: 1800
+    ephemeral: false
+    auto_cleanup: true
+  
+  qdrant:
+    enabled: true
+    connection_params:
+      url: "${DATASOURCE_QDRANT_URL:-}"           # For Qdrant Cloud
+      host: "${DATASOURCE_QDRANT_HOST:-localhost}" # For self-hosted
+      port: "${DATASOURCE_QDRANT_PORT:-6333}"
+      api_key: "${DATASOURCE_QDRANT_API_KEY:-}"
+      prefer_grpc: false
+      https: false
+    cache_ttl: 1800
+  
+  pinecone:
     enabled: false
-    host: ${INTERNAL_SERVICES_REDIS_HOST}
-    port: ${INTERNAL_SERVICES_REDIS_PORT}
-    db: 0
-    username: ${INTERNAL_SERVICES_REDIS_USERNAME}
-    password: ${INTERNAL_SERVICES_REDIS_PASSWORD}
-    use_ssl: false
-    ttl: 3600  # 1 hour, matching temp_key_expiry
-```
-
-### Safety Configuration
-
-```yaml
-safety:
-  enabled: false
-  mode: "fuzzy"
-  moderator: "ollama"
-  max_retries: 3
-  retry_delay: 1.0
-  request_timeout: 10
-  allow_on_timeout: false
-  disable_on_fallback: true  # Disable safety if no moderators are available
-```
-
-### Reranker Configuration
-
-```yaml
-reranker:
-  provider: "ollama"
-  enabled: false
-```
-
-## Inference Providers (inference.yaml)
-
-```yaml
-inference:
-  ollama:
-    base_url: "http://3.97.13.5:11434"
-    temperature: 0.1
-    top_p: 0.8
-    top_k: 20
-    repeat_penalty: 1.1
-    num_predict: 1024
-    num_ctx: 8192
-    num_threads: 8
-    model: "gemma3:12b"
-    stream: true
-  vllm:
-    host: "localhost"
-    port: 8000
-    model: "Qwen/Qwen2.5-1.5B-Instruct"
-    temperature: 0.1
-    top_p: 0.8
-    top_k: 20
-    max_tokens: 1024
-    stream: true
-  llama_cpp:
-    model_path: "models/gemma-3-1b-it-Q4_0.gguf"
-    chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
-    verbose: false
-    temperature: 0.1
-    top_p: 0.8
-    top_k: 20
-    max_tokens: 1024
-    repeat_penalty: 1.1
-    n_ctx: 1024
-    n_threads: 4
-    stream: true
-    n_gpu_layers: 0  # For GPU/Metal support
-    main_gpu: 0
-    tensor_split: null
-    stop_tokens: [
-      "<|im_start|>", 
-      "<|im_end|>",
-      "<|endoftext|>"
-    ]
-  gemini:
-    api_key: ${GOOGLE_API_KEY}
-    model: "gemini-2.0-flash"
-    temperature: 0.1
-    top_p: 0.8
-    top_k: 20
-    max_tokens: 1024
-    stream: true
-  groq:
-    api_key: ${GROQ_API_KEY}
-    model: "llama3-8b-8192"
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-  deepseek:
-    api_key: ${DEEPSEEK_API_KEY}
-    api_base: "https://api.deepseek.com/v1"
-    model: "deepseek-chat"
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-  vertex:
-    project_id: ${GOOGLE_CLOUD_PROJECT}
-    location: "us-central1"
-    model: "gemini-1.5-pro"
-    temperature: 0.1
-    top_p: 0.8
-    top_k: 20
-    max_tokens: 1024
-    credentials_path: ""
-    stream: true
-  aws:
-    access_key: ${AWS_BEDROCK_ACCESS_KEY}
-    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
-    region: "ca-central-1"
-    model: "anthropic.claude-3-sonnet-20240229-v1:0"
-    content_type: "application/json"
-    accept: "application/json"
-    max_tokens: 1024
-  azure:
-    base_url: http://azure-ai.endpoint.microsoft.com
-    deployment: "azure-ai-deployment"
-    api_key: ${AZURE_ACCESS_KEY}
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-    verbose: true
-  openai:
-    api_key: ${OPENAI_API_KEY}
-    model: "gpt-4.1-nano"
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-  mistral:
-    api_key: ${MISTRAL_API_KEY}
-    api_base: "https://api.mistral.ai/v1"
-    model: "mistral-small-latest"
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-  anthropic:
-    api_key: ${ANTHROPIC_API_KEY}
-    api_base: "https://api.anthropic.com/v1"
-    model: "claude-sonnet-4-20250514"
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-  together:
-    api_key: ${TOGETHER_API_KEY}
-    api_base: "https://api.together.xyz/v1"
-    model: "Qwen/Qwen3-235B-A22B-fp8-tput"
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-    show_thinking: false
-  xai:
-    api_key: ${XAI_API_KEY}
-    api_base: "https://api.x.ai/v1"
-    model: "grok-3-mini-beta"
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-    show_thinking: false
-  huggingface:
-    model_name: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-    device: "cpu"
-    max_length: 1024
-    temperature: 0.7
-    top_p: 0.9
-    stream: false
-  openrouter:
-    api_key: ${OPENROUTER_API_KEY}
-    base_url: "https://openrouter.ai/api/v1"
-    model: "openai/gpt-4o"
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-    verbose: false
-  cohere:
-    api_key: ${COHERE_API_KEY}
-    api_base: "https://api.cohere.ai/v2"
-    model: "command-r7b-12-2024"
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-  watson:
-    api_key: ${WATSON_API_KEY}
-    api_base: "https://domain.region.cloud.ibm.com"
-    project_id: "your-project_id"
-    instance_id: "openshift"
-    model: "ibm/granite-3-8b-instruct"
-    temperature: 0.1
-    top_k: 20
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-    show_thinking: false
-    space_id: ""
-    region: "your-region"
-    auth_type: "iam"
-    time_limit: 10000
-    verify: false
-```
-
-## Embeddings Configuration (embeddings.yaml)
-
-```yaml
-embeddings:
-  llama_cpp:
-    model_path: "gguf/nomic-embed-text-v1.5-Q4_0.gguf"
-    model: "nomic-embed-text-v1.5-Q4_0"
-    n_ctx: 1024 
-    n_threads: 4
-    n_gpu_layers: 0
-    main_gpu: 0 
-    tensor_split: null  # Optional: GPU memory split for multi-GPU setups
-    batch_size: 8
-    dimensions: 768
-    embed_type: "llama_embedding"
-  ollama:
-    base_url: "http://localhost:11434"
-    model: "nomic-embed-text"
-    dimensions: 768
-  jina:
-    api_key: ${JINA_API_KEY}
-    base_url: "https://api.jina.ai/v1"
-    model: "jina-embeddings-v3"
-    task: "text-matching"
-    dimensions: 1024
-    batch_size: 10
-  openai:
-    api_key: ${OPENAI_API_KEY}
-    model: "text-embedding-3-large"
-    dimensions: 3072
-    batch_size: 10
-  cohere:
-    api_key: ${COHERE_API_KEY}
-    model: "embed-english-v3.0"
-    input_type: "search_document"
-    dimensions: 1024
-    batch_size: 32
-    truncate: "NONE"
-    embedding_types: ["float"]
-  mistral:
-    api_key: ${MISTRAL_API_KEY}
-    api_base: "https://api.mistral.ai/v1"
-    model: "mistral-embed"
-    dimensions: 1024
+    connection_params:
+      api_key: "${DATASOURCE_PINECONE_API_KEY}"
+      namespace: ""
+      index_name: "orbit-index"
+    timeout: 30
+    cache_ttl: 1800
+  
+  weaviate:
+    enabled: false
+    connection_params:
+      url: "${DATASOURCE_WEAVIATE_URL}"
+      api_key: "${DATASOURCE_WEAVIATE_API_KEY}"
+    pool_size: 5
+    timeout: 30
+  
+  milvus:
+    enabled: false
+    connection_params:
+      uri: "./milvus.db"
+    pool_size: 5
+    timeout: 30
+  
+  pgvector:
+    enabled: false
+    connection_params:
+      connection_string: "${DATASOURCE_PGVECTOR_CONNECTION_STRING}"
+    pool_size: 5
+    timeout: 30
+    cache_ttl: 1800
+  
+  faiss:
+    enabled: false
+    connection_params:
+      persist_directory: "./faiss_db"
+    pool_size: 5
+    timeout: 30
+  
+  marqo:
+    enabled: false
+    connection_params:
+      url: "http://localhost:8882"
+      model: "hf/all_datasets_v4_MiniLM-L6"
+    pool_size: 5
+    timeout: 30
 ```
 
 ## Adapters Configuration (adapters.yaml)
+
+Adapters are organized by category and imported from separate files:
+
+```yaml
+adapters: []
+
+import:
+  - "adapters/passthrough.yaml"
+  - "adapters/multimodal.yaml"
+  - "adapters/qa.yaml"
+  - "adapters/intent.yaml"
+```
+
+### Capability-Based Architecture
+
+Each adapter can declare explicit capabilities:
+
+```yaml
+capabilities:
+  retrieval_behavior: "always"         # none, always, conditional
+  formatting_style: "standard"         # standard, clean, custom
+  supports_file_ids: false             # Accept file_ids for filtering
+  supports_session_tracking: false     # Track session_id
+  supports_threading: true             # Conversation threading support
+  requires_api_key_validation: true    # Validate API key access
+  skip_when_no_files: true             # Skip retrieval when no file_ids
+  optional_parameters: ["param1"]      # Additional context parameters
+```
+
+### Provider Overrides
+
+Each adapter can override global providers:
+
+```yaml
+adapters:
+  - name: "my-adapter"
+    inference_provider: "anthropic"    # Override LLM provider
+    model: "claude-sonnet-4-20250514"  # Override model
+    embedding_provider: "openai"       # Override embedding provider
+    reranker_provider: "cohere"        # Override reranker
+```
+
+### Adapter Example with Fault Tolerance
 
 ```yaml
 adapters:
@@ -475,154 +606,302 @@ adapters:
     datasource: "sqlite"
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QASSQLRetriever"
+    database: "examples/sqlite/qa.db"  # Override datasource database
+    
     config:
-      # QA-specific settings
       confidence_threshold: 0.3
       max_results: 5
       return_results: 3
-      
-      # Adapter granularity strategy settings
-      query_timeout: 5000
-      enable_query_monitoring: true
-      
-      # Security and access control (recommended)
-      table: "city"  # Specify the exact table for single-table access
-      allowed_columns: ["id", "question", "answer", "category", "confidence"]  # Limit accessible columns
-      security_filter: "active = 1"  # Only return active Q&A pairs
-      
-      # Performance optimization
-      cache_ttl: 1800  # Cache results for 30 minutes
-      
-    # Fault tolerance settings for this adapter
+      table: "city"
+      allowed_columns: ["id", "question", "answer", "category"]
+      security_filter: "active = 1"
+      cache_ttl: 1800
+    
     fault_tolerance:
-      operation_timeout: 15.0          # Lower timeout for local database operations
-      failure_threshold: 10            # Higher threshold for local operations (more reliable)
-      recovery_timeout: 30.0           # Short base timeout for local DB
-      success_threshold: 5             # Multiple successes to close circuit
-      max_recovery_timeout: 120.0      # Max 2 minutes for local DB
-      enable_exponential_backoff: true # Enable backoff for local DB
-      enable_thread_isolation: false   # No isolation needed for local SQLite operations
-      enable_process_isolation: false  # SQLite is lightweight, no process isolation needed
-      max_retries: 3                   # Retry failed queries
-      retry_delay: 0.5                 # Short delay between retries for local DB
-      cleanup_interval: 3600.0         # Clean up stats every hour
-      retention_period: 86400.0        # Keep stats for 24 hours
+      operation_timeout: 15.0
+      failure_threshold: 10
+      recovery_timeout: 30.0
+      success_threshold: 5
+      max_recovery_timeout: 120.0
+      enable_exponential_backoff: true
+      enable_thread_isolation: false
+      max_retries: 3
+      retry_delay: 0.5
+      cleanup_interval: 3600.0
+      retention_period: 86400.0
       event_handler:
-        type: "default"                # Use default filesystem logger
-      
-  - name: "qa-vector-chroma"
-    type: "retriever"
-    datasource: "chroma"
-    adapter: "qa"
-    implementation: "retrievers.implementations.qa.QAChromaRetriever"
-    config:
-      collection: "city"
-      confidence_threshold: 0.3
-      distance_scaling_factor: 200.0
-      embedding_provider: null
-      max_results: 5
-      return_results: 3
-      
-    # Fault tolerance settings for this adapter
-    fault_tolerance:
-      operation_timeout: 25.0          # Longer timeout for network operations
-      failure_threshold: 3             # Lower threshold for external service
-      recovery_timeout: 60.0           # Longer base timeout for network service
-      success_threshold: 2             # Fewer successes to close circuit
-      max_recovery_timeout: 600.0      # Max 10 minutes for network service
-      enable_exponential_backoff: true # Enable backoff for network service
-      enable_thread_isolation: true    # Use thread isolation for network operations
-      enable_process_isolation: false  # Thread isolation sufficient for most cases
-      max_retries: 2                   # Fewer retries for network operations
-      retry_delay: 1.0                 # Longer delay between retries
-      cleanup_interval: 1800.0         # Clean up stats every 30 minutes (more frequent for network ops)
-      retention_period: 43200.0        # Keep stats for 12 hours
-      event_handler:
-        type: "default"                # Use default filesystem logger
-      
-  - name: "qa-vector-qdrant"
-    type: "retriever"
-    datasource: "qdrant"
-    adapter: "qa"
-    implementation: "retrievers.implementations.qa.QAQdrantRetriever"
-    config:
-      collection: "city"
-      confidence_threshold: 0.3
-      score_scaling_factor: 200.0
-      embedding_provider: null
-      max_results: 5
-      return_results: 3
-      
-    # Fault tolerance settings for this adapter
-    fault_tolerance:
-      operation_timeout: 10.0          # Reduced timeout for faster failure detection
-      failure_threshold: 2             # Lower threshold for external service
-      recovery_timeout: 45.0           # Moderate base timeout for Qdrant
-      success_threshold: 1             # Single success to close circuit (aggressive)
-      max_recovery_timeout: 300.0      # Max 5 minutes for Qdrant
-      enable_exponential_backoff: true # Enable backoff for Qdrant
-      enable_thread_isolation: true    # Use thread isolation for network operations
-      enable_process_isolation: false  # Thread isolation sufficient
-      max_retries: 1                   # Fewer retries for network operations
-      retry_delay: 1.0                 # Shorter delay for Qdrant
-      cleanup_interval: 1800.0         # Clean up stats every 30 minutes
-      retention_period: 43200.0        # Keep stats for 12 hours
-      event_handler:
-        type: "default"                # Use default filesystem logger
-      
-  - name: "file-vector"
-    type: "retriever"
-    datasource: "chroma"
-    adapter: "file"
-    implementation: "retrievers.implementations.file.FileChromaRetriever"
-    config:
-      confidence_threshold: 0.1
-      distance_scaling_factor: 150.0
-      embedding_provider: null
-      max_results: 10
-      return_results: 5
-      # File-specific settings
-      include_file_metadata: true
-      boost_file_uploads: true
-      file_content_weight: 1.5
-      metadata_weight: 0.8
-      
-    # Fault tolerance settings for this adapter
-    fault_tolerance:
-      operation_timeout: 35.0          # Longer timeout for file operations (larger datasets)
-      failure_threshold: 5             # More tolerance for file operations
-      recovery_timeout: 45.0           # Moderate base timeout for file operations
-      success_threshold: 3             # Multiple successes to close circuit
-      max_recovery_timeout: 300.0      # Max 5 minutes for file operations
-      enable_exponential_backoff: true # Enable backoff for file operations
-      enable_thread_isolation: true    # Use thread isolation for file processing
-      enable_process_isolation: false  # Thread isolation sufficient for file operations
-      max_retries: 3                   # More retries for file operations
-      retry_delay: 2.0                 # Longer delay for file operations
-      cleanup_interval: 7200.0         # Clean up stats every 2 hours (less frequent for file ops)
-      retention_period: 172800.0       # Keep stats for 48 hours (longer retention for file ops)
-      event_handler:
-        type: "default"                # Use default filesystem logger
+        type: "default"
 ```
 
-### Database Override in Adapters
+## Inference Providers (inference.yaml)
 
-Each adapter can override the database name/path from datasources.yaml:
+ORBIT supports many LLM providers:
+
+| Provider | Key Features |
+|:---|:---|
+| **ollama** | Local/remote Ollama server |
+| **openai** | GPT-5.2, GPT-4.1, o3/o4-mini |
+| **anthropic** | Claude models |
+| **gemini** | Google Gemini |
+| **vertex** | Google Cloud Vertex AI |
+| **aws** | AWS Bedrock |
+| **azure** | Azure OpenAI |
+| **groq** | Fast inference |
+| **deepseek** | DeepSeek models |
+| **mistral** | Mistral AI |
+| **cohere** | Command models |
+| **together** | Together AI |
+| **xai** | Grok models |
+| **openrouter** | Multi-provider routing |
+| **watson** | IBM watsonx |
+| **huggingface** | Local HuggingFace models |
+| **llama_cpp** | Local GGUF models |
+| **vllm** | vLLM serving |
 
 ```yaml
-adapters:
-  - name: "my-adapter"
-    datasource: "sqlite"
-    database: "path/to/specific/database.db"  # Override default
-    # ... other config
+inference:
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "gemma3:12b"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    repeat_penalty: 1.1
+    num_predict: 1024
+    num_ctx: 8192
+    stream: true
+  
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: "gpt-5.2"                   # Also: gpt-4.1, o3, o4-mini
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+    api_base: "https://api.anthropic.com/v1"
+    model: "claude-sonnet-4-20250514"
+    temperature: 0.1
+    max_tokens: 1024
+    stream: true
 ```
 
-This allows multiple adapters to use different databases from the same datasource type.
+## Embeddings Configuration (embeddings.yaml)
 
-**Examples:**
-- SQLite: `database: "databases/production.db"`
-- PostgreSQL: `database: "production_db"`
-- MySQL: `database: "analytics_db"`
+```yaml
+embeddings:
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "nomic-embed-text"
+    dimensions: 768
+  
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: "text-embedding-3-large"
+    dimensions: 3072
+    batch_size: 10
+  
+  jina:
+    api_key: ${JINA_API_KEY}
+    base_url: "https://api.jina.ai/v1"
+    model: "jina-embeddings-v3"
+    task: "text-matching"
+    dimensions: 1024
+    batch_size: 10
+  
+  cohere:
+    api_key: ${COHERE_API_KEY}
+    model: "embed-english-v3.0"
+    input_type: "search_document"
+    dimensions: 1024
+    batch_size: 32
+  
+  mistral:
+    api_key: ${MISTRAL_API_KEY}
+    api_base: "https://api.mistral.ai/v1"
+    model: "mistral-embed"
+    dimensions: 1024
+  
+  llama_cpp:
+    model_path: "gguf/nomic-embed-text-v1.5-Q4_0.gguf"
+    n_ctx: 1024
+    n_threads: 4
+    n_gpu_layers: 0
+    batch_size: 8
+    dimensions: 768
+```
+
+## Vision Configuration (vision.yaml)
+
+```yaml
+vision:
+  provider: "gemini"                   # Default: openai, gemini, anthropic
+  enabled: true
+
+visions:
+  openai:
+    enabled: true
+    api_key: ${OPENAI_API_KEY}
+    model: "gpt-5.2"                   # Vision-capable model
+    temperature: 0.0
+    max_tokens: 1000
+    timeout:
+      connect: 15000
+      total: 90000
+    retry:
+      enabled: true
+      max_retries: 3
+  
+  gemini:
+    enabled: true
+    api_key: ${GOOGLE_API_KEY}
+    model: "gemini-2.5-flash"
+    transport: "rest"                  # Avoid gRPC warnings
+  
+  anthropic:
+    enabled: true
+    api_key: ${ANTHROPIC_API_KEY}
+    model: "claude-3-5-sonnet-20241022"
+  
+  ollama:
+    enabled: false
+    base_url: "http://localhost:11434"
+    model: "qwen3-vl:8b"
+  
+  cohere:
+    enabled: true
+    api_key: ${COHERE_API_KEY}
+    model: "c4ai-aya-vision-32b"
+```
+
+## Text-to-Speech Configuration (tts.yaml)
+
+```yaml
+tts:
+  provider: "openai"                   # Default TTS provider
+  enabled: true
+
+tts_providers:
+  openai:
+    enabled: true
+    api_key: ${OPENAI_API_KEY}
+    tts_model: "gpt-4o-mini-tts"
+    tts_voice: "coral"                 # alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse
+    tts_format: "mp3"                  # mp3, opus, aac, flac
+  
+  google:
+    enabled: true
+    api_key: ${GOOGLE_API_KEY}
+    tts_model: "neural2"
+    tts_voice: "en-US-Neural2-A"
+    tts_language_code: "en-US"
+  
+  gemini:
+    enabled: true
+    api_key: ${GOOGLE_API_KEY}
+    tts_model: "gemini-2.5-pro-preview-tts"
+    tts_voice: "Kore"                  # 30 voice options available
+  
+  elevenlabs:
+    enabled: true
+    api_key: ${ELEVENLABS_API_KEY}
+    tts_model: "eleven_multilingual_v2"
+    tts_voice: "5opxviIE64D8KxYYJKpx"
+    tts_stability: 0.5
+    tts_similarity_boost: 0.75
+  
+  coqui:
+    enabled: false                     # Local, open-source TTS
+    tts_model: "tts_models/en/ljspeech/tacotron2-DDC"
+    vocoder_model: "vocoder_models/en/ljspeech/hifigan_v2"
+    device: "auto"                     # auto, cpu, cuda
+```
+
+## Speech-to-Text Configuration (stt.yaml)
+
+```yaml
+stt:
+  provider: "openai"                   # Default STT provider
+  enabled: true
+
+stt_providers:
+  whisper:
+    enabled: false                     # Local Whisper (free, no API costs)
+    model_size: "base"                 # tiny, base, small, medium, large-v3
+    device: "auto"                     # auto, cpu, cuda
+    language: null                     # null for auto-detect
+    task: "transcribe"                 # transcribe, translate
+  
+  openai:
+    enabled: true
+    api_key: ${OPENAI_API_KEY}
+    stt_model: "whisper-1"
+  
+  google:
+    enabled: true
+    api_key: ${GOOGLE_API_KEY}
+    stt_model: "latest_long"
+    stt_language_code: "en-US"
+  
+  gemini:
+    enabled: true
+    api_key: ${GOOGLE_API_KEY}
+    stt_model: "gemini-2.5-pro"
+    transport: "rest"
+```
+
+## Safety & Guardrails (guardrails.yaml)
+
+```yaml
+safety:
+  enabled: false
+  mode: "fuzzy"
+  moderator: "openai"
+  max_retries: 3
+  retry_delay: 1.0
+  request_timeout: 10
+  allow_on_timeout: false
+  disable_on_fallback: true            # Disable if no moderators available
+```
+
+## Rerankers Configuration (rerankers.yaml)
+
+```yaml
+reranker:
+  provider: "ollama"
+  enabled: false
+
+rerankers:
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "xitao/bge-reranker-v2-m3:latest"
+    temperature: 0.0
+    batch_size: 5
+```
+
+## Moderators Configuration (moderators.yaml)
+
+```yaml
+moderators:
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: "omni-moderation-latest"
+  
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+    model: "claude-3-haiku-20240307"
+    temperature: 0.0
+    max_tokens: 10
+    batch_size: 5
+  
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "llama-guard3:1b"
+    temperature: 0.0
+    batch_size: 1
+```
 
 ## Data Sources Configuration (datasources.yaml)
 
@@ -633,17 +912,10 @@ datasources:
     db_path: "examples/chroma/chroma_db"
     host: "localhost"
     port: 8000
-    embedding_provider: null 
-  qdrant:
-    host: ${DATASOURCE_QDRANT_HOST}
-    port: ${DATASOURCE_QDRANT_PORT}
-    timeout: 5
-    prefer_grpc: false
-    https: false
-    embedding_provider: null
-    collection_name: "orbit"
+  
   sqlite:
     database: "examples/sqlite/sqlite_db"
+  
   postgres:
     host: ${DATASOURCE_POSTGRES_HOST}
     port: ${DATASOURCE_POSTGRES_PORT}
@@ -651,17 +923,21 @@ datasources:
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
     sslmode: ${DATASOURCE_POSTGRES_SSL_MODE}
-  milvus:
+  
+  qdrant:
+    host: ${DATASOURCE_QDRANT_HOST}
+    port: ${DATASOURCE_QDRANT_PORT}
+    timeout: 5
+    prefer_grpc: false
+    https: false
+  
+  mongodb:
     host: "localhost"
-    port: 19530
-    dim: 768
-    metric_type: "IP"  # Options: L2, IP, COSINE
-    embedding_provider: null
-  pinecone:
-    api_key: ${DATASOURCE_PINECONE_API_KEY}
-    host: ${DATASOURCE_PINECONE_HOST}
-    namespace: "default"
-    embedding_provider: null
+    port: 27017
+    database: "orbit"
+    username: ${DATASOURCE_MONGODB_USERNAME}
+    password: ${DATASOURCE_MONGODB_PASSWORD}
+  
   elasticsearch:
     node: 'https://localhost:9200'
     auth:
@@ -670,203 +946,130 @@ datasources:
       vector_field: "embedding"
       text_field: "content"
       verify_certs: true
-      embedding_provider: null
+  
   redis:
     host: ${DATASOURCE_REDIS_HOST}
     port: ${DATASOURCE_REDIS_PORT}
     password: ${DATASOURCE_REDIS_PASSWORD}
     db: 0
     use_ssl: false
-    vector_field: "embedding"
-    text_field: "content"
-    distance_metric: "COSINE"  # Options: L2, IP, COSINE
-  mongodb:
-    host: "localhost"
-    port: 27017
-    database: "orbit"
-    apikey_collection: "api_keys"
-    username: ${DATASOURCE_MONGODB_USERNAME}
-    password: ${DATASOURCE_MONGODB_PASSWORD}
-```
-
-## Moderators Configuration (moderators.yaml)
-
-```yaml
-moderators:
-  openai:
-    api_key: ${OPENAI_API_KEY}
-    model: "omni-moderation-latest"
-  anthropic:
-    api_key: ${ANTHROPIC_API_KEY}
-    model: "claude-3-haiku-20240307"
-    temperature: 0.0
-    max_tokens: 10
-    batch_size: 5
-  ollama:
-    base_url: "http://localhost:11434"
-    model: "llama-guard3:1b"
-    temperature: 0.0
-    top_p: 1.0
-    max_tokens: 50
-    batch_size: 1
-```
-
-## Rerankers Configuration (rerankers.yaml)
-
-```yaml
-rerankers:
-  ollama:
-    base_url: "http://localhost:11434"
-    model: "xitao/bge-reranker-v2-m3:latest"
-    temperature: 0.0
-    batch_size: 5
+    distance_metric: "COSINE"          # L2, IP, COSINE
 ```
 
 ## Environment Variables
 
-The configuration system supports environment variable substitution using the `${VARIABLE_NAME}` syntax. Common variables include:
-
 ### API Keys
-- `${OPENAI_API_KEY}`: OpenAI API key
-- `${ANTHROPIC_API_KEY}`: Anthropic API key
-- `${GOOGLE_API_KEY}`: Google API key
-- `${MISTRAL_API_KEY}`: Mistral API key
-- `${COHERE_API_KEY}`: Cohere API key
-- `${JINA_API_KEY}`: Jina API key
-- `${GROQ_API_KEY}`: Groq API key
-- `${DEEPSEEK_API_KEY}`: Deepseek API key
-- `${TOGETHER_API_KEY}`: Together API key
-- `${XAI_API_KEY}`: XAI API key
-- `${OPENROUTER_API_KEY}`: OpenRouter API key
-- `${WATSON_API_KEY}`: IBM Watson API key
+
+| Variable | Description |
+|:---|:---|
+| `OPENAI_API_KEY` | OpenAI API key |
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `GOOGLE_API_KEY` | Google API key (Gemini) |
+| `MISTRAL_API_KEY` | Mistral API key |
+| `COHERE_API_KEY` | Cohere API key |
+| `JINA_API_KEY` | Jina API key |
+| `GROQ_API_KEY` | Groq API key |
+| `DEEPSEEK_API_KEY` | DeepSeek API key |
+| `TOGETHER_API_KEY` | Together API key |
+| `XAI_API_KEY` | XAI/Grok API key |
+| `OPENROUTER_API_KEY` | OpenRouter API key |
+| `WATSON_API_KEY` | IBM Watson API key |
+| `ELEVENLABS_API_KEY` | ElevenLabs API key |
+| `FIRECRAWL_API_KEY` | Firecrawl API key |
 
 ### Cloud Services
-- `${GOOGLE_CLOUD_PROJECT}`: Google Cloud project ID
-- `${AWS_BEDROCK_ACCESS_KEY}`: AWS Bedrock access key
-- `${AWS_SECRET_ACCESS_KEY}`: AWS secret access key
-- `${AZURE_ACCESS_KEY}`: Azure API key
+
+| Variable | Description |
+|:---|:---|
+| `GOOGLE_CLOUD_PROJECT` | Google Cloud project ID |
+| `AWS_BEDROCK_ACCESS_KEY` | AWS Bedrock access key |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret access key |
+| `AZURE_ACCESS_KEY` | Azure API key |
 
 ### Internal Services
-- `${INTERNAL_SERVICES_ELASTICSEARCH_NODE}`: Elasticsearch node URL
-- `${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}`: Elasticsearch username
-- `${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}`: Elasticsearch password
-- `${INTERNAL_SERVICES_MONGODB_HOST}`: MongoDB host
-- `${INTERNAL_SERVICES_MONGODB_PORT}`: MongoDB port
-- `${INTERNAL_SERVICES_MONGODB_USERNAME}`: MongoDB username
-- `${INTERNAL_SERVICES_MONGODB_PASSWORD}`: MongoDB password
-- `${INTERNAL_SERVICES_REDIS_HOST}`: Redis host
-- `${INTERNAL_SERVICES_REDIS_PORT}`: Redis port
-- `${INTERNAL_SERVICES_REDIS_USERNAME}`: Redis username
-- `${INTERNAL_SERVICES_REDIS_PASSWORD}`: Redis password
+
+| Variable | Description |
+|:---|:---|
+| `INTERNAL_SERVICES_MONGODB_HOST` | MongoDB host |
+| `INTERNAL_SERVICES_MONGODB_PORT` | MongoDB port |
+| `INTERNAL_SERVICES_MONGODB_USERNAME` | MongoDB username |
+| `INTERNAL_SERVICES_MONGODB_PASSWORD` | MongoDB password |
+| `INTERNAL_SERVICES_MONGODB_DB` | MongoDB database name |
+| `INTERNAL_SERVICES_REDIS_HOST` | Redis host |
+| `INTERNAL_SERVICES_REDIS_PORT` | Redis port |
+| `INTERNAL_SERVICES_REDIS_USERNAME` | Redis username |
+| `INTERNAL_SERVICES_REDIS_PASSWORD` | Redis password |
+| `INTERNAL_SERVICES_ELASTICSEARCH_NODE` | Elasticsearch node URL |
+| `INTERNAL_SERVICES_ELASTICSEARCH_USERNAME` | Elasticsearch username |
+| `INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD` | Elasticsearch password |
 
 ### Data Sources
-- `${DATASOURCE_QDRANT_HOST}`: Qdrant host
-- `${DATASOURCE_QDRANT_PORT}`: Qdrant port
-- `${DATASOURCE_POSTGRES_HOST}`: PostgreSQL host
-- `${DATASOURCE_POSTGRES_PORT}`: PostgreSQL port
-- `${DATASOURCE_POSTGRES_DATABASE}`: PostgreSQL database name
-- `${DATASOURCE_POSTGRES_USERNAME}`: PostgreSQL username
-- `${DATASOURCE_POSTGRES_PASSWORD}`: PostgreSQL password
-- `${DATASOURCE_POSTGRES_SSL_MODE}`: PostgreSQL SSL mode
-- `${DATASOURCE_PINECONE_API_KEY}`: Pinecone API key
-- `${DATASOURCE_PINECONE_HOST}`: Pinecone host URL
-- `${DATASOURCE_ELASTICSEARCH_USERNAME}`: Elasticsearch username
-- `${DATASOURCE_ELASTICSEARCH_PASSWORD}`: Elasticsearch password
-- `${DATASOURCE_REDIS_HOST}`: Redis host for datasource
-- `${DATASOURCE_REDIS_PORT}`: Redis port for datasource
-- `${DATASOURCE_REDIS_PASSWORD}`: Redis password for datasource
-- `${DATASOURCE_MONGODB_USERNAME}`: MongoDB username for datasource
-- `${DATASOURCE_MONGODB_PASSWORD}`: MongoDB password for datasource
+
+| Variable | Description |
+|:---|:---|
+| `DATASOURCE_POSTGRES_HOST` | PostgreSQL host |
+| `DATASOURCE_POSTGRES_PORT` | PostgreSQL port |
+| `DATASOURCE_POSTGRES_DATABASE` | PostgreSQL database |
+| `DATASOURCE_POSTGRES_USERNAME` | PostgreSQL username |
+| `DATASOURCE_POSTGRES_PASSWORD` | PostgreSQL password |
+| `DATASOURCE_POSTGRES_SSL_MODE` | PostgreSQL SSL mode |
+| `DATASOURCE_QDRANT_HOST` | Qdrant host |
+| `DATASOURCE_QDRANT_PORT` | Qdrant port |
+| `DATASOURCE_QDRANT_URL` | Qdrant Cloud URL |
+| `DATASOURCE_QDRANT_API_KEY` | Qdrant API key |
+| `DATASOURCE_PINECONE_API_KEY` | Pinecone API key |
+| `DATASOURCE_PINECONE_HOST` | Pinecone host URL |
+| `DATASOURCE_WEAVIATE_URL` | Weaviate URL |
+| `DATASOURCE_WEAVIATE_API_KEY` | Weaviate API key |
+| `DATASOURCE_PGVECTOR_CONNECTION_STRING` | PGVector connection string |
+| `DATASOURCE_MONGODB_USERNAME` | MongoDB username (datasource) |
+| `DATASOURCE_MONGODB_PASSWORD` | MongoDB password (datasource) |
+| `DATASOURCE_ELASTICSEARCH_USERNAME` | Elasticsearch username |
+| `DATASOURCE_ELASTICSEARCH_PASSWORD` | Elasticsearch password |
+| `DATASOURCE_REDIS_HOST` | Redis host |
+| `DATASOURCE_REDIS_PORT` | Redis port |
+| `DATASOURCE_REDIS_PASSWORD` | Redis password |
 
 ### Authentication
-- `${ORBIT_DEFAULT_ADMIN_PASSWORD}`: Default admin password
 
-## Configuration Management
-
-The `config_manager.py` module provides several key functions:
-
-### Loading Configuration
-
-```python
-from config.config_manager import load_config
-
-# Load configuration with default path
-config = load_config()
-
-# Load configuration from specific path
-config = load_config("path/to/config.yaml")
-```
-
-### Configuration Validation
-
-The system automatically:
-- Validates required sections
-- Applies default values
-- Processes environment variables
-- Masks sensitive information in logs
-
-### Security Features
-
-- Credentials are masked in logs
-- Environment variables for sensitive data
-- HTTPS configuration support
-- API key management
+| Variable | Description |
+|:---|:---|
+| `ORBIT_DEFAULT_ADMIN_PASSWORD` | Default admin password |
 
 ## Best Practices
 
-1. **Environment Variables**
-   - Use environment variables for sensitive data
-   - Never commit credentials to configuration files
-   - Use different variables for different environments
+### Security
+- Use environment variables for all credentials
+- Enable HTTPS in production
+- Configure specific CORS origins (not `*`)
+- Set `expose_details: false` in production error handling
+- Enable rate limiting with Redis
 
-2. **Configuration Organization**
-   - Group related settings together
-   - Use clear, descriptive names
-   - Document non-obvious settings
+### Performance
+- Configure appropriate thread pool sizes
+- Set reasonable timeouts for external services
+- Enable caching where supported
+- Use connection pooling for databases
 
-3. **Security**
-   - Enable HTTPS in production
-   - Use strong API key prefixes
-   - Configure appropriate timeouts
-   - Enable safety checks
+### Fault Tolerance
+- Configure circuit breakers for external services
+- Set appropriate retry limits and delays
+- Enable exponential backoff for network operations
+- Use thread isolation for network-bound operations
 
-4. **Performance**
-   - Configure appropriate batch sizes
-   - Set reasonable timeouts
-   - Enable caching where appropriate
-   - Configure appropriate thread counts
-
-5. **Fault Tolerance**
-   - Configure circuit breakers for external services
-   - Set appropriate timeouts and retry limits
-   - Enable exponential backoff for network operations
-   - Use thread isolation for network operations
+### Logging
+- Use `INFO` level in production
+- Enable file logging with rotation
+- Suppress noisy third-party loggers
+- Use JSON format for log aggregation systems
 
 ## Troubleshooting
 
-Common issues and solutions:
-
-1. **Configuration Not Found**
-   - Check file paths
-   - Verify file permissions
-   - Check for syntax errors
-
-2. **Environment Variables**
-   - Verify variables are set
-   - Check variable names
-   - Ensure proper syntax
-
-3. **Security Issues**
-   - Verify HTTPS configuration
-   - Check API key settings
-   - Validate credentials
-
-4. **Performance Problems**
-   - Check batch sizes
-   - Verify thread counts
-   - Review timeout settings
-
-5. **Fault Tolerance Issues**
-   - Check circuit breaker settings
-   - Verify timeout configurations
-   - Review retry policies
+| Issue | Solution |
+|:---|:---|
+| Configuration not found | Check file paths and permissions |
+| Environment variable not resolved | Verify variable is set and uses `${VAR}` syntax |
+| HTTPS not working | Verify certificate paths and permissions |
+| Rate limiting not working | Ensure Redis is enabled and connected |
+| Adapter initialization timeout | Increase `adapter_preload_timeout` in performance section |
+| Vector store connection failed | Check store configuration in `stores.yaml` |

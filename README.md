@@ -55,17 +55,6 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 - **Secure by default** with token-based auth, role-aware API keys, and pluggable content moderation.
 - **Ready for teams** thanks to batteries-included clients (CLI, React widget, Node/Python SDKs).
 
-<!--
-## 💬 What Users Are Saying
-
-> "ORBIT let us switch from OpenAI to Anthropic in 5 minutes without touching our app code."
-> — *Add your testimonial here*
-
-Have a story to share? Open a PR or reach out on [LinkedIn](https://www.linkedin.com/in/remsy/).
--->
-
----
-
 ## Why ORBIT
 
 - **Avoid vendor lock-in** by switching between LLM providers without rewriting your application code—change providers in configuration, not code.
@@ -78,6 +67,20 @@ Have a story to share? Open a PR or reach out on [LinkedIn](https://www.linkedin
 - **Product teams** shipping AI copilots that depend on reliable retrieval, intent-based querying, and guardrails.
 - **Data teams** building RAG applications that need to query SQL databases, vector stores, and APIs through natural language.
 - **Researchers & tinkerers** exploring local-first stacks, evaluating different foundation models, or building multimodal AI applications.
+
+---
+
+## 🌐 Who Uses ORBIT
+
+<div align="center">
+  <a href="https://www.civicchat.ca">
+    <img src="https://img.shields.io/badge/Civic_Chat-Powered_by_ORBIT-blue?style=for-the-badge" alt="Civic Chat">
+  </a>
+</div>
+
+**[Civic Chat](https://www.civicchat.ca)** — An AI-powered tool for exploring Canadian open data across municipal, provincial, and federal levels of government. Civic Chat uses ORBIT's intent-based adapters to translate natural language queries into SQL and API calls, enabling citizens to explore public datasets through conversation.
+
+> *Using ORBIT in production? [Let us know](https://github.com/schmitech/orbit/issues) and we'll feature your project here.*
 
 ---
 
