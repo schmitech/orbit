@@ -380,7 +380,7 @@ export function Message({
         </div>
 
         {isAssistant && !message.isStreaming && (
-          <div className="flex items-center gap-1 md:gap-2 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd] sm:opacity-0 sm:group-hover:opacity-100">
+          <div className="flex items-center gap-1 md:gap-2 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
             <button
               onClick={copyToClipboard}
               className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
