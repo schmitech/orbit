@@ -3,6 +3,7 @@ import {
   ArrowUp,
   Bot,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Copy,
   File,
@@ -33,6 +34,11 @@ interface MessageProps {
 }
 
 const EMPTY_THREAD_REPLIES: MessageType[] = [];
+const THREAD_PLACEHOLDER_HINTS = [
+  'Try: "Break down the key takeaways"',
+  'Try: "Make a pie chart from this data"',
+  'Try: "Summarize it in a quick table"'
+];
 
 export function Message({
   message,
@@ -48,10 +54,16 @@ export function Message({
   const [threadInput, setThreadInput] = useState('');
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
+  const [threadHintIndex, setThreadHintIndex] = useState(() =>
+    THREAD_PLACEHOLDER_HINTS.length > 1
+      ? Math.floor(Math.random() * THREAD_PLACEHOLDER_HINTS.length)
+      : 0
+  );
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
   const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
   const threadRepliesRef = useRef<HTMLDivElement>(null);
   const prevThreadContentRef = useRef<string>('');
+  const prevThreadOpenRef = useRef(false);
 
   const isAssistant = message.role === 'assistant';
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
@@ -69,6 +81,12 @@ export function Message({
       ? `This thread reached the ${threadLimit} message limit. Start a new conversation for more follow-ups.`
       : null;
   const { theme, isDark } = useTheme();
+  const threadPlaceholder =
+    threadReplyCount > 0
+      ? 'Reply in thread...'
+      : THREAD_PLACEHOLDER_HINTS.length > 0
+        ? THREAD_PLACEHOLDER_HINTS[threadHintIndex % THREAD_PLACEHOLDER_HINTS.length]
+        : 'Ask a follow-up...';
 
   const forcedThemeClass =
     theme.mode === 'dark' ? 'dark' : theme.mode === 'light' ? 'light' : '';
@@ -265,6 +283,40 @@ export function Message({
     }
   }, [threadInput]);
 
+  useEffect(() => {
+    if (threadReplyCount > 0) {
+      setThreadHintIndex(0);
+    }
+  }, [threadReplyCount]);
+
+  useEffect(() => {
+    const wasOpen = prevThreadOpenRef.current;
+    const canRotate = !threadComposerDisabled && threadReplyCount === 0 && THREAD_PLACEHOLDER_HINTS.length > 1;
+
+    if (!wasOpen && isThreadOpen && canRotate) {
+      setThreadHintIndex(prev => (prev + 1) % THREAD_PLACEHOLDER_HINTS.length);
+    }
+
+    prevThreadOpenRef.current = isThreadOpen;
+  }, [isThreadOpen, threadComposerDisabled, threadReplyCount]);
+
+  useEffect(() => {
+    if (
+      !isThreadOpen ||
+      threadComposerDisabled ||
+      threadReplyCount > 0 ||
+      THREAD_PLACEHOLDER_HINTS.length <= 1
+    ) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setThreadHintIndex(prev => (prev + 1) % THREAD_PLACEHOLDER_HINTS.length);
+    }, 6000);
+
+    return () => clearInterval(interval);
+  }, [isThreadOpen, threadComposerDisabled, threadReplyCount]);
+
   const renderedMessageContent = useMemo(() => {
     if (message.isStreaming && (!message.content || message.content === '…')) {
       return (
@@ -380,59 +432,78 @@ export function Message({
         </div>
 
         {isAssistant && !message.isStreaming && (
-          <div className="flex items-center gap-1 md:gap-2 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
-            <button
-              onClick={copyToClipboard}
-              className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
-              title="Copy message"
-            >
-              <Copy className="h-4 w-4" />
-              <span className="hidden sm:inline">Copy</span>
-            </button>
-
-            {onRegenerate && (
+          <>
+            <div className="flex flex-wrap items-center gap-1 md:gap-2 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
               <button
-                onClick={() => onRegenerate(message.id)}
+                onClick={copyToClipboard}
                 className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
-                title="Regenerate response"
+                title="Copy message"
               >
-                <RotateCcw className="h-4 w-4" />
-                <span className="hidden sm:inline">Retry</span>
+                <Copy className="h-4 w-4" />
+                <span className="hidden sm:inline">Copy</span>
               </button>
-            )}
+
+              {onRegenerate && (
+                <button
+                  onClick={() => onRegenerate(message.id)}
+                  className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
+                  title="Regenerate response"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  <span className="hidden sm:inline">Retry</span>
+                </button>
+              )}
+
+              {getEnableFeedbackButtons() && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleFeedback('up')}
+                    className={`rounded p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'up' ? 'text-[#353740] dark:text-[#ececf1]' : ''}`}
+                    title="Good response"
+                  >
+                    <ThumbsUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleFeedback('down')}
+                    className={`rounded p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'down' ? 'text-[#353740] dark:text-[#ececf1]' : ''}`}
+                    title="Poor response"
+                  >
+                    <ThumbsDown className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              {copied && <span>Copied</span>}
+            </div>
 
             {threadsEnabled && onStartThread && message.supportsThreading && !message.threadInfo && sessionId && (
-              <button
-                onClick={() => onStartThread(message.id, sessionId)}
-                className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
-                title="Start thread for follow-up questions"
-              >
-                <MessageSquare className="h-4 w-4" />
-                <span className="hidden sm:inline">Start Thread</span>
-              </button>
-            )}
-
-            {getEnableFeedbackButtons() && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => handleFeedback('up')}
-                  className={`rounded p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'up' ? 'text-[#353740] dark:text-[#ececf1]' : ''}`}
-                  title="Good response"
-                >
-                  <ThumbsUp className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => handleFeedback('down')}
-                  className={`rounded p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'down' ? 'text-[#353740] dark:text-[#ececf1]' : ''}`}
-                  title="Poor response"
-                >
-                  <ThumbsDown className="h-4 w-4" />
-                </button>
+              <div className="mt-3 w-full rounded-2xl border border-blue-200/80 bg-blue-50/70 p-4 text-xs shadow-sm ring-1 ring-blue-100/60 transition hover:border-blue-300 hover:ring-blue-200 dark:border-[#233449] dark:bg-[#0f1821] dark:text-[#c5d7ff] dark:ring-[#1f2a36] sm:mt-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="flex flex-1 items-start gap-3">
+                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-blue-600 shadow-sm dark:bg-white/10">
+                      <MessageSquare className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-sm font-semibold text-blue-900 dark:text-[#e5edff]">Keep working with this answer</p>
+                        <p className="mt-1 text-[13px] text-blue-900/80 dark:text-[#9bb9ff]">
+                          Open a follow-up thread to clarify details, reuse this data, or launch quick actions like charting.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onStartThread(message.id, sessionId)}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0f8f6f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0d765b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#0f8f6f] dark:focus-visible:ring-offset-[#0f1821] sm:w-auto"
+                    title="Start a follow-up thread"
+                  >
+                    Start follow-up
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             )}
-
-            {copied && <span>Copied</span>}
-          </div>
+          </>
         )}
 
         {threadsEnabled && message.threadInfo && (
@@ -484,7 +555,7 @@ export function Message({
                     <textarea
                       ref={threadTextareaRef}
                       className="flex-1 w-full sm:w-auto min-w-0 resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-base sm:text-sm text-[#353740] placeholder-gray-500 outline-none transition focus:border-gray-400 focus:ring-1 focus:ring-gray-300 disabled:opacity-60 dark:border-[#3c3f4a] dark:bg-[#2d2f39] dark:text-[#ececf1] dark:placeholder-[#8e8ea0] dark:focus:border-[#8e8ea0] dark:focus:ring-[#8e8ea0]"
-                      placeholder={threadReplyCount > 0 ? 'Reply in thread...' : 'Ask a follow-up...'}
+                      placeholder={threadPlaceholder}
                       value={threadInput}
                       onChange={e => setThreadInput(e.target.value)}
                       onKeyDown={handleThreadKeyDown}
