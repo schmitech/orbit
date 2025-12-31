@@ -5,6 +5,7 @@ Builds ProcessingContext objects from request parameters,
 eliminating duplication between streaming and non-streaming paths.
 """
 
+import asyncio
 import logging
 from typing import Dict, Any, Optional, List
 
@@ -117,7 +118,8 @@ class RequestContextBuilder:
         return_audio: Optional[bool] = None,
         tts_voice: Optional[str] = None,
         source_language: Optional[str] = None,
-        target_language: Optional[str] = None
+        target_language: Optional[str] = None,
+        cancel_event: Optional[asyncio.Event] = None
     ) -> ProcessingContext:
         """
         Build a ProcessingContext from request parameters.
@@ -138,6 +140,7 @@ class RequestContextBuilder:
             tts_voice: Optional TTS voice
             source_language: Optional source language for translation
             target_language: Optional target language for translation
+            cancel_event: Optional asyncio.Event for stream cancellation
 
         Returns:
             ProcessingContext instance
@@ -175,5 +178,6 @@ class RequestContextBuilder:
             return_audio=return_audio,
             tts_voice=tts_voice,
             source_language=source_language,
-            target_language=target_language
+            target_language=target_language,
+            cancel_event=cancel_event
         )

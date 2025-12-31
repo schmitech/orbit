@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowUp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX } from 'lucide-react';
+import { ArrowUp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square } from 'lucide-react';
 import { useVoice } from '../hooks/useVoice';
 import { FileUpload } from './FileUpload';
 import { FileAttachment } from '../types';
@@ -124,7 +124,7 @@ export function MessageInput({
   }, []);
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
 
-  const { createConversation, currentConversationId, conversations, isLoading, syncConversationFiles } = useChatStore();
+  const { createConversation, currentConversationId, conversations, isLoading, syncConversationFiles, stopStreaming } = useChatStore();
   const currentConversation = conversations.find(c => c.id === currentConversationId);
   const conversationMessagesCount = currentConversation
     ? currentConversation.messages.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length
@@ -1006,18 +1006,32 @@ export function MessageInput({
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={(!message.trim() && attachedFiles.length === 0) || isInputDisabled || isComposing}
-                className={`flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
-                  (message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing
-                    ? 'bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200'
-                    : 'bg-gray-300 text-gray-500 dark:bg-[#565869] dark:text-[#6b6f7a]'
-                }`}
-                title="Send message"
-              >
-                <ArrowUp className="h-5 w-5 md:h-4 md:w-4" />
-              </button>
+              {isLoading ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    stopStreaming();
+                  }}
+                  className="flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
+                  title="Stop generating"
+                >
+                  <Square className="h-4 w-4 md:h-3 md:w-3 fill-current" />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={(!message.trim() && attachedFiles.length === 0) || isInputDisabled || isComposing}
+                  className={`flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
+                    (message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing
+                      ? 'bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200'
+                      : 'bg-gray-300 text-gray-500 dark:bg-[#565869] dark:text-[#6b6f7a]'
+                  }`}
+                  title="Send message"
+                >
+                  <ArrowUp className="h-5 w-5 md:h-4 md:w-4" />
+                </button>
+              )}
             </div>
           </div>
         </div>

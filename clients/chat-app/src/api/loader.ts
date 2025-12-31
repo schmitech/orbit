@@ -11,6 +11,7 @@ import { getUseLocalApi, getLocalApiPath, getEnableApiMiddleware } from '../util
 export interface StreamResponse {
   text: string;
   done: boolean;
+  request_id?: string;  // Request ID from first chunk for cancellation
   audio?: string;  // Optional base64-encoded audio data (TTS response) - full audio
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
   audio_chunk?: string;  // Optional streaming audio chunk (base64-encoded)
@@ -149,13 +150,14 @@ export interface ApiClient {
     notes?: string | null;
   }>;
   getConversationHistory?(sessionId?: string, limit?: number): Promise<ConversationHistoryResponse>;
+  stopChat?(sessionId: string, requestId: string): Promise<boolean>;
 }
 
 export interface ApiFunctions {
   configureApi: (apiUrl: string, apiKey?: string | null, sessionId?: string | null, adapterName?: string | null) => void;
   streamChat: (
-    message: string, 
-    stream?: boolean, 
+    message: string,
+    stream?: boolean,
     fileIds?: string[],
     threadId?: string,
     audioInput?: string,
@@ -167,6 +169,7 @@ export interface ApiFunctions {
     targetLanguage?: string
   ) => AsyncGenerator<StreamResponse>;
   ApiClient: new (config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null; adapterName?: string | null }) => ApiClient;
+  stopChat?: (sessionId: string, requestId: string) => Promise<boolean>;
 }
 
 type LocalApiModule = {
@@ -270,7 +273,19 @@ function createMiddlewareApi(): ApiFunctions {
               if (line.startsWith('data: ')) {
                 try {
                   const data = JSON.parse(line.substring(6));
-                  
+
+                  // Handle request_id from first chunk (for cancellation support)
+                  if (data.request_id && !data.response && !data.done) {
+                    // Uncomment to debug or troubleshoot cancel streams
+                    // console.log(`[MiddlewareApi] Received request_id: ${data.request_id}`);
+                    yield {
+                      text: '',
+                      done: false,
+                      request_id: data.request_id
+                    };
+                    continue;
+                  }
+
                   // Handle different response formats - check for text, content, message, or response fields
                   const responseData: StreamResponse = {
                     text: data.text || data.content || data.message || data.response || '',
@@ -281,7 +296,7 @@ function createMiddlewareApi(): ApiFunctions {
                     chunk_index: data.chunk_index,
                     threading: data.threading
                   };
-                  
+
                   yield responseData;
                 } catch {
                   // Skip invalid JSON
@@ -297,6 +312,17 @@ function createMiddlewareApi(): ApiFunctions {
               if (line.startsWith('data: ')) {
                 try {
                   const data = JSON.parse(line.substring(6));
+
+                  // Handle request_id from first chunk
+                  if (data.request_id && !data.response && !data.done) {
+                    yield {
+                      text: '',
+                      done: false,
+                      request_id: data.request_id
+                    };
+                    continue;
+                  }
+
                   const responseData: StreamResponse = {
                     text: data.text || data.content || data.message || data.response || '',
                     done: data.done || false,
@@ -490,6 +516,27 @@ function createMiddlewareApi(): ApiFunctions {
         }
         return response.json();
       },
+
+      async stopChat(sessId: string, requestId: string): Promise<boolean> {
+        // Uncomment to debug or troubleshoot cancel streams
+        // console.log(`[MiddlewareApi] Calling stopChat: session=${sessId}, request=${requestId}`);
+        const response = await fetch('/api/v1/chat/stop', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Adapter-Name': adapterName!,
+          },
+          body: JSON.stringify({ session_id: sessId, request_id: requestId }),
+        });
+        if (!response.ok) {
+          console.warn(`[MiddlewareApi] stopChat failed: ${response.status} ${response.statusText}`);
+          return false;
+        }
+        const result = await response.json();
+        // Uncomment to debug or troubleshoot cancel streams
+        // console.log(`[MiddlewareApi] stopChat result:`, result);
+        return result.status === 'cancelled';
+      },
     };
   };
 
@@ -523,6 +570,10 @@ function createMiddlewareApi(): ApiFunctions {
         targetLanguage
       );
     },
+    stopChat: async (sessionId: string, requestId: string): Promise<boolean> => {
+      const client = createMiddlewareClient();
+      return client.stopChat!(sessionId, requestId);
+    },
     ApiClient: class MiddlewareApiClient implements ApiClient {
       private client: ApiClient;
 
@@ -550,6 +601,7 @@ function createMiddlewareApi(): ApiFunctions {
       get deleteFile() { return this.client.deleteFile?.bind(this.client); }
       get validateApiKey() { return this.client.validateApiKey?.bind(this.client); }
       get getAdapterInfo() { return this.client.getAdapterInfo?.bind(this.client); }
+      get stopChat() { return this.client.stopChat?.bind(this.client); }
     },
   };
 }

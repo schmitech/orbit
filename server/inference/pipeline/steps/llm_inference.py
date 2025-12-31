@@ -133,12 +133,17 @@ class LLMInferenceStep(PipelineStep):
             accumulated_response = ""
             llm_chunk_count = 0
             async for chunk in llm_provider.generate_stream(full_prompt, **kwargs):
+                # Check for cancellation before yielding each chunk
+                if context.is_cancelled():
+                    logger.debug(f"[LLM_INFERENCE] >>> CANCELLATION DETECTED <<< after {llm_chunk_count} chunks, accumulated_chars={len(accumulated_response)}")
+                    break
+
                 llm_chunk_count += 1
                 accumulated_response += chunk
                 # Uncomment to debug streaming
                 # logger.debug(f"LLM_STREAM: Received chunk #{llm_chunk_count} from provider: {repr(chunk[:30]) if len(chunk) > 30 else repr(chunk)}")
                 yield chunk
-            
+
             context.response = accumulated_response
             
             if debug_enabled:

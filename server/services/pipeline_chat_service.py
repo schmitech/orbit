@@ -302,7 +302,8 @@ class PipelineChatService:
                                  return_audio: Optional[bool] = None,
                                  tts_voice: Optional[str] = None,
                                  source_language: Optional[str] = None,
-                                 target_language: Optional[str] = None):
+                                 target_language: Optional[str] = None,
+                                 cancel_event: Optional[asyncio.Event] = None):
         """
         Process a chat message with streaming response using the pipeline architecture.
 
@@ -322,11 +323,13 @@ class PipelineChatService:
             tts_voice: Optional TTS voice
             source_language: Optional source language for translation
             target_language: Optional target language for translation
+            cancel_event: Optional asyncio.Event for stream cancellation
 
         Yields:
             Streaming response chunks
         """
         try:
+            logger.debug(f"[PIPELINE_CHAT_SERVICE] Starting stream processing: adapter={adapter_name}, session={session_id}, has_cancel_event={cancel_event is not None}")
             # Ensure pipeline is initialized
             await self.initialize()
 
@@ -357,7 +360,8 @@ class PipelineChatService:
                 return_audio=return_audio,
                 tts_voice=tts_voice,
                 source_language=source_language,
-                target_language=target_language
+                target_language=target_language,
+                cancel_event=cancel_event
             )
 
             # Track state for post-processing
@@ -387,6 +391,11 @@ class PipelineChatService:
                         language=language,
                         return_audio=return_audio or False
                     ):
+                        # Check for cancellation before processing each item
+                        if cancel_event and cancel_event.is_set():
+                            logger.debug(f"[PIPELINE_CHAT_SERVICE] >>> CANCELLATION DETECTED <<< adapter={adapter_name}")
+                            break
+
                         # Validate that item is a tuple before unpacking
                         if item is None:
                             logger.error("streaming_handler.process_stream yielded None instead of tuple")
@@ -394,7 +403,7 @@ class PipelineChatService:
                         if not isinstance(item, tuple) or len(item) != 2:
                             logger.error(f"streaming_handler.process_stream yielded invalid item: {type(item)}, value: {item}")
                             continue
-                        
+
                         chunk, state = item
                         yield chunk
                         # No sleep needed - async generator already yields control

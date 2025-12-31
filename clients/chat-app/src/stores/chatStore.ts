@@ -18,6 +18,11 @@ const DEFAULT_ADAPTER_NAME = getDefaultAdapterName();
 const streamingBuffer: Map<string, { content: string; timeoutId: ReturnType<typeof setTimeout> | null }> = new Map();
 const STREAMING_BATCH_DELAY = 32; // ms - batch updates within this window (~30fps)
 
+// Stream control state for stop functionality
+let activeAbortController: AbortController | null = null;
+let activeRequestId: string | null = null;
+let activeStreamSessionId: string | null = null;
+
 const DEFAULT_ADAPTER_STORAGE_KEY = 'chat-default-adapter-name';
 const normalizedDefaultAdapter =
   DEFAULT_ADAPTER_NAME && DEFAULT_ADAPTER_NAME.trim().length > 0
@@ -304,6 +309,7 @@ interface ExtendedChatState extends ChatState {
   loadConversationFiles: (conversationId: string) => Promise<void>;
   syncConversationFiles: (conversationId: string) => Promise<void>;
   syncConversationsWithBackend: () => Promise<void>;
+  stopStreaming: () => Promise<void>;
 }
 
 // API configuration state
@@ -1496,6 +1502,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         // activeThreadId and activeSessionId are already determined above
         // Use them for the streamChat call
 
+        // Set up abort controller for stop functionality
+        const abortController = new AbortController();
+        activeAbortController = abortController;
+        activeStreamSessionId = activeSessionId;
+        activeRequestId = null; // Will be set when we receive the first chunk
+
         for await (const response of api.streamChat(
           content,
           true,
@@ -1505,11 +1517,19 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           undefined, // audioFormat for input
           language,
           returnAudio,
-          ttsVoice
+          ttsVoice,
+          undefined, // sourceLanguage
+          undefined // targetLanguage
         )) {
+          // Capture request_id from server's first chunk (for stop functionality)
+          if (response.request_id && !activeRequestId) {
+            activeRequestId = response.request_id;
+            debugLog(`[chatStore] >>> CAPTURED request_id for stop: ${response.request_id}, session=${activeStreamSessionId}`);
+          }
           debugLog(`[chatStore] Received stream chunk:`, {
             text: response.text?.substring(0, 50),
             done: response.done,
+            request_id: response.request_id,  // Debug: show if request_id is present
             hasAudio: !!response.audio,
             hasAudioChunk: !!response.audio_chunk,
             audioFormat: response.audioFormat,
@@ -1619,26 +1639,47 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           }
         }
 
-        // If no text received, show error
-        if (!receivedAnyText) {
+        // If no text received and not cancelled by user, show error
+        if (!receivedAnyText && !abortController.signal.aborted) {
           debugWarn(`[chatStore] No text received from stream, showing error message`);
           get().appendToLastMessage('No response received from the server. Please try again later.', streamingConversationId);
+        } else if (!receivedAnyText && abortController.signal.aborted) {
+          debugLog('[chatStore] Stream cancelled before text received - not showing error');
         }
       } catch (error) {
-        logError('Chat API error:', error);
-        // Extract meaningful error message for the user
-        let errorMessage = 'Sorry, there was an error processing your request.';
-        if (error instanceof Error) {
-          // Handle moderation/server errors - show the actual message
-          if (error.message.startsWith('Server error:')) {
-            // Extract the message after "Server error: "
-            errorMessage = error.message.substring('Server error: '.length);
-          } else if (error.message.includes('Could not connect') || error.message.includes('timed out')) {
-            errorMessage = error.message;
+        // Check if this was a user-initiated abort
+        const isAbortError = error instanceof Error && (
+          error.name === 'AbortError' ||
+          error.message === 'Stream cancelled by user' ||
+          error.message.includes('aborted')
+        );
+
+        if (isAbortError) {
+          debugLog('[chatStore] Stream was cancelled by user');
+          // Don't show error message for user-initiated cancellation
+          // Mark as received to avoid "no text received" warning
+          receivedAnyText = true;
+        } else {
+          logError('Chat API error:', error);
+          // Extract meaningful error message for the user
+          let errorMessage = 'Sorry, there was an error processing your request.';
+          if (error instanceof Error) {
+            // Handle moderation/server errors - show the actual message
+            if (error.message.startsWith('Server error:')) {
+              // Extract the message after "Server error: "
+              errorMessage = error.message.substring('Server error: '.length);
+            } else if (error.message.includes('Could not connect') || error.message.includes('timed out')) {
+              errorMessage = error.message;
+            }
           }
+          get().appendToLastMessage(errorMessage, streamingConversationId);
         }
-        get().appendToLastMessage(errorMessage, streamingConversationId);
       }
+
+      // Clean up stream control state
+      activeAbortController = null;
+      activeRequestId = null;
+      activeStreamSessionId = null;
 
       // Flush any remaining buffered content before marking streaming as complete
       flushStreamingBuffer(streamingConversationId, set);
@@ -2505,6 +2546,68 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     } catch (error) {
       debugWarn('Failed to synchronize conversations with backend:', error);
     }
+  },
+
+  stopStreaming: async () => {
+    // Only proceed if we're currently loading/streaming
+    if (!get().isLoading) {
+      debugLog('[chatStore] stopStreaming called but not currently loading');
+      return;
+    }
+
+    debugLog('[chatStore] Stopping stream...', {
+      hasAbortController: !!activeAbortController,
+      requestId: activeRequestId,
+      sessionId: activeStreamSessionId
+    });
+
+    // Abort the local fetch request
+    if (activeAbortController) {
+      activeAbortController.abort();
+    }
+
+    // Cancel server-side stream if we have the required IDs
+    if (activeRequestId && activeStreamSessionId) {
+      try {
+        debugLog(`[chatStore] Calling stopChat API: session=${activeStreamSessionId}, request=${activeRequestId}`);
+        const api = await getApi();
+        const cancelled = await api.stopChat?.(activeStreamSessionId, activeRequestId);
+        debugLog(`[chatStore] Server-side cancellation result: ${cancelled}`);
+      } catch (error) {
+        debugWarn('[chatStore] Failed to cancel server-side stream:', error);
+        // Don't throw - the local abort already stopped the stream from our perspective
+      }
+    } else {
+      debugWarn(`[chatStore] Cannot call stopChat - missing IDs: requestId=${activeRequestId}, sessionId=${activeStreamSessionId}`);
+    }
+
+    // Mark the current streaming message as complete
+    const currentConversationId = get().currentConversationId;
+    if (currentConversationId) {
+      set(state => ({
+        conversations: state.conversations.map(conv => {
+          if (conv.id !== currentConversationId) return conv;
+
+          return {
+            ...conv,
+            messages: conv.messages.map(msg =>
+              msg.isStreaming ? { ...msg, isStreaming: false } : msg
+            ),
+            updatedAt: new Date()
+          };
+        }),
+        isLoading: false
+      }));
+    } else {
+      set({ isLoading: false });
+    }
+
+    // Clear stream control state
+    activeAbortController = null;
+    activeRequestId = null;
+    activeStreamSessionId = null;
+
+    debugLog('[chatStore] Stream stopped successfully');
   }
 }));
 

@@ -199,7 +199,14 @@ class InferencePipeline:
                     # This streams normal text word-by-word while buffering code blocks
                     streamer = BlockAwareStreamer()
                     chunk_count = 0
+                    cancelled = False
                     async for chunk in llm_step.process_stream(context):
+                        # Check for cancellation before processing each chunk
+                        if context.is_cancelled():
+                            logger.debug(f"[PIPELINE] >>> CANCELLATION DETECTED <<< after {chunk_count} chunks, adapter={context.adapter_name}")
+                            cancelled = True
+                            break
+
                         # Process through block-aware streamer
                         ready_chunks = streamer.add_text(chunk)
                         for stream_chunk in ready_chunks:
@@ -212,16 +219,17 @@ class InferencePipeline:
                             # Yield control to event loop to prevent buffering
                             await asyncio.sleep(0)
 
-                    # Flush any remaining buffered content
-                    final_chunk = streamer.flush()
-                    if final_chunk:
-                        chunk_json = json.dumps({"response": final_chunk.content, "done": False})
-                        yield chunk_json
+                    # Flush any remaining buffered content (unless cancelled)
+                    if not cancelled:
+                        final_chunk = streamer.flush()
+                        if final_chunk:
+                            chunk_json = json.dumps({"response": final_chunk.content, "done": False})
+                            yield chunk_json
 
                     # Post-process step
                     await llm_step.post_process(context)
-                    
-                    # Send final done message
+
+                    # Send final done message (even if cancelled, to signal stream end)
                     done_json = json.dumps({"done": True})
                     yield done_json
                     

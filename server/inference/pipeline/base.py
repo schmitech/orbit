@@ -8,6 +8,7 @@ the pipeline-based inference system.
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, AsyncGenerator
 from dataclasses import dataclass, field
+import asyncio
 import logging
 
 @dataclass
@@ -72,7 +73,10 @@ class ProcessingContext:
     # Audio output data
     audio_response: Optional[bytes] = None  # Generated audio data (TTS)
     audio_response_format: Optional[str] = None  # Format of generated audio
-    
+
+    # Stream cancellation
+    cancel_event: Optional[asyncio.Event] = None  # Event to signal stream cancellation
+
     def has_error(self) -> bool:
         """Check if the context has an error."""
         return self.is_blocked or self.error is not None
@@ -80,7 +84,7 @@ class ProcessingContext:
     def set_error(self, error: str, block: bool = True) -> None:
         """
         Set an error on the context.
-        
+
         Args:
             error: The error message
             block: Whether to block further processing
@@ -88,6 +92,10 @@ class ProcessingContext:
         self.error = error
         if block:
             self.is_blocked = True
+
+    def is_cancelled(self) -> bool:
+        """Check if stream cancellation was requested."""
+        return self.cancel_event is not None and self.cancel_event.is_set()
 
 
 class PipelineStep(ABC):

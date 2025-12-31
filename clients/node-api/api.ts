@@ -32,6 +32,7 @@ if (typeof window === 'undefined') {
 export interface StreamResponse {
   text: string;
   done: boolean;
+  request_id?: string;  // Request ID from first chunk for cancellation
   audio?: string;  // Optional base64-encoded audio data (TTS response) - full audio
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
   audio_chunk?: string;  // Optional streaming audio chunk (base64-encoded)
@@ -518,12 +519,18 @@ export class ApiClient {
     returnAudio?: boolean,
     ttsVoice?: string,
     sourceLanguage?: string,
-    targetLanguage?: string
+    targetLanguage?: string,
+    abortSignal?: AbortSignal
   ): AsyncGenerator<StreamResponse> {
     try {
       // Add timeout to the fetch request
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
+      // Link external abort signal to internal controller
+      if (abortSignal) {
+        abortSignal.addEventListener('abort', () => controller.abort());
+      }
 
       const response = await fetch(`${this.apiUrl}/v1/chat`, {
         ...this.getFetchOptions({
@@ -613,6 +620,20 @@ export class ApiClient {
                   throw new Error(friendlyMessage);
                 }
 
+                // Handle request_id from first chunk (for cancellation support)
+                if (data.request_id) {
+                  // Uncomment to debug or troubleshoot stop streaming
+                  // console.log(`[ApiClient] Received request_id from server: ${data.request_id}`);
+                  if (!data.response && !data.done) {
+                    yield {
+                      text: '',
+                      done: false,
+                      request_id: data.request_id
+                    };
+                    continue;
+                  }
+                }
+
                 // Check for done chunk first - it may not have a response field
                 // This handles the final done chunk that contains threading metadata
                 if (data.done === true) {
@@ -690,12 +711,51 @@ export class ApiClient {
       
     } catch (error: any) {
       if (error.name === 'AbortError') {
+        // Check if this was user-initiated or timeout
+        if (abortSignal?.aborted) {
+          throw new Error('Stream cancelled by user');
+        }
         throw new Error('Connection timed out. Please check if the server is running.');
       } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
         throw new Error('Could not connect to the server. Please check if the server is running.');
       } else {
         throw error;
       }
+    }
+  }
+
+  /**
+   * Stop an active streaming request.
+   *
+   * @param sessionId - The session identifier
+   * @param requestId - The request identifier (from first stream chunk)
+   * @returns Promise resolving to true if stream was cancelled, false otherwise
+   */
+  public async stopChat(sessionId: string, requestId: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.apiUrl}/v1/chat/stop`, {
+        ...this.getFetchOptions({
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            session_id: sessionId,
+            request_id: requestId
+          }),
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn('[ApiClient] Failed to stop stream:', response.status);
+        return false;
+      }
+
+      const result = await response.json();
+      return result.status === 'cancelled';
+    } catch (error) {
+      console.error('[ApiClient] Error stopping stream:', error);
+      return false;
     }
   }
 
@@ -1231,15 +1291,16 @@ export async function* streamChat(
   returnAudio?: boolean,
   ttsVoice?: string,
   sourceLanguage?: string,
-  targetLanguage?: string
+  targetLanguage?: string,
+  abortSignal?: AbortSignal
 ): AsyncGenerator<StreamResponse> {
   if (!defaultClient) {
     throw new Error('API not configured. Please call configureApi() with your server URL before using any API functions.');
   }
-  
+
   yield* defaultClient.streamChat(
-    message, 
-    stream, 
+    message,
+    stream,
     fileIds,
     threadId,
     audioInput,
@@ -1248,6 +1309,22 @@ export async function* streamChat(
     returnAudio,
     ttsVoice,
     sourceLanguage,
-    targetLanguage
+    targetLanguage,
+    abortSignal
   );
+}
+
+/**
+ * Stop an active chat stream (legacy function).
+ *
+ * @param sessionId - Session ID of the stream to stop
+ * @param requestId - Request ID of the stream to stop
+ * @returns Promise resolving to true if cancelled, false if not found
+ */
+export async function stopChat(sessionId: string, requestId: string): Promise<boolean> {
+  if (!defaultClient) {
+    throw new Error('API not configured. Please call configureApi() with your server URL before using any API functions.');
+  }
+
+  return defaultClient.stopChat(sessionId, requestId);
 }

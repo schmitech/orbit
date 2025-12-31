@@ -18,6 +18,7 @@ from bson import ObjectId
 from pydantic import BaseModel
 
 from utils import is_true_value
+from services.stream_registry import stream_registry
 from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse
 from ai_services.services.inference_service import OpenAIResponseFormatter
 
@@ -73,7 +74,10 @@ class RouteConfigurator:
         
         # Configure main chat endpoint
         self._configure_chat_endpoint(app, dependencies)
-        
+
+        # Configure stop streaming endpoint
+        self._configure_stop_endpoint(app, dependencies)
+
         # Configure health endpoint
         self._configure_health_endpoint(app, dependencies)
         
@@ -375,18 +379,40 @@ class RouteConfigurator:
                 logger.info(f"API Request received tts_voice: {tts_voice} for adapter: {adapter_name}")
 
             if chat_request.stream:
+                # Generate unique request_id for this stream
+                request_id = str(uuid.uuid4())
+
+                # Register the stream and get cancellation event
+                cancel_event = await stream_registry.register(
+                    session_id=session_id,
+                    request_id=request_id,
+                    adapter_name=adapter_name
+                )
+
                 async def stream_generator():
-                    async for chunk in chat_service.process_chat_stream(
-                        message=last_user_message,
-                        client_ip=client_ip,
-                        adapter_name=adapter_name,
-                        system_prompt_id=system_prompt_id,
-                        api_key=api_key,
-                        session_id=session_id,
-                        user_id=user_id,
-                        **payload_kwargs
-                    ):
-                        yield chunk
+                    try:
+                        # Send request_id as first chunk so client can use it for cancellation
+                        yield f"data: {json.dumps({'request_id': request_id})}\n\n"
+
+                        async for chunk in chat_service.process_chat_stream(
+                            message=last_user_message,
+                            client_ip=client_ip,
+                            adapter_name=adapter_name,
+                            system_prompt_id=system_prompt_id,
+                            api_key=api_key,
+                            session_id=session_id,
+                            user_id=user_id,
+                            cancel_event=cancel_event,
+                            **payload_kwargs
+                        ):
+                            # Check for cancellation before yielding each chunk
+                            if cancel_event.is_set():
+                                logger.debug(f"[CHAT_STREAM] >>> CANCELLATION DETECTED in stream loop <<< session={session_id}, request={request_id}")
+                                break
+                            yield chunk
+                    finally:
+                        # Always unregister when stream ends
+                        await stream_registry.unregister(session_id, request_id)
 
                 # Return StreamingResponse with headers to prevent buffering
                 return StreamingResponse(
@@ -395,6 +421,7 @@ class RouteConfigurator:
                     headers={
                         "Cache-Control": "no-cache",
                         "X-Accel-Buffering": "no",  # Disable nginx buffering if behind proxy
+                        "X-Request-ID": request_id,  # Include request_id in headers
                     }
                 )
             else:
@@ -544,7 +571,53 @@ class RouteConfigurator:
                 audio_format=result.get("audio_format"),
                 threading=result.get("threading")
             )
-    
+
+    def _configure_stop_endpoint(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
+        """Configure the stop streaming endpoint."""
+
+        class StopStreamRequest(BaseModel):
+            """Request model for stopping a stream."""
+            session_id: str
+            request_id: str
+
+        @app.post("/v1/chat/stop", operation_id="stop_chat")
+        async def stop_chat_stream(
+            request: Request,
+            stop_request: StopStreamRequest,
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
+        ) -> Dict[str, Any]:
+            """
+            Stop an active streaming request.
+
+            Args:
+                stop_request: Contains session_id and request_id to identify the stream
+
+            Returns:
+                Status indicating whether the stream was found and cancelled
+            """
+            logger.debug(f"[STOP_ENDPOINT] Received stop request: session={stop_request.session_id}, request={stop_request.request_id}")
+
+            success = await stream_registry.cancel(
+                session_id=stop_request.session_id,
+                request_id=stop_request.request_id
+            )
+
+            if success:
+                logger.debug(f"[STOP_ENDPOINT] >>> STOP SUCCESS <<< session={stop_request.session_id}, request={stop_request.request_id}")
+                return {
+                    "status": "cancelled",
+                    "message": "Stream cancellation requested",
+                    "session_id": stop_request.session_id,
+                    "request_id": stop_request.request_id
+                }
+            else:
+                return {
+                    "status": "not_found",
+                    "message": "Stream not found or already completed",
+                    "session_id": stop_request.session_id,
+                    "request_id": stop_request.request_id
+                }
+
     def _configure_health_endpoint(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
         """Configure the health check endpoint."""
         @app.get("/health")
