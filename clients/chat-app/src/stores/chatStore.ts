@@ -2493,7 +2493,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
       const updates = syncResults.filter((result): result is {
         id: string;
-        sessionId?: string;
+        sessionId: string;
         messages: Message[];
         cleared: boolean;
         updatedAt: Date;
@@ -2650,7 +2650,7 @@ const initializeStore = async () => {
       // Restore Date objects and clean up any streaming messages
       // For backward compatibility: initialize conversations without apiKey/apiUrl with 'default-key'
       const storedConversations = Array.isArray(parsedState.conversations) ? parsedState.conversations : [];
-      parsedState.conversations = storedConversations.map((storedConversation) => {
+      const normalizedConversations: Conversation[] = storedConversations.map((storedConversation) => {
         const storedMessages = Array.isArray(storedConversation.messages) ? storedConversation.messages : [];
         const sanitizedMessages: Message[] = storedMessages
           .filter((msg) => !(msg.role === 'assistant' && msg.isStreaming))
@@ -2694,11 +2694,11 @@ const initializeStore = async () => {
       });
       
       // Check if we have existing conversations
-      hasExistingConversations = parsedState.conversations && parsedState.conversations.length > 0;
+      hasExistingConversations = normalizedConversations.length > 0;
       
       // If there's a current conversation, use its session ID
-      if (parsedState.currentConversationId && parsedState.conversations) {
-        const currentConversation = parsedState.conversations.find(
+      if (parsedState.currentConversationId && normalizedConversations.length > 0) {
+        const currentConversation = normalizedConversations.find(
           (conv) => conv.id === parsedState.currentConversationId
         );
         if (currentConversation && currentConversation.sessionId) {
@@ -2708,7 +2708,7 @@ const initializeStore = async () => {
       
       // If conversations array is empty, create a default conversation with DEFAULT_API_KEY
       // Always use default-key when there are no conversations, regardless of localStorage
-      if (!parsedState.conversations || parsedState.conversations.length === 0) {
+      if (normalizedConversations.length === 0) {
         const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const defaultSessionId = generateUniqueSessionId();
         const defaultConversation = buildDefaultConversation(
@@ -2727,18 +2727,18 @@ const initializeStore = async () => {
       } else {
         // Existing conversations - preserve their API keys
         useChatStore.setState({
-          conversations: parsedState.conversations || [],
-          currentConversationId: parsedState.currentConversationId || parsedState.conversations[0]?.id || null,
+          conversations: normalizedConversations,
+          currentConversationId: parsedState.currentConversationId || normalizedConversations[0]?.id || null,
           sessionId: sessionId
         });
         
         // If no current conversation is set, use the first one
-        if (!parsedState.currentConversationId && parsedState.conversations.length > 0) {
+        if (!parsedState.currentConversationId && normalizedConversations.length > 0) {
           useChatStore.setState({
-            currentConversationId: parsedState.conversations[0].id,
-            sessionId: parsedState.conversations[0].sessionId || sessionId
+            currentConversationId: normalizedConversations[0].id,
+            sessionId: normalizedConversations[0].sessionId || sessionId
           });
-          sessionId = parsedState.conversations[0].sessionId || sessionId;
+          sessionId = normalizedConversations[0].sessionId || sessionId;
         }
       }
       

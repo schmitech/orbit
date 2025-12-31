@@ -618,7 +618,6 @@ async function importLocalApiModule(apiPath: string): Promise<LocalApiModule> {
   }
   
   // For relative paths, use @vite-ignore to suppress Vite's static analysis warning
-  // @ts-expect-error - dynamic import path resolved at runtime
   return import(/* @vite-ignore */ apiPath);
 }
 
@@ -687,7 +686,7 @@ export async function loadApi(): Promise<ApiFunctions> {
       debugLog('✅ Local API loaded successfully');
     } else {
       debugLog('📦 Loading npm package API');
-      // @ts-expect-error - Dynamic import that may not be available at compile time
+
       const npmApi = await import('@schmitech/chatbot-api');
       
       // Create a wrapper for streamChat to match our interface signature
@@ -799,7 +798,7 @@ export async function loadApi(): Promise<ApiFunctions> {
     if (useLocalApi) {
       debugLog('🔄 Falling back to npm package...');
       try {
-        // @ts-expect-error - Dynamic import that may not be available at compile time
+        
         const npmApi = await import('@schmitech/chatbot-api');
         
         // Create a wrapper for streamChat to match our interface signature

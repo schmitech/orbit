@@ -5,7 +5,7 @@ import { useChatStore } from '../stores/chatStore';
 import { Settings, RefreshCw, Menu, Plus } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
-import { getApiUrl, getDefaultInputPlaceholder, getEnableApiMiddleware } from '../utils/runtimeConfig';
+import { getApiUrl, getApplicationName, getDefaultInputPlaceholder, getEnableApiMiddleware } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
@@ -65,6 +65,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const currentConversation = conversations.find(c => c.id === currentConversationId);
   const isMiddlewareEnabled = getEnableApiMiddleware();
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
+  const applicationName = getApplicationName();
+  const welcomeHeading = `Welcome to ${applicationName}`;
   const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
   const initialAgentSelectionVisible = isMiddlewareEnabled && showEmptyState;
   const [isAgentSelectionVisible, setIsAgentSelectionVisible] = useState(initialAgentSelectionVisible);
@@ -80,6 +82,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     ? 'Start a new conversation'
     : 'Finish your current conversation before starting a new one.';
   const showHeaderMetadata = !!(currentConversation?.adapterInfo && !shouldShowAgentSelectionList);
+  const showBodyHeading = showEmptyState && !shouldShowAgentSelectionList;
+  const bodyHeadingText =
+    currentConversation?.adapterName && !shouldShowAgentSelectionList
+      ? currentConversation.adapterName
+      : welcomeHeading;
   const headerBorderClass = shouldShowAgentSelectionList
     ? 'border-transparent dark:border-transparent md:border-transparent md:dark:border-transparent'
     : '';
@@ -391,7 +398,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 )}
               </div>
               <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
-                <GitHubStatsBanner className="order-1 sm:order-2 sm:min-w-[220px]" />
+                {!shouldShowAgentSelectionList && (
+                  <GitHubStatsBanner className="order-1 sm:order-2 sm:min-w-[220px]" />
+                )}
                 {!shouldShowAgentSelectionList && (
                   <button
                     onClick={handleStartNewConversation}
@@ -417,11 +426,26 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
             <div className="flex flex-1 flex-col min-h-0 pt-4 md:pt-6">
               <div className="flex-1 flex flex-col justify-between md:justify-start md:flex-none">
                 <div className="w-full space-y-6">
+                  {showBodyHeading && (
+                    <div className={`${prominentWidthClass}`}>
+                      <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
+                        {bodyHeadingText}
+                      </h2>
+                    </div>
+                  )}
                   {shouldShowAgentSelectionList ? (
-                    <AgentSelectionList
-                      onAdapterSelect={handleAgentCardSelection}
-                      className={prominentWidthClass}
-                    />
+                    <>
+                      <div className={`${prominentWidthClass} mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}>
+                        <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
+                          {welcomeHeading}
+                        </h2>
+                        <GitHubStatsBanner className="sm:min-w-[220px]" />
+                      </div>
+                      <AgentSelectionList
+                        onAdapterSelect={handleAgentCardSelection}
+                        className={prominentWidthClass}
+                      />
+                    </>
                   ) : shouldShowAdapterNotesPanel ? (
                     <div className={`${prominentWidthClass} rounded-3xl border border-gray-200/80 bg-white/95 p-6 shadow-sm dark:border-[#3b3c49] dark:bg-[#1c1d23]/90`}>
                       <div className="flex items-start justify-between pb-4">
