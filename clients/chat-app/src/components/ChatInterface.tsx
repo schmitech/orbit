@@ -5,13 +5,20 @@ import { useChatStore } from '../stores/chatStore';
 import { Settings, RefreshCw, Menu, Plus } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
-import { getApiUrl, getApplicationName, getDefaultInputPlaceholder, getEnableApiMiddleware } from '../utils/runtimeConfig';
+import {
+  getApiUrl,
+  getApplicationName,
+  getApplicationDescription,
+  getDefaultInputPlaceholder,
+  getEnableApiMiddleware
+} from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 import { useTheme } from '../contexts/ThemeContext';
 import { AgentSelectionList } from './AgentSelectionList';
 import { GitHubStatsBanner } from './GitHubStatsBanner';
+import type { Conversation } from '../types';
 
 const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-white/95 px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-[0_25px_60px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-[#2f303d] dark:bg-[#1c1d23]/95 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
@@ -58,15 +65,26 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   ]
     .filter(Boolean)
     .join(' ');
+  const introDescriptionMarkdownClass = [
+    'application-description prose prose-slate dark:prose-invert max-w-none text-base leading-relaxed',
+    'text-[#4a4c5a] dark:text-[#bfc2cd]',
+    '[&>:first-child]:mt-0 [&>:last-child]:mb-0',
+    forcedThemeClass
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const [isRefreshingAdapterInfo, setIsRefreshingAdapterInfo] = useState(false);
   const [isConfiguringAdapter, setIsConfiguringAdapter] = useState(false);
+  const [adapterNotesError, setAdapterNotesError] = useState<string | null>(null);
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
   const isMiddlewareEnabled = getEnableApiMiddleware();
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
   const applicationName = getApplicationName();
+  const applicationDescription = getApplicationDescription().trim();
   const welcomeHeading = `Welcome to ${applicationName}`;
+  const hasIntroDescription = applicationDescription.length > 0;
   const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
   const initialAgentSelectionVisible = isMiddlewareEnabled && showEmptyState;
   const [isAgentSelectionVisible, setIsAgentSelectionVisible] = useState(initialAgentSelectionVisible);
@@ -91,6 +109,146 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     ? 'border-transparent dark:border-transparent md:border-transparent md:dark:border-transparent'
     : '';
   const headerClasses = `${MOBILE_HEADER_CLASSES} ${headerBorderClass}`.trim();
+  const hasAdapterConfigurationError = !!adapterNotesError;
+
+  useEffect(() => {
+    if (currentConversation?.adapterLoadError) {
+      setAdapterNotesError(currentConversation.adapterLoadError);
+    } else {
+      setAdapterNotesError(null);
+    }
+  }, [currentConversation?.id, currentConversation?.adapterName, currentConversation?.adapterLoadError]);
+
+  const persistChatState = () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    setTimeout(() => {
+      const currentState = useChatStore.getState();
+      localStorage.setItem('chat-state', JSON.stringify({
+        conversations: currentState.conversations,
+        currentConversationId: currentState.currentConversationId
+      }));
+    }, 0);
+  };
+
+  const markConversationAdapterError = (conversationId?: string, message?: string) => {
+    if (!conversationId) {
+      return;
+    }
+    const friendlyMessage = message || 'Unable to configure this agent.';
+    let updated = false;
+    useChatStore.setState(state => {
+      const target = state.conversations.find(conv => conv.id === conversationId);
+      if (!target || target.messages.length > 0) {
+        return state;
+      }
+      updated = true;
+      return {
+        conversations: state.conversations.map(conv =>
+          conv.id === conversationId
+            ? { ...conv, adapterLoadError: friendlyMessage }
+            : conv
+        )
+      };
+    });
+    if (updated) {
+      persistChatState();
+    }
+  };
+
+  const clearConversationAdapterError = (conversationId?: string) => {
+    if (!conversationId) {
+      return;
+    }
+    let updated = false;
+    useChatStore.setState(state => {
+      const target = state.conversations.find(conv => conv.id === conversationId);
+      if (!target || !target.adapterLoadError) {
+        return state;
+      }
+      updated = true;
+      return {
+        conversations: state.conversations.map(conv =>
+          conv.id === conversationId
+            ? { ...conv, adapterLoadError: null }
+            : conv
+        )
+      };
+    });
+    if (updated) {
+      persistChatState();
+    }
+  };
+
+  const getAdapterInfoErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) {
+      if (error.message.includes('401')) {
+        return 'We couldn’t load this agent. It may not exist or you might not have access to it.';
+      }
+      if (error.message.includes('404')) {
+        return 'This agent was not found on the server. Please pick another agent.';
+      }
+      return error.message;
+    }
+    return 'Unable to load agent overview right now.';
+  };
+
+  type AdapterInfoFetchResult = { ok: true } | { ok: false; error?: unknown };
+
+  const fetchAdapterInfoForConversation = async (conversation?: Conversation | null): Promise<AdapterInfoFetchResult> => {
+    if (!conversation) {
+      return { ok: false };
+    }
+
+    const adapterName = conversation.adapterName;
+    const apiKey = conversation.apiKey;
+    if (!adapterName && !apiKey) {
+      return { ok: false };
+    }
+
+    try {
+      const api = await getApi();
+      const adapterClient = new api.ApiClient({
+        apiUrl: conversation.apiUrl || getApiUrl(),
+        apiKey: adapterName ? null : apiKey || null,
+        sessionId: null,
+        adapterName: adapterName || null
+      });
+
+      if (typeof adapterClient.getAdapterInfo !== 'function') {
+        return { ok: false };
+      }
+
+      const adapterInfo = await adapterClient.getAdapterInfo();
+      useChatStore.setState(state => ({
+        conversations: state.conversations.map(conv =>
+          conv.id === conversation.id
+            ? { ...conv, adapterInfo, adapterLoadError: null, updatedAt: new Date() }
+            : conv
+        )
+      }));
+
+      const latestState = useChatStore.getState();
+      if (latestState.currentConversationId === conversation.id) {
+        setAdapterNotesError(null);
+      }
+
+      persistChatState();
+      return { ok: true };
+    } catch (error) {
+      const latestState = useChatStore.getState();
+      const friendlyMessage = getAdapterInfoErrorMessage(error);
+      if (latestState.currentConversationId === conversation.id) {
+        setAdapterNotesError(friendlyMessage);
+      }
+      const latestConversation = latestState.conversations.find(conv => conv.id === conversation.id);
+      if (latestConversation && latestConversation.messages.length === 0) {
+        markConversationAdapterError(conversation.id, friendlyMessage);
+      }
+      return { ok: false, error };
+    }
+  };
 
   // Reset agent selection visibility when conversations change
   useEffect(() => {
@@ -139,14 +297,30 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
         adapterInfoLoadedRef.current = adapterName;
         debugLog('[ChatInterface] Loading adapter info - adapterName:', adapterName, 'reason:', !currentConversation?.adapterInfo ? 'missing' : 'notes undefined');
         try {
+          if (currentConversation?.adapterLoadError) {
+            clearConversationAdapterError(currentConversation.id);
+          }
           const apiUrl = currentConversation?.apiUrl || getApiUrl();
           debugLog('[ChatInterface] Calling configureApiSettings for:', adapterName);
           await configureApiSettings(apiUrl, undefined, undefined, adapterName);
           debugLog('[ChatInterface] Adapter info loaded successfully');
+          const latestState = useChatStore.getState();
+          const latestConversation = latestState.conversations.find(conv => conv.id === latestState.currentConversationId);
+          if (latestConversation?.adapterName === adapterName && (!latestConversation.adapterInfo || latestConversation.adapterInfo.notes === undefined)) {
+            const result = await fetchAdapterInfoForConversation(latestConversation);
+            if (!result.ok && result.error) {
+              debugError('[ChatInterface] Failed to fetch adapter info after configuring adapter:', result.error);
+            }
+          }
         } catch (error) {
           debugError('[ChatInterface] Failed to load adapter info:', error);
           // Reset flag on error so it can retry
           adapterInfoLoadedRef.current = null;
+          if (currentConversation?.adapterName === adapterName) {
+            const friendlyMessage = getAdapterInfoErrorMessage(error);
+            setAdapterNotesError(friendlyMessage);
+            markConversationAdapterError(currentConversation.id, friendlyMessage);
+          }
         }
       } else {
         debugLog('[ChatInterface] Skipping adapter info load:', {
@@ -241,12 +415,25 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       return;
     }
     setIsConfiguringAdapter(true);
+    setAdapterNotesError(null);
+    clearConversationAdapterError(currentConversation?.id);
     try {
       const runtimeApiUrl = currentConversation?.apiUrl || getApiUrl();
       await configureApiSettings(runtimeApiUrl, undefined, undefined, adapterName);
       clearError();
+      const latestState = useChatStore.getState();
+      const latestConversation = latestState.conversations.find(conv => conv.id === latestState.currentConversationId);
+      if (latestConversation?.adapterName === adapterName && (!latestConversation.adapterInfo || latestConversation.adapterInfo.notes === undefined)) {
+        const result = await fetchAdapterInfoForConversation(latestConversation);
+        if (!result.ok && result.error) {
+          debugError('Failed to load adapter info after selecting adapter:', result.error);
+        }
+      }
     } catch (error) {
       debugError('Failed to configure adapter from empty state:', error);
+      const friendlyMessage = getAdapterInfoErrorMessage(error);
+      setAdapterNotesError(friendlyMessage);
+      markConversationAdapterError(currentConversation?.id, friendlyMessage);
     } finally {
       setIsConfiguringAdapter(false);
     }
@@ -258,50 +445,23 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   };
 
   const handleRefreshAdapterInfo = async () => {
-    if (!currentConversation || (!currentConversation.apiKey && !currentConversation.adapterName)) {
+    const state = useChatStore.getState();
+    const activeConversationId = state.currentConversationId;
+    const activeConversation = activeConversationId
+      ? state.conversations.find(conv => conv.id === activeConversationId)
+      : null;
+    if (!activeConversation || (!activeConversation.apiKey && !activeConversation.adapterName)) {
       debugWarn('Cannot refresh adapter info: no conversation or API key/adapter');
       return;
     }
 
+    setAdapterNotesError(null);
     setIsRefreshingAdapterInfo(true);
     try {
-      const api = await getApi();
-      const conversationApiUrl = currentConversation.apiUrl || getApiUrl();
-      const conversationApiKey = currentConversation.apiKey;
-      const conversationAdapterName = currentConversation.adapterName;
-
-      const adapterClient = new api.ApiClient({
-        apiUrl: conversationApiUrl,
-        apiKey: conversationApiKey || null,
-        sessionId: null,
-        adapterName: conversationAdapterName || null
-      });
-
-      if (typeof adapterClient.getAdapterInfo === 'function') {
-        const adapterInfo = await adapterClient.getAdapterInfo();
-        debugLog('Adapter info refreshed:', adapterInfo);
-
-        // Update the conversation's adapter info in the store
-        useChatStore.setState((state) => ({
-          conversations: state.conversations.map(conv =>
-            conv.id === currentConversationId
-              ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
-              : conv
-          )
-        }));
-
-        // Save to localStorage
-        setTimeout(() => {
-          const currentState = useChatStore.getState();
-          localStorage.setItem('chat-state', JSON.stringify({
-            conversations: currentState.conversations,
-            currentConversationId: currentState.currentConversationId
-          }));
-        }, 0);
+      const result = await fetchAdapterInfoForConversation(activeConversation);
+      if (!result.ok && result.error) {
+        debugError('Failed to refresh adapter info:', result.error);
       }
-    } catch (error) {
-      debugError('Failed to refresh adapter info:', error);
-      // Optionally show an error message to the user
     } finally {
       setIsRefreshingAdapterInfo(false);
     }
@@ -431,14 +591,34 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
                         {bodyHeadingText}
                       </h2>
+                      {bodyHeadingText === welcomeHeading && hasIntroDescription && (
+                        <div className="mt-2">
+                          <MarkdownRenderer
+                            content={applicationDescription}
+                            className={introDescriptionMarkdownClass}
+                            syntaxTheme={syntaxTheme}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                   {shouldShowAgentSelectionList ? (
                     <>
-                      <div className={`${prominentWidthClass} mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}>
-                        <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
-                          {welcomeHeading}
-                        </h2>
+                      <div className={`${prominentWidthClass} mb-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between`}>
+                        <div className="flex-1">
+                          <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
+                            {welcomeHeading}
+                          </h2>
+                          {hasIntroDescription && (
+                            <div className="mt-2">
+                              <MarkdownRenderer
+                                content={applicationDescription}
+                                className={introDescriptionMarkdownClass}
+                                syntaxTheme={syntaxTheme}
+                              />
+                            </div>
+                          )}
+                        </div>
                         <GitHubStatsBanner className="sm:min-w-[220px]" />
                       </div>
                       <AgentSelectionList
@@ -465,6 +645,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                             className={adapterNotesMarkdownClass}
                             syntaxTheme={syntaxTheme}
                           />
+                        ) : adapterNotesError ? (
+                          <p className="text-sm text-red-600 dark:text-red-400">
+                            {adapterNotesError}
+                          </p>
                         ) : isConfiguringAdapter ? (
                           <p className="text-sm text-gray-600 dark:text-[#bfc2cd]">
                             Configuring your agent… hang tight for just a moment.
@@ -504,7 +688,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         disabled={
                           isLoading ||
                           !currentConversation ||
-                          (isMiddlewareEnabled ? !currentConversation?.adapterName : !currentConversation?.apiKey)
+                          (isMiddlewareEnabled ? !currentConversation?.adapterName : !currentConversation?.apiKey) ||
+                          hasAdapterConfigurationError
                         }
                         placeholder={defaultInputPlaceholder}
                       />
@@ -538,7 +723,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       isLoading ||
                       !currentConversation ||
                       (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey) ||
-                      (isMiddlewareEnabled && isAgentSelectionVisible)
+                      (isMiddlewareEnabled && isAgentSelectionVisible) ||
+                      hasAdapterConfigurationError
                     }
                     placeholder={defaultInputPlaceholder}
                   />

@@ -512,7 +512,20 @@ function createMiddlewareApi(): ApiFunctions {
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`Failed to get adapter info: ${response.status} ${response.statusText} - ${errorText}`);
+          const statusLabel = `${response.status} ${response.statusText}`.trim();
+          const friendlyMessage =
+            response.status === 401
+              ? `Adapter info request was unauthorized for '${adapterName}'. Verify the adapter exists and you have access.`
+              : `Failed to load adapter info (${statusLabel}) for '${adapterName}'.`;
+
+          console.warn('[MiddlewareApi] Adapter info request failed', {
+            adapter: adapterName,
+            status: response.status,
+            statusText: response.statusText,
+            details: errorText || undefined
+          });
+
+          throw new Error(friendlyMessage);
         }
         return response.json();
       },

@@ -477,16 +477,16 @@ export function Message({
             </div>
 
             {threadsEnabled && onStartThread && message.supportsThreading && !message.threadInfo && sessionId && (
-              <div className="mt-3 w-full rounded-2xl border border-blue-200/80 bg-blue-50/70 p-4 text-xs shadow-sm ring-1 ring-blue-100/60 transition hover:border-blue-300 hover:ring-blue-200 dark:border-[#233449] dark:bg-[#0f1821] dark:text-[#c5d7ff] dark:ring-[#1f2a36] sm:mt-4">
+              <div className="mt-3 w-full rounded-2xl border border-blue-200/80 bg-blue-50/70 p-4 text-xs shadow-sm ring-1 ring-blue-100/60 transition hover:border-blue-300 hover:ring-blue-200 dark:border-white/10 dark:bg-white/[0.04] dark:text-[#e1e8ff] dark:ring-white/5 sm:mt-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="flex flex-1 items-start gap-3">
-                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-blue-600 shadow-sm dark:bg-white/10">
+                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-blue-600 shadow-none dark:text-[#8fb7ff]">
                       <MessageSquare className="h-5 w-5" />
                     </div>
                     <div className="space-y-2">
                       <div>
-                        <p className="text-sm font-semibold text-blue-900 dark:text-[#e5edff]">Keep working with this answer</p>
-                        <p className="mt-1 text-[13px] text-blue-900/80 dark:text-[#9bb9ff]">
+                        <p className="text-sm font-semibold text-blue-900 dark:text-[#f1f5ff]">Keep working with this answer</p>
+                        <p className="mt-1 text-[13px] text-blue-900/80 dark:text-[#b4c7ff]">
                           Open a follow-up thread to clarify details, reuse this data, or launch quick actions like charting.
                         </p>
                       </div>
@@ -507,8 +507,8 @@ export function Message({
         )}
 
         {threadsEnabled && message.threadInfo && (
-          <div className="thread-panel mt-4 rounded-xl border border-blue-100/80 bg-blue-50/70 p-3 sm:p-4 text-sm shadow-sm ring-1 ring-blue-100/60 dark:border-[#1f2a36] dark:bg-[#0f1821] dark:ring-[#1f2a36]">
-            <div className="flex items-center justify-between gap-2 text-sm font-semibold text-blue-900 dark:text-[#c5d7ff]">
+          <div className="thread-panel mt-4 rounded-xl border border-blue-100/80 bg-blue-50/70 p-3 sm:p-4 text-sm shadow-sm ring-1 ring-blue-100/60 dark:border-white/10 dark:bg-white/[0.035] dark:ring-white/5">
+            <div className="flex items-center justify-between gap-2 text-sm font-semibold text-blue-900 dark:text-[#e1e8ff]">
               <div className="inline-flex items-center gap-2 uppercase tracking-wide text-xs sm:text-sm">
                 <MessageSquare className="h-3.5 w-3.5" />
                 <span>
@@ -517,7 +517,7 @@ export function Message({
               </div>
               <button
                 onClick={() => setIsThreadOpen(prev => !prev)}
-                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-blue-200/80 px-2.5 sm:px-3 py-1.5 text-xs uppercase tracking-wide text-blue-900 transition hover:bg-white/70 dark:border-[#233449] dark:text-[#c5d7ff] dark:hover:bg-white/10"
+                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-blue-200/80 px-2.5 sm:px-3 py-1.5 text-xs uppercase tracking-wide text-blue-900 transition hover:bg-white/70 dark:border-white/10 dark:text-[#c5d7ff] dark:hover:bg-white/[0.08]"
               >
                 {isThreadOpen ? (
                   <>

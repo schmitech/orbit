@@ -18,8 +18,8 @@ export function AgentSelectionList({
   onAdapterSelect,
   className = '',
   title = '',
-  subtitle = 'Each agent is tuned for a specific expertise. Pick one to start a focused conversation.',
-  eyebrow = 'Pick an Agent'
+  subtitle = 'Each AI agent is tuned for a specific expertise. Pick one to start a focused conversation.',
+  eyebrow = 'Pick an AI Agent'
 }: AgentSelectionListProps) {
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);

@@ -247,9 +247,6 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                   </span>
                 )}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Built with React, TypeScript, and Tailwind CSS
-              </p>
             </div>
           </div>
         </div>

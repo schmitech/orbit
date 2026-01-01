@@ -141,7 +141,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     setValidationError(null);
   }, [currentConversationId]);
 
-  const conversationsWithHistory = conversations.filter(conv => conv.messages.length > 0);
+  const conversationsWithHistory = conversations.filter(conv => conv.messages.length > 0 && !conv.adapterLoadError);
   const filteredConversations = conversationsWithHistory.filter(conv =>
     conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     conv.messages.some(msg => 

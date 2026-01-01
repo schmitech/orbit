@@ -63,6 +63,7 @@ export interface Conversation {
   adapterName?: string; // Adapter name associated with this conversation (when middleware is enabled)
   apiUrl?: string; // API URL associated with this conversation
   adapterInfo?: AdapterInfo; // Adapter information (client_name, model)
+  adapterLoadError?: string | null; // Adapter configuration error for middleware mode
   audioSettings?: AudioSettings; // Audio configuration for this conversation
   currentThreadId?: string; // Current thread ID if in thread mode
   currentThreadSessionId?: string; // Current thread session ID if in thread mode

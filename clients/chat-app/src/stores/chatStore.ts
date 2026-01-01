@@ -75,7 +75,8 @@ const buildDefaultConversation = (conversationId: string, sessionId: string, api
     updatedAt: new Date(),
     apiKey: middlewareEnabled ? undefined : DEFAULT_API_KEY,
     apiUrl,
-    adapterName
+    adapterName,
+    adapterLoadError: null
   };
 };
 
@@ -411,6 +412,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     adapterName: adapterName,
                     apiUrl: apiUrl,
                     adapterInfo: adapterInfo,
+                    adapterLoadError: null,
                     // Clear apiKey when using middleware
                     apiKey: undefined,
                     updatedAt: new Date()
@@ -434,7 +436,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 updatedAt: new Date(),
                 adapterName: adapterName,
                 apiUrl: apiUrl,
-                adapterInfo: adapterInfo
+                adapterInfo: adapterInfo,
+                adapterLoadError: null
               }
             ],
             currentConversationId: newId
@@ -508,6 +511,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     apiKey: apiKey, // Always use the provided API key if it was validated
                     apiUrl: apiUrl,
                     adapterInfo: adapterInfo,
+                    adapterLoadError: null,
                     // Clear adapterName when not using middleware
                     adapterName: undefined,
                     updatedAt: new Date()
@@ -537,7 +541,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             updatedAt: new Date(),
             apiKey: apiKey,
             apiUrl: apiUrl,
-            adapterInfo: adapterInfo
+            adapterInfo: adapterInfo,
+            adapterLoadError: null
           };
           
           set(state => {
@@ -648,7 +653,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       // In middleware mode, use adapter name instead of API key
       apiKey: isMiddlewareEnabled ? undefined : defaultApiKey,
       apiUrl: defaultApiUrl,
-      adapterName: adapterNameForNewConversation
+      adapterName: adapterNameForNewConversation,
+      adapterLoadError: null
     };
 
     // Update state with new conversation and switch to its session
@@ -694,7 +700,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 useChatStore.setState({
                   conversations: currentState.conversations.map(conv =>
                     conv.id === id
-                      ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                      ? { ...conv, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
                       : conv
                   )
                 });
@@ -765,7 +771,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               set(state => ({
                 conversations: state.conversations.map(conv =>
                   conv.id === id
-                    ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                    ? { ...conv, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
                     : conv
                 )
               }));
@@ -904,7 +910,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           updatedAt: new Date(),
           apiKey: isMiddlewareEnabled ? undefined : DEFAULT_API_KEY,
           apiUrl: defaultApiUrl,
-          adapterName: adapterNamePreference
+          adapterName: adapterNamePreference,
+          adapterLoadError: null
         };
 
         // Configure API with default key and validate it
@@ -933,7 +940,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     useChatStore.setState({
                       conversations: currentState.conversations.map(conv =>
                         conv.id === defaultConversationId
-                          ? { ...conv, adapterName, adapterInfo, updatedAt: new Date() }
+                          ? { ...conv, adapterName, adapterInfo, adapterLoadError: null, updatedAt: new Date() }
                           : conv
                       )
                     });
@@ -994,7 +1001,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     useChatStore.setState({
                       conversations: currentState.conversations.map(conv =>
                         conv.id === defaultConversationId
-                          ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                          ? { ...conv, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
                           : conv
                       )
                     });
@@ -1112,7 +1119,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       createdAt: new Date(),
       updatedAt: new Date(),
       apiKey: isMiddlewareEnabled ? undefined : DEFAULT_API_KEY,
-      apiUrl: defaultApiUrl
+      apiUrl: defaultApiUrl,
+      adapterLoadError: null
     };
 
     // Configure API and validate/load adapter info
@@ -1137,14 +1145,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 if (typeof validationClient.getAdapterInfo === 'function') {
                   const adapterInfo = await validationClient.getAdapterInfo();
                   debugLog('✅ Adapter info loaded after clearing conversations:', adapterInfo);
-                  const currentState = useChatStore.getState();
-                  useChatStore.setState({
-                    conversations: currentState.conversations.map(conv =>
-                      conv.id === defaultConversationId
-                        ? { ...conv, adapterName: firstAdapter.name, adapterInfo: adapterInfo, updatedAt: new Date() }
-                        : conv
-                    )
-                  });
+                const currentState = useChatStore.getState();
+                useChatStore.setState({
+                  conversations: currentState.conversations.map(conv =>
+                    conv.id === defaultConversationId
+                      ? { ...conv, adapterName: firstAdapter.name, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
+                      : conv
+                  )
+                });
 
                   // Save to localStorage
                   setTimeout(() => {
@@ -1182,14 +1190,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               if (typeof validationClient.getAdapterInfo === 'function') {
                 validationClient.getAdapterInfo().then(adapterInfo => {
                   debugLog('✅ Adapter info loaded for default key:', adapterInfo);
-                  const currentState = useChatStore.getState();
-                  useChatStore.setState({
-                    conversations: currentState.conversations.map(conv =>
-                      conv.id === defaultConversationId
-                        ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
-                        : conv
-                    )
-                  });
+                const currentState = useChatStore.getState();
+                useChatStore.setState({
+                  conversations: currentState.conversations.map(conv =>
+                    conv.id === defaultConversationId
+                      ? { ...conv, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
+                      : conv
+                  )
+                });
                 }).catch(() => {
                   debugWarn('Failed to load adapter info for default key');
                 });
@@ -2518,7 +2526,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               messages: [],
               attachedFiles: [],
               title: 'New Chat',
-              updatedAt: update.updatedAt
+              updatedAt: update.updatedAt,
+              adapterLoadError: null
             };
           }
 
@@ -2526,7 +2535,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             ...conv,
             sessionId: update.sessionId || conv.sessionId,
             messages: update.messages,
-            updatedAt: update.updatedAt
+            updatedAt: update.updatedAt,
+            adapterLoadError: null
           };
         });
 
@@ -2672,6 +2682,7 @@ const initializeStore = async () => {
           adapterName: storedConversation.adapterName,
           apiUrl: storedConversation.apiUrl,
           adapterInfo: storedConversation.adapterInfo,
+          adapterLoadError: storedConversation.adapterLoadError || null,
           audioSettings: storedConversation.audioSettings,
           currentThreadId: undefined,
           currentThreadSessionId: undefined,
@@ -2865,10 +2876,11 @@ const initializeStore = async () => {
                         adapterInfo,
                         apiUrl: apiUrlToUse,
                         apiKey: undefined,
+                        adapterLoadError: null,
                         updatedAt: new Date()
                       }
                     : conv
-                )
+              )
               });
 
               setTimeout(() => {
@@ -2925,7 +2937,7 @@ const initializeStore = async () => {
                 useChatStore.setState({
                   conversations: stateAfterLoad.conversations.map(conv =>
                     conv.id === stateAfterLoad.currentConversationId
-                      ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                      ? { ...conv, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
                       : conv
                   )
                 });
@@ -2978,9 +2990,9 @@ const initializeStore = async () => {
               useChatStore.setState({
                 conversations: currentState.conversations.map(conv =>
                   conv.id === currentState.currentConversationId
-                    ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                    ? { ...conv, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
                     : conv
-                )
+              )
               });
             }
           }
