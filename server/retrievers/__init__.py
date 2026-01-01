@@ -62,6 +62,14 @@ try:
 except ImportError as e:
     logger.warning(f"Some SQL retrievers could not be imported: {e}")
 
+# Import Composite retriever implementations
+try:
+    from .implementations.composite import CompositeIntentRetriever
+    logger.info("Successfully imported CompositeIntentRetriever")
+except ImportError as e:
+    CompositeIntentRetriever = None
+    logger.debug(f"CompositeIntentRetriever not available: {e}")
+
 # Expose main interfaces
 __all__ = [
     'BaseRetriever',
@@ -92,6 +100,10 @@ if 'QAQdrantRetriever' in locals() and QAQdrantRetriever is not None:
 
 if 'QAPineconeRetriever' in locals() and QAPineconeRetriever is not None:
     __all__.append('QAPineconeRetriever')
+
+# Add composite retriever if available
+if 'CompositeIntentRetriever' in locals() and CompositeIntentRetriever is not None:
+    __all__.append('CompositeIntentRetriever')
 
 # Import implementations to register them
 # from .implementations import QAChromaRetriever

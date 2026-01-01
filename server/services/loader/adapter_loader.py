@@ -36,7 +36,8 @@ class AdapterLoader:
         reranker_cache,
         vision_cache=None,
         audio_cache=None,
-        thread_pool: Optional[ThreadPoolExecutor] = None
+        thread_pool: Optional[ThreadPoolExecutor] = None,
+        adapter_manager: Any = None
     ):
         """
         Initialize the adapter loader.
@@ -50,6 +51,7 @@ class AdapterLoader:
             vision_cache: Vision cache manager (optional for backward compatibility)
             audio_cache: Audio cache manager (optional for backward compatibility)
             thread_pool: Optional thread pool for async operations
+            adapter_manager: Reference to DynamicAdapterManager for composite adapters
         """
         self.config = config
         self.app_state = app_state
@@ -59,6 +61,7 @@ class AdapterLoader:
         self.vision_cache = vision_cache
         self.audio_cache = audio_cache
         self._thread_pool = thread_pool or ThreadPoolExecutor(max_workers=5)
+        self.adapter_manager = adapter_manager
 
     async def load_adapter(
         self,
@@ -487,12 +490,20 @@ class AdapterLoader:
                 logger.warning(f"Error getting datasource '{datasource_name}' for adapter '{adapter_name}': {e}")
                 datasource_instance = None
 
+        # Build kwargs for retriever instantiation
+        retriever_kwargs = {
+            'config': config_with_adapter,
+            'domain_adapter': domain_adapter,
+            'datasource': datasource_instance
+        }
+
+        # For composite adapters, pass adapter_manager for child adapter resolution
+        if domain_adapter_name == 'composite':
+            retriever_kwargs['adapter_manager'] = self.adapter_manager
+            logger.debug(f"Composite adapter '{adapter_name}': passing adapter_manager={self.adapter_manager is not None}")
+
         # Create retriever instance
-        retriever = retriever_class(
-            config=config_with_adapter,
-            domain_adapter=domain_adapter,
-            datasource=datasource_instance
-        )
+        retriever = retriever_class(**retriever_kwargs)
 
         # Store metadata for cleanup
         retriever._datasource_name = datasource_name

@@ -113,6 +113,7 @@ ORBIT comes with a variety of pre-built retriever implementations and domain ada
 | **QA (SQL)** | `QASSQLRetriever` | `sqlite` | Specialized for QA over SQLite using text similarity. |
 | **Intent (SQL)** | `IntentPostgreSQLRetriever` | `postgres` | A powerful text-to-SQL retriever for PostgreSQL. |
 | | `IntentMySQLRetriever` | `mysql` | A powerful text-to-SQL retriever for MySQL. |
+| **Composite** | `CompositeIntentRetriever` | multiple | Routes queries across multiple intent adapters to find the best matching source. |
 | **Generic Vector**| `ChromaRetriever` | `chroma` | Generic retriever for ChromaDB. |
 | | `QdrantRetriever` | `qdrant` | Generic retriever for Qdrant. |
 | | `MilvusRetriever` | `milvus` | Generic retriever for Milvus. |
@@ -129,6 +130,7 @@ ORBIT comes with a variety of pre-built retriever implementations and domain ada
 | :--- | :--- | :--- |
 | `qa` | `QADocumentAdapter` | Formats documents for question-answering tasks. |
 | `intent` | `IntentAdapter` | Manages domain knowledge and templates for text-to-SQL translation. |
+| `composite` | N/A (uses child adapters) | Routes queries to child adapters; delegates formatting to the selected child. |
 | `generic` | `GenericDocumentAdapter` | Provides basic, general-purpose document formatting. |
 
 ## Configuration Examples
@@ -224,6 +226,8 @@ For more in-depth information on specific retriever types, see the following gui
 
 -   **[Vector Retriever Architecture Guide](./vector-retriever-architecture.md)**: A guide for developers working with vector databases. It covers the architecture, supported databases, and how to add new ones.
 
--   **[SQL Retriever Architecture & Implementation Guide](./sql-retriever-architecture.md)**: A comprehensive guide for developers working with any SQL-based retriever. It covers architecture, configuration, best practices, and how to add support for new SQL databases.
+-   **[SQL Retriever Architecture & Implementation Guide](./sql-retriever-architecture.md)**: A guide for developers working with any SQL-based retriever. It covers architecture, configuration, best practices, and how to add support for new SQL databases.
 
 -   **[Intent-SQL RAG System](./intent-sql-rag-system.md)**: A deep-dive into the powerful Intent-to-SQL system, explaining how to configure and extend it for any business domain.
+
+-   **[Composite Intent Retriever](./composite-intent-retriever.md)**: A guide to the composite retriever that routes queries across multiple intent adapters to find the best matching data source.

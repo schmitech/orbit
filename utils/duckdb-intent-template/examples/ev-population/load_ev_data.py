@@ -210,6 +210,10 @@ def load_csv_data(conn, csv_path, sample_limit=None):
 
     print(f"Column mapping: {column_mapping}")
 
+    # Get the current max ID to avoid primary key conflicts
+    max_id_result = conn.execute("SELECT COALESCE(MAX(id), 0) FROM electric_vehicles").fetchone()
+    max_id = max_id_result[0] if max_id_result else 0
+
     # Insert data with transformation
     insert_sql = f"""
         INSERT INTO electric_vehicles (
@@ -234,7 +238,7 @@ def load_csv_data(conn, csv_path, sample_limit=None):
             census_tract
         )
         SELECT
-            ROW_NUMBER() OVER () as id,
+            ROW_NUMBER() OVER () + {max_id} as id,
             COALESCE("{column_mapping.get('vin_prefix', 'VIN (1-10)')}", 'UNKNOWN'),
             COALESCE("{column_mapping.get('county', 'County')}", 'Unknown'),
             COALESCE("{column_mapping.get('city', 'City')}", 'Unknown'),

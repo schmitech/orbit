@@ -91,7 +91,8 @@ class DynamicAdapterManager:
             self.reranker_cache,
             self.vision_cache,
             self.audio_cache,
-            self._thread_pool
+            self._thread_pool,
+            adapter_manager=self  # Pass self for composite adapter child resolution
         )
 
     def _init_reloader(self) -> None:

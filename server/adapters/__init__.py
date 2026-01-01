@@ -32,6 +32,7 @@ def register_adapters():
         import adapters.http.adapter     # HTTP adapter
         import adapters.elasticsearch.adapter  # Elasticsearch adapter
         import adapters.file.adapter  # File adapter
+        import adapters.composite.adapter  # Composite multi-source adapter
         logger.info("Imported adapter modules with auto-registration")
     except ImportError as e:
         logger.warning(f"Failed to import some adapter modules: {e}")
