@@ -20,6 +20,7 @@ This tutorial walks you through connecting ORBIT to databases, files, vector sto
 - [Example 4: DuckDB Analytics](#example-4-duckdb-analytics)
 - [Example 5: MongoDB Queries](#example-5-mongodb-queries)
 - [Example 6: HTTP APIs](#example-6-http-apis)
+- [Example 7: Multi-Source Composite](#example-7-multi-source-composite)
 - [Creating API Keys](#creating-api-keys)
 - [Connecting Your Own Data](#connecting-your-own-data)
 
@@ -48,6 +49,7 @@ ORBIT supports different adapter types for different use cases:
 | **Intent HTTP** | Natural language to API calls | `intent-http-jsonplaceholder` |
 | **Intent MongoDB** | Natural language to MongoDB queries | `intent-mongodb-mflix` |
 | **Intent GraphQL** | Natural language to GraphQL queries | `intent-graphql-spacex` |
+| **Composite** | Query across multiple data sources | `composite-multi-source` |
 
 ---
 
@@ -353,6 +355,91 @@ Query REST APIs using natural language.
 
 ---
 
+## Example 7: Multi-Source Composite
+
+Query across multiple data sources with a single interface. The Composite Intent Retriever automatically routes each query to the best matching data source.
+
+### How It Works
+
+1. You configure multiple child intent adapters (SQL, DuckDB, MongoDB, HTTP, etc.)
+2. When a query arrives, the composite retriever searches all child template stores
+3. The best matching template is selected based on similarity score
+4. The query is routed to the child adapter that owns that template
+5. Results include metadata showing which source was used
+
+### Adapter Configuration
+
+Create `config/adapters/composite.yaml`:
+
+```yaml
+adapters:
+  - name: "composite-multi-source"
+    enabled: true
+    type: "retriever"
+    adapter: "composite"
+    implementation: "retrievers.implementations.composite.CompositeIntentRetriever"
+    
+    embedding_provider: "openai"
+    
+    config:
+      # Child adapters to search across
+      child_adapters:
+        - "intent-sql-sqlite-hr"
+        - "intent-duckdb-ev-population"
+        - "intent-mongodb-mflix"
+      
+      confidence_threshold: 0.4
+      max_templates_per_source: 3
+      parallel_search: true
+      search_timeout: 5.0
+```
+
+### Create an API Key
+
+```bash
+./bin/orbit.sh key create \
+  --adapter composite-multi-source \
+  --name "Multi-Source Explorer" \
+  --prompt-text "You are a data assistant that can query multiple databases. Answer questions using the retrieved data."
+```
+
+### Example Questions
+
+With HR, EV Population, and Movie databases configured:
+
+- "How many employees are in Engineering?" → Routes to HR database
+- "Count Tesla vehicles by city" → Routes to EV database
+- "Find movies directed by Spielberg" → Routes to MongoDB
+
+The composite retriever automatically determines the best source for each question.
+
+### Use Cases
+
+| Configuration | Data Sources |
+|:---|:---|
+| **Enterprise Data Hub** | HR database + CRM + Analytics |
+| **Government Open Data** | Travel expenses + Contracts + Crime stats |
+| **Hybrid Sources** | Internal SQL + External APIs |
+
+### Routing Metadata
+
+Results include metadata showing the routing decision:
+
+```json
+{
+  "composite_routing": {
+    "selected_adapter": "intent-duckdb-ev-population",
+    "template_id": "ev_count_by_make",
+    "similarity_score": 0.92,
+    "adapters_searched": ["intent-sql-sqlite-hr", "intent-duckdb-ev-population", "intent-mongodb-mflix"]
+  }
+}
+```
+
+See the [Composite Intent Retriever documentation](adapters/composite-intent-retriever.md) for advanced configuration.
+
+---
+
 ## Creating API Keys
 
 API keys control access and define which adapter and system prompt to use.
@@ -503,5 +590,6 @@ config:
 
 - [Configuration Guide](configuration.md) – Full configuration reference
 - [SQL Retriever Architecture](sql-retriever-architecture.md) – Deep dive into SQL adapters
+- [Composite Intent Retriever](adapters/composite-intent-retriever.md) – Multi-source query routing
 - [API Keys Guide](api-keys.md) – Advanced API key management
 - [Authentication Guide](authentication.md) – User and role management

@@ -1,0 +1,88 @@
+# Composite Intent Retriever Adapters
+# These adapters route queries across multiple intent adapters
+# by searching templates across all sources and routing to the best match
+
+adapters:
+  # Example: Multi-Source Data Explorer
+  # Routes queries across HR, EV Population, and DuckDB Analytics databases
+  - name: "composite-multi-source-explorer"
+    enabled: true  # Enable when child adapters are configured
+    type: "retriever"
+    adapter: "composite"
+    implementation: "retrievers.implementations.composite.CompositeIntentRetriever"
+
+    # Shared embedding provider for consistent similarity scoring across sources
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+    
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      requires_api_key_validation: true
+    
+    config:
+      # Child adapters to search across
+      # These must be names of other enabled intent adapters defined in intent.yaml
+      child_adapters:
+        - "intent-sql-sqlite-hr"
+        - "intent-duckdb-ev-population"
+        - "intent-duckdb-analytics"
+
+      # Minimum confidence score to consider a template match
+      confidence_threshold: 0.4
+
+      # Maximum templates to retrieve from each child adapter
+      max_templates_per_source: 3
+
+      # Whether to search all sources in parallel (recommended for performance)
+      parallel_search: true
+
+      # Timeout for template search per source (seconds)
+      search_timeout: 5.0
+
+      # Enable verbose logging for debugging routing decisions
+      verbose: false
+
+  # Example: Full Multi-Database Explorer
+  # Routes queries across SQL, DuckDB, MongoDB, and HTTP sources
+  - name: "composite-full-explorer"
+    enabled: true
+    type: "retriever"
+    adapter: "composite"
+    implementation: "retrievers.implementations.composite.CompositeIntentRetriever"
+
+    # Using OpenAI for best embedding quality across diverse domains
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      requires_api_key_validation: true
+    
+    config:
+      # Child adapters to search across
+      child_adapters:
+        # SQL databases
+        - "intent-sql-sqlite-hr"
+        # DuckDB databases
+        - "intent-duckdb-analytics"
+        - "intent-duckdb-ev-population"
+        # MongoDB
+        - "intent-mongodb-mflix"
+        # HTTP APIs
+        - "intent-http-paris-opendata"
+        - "intent-http-jsonplaceholder"
+
+      confidence_threshold: 0.35  # Lower threshold for diverse sources
+      max_templates_per_source: 3
+      parallel_search: true
+      search_timeout: 8.0  # Higher timeout for HTTP sources
+      verbose: true  # Enable verbose logging for debugging
+
