@@ -86,6 +86,9 @@ return current
         api_keys_config = config.get('api_keys', {}) or {}
         self.api_key_header = api_keys_config.get('header_name', 'X-API-Key')
 
+        # Registered Lua script (initialized lazily when Redis is available)
+        self._incr_script = None
+
         logger.info(
             f"Rate limiting middleware initialized: enabled={self.enabled}, "
             f"trust_proxy_headers={self.trust_proxy_headers}, "
@@ -204,20 +207,34 @@ return current
     def _should_skip_rate_limit(self, request: Request) -> bool:
         """
         Check if the request path should be excluded from rate limiting.
-        
+
         Args:
             request: The incoming request
-            
+
         Returns:
             True if rate limiting should be skipped
         """
         path = request.url.path
-        
+
         for exclude_path in self.exclude_paths:
             if path == exclude_path or path.startswith(exclude_path + '/'):
                 return True
-        
+
         return False
+
+    def _register_lua_script(self, redis_service) -> None:
+        """Register Lua script with Redis client for efficient execution."""
+        if not redis_service or not redis_service.client:
+            return
+
+        try:
+            self._incr_script = redis_service.client.register_script(
+                self._INCR_WITH_EXPIRE_SCRIPT
+            )
+            logger.debug("Registered rate limit Lua script with Redis")
+        except Exception as e:
+            logger.warning(f"Failed to register Lua script: {e}")
+            self._incr_script = None
     
     async def _check_rate_limit(
         self,
@@ -247,14 +264,20 @@ return current
         # Redis keys for minute and hour windows
         minute_key = f"ratelimit:{prefix}:min:{current_minute}:{identifier}"
         hour_key = f"ratelimit:{prefix}:hr:{current_hour}:{identifier}"
-        
+
         try:
+            # Register script if not already done
+            if self._incr_script is None:
+                self._register_lua_script(redis_service)
+
+            if self._incr_script is None:
+                logger.warning("Lua script not registered, allowing request")
+                return True, limit_per_minute, limit_per_minute, current_time + 60
+
             # Check minute limit using atomic Lua script
-            minute_count = await redis_service.client.eval(
-                self._INCR_WITH_EXPIRE_SCRIPT,
-                1,           # number of keys
-                minute_key,  # KEYS[1]
-                60           # ARGV[1] - TTL in seconds
+            minute_count = await self._incr_script(
+                keys=[minute_key],
+                args=[60]  # TTL in seconds
             )
 
             if minute_count > limit_per_minute:
@@ -264,11 +287,9 @@ return current
                 return False, remaining, limit_per_minute, reset_time
 
             # Check hour limit using atomic Lua script
-            hour_count = await redis_service.client.eval(
-                self._INCR_WITH_EXPIRE_SCRIPT,
-                1,          # number of keys
-                hour_key,   # KEYS[1]
-                3600        # ARGV[1] - TTL in seconds
+            hour_count = await self._incr_script(
+                keys=[hour_key],
+                args=[3600]  # TTL in seconds
             )
 
             if hour_count > limit_per_hour:

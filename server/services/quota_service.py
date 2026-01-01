@@ -160,6 +160,10 @@ class QuotaService:
         self._cache_ttl = 300  # 5 minutes cache for quota configs
         self._cache_timestamps: Dict[str, float] = {}
 
+        # Registered Lua scripts (initialized lazily when Redis is available)
+        self._increment_script = None
+        self._get_script = None
+
         # Mark as initialized
         self._singleton_initialized = True
 
@@ -192,6 +196,24 @@ class QuotaService:
 
         self.initialized = True
         logger.info("QuotaService fully initialized")
+
+    def _register_lua_scripts(self) -> None:
+        """Register Lua scripts with Redis client for efficient execution."""
+        if not self.redis_service or not self.redis_service.client:
+            return
+
+        try:
+            self._increment_script = self.redis_service.client.register_script(
+                self._QUOTA_INCREMENT_SCRIPT
+            )
+            self._get_script = self.redis_service.client.register_script(
+                self._QUOTA_GET_SCRIPT
+            )
+            logger.debug("Registered quota Lua scripts with Redis")
+        except Exception as e:
+            logger.warning(f"Failed to register Lua scripts: {e}")
+            self._increment_script = None
+            self._get_script = None
 
     def _get_daily_key(self, api_key: str) -> str:
         """Get Redis key for daily usage counter"""
@@ -312,6 +334,14 @@ class QuotaService:
             return (0, 0, 86400, 2592000)
 
         try:
+            # Register scripts if not already done
+            if self._increment_script is None:
+                self._register_lua_scripts()
+
+            if self._increment_script is None:
+                logger.warning("Lua scripts not registered, skipping quota increment")
+                return (0, 0, 86400, 2592000)
+
             daily_key = self._get_daily_key(api_key)
             monthly_key = self._get_monthly_key(api_key)
             last_request_key = self._get_last_request_key(api_key)
@@ -320,11 +350,9 @@ class QuotaService:
             monthly_ttl = self._calculate_monthly_ttl()
             timestamp = int(time.time())
 
-            result = await self.redis_service.client.eval(
-                self._QUOTA_INCREMENT_SCRIPT,
-                3,  # number of keys
-                daily_key, monthly_key, last_request_key,
-                daily_ttl, monthly_ttl, timestamp
+            result = await self._increment_script(
+                keys=[daily_key, monthly_key, last_request_key],
+                args=[daily_ttl, monthly_ttl, timestamp]
             )
 
             daily_count = int(result[0])
@@ -368,14 +396,27 @@ class QuotaService:
             }
 
         try:
+            # Register scripts if not already done
+            if self._get_script is None:
+                self._register_lua_scripts()
+
+            if self._get_script is None:
+                logger.warning("Lua scripts not registered, returning empty usage")
+                return {
+                    'daily_used': 0,
+                    'monthly_used': 0,
+                    'daily_reset_at': self._calculate_daily_reset_timestamp(),
+                    'monthly_reset_at': self._calculate_monthly_reset_timestamp(),
+                    'last_request_at': None
+                }
+
             daily_key = self._get_daily_key(api_key)
             monthly_key = self._get_monthly_key(api_key)
             last_request_key = self._get_last_request_key(api_key)
 
-            result = await self.redis_service.client.eval(
-                self._QUOTA_GET_SCRIPT,
-                3,  # number of keys
-                daily_key, monthly_key, last_request_key
+            result = await self._get_script(
+                keys=[daily_key, monthly_key, last_request_key],
+                args=[]
             )
 
             daily_used = int(result[0]) if result[0] else 0

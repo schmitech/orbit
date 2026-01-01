@@ -382,13 +382,17 @@ class TestRateLimitMiddlewareWithRedis:
         # Track counters for testing
         counters = {}
 
-        async def mock_eval(script, num_keys, key, ttl):
-            """Mock Lua script execution - atomic INCR with EXPIRE."""
+        async def mock_script_call(keys, args):
+            """Mock registered Lua script execution - atomic INCR with EXPIRE."""
+            key = keys[0]
             counters[key] = counters.get(key, 0) + 1
             return counters[key]
 
+        # Create a mock registered script that behaves like a callable
+        mock_script = AsyncMock(side_effect=mock_script_call)
+
         mock_service.client = Mock()
-        mock_service.client.eval = AsyncMock(side_effect=mock_eval)
+        mock_service.client.register_script = Mock(return_value=mock_script)
         mock_service._counters = counters  # Expose for testing
 
         return mock_service
@@ -592,7 +596,7 @@ class TestRateLimitMiddlewareRedisFailure:
     async def test_redis_error_allows_request(self):
         """Test that Redis errors result in allowing the request (fail-open)."""
         app = FastAPI()
-        
+
         config = {
             'security': {
                 'rate_limiting': {
@@ -601,24 +605,25 @@ class TestRateLimitMiddlewareRedisFailure:
                 }
             }
         }
-        
+
         app.add_middleware(RateLimitMiddleware, config=config)
-        
+
         @app.get("/test")
         def test_endpoint():
             return {"message": "test"}
-        
-        # Create a mock Redis service that raises errors
+
+        # Create a mock Redis service that raises errors when script is called
+        mock_script = AsyncMock(side_effect=Exception("Redis connection error"))
         mock_service = Mock()
         mock_service.enabled = True
         mock_service.initialized = True
         mock_service.client = Mock()
-        mock_service.client.eval = AsyncMock(side_effect=Exception("Redis connection error"))
-        
+        mock_service.client.register_script = Mock(return_value=mock_script)
+
         app.state.redis_service = mock_service
-        
+
         client = TestClient(app)
-        
+
         # Request should succeed despite Redis error
         response = client.get("/test")
         assert response.status_code == 200
