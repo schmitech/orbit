@@ -45,6 +45,29 @@ const setInitialAdapterName = (adapterName: string | null | undefined) => {
   }
 };
 
+const clearStoredAdapterPreference = () => {
+  initialAdapterName = normalizedDefaultAdapter;
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    localStorage.removeItem(DEFAULT_ADAPTER_STORAGE_KEY);
+    localStorage.removeItem('chat-adapter-name');
+  } catch {
+    // ignore storage errors
+  }
+};
+
+const hasConversationWithHistory = (conversations: Conversation[]): boolean => {
+  return conversations.some(conv => conv.messages.length > 0 && !!conv.adapterName);
+};
+
+const pruneAdapterPreferenceIfNoHistory = (conversations: Conversation[]): void => {
+  if (!hasConversationWithHistory(conversations)) {
+    clearStoredAdapterPreference();
+  }
+};
+
 const resolvePreferredAdapterName = (): string | undefined => {
   const runtimeAdapterName = getDefaultAdapterName();
   if (runtimeAdapterName && runtimeAdapterName.trim().length > 0) {
@@ -311,6 +334,7 @@ interface ExtendedChatState extends ChatState {
   syncConversationFiles: (conversationId: string) => Promise<void>;
   syncConversationsWithBackend: () => Promise<void>;
   stopStreaming: () => Promise<void>;
+  clearCurrentConversationAdapter: () => void;
 }
 
 // API configuration state
@@ -894,6 +918,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         ? (filtered[0]?.id || null) 
         : state.currentConversationId;
 
+      pruneAdapterPreferenceIfNoHistory(filtered);
+
       // If all conversations are deleted, create a new default conversation
       if (filtered.length === 0) {
         const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -1216,6 +1242,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       currentConversationId: defaultConversationId,
       sessionId: defaultSessionId
     });
+    pruneAdapterPreferenceIfNoHistory([defaultConversation]);
 
     // Save to localStorage
     setTimeout(() => {
@@ -1224,6 +1251,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         currentConversationId: defaultConversationId
       }));
     }, 0);
+
+    clearStoredAdapterPreference();
   },
 
   sendMessage: async (content: string, fileIds?: string[], threadId?: string) => {
@@ -2618,6 +2647,43 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     activeStreamSessionId = null;
 
     debugLog('[chatStore] Stream stopped successfully');
+  },
+
+  clearCurrentConversationAdapter: () => {
+    if (!getEnableApiMiddleware()) {
+      return;
+    }
+    const currentConversationId = get().currentConversationId;
+    if (!currentConversationId) {
+      return;
+    }
+
+    set(state => {
+      const updatedConversations = state.conversations.map(conv =>
+        conv.id === currentConversationId
+          ? {
+              ...conv,
+              adapterName: undefined,
+              adapterInfo: undefined,
+              adapterLoadError: null
+            }
+          : conv
+      );
+
+      pruneAdapterPreferenceIfNoHistory(updatedConversations);
+
+      return {
+        conversations: updatedConversations
+      };
+    });
+
+    setTimeout(() => {
+      const currentState = get();
+      localStorage.setItem('chat-state', JSON.stringify({
+        conversations: currentState.conversations,
+        currentConversationId: currentState.currentConversationId
+      }));
+    }, 0);
   }
 }));
 

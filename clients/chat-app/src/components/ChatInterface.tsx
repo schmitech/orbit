@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
@@ -19,6 +19,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import { AgentSelectionList } from './AgentSelectionList';
 import { GitHubStatsBanner } from './GitHubStatsBanner';
 import type { Conversation } from '../types';
+import {
+  getAgentSlugFromPath,
+  replaceAgentSlug,
+  resolveAdapterNameFromSlug,
+  slugifyAdapterName
+} from '../utils/agentRouting';
 
 const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-white/95 px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-[0_25px_60px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-[#2f303d] dark:bg-[#1c1d23]/95 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
@@ -50,7 +56,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     configureApiSettings,
     error,
     clearError,
-    createThread
+    createThread,
+    clearCurrentConversationAdapter
   } = useChatStore();
 
   const { settings } = useSettings();
@@ -86,7 +93,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const welcomeHeading = `Welcome to ${applicationName}`;
   const hasIntroDescription = applicationDescription.length > 0;
   const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
-  const initialAgentSelectionVisible = isMiddlewareEnabled && showEmptyState;
+  const initialPathSlugRef = useRef<string | null>(
+    typeof window !== 'undefined' ? getAgentSlugFromPath(window.location.pathname) : null
+  );
+  const initialAgentSelectionVisible = isMiddlewareEnabled && showEmptyState && !initialPathSlugRef.current;
   const [isAgentSelectionVisible, setIsAgentSelectionVisible] = useState(initialAgentSelectionVisible);
   const agentSelectionConversationRef = useRef<string | null>(null);
   const shouldShowAgentSelectionList =
@@ -110,6 +120,26 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     : '';
   const headerClasses = `${MOBILE_HEADER_CLASSES} ${headerBorderClass}`.trim();
   const hasAdapterConfigurationError = !!adapterNotesError;
+  const ensureConversationReadyForAgent = useCallback((): string | null => {
+    const state = useChatStore.getState();
+    const activeConversation = state.currentConversationId
+      ? state.conversations.find(conv => conv.id === state.currentConversationId)
+      : null;
+
+    if (!activeConversation || activeConversation.messages.length > 0) {
+      try {
+        const newConversationId = createConversation();
+        agentSelectionConversationRef.current = newConversationId;
+        return newConversationId;
+      } catch (error) {
+        debugWarn(
+          'Cannot create a new conversation for agent selection:',
+          error instanceof Error ? error.message : 'Unknown error'
+        );
+      }
+    }
+    return activeConversation?.id || null;
+  }, [createConversation]);
 
   useEffect(() => {
     if (currentConversation?.adapterLoadError) {
@@ -119,7 +149,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     }
   }, [currentConversation?.id, currentConversation?.adapterName, currentConversation?.adapterLoadError]);
 
-  const persistChatState = () => {
+  const persistChatState = useCallback(() => {
     if (typeof window === 'undefined') {
       return;
     }
@@ -130,9 +160,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
         currentConversationId: currentState.currentConversationId
       }));
     }, 0);
-  };
+  }, []);
 
-  const markConversationAdapterError = (conversationId?: string, message?: string) => {
+  const markConversationAdapterError = useCallback((conversationId?: string, message?: string) => {
     if (!conversationId) {
       return;
     }
@@ -155,9 +185,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     if (updated) {
       persistChatState();
     }
-  };
+  }, [persistChatState]);
 
-  const clearConversationAdapterError = (conversationId?: string) => {
+  const clearConversationAdapterError = useCallback((conversationId?: string) => {
     if (!conversationId) {
       return;
     }
@@ -179,9 +209,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     if (updated) {
       persistChatState();
     }
-  };
+  }, [persistChatState]);
 
-  const getAdapterInfoErrorMessage = (error: unknown): string => {
+  const getAdapterInfoErrorMessage = useCallback((error: unknown): string => {
     if (error instanceof Error) {
       if (error.message.includes('401')) {
         return 'We couldn’t load this agent. It may not exist or you might not have access to it.';
@@ -192,11 +222,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       return error.message;
     }
     return 'Unable to load agent overview right now.';
-  };
+  }, []);
 
   type AdapterInfoFetchResult = { ok: true } | { ok: false; error?: unknown };
 
-  const fetchAdapterInfoForConversation = async (conversation?: Conversation | null): Promise<AdapterInfoFetchResult> => {
+  const fetchAdapterInfoForConversation = useCallback(async (conversation?: Conversation | null): Promise<AdapterInfoFetchResult> => {
     if (!conversation) {
       return { ok: false };
     }
@@ -248,7 +278,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       }
       return { ok: false, error };
     }
-  };
+  }, [getAdapterInfoErrorMessage, markConversationAdapterError, persistChatState, setAdapterNotesError]);
 
   // Reset agent selection visibility when conversations change
   useEffect(() => {
@@ -260,12 +290,82 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       return;
     }
 
+    if (initialPathSlugRef.current) {
+      agentSelectionConversationRef.current = currentConversation?.id || null;
+      return;
+    }
+
     const conversationId = currentConversation?.id || null;
     if (agentSelectionConversationRef.current !== conversationId) {
       agentSelectionConversationRef.current = conversationId;
       setIsAgentSelectionVisible(true);
     }
   }, [isMiddlewareEnabled, showEmptyState, currentConversation?.id, isAgentSelectionVisible]);
+
+  useEffect(() => {
+    if (!isMiddlewareEnabled) {
+      replaceAgentSlug(null);
+      initialPathSlugRef.current = null;
+      return;
+    }
+    if (shouldShowAgentSelectionList || !currentConversation?.adapterName) {
+      if (!initialPathSlugRef.current) {
+        replaceAgentSlug(null);
+      }
+      return;
+    }
+    initialPathSlugRef.current = null;
+    replaceAgentSlug(slugifyAdapterName(currentConversation.adapterName));
+  }, [isMiddlewareEnabled, shouldShowAgentSelectionList, currentConversation?.adapterName]);
+
+  useEffect(() => {
+    if (!isMiddlewareEnabled) {
+      return;
+    }
+    let cancelled = false;
+
+    const synchronizeFromLocation = async () => {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      const slug = getAgentSlugFromPath(window.location.pathname);
+      if (!slug) {
+        return;
+      }
+      const adapterName = await resolveAdapterNameFromSlug(slug);
+      if (cancelled) {
+        return;
+      }
+      if (!adapterName) {
+        ensureConversationReadyForAgent();
+        replaceAgentSlug(null);
+        clearCurrentConversationAdapter();
+        setIsAgentSelectionVisible(true);
+        initialPathSlugRef.current = null;
+        return;
+      }
+      ensureConversationReadyForAgent();
+      setIsAgentSelectionVisible(false);
+      replaceAgentSlug(slug);
+      const configure = adapterSelectionRef.current;
+      if (configure) {
+        await configure(adapterName);
+      }
+      initialPathSlugRef.current = null;
+    };
+
+    void synchronizeFromLocation();
+
+    const handlePopState = () => {
+      void synchronizeFromLocation();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isMiddlewareEnabled, ensureConversationReadyForAgent, clearCurrentConversationAdapter]);
 
   // Debug: Log current conversation state for middleware mode debugging
   useEffect(() => {
@@ -333,7 +433,19 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       }
     };
     loadMissingAdapterInfo();
-  }, [isMiddlewareEnabled, currentConversation?.adapterName, currentConversation?.adapterInfo, currentConversation?.apiUrl, configureApiSettings]);
+  }, [
+    isMiddlewareEnabled,
+    currentConversation?.adapterName,
+    currentConversation?.adapterInfo,
+    currentConversation?.apiUrl,
+    currentConversation?.adapterLoadError,
+    currentConversation?.id,
+    configureApiSettings,
+    clearConversationAdapterError,
+    fetchAdapterInfoForConversation,
+    getAdapterInfoErrorMessage,
+    markConversationAdapterError
+  ]);
 
   // Clean up any orphaned streaming messages on mount (only once, not on every render)
   // Removed automatic cleanup to preserve streaming state when switching conversations
@@ -410,15 +522,22 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     }
   };
 
-  const handleEmptyStateAdapterChange = async (adapterName: string) => {
+  const handleEmptyStateAdapterChange = useCallback(async (adapterName: string) => {
     if (!isMiddlewareEnabled || !adapterName) {
+      return;
+    }
+    const state = useChatStore.getState();
+    const activeConversation = state.currentConversationId
+      ? state.conversations.find(conv => conv.id === state.currentConversationId)
+      : null;
+    if (!activeConversation) {
       return;
     }
     setIsConfiguringAdapter(true);
     setAdapterNotesError(null);
-    clearConversationAdapterError(currentConversation?.id);
+    clearConversationAdapterError(activeConversation.id);
     try {
-      const runtimeApiUrl = currentConversation?.apiUrl || getApiUrl();
+      const runtimeApiUrl = activeConversation.apiUrl || getApiUrl();
       await configureApiSettings(runtimeApiUrl, undefined, undefined, adapterName);
       clearError();
       const latestState = useChatStore.getState();
@@ -433,16 +552,33 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       debugError('Failed to configure adapter from empty state:', error);
       const friendlyMessage = getAdapterInfoErrorMessage(error);
       setAdapterNotesError(friendlyMessage);
-      markConversationAdapterError(currentConversation?.id, friendlyMessage);
+      markConversationAdapterError(activeConversation.id, friendlyMessage);
     } finally {
       setIsConfiguringAdapter(false);
     }
-  };
+  }, [
+    isMiddlewareEnabled,
+    configureApiSettings,
+    clearError,
+    fetchAdapterInfoForConversation,
+    markConversationAdapterError,
+    clearConversationAdapterError,
+    getAdapterInfoErrorMessage
+  ]);
 
   const handleAgentCardSelection = (adapterName: string) => {
+    if (!isMiddlewareEnabled) {
+      return;
+    }
+    ensureConversationReadyForAgent();
     setIsAgentSelectionVisible(false);
+    replaceAgentSlug(slugifyAdapterName(adapterName));
     void handleEmptyStateAdapterChange(adapterName);
   };
+  const adapterSelectionRef = useRef(handleEmptyStateAdapterChange);
+  useEffect(() => {
+    adapterSelectionRef.current = handleEmptyStateAdapterChange;
+  }, [handleEmptyStateAdapterChange]);
 
   const handleRefreshAdapterInfo = async () => {
     const state = useChatStore.getState();
@@ -632,7 +768,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Agent overview</h3>
                         <button
                           type="button"
-                          onClick={() => setIsAgentSelectionVisible(true)}
+                          onClick={() => {
+                            clearCurrentConversationAdapter();
+                            replaceAgentSlug(null);
+                            setIsAgentSelectionVisible(true);
+                          }}
                           className="text-sm font-semibold text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300 dark:hover:text-blue-200"
                         >
                           Change Agent
