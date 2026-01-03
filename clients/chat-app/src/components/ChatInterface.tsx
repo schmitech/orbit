@@ -308,13 +308,15 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       initialPathSlugRef.current = null;
       return;
     }
-    if (shouldShowAgentSelectionList || !currentConversation?.adapterName) {
-      if (!initialPathSlugRef.current) {
-        replaceAgentSlug(null);
-      }
+
+    if (initialPathSlugRef.current) {
       return;
     }
-    initialPathSlugRef.current = null;
+
+    if (shouldShowAgentSelectionList || !currentConversation?.adapterName) {
+      replaceAgentSlug(null);
+      return;
+    }
     replaceAgentSlug(slugifyAdapterName(currentConversation.adapterName));
   }, [isMiddlewareEnabled, shouldShowAgentSelectionList, currentConversation?.adapterName]);
 
