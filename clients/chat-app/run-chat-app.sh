@@ -23,8 +23,15 @@ PORT="${ORBITCHAT_PORT:-5173}"
 
 # Set the VITE_ADAPTERS environment variable (required for --enable-api-middleware)
 export VITE_ADAPTERS='[
-  { "name": "Simple Chat", "apiKey": "default-key", "apiUrl": "http://localhost:3000" },
-  { "name": "Files Chat", "apiKey": "multimodal", "apiUrl": "http://localhost:3000" }
+  { "name": "SQLite QA", "apiKey": "sql-key", "apiUrl": "http://localhost:3000", "description": "Simple SQLite question answering using Orbit AI." },
+  { "name": "Simple Chat", "apiKey": "default-key", "apiUrl": "http://localhost:3000", "description": "Basic chat interface using the default conversational agent." },
+  { "name": "Files Chat", "apiKey": "multimodal", "apiUrl": "http://localhost:3000", "description": "Basic chat interface using the default conversational agent." },
+  { "name": "Movies DB", "apiKey": "mflix", "apiUrl": "http://localhost:3000", "description": "Explores and queries a MongoDB-powered movies database (MFlix sample set)." },
+  { "name": "Business Analytics", "apiKey": "analytical", "apiUrl": "http://localhost:3000", "description": "Analyze datasets and generate business intelligence reports." },
+  { "name": "Electric Vehicle Population", "apiKey": "ev-population", "apiUrl": "http://localhost:3000", "description": "Accesses statistics and insights about electric vehicle registrations." },
+  { "name": "Paris Open Data", "apiKey": "paris", "apiUrl": "http://localhost:3000", "description": "Interact with Paris city open data for events, venues, and more." },
+  { "name": "REST API", "apiKey": "rest", "apiUrl": "http://localhost:3000", "description": "Enables generic REST API exploration and data extraction." },
+  { "name": "Composite Explorer", "apiKey": "composite-explorer", "apiUrl": "http://localhost:3000", "description": "Routes queries across HR, EV Population and DuckDB Analytics databases." }
 ]'
 
 start_app() {
@@ -35,15 +42,20 @@ start_app() {
 
     echo "Starting orbitchat on port $PORT..."
     # Note: Add '--host 0.0.0.0' below to listen on all network interfaces (allow access from other devices)
-    nohup orbitchat --api-url http://localhost:3000 --enable-api-middleware --enable-upload \
+    # --out-of-service-message "Please check back later." \
+    nohup orbitchat --api-url http://localhost:3000 --enable-api-middleware --enable-upload --enable-autocomplete \
         --port "$PORT" \
         --max-conversations 5 \
         --max-messages-per-conversation 50 \
+        --max-messages-per-thread 10 \
         --max-total-messages 200 \
         --max-files-per-conversation 3 \
         --max-file-size-mb 10 \
         --max-total-files 20 \
         --max-message-length 500 \
+        --application-name "ORBIT Local" \
+        --application-description "ORBIT provides a specialized AI interface that allows anyone to ask plain-language questions and receive summarized, citation-backed answers drawn directly from official Canadian open data sources. Please read our [Terms and Conditions](https://schmitech.ai/en/civicchat) before using the service." \
+        --default-input-placeholder "Ask ORBIT Local Anything..." \
         > "$LOGFILE" 2>&1 &
 
     echo $! > "$PIDFILE"
