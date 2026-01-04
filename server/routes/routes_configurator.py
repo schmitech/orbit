@@ -78,6 +78,9 @@ class RouteConfigurator:
         # Configure stop streaming endpoint
         self._configure_stop_endpoint(app, dependencies)
 
+        # Configure autocomplete endpoint
+        self._configure_autocomplete_endpoint(app, dependencies)
+
         # Configure health endpoint
         self._configure_health_endpoint(app, dependencies)
         
@@ -97,6 +100,7 @@ class RouteConfigurator:
             'get_api_key_service': self._create_api_key_service_dependency(),
             'get_prompt_service': self._create_prompt_service_dependency(),
             'get_thread_service': self._create_thread_service_dependency(),
+            'get_autocomplete_service': self._create_autocomplete_service_dependency(),
             'validate_session_id': self._create_session_validator(),
             'get_user_id': self._create_user_id_extractor(),
             'get_api_key': self._create_api_key_validator()
@@ -155,6 +159,23 @@ class RouteConfigurator:
                 request.app.state.thread_service = thread_service
             return request.app.state.thread_service
         return get_thread_service
+
+    def _create_autocomplete_service_dependency(self):
+        """Create autocomplete service dependency."""
+        async def get_autocomplete_service(request: Request):
+            if not hasattr(request.app.state, 'autocomplete_service'):
+                # Initialize autocomplete service if not already initialized
+                from services.autocomplete_service import AutocompleteService
+                adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+                redis_service = getattr(request.app.state, 'redis_service', None)
+                autocomplete_service = AutocompleteService(
+                    request.app.state.config,
+                    adapter_manager=adapter_manager,
+                    redis_service=redis_service
+                )
+                request.app.state.autocomplete_service = autocomplete_service
+            return request.app.state.autocomplete_service
+        return get_autocomplete_service
     
     def _create_session_validator(self):
         """Create session ID validation dependency."""
@@ -617,6 +638,60 @@ class RouteConfigurator:
                     "session_id": stop_request.session_id,
                     "request_id": stop_request.request_id
                 }
+
+    def _configure_autocomplete_endpoint(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
+        """Configure the autocomplete suggestions endpoint."""
+        from fastapi import Query
+
+        class AutocompleteResponse(BaseModel):
+            suggestions: List[Dict[str, str]]
+            query: str
+
+        @app.get("/v1/autocomplete", operation_id="autocomplete", response_model=AutocompleteResponse)
+        async def autocomplete_endpoint(
+            request: Request,
+            q: str = Query(..., min_length=3, description="Query prefix to match"),
+            limit: int = Query(5, ge=1, le=10, description="Maximum number of suggestions"),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
+            autocomplete_service = Depends(dependencies['get_autocomplete_service'])
+        ) -> AutocompleteResponse:
+            """
+            Get autocomplete suggestions based on query prefix.
+
+            This endpoint returns query suggestions based on nl_examples from
+            intent adapter templates. Useful for helping users discover
+            available queries.
+
+            Args:
+                q: The query prefix to match (minimum 3 characters)
+                limit: Maximum number of suggestions to return (1-10, default 5)
+
+            Returns:
+                AutocompleteResponse with list of suggestions
+            """
+            # Check if autocomplete is disabled at config level
+            autocomplete_config = request.app.state.config.get('autocomplete', {})
+            if not autocomplete_config.get('enabled', True):
+                return AutocompleteResponse(suggestions=[], query=q)
+
+            adapter_name, _ = api_key_result
+
+            try:
+                suggestions = await autocomplete_service.get_suggestions(
+                    query=q,
+                    adapter_name=adapter_name,
+                    limit=limit
+                )
+
+                return AutocompleteResponse(
+                    suggestions=[{"text": s.text} for s in suggestions],
+                    query=q
+                )
+
+            except Exception as e:
+                logger.warning(f"Autocomplete error: {e}")
+                # Return empty suggestions rather than error - autocomplete is non-critical
+                return AutocompleteResponse(suggestions=[], query=q)
 
     def _configure_health_endpoint(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
         """Configure the health check endpoint."""

@@ -48,6 +48,11 @@ class FaultTolerantAdapterManager:
             return value.lower() in ('true', 'yes', '1', 'on')
         return bool(value)
     
+    @property
+    def config_manager(self):
+        """Delegate to base adapter manager's config_manager for backward compatibility."""
+        return self.base_adapter_manager.config_manager
+
     async def get_adapter(self, adapter_name: str) -> Any:
         """Get a single adapter - backward compatibility method"""
         return await self.base_adapter_manager.get_adapter(adapter_name)

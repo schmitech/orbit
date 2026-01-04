@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowUp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square } from 'lucide-react';
 import { useVoice } from '../hooks/useVoice';
+import { useAutocomplete } from '../hooks/useAutocomplete';
 import { FileUpload } from './FileUpload';
 import { FileAttachment } from '../types';
 import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
-import { getDefaultInputPlaceholder, getDefaultKey, getEnableApiMiddleware, getEnableAudioOutput, getEnableUploadButton, resolveApiUrl } from '../utils/runtimeConfig';
+import { getDefaultInputPlaceholder, getDefaultKey, getEnableApiMiddleware, getEnableAudioOutput, getEnableAutocomplete, getEnableUploadButton, resolveApiUrl } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
 
@@ -161,6 +162,24 @@ export function MessageInput({
   const audioFeatureEnabled = getEnableAudioOutput();
   const voiceRecordingAvailable = audioFeatureEnabled && voiceSupported;
   const uploadFeatureEnabled = getEnableUploadButton();
+  const autocompleteEnabled = getEnableAutocomplete();
+  const middlewareEnabled = getEnableApiMiddleware();
+
+  // Autocomplete suggestions based on nl_examples from intent templates
+  const {
+    suggestions,
+    selectedIndex,
+    setSelectedIndex,
+    selectNext,
+    selectPrevious,
+    clearSuggestions
+  } = useAutocomplete(message, {
+    enabled: autocompleteEnabled,
+    apiKey: currentConversation?.apiKey,
+    apiUrl: currentConversation?.apiUrl,
+    adapterName: currentConversation?.adapterName,
+    useMiddleware: middlewareEnabled
+  });
 
   // Check if any files are currently uploading or processing
   const conversationFiles = currentConversation?.attachedFiles || [];
@@ -570,7 +589,50 @@ export function MessageInput({
     showUploadSuccessToast(newFiles);
   }, [currentConversationId, showUploadSuccessToast]);
 
+  const handleSelectSuggestion = useCallback((text: string) => {
+    setMessage(text);
+    clearSuggestions();
+    textareaRef.current?.focus();
+  }, [clearSuggestions]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Handle autocomplete navigation when suggestions are visible
+    if (suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectNext();
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectPrevious();
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const targetIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        const suggestion = suggestions[targetIndex];
+        if (suggestion) {
+          handleSelectSuggestion(suggestion.text);
+        }
+        return;
+      }
+      if (e.key === 'Enter' && selectedIndex >= 0) {
+        e.preventDefault();
+        const suggestion = suggestions[selectedIndex];
+        if (suggestion) {
+          handleSelectSuggestion(suggestion.text);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        clearSuggestions();
+        return;
+      }
+    }
+
+    // Normal Enter handling (submit message)
     if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
       e.preventDefault();
       handleSubmit(e);
@@ -850,16 +912,38 @@ export function MessageInput({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex w-full flex-col gap-2 md:gap-3">
-        {/* Mobile layout: stacked with textarea on top, buttons below */}
-        {/* Desktop layout: single row with all elements inline */}
-        <div
-          className={`flex flex-col md:flex-row md:items-center gap-3 md:gap-2 rounded-2xl md:rounded-lg border px-4 py-3 md:px-4 md:py-3 shadow-sm transition-all ${
-            isFocused
-              ? 'border-gray-400 shadow-md dark:border-[#565869] dark:shadow-lg'
-              : 'border-gray-300 dark:border-[#40414f]'
-          } bg-gray-50 dark:bg-[#2d2f39]`}
-        >
+        <div className="relative w-full">
+          {/* Autocomplete suggestions dropdown */}
+          {suggestions.length > 0 && (
+            <div className="w-full mb-2 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-[#40414f] dark:bg-[#2d2f39] z-50 md:absolute md:bottom-full md:left-0 md:right-0">
+              {suggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                    index === selectedIndex
+                      ? 'bg-gray-100 dark:bg-[#3c3f4a]'
+                      : 'hover:bg-gray-50 dark:hover:bg-[#353740]'
+                  } ${index !== suggestions.length - 1 ? 'border-b border-gray-100 dark:border-[#40414f]' : ''} text-[#353740] dark:text-[#ececf1]`}
+                  onClick={() => handleSelectSuggestion(suggestion.text)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                >
+                  {suggestion.text}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="flex w-full flex-col gap-2 md:gap-3">
+          {/* Mobile layout: stacked with textarea on top, buttons below */}
+          {/* Desktop layout: single row with all elements inline */}
+          <div
+            className={`flex flex-col md:flex-row md:items-center gap-3 md:gap-2 rounded-2xl md:rounded-lg border px-4 py-3 md:px-4 md:py-3 shadow-sm transition-all ${
+              isFocused
+                ? 'border-gray-400 shadow-md dark:border-[#565869] dark:shadow-lg'
+                : 'border-gray-300 dark:border-[#40414f]'
+            } bg-gray-50 dark:bg-[#2d2f39]`}
+          >
           {/* Textarea row */}
           <textarea
             ref={textareaRef}
@@ -1157,8 +1241,9 @@ export function MessageInput({
             </span>
           )}
         </div>
-      </form>
+        </form>
+        </div>
+      </div>
     </div>
-  </div>
   );
 }

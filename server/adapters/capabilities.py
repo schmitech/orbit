@@ -46,6 +46,7 @@ class AdapterCapabilities:
     requires_api_key_validation: bool = False  # Needs api_key for ownership validation
     supports_threading: bool = False  # Supports conversation threading on retrieved datasets
     supports_language_filtering: bool = False  # Can filter/boost by detected language
+    supports_autocomplete: bool = False  # Provides autocomplete suggestions from nl_examples
 
     # Additional parameters to pass to get_relevant_context()
     required_parameters: List[str] = field(default_factory=list)
@@ -88,6 +89,7 @@ class AdapterCapabilities:
             requires_api_key_validation=capabilities_config.get('requires_api_key_validation', False),
             supports_threading=capabilities_config.get('supports_threading', False),
             supports_language_filtering=capabilities_config.get('supports_language_filtering', False),
+            supports_autocomplete=capabilities_config.get('supports_autocomplete', False),
             required_parameters=capabilities_config.get('required_parameters', []),
             optional_parameters=capabilities_config.get('optional_parameters', []),
             skip_when_no_files=capabilities_config.get('skip_when_no_files', False),
@@ -136,27 +138,32 @@ class AdapterCapabilities:
     def for_standard_retriever(cls, adapter_name: Optional[str] = None) -> 'AdapterCapabilities':
         """
         Create capabilities for standard retriever adapters (QA, Intent, etc.).
-        
+
         Args:
-            adapter_name: Optional adapter name to determine threading support
+            adapter_name: Optional adapter name to determine threading/autocomplete support
         """
         # Check if adapter supports threading (intent or QA adapters)
         supports_threading = False
+        supports_autocomplete = False
         if adapter_name:
-            supports_threading = (
-                adapter_name.startswith('intent-') or 
-                adapter_name.startswith('qa-') or 
+            is_intent_or_qa = (
+                adapter_name.startswith('intent-') or
+                adapter_name.startswith('qa-') or
                 'qa' in adapter_name.lower()
             ) and not (
-                'conversational' in adapter_name.lower() or 
+                'conversational' in adapter_name.lower() or
                 'multimodal' in adapter_name.lower()
             )
-        
+            supports_threading = is_intent_or_qa
+            # Intent adapters with templates support autocomplete
+            supports_autocomplete = adapter_name.startswith('intent-') or adapter_name.startswith('composite-')
+
         return cls(
             retrieval_behavior=RetrievalBehavior.ALWAYS,
             formatting_style=FormattingStyle.STANDARD,
             supports_file_ids=False,
             supports_threading=supports_threading,
+            supports_autocomplete=supports_autocomplete,
             optional_parameters=['api_key'],
         )
 

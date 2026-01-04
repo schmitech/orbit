@@ -47,7 +47,9 @@ dependencies = [
     "langchain-ollama>=1.0.0",
     "langchain-community>=0.4.1",
     "keyring>=25.7.0",
-    "keyrings.alt>=5.0.2"
+    "keyrings.alt>=5.0.2",
+    "Levenshtein==0.27.3",  # Fast C-based Levenshtein distance for autocomplete
+    "jarowinkler==2.0.1",   # Fast C-based Jaro-Winkler similarity for autocomplete
 ]
 
 # ============================================================================

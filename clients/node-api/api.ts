@@ -156,12 +156,34 @@ export interface ConversationHistoryResponse {
   count: number;
 }
 
+// Autocomplete interfaces
+export interface AutocompleteSuggestion {
+  text: string;
+}
+
+export interface AutocompleteResponse {
+  suggestions: AutocompleteSuggestion[];
+  query: string;
+}
+
+interface ApiClientConfig {
+  apiUrl: string;
+  apiKey?: string | null;
+  sessionId?: string | null;
+  adapterName?: string | null;
+  useMiddleware?: boolean;
+  middlewareBaseUrl?: string | null;
+}
+
 export class ApiClient {
   private readonly apiUrl: string;
   private readonly apiKey: string | null;
+  private readonly adapterName: string | null;
+  private readonly middlewareBaseUrl: string;
+  private readonly middlewareMode: boolean;
   private sessionId: string | null; // Session ID can be mutable
 
-  constructor(config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null }) {
+  constructor(config: ApiClientConfig) {
     if (!config.apiUrl || typeof config.apiUrl !== 'string') {
       throw new Error('API URL must be a valid string');
     }
@@ -171,10 +193,22 @@ export class ApiClient {
     if (config.sessionId !== undefined && config.sessionId !== null && typeof config.sessionId !== 'string') {
       throw new Error('Session ID must be a valid string or null');
     }
+    if (config.adapterName !== undefined && config.adapterName !== null && typeof config.adapterName !== 'string') {
+      throw new Error('Adapter name must be a valid string or null');
+    }
+    if (config.middlewareBaseUrl !== undefined && config.middlewareBaseUrl !== null && typeof config.middlewareBaseUrl !== 'string') {
+      throw new Error('Middleware base URL must be a valid string or null');
+    }
     
     this.apiUrl = config.apiUrl;
     this.apiKey = config.apiKey ?? null;
     this.sessionId = config.sessionId ?? null;
+    const adapter = typeof config.adapterName === 'string' ? config.adapterName.trim() : '';
+    this.adapterName = adapter && adapter.length > 0 ? adapter : null;
+    const baseUrl = typeof config.middlewareBaseUrl === 'string' ? config.middlewareBaseUrl.trim() : '';
+    this.middlewareBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const middlewareRequested = config.useMiddleware ?? (!this.apiKey && !!this.adapterName);
+    this.middlewareMode = Boolean(this.adapterName && middlewareRequested);
   }
 
   public setSessionId(sessionId: string | null): void {
@@ -402,6 +436,91 @@ export class ApiClient {
 
       // Throw the friendly error message
       throw new Error(friendlyMessage);
+    }
+  }
+
+  /**
+   * Get autocomplete suggestions based on query prefix.
+   *
+   * Returns query suggestions based on nl_examples from intent adapter templates.
+   * This is useful for helping users discover available queries.
+   *
+   * @param query - The query prefix (minimum 3 characters)
+   * @param limit - Maximum number of suggestions (default: 5)
+   * @returns Promise resolving to autocomplete suggestions
+   */
+  public async getAutocompleteSuggestions(
+    query: string,
+    limit: number = 5
+  ): Promise<AutocompleteResponse> {
+    if (query.length < 3) {
+      return { suggestions: [], query };
+    }
+
+    const useMiddleware = this.middlewareMode && !!this.adapterName;
+
+    if (!useMiddleware && !this.apiKey) {
+      return { suggestions: [], query };
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.set('q', query);
+      params.set('limit', String(limit));
+
+      let requestUrl: string;
+      let requestOptions: RequestInit;
+
+      if (useMiddleware) {
+        if (!this.middlewareBaseUrl && typeof window === 'undefined') {
+          throw new Error('middlewareBaseUrl must be set when using middleware outside the browser environment.');
+        }
+
+        const base = this.middlewareBaseUrl
+          ? this.middlewareBaseUrl
+          : '';
+        const endpoint = '/api/v1/autocomplete';
+        requestUrl = `${base}${endpoint}?${params.toString()}`;
+
+        const headers: Record<string, string> = {
+          'X-Adapter-Name': this.adapterName as string,
+          'X-Request-ID': Date.now().toString(36) + Math.random().toString(36).substring(2),
+        };
+
+        if (this.sessionId) {
+          headers['X-Session-ID'] = this.sessionId;
+        }
+
+        requestOptions = {
+          method: 'GET',
+          headers
+        };
+      } else {
+        const url = new URL(`${this.apiUrl}/v1/autocomplete`);
+        url.searchParams.set('q', query);
+        url.searchParams.set('limit', String(limit));
+        requestUrl = url.toString();
+
+        requestOptions = {
+          ...this.getFetchOptions({
+            method: 'GET'
+          })
+        };
+      }
+
+      const response = await fetch(requestUrl, requestOptions);
+
+      if (!response.ok) {
+        // Non-critical - return empty suggestions rather than throw
+        console.warn('[ApiClient] Autocomplete request failed:', response.status);
+        return { suggestions: [], query };
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      // Autocomplete failures should not block the user
+      console.warn('[ApiClient] Autocomplete error:', error.message);
+      return { suggestions: [], query };
     }
   }
 

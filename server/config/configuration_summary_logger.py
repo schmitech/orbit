@@ -234,6 +234,9 @@ class ConfigurationSummaryLogger:
             # Log chat history configuration
             self._log_chat_history_configuration()
 
+            # Log autocomplete configuration
+            self._log_autocomplete_configuration()
+
             # Log fault tolerance configuration
             self._log_fault_tolerance_configuration()
         except Exception as e:
@@ -245,7 +248,7 @@ class ConfigurationSummaryLogger:
             chat_history_config = self.config.get('chat_history', {})
             chat_history_enabled = is_true_value(chat_history_config.get('enabled', True))
             self._log_message(f"Chat History: {'enabled' if chat_history_enabled else 'disabled'}")
-            
+
             if chat_history_enabled:
                 self._log_message(f"Default message limit: {chat_history_config.get('default_limit', 50)}", indent=2)
                 self._log_message(f"Store metadata: {chat_history_config.get('store_metadata', True)}", indent=2)
@@ -254,6 +257,35 @@ class ConfigurationSummaryLogger:
                 self._log_message("Max conversation messages: dynamically calculated based on inference provider context window", indent=2)
         except Exception as e:
             self._log_message(f"Error logging chat history configuration: {str(e)}", level='error')
+
+    def _log_autocomplete_configuration(self) -> None:
+        """Log autocomplete service configuration."""
+        try:
+            autocomplete_config = self.config.get('autocomplete', {})
+            autocomplete_enabled = is_true_value(autocomplete_config.get('enabled', True))
+            self._log_message(f"🔍 Autocomplete: {'enabled' if autocomplete_enabled else 'disabled'}")
+
+            if autocomplete_enabled:
+                self._log_message(f"Min query length: {autocomplete_config.get('min_query_length', 3)} chars", indent=2)
+                self._log_message(f"Max suggestions: {autocomplete_config.get('max_suggestions', 5)}", indent=2)
+
+                # Cache configuration
+                cache_config = autocomplete_config.get('cache', {})
+                use_redis = is_true_value(cache_config.get('use_redis', True))
+                cache_ttl = cache_config.get('ttl_seconds', 1800)
+                self._log_message(f"Cache: {'Redis' if use_redis else 'Memory'} (TTL: {cache_ttl}s)", indent=2)
+
+                # Fuzzy matching configuration
+                fuzzy_config = autocomplete_config.get('fuzzy_matching', {})
+                fuzzy_enabled = is_true_value(fuzzy_config.get('enabled', False))
+                if fuzzy_enabled:
+                    algorithm = fuzzy_config.get('algorithm', 'substring')
+                    threshold = fuzzy_config.get('threshold', 0.75)
+                    self._log_message(f"Fuzzy matching: {algorithm} (threshold: {threshold})", indent=2)
+                else:
+                    self._log_message("Fuzzy matching: disabled (substring only)", indent=2)
+        except Exception as e:
+            self._log_message(f"Error logging autocomplete configuration: {str(e)}", level='error')
     
     def _log_backend_configuration(self) -> None:
         """Log backend database configuration."""

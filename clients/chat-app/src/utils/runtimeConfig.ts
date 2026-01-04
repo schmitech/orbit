@@ -27,6 +27,7 @@ export interface RuntimeConfig {
   enableFeedbackButtons: boolean;
   enableConversationThreads: boolean;
   enableApiMiddleware: boolean;
+  enableAutocomplete: boolean;
   showGitHubStats: boolean;
   outOfServiceMessage: string | null;
 
@@ -85,6 +86,7 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
   enableFeedbackButtons: 'VITE_ENABLE_FEEDBACK',
   enableConversationThreads: 'VITE_ENABLE_CONVERSATION_THREADS',
   enableApiMiddleware: 'VITE_ENABLE_API_MIDDLEWARE',
+  enableAutocomplete: 'VITE_ENABLE_AUTOCOMPLETE',
   showGitHubStats: 'VITE_SHOW_GITHUB_STATS',
   outOfServiceMessage: 'VITE_OUT_OF_SERVICE_MESSAGE',
   githubOwner: 'VITE_GITHUB_OWNER',
@@ -313,6 +315,7 @@ export const runtimeConfig: RuntimeConfig = {
   enableFeedbackButtons: getConfigValue('enableFeedbackButtons', false, 'boolean'),
   enableConversationThreads: getConfigValue('enableConversationThreads', true, 'boolean'),
   enableApiMiddleware: getConfigValue('enableApiMiddleware', false, 'boolean'),
+  enableAutocomplete: getConfigValue('enableAutocomplete', false, 'boolean'),
   showGitHubStats: getConfigValue('showGitHubStats', true, 'boolean'),
   outOfServiceMessage: (() => {
     const val = getConfigValue('outOfServiceMessage', '', 'string') as string;
@@ -438,6 +441,11 @@ export function getEnableConversationThreads(): boolean {
 export function getEnableApiMiddleware(): boolean {
   // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
   return getConfigValue('enableApiMiddleware', false, 'boolean');
+}
+
+export function getEnableAutocomplete(): boolean {
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  return getConfigValue('enableAutocomplete', false, 'boolean');
 }
 
 /**

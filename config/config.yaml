@@ -288,6 +288,37 @@ conversation_threading:
   storage_backend: "sqlite"  # redis, sqlite, mongodb (fallback order: redis -> sqlite/mongodb)
   redis_key_prefix: "thread_dataset:"
 
+# Autocomplete configuration for query suggestions based on intent template nl_examples
+autocomplete:
+  enabled: true  # Master switch - when false, /v1/autocomplete returns empty results
+
+  # Query matching settings
+  min_query_length: 3  # Minimum characters before fetching suggestions
+  max_suggestions: 5   # Maximum suggestions returned per request
+
+  # Caching configuration
+  cache:
+    # Use Redis for distributed caching (recommended for multi-instance deployments)
+    # Falls back to in-memory cache if Redis is unavailable
+    use_redis: true
+    ttl_seconds: 1800  # 30 minutes - templates rarely change
+    redis_key_prefix: "autocomplete:"
+
+  # Fuzzy matching configuration
+  fuzzy_matching:
+    enabled: true  # Enable fuzzy/approximate string matching
+    # Algorithm options: "levenshtein", "jaro_winkler", "substring" (default)
+    # - substring: Exact substring matching (fastest, no typo tolerance)
+    # - levenshtein: Edit distance (handles typos, moderate speed)
+    # - jaro_winkler: Optimized for short strings and prefixes (good for typos)
+    algorithm: "jaro_winkler"
+    # Minimum similarity score (0.0-1.0) to include a suggestion
+    # Higher = stricter matching, fewer results
+    # Recommended: 0.7 for levenshtein, 0.8 for jaro_winkler
+    threshold: 0.75
+    # Maximum candidates to evaluate with fuzzy matching (performance guard)
+    max_candidates: 100
+
 files:
   # Global defaults for all file adapters
   # Individual adapters in adapters.yaml can override these settings
