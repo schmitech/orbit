@@ -338,7 +338,10 @@ class QuotaService:
             if self._increment_script is None:
                 self._register_lua_scripts()
 
-            if self._increment_script is None:
+            # Store reference locally to avoid race condition where another
+            # coroutine's failed _register_lua_scripts() sets it to None
+            increment_script = self._increment_script
+            if increment_script is None:
                 logger.warning("Lua scripts not registered, skipping quota increment")
                 return (0, 0, 86400, 2592000)
 
@@ -350,7 +353,7 @@ class QuotaService:
             monthly_ttl = self._calculate_monthly_ttl()
             timestamp = int(time.time())
 
-            result = await self._increment_script(
+            result = await increment_script(
                 keys=[daily_key, monthly_key, last_request_key],
                 args=[daily_ttl, monthly_ttl, timestamp]
             )
@@ -400,7 +403,10 @@ class QuotaService:
             if self._get_script is None:
                 self._register_lua_scripts()
 
-            if self._get_script is None:
+            # Store reference locally to avoid race condition where another
+            # coroutine's failed _register_lua_scripts() sets it to None
+            get_script = self._get_script
+            if get_script is None:
                 logger.warning("Lua scripts not registered, returning empty usage")
                 return {
                     'daily_used': 0,
@@ -414,7 +420,7 @@ class QuotaService:
             monthly_key = self._get_monthly_key(api_key)
             last_request_key = self._get_last_request_key(api_key)
 
-            result = await self._get_script(
+            result = await get_script(
                 keys=[daily_key, monthly_key, last_request_key],
                 args=[]
             )

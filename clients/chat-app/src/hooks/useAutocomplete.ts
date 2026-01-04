@@ -53,6 +53,21 @@ export function useAutocomplete(
 
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const abortControllerRef = useRef<AbortController>();
+  const sanitizeSuggestionText = useCallback((text: unknown): AutocompleteSuggestion | null => {
+    if (typeof text !== 'string') {
+      return null;
+    }
+    const normalized = text
+      .replace(/[\r\n\u2028\u2029]+/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    return { text: normalized };
+  }, []);
 
   const fetchSuggestions = useCallback(async (searchQuery: string) => {
     if (!enabled || searchQuery.length < MIN_QUERY_LENGTH) {
@@ -114,10 +129,24 @@ export function useAutocomplete(
       }
 
       const data = await response.json();
-      setSuggestions(data.suggestions || []);
+      const normalized = Array.isArray(data?.suggestions)
+        ? data.suggestions
+            .map((suggestion: AutocompleteSuggestion | string | undefined | null) => {
+              if (typeof suggestion === 'string') {
+                return sanitizeSuggestionText(suggestion);
+              }
+              return sanitizeSuggestionText(suggestion?.text);
+            })
+            .filter(
+              (value: AutocompleteSuggestion | null): value is AutocompleteSuggestion =>
+                value !== null
+            )
+        : [];
+
+      setSuggestions(normalized);
       setSelectedIndex(-1);
 
-      debugLog('[useAutocomplete] Received', data.suggestions?.length || 0, 'suggestions');
+      debugLog('[useAutocomplete] Received', normalized.length, 'suggestions');
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
         // Request was cancelled, ignore
@@ -129,7 +158,7 @@ export function useAutocomplete(
     } finally {
       setIsLoading(false);
     }
-  }, [enabled, apiKey, apiUrl, adapterName, useMiddleware]);
+  }, [enabled, apiKey, apiUrl, adapterName, useMiddleware, sanitizeSuggestionText]);
 
   // Debounced effect
   useEffect(() => {

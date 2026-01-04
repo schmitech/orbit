@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { ArrowUp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square } from 'lucide-react';
 import { useVoice } from '../hooks/useVoice';
 import { useAutocomplete } from '../hooks/useAutocomplete';
@@ -180,6 +180,30 @@ export function MessageInput({
     adapterName: currentConversation?.adapterName,
     useMiddleware: middlewareEnabled
   });
+  const hasSuggestions = suggestions.length > 0;
+  const activeSuggestionIndex = selectedIndex >= 0 ? selectedIndex : 0;
+  const activeSuggestion = hasSuggestions ? suggestions[activeSuggestionIndex] : null;
+  const inlineSuggestion = useMemo(() => {
+    if (!activeSuggestion) {
+      return null;
+    }
+    const suggestionText = activeSuggestion.text || '';
+    if (!message) {
+      return suggestionText;
+    }
+    const currentValue = message;
+    if (suggestionText.toLowerCase().startsWith(currentValue.toLowerCase()) && suggestionText.length > currentValue.length) {
+      return suggestionText.slice(currentValue.length);
+    }
+    return null;
+  }, [activeSuggestion, message]);
+  const isCaretAtMessageEnd = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return false;
+    }
+    return textarea.selectionStart === textarea.selectionEnd && textarea.selectionStart === message.length;
+  };
 
   // Check if any files are currently uploading or processing
   const conversationFiles = currentConversation?.attachedFiles || [];
@@ -589,15 +613,29 @@ export function MessageInput({
     showUploadSuccessToast(newFiles);
   }, [currentConversationId, showUploadSuccessToast]);
 
+  const normalizeSuggestionText = useCallback((text: string) => {
+    return text.replace(/\s+/g, ' ').trim();
+  }, []);
+
   const handleSelectSuggestion = useCallback((text: string) => {
-    setMessage(text);
+    setMessage(normalizeSuggestionText(text));
     clearSuggestions();
     textareaRef.current?.focus();
-  }, [clearSuggestions]);
+  }, [clearSuggestions, normalizeSuggestionText]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const acceptSuggestionByIndex = useCallback((index: number) => {
+    if (index < 0) {
+      return;
+    }
+    const suggestion = suggestions[index] || suggestions[0];
+    if (suggestion) {
+      handleSelectSuggestion(suggestion.text);
+    }
+  }, [suggestions, handleSelectSuggestion]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Handle autocomplete navigation when suggestions are visible
-    if (suggestions.length > 0) {
+    if (hasSuggestions) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         selectNext();
@@ -611,18 +649,24 @@ export function MessageInput({
       if (e.key === 'Tab') {
         e.preventDefault();
         const targetIndex = selectedIndex >= 0 ? selectedIndex : 0;
-        const suggestion = suggestions[targetIndex];
-        if (suggestion) {
-          handleSelectSuggestion(suggestion.text);
-        }
+        acceptSuggestionByIndex(targetIndex);
         return;
+      }
+      if (e.key === 'ArrowRight' && isCaretAtMessageEnd()) {
+        if (inlineSuggestion && activeSuggestion) {
+          e.preventDefault();
+          handleSelectSuggestion(activeSuggestion.text);
+          return;
+        }
+        if (selectedIndex >= 0) {
+          e.preventDefault();
+          acceptSuggestionByIndex(selectedIndex);
+          return;
+        }
       }
       if (e.key === 'Enter' && selectedIndex >= 0) {
         e.preventDefault();
-        const suggestion = suggestions[selectedIndex];
-        if (suggestion) {
-          handleSelectSuggestion(suggestion.text);
-        }
+        acceptSuggestionByIndex(selectedIndex);
         return;
       }
       if (e.key === 'Escape') {
@@ -914,7 +958,7 @@ export function MessageInput({
 
         <div className="relative w-full">
           {/* Autocomplete suggestions dropdown */}
-          {suggestions.length > 0 && (
+          {hasSuggestions && (
             <div className="w-full mb-2 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-[#40414f] dark:bg-[#2d2f39] z-50 md:absolute md:bottom-full md:left-0 md:right-0">
               {suggestions.map((suggestion, index) => (
                 <button
@@ -933,6 +977,34 @@ export function MessageInput({
               ))}
             </div>
           )}
+          {hasSuggestions && (
+            <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-[#bfc2cd]">
+              <span className="inline-flex items-center gap-1">
+                <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
+                  Tab
+                </span>
+                Accept
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
+                  →
+                </span>
+                Inline fill
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
+                  ↑/↓
+                </span>
+                Navigate
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
+                  Esc
+                </span>
+                Dismiss
+              </span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="flex w-full flex-col gap-2 md:gap-3">
           {/* Mobile layout: stacked with textarea on top, buttons below */}
@@ -945,33 +1017,44 @@ export function MessageInput({
             } bg-gray-50 dark:bg-[#2d2f39]`}
           >
           {/* Textarea row */}
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            onCompositionStart={() => setIsComposing(true)}
-            onCompositionEnd={() => setIsComposing(false)}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            placeholder={effectivePlaceholder}
-            disabled={isInputDisabled}
-            rows={1}
-            maxLength={AppConfig.maxMessageLength}
-            className="flex-1 w-full md:w-auto min-w-0 resize-none bg-transparent py-1 text-base md:text-sm text-[#353740] placeholder-gray-500 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#8e8ea0]"
-            style={{
-              minHeight: '24px',
-              maxHeight: '120px',
-              border: 'none',
-              outline: 'none',
-              boxShadow: 'none',
-              WebkitAppearance: 'none',
-              MozAppearance: 'none',
-              appearance: 'none',
-              caretColor: (message.trim() || isFocused) ? 'inherit' : 'transparent'
-            }}
-          />
+          <div className="relative flex-1 w-full min-w-0">
+            {inlineSuggestion && isFocused && (
+              <div
+                className="pointer-events-none absolute inset-0 whitespace-pre-wrap px-0 py-1 text-base md:text-sm text-gray-400 dark:text-[#8e8ea0]"
+                aria-hidden="true"
+              >
+                <span className="invisible">{message}</span>
+                <span>{inlineSuggestion}</span>
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={() => setIsComposing(false)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              placeholder={effectivePlaceholder}
+              disabled={isInputDisabled}
+              rows={1}
+              maxLength={AppConfig.maxMessageLength}
+              className="relative z-10 flex-1 w-full min-w-0 resize-none bg-transparent py-1 text-base md:text-sm text-[#353740] placeholder-gray-500 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#8e8ea0]"
+              style={{
+                minHeight: '24px',
+                maxHeight: '120px',
+                border: 'none',
+                outline: 'none',
+                boxShadow: 'none',
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                appearance: 'none',
+                caretColor: (message.trim() || isFocused) ? 'inherit' : 'transparent'
+              }}
+            />
+          </div>
 
           {/* Action buttons row */}
           <div className="flex items-center justify-between md:justify-end gap-1 md:gap-2 md:flex-shrink-0">
