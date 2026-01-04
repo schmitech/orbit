@@ -549,23 +549,29 @@ class PipelineChatService:
 
         # Check if adapter supports threading and add metadata
         # Only enable threading if there are actual retrieved results to thread on
-        # Filter out zero-confidence placeholder documents (e.g., "no matching templates found")
+        # Uses centralized _has_meaningful_results which checks:
+        # 1. LLM response text (PRIMARY - if LLM says "no results", trust it)
+        # 2. Document confidence scores
+        # 3. Source content for actual data
         threading_metadata = None
         if assistant_message_id and session_id and adapter_name:
             supports_threading = self.response_processor._adapter_supports_threading(adapter_name)
 
-            # Check for meaningful results (exclude zero-confidence placeholders)
-            has_results = False
-            if context.retrieved_docs and len(context.retrieved_docs) > 0:
-                # Filter out documents with zero or very low confidence (placeholders)
-                # Valid results have top-level 'confidence' or 'metadata.similarity'
-                # Placeholders have 'metadata.confidence' = 0.0
+            # Use centralized meaningful results check (includes LLM response analysis)
+            accumulated_response = final_state.accumulated_text if final_state else ""
+            has_results = self.response_processor._has_meaningful_results(
+                sources=context.retrieved_docs or [],
+                response=accumulated_response
+            )
+
+            # For debug logging, also compute meaningful_docs count
+            meaningful_docs = []
+            if context.retrieved_docs:
                 meaningful_docs = [
                     doc for doc in context.retrieved_docs
                     if (doc.get('confidence', 0) > 0.01 or
                         doc.get('metadata', {}).get('similarity', 0) > 0.01)
                 ]
-                has_results = len(meaningful_docs) > 0
 
             if supports_threading and has_results:
                 threading_metadata = {

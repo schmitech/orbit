@@ -279,7 +279,7 @@ class CompositeIntentRetriever(BaseRetriever):
         # Sort all matches by similarity score (highest first)
         all_matches.sort(key=lambda m: m.similarity_score, reverse=True)
         
-        logger.info(f"Found {len(all_matches)} total template matches across {len(self._child_adapters)} adapters")
+        logger.debug(f"Found {len(all_matches)} total template matches across {len(self._child_adapters)} adapters")
         
         return all_matches
     
@@ -303,7 +303,7 @@ class CompositeIntentRetriever(BaseRetriever):
             logger.debug(f"Best match score {best_match.similarity_score:.3f} below threshold {self.confidence_threshold}")
             return None
         
-        logger.info(f"Selected best match: template '{best_match.template_id}' from adapter '{best_match.source_adapter}' (score: {best_match.similarity_score:.3f})")
+        logger.debug(f"Selected best match: template '{best_match.template_id}' from adapter '{best_match.source_adapter}' (score: {best_match.similarity_score:.3f})")
         
         return best_match
     
@@ -382,7 +382,7 @@ class CompositeIntentRetriever(BaseRetriever):
                 }]
             
             # Route the query to the child adapter
-            logger.info(f"Routing query to adapter '{best_match.source_adapter}' for template '{best_match.template_id}'")
+            logger.debug(f"Routing query to adapter '{best_match.source_adapter}' for template '{best_match.template_id}'")
             
             results = await source_adapter.get_relevant_context(
                 query=query,
