@@ -35,6 +35,7 @@ const DEFAULT_CONFIG = {
   enableUploadButton: false,
   enableAudioOutput: false,
   enableFeedbackButtons: false,
+  enableAutocomplete: false,
   enableApiMiddleware: false,
   outOfServiceMessage: null,
   maxFilesPerConversation: 5,
@@ -169,6 +170,9 @@ function parseArgs() {
       case '--enable-feedback':
         config.enableFeedbackButtons = true;
         break;
+      case '--enable-autocomplete':
+        config.enableAutocomplete = true;
+        break;
       case '--enable-api-middleware':
         config.enableApiMiddleware = true;
         break;
@@ -265,6 +269,7 @@ function loadConfigFromEnv() {
     VITE_ENABLE_UPLOAD: 'enableUploadButton',
     VITE_ENABLE_AUDIO_OUTPUT: 'enableAudioOutput',
     VITE_ENABLE_FEEDBACK: 'enableFeedbackButtons',
+    VITE_ENABLE_AUTOCOMPLETE: 'enableAutocomplete',
     VITE_ENABLE_API_MIDDLEWARE: 'enableApiMiddleware',
     VITE_OUT_OF_SERVICE_MESSAGE: 'outOfServiceMessage',
     VITE_MAX_FILES_PER_CONVERSATION: 'maxFilesPerConversation',
@@ -282,7 +287,8 @@ function loadConfigFromEnv() {
     if (value !== undefined) {
       if (configKey === 'useLocalApi' || configKey === 'consoleDebug' || 
           configKey === 'enableUploadButton' || configKey === 'enableAudioOutput' ||
-          configKey === 'enableFeedbackButtons' || configKey === 'enableApiMiddleware') {
+          configKey === 'enableFeedbackButtons' || configKey === 'enableAutocomplete' ||
+          configKey === 'enableApiMiddleware') {
         envConfig[configKey] = value === 'true';
       } else if (configKey.includes('max') && configKey !== 'maxFileSizeMB') {
         const parsed = parseInt(value, 10);
@@ -628,6 +634,7 @@ Options:
   --enable-upload                  Enable upload button (default: false)
   --enable-audio                   Enable audio button (default: false)
   --enable-feedback                Enable feedback buttons (default: false)
+  --enable-autocomplete            Enable autocomplete suggestions (default: false)
   --enable-api-middleware          Enable API middleware mode (default: false)
   --out-of-service-message TEXT    Show maintenance screen blocking access
   --max-files-per-conversation N   Max files per conversation (default: 5)
