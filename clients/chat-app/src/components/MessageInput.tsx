@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
 import { ArrowUp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square } from 'lucide-react';
 import { useVoice } from '../hooks/useVoice';
 import { useAutocomplete } from '../hooks/useAutocomplete';
@@ -38,6 +38,9 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
   'text/markdown': 'md',
   'application/json': 'json'
 };
+
+const DEFAULT_TEXTAREA_VERTICAL_PADDING = 4;
+const VERTICAL_ALIGNMENT_OFFSET = 2;
 
 function getExtensionFromMimeType(mimeType: string | undefined): string {
   if (!mimeType) {
@@ -124,6 +127,10 @@ export function MessageInput({
     });
   }, []);
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
+  const [textareaVerticalPadding, setTextareaVerticalPadding] = useState(() => ({
+    top: DEFAULT_TEXTAREA_VERTICAL_PADDING + VERTICAL_ALIGNMENT_OFFSET,
+    bottom: Math.max(DEFAULT_TEXTAREA_VERTICAL_PADDING - VERTICAL_ALIGNMENT_OFFSET, 0)
+  }));
 
   const { createConversation, currentConversationId, conversations, isLoading, syncConversationFiles, stopStreaming } = useChatStore();
   const currentConversation = conversations.find(c => c.id === currentConversationId);
@@ -197,6 +204,39 @@ export function MessageInput({
     }
     return null;
   }, [activeSuggestion, message]);
+  const showCustomPlaceholder = message.trim().length === 0 && !inlineSuggestion;
+  const adjustTextareaVerticalAlignment = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || typeof window === 'undefined') {
+      return;
+    }
+    const applyPadding = (value: number) => {
+      const topPadding = value + VERTICAL_ALIGNMENT_OFFSET;
+      const bottomPadding = Math.max(value - VERTICAL_ALIGNMENT_OFFSET, 0);
+      textarea.style.paddingTop = `${topPadding}px`;
+      textarea.style.paddingBottom = `${bottomPadding}px`;
+      setTextareaVerticalPadding({
+        top: topPadding,
+        bottom: bottomPadding
+      });
+    };
+    const computedStyle = window.getComputedStyle(textarea);
+    const lineHeight = parseFloat(computedStyle.lineHeight || '0');
+    if (!lineHeight || Number.isNaN(lineHeight)) {
+      applyPadding(DEFAULT_TEXTAREA_VERTICAL_PADDING);
+      return;
+    }
+    const contentHeight = textarea.scrollHeight;
+    const clientHeight = textarea.clientHeight;
+    const isMultiline = contentHeight > lineHeight + 2;
+    if (isMultiline) {
+      applyPadding(DEFAULT_TEXTAREA_VERTICAL_PADDING);
+      return;
+    }
+    const availableSpace = Math.max(clientHeight - lineHeight, 0);
+    const verticalPadding = Math.max(availableSpace / 2, 0);
+    applyPadding(verticalPadding);
+  }, []);
   const isCaretAtMessageEnd = () => {
     const textarea = textareaRef.current;
     if (!textarea) {
@@ -257,17 +297,36 @@ export function MessageInput({
   const isFileUploadDisabled = !canUseFileUploads || isInputDisabled || fileLimitActive;
 
   // Auto-resize textarea with maximum height limit
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (textareaRef.current) {
+      const textarea = textareaRef.current;
       const maxHeight = 120; // Maximum height in pixels (about 4-5 lines)
-      textareaRef.current.style.height = 'auto';
-      const scrollHeight = textareaRef.current.scrollHeight;
+      textarea.style.height = 'auto';
+      const scrollHeight = textarea.scrollHeight;
       // Set height to scrollHeight, but cap it at maxHeight
-      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+      textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
       // Enable overflow-y when content exceeds max height
-      textareaRef.current.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+      textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+      adjustTextareaVerticalAlignment();
     }
-  }, [message]);
+  }, [message, adjustTextareaVerticalAlignment]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+    const resizeObserver = new ResizeObserver(() => {
+      adjustTextareaVerticalAlignment();
+    });
+    resizeObserver.observe(textarea);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [adjustTextareaVerticalAlignment]);
 
   // Helper function to check if focus is in any textarea (including thread inputs)
   const isFocusInTextarea = () => {
@@ -346,6 +405,7 @@ export function MessageInput({
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
           textareaRef.current.style.overflowY = 'hidden';
+          adjustTextareaVerticalAlignment();
         }
       } else {
         debugLog('[MessageInput] Auto-send paused, waiting for input to become available');
@@ -353,7 +413,7 @@ export function MessageInput({
     }, 400);
 
     return () => clearTimeout(timeoutId);
-  }, [voiceRecordingAvailable, voiceCompletionCount, isInputDisabled, isComposing, onSend]);
+  }, [voiceRecordingAvailable, voiceCompletionCount, isInputDisabled, isComposing, onSend, adjustTextareaVerticalAlignment]);
 
   // Close upload area when upload starts (hide upload widget, show only progress)
   useEffect(() => {
@@ -574,6 +634,7 @@ export function MessageInput({
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
         textareaRef.current.style.overflowY = 'hidden';
+        adjustTextareaVerticalAlignment();
       }
     }
   };
@@ -1018,9 +1079,25 @@ export function MessageInput({
           >
           {/* Textarea row */}
           <div className="relative flex-1 w-full min-w-0">
+            {showCustomPlaceholder && effectivePlaceholder && (
+              <div
+                className="pointer-events-none absolute inset-0 flex items-center whitespace-pre-wrap px-0 text-base md:text-sm text-gray-500 dark:text-[#8e8ea0]"
+                style={{
+                  paddingTop: textareaVerticalPadding.top,
+                  paddingBottom: textareaVerticalPadding.bottom
+                }}
+                aria-hidden="true"
+              >
+                {effectivePlaceholder}
+              </div>
+            )}
             {inlineSuggestion && isFocused && (
               <div
-                className="pointer-events-none absolute inset-0 whitespace-pre-wrap px-0 py-1 text-base md:text-sm text-gray-400 dark:text-[#8e8ea0]"
+                className="pointer-events-none absolute inset-0 whitespace-pre-wrap px-0 text-base md:text-sm text-gray-400 dark:text-[#8e8ea0]"
+                style={{
+                  paddingTop: textareaVerticalPadding.top,
+                  paddingBottom: textareaVerticalPadding.bottom
+                }}
                 aria-hidden="true"
               >
                 <span className="invisible">{message}</span>
@@ -1041,10 +1118,12 @@ export function MessageInput({
               disabled={isInputDisabled}
               rows={1}
               maxLength={AppConfig.maxMessageLength}
-              className="relative z-10 flex-1 w-full min-w-0 resize-none bg-transparent py-1 text-base md:text-sm text-[#353740] placeholder-gray-500 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#8e8ea0]"
+              className="relative z-10 flex-1 w-full min-w-0 resize-none bg-transparent py-0 text-base md:text-sm text-[#353740] placeholder-transparent focus:outline-none dark:text-[#ececf1] dark:placeholder-transparent"
               style={{
                 minHeight: '24px',
                 maxHeight: '120px',
+                paddingTop: `${textareaVerticalPadding.top}px`,
+                paddingBottom: `${textareaVerticalPadding.bottom}px`,
                 border: 'none',
                 outline: 'none',
                 boxShadow: 'none',
