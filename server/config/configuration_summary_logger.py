@@ -273,7 +273,16 @@ class ConfigurationSummaryLogger:
                 cache_config = autocomplete_config.get('cache', {})
                 use_redis = is_true_value(cache_config.get('use_redis', True))
                 cache_ttl = cache_config.get('ttl_seconds', 1800)
-                self._log_message(f"Cache: {'Redis' if use_redis else 'Memory'} (TTL: {cache_ttl}s)", indent=2)
+
+                # Check if Redis is actually available when Redis caching is configured
+                redis_config = self.config.get('internal_services', {}).get('redis', {}) or {}
+                redis_enabled = is_true_value(redis_config.get('enabled', False))
+
+                if use_redis and not redis_enabled:
+                    self._log_message(f"Cache: Redis configured but Redis is DISABLED - falling back to Memory (TTL: {cache_ttl}s)", indent=2, level='warning')
+                    self._log_message("WARNING: Autocomplete requires Redis for distributed caching", indent=4, level='warning')
+                else:
+                    self._log_message(f"Cache: {'Redis' if use_redis else 'Memory'} (TTL: {cache_ttl}s)", indent=2)
 
                 # Fuzzy matching configuration
                 fuzzy_config = autocomplete_config.get('fuzzy_matching', {})

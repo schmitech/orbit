@@ -310,6 +310,14 @@ class AutocompleteService:
         # In-memory cache fallback: adapter_name -> (timestamp, nl_examples)
         self._memory_cache: Dict[str, tuple] = {}
 
+        # Check if Redis is available when Redis caching is requested
+        redis_available = redis_service is not None and getattr(redis_service, 'enabled', False)
+        if self.enabled and self.use_redis_cache and not redis_available:
+            logger.warning(
+                "Autocomplete service is configured to use Redis caching but Redis is disabled. "
+                "Falling back to in-memory cache (not suitable for distributed deployments)."
+            )
+
         # Log initialization with library status
         lib_status = []
         if self.fuzzy_enabled:
