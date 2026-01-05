@@ -294,7 +294,7 @@ autocomplete:
 
   # Query matching settings
   min_query_length: 3  # Minimum characters before fetching suggestions
-  max_suggestions: 5   # Maximum suggestions returned per request
+  max_suggestions: 100   # Maximum suggestions returned per request
 
   # Caching configuration
   cache:
@@ -317,7 +317,54 @@ autocomplete:
     # Recommended: 0.7 for levenshtein, 0.8 for jaro_winkler
     threshold: 0.75
     # Maximum candidates to evaluate with fuzzy matching (performance guard)
-    max_candidates: 100
+    max_candidates: 1000
+
+# Composite Intent Retriever template selection configuration
+# Improves template selection accuracy when routing queries across multiple intent adapters
+# by using multi-stage scoring with reranking and string similarity
+composite_retrieval:
+  # Two-stage retrieval with reranking
+  # Uses the configured reranker (from rerankers.yaml) to re-score top candidates
+  reranking:
+    enabled: false              # Enable reranker stage for better semantic understanding
+    provider: "anthropic"      # Reranker provider from rerankers.yaml (anthropic, cohere, openai, etc.)
+    top_candidates: 10         # Number of embedding candidates to pass to reranker
+    weight: 0.4                # Weight for reranker score in final combined score
+
+  # String similarity scoring
+  # Adds lexical matching to complement semantic embeddings
+  string_similarity:
+    enabled: true              # Enable string similarity scoring
+    # Algorithm options:
+    # - "jaro_winkler": Best for short strings and typo tolerance (recommended)
+    # - "levenshtein": Edit distance, good for detecting insertions/deletions
+    # - "ratio": Simple ratio matching (fastest)
+    algorithm: "jaro_winkler"
+    weight: 0.2                # Weight for string similarity in final combined score
+    # Template fields to compare against query for similarity
+    compare_fields:
+      - "description"          # Template description
+      - "nl_examples"          # Natural language examples (primary matching target)
+    # Minimum string similarity to consider (0.0-1.0)
+    # Results below this are penalized
+    min_threshold: 0.3
+    # Aggregate multiple field scores: "max", "avg", "weighted_avg"
+    aggregation: "max"
+
+  # Combined scoring formula:
+  # final_score = (embedding_weight * emb) + (rerank_weight * rerank) + (string_weight * str_sim)
+  # Weights should sum to 1.0 for normalized scoring
+  scoring:
+    embedding_weight: 0.4      # Weight for embedding similarity (base retrieval)
+    normalize_scores: true     # Normalize all scores to 0-1 before combining
+    # Tie-breaker strategy when scores are very close (within 0.01)
+    tie_breaker: "embedding"   # Options: "embedding", "reranker", "string_similarity"
+
+  # Performance settings
+  performance:
+    parallel_rerank: true      # Rerank candidates in parallel batches
+    cache_rerank_results: true # Cache reranking results for repeated queries
+    cache_ttl_seconds: 300     # TTL for reranking cache (5 minutes)
 
 files:
   # Global defaults for all file adapters
@@ -524,7 +571,7 @@ security:
 
   # Rate limiting configuration (requires Redis to be enabled)
   rate_limiting:
-    enabled: false                    # Master switch (requires Redis to be enabled)
+    enabled: true                    # Master switch (requires Redis to be enabled)
 
     # Proxy header trust configuration
     # SECURITY: Only enable trust_proxy_headers when behind a trusted reverse proxy
@@ -566,7 +613,7 @@ security:
   # Throttling configuration (executes BEFORE rate limiting)
   # Delays requests progressively instead of rejecting them
   throttling:
-    enabled: false                    # Master switch for throttling
+    enabled: true                    # Master switch for throttling
 
     # Default quotas for API keys (can be overridden per-key)
     default_quotas:

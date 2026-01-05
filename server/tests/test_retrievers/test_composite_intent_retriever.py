@@ -5,6 +5,7 @@ Tests the composite retriever's ability to:
 - Search across multiple child adapter template stores
 - Find the best matching template
 - Route queries to the correct child adapter
+- Multi-stage selection with reranking and string similarity
 """
 
 import pytest
@@ -129,12 +130,22 @@ def hr_templates():
         {
             'id': 'hr_employees_by_dept',
             'description': 'List employees by department',
+            'nl_examples': [
+                'Show me employees in Engineering',
+                'List all employees by department',
+                'Who works in the Sales department?'
+            ],
             'mock_score': 0.85,
             'sql': 'SELECT * FROM employees WHERE department = :dept'
         },
         {
             'id': 'hr_salary_report',
             'description': 'Get salary statistics',
+            'nl_examples': [
+                'What is the average salary?',
+                'Show salary statistics',
+                'Get salary report'
+            ],
             'mock_score': 0.7,
             'sql': 'SELECT AVG(salary) FROM employees'
         }
@@ -148,12 +159,22 @@ def ev_templates():
         {
             'id': 'ev_count_by_make',
             'description': 'Count electric vehicles by make',
+            'nl_examples': [
+                'How many Teslas are registered?',
+                'Count vehicles by make',
+                'Show EV counts per manufacturer'
+            ],
             'mock_score': 0.9,
             'sql': 'SELECT make, COUNT(*) FROM vehicles GROUP BY make'
         },
         {
             'id': 'ev_by_city',
             'description': 'Find EVs in a city',
+            'nl_examples': [
+                'Show electric vehicles in Seattle',
+                'Find EVs registered in Portland',
+                'List vehicles by city'
+            ],
             'mock_score': 0.65,
             'sql': 'SELECT * FROM vehicles WHERE city = :city'
         }
@@ -167,12 +188,22 @@ def movie_templates():
         {
             'id': 'movie_by_year',
             'description': 'Find movies by year',
+            'nl_examples': [
+                'Show movies from 2020',
+                'What movies were released in 2019?',
+                'List films by year'
+            ],
             'mock_score': 0.75,
             'sql': "db.movies.find({year: :year})"
         },
         {
             'id': 'movie_by_genre',
             'description': 'Find movies by genre',
+            'nl_examples': [
+                'Show me action movies',
+                'Find comedy films',
+                'List movies in the horror genre'
+            ],
             'mock_score': 0.6,
             'sql': "db.movies.find({genres: :genre})"
         }
@@ -213,6 +244,89 @@ def composite_config():
         },
         'embedding': {
             'provider': 'mock'
+        }
+    }
+
+
+@pytest.fixture
+def multistage_config():
+    """Configuration for composite retriever with multi-stage selection enabled."""
+    return {
+        'adapter_config': {
+            'child_adapters': [
+                'intent-sql-hr',
+                'intent-duckdb-ev',
+                'intent-mongodb-movies'
+            ],
+            'confidence_threshold': 0.4,
+            'max_templates_per_source': 3,
+            'parallel_search': True,
+            'search_timeout': 5.0,
+            'verbose': False
+        },
+        'embedding': {
+            'provider': 'mock'
+        },
+        'composite_retrieval': {
+            'reranking': {
+                'enabled': True,
+                'provider': 'anthropic',
+                'top_candidates': 10,
+                'weight': 0.4
+            },
+            'string_similarity': {
+                'enabled': True,
+                'algorithm': 'jaro_winkler',
+                'weight': 0.2,
+                'compare_fields': ['description', 'nl_examples'],
+                'min_threshold': 0.3,
+                'aggregation': 'max'
+            },
+            'scoring': {
+                'embedding_weight': 0.4,
+                'normalize_scores': True,
+                'tie_breaker': 'embedding'
+            },
+            'performance': {
+                'parallel_rerank': True,
+                'cache_rerank_results': True,
+                'cache_ttl_seconds': 300
+            }
+        }
+    }
+
+
+@pytest.fixture
+def string_similarity_only_config():
+    """Configuration with only string similarity enabled (no reranking)."""
+    return {
+        'adapter_config': {
+            'child_adapters': [
+                'intent-sql-hr',
+                'intent-duckdb-ev'
+            ],
+            'confidence_threshold': 0.4,
+            'max_templates_per_source': 3,
+            'parallel_search': True,
+            'search_timeout': 5.0
+        },
+        'embedding': {
+            'provider': 'mock'
+        },
+        'composite_retrieval': {
+            'reranking': {
+                'enabled': False
+            },
+            'string_similarity': {
+                'enabled': True,
+                'algorithm': 'jaro_winkler',
+                'weight': 0.3,
+                'compare_fields': ['description', 'nl_examples'],
+                'aggregation': 'max'
+            },
+            'scoring': {
+                'embedding_weight': 0.7
+            }
         }
     }
 
@@ -542,8 +656,511 @@ class TestCompositeRetrieverClose:
 
 class TestGetDatasourceName:
     """Test datasource name method."""
-    
+
     def test_get_datasource_name_returns_composite(self, composite_retriever):
         """Test that datasource name is 'composite'."""
         assert composite_retriever._get_datasource_name() == "composite"
+
+
+class TestMultiStageConfigurationInit:
+    """Test multi-stage selection configuration initialization."""
+
+    def test_multistage_disabled_by_default(self, composite_config, mock_adapter_manager):
+        """Test that multi-stage is disabled when not configured."""
+        retriever = CompositeIntentRetriever(
+            config=composite_config,
+            adapter_manager=mock_adapter_manager
+        )
+
+        assert retriever.multistage_enabled is False
+        assert retriever.reranking_enabled is False
+        assert retriever.string_similarity_enabled is False
+
+    def test_multistage_enabled_with_reranking(self, multistage_config, mock_adapter_manager):
+        """Test that multi-stage is enabled when reranking is configured."""
+        retriever = CompositeIntentRetriever(
+            config=multistage_config,
+            adapter_manager=mock_adapter_manager
+        )
+
+        assert retriever.multistage_enabled is True
+        assert retriever.reranking_enabled is True
+        assert retriever.reranking_provider == 'anthropic'
+        assert retriever.reranking_top_candidates == 10
+        assert retriever.reranking_weight == 0.4
+
+    def test_multistage_enabled_with_string_similarity(
+        self, multistage_config, mock_adapter_manager
+    ):
+        """Test that string similarity is configured correctly."""
+        retriever = CompositeIntentRetriever(
+            config=multistage_config,
+            adapter_manager=mock_adapter_manager
+        )
+
+        assert retriever.string_similarity_enabled is True
+        assert retriever.string_similarity_algorithm == 'jaro_winkler'
+        assert retriever.string_similarity_weight == 0.2
+        assert 'description' in retriever.string_similarity_fields
+        assert 'nl_examples' in retriever.string_similarity_fields
+
+    def test_scoring_weights_configured(self, multistage_config, mock_adapter_manager):
+        """Test that scoring weights are configured correctly."""
+        retriever = CompositeIntentRetriever(
+            config=multistage_config,
+            adapter_manager=mock_adapter_manager
+        )
+
+        assert retriever.embedding_weight == 0.4
+        assert retriever.normalize_scores is True
+        assert retriever.tie_breaker == 'embedding'
+
+    def test_string_similarity_only_config(
+        self, string_similarity_only_config, mock_adapter_manager
+    ):
+        """Test configuration with only string similarity enabled."""
+        retriever = CompositeIntentRetriever(
+            config=string_similarity_only_config,
+            adapter_manager=mock_adapter_manager
+        )
+
+        assert retriever.multistage_enabled is True
+        assert retriever.reranking_enabled is False
+        assert retriever.string_similarity_enabled is True
+        assert retriever.embedding_weight == 0.7
+        assert retriever.string_similarity_weight == 0.3
+
+
+class TestStringSimilarityScoring:
+    """Test string similarity scoring functionality."""
+
+    def test_calculate_string_similarity_with_description(
+        self, multistage_config, mock_adapter_manager
+    ):
+        """Test string similarity calculation with description field."""
+        retriever = CompositeIntentRetriever(
+            config=multistage_config,
+            adapter_manager=mock_adapter_manager
+        )
+
+        match = TemplateMatch(
+            template_id='test_template',
+            source_adapter='test_adapter',
+            similarity_score=0.8,
+            template_data={
+                'description': 'List employees by department',
+                'nl_examples': ['Show employees', 'List staff by dept']
+            },
+            embedding_text='test'
+        )
+
+        # Query that should match well
+        score = retriever._calculate_string_similarity_score(
+            "Show employees in Engineering",
+            match
+        )
+
+        assert score > 0.0
+        assert score <= 1.0
+
+    def test_calculate_string_similarity_with_nl_examples(
+        self, multistage_config, mock_adapter_manager
+    ):
+        """Test string similarity calculation with nl_examples field."""
+        retriever = CompositeIntentRetriever(
+            config=multistage_config,
+            adapter_manager=mock_adapter_manager
+        )
+
+        match = TemplateMatch(
+            template_id='test_template',
+            source_adapter='test_adapter',
+            similarity_score=0.8,
+            template_data={
+                'description': 'Count vehicles',
+                'nl_examples': [
+                    'How many Teslas are there?',
+                    'Count electric vehicles by make'
+                ]
+            },
+            embedding_text='test'
+        )
+
+        # Query that should match nl_examples well
+        score = retriever._calculate_string_similarity_score(
+            "How many Teslas are registered?",
+            match
+        )
+
+        assert score > 0.5  # Should be a good match
+
+    def test_calculate_string_similarity_no_match(
+        self, multistage_config, mock_adapter_manager
+    ):
+        """Test string similarity with non-matching query."""
+        retriever = CompositeIntentRetriever(
+            config=multistage_config,
+            adapter_manager=mock_adapter_manager
+        )
+
+        match = TemplateMatch(
+            template_id='test_template',
+            source_adapter='test_adapter',
+            similarity_score=0.8,
+            template_data={
+                'description': 'Find movies by genre',
+                'nl_examples': ['Show action movies', 'List comedies']
+            },
+            embedding_text='test'
+        )
+
+        # Query that should not match well (no overlapping words)
+        score = retriever._calculate_string_similarity_score(
+            "Calculate quarterly revenue",
+            match
+        )
+
+        # Score should be lower for non-matching query
+        assert score < 0.7
+
+    def test_calculate_string_similarity_empty_template_data(
+        self, multistage_config, mock_adapter_manager
+    ):
+        """Test string similarity with empty template data."""
+        retriever = CompositeIntentRetriever(
+            config=multistage_config,
+            adapter_manager=mock_adapter_manager
+        )
+
+        match = TemplateMatch(
+            template_id='test_template',
+            source_adapter='test_adapter',
+            similarity_score=0.8,
+            template_data={},
+            embedding_text='test'
+        )
+
+        score = retriever._calculate_string_similarity_score("test query", match)
+
+        assert score == 0.0
+
+
+class TestCombinedScoreCalculation:
+    """Test combined score calculation with multi-stage scoring."""
+
+    @pytest.mark.asyncio
+    async def test_combined_scores_without_multistage(
+        self, composite_retriever, mock_child_adapters
+    ):
+        """Test that combined scores equal embedding scores when multi-stage disabled."""
+        composite_retriever._child_adapters = mock_child_adapters
+        composite_retriever.embedding_client = MockEmbeddingClient()
+
+        matches = [
+            TemplateMatch('t1', 'adapter1', 0.9, {'description': 'test'}, ''),
+            TemplateMatch('t2', 'adapter2', 0.8, {'description': 'test'}, ''),
+        ]
+
+        result = await composite_retriever._calculate_combined_scores("test", matches)
+
+        # When multi-stage is disabled, combined_score should equal similarity_score
+        for match in result:
+            assert match.combined_score == match.similarity_score
+
+    @pytest.mark.asyncio
+    async def test_combined_scores_with_string_similarity_only(
+        self, string_similarity_only_config, mock_adapter_manager, mock_child_adapters
+    ):
+        """Test combined score calculation with only string similarity enabled."""
+        retriever = CompositeIntentRetriever(
+            config=string_similarity_only_config,
+            adapter_manager=mock_adapter_manager
+        )
+        retriever._child_adapters = mock_child_adapters
+        retriever.embedding_client = MockEmbeddingClient()
+
+        matches = [
+            TemplateMatch(
+                't1', 'adapter1', 0.9,
+                {'description': 'Show employees', 'nl_examples': ['List staff']},
+                ''
+            ),
+            TemplateMatch(
+                't2', 'adapter2', 0.85,
+                {'description': 'Show customers', 'nl_examples': ['List clients']},
+                ''
+            ),
+        ]
+
+        result = await retriever._calculate_combined_scores("Show employees", matches)
+
+        # Combined scores should be populated
+        for match in result:
+            assert match.combined_score is not None
+            assert match.string_similarity_score is not None
+            assert match.rerank_score == 0.0  # Reranking disabled, defaults to 0.0
+
+    @pytest.mark.asyncio
+    async def test_combined_scores_sorted_correctly(
+        self, string_similarity_only_config, mock_adapter_manager
+    ):
+        """Test that matches are sorted by combined score."""
+        retriever = CompositeIntentRetriever(
+            config=string_similarity_only_config,
+            adapter_manager=mock_adapter_manager
+        )
+        retriever.embedding_client = MockEmbeddingClient()
+
+        # Create matches where string similarity should change the order
+        matches = [
+            TemplateMatch(
+                't1', 'adapter1', 0.85,  # Lower embedding score
+                {'description': 'Show all employees in department', 'nl_examples': ['List employees']},
+                ''
+            ),
+            TemplateMatch(
+                't2', 'adapter2', 0.9,  # Higher embedding score
+                {'description': 'Show all customers', 'nl_examples': ['List customers']},
+                ''
+            ),
+        ]
+
+        result = await retriever._calculate_combined_scores("Show employees", matches)
+
+        # Results should be sorted by combined_score descending
+        scores = [m.combined_score for m in result]
+        assert scores == sorted(scores, reverse=True)
+
+    @pytest.mark.asyncio
+    async def test_scoring_details_populated(
+        self, string_similarity_only_config, mock_adapter_manager
+    ):
+        """Test that scoring details are populated for debugging."""
+        retriever = CompositeIntentRetriever(
+            config=string_similarity_only_config,
+            adapter_manager=mock_adapter_manager
+        )
+        retriever.embedding_client = MockEmbeddingClient()
+
+        matches = [
+            TemplateMatch(
+                't1', 'adapter1', 0.85,
+                {'description': 'Test template', 'nl_examples': ['Test query']},
+                ''
+            ),
+        ]
+
+        result = await retriever._calculate_combined_scores("Test query", matches)
+
+        assert len(result) == 1
+        details = result[0].scoring_details
+
+        assert 'embedding_score' in details
+        assert 'embedding_weight' in details
+        assert 'string_similarity_score' in details
+        assert 'string_similarity_weight' in details
+        assert 'combined_score' in details
+
+
+class TestMultiStageBestMatchSelection:
+    """Test best match selection with multi-stage scoring."""
+
+    def test_select_best_match_uses_combined_score(
+        self, multistage_config, mock_adapter_manager
+    ):
+        """Test that best match selection uses combined_score when multi-stage enabled."""
+        retriever = CompositeIntentRetriever(
+            config=multistage_config,
+            adapter_manager=mock_adapter_manager
+        )
+
+        # Create matches where combined_score differs from embedding score
+        matches = [
+            TemplateMatch('t1', 'adapter1', 0.9, {}, ''),  # High embedding
+            TemplateMatch('t2', 'adapter2', 0.85, {}, ''),  # Lower embedding
+        ]
+
+        # Set combined scores to reverse the order
+        matches[0].combined_score = 0.7  # Lower combined
+        matches[1].combined_score = 0.8  # Higher combined
+
+        # Sort by combined score (as _calculate_combined_scores would)
+        matches.sort(key=lambda m: m.combined_score or 0, reverse=True)
+
+        best = retriever._select_best_match(matches)
+
+        # Should select t2 based on combined_score
+        assert best.template_id == 't2'
+
+    def test_select_best_match_threshold_uses_combined_score(
+        self, multistage_config, mock_adapter_manager
+    ):
+        """Test that threshold comparison uses combined_score when multi-stage enabled."""
+        retriever = CompositeIntentRetriever(
+            config=multistage_config,
+            adapter_manager=mock_adapter_manager
+        )
+        retriever.confidence_threshold = 0.5
+
+        match = TemplateMatch('t1', 'adapter1', 0.9, {}, '')  # High embedding
+        match.combined_score = 0.4  # But low combined score
+
+        best = retriever._select_best_match([match])
+
+        # Should return None because combined_score < threshold
+        assert best is None
+
+
+class TestTemplateMatchDataclass:
+    """Test enhanced TemplateMatch dataclass with multi-stage fields."""
+
+    def test_template_match_has_multistage_fields(self):
+        """Test that TemplateMatch has multi-stage scoring fields."""
+        match = TemplateMatch(
+            template_id='test',
+            source_adapter='adapter',
+            similarity_score=0.9,
+            template_data={},
+            embedding_text=''
+        )
+
+        # Multi-stage fields should exist with default values
+        assert match.rerank_score is None
+        assert match.string_similarity_score is None
+        assert match.combined_score is None
+        assert match.scoring_details == {}
+
+    def test_template_match_multistage_fields_settable(self):
+        """Test that multi-stage fields can be set."""
+        match = TemplateMatch(
+            template_id='test',
+            source_adapter='adapter',
+            similarity_score=0.9,
+            template_data={},
+            embedding_text=''
+        )
+
+        match.rerank_score = 0.95
+        match.string_similarity_score = 0.78
+        match.combined_score = 0.89
+        match.scoring_details = {'test': 'value'}
+
+        assert match.rerank_score == 0.95
+        assert match.string_similarity_score == 0.78
+        assert match.combined_score == 0.89
+        assert match.scoring_details == {'test': 'value'}
+
+
+class TestMultiStageQueryRouting:
+    """Test query routing with multi-stage selection."""
+
+    @pytest.mark.asyncio
+    async def test_routing_includes_multistage_metadata(
+        self, string_similarity_only_config, mock_adapter_manager, mock_child_adapters
+    ):
+        """Test that routing includes multi-stage scoring metadata."""
+        retriever = CompositeIntentRetriever(
+            config=string_similarity_only_config,
+            adapter_manager=mock_adapter_manager
+        )
+        retriever._child_adapters = {
+            'intent-sql-hr': mock_child_adapters['intent-sql-hr'],
+            'intent-duckdb-ev': mock_child_adapters['intent-duckdb-ev']
+        }
+        retriever.embedding_client = MockEmbeddingClient()
+
+        results = await retriever.get_relevant_context("Show employees")
+
+        assert len(results) >= 1
+
+        metadata = results[0].get('metadata', {})
+        routing = metadata.get('composite_routing', {})
+
+        # Should include multi-stage scoring info
+        assert 'multistage_scoring' in routing
+        multistage = routing['multistage_scoring']
+        assert multistage['enabled'] is True
+        assert 'combined_score' in multistage
+        assert 'embedding_score' in multistage
+        assert 'string_similarity_score' in multistage
+
+
+class TestRerankerIntegration:
+    """Test reranker integration (with mocking)."""
+
+    @pytest.mark.asyncio
+    async def test_rerank_candidates_returns_empty_when_disabled(
+        self, composite_retriever
+    ):
+        """Test that rerank_candidates returns empty dict when disabled."""
+        composite_retriever.reranking_enabled = False
+
+        matches = [
+            TemplateMatch('t1', 'adapter1', 0.9, {}, ''),
+        ]
+
+        result = await composite_retriever._rerank_candidates("test", matches)
+
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_rerank_candidates_caches_results(
+        self, multistage_config, mock_adapter_manager
+    ):
+        """Test that rerank results are cached."""
+        retriever = CompositeIntentRetriever(
+            config=multistage_config,
+            adapter_manager=mock_adapter_manager
+        )
+
+        # Mock the reranker
+        mock_reranker = MagicMock()
+        mock_reranker.rerank = AsyncMock(return_value=[
+            {'index': 0, 'score': 0.95}
+        ])
+        retriever._reranker = mock_reranker
+
+        matches = [
+            TemplateMatch('t1', 'adapter1', 0.9, {'description': 'test'}, ''),
+        ]
+
+        # First call
+        await retriever._rerank_candidates("test query", matches)
+
+        # Second call with same query and matches
+        await retriever._rerank_candidates("test query", matches)
+
+        # Reranker should only be called once due to caching
+        assert mock_reranker.rerank.call_count == 1
+
+
+class TestRoutingStatisticsWithMultistage:
+    """Test get_routing_statistics with multi-stage configuration."""
+
+    @pytest.mark.asyncio
+    async def test_statistics_include_multistage_config(
+        self, multistage_config, mock_adapter_manager, mock_child_adapters
+    ):
+        """Test that statistics include multi-stage configuration."""
+        # Import the implementation class for this test
+        from retrievers.implementations.composite.composite_intent_retriever import (
+            CompositeIntentRetriever as CompositeImpl
+        )
+
+        retriever = CompositeImpl(
+            config=multistage_config,
+            adapter_manager=mock_adapter_manager
+        )
+        retriever._child_adapters = mock_child_adapters
+
+        stats = await retriever.get_routing_statistics()
+
+        assert 'multistage_selection' in stats
+        ms = stats['multistage_selection']
+
+        assert ms['enabled'] is True
+        assert ms['reranking']['enabled'] is True
+        assert ms['reranking']['provider'] == 'anthropic'
+        assert ms['string_similarity']['enabled'] is True
+        assert ms['string_similarity']['algorithm'] == 'jaro_winkler'
 

@@ -5,13 +5,21 @@ This base class provides functionality to:
 - Search across template stores of multiple child intent adapters
 - Find the best matching template across all sources
 - Route query execution to the child adapter that owns the best match
+
+Multi-Stage Selection (v2):
+- Stage 1: Embedding-based retrieval for initial candidates
+- Stage 2: Reranking with LLM-based reranker for semantic refinement
+- Stage 3: String similarity scoring for lexical matching
+- Combined scoring with configurable weights
 """
 
 import logging
 import traceback
 import asyncio
+import time
+import json
 from typing import Dict, Any, List, Optional, Tuple
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .base_retriever import BaseRetriever
 
@@ -26,6 +34,14 @@ class TemplateMatch:
     similarity_score: float
     template_data: Dict[str, Any]
     embedding_text: str = ""
+
+    # Multi-stage scoring fields (populated during enhanced selection)
+    rerank_score: Optional[float] = None
+    string_similarity_score: Optional[float] = None
+    combined_score: Optional[float] = None
+
+    # Scoring metadata
+    scoring_details: Dict[str, Any] = field(default_factory=dict)
 
 
 class CompositeIntentRetriever(BaseRetriever):
@@ -44,11 +60,11 @@ class CompositeIntentRetriever(BaseRetriever):
     - A get_relevant_context() method for query execution
     """
     
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, 
+    def __init__(self, config: Dict[str, Any], domain_adapter=None,
                  adapter_manager=None, **kwargs):
         """
         Initialize Composite Intent Retriever.
-        
+
         Args:
             config: Configuration dictionary
             domain_adapter: Optional domain adapter (not used directly, child adapters have their own)
@@ -56,31 +72,89 @@ class CompositeIntentRetriever(BaseRetriever):
             **kwargs: Additional arguments
         """
         super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
-        
+
         # Get composite-specific configuration
         self.composite_config = config.get('adapter_config', {})
-        
+
         # Child adapter names to search across
         self.child_adapter_names: List[str] = self.composite_config.get('child_adapters', [])
         if not self.child_adapter_names:
             raise ValueError("child_adapters is required in adapter configuration")
-        
+
         # Composite settings
         self.confidence_threshold = self.composite_config.get('confidence_threshold', 0.4)
         self.max_templates_per_source = self.composite_config.get('max_templates_per_source', 3)
         self.parallel_search = self.composite_config.get('parallel_search', True)
         self.search_timeout = self.composite_config.get('search_timeout', 5.0)
-        
+
         # Reference to adapter manager for resolving child adapters
         self.adapter_manager = adapter_manager
-        
+
         # Cache of resolved child adapters (populated during initialization)
         self._child_adapters: Dict[str, Any] = {}
-        
+
         # Shared embedding client for consistent scoring
         self.embedding_client = None
-        
+
+        # Multi-stage selection configuration (from config.yaml composite_retrieval section)
+        self._init_multi_stage_config(config)
+
+        # Reranking service (initialized lazily)
+        self._reranker = None
+        self._rerank_cache: Dict[str, Tuple[float, List[Dict]]] = {}  # query -> (timestamp, results)
+
         logger.info(f"CompositeIntentRetriever configured with {len(self.child_adapter_names)} child adapters: {self.child_adapter_names}")
+        if self.multistage_enabled:
+            logger.info(f"Multi-stage selection enabled: reranking={self.reranking_enabled}, string_similarity={self.string_similarity_enabled}")
+
+    def _init_multi_stage_config(self, config: Dict[str, Any]) -> None:
+        """Initialize multi-stage selection configuration from composite_retrieval section."""
+        composite_retrieval = config.get('composite_retrieval', {})
+
+        # Reranking configuration
+        reranking_config = composite_retrieval.get('reranking', {})
+        self.reranking_enabled = reranking_config.get('enabled', False)
+        self.reranking_provider = reranking_config.get('provider', 'anthropic')
+        self.reranking_top_candidates = reranking_config.get('top_candidates', 10)
+        self.reranking_weight = reranking_config.get('weight', 0.4)
+
+        # String similarity configuration
+        string_sim_config = composite_retrieval.get('string_similarity', {})
+        self.string_similarity_enabled = string_sim_config.get('enabled', False)
+        self.string_similarity_algorithm = string_sim_config.get('algorithm', 'jaro_winkler')
+        self.string_similarity_weight = string_sim_config.get('weight', 0.2)
+        self.string_similarity_fields = string_sim_config.get('compare_fields', ['description', 'nl_examples'])
+        self.string_similarity_min_threshold = string_sim_config.get('min_threshold', 0.3)
+        self.string_similarity_aggregation = string_sim_config.get('aggregation', 'max')
+
+        # Scoring configuration
+        scoring_config = composite_retrieval.get('scoring', {})
+        self.embedding_weight = scoring_config.get('embedding_weight', 0.4)
+        self.normalize_scores = scoring_config.get('normalize_scores', True)
+        self.tie_breaker = scoring_config.get('tie_breaker', 'embedding')
+
+        # Performance configuration
+        performance_config = composite_retrieval.get('performance', {})
+        self.parallel_rerank = performance_config.get('parallel_rerank', True)
+        self.cache_rerank_results = performance_config.get('cache_rerank_results', True)
+        self.rerank_cache_ttl = performance_config.get('cache_ttl_seconds', 300)
+
+        # Check if multi-stage is enabled (either reranking or string similarity)
+        self.multistage_enabled = self.reranking_enabled or self.string_similarity_enabled
+
+        # Validate weights sum to approximately 1.0 if both are enabled
+        if self.multistage_enabled:
+            total_weight = self.embedding_weight
+            if self.reranking_enabled:
+                total_weight += self.reranking_weight
+            if self.string_similarity_enabled:
+                total_weight += self.string_similarity_weight
+
+            if abs(total_weight - 1.0) > 0.01:
+                logger.warning(
+                    f"Composite retrieval weights sum to {total_weight:.2f}, not 1.0. "
+                    f"Scores will be normalized but may not reflect intended weighting."
+                )
     
     def _get_datasource_name(self) -> str:
         """Return the name of this datasource for config lookup."""
@@ -166,8 +240,309 @@ class CompositeIntentRetriever(BaseRetriever):
         
         if not self._child_adapters:
             raise ValueError(f"No valid child adapters could be resolved from: {self.child_adapter_names}")
-        
+
         logger.info(f"Resolved {len(self._child_adapters)} child adapters: {list(self._child_adapters.keys())}")
+
+    async def _initialize_reranker(self) -> None:
+        """Lazily initialize the reranking service."""
+        if self._reranker is not None:
+            return
+
+        if not self.reranking_enabled:
+            return
+
+        try:
+            from ai_services.factory import AIServiceFactory
+            from ai_services.base import ServiceType
+
+            self._reranker = AIServiceFactory.create_service(
+                ServiceType.RERANKING,
+                self.reranking_provider,
+                self.config
+            )
+
+            if hasattr(self._reranker, 'initialize'):
+                await self._reranker.initialize()
+
+            logger.info(f"Initialized {self.reranking_provider} reranker for composite retriever")
+
+        except Exception as e:
+            logger.warning(f"Failed to initialize reranker ({self.reranking_provider}): {e}")
+            logger.warning("Reranking will be disabled for this session")
+            self.reranking_enabled = False
+
+    def _calculate_string_similarity_score(
+        self,
+        query: str,
+        template_match: TemplateMatch
+    ) -> float:
+        """
+        Calculate string similarity score between query and template fields.
+
+        Args:
+            query: The user's query
+            template_match: The template match to score
+
+        Returns:
+            Similarity score between 0.0 and 1.0
+        """
+        try:
+            from utils.string_similarity import StringSimilarity
+
+            scores = []
+            template_data = template_match.template_data
+
+            for field in self.string_similarity_fields:
+                field_value = template_data.get(field)
+
+                if field_value is None:
+                    continue
+
+                # Handle list fields (like nl_examples)
+                if isinstance(field_value, list):
+                    for item in field_value:
+                        if isinstance(item, str):
+                            score = StringSimilarity.calculate_best_text_similarity(
+                                query,
+                                item,
+                                algorithm=self.string_similarity_algorithm,
+                                case_sensitive=False,
+                                check_words=True
+                            )
+                            scores.append(score)
+
+                elif isinstance(field_value, str):
+                    score = StringSimilarity.calculate_best_text_similarity(
+                        query,
+                        field_value,
+                        algorithm=self.string_similarity_algorithm,
+                        case_sensitive=False,
+                        check_words=True
+                    )
+                    scores.append(score)
+
+            if not scores:
+                return 0.0
+
+            # Aggregate scores based on configuration
+            if self.string_similarity_aggregation == 'max':
+                return max(scores)
+            elif self.string_similarity_aggregation == 'avg':
+                return sum(scores) / len(scores)
+            elif self.string_similarity_aggregation == 'weighted_avg':
+                # Give more weight to higher scores
+                sorted_scores = sorted(scores, reverse=True)
+                weighted_sum = sum(s * (len(sorted_scores) - i) for i, s in enumerate(sorted_scores))
+                weight_total = sum(range(1, len(sorted_scores) + 1))
+                return weighted_sum / weight_total if weight_total > 0 else 0.0
+            else:
+                return max(scores)
+
+        except ImportError as e:
+            logger.warning(f"String similarity module not available: {e}")
+            return 0.0
+        except Exception as e:
+            logger.error(f"Error calculating string similarity: {e}")
+            return 0.0
+
+    async def _rerank_candidates(
+        self,
+        query: str,
+        candidates: List[TemplateMatch]
+    ) -> Dict[str, float]:
+        """
+        Rerank candidates using the configured reranker.
+
+        Args:
+            query: The user's query
+            candidates: List of template matches to rerank
+
+        Returns:
+            Dictionary mapping template_id to rerank score
+        """
+        if not self.reranking_enabled or not candidates:
+            return {}
+
+        # Check cache first
+        cache_key = f"{query}:{','.join(sorted(c.template_id for c in candidates))}"
+        if self.cache_rerank_results and cache_key in self._rerank_cache:
+            cached_time, cached_results = self._rerank_cache[cache_key]
+            if time.time() - cached_time < self.rerank_cache_ttl:
+                logger.debug(f"Using cached rerank results for query")
+                return cached_results
+
+        try:
+            # Ensure reranker is initialized
+            await self._initialize_reranker()
+
+            if not self._reranker:
+                return {}
+
+            # Prepare documents for reranking
+            # Combine template description and nl_examples for better context
+            documents = []
+            template_ids = []
+
+            for match in candidates:
+                template_data = match.template_data
+                doc_parts = []
+
+                # Add description
+                if 'description' in template_data:
+                    doc_parts.append(template_data['description'])
+
+                # Add nl_examples
+                nl_examples = template_data.get('nl_examples', [])
+                if isinstance(nl_examples, list):
+                    for ex in nl_examples[:3]:  # Limit to first 3 examples
+                        if isinstance(ex, str):
+                            doc_parts.append(ex)
+
+                # Add template name/id
+                if 'name' in template_data:
+                    doc_parts.append(f"Template: {template_data['name']}")
+
+                document = " | ".join(doc_parts) if doc_parts else match.template_id
+                documents.append(document)
+                template_ids.append(match.template_id)
+
+            # Call reranker
+            rerank_results = await self._reranker.rerank(
+                query=query,
+                documents=documents,
+                top_n=len(documents)
+            )
+
+            # Build score map
+            score_map: Dict[str, float] = {}
+            for result in rerank_results:
+                idx = result.get('index', 0)
+                score = result.get('score', 0.0)
+                if 0 <= idx < len(template_ids):
+                    score_map[template_ids[idx]] = score
+
+            # Cache results
+            if self.cache_rerank_results:
+                self._rerank_cache[cache_key] = (time.time(), score_map)
+
+                # Clean old cache entries
+                current_time = time.time()
+                expired_keys = [
+                    k for k, (t, _) in self._rerank_cache.items()
+                    if current_time - t > self.rerank_cache_ttl
+                ]
+                for k in expired_keys:
+                    del self._rerank_cache[k]
+
+            logger.debug(f"Reranked {len(candidates)} candidates, top score: {max(score_map.values()) if score_map else 0:.3f}")
+            return score_map
+
+        except Exception as e:
+            logger.error(f"Error during reranking: {e}")
+            logger.debug(traceback.format_exc())
+            return {}
+
+    async def _calculate_combined_scores(
+        self,
+        query: str,
+        matches: List[TemplateMatch]
+    ) -> List[TemplateMatch]:
+        """
+        Calculate combined scores for all matches using multi-stage scoring.
+
+        Args:
+            query: The user's query
+            matches: List of template matches from embedding search
+
+        Returns:
+            List of matches with combined_score populated, sorted by combined_score
+        """
+        if not matches:
+            return matches
+
+        if not self.multistage_enabled:
+            # If multi-stage is disabled, just use embedding scores
+            for match in matches:
+                match.combined_score = match.similarity_score
+            return matches
+
+        # Limit candidates for reranking
+        candidates = matches[:self.reranking_top_candidates]
+
+        # Get rerank scores
+        rerank_scores: Dict[str, float] = {}
+        if self.reranking_enabled:
+            rerank_scores = await self._rerank_candidates(query, candidates)
+
+        # Calculate scores for each match
+        for match in matches:
+            # Embedding score (already normalized 0-1)
+            emb_score = match.similarity_score
+
+            # Rerank score
+            rerank_score = rerank_scores.get(match.template_id, 0.0) if self.reranking_enabled else 0.0
+            match.rerank_score = rerank_score
+
+            # String similarity score
+            string_sim_score = 0.0
+            if self.string_similarity_enabled:
+                string_sim_score = self._calculate_string_similarity_score(query, match)
+                match.string_similarity_score = string_sim_score
+
+            # Calculate combined score
+            combined = 0.0
+
+            if self.reranking_enabled and self.string_similarity_enabled:
+                # All three scoring methods
+                combined = (
+                    self.embedding_weight * emb_score +
+                    self.reranking_weight * rerank_score +
+                    self.string_similarity_weight * string_sim_score
+                )
+            elif self.reranking_enabled:
+                # Embedding + reranking only
+                total_weight = self.embedding_weight + self.reranking_weight
+                combined = (
+                    (self.embedding_weight / total_weight) * emb_score +
+                    (self.reranking_weight / total_weight) * rerank_score
+                )
+            elif self.string_similarity_enabled:
+                # Embedding + string similarity only
+                total_weight = self.embedding_weight + self.string_similarity_weight
+                combined = (
+                    (self.embedding_weight / total_weight) * emb_score +
+                    (self.string_similarity_weight / total_weight) * string_sim_score
+                )
+
+            match.combined_score = combined
+
+            # Store scoring details for debugging
+            match.scoring_details = {
+                'embedding_score': emb_score,
+                'embedding_weight': self.embedding_weight,
+                'rerank_score': rerank_score if self.reranking_enabled else None,
+                'rerank_weight': self.reranking_weight if self.reranking_enabled else None,
+                'string_similarity_score': string_sim_score if self.string_similarity_enabled else None,
+                'string_similarity_weight': self.string_similarity_weight if self.string_similarity_enabled else None,
+                'combined_score': combined
+            }
+
+        # Sort by combined score (descending)
+        matches.sort(key=lambda m: m.combined_score or 0.0, reverse=True)
+
+        # Log top matches for debugging
+        if matches and logger.isEnabledFor(logging.DEBUG):
+            top_3 = matches[:3]
+            for i, m in enumerate(top_3):
+                rerank_str = f"{m.rerank_score:.3f}" if m.rerank_score is not None else "N/A"
+                str_sim_str = f"{m.string_similarity_score:.3f}" if m.string_similarity_score is not None else "N/A"
+                logger.debug(
+                    f"  #{i+1} {m.template_id} ({m.source_adapter}): "
+                    f"combined={m.combined_score:.3f} "
+                    f"[emb={m.similarity_score:.3f}, rerank={rerank_str}, str_sim={str_sim_str}]"
+                )
+
+        return matches
     
     async def _search_single_template_store(
         self, 
@@ -286,58 +661,85 @@ class CompositeIntentRetriever(BaseRetriever):
     def _select_best_match(self, matches: List[TemplateMatch]) -> Optional[TemplateMatch]:
         """
         Select the best matching template from all matches.
-        
+
+        When multi-stage selection is enabled, uses combined_score.
+        Otherwise, uses embedding similarity_score.
+
         Args:
-            matches: List of all template matches, sorted by similarity
-            
+            matches: List of all template matches, sorted by score
+
         Returns:
             The best matching template, or None if no matches meet threshold
         """
         if not matches:
             return None
-        
-        # The list is already sorted, so the first match is the best
+
+        # The list is already sorted (by combined_score if multi-stage, else by similarity_score)
         best_match = matches[0]
-        
-        if best_match.similarity_score < self.confidence_threshold:
-            logger.debug(f"Best match score {best_match.similarity_score:.3f} below threshold {self.confidence_threshold}")
+
+        # Determine which score to use for threshold comparison
+        if self.multistage_enabled and best_match.combined_score is not None:
+            score_to_check = best_match.combined_score
+            score_type = "combined"
+        else:
+            score_to_check = best_match.similarity_score
+            score_type = "embedding"
+
+        if score_to_check < self.confidence_threshold:
+            logger.debug(
+                f"Best match {score_type} score {score_to_check:.3f} below threshold {self.confidence_threshold}"
+            )
             return None
-        
-        logger.debug(f"Selected best match: template '{best_match.template_id}' from adapter '{best_match.source_adapter}' (score: {best_match.similarity_score:.3f})")
-        
+
+        # Log selection details
+        if self.multistage_enabled:
+            rerank_str = f"{best_match.rerank_score:.3f}" if best_match.rerank_score is not None else "N/A"
+            str_sim_str = f"{best_match.string_similarity_score:.3f}" if best_match.string_similarity_score is not None else "N/A"
+            logger.debug(
+                f"Selected best match: template '{best_match.template_id}' from adapter '{best_match.source_adapter}' "
+                f"(combined={best_match.combined_score:.3f}, emb={best_match.similarity_score:.3f}, "
+                f"rerank={rerank_str}, str_sim={str_sim_str})"
+            )
+        else:
+            logger.debug(
+                f"Selected best match: template '{best_match.template_id}' from adapter '{best_match.source_adapter}' "
+                f"(score: {best_match.similarity_score:.3f})"
+            )
+
         return best_match
     
     async def get_relevant_context(
-        self, 
-        query: str, 
+        self,
+        query: str,
         api_key: Optional[str] = None,
-        collection_name: Optional[str] = None, 
+        collection_name: Optional[str] = None,
         **kwargs
     ) -> List[Dict[str, Any]]:
         """
         Process a query by routing to the best matching child adapter.
-        
+
         This method:
-        1. Searches all child adapters' template stores in parallel
-        2. Finds the best matching template across all sources
-        3. Routes the query to the child adapter that owns that template
-        4. Returns results from that single source
-        
+        1. Searches all child adapters' template stores in parallel (Stage 1: Embedding)
+        2. Applies multi-stage scoring if enabled (Stage 2: Reranking, Stage 3: String Similarity)
+        3. Finds the best matching template using combined scores
+        4. Routes the query to the child adapter that owns that template
+        5. Returns results from that single source
+
         Args:
             query: The user's query
             api_key: Optional API key
             collection_name: Optional collection name (not used directly)
             **kwargs: Additional parameters passed to child adapter
-            
+
         Returns:
             List of context items from the best matching child adapter
         """
         try:
             logger.debug(f"CompositeIntentRetriever processing query: {query}")
-            
-            # Search all template stores
+
+            # Stage 1: Search all template stores (embedding-based)
             all_matches = await self._search_all_template_stores(query)
-            
+
             if not all_matches:
                 logger.warning("No matching templates found across any child adapters")
                 return [{
@@ -349,26 +751,39 @@ class CompositeIntentRetriever(BaseRetriever):
                     },
                     "confidence": 0.0
                 }]
-            
+
+            # Stage 2 & 3: Multi-stage scoring (reranking + string similarity)
+            if self.multistage_enabled:
+                logger.debug(f"Applying multi-stage scoring to {len(all_matches)} candidates")
+                all_matches = await self._calculate_combined_scores(query, all_matches)
+
             # Select the best match
             best_match = self._select_best_match(all_matches)
-            
+
             if not best_match:
                 logger.warning("No template matches met the confidence threshold")
+                # Get the best score from top match for diagnostics
+                if all_matches:
+                    top_match = all_matches[0]
+                    best_score = top_match.combined_score if self.multistage_enabled else top_match.similarity_score
+                else:
+                    best_score = 0.0
+
                 return [{
                     "content": "I found potential matches but none met the confidence threshold.",
                     "metadata": {
                         "source": "composite_intent",
                         "error": "below_threshold",
                         "searched_adapters": list(self._child_adapters.keys()),
-                        "best_score": all_matches[0].similarity_score if all_matches else 0.0
+                        "best_score": best_score,
+                        "multistage_enabled": self.multistage_enabled
                     },
                     "confidence": 0.0
                 }]
-            
+
             # Get the child adapter that owns the best match
             source_adapter = self._child_adapters.get(best_match.source_adapter)
-            
+
             if not source_adapter:
                 logger.error(f"Source adapter '{best_match.source_adapter}' not found in cache")
                 return [{
@@ -380,28 +795,41 @@ class CompositeIntentRetriever(BaseRetriever):
                     },
                     "confidence": 0.0
                 }]
-            
+
             # Route the query to the child adapter
             logger.debug(f"Routing query to adapter '{best_match.source_adapter}' for template '{best_match.template_id}'")
-            
+
             results = await source_adapter.get_relevant_context(
                 query=query,
                 api_key=api_key,
                 collection_name=collection_name,
                 **kwargs
             )
-            
+
             # Enrich results with composite routing metadata
             for result in results:
                 if isinstance(result, dict) and 'metadata' in result:
-                    result['metadata']['composite_routing'] = {
+                    routing_metadata = {
                         'selected_adapter': best_match.source_adapter,
                         'template_id': best_match.template_id,
                         'similarity_score': best_match.similarity_score,
                         'adapters_searched': list(self._child_adapters.keys()),
                         'total_matches_found': len(all_matches)
                     }
-            
+
+                    # Add multi-stage scoring details if enabled
+                    if self.multistage_enabled:
+                        routing_metadata['multistage_scoring'] = {
+                            'enabled': True,
+                            'combined_score': best_match.combined_score,
+                            'embedding_score': best_match.similarity_score,
+                            'rerank_score': best_match.rerank_score,
+                            'string_similarity_score': best_match.string_similarity_score,
+                            'scoring_details': best_match.scoring_details
+                        }
+
+                    result['metadata']['composite_routing'] = routing_metadata
+
             return results
             
         except Exception as e:

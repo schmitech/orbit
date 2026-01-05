@@ -118,3 +118,70 @@ adapters:
       parallel_search: true
       search_timeout: 8.0  # Higher timeout for HTTP sources
       verbose: true  # Enable verbose logging for debugging
+
+  # Example: Government Data Explorer
+  # Routes queries across multiple government open data sources
+  - name: "composite-government-data"
+    enabled: true  # Enable when child adapters are configured
+    type: "retriever"
+    adapter: "composite"
+    implementation: "retrievers.implementations.composite.CompositeIntentRetriever"
+    inference_provider: "ollama_cloud"
+    model: "glm-4.7"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true  # Enable autocomplete from child adapter templates
+      requires_api_key_validation: true
+
+    config:
+      # Child adapters to search across
+      child_adapters:
+        - "intent-duckdb-open-gov-travel-expenses"
+        - "intent-duckdb-open-gov-contracts"
+        - "intent-duckdb-open-gov-hospitality-expenses"
+
+      confidence_threshold: 0.5
+      max_templates_per_source: 5
+      parallel_search: true
+      search_timeout: 5.0
+      verbose: false
+
+        # Example: Government Data Explorer
+  # Routes queries across multiple government open data sources
+  - name: "composite-ottawa-police-data"
+    enabled: true  # Enable when child adapters are configured
+    type: "retriever"
+    adapter: "composite"
+    implementation: "retrievers.implementations.composite.CompositeIntentRetriever"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true  # Enable autocomplete from child adapter templates
+      requires_api_key_validation: true
+
+    config:
+      # Child adapters to search across
+      child_adapters:
+        - "intent-duckdb-ottawa-police-auto-theft"
+        - "intent-duckdb-ottawa-police-criminal-offences"
+
+      confidence_threshold: 0.75
+      max_templates_per_source: 5
+      parallel_search: true
+      search_timeout: 5.0
+      verbose: false
