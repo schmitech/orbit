@@ -654,18 +654,34 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 {/* Adapter Info - show first when available */}
                 {showHeaderMetadata && (
                   <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2 justify-start">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2 justify-start md:flex-nowrap">
                       {currentConversation?.adapterInfo?.model && (
-                        <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]">
+                        <div
+                          className="inline-flex max-w-full flex-shrink items-center gap-2 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] min-w-0"
+                          title={currentConversation.adapterInfo.model}
+                          aria-label={`Model: ${currentConversation.adapterInfo.model}`}
+                        >
                           <span>Model</span>
-                          <span className="text-gray-800 normal-case dark:text-[#ececf1]">
+                          <span className="block truncate text-gray-800 normal-case dark:text-[#ececf1]">
                             {currentConversation.adapterInfo.model}
                           </span>
                         </div>
                       )}
-                      <div className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]">
+                      <div
+                        className="inline-flex max-w-full flex-shrink items-center gap-2 rounded-md border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] min-w-0"
+                        title={
+                          currentConversation?.adapterName ||
+                          currentConversation?.adapterInfo?.adapter_name ||
+                          'Configured Agent'
+                        }
+                        aria-label={`Agent: ${
+                          currentConversation?.adapterName ||
+                          currentConversation?.adapterInfo?.adapter_name ||
+                          'Configured Agent'
+                        }`}
+                      >
                         <span>Agent</span>
-                        <span className="text-gray-800 normal-case dark:text-[#ececf1]">
+                        <span className="block truncate text-gray-800 normal-case dark:text-[#ececf1]">
                           {currentConversation?.adapterName ||
                             currentConversation?.adapterInfo?.adapter_name ||
                             'Configured Agent'}
@@ -674,7 +690,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       <button
                         onClick={handleRefreshAdapterInfo}
                         disabled={isRefreshingAdapterInfo || (!currentConversation?.apiKey && !currentConversation?.adapterName)}
-                        className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 dark:border-[#4a4b54] dark:text-[#bfc2cd] dark:hover:bg-[#4a4b54] dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 dark:border-[#4a4b54] dark:text-[#bfc2cd] dark:hover:bg-[#4a4b54] dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Refresh adapter info"
                       >
                         <RefreshCw className={`h-4 w-4 ${isRefreshingAdapterInfo ? 'animate-spin' : ''}`} />
@@ -724,7 +740,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
             <div className="flex flex-1 flex-col min-h-0 pt-4 md:pt-6">
               <div className="flex-1 flex flex-col justify-between md:justify-start md:flex-none">
                 <div className="w-full space-y-6">
-                  {showBodyHeading && (
+                  {showBodyHeading && !shouldShowAdapterNotesPanel && (
                     <div className={`${prominentWidthClass}`}>
                       <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
                         {bodyHeadingText}
@@ -766,8 +782,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     </>
                   ) : shouldShowAdapterNotesPanel ? (
                     <div className={`${prominentWidthClass} rounded-3xl border border-gray-200/80 bg-white/95 p-6 shadow-sm dark:border-[#3b3c49] dark:bg-[#1c1d23]/90`}>
-                      <div className="flex items-start justify-between pb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Agent overview</h3>
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {currentConversation?.adapterName ||
+                            currentConversation?.adapterInfo?.adapter_name ||
+                            'Configured Agent'}
+                        </h3>
                         <button
                           type="button"
                           onClick={() => {
@@ -780,7 +800,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                           Change Agent
                         </button>
                       </div>
-                      <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 dark:border-[#3b3c49] dark:bg-[#232430]/80">
+                      <div className="rounded-2xl border border-gray-200 bg-white/70 px-4 pb-4 pt-3 dark:border-[#3b3c49] dark:bg-[#232430]/80">
                         {currentConversation?.adapterInfo?.notes ? (
                           <MarkdownRenderer
                             content={currentConversation.adapterInfo.notes}
