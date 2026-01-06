@@ -15,7 +15,13 @@ adapters:
     model: "gpt-oss:120b"           # Large model for better intent understanding
     embedding_provider: "ollama"          # Local embeddings for template matching
     # reranker_provider: "ollama"           # Optional: Jina AI reranker for template relevance
-
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      requires_api_key_validation: true
     config:
       # SQLite database path is configured in datasources.yaml
       check_same_thread: false  # Allow multi-threaded access
@@ -109,6 +115,14 @@ adapters:
     # embedding_model: "openai/text-embedding-3-small"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true  # Enable autocomplete from template nl_examples
+      requires_api_key_validation: true
     config:
       # Path to the domain definition file
       domain_config_path: "utils/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
@@ -147,7 +161,7 @@ adapters:
   # Data source: Washington State DOL via data.gov
   # Contains 270,000+ registered BEV and PHEV vehicles
   - name: "intent-duckdb-ev-population"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "duckdb"
     adapter: "intent"
@@ -300,7 +314,7 @@ adapters:
   # This adapter uses a fake REST API for testing and debugging HTTP adapter functionality
   # No authentication required - perfect for isolating parameter extraction issues
   - name: "intent-http-jsonplaceholder"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "http"  # Uses HTTP datasource placeholder
     adapter: "intent"
@@ -488,7 +502,7 @@ adapters:
 
   # MongoDB Intent Retriever for Sample MFlix Database
   - name: "intent-mongodb-mflix"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "mongodb"
     adapter: "intent"
@@ -504,6 +518,7 @@ adapters:
       supports_file_ids: false
       supports_session_tracking: false
       supports_threading: true
+      supports_autocomplete: true  # Enable autocomplete from template nl_examples
       requires_api_key_validation: true
     config:
       reranker_top_n: 10
@@ -555,12 +570,12 @@ adapters:
       retention_period: 86400.0
       event_handler:
         type: "default"
-  
+
   # GraphQL Intent Adapter - SpaceX API
   # This adapter demonstrates GraphQL query generation from natural language
   # Uses the public SpaceX GraphQL API (no authentication required)
   - name: "intent-graphql-spacex"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "http"  # Uses HTTP datasource placeholder
     adapter: "intent"
