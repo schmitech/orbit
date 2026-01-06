@@ -82,6 +82,13 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 > *Using ORBIT in production? <a href="https://schmitech.ai/en/contact" target="_blank">Let us know</a> and we'll feature your project here.*
 
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/7d7f858b-2085-4fe0-8c4b-fad3e2f0161c" controls width="100%">
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <em>CivicChat.ca using ORBIT with glm-7.5 on Ollama</em>
+</div>
 
 ---
 
