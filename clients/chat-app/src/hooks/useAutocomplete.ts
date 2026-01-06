@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, RefObject } from 'react';
 import { getEnableAutocomplete, getEnableApiMiddleware, resolveApiUrl } from '../utils/runtimeConfig';
 import { debugLog, debugWarn } from '../utils/debug';
 
@@ -16,6 +16,10 @@ export interface UseAutocompleteOptions {
   apiUrl?: string | null;
   adapterName?: string | null;
   useMiddleware?: boolean;
+  /**
+   * Optional ref to refocus after accepting a suggestion (helps on mobile/touch).
+   */
+  inputRef?: RefObject<HTMLInputElement | HTMLTextAreaElement> | null;
 }
 
 export interface UseAutocompleteResult {
@@ -26,6 +30,14 @@ export interface UseAutocompleteResult {
   selectNext: () => void;
   selectPrevious: () => void;
   clearSuggestions: () => void;
+  /**
+   * Re-focus the provided input ref and place the caret at the end of the supplied text.
+   */
+  focusInputAfterSelection: (appliedText?: string) => void;
+  /**
+   * Prevents suggestions from refetching until the query changes away from the provided value.
+   */
+  suppressUntilQueryChange: (query: string) => void;
 }
 
 /**
@@ -44,7 +56,8 @@ export function useAutocomplete(
     apiKey,
     apiUrl,
     adapterName,
-    useMiddleware = getEnableApiMiddleware()
+    useMiddleware = getEnableApiMiddleware(),
+    inputRef
   } = options;
 
   const [suggestions, setSuggestions] = useState<AutocompleteSuggestion[]>([]);
@@ -53,6 +66,7 @@ export function useAutocomplete(
 
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const abortControllerRef = useRef<AbortController>();
+  const suppressedQueryRef = useRef<string | null>(null);
   const sanitizeSuggestionText = useCallback((text: unknown): AutocompleteSuggestion | null => {
     if (typeof text !== 'string') {
       return null;
@@ -171,6 +185,14 @@ export function useAutocomplete(
       return;
     }
 
+    if (suppressedQueryRef.current) {
+      if (query === suppressedQueryRef.current) {
+        setSuggestions([]);
+        return;
+      }
+      suppressedQueryRef.current = null;
+    }
+
     debounceTimeoutRef.current = setTimeout(() => {
       fetchSuggestions(query);
     }, DEBOUNCE_DELAY);
@@ -208,6 +230,39 @@ export function useAutocomplete(
     setSelectedIndex(-1);
   }, []);
 
+  const focusInputAfterSelection = useCallback((appliedText?: string) => {
+    if (!inputRef?.current) {
+      return;
+    }
+
+    const run = () => {
+      const target = inputRef.current;
+      if (!target) {
+        return;
+      }
+
+      const nextValueLength = typeof appliedText === 'string'
+        ? appliedText.length
+        : target.value.length;
+
+      target.focus({ preventScroll: true });
+
+      if (typeof target.setSelectionRange === 'function') {
+        target.setSelectionRange(nextValueLength, nextValueLength);
+      }
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(run);
+    } else {
+      setTimeout(run, 0);
+    }
+  }, [inputRef]);
+
+  const suppressUntilQueryChange = useCallback((query: string) => {
+    suppressedQueryRef.current = query;
+  }, []);
+
   return {
     suggestions,
     isLoading,
@@ -215,6 +270,8 @@ export function useAutocomplete(
     setSelectedIndex,
     selectNext,
     selectPrevious,
-    clearSuggestions
+    clearSuggestions,
+    focusInputAfterSelection,
+    suppressUntilQueryChange
   };
 }

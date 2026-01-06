@@ -41,6 +41,8 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
 
 const DEFAULT_TEXTAREA_VERTICAL_PADDING = 4;
 const VERTICAL_ALIGNMENT_OFFSET = 2;
+const PLACEHOLDER_VERTICAL_OFFSET = 0;
+const INLINE_SUGGESTION_VERTICAL_OFFSET = 0;
 
 function getExtensionFromMimeType(mimeType: string | undefined): string {
   if (!mimeType) {
@@ -131,6 +133,7 @@ export function MessageInput({
     top: DEFAULT_TEXTAREA_VERTICAL_PADDING + VERTICAL_ALIGNMENT_OFFSET,
     bottom: Math.max(DEFAULT_TEXTAREA_VERTICAL_PADDING - VERTICAL_ALIGNMENT_OFFSET, 0)
   }));
+  const [textareaLineHeight, setTextareaLineHeight] = useState<number | null>(null);
 
   const { createConversation, currentConversationId, conversations, isLoading, syncConversationFiles, stopStreaming } = useChatStore();
   const currentConversation = conversations.find(c => c.id === currentConversationId);
@@ -179,13 +182,16 @@ export function MessageInput({
     setSelectedIndex,
     selectNext,
     selectPrevious,
-    clearSuggestions
+    clearSuggestions,
+    focusInputAfterSelection,
+    suppressUntilQueryChange
   } = useAutocomplete(message, {
     enabled: autocompleteEnabled,
     apiKey: currentConversation?.apiKey,
     apiUrl: currentConversation?.apiUrl,
     adapterName: currentConversation?.adapterName,
-    useMiddleware: middlewareEnabled
+    useMiddleware: middlewareEnabled,
+    inputRef: textareaRef
   });
   const hasSuggestions = suggestions.length > 0;
   const activeSuggestionIndex = selectedIndex >= 0 ? selectedIndex : 0;
@@ -222,6 +228,11 @@ export function MessageInput({
     };
     const computedStyle = window.getComputedStyle(textarea);
     const lineHeight = parseFloat(computedStyle.lineHeight || '0');
+    if (!Number.isNaN(lineHeight) && lineHeight > 0) {
+      setTextareaLineHeight(prev => (prev === lineHeight ? prev : lineHeight));
+    } else {
+      setTextareaLineHeight(prev => (prev === null ? prev : null));
+    }
     if (!lineHeight || Number.isNaN(lineHeight)) {
       applyPadding(DEFAULT_TEXTAREA_VERTICAL_PADDING);
       return;
@@ -679,10 +690,12 @@ export function MessageInput({
   }, []);
 
   const handleSelectSuggestion = useCallback((text: string) => {
-    setMessage(normalizeSuggestionText(text));
+    const normalized = normalizeSuggestionText(text);
+    setMessage(normalized);
     clearSuggestions();
-    textareaRef.current?.focus();
-  }, [clearSuggestions, normalizeSuggestionText]);
+    suppressUntilQueryChange(normalized);
+    focusInputAfterSelection(normalized);
+  }, [clearSuggestions, focusInputAfterSelection, normalizeSuggestionText, suppressUntilQueryChange]);
 
   const acceptSuggestionByIndex = useCallback((index: number) => {
     if (index < 0) {
@@ -1081,10 +1094,11 @@ export function MessageInput({
           <div className="relative flex-1 w-full min-w-0">
             {showCustomPlaceholder && effectivePlaceholder && (
               <div
-                className="pointer-events-none absolute inset-0 flex items-center whitespace-pre-wrap px-0 text-base md:text-sm text-gray-500 dark:text-[#8e8ea0]"
+                className="pointer-events-none absolute inset-0 whitespace-pre-wrap px-0 text-base md:text-sm text-gray-500 dark:text-[#8e8ea0]"
                 style={{
-                  paddingTop: textareaVerticalPadding.top,
-                  paddingBottom: textareaVerticalPadding.bottom
+                  paddingTop: Math.max(textareaVerticalPadding.top - PLACEHOLDER_VERTICAL_OFFSET, 0),
+                  paddingBottom: textareaVerticalPadding.bottom,
+                  lineHeight: textareaLineHeight ? `${textareaLineHeight}px` : undefined
                 }}
                 aria-hidden="true"
               >
@@ -1095,8 +1109,9 @@ export function MessageInput({
               <div
                 className="pointer-events-none absolute inset-0 whitespace-pre-wrap px-0 text-base md:text-sm text-gray-400 dark:text-[#8e8ea0]"
                 style={{
-                  paddingTop: textareaVerticalPadding.top,
-                  paddingBottom: textareaVerticalPadding.bottom
+                  paddingTop: Math.max(textareaVerticalPadding.top - INLINE_SUGGESTION_VERTICAL_OFFSET, 0),
+                  paddingBottom: textareaVerticalPadding.bottom,
+                  lineHeight: textareaLineHeight ? `${textareaLineHeight}px` : undefined
                 }}
                 aria-hidden="true"
               >
