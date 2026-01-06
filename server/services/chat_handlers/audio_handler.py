@@ -6,6 +6,7 @@ single and streaming audio generation.
 """
 
 import logging
+import re
 from typing import Dict, Any, Optional, Tuple
 import asyncio
 
@@ -48,6 +49,10 @@ class AudioHandler:
 
         # Default TTS provider from config
         self.default_provider = tts_config.get('provider', 'openai')
+
+        # Content sanitization settings
+        self.sanitize_content = tts_config.get('sanitize_content', True)
+        self.announce_skipped_content = tts_config.get('announce_skipped_content', True)
 
         # Cache for audio services to avoid repeated creation
         self._audio_services = {}
@@ -97,6 +102,137 @@ class AudioHandler:
             )
 
         return truncated
+
+    def _sanitize_for_tts(self, text: str) -> str:
+        """
+        Sanitize text for TTS by removing non-speech content.
+
+        Removes or replaces:
+        - Code blocks (```...```)
+        - Chart blocks (```chart...```)
+        - Markdown tables
+        - URLs from links
+        - Image references
+        - Excessive markdown formatting
+
+        Args:
+            text: Text to sanitize
+
+        Returns:
+            Sanitized text suitable for speech synthesis
+        """
+        if not text:
+            return text
+
+        original_length = len(text)
+
+        # Placeholder text for skipped content (configurable)
+        chart_placeholder = "[Chart displayed]" if self.announce_skipped_content else ""
+        code_placeholder = "[Code block omitted]" if self.announce_skipped_content else ""
+        table_placeholder = "[Table displayed]" if self.announce_skipped_content else ""
+
+        # Remove chart blocks (```chart ... ```)
+        text = re.sub(
+            r'```chart\s*\n.*?```',
+            chart_placeholder,
+            text,
+            flags=re.DOTALL | re.IGNORECASE
+        )
+
+        # Remove other code blocks (```...```)
+        text = re.sub(
+            r'```[\w]*\s*\n.*?```',
+            code_placeholder,
+            text,
+            flags=re.DOTALL
+        )
+
+        # Remove inline code (`...`)
+        text = re.sub(r'`[^`]+`', '', text)
+
+        # Remove markdown tables
+        lines = text.split('\n')
+        filtered_lines = []
+        in_table = False
+        table_announced = False
+
+        for line in lines:
+            stripped = line.strip()
+
+            # Detect table separator row (|---|---|) or table data row (| x | y |)
+            is_separator = bool(re.match(r'^\|?[\s\-:|]+\|[\s\-:|]*\|?$', stripped))
+            is_table_row = bool(re.match(r'^\|.+\|$', stripped))
+
+            if is_separator or is_table_row:
+                if not in_table:
+                    in_table = True
+                    if not table_announced and table_placeholder:
+                        filtered_lines.append(table_placeholder)
+                        table_announced = True
+                continue
+            else:
+                if in_table:
+                    # Exiting table
+                    in_table = False
+                    table_announced = False
+                filtered_lines.append(line)
+
+        text = '\n'.join(filtered_lines)
+
+        # Remove image references ![alt](url)
+        text = re.sub(r'!\[([^\]]*)\]\([^)]+\)', '', text)
+
+        # Convert links [text](url) to just text
+        text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+
+        # Remove raw URLs
+        text = re.sub(r'https?://\S+', '', text)
+
+        # Remove markdown headers but keep text
+        text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+
+        # Remove bold/italic markers but keep text
+        text = re.sub(r'\*\*\*([^*]+)\*\*\*', r'\1', text)  # Bold+italic
+        text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)  # Bold
+        text = re.sub(r'\*([^*]+)\*', r'\1', text)  # Italic
+        text = re.sub(r'___([^_]+)___', r'\1', text)  # Bold+italic
+        text = re.sub(r'__([^_]+)__', r'\1', text)  # Bold
+        text = re.sub(r'_([^_]+)_', r'\1', text)  # Italic
+
+        # Remove strikethrough
+        text = re.sub(r'~~([^~]+)~~', r'\1', text)
+
+        # Remove horizontal rules
+        text = re.sub(r'^[-*_]{3,}\s*$', '', text, flags=re.MULTILINE)
+
+        # Remove blockquote markers but keep text
+        text = re.sub(r'^>\s*', '', text, flags=re.MULTILINE)
+
+        # Clean up list markers (keep as natural pauses)
+        text = re.sub(r'^[\s]*[-*+]\s+', '', text, flags=re.MULTILINE)
+        text = re.sub(r'^[\s]*\d+\.\s+', '', text, flags=re.MULTILINE)
+
+        # Clean up HTML tags if any
+        text = re.sub(r'<[^>]+>', '', text)
+
+        # Clean up multiple newlines
+        text = re.sub(r'\n{3,}', '\n\n', text)
+
+        # Clean up multiple spaces
+        text = re.sub(r' {2,}', ' ', text)
+
+        # Clean up lines that are just whitespace
+        text = re.sub(r'^\s+$', '', text, flags=re.MULTILINE)
+
+        result = text.strip()
+
+        if len(result) < original_length:
+            logger.debug(
+                f"TTS text sanitized from {original_length} to {len(result)} chars "
+                f"(removed {original_length - len(result)} chars of non-speech content)"
+            )
+
+        return result
 
     def _get_audio_provider(self, adapter_name: str) -> str:
         """
@@ -269,6 +405,13 @@ class AudioHandler:
         processed_text = self._truncate_text(text)
         if processed_text is None:
             return None, None
+
+        # Sanitize content for TTS (remove tables, charts, code blocks, etc.)
+        if self.sanitize_content:
+            processed_text = self._sanitize_for_tts(processed_text)
+            if not processed_text or not processed_text.strip():
+                logger.debug("No speakable text remaining after sanitization")
+                return None, None
 
         # Get audio provider
         provider = self._get_audio_provider(adapter_name)

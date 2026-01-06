@@ -398,6 +398,94 @@ class YourAdapter:
 | Anthropic | ❌ | ❌ | - | Placeholder (not yet supported) |
 | Cohere | ❌ | ❌ | - | Placeholder (not yet supported) |
 
+## TTS Content Sanitization
+
+When LLM responses contain tables, charts, code blocks, and other markdown formatting, TTS can produce awkward speech like "pipe column one pipe column two pipe" for tables. The TTS system includes built-in content sanitization to handle this.
+
+### Configuration
+
+In `config/tts.yaml`:
+
+```yaml
+tts:
+  provider: "openai"
+  enabled: true
+
+  # Content sanitization for TTS
+  sanitize_content: true          # Remove non-speech content before TTS
+  announce_skipped_content: true  # Say "[Table displayed]" vs silent removal
+```
+
+### What Gets Sanitized
+
+| Content Type | Behavior |
+|--------------|----------|
+| Chart blocks (` ```chart...``` `) | Removed or replaced with "[Chart displayed]" |
+| Code blocks (` ```...``` `) | Removed or replaced with "[Code block omitted]" |
+| Inline code (`` `code` ``) | Removed silently |
+| Markdown tables (`\| col \| col \|`) | Removed or replaced with "[Table displayed]" |
+| Images (`![alt](url)`) | Removed silently |
+| Links (`[text](url)`) | URL removed, link text kept |
+| Raw URLs | Removed silently |
+| Headers (`# ## ###`) | Markers removed, text kept |
+| Bold/Italic (`**text**`, `*text*`) | Markers removed, text kept |
+| Strikethrough (`~~text~~`) | Markers removed, text kept |
+| Horizontal rules (`---`) | Removed silently |
+| Blockquotes (`> text`) | Markers removed, text kept |
+| List markers (`- `, `1. `) | Markers removed, text kept |
+| HTML tags | Removed silently |
+
+### Example
+
+**LLM Response:**
+```
+Here's the quarterly data:
+
+| Quarter | Sales |
+|---------|-------|
+| Q1      | 45000 |
+| Q2      | 52000 |
+
+The trend shows **strong growth** in Q2.
+```
+
+**TTS Output (with `announce_skipped_content: true`):**
+> "Here's the quarterly data: Table displayed. The trend shows strong growth in Q2."
+
+**TTS Output (with `announce_skipped_content: false`):**
+> "Here's the quarterly data: The trend shows strong growth in Q2."
+
+### Adapter-Level Override
+
+You can override sanitization settings per adapter:
+
+```yaml
+  - name: "voice-chat"
+    enabled: true
+    type: "passthrough"
+    # ...
+
+    # TTS settings
+    tts_provider: "openai"
+    tts_sanitize_content: true        # Override global setting
+    tts_announce_skipped: false       # Silent removal for this adapter
+```
+
+### Implementation Details
+
+The sanitization happens in `AudioHandler._sanitize_for_tts()` (`server/services/chat_handlers/audio_handler.py`):
+
+1. Called after text truncation but before TTS generation
+2. Returns `None` if no speakable text remains (skips TTS entirely)
+3. Logs the reduction in text size for debugging
+
+```python
+# Flow in generate_audio():
+processed_text = self._truncate_text(text)      # Apply length limits
+processed_text = self._sanitize_for_tts(text)   # Remove non-speech content
+audio_data = await audio_service.text_to_speech(processed_text)  # Generate speech
+```
+
 ## Best Practices
 
 1. **Provider Selection**:

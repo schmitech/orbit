@@ -5,6 +5,13 @@ tts:
   provider: "openai"    # Global default TTS provider: openai, google, gemini, elevenlabs, ollama, vllm, coqui
   enabled: true             # Global TTS enable/disable
 
+  # Content sanitization for TTS
+  # When enabled, removes non-speech content (tables, charts, code blocks) before TTS
+  sanitize_content: true
+  # When true, announces skipped content (e.g., "[Table displayed]")
+  # When false, silently removes non-speech content
+  announce_skipped_content: true
+
 # TTS Provider-specific configurations
 tts_providers:
   openai:
