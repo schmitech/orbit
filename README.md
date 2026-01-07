@@ -38,7 +38,8 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 - [✨ Highlights](#highlights)
 - [🛠️ Why ORBIT](#why-orbit)
 - [⭐ Why Star This Repo?](#-why-star-this-repo)
-- [🚀 Quick Start](#quick-start)
+- [🚀 Deployment Guide](#-deployment-guide)
+  - [Try It Online](#try-it-online-no-installation)
 - [💬 Chat Clients](#-chat-clients)
 - [🏢 Commercial Support](#commercial-support)
 - [📖 Documentation](#documentation)
@@ -108,7 +109,19 @@ Your star isn't just a vanity metric—it directly helps the project:
 
 ## 🚀 Deployment Guide
 
-There are three ways to get started with ORBIT.
+There are several ways to get started with ORBIT.
+
+### Try It Online (No Installation)
+
+Experience ORBIT instantly in your browser—no setup required:
+
+<p align="center">
+  <a href="https://orbitsandbox.dev" target="_blank"><img src="https://img.shields.io/badge/🚀_Try_ORBIT_Sandbox-Live_Demo-brightgreen?style=for-the-badge" alt="Try ORBIT Sandbox"></a>
+</p>
+
+The <a href="https://orbitsandbox.dev" target="_blank"><strong>ORBIT Sandbox</strong></a> provides a fully configured environment where you can explore adapters, test queries, and see ORBIT in action before deploying it yourself.
+
+---
 
 ### Option 1: Docker (Fastest)
 
