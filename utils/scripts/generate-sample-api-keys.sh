@@ -41,6 +41,7 @@
 #   intent-sql-sqlite-hr -> hr
 #   intent-sql-sqlite-classified -> classified
 #   intent-duckdb-analytics -> analytical
+#   intent-duckdb-ev-population -> ev
 #   intent-sql-postgres -> postgres
 #   intent-elasticsearch-app-logs -> elasticsearch
 #   intent-firecrawl-webscrape -> web
@@ -430,6 +431,7 @@ declare -a all_adapters=(
     "intent-sql-sqlite-hr|hr|examples/prompts/hr-assistant-prompt.txt|HR Assistant Prompt"
     "intent-sql-sqlite-classified|classified|examples/prompts/analytics-assistant-prompt.txt|Classified Data Prompt"
     "intent-duckdb-analytics|analytical|utils/duckdb-intent-template/examples/analytics/analytics-assistant-prompt.txt|DuckDB Analytics Prompt"
+    "intent-duckdb-ev-population|ev|utils/duckdb-intent-template/examples/ev-population/ev-assistant-prompt.md|EV Population Prompt"
     "intent-sql-postgres|postgres|examples/postgres/prompts/customer-assistant-enhanced-prompt.txt|PostgreSQL Customer Orders Prompt"
     "intent-elasticsearch-app-logs|elasticsearch|examples/prompts/elasticsearch-log-assistant-prompt.txt|Elasticsearch Logs Prompt"
     "intent-firecrawl-webscrape|web|examples/prompts/firecrawl-knowledge-assistant-prompt.txt|Firecrawl Web Prompt"
@@ -653,6 +655,24 @@ I can help you analyze:
 Ask me about sales, products, customers, or market trends.
 
 **What business insights do you need?**
+NOTES_EOF
+            ;;
+        "intent-duckdb-ev-population")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT EV Policy Analyst ⚡🚗
+
+I'm your **electric vehicle policy analyst** for Washington State's DOL registration database!
+
+I can help state officials analyze:
+- 🔋 EV adoption trends (BEV vs PHEV breakdown)
+- 🗺️ Geographic distribution by county and legislative district
+- ⚡ Charging infrastructure needs and utility coverage
+- 📋 CAFV eligibility and incentive program impact
+- 🏭 Manufacturer market share and popular models
+
+I support both **English** and **Spanish** responses.
+
+**What EV policy insights do you need? / ¿Qué información sobre vehículos eléctricos necesita?**
 NOTES_EOF
             ;;
         "intent-sql-postgres")
