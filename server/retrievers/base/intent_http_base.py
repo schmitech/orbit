@@ -283,6 +283,9 @@ class IntentHTTPRetriever(BaseRetriever):
         """Initialize embedding client with fallback support."""
         embedding_provider = self.config.get('embedding', {}).get('provider')
 
+        # Store for re-initialization if client is closed by cache cleanup
+        self._embedding_provider = embedding_provider
+
         from embeddings.base import EmbeddingServiceFactory
 
         try:
@@ -303,6 +306,7 @@ class IntentHTTPRetriever(BaseRetriever):
             logger.info("Falling back to Ollama embedding provider")
 
             try:
+                self._embedding_provider = 'ollama'
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(
                     self.config, 'ollama')
                 if not self.embedding_client.initialized:
@@ -311,6 +315,69 @@ class IntentHTTPRetriever(BaseRetriever):
             except Exception as fallback_error:
                 logger.error(f"Failed to initialize fallback embedding provider: {fallback_error}")
                 raise Exception("Unable to initialize any embedding provider")
+
+    async def _ensure_embedding_client_valid(self) -> bool:
+        """
+        Ensure the embedding client is valid and ready for use.
+
+        If the underlying client was closed (e.g., by cache cleanup of another adapter),
+        re-initialize the embedding service.
+
+        Returns:
+            True if the client is valid, False if re-initialization failed
+        """
+        # Check if client exists
+        if self.embedding_client is None:
+            logger.warning("HTTP intent retriever embedding client is None, reinitializing...")
+            await self._initialize_embedding_client()
+            return self.embedding_client is not None
+
+        # For OpenAI-based clients, check if the underlying client was closed
+        # This can happen when DependencyCacheCleaner closes shared embedding services
+        # Note: Ollama services use session_manager instead of client, so skip check for them
+        uses_session_manager = hasattr(self.embedding_client, 'session_manager')
+        client_was_closed = (
+            hasattr(self.embedding_client, 'client') and
+            self.embedding_client.client is None and
+            not uses_session_manager  # Only check client for non-Ollama services
+        )
+        if client_was_closed:
+            provider = getattr(self, '_embedding_provider', None) or 'unknown'
+            logger.warning(
+                f"HTTP intent retriever's {provider} embedding client was closed "
+                f"(likely by cache cleanup of another adapter). Reinitializing..."
+            )
+
+            # Re-initialize the embedding client with a fresh instance
+            from embeddings.base import EmbeddingServiceFactory
+
+            try:
+                # Clear the factory cache for this provider to get a fresh instance
+                provider_to_use = self._embedding_provider or self.config.get('embedding', {}).get('provider', 'ollama')
+                factory_instances = EmbeddingServiceFactory.get_cached_instances()
+                keys_to_remove = [k for k in factory_instances.keys() if k.startswith(f"{provider_to_use}:")]
+                if keys_to_remove:
+                    with EmbeddingServiceFactory._get_lock():
+                        for key in keys_to_remove:
+                            if key in EmbeddingServiceFactory._instances:
+                                del EmbeddingServiceFactory._instances[key]
+
+                # Create a fresh embedding service
+                self.embedding_client = EmbeddingServiceFactory.create_embedding_service(
+                    self.config, provider_to_use
+                )
+
+                if not self.embedding_client.initialized:
+                    await self.embedding_client.initialize()
+
+                logger.info(f"Successfully reinitialized {provider_to_use} embedding client for HTTP intent retriever")
+                return True
+
+            except Exception as e:
+                logger.error(f"Failed to reinitialize embedding client: {e}")
+                return False
+
+        return True
 
     async def _initialize_inference_client(self):
         """Initialize inference client with adapter-specific override support."""
@@ -637,7 +704,7 @@ class IntentHTTPRetriever(BaseRetriever):
                     continue
 
                 template_attempts.append(template_id)
-                logger.info(f"Attempting template: {template_id} (similarity: {similarity:.2%})")
+                logger.debug(f"Attempting template: {template_id} (similarity: {similarity:.2%})")
 
                 # Extract parameters
                 if self.parameter_extractor:
@@ -661,7 +728,7 @@ class IntentHTTPRetriever(BaseRetriever):
                 # Dump results to file for debugging
                 if results:
                     result_count = len(results) if isinstance(results, list) else 1
-                    logger.info(f"Template {template_id} succeeded! HTTP query returned {result_count} result(s)")
+                    logger.debug(f"Template {template_id} succeeded! HTTP query returned {result_count} result(s)")
                     
                     # Log summary if previous templates failed
                     if failed_templates:
@@ -763,6 +830,11 @@ class IntentHTTPRetriever(BaseRetriever):
                 logger.debug(f"Template store contains {total_templates} templates")
             except Exception as e:
                 logger.debug(f"Could not get template store stats: {e}")
+
+            # Ensure embedding client is valid (may have been closed by cache cleanup)
+            if not await self._ensure_embedding_client_valid():
+                logger.error("Failed to ensure embedding client is valid")
+                return []
 
             query_embedding = await self.embedding_client.embed_query(query)
             if not query_embedding:

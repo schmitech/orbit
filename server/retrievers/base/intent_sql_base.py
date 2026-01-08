@@ -169,33 +169,37 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
     async def _initialize_embedding_client(self):
         """Initialize embedding client with fallback support."""
         embedding_provider = self.datasource_config.get('embedding_provider')
-        
+
         if not embedding_provider or embedding_provider == 'null':
             embedding_provider = self.config.get('embedding', {}).get('provider')
             logger.info(f"Using global embedding provider: {embedding_provider}")
         else:
             logger.info(f"Using datasource-specific embedding provider: {embedding_provider}")
-        
+
+        # Store for re-initialization if client is closed by cache cleanup
+        self._embedding_provider = embedding_provider
+
         from embeddings.base import EmbeddingServiceFactory
-        
+
         try:
             if embedding_provider:
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config, embedding_provider)
             else:
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config)
-            
+
             # Only initialize if not already initialized (singleton may be pre-initialized)
             if not self.embedding_client.initialized:
                 await self.embedding_client.initialize()
                 logger.info(f"Successfully initialized {embedding_provider} embedding provider")
             else:
                 logger.debug(f"Embedding service already initialized, skipping initialization")
-            
+
         except Exception as e:
             logger.warning(f"Failed to initialize {embedding_provider}: {e}")
             logger.info("Falling back to Ollama embedding provider")
-            
+
             try:
+                self._embedding_provider = 'ollama'
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config, 'ollama')
                 # Only initialize if not already initialized (singleton may be pre-initialized)
                 if not self.embedding_client.initialized:
@@ -206,6 +210,69 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             except Exception as fallback_error:
                 logger.error(f"Failed to initialize fallback embedding provider: {fallback_error}")
                 raise Exception("Unable to initialize any embedding provider")
+
+    async def _ensure_embedding_client_valid(self) -> bool:
+        """
+        Ensure the embedding client is valid and ready for use.
+
+        If the underlying client was closed (e.g., by cache cleanup of another adapter),
+        re-initialize the embedding service.
+
+        Returns:
+            True if the client is valid, False if re-initialization failed
+        """
+        # Check if client exists
+        if self.embedding_client is None:
+            logger.warning("Intent retriever embedding client is None, reinitializing...")
+            await self._initialize_embedding_client()
+            return self.embedding_client is not None
+
+        # For OpenAI-based clients, check if the underlying client was closed
+        # This can happen when DependencyCacheCleaner closes shared embedding services
+        # Note: Ollama services use session_manager instead of client, so skip check for them
+        uses_session_manager = hasattr(self.embedding_client, 'session_manager')
+        client_was_closed = (
+            hasattr(self.embedding_client, 'client') and
+            self.embedding_client.client is None and
+            not uses_session_manager  # Only check client for non-Ollama services
+        )
+        if client_was_closed:
+            provider = getattr(self, '_embedding_provider', None) or 'unknown'
+            logger.warning(
+                f"Intent retriever's {provider} embedding client was closed "
+                f"(likely by cache cleanup of another adapter). Reinitializing..."
+            )
+
+            # Re-initialize the embedding client with a fresh instance
+            from embeddings.base import EmbeddingServiceFactory
+
+            try:
+                # Clear the factory cache for this provider to get a fresh instance
+                provider_to_use = self._embedding_provider or self.config.get('embedding', {}).get('provider', 'ollama')
+                factory_instances = EmbeddingServiceFactory.get_cached_instances()
+                keys_to_remove = [k for k in factory_instances.keys() if k.startswith(f"{provider_to_use}:")]
+                if keys_to_remove:
+                    with EmbeddingServiceFactory._get_lock():
+                        for key in keys_to_remove:
+                            if key in EmbeddingServiceFactory._instances:
+                                del EmbeddingServiceFactory._instances[key]
+
+                # Create a fresh embedding service
+                self.embedding_client = EmbeddingServiceFactory.create_embedding_service(
+                    self.config, provider_to_use
+                )
+
+                if not self.embedding_client.initialized:
+                    await self.embedding_client.initialize()
+
+                logger.info(f"Successfully reinitialized {provider_to_use} embedding client for intent retriever")
+                return True
+
+            except Exception as e:
+                logger.error(f"Failed to reinitialize embedding client: {e}")
+                return False
+
+        return True
     
     async def _initialize_inference_client(self):
         """Initialize inference client with adapter-specific override support."""
@@ -710,7 +777,12 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 logger.debug(f"Template store stats - total: {total_templates}, cached: {cached_templates}, collection: {collection_name}")
             except Exception as e:
                 logger.debug(f"Could not get template store stats: {e}")
-            
+
+            # Ensure embedding client is valid (may have been closed by cache cleanup)
+            if not await self._ensure_embedding_client_valid():
+                logger.error("Failed to ensure embedding client is valid")
+                return []
+
             # Get query embedding
             query_embedding = await self.embedding_client.embed_query(query)
             if not query_embedding:

@@ -122,6 +122,8 @@ class AbstractVectorRetriever(BaseRetriever):
             from embeddings.base import EmbeddingServiceFactory
             self.embeddings = EmbeddingServiceFactory.create_embedding_service(
                 self.config, embedding_provider)
+            # Store provider for potential re-initialization if cache cleanup closes the service
+            self._embedding_provider = embedding_provider
             # Only initialize if not already initialized (singleton may be pre-initialized)
             if not self.embeddings.initialized:
                 await self.embeddings.initialize()
@@ -158,28 +160,93 @@ class AbstractVectorRetriever(BaseRetriever):
             self._vector_client = None
             logger.debug(f"Datasource closed for {self._get_datasource_name()}")
     
+    async def _ensure_embeddings_valid(self) -> bool:
+        """
+        Ensure the embeddings service is valid and ready for use.
+        If the underlying client was closed (e.g., by cache cleanup of another adapter),
+        re-initialize the embedding service.
+
+        Returns:
+            True if embeddings are valid and ready, False otherwise
+        """
+        if self.embeddings is None:
+            logger.warning("Vector retriever embeddings is None, reinitializing...")
+            await self._initialize_embeddings()
+            return self.embeddings is not None
+
+        # Only check for closed client if using the new embedding service
+        if self.using_new_embedding_service:
+            # Check if service uses client pattern (OpenAI, etc.) vs session_manager pattern (Ollama)
+            # Ollama services have session_manager instead of client, so skip client check for them
+            uses_session_manager = hasattr(self.embeddings, 'session_manager')
+            client_was_closed = (
+                hasattr(self.embeddings, 'client') and
+                self.embeddings.client is None and
+                not uses_session_manager  # Only check client for non-Ollama services
+            )
+
+            if client_was_closed:
+                provider = getattr(self, '_embedding_provider', None) or 'unknown'
+                logger.warning(
+                    f"Vector retriever's {provider} embedding client was closed "
+                    f"(likely by cache cleanup of another adapter). Reinitializing..."
+                )
+
+                from embeddings.base import EmbeddingServiceFactory
+                try:
+                    provider_to_use = self._embedding_provider or self.config.get('embedding', {}).get('provider', 'ollama')
+
+                    # Clear the stale cached instance for this provider
+                    factory_instances = EmbeddingServiceFactory.get_cached_instances()
+                    keys_to_remove = [k for k in factory_instances.keys() if k.startswith(f"{provider_to_use}:")]
+                    if keys_to_remove:
+                        with EmbeddingServiceFactory._get_lock():
+                            for key in keys_to_remove:
+                                if key in EmbeddingServiceFactory._instances:
+                                    logger.debug(f"Removing stale embedding cache entry: {key}")
+                                    del EmbeddingServiceFactory._instances[key]
+
+                    # Create new instance
+                    self.embeddings = EmbeddingServiceFactory.create_embedding_service(
+                        self.config, provider_to_use
+                    )
+                    if not self.embeddings.initialized:
+                        await self.embeddings.initialize()
+                    logger.info(f"Successfully reinitialized {provider_to_use} embedding service for vector retriever")
+                    return True
+                except Exception as e:
+                    logger.error(f"Failed to reinitialize embeddings: {e}")
+                    return False
+
+        return True
+
     async def embed_query(self, query: str) -> List[float]:
         """
         Generate an embedding for a query using the appropriate embedding service.
-        
+
         Args:
             query: The query to embed
-            
+
         Returns:
             A list of floats representing the embedding vector
-            
+
         Raises:
             ValueError: If embeddings are not available
         """
         if not self.embeddings:
             raise ValueError("Embeddings are disabled or not initialized")
-            
+
+        # Ensure embedding service is valid before using it
+        if self.using_new_embedding_service:
+            if not await self._ensure_embeddings_valid():
+                raise ValueError("Failed to ensure embeddings are valid")
+
         if self.using_new_embedding_service:
             # Use the new embedding service API
             return await self.embeddings.embed_query(query)
         else:
             # Use the legacy Ollama embeddings
-            # For langchain OllamaEmbeddings, embed_query is also a coroutine 
+            # For langchain OllamaEmbeddings, embed_query is also a coroutine
             # that needs to be awaited
             return await self.embeddings.embed_query(query)
     
