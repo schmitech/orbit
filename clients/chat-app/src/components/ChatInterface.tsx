@@ -737,9 +737,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           {/* Messages and Input - Conditional Layout */}
           {showEmptyState ? (
             // Empty state: Flex layout that pushes input to bottom on mobile, left-aligned on desktop
-            <div className="flex flex-1 flex-col min-h-0 pt-4 md:pt-6">
-              <div className="flex-1 flex flex-col justify-between md:justify-start md:flex-none">
-                <div className="w-full space-y-6">
+            <div className={`flex flex-1 flex-col min-h-0 pt-4 md:pt-6 ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
+              <div className={`flex-1 flex flex-col justify-between md:justify-start ${shouldShowAgentSelectionList ? 'min-h-0 overflow-hidden' : 'md:flex-none'}`}>
+                <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && (
                     <div className={`${prominentWidthClass}`}>
                       <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
@@ -757,8 +757,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     </div>
                   )}
                   {shouldShowAgentSelectionList ? (
-                    <>
-                      <div className={`${prominentWidthClass} mb-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between`}>
+                    <div className="flex flex-col min-h-0 overflow-hidden flex-1 gap-6">
+                      <div className={`${prominentWidthClass} flex-shrink-0 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between`}>
                         <div className="flex-1">
                           <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
                             {welcomeHeading}
@@ -777,12 +777,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       </div>
                       <AgentSelectionList
                         onAdapterSelect={handleAgentCardSelection}
-                        className={prominentWidthClass}
+                        className={`${prominentWidthClass} flex-1 min-h-0 overflow-hidden`}
                       />
-                    </>
+                    </div>
                   ) : shouldShowAdapterNotesPanel ? (
-                    <div className={`${prominentWidthClass} rounded-3xl border border-gray-200/80 bg-white/95 p-6 shadow-sm dark:border-[#3b3c49] dark:bg-[#1c1d23]/90`}>
-                      <div className="flex items-center justify-between gap-3">
+                    <div className={`${prominentWidthClass} rounded-3xl border border-gray-300 bg-white/95 p-6 shadow-sm dark:border-[#565869] dark:bg-[#1c1d23]/90`}>
+                      <div className="flex items-center justify-between gap-3 mb-4">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                           {currentConversation?.adapterName ||
                             currentConversation?.adapterInfo?.adapter_name ||
@@ -800,7 +800,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                           Change Agent
                         </button>
                       </div>
-                      <div className="rounded-2xl border border-gray-200 bg-white/70 px-4 pb-4 pt-3 dark:border-[#3b3c49] dark:bg-[#232430]/80">
+                      <div className="rounded-2xl border border-gray-300 bg-white/70 px-4 pb-4 pt-3 dark:border-[#565869] dark:bg-[#232430]/80">
                         {currentConversation?.adapterInfo?.notes ? (
                           <MarkdownRenderer
                             content={currentConversation.adapterInfo.notes}

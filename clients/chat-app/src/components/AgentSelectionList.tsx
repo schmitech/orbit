@@ -129,10 +129,10 @@ export function AgentSelectionList({
     }
 
     return (
-      <div className="relative">
+      <div className="relative flex flex-col h-full min-h-0">
         <div
           ref={scrollContainerRef}
-          className="max-h-[75vh] lg:max-h-[70vh] overflow-y-auto pr-1 pt-3 pb-1"
+          className="flex-1 min-h-0 overflow-y-auto pr-1 pb-6"
           onScroll={() => {
             const el = scrollContainerRef.current;
             if (!el) return;
@@ -161,7 +161,7 @@ export function AgentSelectionList({
   return (
     <div className={`flex w-full flex-col gap-6 ${className}`}>
       {(eyebrow || title || subtitle) && (
-        <div>
+        <div className="flex-shrink-0">
           {eyebrow && (
             <p className="text-sm font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">
               {eyebrow}
@@ -179,7 +179,7 @@ export function AgentSelectionList({
           )}
         </div>
       )}
-      <div className="relative w-full">
+      <div className="relative w-full flex-shrink-0">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
@@ -190,7 +190,9 @@ export function AgentSelectionList({
           className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 shadow-inner focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#3b3c49] dark:bg-[#1f2027] dark:text-white dark:shadow-none"
         />
       </div>
-      {renderContent()}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {renderContent()}
+      </div>
     </div>
   );
 }
