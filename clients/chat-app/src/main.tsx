@@ -2,9 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { getVersionInfo } from './utils/version';
-import { debugLog } from './utils/debug';
-import { getApplicationName } from './utils/runtimeConfig';
+import { getVersionInfo } from './utils/version.ts';
+import { debugLog } from './utils/debug.ts';
+import { getApplicationName } from './utils/runtimeConfig.ts';
 
 // Set document title from runtime config
 document.title = getApplicationName();

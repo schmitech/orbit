@@ -43,6 +43,8 @@ const DEFAULT_TEXTAREA_VERTICAL_PADDING = 4;
 const VERTICAL_ALIGNMENT_OFFSET = 2;
 const PLACEHOLDER_VERTICAL_OFFSET = 0;
 const INLINE_SUGGESTION_VERTICAL_OFFSET = 0;
+const DEFAULT_API_KEY = getDefaultKey();
+const isDefaultKeyPlaceholder = DEFAULT_API_KEY === 'default-key';
 
 function getExtensionFromMimeType(mimeType: string | undefined): string {
   if (!mimeType) {
@@ -523,6 +525,7 @@ export function MessageInput({
   // Sync and poll file status when switching to a conversation
   useEffect(() => {
     const middlewareMode = getEnableApiMiddleware();
+    let conversationApiKey: string | undefined;
     
     if (!currentConversationId || !currentConversation) {
       return;
@@ -833,11 +836,22 @@ export function MessageInput({
         if (!currentConv.adapterName) {
           throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
         }
-      } else if (!currentConv.apiKey || currentConv.apiKey === getDefaultKey()) {
-        throw new Error('API key not configured for this conversation. Please configure API settings first.');
+      } else {
+        const normalizedConversationKey =
+          typeof currentConv.apiKey === 'string' ? currentConv.apiKey.trim() : '';
+        const runtimeDefaultKey = DEFAULT_API_KEY?.trim() || '';
+        const canUseRuntimeDefaultKey = !isDefaultKeyPlaceholder && runtimeDefaultKey.length > 0;
+        const effectiveApiKey =
+          normalizedConversationKey || (canUseRuntimeDefaultKey ? runtimeDefaultKey : '');
+        const usingPlaceholderDefaultKey =
+          isDefaultKeyPlaceholder && effectiveApiKey === DEFAULT_API_KEY;
+        if (!effectiveApiKey || usingPlaceholderDefaultKey) {
+          throw new Error('API key not configured for this conversation. Please configure API settings first.');
+        }
+
+        conversationApiKey = effectiveApiKey;
       }
 
-      const conversationApiKey = currentConv.apiKey;
       const conversationApiUrl = resolveApiUrl(currentConv.apiUrl);
       const conversationAdapterName = currentConv.adapterName;
       pasteConversationId = currentConv.id;

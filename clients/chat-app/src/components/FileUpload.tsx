@@ -9,6 +9,7 @@ import { getDefaultKey, resolveApiUrl, getEnableApiMiddleware } from '../utils/r
 
 // Default API key from runtime configuration
 const DEFAULT_API_KEY = getDefaultKey();
+const isDefaultKeyPlaceholder = DEFAULT_API_KEY === 'default-key';
 
 // Persist upload state across component re-mounts and conversation switches
 const uploadingFilesStore = new Map<string, Map<string, FileUploadProgress>>();
@@ -286,6 +287,7 @@ export function FileUpload({
     }
 
     const isMiddlewareEnabled = getEnableApiMiddleware();
+    let conversationApiKey: string | undefined;
 
     if (isMiddlewareEnabled) {
       if (!conversation.adapterName) {
@@ -293,13 +295,23 @@ export function FileUpload({
         return;
       }
     } else {
-      if (!conversation.apiKey || conversation.apiKey === DEFAULT_API_KEY) {
+      const normalizedConversationKey =
+        typeof conversation.apiKey === 'string' ? conversation.apiKey.trim() : '';
+      const runtimeDefaultKey = DEFAULT_API_KEY?.trim() || '';
+      const canUseRuntimeDefaultKey = !isDefaultKeyPlaceholder && runtimeDefaultKey.length > 0;
+      const effectiveApiKey =
+        normalizedConversationKey || (canUseRuntimeDefaultKey ? runtimeDefaultKey : '');
+      const usingPlaceholderDefaultKey =
+        isDefaultKeyPlaceholder && effectiveApiKey === DEFAULT_API_KEY;
+
+      if (!effectiveApiKey || usingPlaceholderDefaultKey) {
         onUploadError?.('API key not configured for this conversation. Please configure API settings first.');
         return;
       }
+
+      conversationApiKey = effectiveApiKey;
     }
 
-    const conversationApiKey = conversation.apiKey;
     const conversationAdapterName = conversation.adapterName;
     const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
 

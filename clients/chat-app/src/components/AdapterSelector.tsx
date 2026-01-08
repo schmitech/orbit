@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { fetchAdapters, type Adapter } from '../utils/middlewareConfig';
 import { debugError } from '../utils/debug';
@@ -7,7 +7,6 @@ interface AdapterSelectorProps {
   selectedAdapter: string | null;
   onAdapterChange: (adapterName: string) => void;
   disabled?: boolean;
-  defaultAdapterName?: string | null;
   showDescriptions?: boolean;
   variant?: 'sidebar' | 'prominent';
   label?: string;
@@ -18,7 +17,6 @@ export function AdapterSelector({
   selectedAdapter,
   onAdapterChange,
   disabled,
-  defaultAdapterName,
   showDescriptions = false,
   variant = 'sidebar',
   label,
@@ -59,31 +57,6 @@ export function AdapterSelector({
     };
   }, []);
 
-  const onAdapterChangeRef = useRef(onAdapterChange);
-  const hasAutoSelectedDefault = useRef(false);
-
-  useEffect(() => {
-    onAdapterChangeRef.current = onAdapterChange;
-  }, [onAdapterChange]);
-
-  useEffect(() => {
-    if (selectedAdapter) {
-      hasAutoSelectedDefault.current = true;
-      return;
-    }
-
-    if (!defaultAdapterName || hasAutoSelectedDefault.current || adapters.length === 0) {
-      return;
-    }
-
-    const hasMatchingAdapter = adapters.some(adapter => adapter.name === defaultAdapterName);
-    if (!hasMatchingAdapter) {
-      return;
-    }
-
-    hasAutoSelectedDefault.current = true;
-    onAdapterChangeRef.current(defaultAdapterName);
-  }, [adapters, selectedAdapter, defaultAdapterName]);
 
   const selectedAdapterObj = adapters.find(a => a.name === selectedAdapter);
 

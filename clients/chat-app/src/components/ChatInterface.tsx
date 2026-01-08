@@ -90,7 +90,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
   const applicationName = getApplicationName();
   const applicationDescription = getApplicationDescription().trim();
-  const welcomeHeading = `Welcome to ${applicationName}`;
   const hasIntroDescription = applicationDescription.length > 0;
   const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
   const initialPathSlugRef = useRef<string | null>(
@@ -114,7 +113,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const bodyHeadingText =
     currentConversation?.adapterName && !shouldShowAgentSelectionList
       ? currentConversation.adapterName
-      : welcomeHeading;
+      : shouldShowAgentSelectionList
+        ? applicationName
+        : '';
   const headerBorderClass = shouldShowAgentSelectionList
     ? 'border-transparent dark:border-transparent md:border-transparent md:dark:border-transparent'
     : '';
@@ -740,12 +741,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
             <div className={`flex flex-1 flex-col min-h-0 pt-4 md:pt-6 ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
               <div className={`flex-1 flex flex-col justify-between md:justify-start ${shouldShowAgentSelectionList ? 'min-h-0 overflow-hidden' : 'md:flex-none'}`}>
                 <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : 'space-y-6'}`}>
-                  {showBodyHeading && !shouldShowAdapterNotesPanel && (
+                  {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
                     <div className={`${prominentWidthClass}`}>
                       <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
                         {bodyHeadingText}
                       </h2>
-                      {bodyHeadingText === welcomeHeading && hasIntroDescription && (
+                      {bodyHeadingText === applicationName && hasIntroDescription && shouldShowAgentSelectionList && (
                         <div className="mt-2">
                           <MarkdownRenderer
                             content={applicationDescription}
@@ -761,7 +762,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       <div className={`${prominentWidthClass} flex-shrink-0 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between`}>
                         <div className="flex-1">
                           <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
-                            {welcomeHeading}
+                            {applicationName}
                           </h2>
                           {hasIntroDescription && (
                             <div className="mt-2">
