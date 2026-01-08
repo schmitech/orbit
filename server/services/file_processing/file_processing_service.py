@@ -39,7 +39,7 @@ class FileProcessingService:
 
         Args:
             config: Configuration dictionary
-            app_state: Optional FastAPI app state for accessing services (e.g., dynamic_adapter_manager)
+            app_state: Optional FastAPI app state for accessing services (e.g., adapter_manager)
         """
         self.config = config
         self.app_state = app_state
@@ -273,8 +273,9 @@ class FileProcessingService:
         """
         try:
             # Try to get adapter manager from app state
-            if self.app_state and hasattr(self.app_state, 'dynamic_adapter_manager'):
-                adapter_manager = self.app_state.dynamic_adapter_manager
+            # Note: The adapter manager is stored as 'adapter_manager' in app.state (set by service_factory.py)
+            if self.app_state and hasattr(self.app_state, 'adapter_manager'):
+                adapter_manager = self.app_state.adapter_manager
 
                 # Get API key service to lookup which adapter this API key uses
                 if hasattr(self.app_state, 'api_key_service'):
@@ -316,8 +317,9 @@ class FileProcessingService:
         """
         try:
             # Try to get adapter manager from app state
-            if self.app_state and hasattr(self.app_state, 'dynamic_adapter_manager'):
-                adapter_manager = self.app_state.dynamic_adapter_manager
+            # Note: The adapter manager is stored as 'adapter_manager' in app.state (set by service_factory.py)
+            if self.app_state and hasattr(self.app_state, 'adapter_manager'):
+                adapter_manager = self.app_state.adapter_manager
 
                 # Get API key service to lookup which adapter this API key uses
                 if hasattr(self.app_state, 'api_key_service'):
@@ -860,35 +862,62 @@ class FileProcessingService:
         Returns:
             Dict containing adapter config merged with global config, or just global config as fallback
         """
+        fallback_reason = None
+
         try:
             # Try to get adapter manager from app state
-            if self.app_state and hasattr(self.app_state, 'dynamic_adapter_manager'):
-                adapter_manager = self.app_state.dynamic_adapter_manager
+            # Note: The adapter manager is stored as 'adapter_manager' in app.state (set by service_factory.py)
+            if not self.app_state:
+                fallback_reason = "app_state not available"
+            elif not hasattr(self.app_state, 'adapter_manager'):
+                fallback_reason = "adapter_manager not in app_state"
+            else:
+                adapter_manager = self.app_state.adapter_manager
 
                 # Get API key service to lookup which adapter this API key uses
-                if hasattr(self.app_state, 'api_key_service'):
+                if not hasattr(self.app_state, 'api_key_service'):
+                    fallback_reason = "api_key_service not in app_state"
+                else:
                     api_key_service = self.app_state.api_key_service
 
                     # Get adapter name for this API key (pass adapter_manager to check live configs)
                     adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
 
-                    if adapter_name:
+                    if not adapter_name:
+                        fallback_reason = f"no adapter found for api_key {api_key[:8]}..."
+                    else:
                         # Get adapter config from adapter manager
                         adapter_config = adapter_manager.get_adapter_config(adapter_name)
 
-                        if adapter_config:
-                            logger.info(f"Using adapter-specific config for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
+                        if not adapter_config:
+                            fallback_reason = f"adapter '{adapter_name}' has no config"
+                        else:
+                            logger.debug(f"Using adapter-specific config for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
 
-                            # Merge adapter config with global config
-                            # Adapter config takes precedence for provider overrides
-                            merged_config = self.config.copy()
+                            # Merge adapter config with global config using deep copy to avoid modifying global config
+                            import copy
+                            merged_config = copy.deepcopy(self.config)
 
                             # Override embedding provider if specified in adapter
                             if 'embedding_provider' in adapter_config:
                                 if 'embedding' not in merged_config:
                                     merged_config['embedding'] = {}
                                 merged_config['embedding']['provider'] = adapter_config['embedding_provider']
-                                logger.info(f"Using adapter embedding provider: {adapter_config['embedding_provider']}")
+                                logger.debug(f"Using adapter embedding provider: {adapter_config['embedding_provider']}")
+                            else:
+                                # Log what embedding provider will be used
+                                default_provider = merged_config.get('embedding', {}).get('provider', 'ollama')
+                                logger.debug(f"Adapter '{adapter_name}' has no embedding_provider override, using default: {default_provider}")
+
+                            # Override embedding model if specified in adapter
+                            if 'embedding_model' in adapter_config:
+                                embedding_provider = adapter_config.get('embedding_provider') or merged_config.get('embedding', {}).get('provider', 'ollama')
+                                if 'embeddings' not in merged_config:
+                                    merged_config['embeddings'] = {}
+                                if embedding_provider not in merged_config['embeddings']:
+                                    merged_config['embeddings'][embedding_provider] = {}
+                                merged_config['embeddings'][embedding_provider]['model'] = adapter_config['embedding_model']
+                                logger.debug(f"Using adapter embedding model: {adapter_config['embedding_model']} (provider: {embedding_provider})")
 
                             # Pass adapter-specific config to retriever
                             merged_config['adapter_config'] = adapter_config.get('config', {})
@@ -896,10 +925,14 @@ class FileProcessingService:
                             return merged_config
 
         except Exception as e:
+            fallback_reason = f"exception: {e}"
             logger.warning(f"Could not lookup adapter-specific config for API key: {e}")
 
-        # Fall back to global config
-        logger.debug(f"Using global config for api_key: {api_key[:8]}...")
+        # Fall back to global config - LOG WARNING so users know the embedding provider might not match
+        global_embedding_provider = self.config.get('embedding', {}).get('provider', 'ollama')
+        logger.warning(f"FileProcessingService: Falling back to global config for api_key {api_key[:8]}... "
+                      f"(reason: {fallback_reason}). Embedding provider will be: {global_embedding_provider}. "
+                      f"If adapter specifies a different embedding_provider, there may be a mismatch!")
         return self.config
 
     async def _index_chunks_in_vector_store(

@@ -459,6 +459,18 @@ class AdapterLoader:
             config_with_adapter['embedding']['provider'] = adapter_config['embedding_provider']
             logger.debug(f"Setting embedding provider override: {adapter_config['embedding_provider']} for adapter: {adapter_name}")
 
+        # Include adapter-level embedding model override
+        # This allows adapters to use a different embedding model than the global default
+        if adapter_config.get('embedding_model'):
+            embedding_provider = adapter_config.get('embedding_provider') or config_with_adapter.get('embedding', {}).get('provider', 'ollama')
+            if 'embeddings' not in config_with_adapter:
+                config_with_adapter['embeddings'] = {}
+            if embedding_provider not in config_with_adapter['embeddings']:
+                config_with_adapter['embeddings'][embedding_provider] = {}
+            original_model = config_with_adapter['embeddings'][embedding_provider].get('model', 'default')
+            config_with_adapter['embeddings'][embedding_provider]['model'] = adapter_config['embedding_model']
+            logger.debug(f"Setting embedding model override for adapter '{adapter_name}': '{original_model}' -> '{adapter_config['embedding_model']}' (provider: {embedding_provider})")
+
         # Include adapter-level database override
         if adapter_config.get('database'):
             if 'datasources' not in config_with_adapter:

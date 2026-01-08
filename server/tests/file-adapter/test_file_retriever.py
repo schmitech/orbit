@@ -892,6 +892,206 @@ async def test_get_collections_provider_signature_exception(mock_retriever):
 
 
 @pytest.mark.asyncio
+async def test_get_collections_mismatch_with_embedding_metadata(mock_retriever):
+    """Test that embedding mismatch uses file's stored embedding metadata for detailed error message"""
+    file_id = 'file_with_embedding_metadata'
+
+    # Create file with embedding metadata stored (simulating a file indexed with openai)
+    await mock_retriever.metadata_store.record_file_upload(
+        file_id=file_id,
+        api_key='test_key',
+        filename='important_document.pdf',
+        mime_type='application/pdf',
+        file_size=1000,
+        storage_key='key',
+        storage_type='vector'
+    )
+    # Update with collection name AND embedding metadata
+    await mock_retriever.metadata_store.update_processing_status(
+        file_id=file_id,
+        status='completed',
+        collection_name='files_openai_1536_collection',
+        embedding_provider='openai',
+        embedding_dimensions=1536
+    )
+
+    # Current adapter uses different provider (ollama with 768 dims)
+    mock_retriever.embed_query = AsyncMock(return_value=[0.1] * 768)  # 768 dims for ollama
+    mock_retriever.config = {'embedding': {'provider': 'ollama'}}
+
+    collections = await mock_retriever._get_collections_multiple(
+        file_ids=[file_id],
+        api_key=None,
+        collection_name=None
+    )
+
+    # Should be filtered out due to provider mismatch
+    assert len(collections) == 0
+
+
+@pytest.mark.asyncio
+async def test_get_collections_mismatch_multiple_files_tracked(mock_retriever):
+    """Test that multiple files with embedding mismatch are all tracked"""
+    # Create multiple files with different embedding providers
+    files_config = [
+        ('file_openai_1', 'doc1.pdf', 'files_openai_1536_coll1', 'openai', 1536),
+        ('file_openai_2', 'doc2.pdf', 'files_openai_1536_coll2', 'openai', 1536),
+        ('file_cohere', 'doc3.pdf', 'files_cohere_1024_coll3', 'cohere', 1024),
+    ]
+
+    for file_id, filename, coll_name, emb_provider, emb_dims in files_config:
+        await mock_retriever.metadata_store.record_file_upload(
+            file_id=file_id,
+            api_key='test_key',
+            filename=filename,
+            mime_type='application/pdf',
+            file_size=1000,
+            storage_key=f'key_{file_id}',
+            storage_type='vector'
+        )
+        await mock_retriever.metadata_store.update_processing_status(
+            file_id=file_id,
+            status='completed',
+            collection_name=coll_name,
+            embedding_provider=emb_provider,
+            embedding_dimensions=emb_dims
+        )
+
+    # Current adapter uses ollama (768 dims) - none of the files match
+    mock_retriever.embed_query = AsyncMock(return_value=[0.1] * 768)
+    mock_retriever.config = {'embedding': {'provider': 'ollama'}}
+
+    file_ids = ['file_openai_1', 'file_openai_2', 'file_cohere']
+    collections = await mock_retriever._get_collections_multiple(
+        file_ids=file_ids,
+        api_key=None,
+        collection_name=None
+    )
+
+    # All files should be filtered out
+    assert len(collections) == 0
+
+
+@pytest.mark.asyncio
+async def test_get_collections_mixed_match_and_mismatch(mock_retriever):
+    """Test scenario where some files match provider and some don't"""
+    # Create files - some matching current provider, some not
+    files_config = [
+        ('file_match_1', 'match1.txt', 'files_test_3_coll1', 'test', 3),
+        ('file_mismatch', 'mismatch.pdf', 'files_openai_1536_coll2', 'openai', 1536),
+        ('file_match_2', 'match2.txt', 'files_test_3_coll3', 'test', 3),
+    ]
+
+    for file_id, filename, coll_name, emb_provider, emb_dims in files_config:
+        await mock_retriever.metadata_store.record_file_upload(
+            file_id=file_id,
+            api_key='test_key',
+            filename=filename,
+            mime_type='text/plain',
+            file_size=100,
+            storage_key=f'key_{file_id}',
+            storage_type='vector'
+        )
+        await mock_retriever.metadata_store.update_processing_status(
+            file_id=file_id,
+            status='completed',
+            collection_name=coll_name,
+            embedding_provider=emb_provider,
+            embedding_dimensions=emb_dims
+        )
+
+    # Current adapter uses 'test' provider with 3 dims
+    mock_retriever.embed_query = AsyncMock(return_value=[0.1, 0.2, 0.3])
+    mock_retriever.config = {'embedding': {'provider': 'test'}}
+
+    file_ids = ['file_match_1', 'file_mismatch', 'file_match_2']
+    collections = await mock_retriever._get_collections_multiple(
+        file_ids=file_ids,
+        api_key=None,
+        collection_name=None
+    )
+
+    # Only matching files should be included
+    assert len(collections) == 2
+    assert 'files_test_3_coll1' in collections
+    assert 'files_test_3_coll3' in collections
+    assert 'files_openai_1536_coll2' not in collections
+
+
+@pytest.mark.asyncio
+async def test_get_collections_mismatch_without_embedding_metadata(mock_retriever):
+    """Test embedding mismatch when file doesn't have embedding metadata stored (legacy files)"""
+    file_id = 'legacy_file'
+
+    # Create file WITHOUT embedding metadata (legacy behavior)
+    await mock_retriever.metadata_store.record_file_upload(
+        file_id=file_id,
+        api_key='test_key',
+        filename='legacy.txt',
+        mime_type='text/plain',
+        file_size=100,
+        storage_key='key',
+        storage_type='vector'
+    )
+    # Update with collection name but NO embedding_provider/embedding_dimensions
+    await mock_retriever.metadata_store.update_processing_status(
+        file_id=file_id,
+        status='completed',
+        collection_name='files_openai_1536_legacy'
+        # Note: no embedding_provider or embedding_dimensions
+    )
+
+    # Current adapter uses different provider
+    mock_retriever.embed_query = AsyncMock(return_value=[0.1] * 768)
+    mock_retriever.config = {'embedding': {'provider': 'ollama'}}
+
+    collections = await mock_retriever._get_collections_multiple(
+        file_ids=[file_id],
+        api_key=None,
+        collection_name=None
+    )
+
+    # Should still be filtered out (collection name doesn't match provider signature)
+    assert len(collections) == 0
+
+
+@pytest.mark.asyncio
+async def test_get_collections_no_embedding_provider_in_config(mock_retriever):
+    """Test behavior when embedding provider is not set in config (uses default 'ollama')"""
+    file_id = 'file_default_provider'
+
+    await mock_retriever.metadata_store.record_file_upload(
+        file_id=file_id,
+        api_key='test_key',
+        filename='test.txt',
+        mime_type='text/plain',
+        file_size=100,
+        storage_key='key',
+        storage_type='vector'
+    )
+    # Collection matches default ollama provider
+    await mock_retriever.metadata_store.update_processing_status(
+        file_id=file_id,
+        status='completed',
+        collection_name='files_ollama_768_collection'
+    )
+
+    # Config has no embedding.provider set - should default to 'ollama'
+    mock_retriever.embed_query = AsyncMock(return_value=[0.1] * 768)
+    mock_retriever.config = {}  # No embedding config at all
+
+    collections = await mock_retriever._get_collections_multiple(
+        file_ids=[file_id],
+        api_key=None,
+        collection_name=None
+    )
+
+    # Should match because default is 'ollama'
+    assert len(collections) == 1
+    assert 'files_ollama_768_collection' in collections
+
+
+@pytest.mark.asyncio
 async def test_search_collection_multiple_file_ids_post_filtering():
     """Test searching collection with multiple file_ids post-filtering"""
     retriever = FileVectorRetriever(config={})

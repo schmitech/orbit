@@ -326,7 +326,7 @@ class AutocompleteService:
             elif self.fuzzy_algorithm == 'jaro_winkler':
                 lib_status.append(f"jaro_winkler={'C' if JAROWINKLER_C_AVAILABLE else 'Python'}")
 
-        logger.info(
+        logger.debug(
             f"AutocompleteService initialized: enabled={self.enabled}, "
             f"redis_cache={self.use_redis_cache}, fuzzy={self.fuzzy_enabled} "
             f"({self.fuzzy_algorithm}, threshold={self.fuzzy_threshold})"

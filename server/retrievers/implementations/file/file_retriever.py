@@ -197,7 +197,21 @@ class FileVectorRetriever(AbstractVectorRetriever):
 
         # Get current embedding provider and dimensions
         try:
-            embedding_provider = self.config.get('embedding', {}).get('provider', 'ollama')
+            # Check multiple sources for embedding provider to handle adapter overrides:
+            # 1. First check adapter_config (top-level adapter config) for embedding_provider
+            # 2. Then check config['embedding']['provider'] (set by adapter_loader from adapter's embedding_provider)
+            # 3. Fall back to 'ollama' as default
+            adapter_config = self.config.get('adapter_config', {})
+
+            # Get embedding_provider from adapter config if present (handles passthrough from adapter loader)
+            embedding_provider = self.config.get('embedding', {}).get('provider')
+
+            # Log the embedding provider source for debugging
+            if embedding_provider:
+                logger.debug(f"FileVectorRetriever: Using embedding provider '{embedding_provider}' from config['embedding']['provider']")
+            else:
+                embedding_provider = 'ollama'
+                logger.debug(f"FileVectorRetriever: No embedding provider in config, defaulting to '{embedding_provider}'")
 
             # Get current embedding dimensions
             if self.embeddings and hasattr(self.embeddings, 'get_dimensions'):
@@ -219,6 +233,8 @@ class FileVectorRetriever(AbstractVectorRetriever):
         if file_ids:
             # Get collections for all specified files
             collections = set()
+            skipped_files = []  # Track files that were skipped due to embedding mismatch
+
             for file_id in file_ids:
                 logger.debug(f"FileVectorRetriever: Looking up metadata for file_id: {file_id}")
                 file_info = await self.metadata_store.get_file_info(file_id)
@@ -233,6 +249,10 @@ class FileVectorRetriever(AbstractVectorRetriever):
                     coll_name = file_info['collection_name']
                     logger.debug(f"FileVectorRetriever: Found collection_name: {coll_name}")
 
+                    # Get the embedding provider info stored with the file
+                    file_embedding_provider = file_info.get('embedding_provider')
+                    file_embedding_dimensions = file_info.get('embedding_dimensions')
+
                     # Filter by provider signature if available
                     if provider_signature:
                         logger.debug(f"FileVectorRetriever: Checking provider signature: {provider_signature}")
@@ -242,13 +262,41 @@ class FileVectorRetriever(AbstractVectorRetriever):
                             logger.debug(f"FileVectorRetriever: ✓ Collection {coll_name} matches provider {provider_signature}")
                             collections.add(coll_name)
                         else:
-                            logger.warning(f"FileVectorRetriever: ✗ Skipping collection {coll_name} (provider signature '{provider_signature}' not found)")
+                            # Log detailed info about the mismatch
+                            file_name = file_info.get('original_filename', file_id)
+                            if file_embedding_provider and file_embedding_dimensions:
+                                logger.warning(
+                                    f"FileVectorRetriever: ✗ Embedding mismatch for file '{file_name}' (id: {file_id}): "
+                                    f"File was indexed with {file_embedding_provider}_{file_embedding_dimensions}, "
+                                    f"but current adapter uses {provider_signature}. "
+                                    f"Please re-upload the file to re-index with the current embedding provider."
+                                )
+                                skipped_files.append({
+                                    'file_id': file_id,
+                                    'file_name': file_name,
+                                    'indexed_with': f"{file_embedding_provider}_{file_embedding_dimensions}",
+                                    'current_provider': provider_signature
+                                })
+                            else:
+                                logger.warning(
+                                    f"FileVectorRetriever: ✗ Skipping collection {coll_name} "
+                                    f"(provider signature '{provider_signature}' not found in collection name)"
+                                )
                     else:
                         # If we can't determine provider, include all collections (backward compatibility)
                         logger.debug(f"FileVectorRetriever: No provider signature - using collection {coll_name} (backward compatibility)")
                         collections.add(coll_name)
                 else:
                     logger.warning(f"FileVectorRetriever: File {file_id} has no collection_name in metadata")
+
+            # If we skipped files due to embedding mismatch, log a summary
+            if skipped_files:
+                logger.warning(
+                    f"FileVectorRetriever: {len(skipped_files)} file(s) skipped due to embedding provider mismatch. "
+                    f"Current adapter uses embedding signature '{provider_signature}'. "
+                    f"Files indexed with a different provider cannot be searched until re-uploaded. "
+                    f"To fix: Delete and re-upload the affected files, or change the adapter's embedding_provider to match."
+                )
 
             logger.debug(f"FileVectorRetriever: Final collections to search: {list(collections)}")
             return list(collections) if collections else []
