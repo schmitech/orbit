@@ -102,7 +102,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     isMiddlewareEnabled && showEmptyState && isAgentSelectionVisible;
   const shouldShowAdapterNotesPanel =
     isMiddlewareEnabled && showEmptyState && !isAgentSelectionVisible && !!currentConversation?.adapterName;
-  const prominentWidthClass = 'mx-auto w-full max-w-4xl';
+  const prominentWidthClass = 'mx-auto w-full max-w-5xl';
   const messageInputWidthClass = shouldShowAdapterNotesPanel ? prominentWidthClass : 'w-full';
   const canStartNewConversation = canCreateNewConversation();
   const newConversationTooltip = canStartNewConversation
