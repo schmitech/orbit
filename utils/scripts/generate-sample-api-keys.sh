@@ -468,15 +468,14 @@ NOTES_EOF
             cat <<'NOTES_EOF'
 ## Welcome to ORBIT Document Assistant 📄
 
-I'm here to help you **understand and extract insights** from your uploaded documents!
+I'm here to help you **understand and extract insights** from your uploaded documents — with complete privacy and no data sharing!
 
 I can work with:
 - 📑 PDFs and Word documents
 - 📊 Spreadsheets and CSV files
 - 🖼️ Images and diagrams
 - 📝 JSON and data files
-
-Upload a file and ask me anything about it. I'll cite specific sources and provide actionable insights.
+- 🎙️ Audio files for transcription
 
 **What document would you like to explore?**
 NOTES_EOF

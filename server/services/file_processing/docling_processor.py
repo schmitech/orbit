@@ -12,6 +12,22 @@ from .base_processor import FileProcessor
 logger = logging.getLogger(__name__)
 
 try:
+    # Docling expects torch.xpu to exist (for Intel XPU builds). Some CPU-only
+    # PyTorch wheels omit the attribute, which causes runtime errors. We provide
+    # a minimal stub before docling imports torch so CPU installs keep working.
+    import torch  # type: ignore
+    if not hasattr(torch, "xpu"):
+        import types
+
+        torch.xpu = types.SimpleNamespace(  # type: ignore[attr-defined]
+            is_available=lambda: False,
+            device_count=lambda: 0,
+            current_device=lambda: None,
+        )
+except Exception:
+    torch = None  # type: ignore
+
+try:
     from docling.document_converter import DocumentConverter
     from docling.datamodel.base_models import InputFormat
     from io import BytesIO

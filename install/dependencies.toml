@@ -13,43 +13,59 @@
 # ============================================================================
 # MINIMAL - Minimal server (supports API mode and Ollama, no direct GGUF loading)
 # ============================================================================
-[default]
+[profiles.default]
 description = "Minimal server dependencies (always installed - use API mode or Ollama for chat)"
 dependencies = [
+    "numpy<2.0.0",  # Pin to NumPy 1.x for PyTorch compatibility
+    "openai>=2.14.0",
+    "anthropic>=0.75.0",
+    "cohere>=5.20.1",
+    "groq>=1.0.0",
+    "replicate>=1.0.7",
+    "zai-sdk>=0.2.0",
+    "deepseek>=1.0.0",
+    "mistralai>=1.10.0",
+    "openrouter>=0.1.1",
+    "google-generativeai>=0.8.6",
+    "together>=1.5.34",
+    "google-genai>=1.57.0",
     "setuptools>=77.0.3,<80",
-    "pydantic>=2.12.3",
+    "pydantic>=2.12.5",
     "jinja2>=3.1.6",
-    "PyYAML>=6.0.2",
+    "PyYAML>=6.0.3",
     "fastapi>=0.128.0",
-    "uvicorn==0.38.0",
-    "python-dotenv==1.0.1",
-    "requests==2.32.5",
-    "python-multipart>=0.0.14",
-    "python-json-logger>=2.0.7",
-    "aiohttp>=3.13.1",
-    "aiodns>=3.4.0",
-    "regex==2024.11.6",
-    "sseclient-py==1.8.0",
-    "psutil==7.0.0",
+    "uvicorn>=0.40.0",
+    "python-dotenv>=1.2.1",
+    "requests>=2.32.5",
+    "python-multipart>=0.0.21",
+    "python-json-logger>=4.0.0",
+    "aiohttp>=3.13.3",
+    "aiodns>=3.6.1",
+    "regex>=2024.11.6",
+    "sseclient-py>=1.9.0",
+    "psutil>=7.2.1",
     "websockets>=15.0.1",
-    "fastapi-mcp==0.4.0",
+    "fastapi-mcp>=0.4.0",
     "toml>=0.10.2",
-    "rich>=14.1.0",
-    "environs>=14.3.0",
+    "rich>=14.2.0",
+    "environs>=14.5.0",
     "prometheus-client>=0.23.1",
-    "opentelemetry-proto==1.28.0",
-    "schmitech-orbit-client==1.1.6",
-    "tqdm>=4.66.2",
-    "pymongo>=4.15.4",
-    "redis>=7.1.0",  # Redis support for caching and sessions
-    "elasticsearch==9.2.0",  # Elasticsearch support for intent adapters
-    "ollama==0.6.1",  # Ollama local inference support
-    "langchain-ollama>=1.0.0",
+    "schmitech-orbit-client>=1.1.6",
+    "tqdm>=4.67.1",
+    "redis>=7.1.0",
+    "elasticsearch>=9.2.1",
+    "ollama>=0.6.1",
+    "langchain-ollama>=1.0.1",
     "langchain-community>=0.4.1",
     "keyring>=25.7.0",
     "keyrings.alt>=5.0.2",
-    "Levenshtein==0.27.3",  # Fast C-based Levenshtein distance for autocomplete
-    "jarowinkler==2.0.1",   # Fast C-based Jaro-Winkler similarity for autocomplete
+    "Levenshtein>=0.27.3",
+    "jarowinkler==2.0.1",
+    "firecrawl>=4.12.0",
+    "langdetect>=1.0.9",
+    "langid>=1.1.6",
+    "pycld2>=0.42",
+    "pycountry>=24.6.1",
 ]
 
 # ============================================================================
@@ -58,28 +74,8 @@ dependencies = [
 [profiles.llama-cpp]
 description = "Direct GGUF model loading (llama-cpp-python for simple-chat adapter)"
 dependencies = [
-    "llama-cpp-python==0.3.16",
-    "numpy<2.0.0",  # Required by llama-cpp-python
-]
-
-# ============================================================================
-# PROVIDERS - Cloud inference providers (OpenAI, Anthropic, etc.)
-# ============================================================================
-[profiles.providers]
-description = "Cloud inference providers (OpenAI, Anthropic, Cohere, etc.)"
-dependencies = [
-    "openai==2.6.1",
-    "anthropic==0.71.0",
-    "cohere==5.20.0",
-    "groq==0.32.0",
-    "replicate==1.0.7",
-    "zai-sdk==0.0.4",
-    "deepseek==1.0.0",
-    "mistralai==1.9.11",
-    "openrouter>=0.1.1",
-    "google-generativeai==0.8.5",
-    "together==1.5.29",
-    "google-genai>=1.51.0",
+    "llama-cpp-python>=0.3.16",
+    "numpy<2.0.0",
 ]
 
 # ============================================================================
@@ -88,14 +84,14 @@ dependencies = [
 [profiles.vector-stores]
 description = "Vector store backends (ChromaDB, Pinecone, Qdrant, etc.)"
 dependencies = [
-    "chromadb>=1.3.5",
-    "pinecone>=7.3.0",
+    "chromadb>=1.4.0",
+    "pinecone>=8.0.0",
     "qdrant-client>=1.16.2",
-    "faiss-cpu==1.12.0",
-    "weaviate-client==4.17.0",
-    "pymilvus>=2.6.2",
-    "marqo==3.18.0",
-    "pgvector==0.4.1",
+    "faiss-cpu>=1.13.2",
+    "weaviate-client>=4.19.2",
+    "pymilvus>=2.6.6",
+    "marqo>=3.18.0",
+    "pgvector>=0.4.2",
 ]
 
 # ============================================================================
@@ -105,12 +101,12 @@ dependencies = [
 description = "Database connectors (PostgreSQL, MongoDB, MySQL, etc.)"
 dependencies = [
     "motor>=3.7.1",
-    "pymongo>=4.13.0",
-    "psycopg2-binary>=2.9.10",
-    "oracledb>=3.4.0",
-    "mysql-connector-python>=9.4.0",
-    "pymssql>=2.3.8",
-    "cassandra-driver>=3.29.2",
+    "pymongo>=4.16.0",
+    "psycopg2-binary>=2.9.11",
+    "oracledb>=3.4.1",
+    "mysql-connector-python>=9.5.0",
+    "pymssql>=2.3.11",
+    "cassandra-driver>=3.29.3",
     "duckdb>=1.4.3",
 ]
 
@@ -120,29 +116,29 @@ dependencies = [
 [profiles.files]
 description = "File processing for document Q&A (PDF, DOCX, PPTX, XLSX, CSV, VTT, images)"
 dependencies = [
-    "pypdf>=6.0.0",
+    "pypdf>=6.5.0",
     "python-docx>=1.2.0",
     "python-pptx>=1.0.2",
     "openpyxl>=3.1.5",
     "webvtt-py>=0.5.1",
     "pandas>=2.3.3",
-    "beautifulsoup4>=4.14.1",
+    "beautifulsoup4>=4.14.3",
     "python-magic>=0.4.27",
     "filetype>=1.2.0",
-    "docling>=2.64.0",
+    "docling>=2.67.0",
     "markitdown[all]>=0.1.4",
     "pyarrow>=22.0.0",
-    "markdown>=3.9",
-    "nh3>=0.3.0",
+    "markdown>=3.10",
+    "nh3>=0.3.2",
     "ftfy>=6.3.1",
-    "unidecode>=1.3.8",
+    "unidecode>=1.4.0",
 ]
 
 # ============================================================================
-# EMBEDDINGS - Embedding models (sentence-transformers, etc.)
+# sentence-transformers
 # ============================================================================
-[profiles.embeddings]
-description = "Embedding models for vector search"
+[profiles.sentence-transformers]
+description = "For vector search using sentence transformers"
 dependencies = [
     "sentence-transformers>=5.1.2",
 ]
@@ -153,29 +149,8 @@ dependencies = [
 [profiles.audio]
 description = "Audio processing (Whisper transcription, TTS)"
 dependencies = [
-    "openai-whisper>=20250625",
+    "openai-whisper>=20231117",
     "snac>=1.2.1",  # SNAC codec for Orpheus TTS audio token decoding
-]
-
-# ============================================================================
-# LANGUAGE-DETECTION - Language detection backends
-# ============================================================================
-[profiles.language-detection]
-description = "Language detection backends (langdetect, langid, pycld2)"
-dependencies = [
-    "langdetect>=1.0.9",
-    "langid>=1.1.6",
-    "pycld2>=0.42",
-    "pycountry>=24.6.1",
-]
-
-# ============================================================================
-# FIRECRAWL - Firecrawl web scraping support
-# ============================================================================
-[profiles.firecrawl]
-description = "Firecrawl web scraping for intent adapters"
-dependencies = [
-    "firecrawl==4.5.0",
 ]
 
 # ============================================================================
@@ -185,8 +160,8 @@ dependencies = [
 description = "PyTorch and local model inference (GPU recommended)"
 dependencies = [
     "numpy<2.0.0",  # Pin to NumPy 1.x for compatibility with PyTorch
-    "torch==2.7.0",
-    "vllm>=0.9.1",
+    "torch==2.5.1",
+    "vllm>=0.6.4",
     "transformers>=4.52.4",
     "accelerate>=0.27.2",
     "sentencepiece>=0.2.0",
@@ -213,39 +188,11 @@ dependencies = [
 [profiles.cloud-services]
 description = "Cloud platform services (AWS, Azure, GCP, IBM Watson)"
 dependencies = [
-    "boto3==1.40.55",
-    "azure-ai-inference==1.0.0b9",
-    "google-cloud-aiplatform==1.121.0",
-    "ibm-watsonx-ai==1.4.1"
+    "boto3>=1.42.24",
+    "azure-ai-inference>=1.0.0b9",
+    "google-cloud-aiplatform>=1.133.0",
+    "ibm-watsonx-ai>=1.4.11"
 ]
-
-# ============================================================================
-# DEFAULT - Recommended default for basic installation
-# Includes minimal + common providers (Ollama included in minimal)
-# ============================================================================
-[profiles.default]
-description = "Recommended default (minimal + providers)"
-extends = ["providers"]
-dependencies = []
-
-# ============================================================================
-# ALL - Everything (full installation)
-# ============================================================================
-[profiles.all]
-description = "All available dependencies (full installation)"
-extends = [
-    "development",
-    "llama-cpp",
-    "providers",
-    "vector-stores",
-    "databases",
-    "files",
-    "embeddings",
-    "language-detection",
-    "firecrawl",
-    "bitnet"
-]
-dependencies = []
 
 # ============================================================================
 # DEVELOPMENT - Development and testing tools
@@ -253,19 +200,33 @@ dependencies = []
 [profiles.development]
 description = "Development and testing dependencies"
 dependencies = [
-    "pytest>=8.4.1",
-    "pytest-asyncio>=1.1.0",
-    "pytest-cov>=6.1.1",
-    "black>=25.1.0",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "black>=25.12.0",
     "flake8>=7.3.0",
-    "mypy>=1.17.1",
-    "faker>=37.5.3",
-    "pre-commit>=4.2.0",
-    "locust>=2.38.1",
-    "reportlab>=4.4.4",
+    "mypy>=1.19.1",
+    "faker>=40.1.0",
+    "pre-commit>=4.5.1",
+    "locust>=2.43.0",
+    "reportlab>=4.4.7",
     "twine>=6.2.0",
-    "build>=1.3.0"
+    "build>=1.4.0"
 ]
+
+# ============================================================================
+# ALL - Everything (full installation)
+# ============================================================================
+[profiles.all]
+description = "All available dependencies (full installation)"
+extends = [
+    "default",
+    "development",
+    "vector-stores",
+    "databases",
+    "files",
+]
+dependencies = []
 
 # ============================================================================
 # PROFILE USAGE EXAMPLES
@@ -286,7 +247,7 @@ dependencies = [
 #   ./setup.sh --profile providers
 #
 # Minimal + file support (for simple-chat-with-files adapter):
-#   ./setup.sh --profile providers --profile files --profile embeddings --profile vector-stores
+#   ./setup.sh --profile providers --profile files --profile sentence-transformers --profile vector-stores
 #
 # With vector stores (if using ChromaDB, Pinecone, etc.):
 #   ./setup.sh --profile vector-stores

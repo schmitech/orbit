@@ -54,10 +54,20 @@
 #   }
 #
 # If --download-gguf is used without a value, it defaults to gemma3-270m if present in the config.
+#
+# Platform / dependency notes:
+#   1. Use Python 3.12 whenever possible. The script selects the best interpreter and installs tomli automatically.
+#   2. PyTorch/docling installs now honour --torch-backend (cpu, cuda, metal, auto). CUDA installs pull wheels from
+#      https://download.pytorch.org/whl/cu121, CPU installs use the CPU wheel channel, and Metal targets the macOS wheel.
+#      vLLM (GPU-only) is skipped unless a CUDA GPU is detected or explicitly requested.
+#   3. CPU-only PyTorch wheels expose a synthetic torch.xpu shim so docling no longer crashes when Intel extensions are missing.
+#   4. uv (if installed) is used for faster installs but sticks to stable releases; prerelease upgrades are opt-in per package.
 # =============================================================================
 
 # Exit on error
 set -e
+
+OS_TYPE=$(uname -s)
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -77,21 +87,58 @@ print_message() {
 
 # Wrapper to run Python with the selected interpreter or active virtualenv
 python_exec() {
-    if [ -n "$VIRTUAL_ENV" ]; then
-        python "$@"
-    else
-        if [ -z "$PYTHON_CMD" ]; then
-            print_message "red" "Internal error: PYTHON_CMD is not set."
-            exit 1
-        fi
-        "$PYTHON_CMD" "$@"
+    local interpreter=""
+
+    if [ -n "$VIRTUAL_ENV" ] && [ -x "$VIRTUAL_ENV/bin/python" ]; then
+        interpreter="$VIRTUAL_ENV/bin/python"
+    elif [ -n "$PYTHON_CMD" ]; then
+        interpreter="$PYTHON_CMD"
+    elif command -v python3 &> /dev/null; then
+        interpreter=$(command -v python3)
+    elif command -v python &> /dev/null; then
+        interpreter=$(command -v python)
     fi
+
+    if [ -z "$interpreter" ]; then
+        print_message "red" "Internal error: No Python interpreter available."
+        exit 1
+    fi
+
+    "$interpreter" "$@"
 }
 
 # Remove temporary requirement files on exit
 cleanup_temp_requirements() {
     if [ -n "$TEMP_REQUIREMENTS" ] && [ -f "$TEMP_REQUIREMENTS" ]; then
         rm -f "$TEMP_REQUIREMENTS"
+    fi
+}
+
+# Detect preferred torch backend based on host capabilities
+detect_default_torch_backend() {
+    if [ "$OS_TYPE" = "Darwin" ]; then
+        echo "metal"
+        return
+    fi
+
+    if [ "$OS_TYPE" = "Linux" ]; then
+        if command -v nvidia-smi &> /dev/null; then
+            echo "cuda"
+        else
+            echo "cpu"
+        fi
+        return
+    fi
+
+    echo "cpu"
+}
+
+# Wrapper so the rest of the script can transparently use uv when available
+run_pip_install() {
+    if [ "$UV_AVAILABLE" = true ]; then
+        uv pip install "$@"
+    else
+        pip install "$@"
     fi
 }
 
@@ -123,6 +170,9 @@ def get_default_dependencies(config):
     """Get default dependencies (always installed)"""
     if "default" in config:
         return config["default"].get("dependencies", [])
+    profiles = config.get("profiles", {})
+    if "default" in profiles:
+        return profiles["default"].get("dependencies", [])
     return []
 
 def resolve_profile(config, profile_name, resolved=None):
@@ -153,15 +203,26 @@ def resolve_profile(config, profile_name, resolved=None):
 
 def list_profiles(config):
     profiles = []
-    # Add default section info
+    added_default = False
+    default_section = None
     if "default" in config:
+        default_section = config["default"]
+        added_default = True
+    elif "profiles" in config and "default" in config["profiles"]:
+        default_section = config["profiles"]["default"]
+        added_default = True
+
+    if default_section is not None:
         profiles.append({
             "name": "default",
-            "description": config["default"].get("description", "Core dependencies (always installed)"),
-            "extends": []
+            "description": default_section.get("description", "Core dependencies (always installed)"),
+            "extends": default_section.get("extends", [])
         })
+
     # Add profile sections
     for name, profile in config.get("profiles", {}).items():
+        if name == "default" and added_default:
+            continue
         profiles.append({
             "name": name,
             "description": profile.get("description", ""),
@@ -247,7 +308,10 @@ install_toml_parser() {
     local toml_status=$(check_toml_dependency)
     if [ "$toml_status" = "missing" ]; then
         print_message "yellow" "Installing TOML parser (tomli)..."
-        pip install tomli
+        if ! python_exec -m pip install tomli; then
+            print_message "red" "Error: Failed to install tomli for dependency parsing."
+            exit 1
+        fi
     fi
 }
 
@@ -405,6 +469,72 @@ download_gguf_model() {
     fi
 }
 
+install_torch_package() {
+    if [ "$NEEDS_TORCH" != true ]; then
+        return
+    fi
+
+    local backend=$1
+    local spec="${TORCH_SPEC:-torch}"
+    local version=""
+    local package="$spec"
+    local extra_args=()
+
+    if [[ "$spec" =~ ^torch==([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+        version="${BASH_REMATCH[1]}"
+    fi
+
+    case "$backend" in
+        cuda)
+            if [ -n "$version" ]; then
+                package="torch==${version}+cu121"
+            fi
+            extra_args=(--index-url "https://download.pytorch.org/whl/cu121")
+            ;;
+        cpu)
+            if [ -n "$version" ]; then
+                package="torch==${version}"
+            fi
+            extra_args=(--index-url "https://download.pytorch.org/whl/cpu")
+            ;;
+        metal)
+            if [ -n "$version" ]; then
+                package="torch==${version}"
+            fi
+            ;;
+        *)
+            if [ -n "$version" ]; then
+                package="torch==${version}"
+            fi
+            ;;
+    esac
+
+    print_message "yellow" "Installing PyTorch backend (${backend})..."
+    if ! run_pip_install "${extra_args[@]}" "$package"; then
+        print_message "red" "Error: Failed to install PyTorch (${backend})."
+        exit 1
+    fi
+}
+
+install_vllm_package() {
+    if [ "$NEEDS_VLLM" != true ]; then
+        return
+    fi
+
+    local backend=$1
+    if [ "$backend" != "cuda" ]; then
+        print_message "yellow" "Skipping vLLM installation (backend '${backend}' does not support CUDA)."
+        return
+    fi
+
+    local spec="${VLLM_SPEC:-vllm}"
+    print_message "yellow" "Installing vLLM for CUDA acceleration..."
+    if ! run_pip_install "$spec"; then
+        print_message "red" "Error: Failed to install vLLM."
+        exit 1
+    fi
+}
+
 # Default values
 DOWNLOAD_GGUF=false
 PROFILES=()
@@ -413,6 +543,13 @@ GGUF_MODELS_TO_DOWNLOAD=()
 GGUF_MODELS_CONFIG="$SCRIPT_DIR/gguf-models.json"
 PYTHON_CMD_OVERRIDE=""
 PYTHON_CMD=""
+TORCH_BACKEND="auto"
+RESOLVED_TORCH_BACKEND=""
+TORCH_SPEC=""
+VLLM_SPEC=""
+NEEDS_TORCH=false
+NEEDS_VLLM=false
+UV_AVAILABLE=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -474,6 +611,22 @@ while [[ $# -gt 0 ]]; do
             PYTHON_CMD_OVERRIDE="$2"
             shift 2
             ;;
+        --torch-backend)
+            if [ -z "$2" ]; then
+                print_message "red" "Error: --torch-backend requires a value (auto, cpu, cuda, metal)"
+                exit 1
+            fi
+            TORCH_BACKEND=$(echo "$2" | tr '[:upper:]' '[:lower:]')
+            case "$TORCH_BACKEND" in
+                auto|cpu|cuda|metal)
+                    ;;
+                *)
+                    print_message "red" "Error: Invalid --torch-backend value '$TORCH_BACKEND'. Use auto, cpu, cuda, or metal."
+                    exit 1
+                    ;;
+            esac
+            shift 2
+            ;;
         --help|-h)
             print_message "blue" "Orbit Server Setup Script (TOML-based)"
             echo ""
@@ -487,6 +640,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --download-gguf [model] Download GGUF model(s) by name (optional model name)"
             echo "  --gguf-models-config <f>Path to GGUF models .json config (default: ./gguf-models.json)"
             echo "  --python-cmd <cmd>      Python executable to use (skips interactive selection)"
+            echo "  --torch-backend <mode>  Force torch backend (auto, cpu, cuda, metal). Default: auto"
             echo "  --help, -h              Show this help message"
             echo ""
             echo "Quick Start (Recommended for Newcomers):"
@@ -511,6 +665,13 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Resolve final torch backend selection
+if [ "$TORCH_BACKEND" = "auto" ]; then
+    RESOLVED_TORCH_BACKEND=$(detect_default_torch_backend)
+else
+    RESOLVED_TORCH_BACKEND="$TORCH_BACKEND"
+fi
 
 # Check if dependencies.toml exists
 if [ ! -f "$SCRIPT_DIR/dependencies.toml" ]; then
@@ -547,7 +708,7 @@ select_python_version() {
     declare -a PYTHON_STATUS
     declare -a PYTHON_EMOJI
 
-    for cmd in python3.12 python3.11 python3.10 python3.13 python3.9 python3; do
+    for cmd in python3.12 python3.13 python3.11 python3.10 python3.9 python3; do
         version=$(get_python_version "$cmd")
         if [ -n "$version" ]; then
             # Check if we already have this version
@@ -568,14 +729,14 @@ select_python_version() {
                 minor=$(echo "$version" | cut -d. -f2)
 
                 if [ "$major" = "3" ] && [ "$minor" = "12" ]; then
-                    PYTHON_STATUS+=("✓ Recommended")
+                    PYTHON_STATUS+=("✓ Recommended (full ML support)")
+                    PYTHON_EMOJI+=("🟢")
+                elif [ "$major" = "3" ] && [ "$minor" = "13" ]; then
+                    PYTHON_STATUS+=("✓ Compatible (limited ML)")
                     PYTHON_EMOJI+=("🟢")
                 elif [ "$major" = "3" ] && [ "$minor" = "11" ]; then
                     PYTHON_STATUS+=("✓ Compatible")
                     PYTHON_EMOJI+=("🟢")
-                elif [ "$major" = "3" ] && [ "$minor" -ge "13" ]; then
-                    PYTHON_STATUS+=("⚠  May have issues")
-                    PYTHON_EMOJI+=("🟡")
                 elif [ "$major" = "3" ] && [ "$minor" -ge "9" ]; then
                     PYTHON_STATUS+=("⚠  Older version")
                     PYTHON_EMOJI+=("🟡")
@@ -610,7 +771,7 @@ select_python_version() {
     if [ "$default_major" = "3" ] && [ "$default_minor" -ge "13" ]; then
         print_message "yellow" "⚠  WARNING: Default python3 is version $default_version" >&2
         print_message "yellow" "   Python 3.13+ may have compatibility issues with some packages (especially grpcio)." >&2
-        print_message "yellow" "   We recommend using Python 3.12 or 3.11 for the best experience." >&2
+        print_message "yellow" "   We recommend using Python 3.12 for full ML support, or 3.13 for limited ML." >&2
         echo "" >&2
     fi
 
@@ -688,6 +849,16 @@ if [ -n "$PYTHON_CMD_OVERRIDE" ]; then
 else
     PYTHON_CMD=$(select_python_version)
 fi
+
+# Inform user about torch backend decision
+if [ "$TORCH_BACKEND" = "auto" ]; then
+    print_message "blue" "Torch backend auto-detected as: $RESOLVED_TORCH_BACKEND"
+else
+    print_message "blue" "Torch backend forced via CLI: $RESOLVED_TORCH_BACKEND"
+fi
+
+# Install TOML parser dependency before invoking the parser (needed for Python <= 3.10)
+install_toml_parser
 
 # If list profiles is requested, show them and exit
 if [ "$LIST_PROFILES" = true ]; then
@@ -820,16 +991,55 @@ echo "----------------------------------------"
 cat "$TEMP_REQUIREMENTS"
 echo "----------------------------------------"
 
-# Install requirements
+# Check if using Python 3.13+ on macOS and handle torch-dependent packages
+PYTHON_MINOR_VERSION=$(python -c "import sys; print(sys.version_info.minor)")
+if [ "$PYTHON_MINOR_VERSION" -ge "13" ] && [ "$OS_TYPE" = "Darwin" ]; then
+    print_message "yellow" "\n⚠  Python 3.13+ on macOS detected - PyTorch wheels not yet available for cp313."
+    print_message "yellow" "   Skipping torch-dependent packages (torch, docling, sentence-transformers)."
+    print_message "yellow" "   Use Python 3.12 for full ML/AI support on macOS.\n"
+    # Remove torch-dependent packages from requirements
+    grep -v -E "^(torch|docling|sentence-transformers)" "$TEMP_REQUIREMENTS" > "${TEMP_REQUIREMENTS}.tmp" && mv "${TEMP_REQUIREMENTS}.tmp" "$TEMP_REQUIREMENTS"
+elif [ "$PYTHON_MINOR_VERSION" -ge "13" ]; then
+    print_message "blue" "\nPython 3.13+ on Linux detected - PyTorch should install normally."
+fi
+
+# Capture torch/vllm requirements so we can install platform-specific wheels
+if grep -q -E "^torch([[:space:]=]|$)" "$TEMP_REQUIREMENTS"; then
+    NEEDS_TORCH=true
+    TORCH_SPEC=$(grep -m 1 -E "^torch([[:space:]=]|$)" "$TEMP_REQUIREMENTS" | tr -d '\r')
+    grep -v -E "^torch([[:space:]=]|$)" "$TEMP_REQUIREMENTS" > "${TEMP_REQUIREMENTS}.tmp" && mv "${TEMP_REQUIREMENTS}.tmp" "$TEMP_REQUIREMENTS"
+fi
+
+if grep -q -E "^vllm([[:space:]=]|$)" "$TEMP_REQUIREMENTS"; then
+    NEEDS_VLLM=true
+    VLLM_SPEC=$(grep -m 1 -E "^vllm([[:space:]=]|$)" "$TEMP_REQUIREMENTS" | tr -d '\r')
+    grep -v -E "^vllm([[:space:]=]|$)" "$TEMP_REQUIREMENTS" > "${TEMP_REQUIREMENTS}.tmp" && mv "${TEMP_REQUIREMENTS}.tmp" "$TEMP_REQUIREMENTS"
+fi
+
+# Install requirements (use uv if available for faster resolution, otherwise pip)
 print_message "yellow" "\nInstalling dependencies..."
-if ! pip install -r "$TEMP_REQUIREMENTS"; then
+if command -v uv &> /dev/null; then
+    UV_AVAILABLE=true
+    print_message "blue" "Using uv for dependency resolution..."
+else
+    UV_AVAILABLE=false
+    print_message "blue" "uv not found - falling back to pip."
+fi
+if ! run_pip_install -r "$TEMP_REQUIREMENTS"; then
     print_message "red" "Error: Failed to install requirements."
+    if [ "$UV_AVAILABLE" != true ]; then
+        print_message "yellow" "Tip: Install 'uv' for faster dependency resolution: pip install uv"
+    fi
     rm -f "$TEMP_REQUIREMENTS"
     exit 1
 fi
 
 # Clean up temporary file
 rm -f "$TEMP_REQUIREMENTS"
+
+# Install torch/vllm if requested
+install_torch_package "$RESOLVED_TORCH_BACKEND"
+install_vllm_package "$RESOLVED_TORCH_BACKEND"
 
 # Download GGUF model if requested
 if [ "$DOWNLOAD_GGUF" = true ]; then
@@ -851,6 +1061,9 @@ fi
 
 if [ "$DOWNLOAD_GGUF" = true ]; then
     print_message "blue" "  ✓ GGUF model downloaded"
+fi
+if [ "$NEEDS_TORCH" = true ]; then
+    print_message "green" "Torch backend: $RESOLVED_TORCH_BACKEND"
 fi
 
 print_message "yellow" "\nTo activate the virtual environment, run:"
