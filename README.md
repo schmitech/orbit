@@ -19,6 +19,7 @@
 </div>
 
 # ORBIT – One API. Any LLM. Your data.
+**Open Retrieval-Based Inference Toolkit**
 
 Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI providers** with your databases, vector stores, and APIs—all through one self-hosted gateway.
 
