@@ -1,7 +1,7 @@
 # Global reranker configuration
 reranker:
-  provider: "ollama"  # Default reranker provider (options: ollama, cohere, jina, openai, anthropic, voyage)
-  enabled: false       # Whether reranking is enabled globally
+  provider: "anthropic"  # Default reranker provider (options: ollama, cohere, jina, openai, anthropic, voyage)
+  enabled: true       # Whether reranking is enabled globally
 
 # Provider-specific configurations
 # Choose the provider that best fits your needs:
@@ -68,7 +68,7 @@ rerankers:
 
   # Anthropic Reranker - Uses Claude models via prompt engineering
   anthropic:
-    enabled: false
+    enabled: true
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
     model: "claude-haiku-4-5"

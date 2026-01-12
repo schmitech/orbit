@@ -10,17 +10,19 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama_cloud"    # Override default inference provider
-    model: "gpt-oss:120b"            # Specific model for this adapter
+    inference_provider: "cohere"    # Override default inference provider
+    model: "command-a-03-2025"            # Specific model for this adapter
     embedding_provider: "openai"          # Embedding provider for file chunk retrieval (matches uploaded files)
+    embedding_model: "text-embedding-3-small"
     vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
-    stt_provider: "whisper"               # STT provider for audio transcription (see stt.yaml) - local, free!
+    # stt_provider: "whisper"               # STT provider for audio transcription (see stt.yaml) - local, free!
     tts_provider: "openai"                # TTS provider for audio output (see tts.yaml)
 
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
       retrieval_behavior: "conditional"  # Only retrieves when file_ids are present
       formatting_style: "clean"          # Clean format (no citations) to prevent LLM citation markers
+      supports_threading: false
       supports_file_ids: true            # Accepts file_ids parameter for filtering
       supports_session_tracking: true    # Uses session_id for tracking
       requires_api_key_validation: true  # Validates file ownership via API key
@@ -56,15 +58,15 @@ adapters:
 
   # Enhanced multimodal adapter with audio file transcription support
   - name: "simple-chat-with-files-audio"
-    enabled: true
+    enabled: false
     type: "passthrough"  # Passthrough adapter with file retrieval and audio transcription
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
-    embedding_provider: "openai"
+    inference_provider: "ollama"
+    model: "glm-4.7:cloud"
+    embedding_provider: "ollama"
     vision_provider: "gemini"             # For image files
     stt_provider: "gemini"                # For audio file transcription (see stt.yaml)
     tts_provider: "gemini"                # For TTS output (see tts.yaml)
@@ -129,7 +131,7 @@ adapters:
   # Upload audio files → Get transcriptions and chat about the content
   # Uses local Whisper for transcription - completely free and offline!
   - name: "local-voice-chat"
-    enabled: true
+    enabled: false
     type: "passthrough"
     datasource: "none"
     adapter: "multimodal"

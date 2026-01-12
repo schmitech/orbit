@@ -10,8 +10,9 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama_cloud"  # Override default inference provider
-    model: "glm-4.6"     # Specific model for this adapter
+    inference_provider: "openrouter"  # Override default inference provider
+    model: "nvidia/nemotron-3-nano-30b-a3b:free"         # Specific model for this adapter
+    tts_provider: "openai"          # TTS provider for audio output (see tts.yaml)
 
     # Capabilities: Pure passthrough - no retrieval
     capabilities:

@@ -38,16 +38,15 @@ adapters:
   # Example: Multi-Source Data Explorer
   # Routes queries across HR, EV Population, and DuckDB Analytics databases
   - name: "composite-multi-source-explorer"
-    enabled: false  # Enable when child adapters are configured
+    enabled: true  # Enable when child adapters are configured
     type: "retriever"
     adapter: "composite"
     implementation: "retrievers.implementations.composite.CompositeIntentRetriever"
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
     # Shared embedding provider for consistent similarity scoring across sources
-    embedding_provider: "ollama"
-    embedding_model: "nomic-embed-text:latest"
-    
+    embedding_provider: "openrouter"
+    embedding_model: "openai/text-embedding-3-small"
     capabilities:
       retrieval_behavior: "always"
       formatting_style: "standard"
@@ -56,7 +55,6 @@ adapters:
       supports_threading: true
       requires_api_key_validation: true
       supports_autocomplete: true
-    
     config:
       # Child adapters to search across
       # These must be names of other enabled intent adapters defined in intent.yaml
@@ -84,13 +82,14 @@ adapters:
   # Example: Full Multi-Database Explorer
   # Routes queries across SQL, DuckDB, MongoDB, and HTTP sources
   - name: "composite-full-explorer"
-    enabled: false
+    enabled: true
     type: "retriever"
     adapter: "composite"
     implementation: "retrievers.implementations.composite.CompositeIntentRetriever"
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    embedding_provider: "ollama"
+    embedding_provider: "openrouter"
+    embedding_model: "openai/text-embedding-3-small"
     capabilities:
       retrieval_behavior: "always"
       formatting_style: "standard"

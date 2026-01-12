@@ -1,7 +1,7 @@
 # Global vision configuration
 vision:
-  provider: "ollama"  # Default vision provider: openai, gemini, anthropic
-  enabled: true       # Whether vision processing is enabled globally
+  provider: "gemini"  # Default vision provider: openai, gemini, anthropic
+  enabled: true        # Whether vision processing is enabled globally
 
 # Provider-specific configurations
 visions:
@@ -68,8 +68,8 @@ visions:
       exponential_base: 2
 
   ollama:
-    enabled: true
-    base_url: "http://localhost:11434"
+    enabled: false
+    base_url: "http://35.183.132.58:11434"
     model: "qwen3-vl:8b"
     temperature: 0.0
     max_tokens: 1000

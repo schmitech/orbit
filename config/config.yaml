@@ -13,7 +13,7 @@ import:
   - "stt.yaml"
 
 general:
-  port: 3000
+  port: 3001
   https:
     enabled: false
     port: 3443
@@ -22,7 +22,7 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "ollama"
+  inference_provider: "ollama_cloud"
 
 language_detection:
   enabled: true
@@ -259,7 +259,7 @@ internal_services:
     prompts_collection: system_prompts
 
   redis:
-    enabled: false
+    enabled: true
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0
@@ -294,7 +294,7 @@ autocomplete:
 
   # Query matching settings
   min_query_length: 3  # Minimum characters before fetching suggestions
-  max_suggestions: 100   # Maximum suggestions returned per request
+  max_suggestions: 500   # Maximum suggestions returned per request
 
   # Caching configuration
   cache:

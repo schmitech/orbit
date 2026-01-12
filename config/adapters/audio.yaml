@@ -4,7 +4,7 @@
 adapters:
   # Audio transcription adapter - specialized for transcribing audio files
   - name: "audio-transcription"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "none"
     adapter: "file"
@@ -64,7 +64,7 @@ adapters:
 
 # Voice chat adapter - accepts audio input and returns audio responses
   - name: "voice-chat"
-    enabled: true
+    enabled: false
     type: "passthrough"
     datasource: "none"
     adapter: "conversational"
@@ -102,7 +102,7 @@ adapters:
 
   # Multilingual voice assistant - supports translation and voice I/O
   - name: "multilingual-voice-assistant"
-    enabled: true
+    enabled: false
     type: "passthrough"
     datasource: "none"
     adapter: "conversational"
@@ -386,7 +386,7 @@ adapters:
   # Enables phone call-like conversations with AI using mixed audio providers
   # Best for: Interactive voice assistants, customer service bots, voice-controlled apps
   - name: "real-time-voice-chat"
-    enabled: true
+    enabled: false
     type: "passthrough"
     datasource: "none"
     adapter: "conversational"
@@ -429,6 +429,7 @@ adapters:
       # Audio settings
       audio_input_enabled: true
       audio_output_enabled: true
+      ß
       stt_language: "en"                # Language for speech-to-text
       tts_voice: "pNInz6obpgDQGcFmaJgB"
       # Popular ElevenLabs voices: pNInz6obpgDQGcFmaJgB (Adam), EXAVITQu4vr4xnSDxMaL (Bella),

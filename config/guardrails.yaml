@@ -1,5 +1,5 @@
 safety:
-  enabled: true
+  enabled: false
   mode: "fuzzy"
   moderator: "openai"
   max_retries: 3

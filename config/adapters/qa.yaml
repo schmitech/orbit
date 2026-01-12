@@ -1,14 +1,14 @@
 adapters:
 - name: qa-sql
-  enabled: false
+  enabled: true
   type: retriever
   datasource: sqlite
   adapter: qa
   implementation: retrievers.implementations.qa.QASSQLRetriever
-  inference_provider: ollama
-  model: qwen3-4b-gpu
-  reranker_provider: cohere
-  reranker_model: rerank-english-v3.0
+  inference_provider: ollama_cloud
+  model: gpt-oss:20b
+  # reranker_provider: cohere
+  # reranker_model: rerank-english-v3.0
   capabilities:
     retrieval_behavior: always
     formatting_style: standard
@@ -22,7 +22,7 @@ adapters:
     confidence_threshold: 0.3
     max_results: 5
     return_results: 3
-    reranker_top_n: 5
+    # reranker_top_n: 5
     use_connection_pool: false
     pool_size: 1
     connection_timeout: 30
@@ -53,14 +53,17 @@ adapters:
     retention_period: 86400.0
     event_handler:
       type: default
+
 - name: qa-vector-chroma
-  enabled: false
+  enabled: true
   type: retriever
   datasource: chroma
   adapter: qa
   implementation: retrievers.implementations.qa.QAChromaRetriever
-  inference_provider: ollama_cloud
+  inference_provider: "openrouter"
+  model: "google/gemini-3-flash-preview"
   embedding_provider: ollama
+  embedding_model: nomic-embed-text
   capabilities:
     retrieval_behavior: always
     formatting_style: standard
@@ -68,6 +71,7 @@ adapters:
     supports_session_tracking: false
     supports_threading: false
     requires_api_key_validation: false
+
   config:
     collection: city
     confidence_threshold: 0.3
@@ -75,6 +79,7 @@ adapters:
     max_results: 5
     return_results: 3
     timezone: America/Toronto
+
 - name: qa-vector-qdrant-demo
   enabled: false
   type: retriever
@@ -92,6 +97,30 @@ adapters:
     requires_api_key_validation: false
   config:
     collection: city
+    confidence_threshold: 0.3
+    score_scaling_factor: 1.0
+    max_results: 5
+    return_results: 3
+    timezone: America/Toronto
+
+- name: qa-vector-qdrant-civic-chat
+  enabled: false
+  type: retriever
+  datasource: qdrant
+  adapter: qa
+  implementation: retrievers.implementations.qa.QAQdrantRetriever
+  inference_provider: ollama_cloud
+  model: minimax-m2:cloud
+  embedding_provider: openai
+  capabilities:
+    retrieval_behavior: always
+    formatting_style: standard
+    supports_file_ids: false
+    supports_session_tracking: false
+    supports_threading: false
+    requires_api_key_validation: false
+  config:
+    collection: civicchat
     confidence_threshold: 0.3
     score_scaling_factor: 1.0
     max_results: 5
