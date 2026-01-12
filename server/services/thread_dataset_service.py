@@ -342,7 +342,7 @@ class ThreadDatasetService:
 
         try:
             # Debug logging to identify why Redis path is not being used (INFO level for troubleshooting)
-            logger.info(f"delete_dataset: storage_backend={self.storage_backend}, redis_service={'exists' if self.redis_service else 'None'}, redis_enabled={self.redis_service.enabled if self.redis_service else 'N/A'}")
+            logger.debug(f"delete_dataset: storage_backend={self.storage_backend}, redis_service={'exists' if self.redis_service else 'None'}, redis_enabled={self.redis_service.enabled if self.redis_service else 'N/A'}")
 
             # Match the storage logic: try Redis first if configured and enabled, otherwise use database
             if self.storage_backend == 'redis' and self.redis_service and self.redis_service.enabled:
