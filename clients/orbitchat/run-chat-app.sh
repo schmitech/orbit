@@ -37,17 +37,6 @@ export VITE_ADAPTERS='[
   { "name": "Composite Explorer (Full)", "apiKey": "orbit_gYrmXa9cyQnUi4mneapKkjO9B4rpi6zl", "apiUrl": "http://localhost:3001", "description": "Routes across SQL, DuckDB, MongoDB, and HTTP APIs for comprehensive search." }
 ]'
 
-# export VITE_ADAPTERS='[
-#   { "name": "GoC Proactive Data Disclosure", "apiKey": "orbit_2GLQ8hGOHkwMmiBi5KJcMI1BbLV9aVNR", "apiUrl": "http://localhost:3001", "description": "Queries data on government procurement contracts and expenditures." },
-#   { "name": "Ottawa Crime Composite", "apiKey": "orbit_b5gnmnJ7xmZQNmk744PCqUnocQH3QeSa", "apiUrl": "http://localhost:3001", "description": "Explore and analyze Ottawa police criminal offences data." },
-#   { "name": "GoC Proactive Data Disclosure", "apiKey": "orbit_2GLQ8hGOHkwMmiBi5KJcMI1BbLV9aVNR", "apiUrl": "http://localhost:3001", "description": "Queries data on government procurement contracts and expenditures." },
-#   { "name": "Alberta Shelter Occupancy", "apiKey": "orbit_ZlQhDHP8W9Bnto55agIeze1gkRh2wE2R", "apiUrl": "http://localhost:3001", "description": "Accesses and analyzes shelter occupancy data for Alberta." },
-#   { "name": "Government Contracts", "apiKey": "orbit_eOpgtqGnozmhsgNag161aCmViAlxAxBX", "apiUrl": "http://localhost:3001", "description": "Queries data on government procurement contracts and expenditures." },
-#   { "name": "Government Travel Expenses", "apiKey": "orbit_9o9oe7PFo3vE2qa3UuWC4nB8qAZoswtb", "apiUrl": "http://localhost:3001", "description": "Examines and filters federal travel expenses and related data." },
-#   { "name": "Ottawa Police Auto Theft", "apiKey": "orbit_RlaC7ra4flnVMznMHTu6qGtJfSPRRjfr", "apiUrl": "http://localhost:3001", "description": "Explores and analyzes Ottawa police auto theft statistics and data." },
-#   { "name": "Government of Canada AI Register (MVP)", "apiKey": "orbit_uGbvdp8YKrTemUtXMxlt0W5pS0ob6MMl", "apiUrl": "http://localhost:3001", "description": "Explores and analyzes data from the Government of Canada AI Register." }
-# ]'
-
 # { "name": "Composite Explorer (Full)", "apiKey": "orbit_gYrmXa9cyQnUi4mneapKkjO9B4rpi6zl", "apiUrl": "http://localhost:3001", "description": "Routes across SQL, DuckDB, MongoDB, and HTTP APIs for comprehensive search." }
 
 start_app() {
@@ -72,7 +61,7 @@ start_app() {
         --max-total-files 20 \
         --max-message-length 500 \
         --application-name "Welcome to ORBIT Local" \
-        --application-description "ORBIT provides a specialized AI interface that allows anyone to ask plain-language questions and receive summarized, citation-backed answers drawn directly from official Canadian open data sources. Please read our [Terms and Conditions](https://schmitech.ai/en/civicchat) before using the service." \
+        --application-description "ORBIT provides a specialized AI interface that allows anyone to ask plain-language questions and receive summarized, citation-backed answers drawn directly from official Canadian open data sources." \
         --default-input-placeholder "Ask ORBIT Local Anything..." \
         > "$LOGFILE" 2>&1 &
 
