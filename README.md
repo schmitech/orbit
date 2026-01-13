@@ -72,42 +72,6 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 ---
 
-## 🌐 Who Uses ORBIT
-
-<div align="center">
-  <a href="https://www.civicchat.ca">
-    <img src="https://img.shields.io/badge/Civic_Chat-Powered_by_ORBIT-blue?style=for-the-badge" alt="Civic Chat">
-  </a>
-</div>
-
-<a href="https://www.civicchat.ca" target="_blank"><strong>Civic Chat</strong></a> — An AI-powered tool for exploring Canadian open data across municipal, provincial, and federal levels of government. Civic Chat uses ORBIT's intent-based adapters to translate natural language queries into SQL and API calls, enabling citizens to explore public datasets through conversation.
-
-> *Using ORBIT in production? <a href="https://schmitech.ai/en/contact" target="_blank">Let us know</a> and we'll feature your project here.*
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/7d7f858b-2085-4fe0-8c4b-fad3e2f0161c" controls width="100%">
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <em>CivicChat.ca using ORBIT with glm-7.5 on Ollama</em>
-</div>
-
----
-
-## ⭐ Why Star This Repo?
-
-Your star isn't just a vanity metric—it directly helps the project:
-
-- **Visibility** – Stars help other developers discover ORBIT in search results
-- **Releases** – Get notified when we ship new features and providers
-- **Open source** – Support independent AI infrastructure development
-
-<p align="center">
-  <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=for-the-badge&logo=github&label=Star%20ORBIT&color=yellow" alt="Star ORBIT"></a>
-</p>
-
----
-
 ## 🚀 Deployment Guide
 
 There are several ways to get started with ORBIT.
