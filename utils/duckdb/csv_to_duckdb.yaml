@@ -1,0 +1,29 @@
+# =============================================================================
+# Orbit Adapters Database Configuration
+# =============================================================================
+# This file defines the datasets used to generate DuckDB databases.
+# It is read by `generate_duckdbs.py`.
+#
+# Field Reference:
+#   description:  Human-readable description of the dataset.
+#   url:          (Optional) URL to download the CSV from. Set to null to use local file only.
+#   csv_path:     Local path to the CSV file (source or download destination).
+#   schema_path:  Path to the SQL file containing CREATE TABLE/INDEX statements.
+#   output_path:  Path where the resulting DuckDB file will be saved.
+#   config_path:  (Optional) Path to a YAML file for advanced column mapping/transformations.
+# =============================================================================
+
+datasets:
+  my-sample-csv:
+    description: "My Sample CSV"
+    url: null
+    csv_path: "example.csv"
+    schema_path: "example-csv-schema.sql"
+    output_path: "example.duckdb"
+
+  another-csv:
+    description: "My other CSV"
+    url: "https://example.com/example.csv"
+    csv_path: "another-example.csv"
+    schema_path: "anpther-example-csv-schema.sql"
+    output_path: "another-example.duckdb"
