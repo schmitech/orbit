@@ -140,6 +140,13 @@ const ChatbotThemingPlatform = () => {
   };
 
   // Handle API configuration update
+  const getRuntimeApiEndpoint = () => {
+    if (typeof window !== 'undefined' && window.CHATBOT_API_URL) {
+      return window.CHATBOT_API_URL;
+    }
+    return apiEndpoint;
+  };
+
   const handleApiUpdate = () => {
     if (isDebugEnabled()) {
       console.log('🔄 Updating API configuration:', { 
@@ -166,12 +173,16 @@ const ChatbotThemingPlatform = () => {
     }
 
     // Determine the effective endpoint to use
-    const effectiveEndpoint = isEndpointFieldEnabled ? tempApiEndpoint : apiEndpoint;
+    const effectiveEndpoint = isEndpointFieldEnabled ? tempApiEndpoint : getRuntimeApiEndpoint();
     
     // Update the React state first
     setApiKey(tempApiKey);
     if (isEndpointFieldEnabled) {
       setApiEndpoint(tempApiEndpoint);
+    } else {
+      const runtimeEndpoint = getRuntimeApiEndpoint();
+      setApiEndpoint(runtimeEndpoint);
+      setTempApiEndpoint(runtimeEndpoint);
     }
 
     // Try to update the widget using the helper function

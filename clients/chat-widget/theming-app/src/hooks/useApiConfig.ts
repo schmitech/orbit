@@ -4,8 +4,22 @@ import type { WidgetConfig, CustomColors } from '../types/widget.types';
 import { WIDGET_CONFIG } from '../utils/widget-config';
 
 export const useApiConfig = () => {
-  const [apiKey, setApiKey] = useState('default-key');
-  const [apiEndpoint, setApiEndpoint] = useState(WIDGET_CONFIG.defaultApiEndpoint);
+  const resolveInitialApiKey = (): string => {
+    if (typeof window !== 'undefined' && window.CHATBOT_API_KEY) {
+      return window.CHATBOT_API_KEY;
+    }
+    return 'default-key';
+  };
+
+  const resolveInitialApiEndpoint = (): string => {
+    if (typeof window !== 'undefined' && window.CHATBOT_API_URL) {
+      return window.CHATBOT_API_URL;
+    }
+    return WIDGET_CONFIG.defaultApiEndpoint;
+  };
+
+  const [apiKey, setApiKey] = useState(resolveInitialApiKey);
+  const [apiEndpoint, setApiEndpoint] = useState(resolveInitialApiEndpoint);
 
   // Generate implementation code
   const generateCode = (widgetConfig: WidgetConfig, customColors: CustomColors) => {

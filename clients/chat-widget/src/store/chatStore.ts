@@ -113,6 +113,13 @@ function resolveApiCredentials(): { apiUrl: string; apiKey: string } | null {
   return null;
 }
 
+function generateNewSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 // Helper function to generate unique IDs
 function generateMessageId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -292,31 +299,53 @@ export const useChatStore = create<ChatState>((set, get) => ({
   deleteConversation: async () => {
     const sessionId = get().sessionId || getOrCreateSessionId();
 
-    // Attempt to ensure API is configured before deletion
     const apiReady = ensureApiConfigured();
     if (!apiReady) {
-      console.warn('API not fully configured. Attempting to delete with available credentials.');
+      console.warn('API not fully configured. Attempting deletion with available credentials.');
     }
 
     const credentials = resolveApiCredentials();
-    if (!credentials) {
+
+    if (credentials) {
+      try {
+        const apiClient = new ApiClient({
+          apiUrl: credentials.apiUrl,
+          apiKey: credentials.apiKey,
+          sessionId
+        });
+
+        if (typeof apiClient.deleteConversationWithFiles === 'function') {
+          await apiClient.deleteConversationWithFiles(sessionId, []);
+        } else {
+          console.warn('deleteConversationWithFiles not available on ApiClient. Skipping server deletion.');
+        }
+      } catch (error) {
+        console.error('Failed to delete conversation from server:', error);
+      }
+    } else {
       console.warn('Missing API credentials. Clearing local messages without server deletion.');
-      set({ messages: [], isLoading: false });
-      return;
     }
 
-    try {
-      const apiClient = new ApiClient({
-        apiUrl: credentials.apiUrl,
-        apiKey: credentials.apiKey,
-        sessionId
-      });
-      await apiClient.deleteConversationWithFiles(sessionId);
-    } catch (error) {
-      console.error('Failed to delete conversation from server:', error);
-    } finally {
-      set({ messages: [], isLoading: false });
+    const newSessionId = generateNewSessionId();
+    setSessionId(newSessionId);
+
+    if (credentials) {
+      try {
+        configureApi(credentials.apiUrl, credentials.apiKey, newSessionId);
+        configuredApiUrl = credentials.apiUrl;
+        configuredApiKey = credentials.apiKey;
+        isApiConfigured = true;
+      } catch (error) {
+        console.error('Failed to reconfigure API with new session ID:', error);
+      }
     }
+
+    set({
+      messages: [],
+      isLoading: false,
+      sessionId: newSessionId,
+      error: null
+    });
   },
   
   clearMessages: () => {
