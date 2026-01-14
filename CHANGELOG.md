@@ -1,5 +1,70 @@
 # Changelog
 
+## [2.3.0] - 2026-01-14
+
+### Core System Updates
+- Composite Intent Retriever: New CompositeIntentRetriever for multi-source query routing with parallel template search, shared embedding client, and best-match routing based on similarity scores
+- Multi-Stage Template Selection: Extended composite retriever with LLM reranking and string similarity stages for improved template matching accuracy
+- Template Hot-Reload: Added CLI command and API endpoint to reload intent templates without server restart (Issue #126)
+- OpenAI-Compatible Endpoint: Exposed /v1/chat/completions endpoint enabling official OpenAI SDK clients to work against ORBIT (Issue #57)
+- TensorRT-LLM Provider: Added NVIDIA TensorRT-LLM as new inference provider with dual-mode support (direct and API)
+- OpenRouter SDK: Added native OpenRouter SDK support for inference and embeddings, replacing OpenAI-compatible client
+- Autocomplete Suggestions: Implemented query autocomplete system extracting suggestions from intent template nl_examples with fuzzy matching
+- Rate Limiting: Added Redis-backed rate limiting middleware with IP spoofing protection, atomic Lua scripts, and configurable trusted proxies
+- Throttling Quotas: Added per-API-key quotas with progressive delays complementing existing rate limiting
+- Audit Trail Storage: Added multi-backend audit trail storage (SQLite, MongoDB, Elasticsearch) with optional gzip compression (Issue #130)
+- Clock Service Improvements: Added timezone validation, caching, per-adapter time_format override, and health check methods
+- Redis Cache Clearing: Added comprehensive cache clearing on startup to prevent orphaned data
+- Circuit Breaker Fix: Added thread safety and max size caps to prevent memory leaks
+
+### Chat-app & UI Improvements
+- Agent Selection Cards: Replaced dropdown-based agent selector with full-screen card list for better discoverability
+- Sidebar Controls: Moved adapter/config controls into sidebar keeping chat header focused on conversations
+- Stop Streaming: Implemented server-side stream cancellation with stop button in chat UI
+- Autocomplete UI: Added 300ms debounced autocomplete dropdown with keyboard navigation in message input
+- Thread Discoverability: Replaced minimal start-thread button with descriptive callout card and rotating example prompts
+- Application Name Config: Added configurable application name via VITE_APPLICATION_NAME for browser tab title
+- Agent Routing: Added shareable agent URLs with slug-based deep links
+- Welcome Heading: Added runtime welcome heading with mode-aware placement
+- GitHub Stats Badge: Added GitHub CTA in chat header
+- Improved Limits UX: Better handling for threads, messages, and uploads with in-context warnings
+- Mobile UX: Keep focus after autocomplete selection, centered message input caret with placeholder
+
+### Bug Fixes & Technical Improvements
+- Streaming Fixes: Fixed real-time streaming by skipping LLM step by name, added 50ms batching buffer, preserved spaces in content
+- Scrolling Fixes: Fixed scrolling during streaming and in thread conversations
+- Threading Fixes: Added supports_threading capability, fixed confidence checks for valid retrieval results, fixed button showing for "no results"
+- ChromaDB Cache: Fixed stale collection cache causing search failures with cache validation
+- Duplicate Initialization: Fixed duplicate service initialization in thread/database services
+- Redis Lua Scripts: Fixed register_script() usage for redis-py 7.x compatibility
+- Qdrant Fixes: Fixed clear_collection FilterSelector validation error, added Qdrant Cloud URL-based connection support
+- OpenRouter Fixes: Strip model artifacts from responses, add SQL file support
+- Ollama Cloud: Fixed response handling and increased context window to 32K
+- Embedding Validation: Fixed false-positive warnings for Ollama-based retrievers
+- Vector Dimension Mismatch: Optimized handling with pre-compiled regex patterns
+- Module Import Fix: Fixed ModuleNotFoundError when running bin/orbit.py directly
+- Python Client: Fixed streaming with httpx and direct stdout for real-time output
+
+### API & Client Updates
+- orbitchat v2.10.2: Published new NPM package versions (v2.4.0 through v2.10.2) with UI improvements and bug fixes
+- Node API v2.1.6: Updated with autocomplete support and various fixes
+- Python Client v1.1.6: New version with markdown rendering in responses and aligned slash completions
+- Chat Widget v0.6.1: New versions with conversation deletion, markdown alignment, and theme improvements
+
+### Security Improvements
+- API Path Security: Replaced /api/proxy/ paths with /api/ to hide proxy architecture
+- API Key Masking: Mask API keys in audit logs and chat history storage
+- Moderation Messages: Fixed client error handling to display moderation messages properly
+- LLM Guard Removal: Removed deprecated LLM Guard service, consolidated to Moderator-only content moderation
+
+### Documentation & Configuration
+- Test Organization: Reorganized 60+ test files into logical category folders (Issue #64)
+- Docker Improvements: Added orbitchat web app to basic Docker image, enabled API middleware mode
+- Setup Script: Added flexible multi-profile syntax, --torch-backend option, and uv support
+- Qdrant Scripts: Added cloud support and update mode for collection scripts
+- DuckDB Utils: Added CSV-to-DuckDB utilities and template testing scripts
+- TTS Sanitization: Added content sanitization to skip tables, charts, and code blocks before TTS generation
+
 ## [2.2.0] - 2025-12-12
 
 ### Core System Updates

@@ -6,7 +6,7 @@ vision:
 # Provider-specific configurations
 visions:
   openai:
-    enabled: true
+    enabled: false
     api_key: ${OPENAI_API_KEY}
     api_base: "https://api.openai.com/v1"
     model: "gpt-5"
@@ -26,7 +26,7 @@ visions:
       exponential_base: 2
 
   gemini:
-    enabled: true
+    enabled: false
     api_key: ${GOOGLE_API_KEY}
     model: "gemini-2.5-flash"
     temperature: 0.0
@@ -48,7 +48,7 @@ visions:
       exponential_base: 2
 
   anthropic:
-    enabled: true
+    enabled: false
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
     model: "claude-3-5-sonnet-20241022"
@@ -149,7 +149,7 @@ visions:
       exponential_base: 2
 
   cohere:
-    enabled: true
+    enabled: false
     api_key: ${COHERE_API_KEY}
     api_base: "https://api.cohere.ai/v2"  # Must use v2 API for vision/multimodal support
     model: "c4ai-aya-vision-32b"  # Cohere's multimodal model

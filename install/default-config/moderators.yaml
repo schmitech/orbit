@@ -10,7 +10,7 @@ moderations:
     batch_size: 5
   ollama:
     base_url: "http://localhost:11434"
-    model: "llama-guard3:1b"
+    model: "llama-guard3:8b"
     temperature: 0.0
     top_p: 1.0
     max_tokens: 100  # Increased from 50 to allow full JSON response

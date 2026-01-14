@@ -1,7 +1,7 @@
 # Global embedding configuration
 embedding:
   provider: "ollama"  # Default embedding provider: ollama, openai, cohere, mistral, jina, llama_cpp
-  enabled: true       # Whether embeddings are enabled globally
+  enabled: false       # Whether embeddings are enabled globally
 
 # Provider-specific configurations
 embeddings:
@@ -57,6 +57,17 @@ embeddings:
     api_base: "https://api.mistral.ai/v1"
     model: "mistral-embed"
     dimensions: 1024
+  openrouter:
+    api_key: ${OPENROUTER_API_KEY}
+    # Available models: https://openrouter.ai/models?output_modalities=embeddings
+    # - openai/text-embedding-3-large (3072 dims, most capable)
+    # - openai/text-embedding-3-small (1536 dims, faster/cheaper)
+    # - google/gemini-embedding-001 (top MTEB scores)
+    # - mistralai/mistral-embed-2312 (1024 dims, optimized for RAG)
+    # - qwen/qwen3-embedding-8b (multilingual, long-text)
+    model: "openai/text-embedding-3-small"
+    dimensions: 1536
+    batch_size: 10
   sentence_transformers:
     mode: "local"  # "local" for model inference, "remote" for HF API
     model: "BAAI/bge-m3"

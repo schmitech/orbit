@@ -3,7 +3,7 @@
 
 stt:
   provider: "openai"       # Global default STT provider: whisper, openai, google, gemini, ollama
-  enabled: true             # Global STT enable/disable
+  enabled: false             # Global STT enable/disable
 
 # STT Provider-specific configurations
 stt_providers:
@@ -54,7 +54,7 @@ stt_providers:
       exponential_base: 2
 
   openai:
-    enabled: true
+    enabled: false
     api_key: ${OPENAI_API_KEY}
     api_base: "https://api.openai.com/v1"
     # STT configuration
@@ -72,7 +72,7 @@ stt_providers:
       exponential_base: 2
 
   google:
-    enabled: true
+    enabled: false
     api_key: ${GOOGLE_API_KEY}
     # STT configuration
     stt_model: "latest_long"  # Google Speech-to-Text model
@@ -94,7 +94,7 @@ stt_providers:
   gemini:
     # Gemini - Google's multimodal AI model with native audio support
     # Requires: pip install google-genai (NOT google-generativeai)
-    enabled: true
+    enabled: false
     api_key: ${GOOGLE_API_KEY}
     # STT configuration
     stt_model: "gemini-2.5-pro"  # Use a standard multi-modal model for transcription

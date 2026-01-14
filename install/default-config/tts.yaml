@@ -2,13 +2,20 @@
 # Global TTS settings and provider-specific configurations
 
 tts:
-  provider: "vllm"    # Global default TTS provider: openai, google, gemini, elevenlabs, ollama, vllm, coqui
+  provider: "openai"    # Global default TTS provider: openai, google, gemini, elevenlabs, ollama, vllm, coqui
   enabled: false             # Global TTS enable/disable
+
+  # Content sanitization for TTS
+  # When enabled, removes non-speech content (tables, charts, code blocks) before TTS
+  sanitize_content: true
+  # When true, announces skipped content (e.g., "[Table displayed]")
+  # When false, silently removes non-speech content
+  announce_skipped_content: true
 
 # TTS Provider-specific configurations
 tts_providers:
   openai:
-    enabled: true
+    enabled: false
     api_key: ${OPENAI_API_KEY}
     api_base: "https://api.openai.com/v1"
     # TTS configuration
@@ -28,7 +35,7 @@ tts_providers:
       exponential_base: 2
 
   google:
-    enabled: true
+    enabled: false
     api_key: ${GOOGLE_API_KEY}
     # TTS configuration
     tts_model: "neural2"  # Google TTS model: standard, neural2, news, studio
@@ -52,7 +59,7 @@ tts_providers:
   gemini:
     # Gemini - Google's multimodal AI model with native audio support
     # Requires: pip install google-genai (NOT google-generativeai)
-    enabled: true
+    enabled: false
     api_key: ${GOOGLE_API_KEY}
     # TTS configuration
     tts_model: "gemini-2.5-pro-preview-tts"  # Gemini 2.5 Flash TTS model (required for audio generation)
@@ -86,7 +93,7 @@ tts_providers:
       exponential_base: 2
 
   elevenlabs:
-    enabled: true
+    enabled: false
     api_key: ${ELEVENLABS_API_KEY}
     api_base: "https://api.elevenlabs.io/v1"
     # TTS configuration
@@ -110,7 +117,7 @@ tts_providers:
       exponential_base: 2
 
   ollama:
-    enabled: true
+    enabled: false
     base_url: "http://localhost:11434"
     # TTS configuration
     tts_model: "piper"  # Ollama model for TTS (e.g., piper, kokoro)
@@ -134,7 +141,7 @@ tts_providers:
     # vLLM-served audio models (e.g., Orpheus TTS)
     # Serves audio models via vLLM's OpenAI-compatible API
     # Example: vllm serve canopylabs/orpheus-3b-0.1-ft --dtype auto --quantization fp8
-    enabled: true
+    enabled: false
     host: "localhost"
     port: 8000
     # TTS configuration

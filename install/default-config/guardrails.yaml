@@ -1,9 +1,9 @@
 safety:
   enabled: false
   mode: "fuzzy"
-  moderator: "ollama"  # Using Anthropic - better at understanding context and typos than OpenAI
+  moderator: "openai"
   max_retries: 3
   retry_delay: 1.0
   request_timeout: 10
   allow_on_timeout: false
-  disable_on_fallback: true  # Disable safety if no moderators are available
+  disable_on_fallback: true

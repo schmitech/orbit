@@ -25,7 +25,7 @@ general:
   inference_provider: "ollama"
 
 language_detection:
-  enabled: false
+  enabled: true
   backends:
     - "langdetect"
     - "langid"
@@ -39,7 +39,7 @@ language_detection:
   prefer_english_for_ascii: true
   enable_stickiness: false
   fallback_language: "en"
-  backend_timeout: 3.0  # Timeout per backend in seconds (increase for cold starts)
+  backend_timeout: 10.0  # Timeout per backend in seconds (increase for cold starts)
 
   # Configurable heuristic nudges for voting adjustments
   heuristic_nudges:
@@ -228,6 +228,25 @@ internal_services:
     username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
     password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
 
+  # Audit trail storage configuration
+  # Stores conversation audit logs for compliance and analytics
+  audit:
+    enabled: true
+    # Storage backend for audit logs
+    # Options: "elasticsearch", "sqlite", "mongodb", "database"
+    # "database" means use the same backend as internal_services.backend.type
+    storage_backend: "database"
+    # Collection/table name for audit logs
+    collection_name: "audit_logs"
+    # Enable gzip compression for response field (saves storage, reduces I/O)
+    # Set to false for debugging/testing to see plain text responses
+    # Compressed responses are stored as base64-encoded gzip data
+    compress_responses: false
+    # Clear audit logs on server startup
+    # WARNING: This will delete ALL audit logs when the server starts
+    # Use with caution - only recommended for development/testing environments
+    clear_on_startup: true
+
   mongodb:
     host: ${INTERNAL_SERVICES_MONGODB_HOST}
     port: ${INTERNAL_SERVICES_MONGODB_PORT}
@@ -240,7 +259,7 @@ internal_services:
     prompts_collection: system_prompts
 
   redis:
-    enabled: false
+    enabled: true
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0
@@ -266,8 +285,86 @@ chat_history:
 conversation_threading:
   enabled: true
   dataset_ttl_hours: 24  # Global default TTL for stored datasets
-  storage_backend: "redis"  # redis, sqlite, mongodb (fallback order: redis -> sqlite/mongodb)
+  storage_backend: "sqlite"  # redis, sqlite, mongodb (fallback order: redis -> sqlite/mongodb)
   redis_key_prefix: "thread_dataset:"
+
+# Autocomplete configuration for query suggestions based on intent template nl_examples
+autocomplete:
+  enabled: false  # Master switch - when false, /v1/autocomplete returns empty results
+
+  # Query matching settings
+  min_query_length: 3  # Minimum characters before fetching suggestions
+  max_suggestions: 500   # Maximum suggestions returned per request
+
+  # Caching configuration
+  cache:
+    # Use Redis for distributed caching (recommended for multi-instance deployments)
+    # Falls back to in-memory cache if Redis is unavailable
+    use_redis: true
+    ttl_seconds: 1800  # 30 minutes - templates rarely change
+    redis_key_prefix: "autocomplete:"
+
+  # Fuzzy matching configuration
+  fuzzy_matching:
+    enabled: true  # Enable fuzzy/approximate string matching
+    # Algorithm options: "levenshtein", "jaro_winkler", "substring" (default)
+    # - substring: Exact substring matching (fastest, no typo tolerance)
+    # - levenshtein: Edit distance (handles typos, moderate speed)
+    # - jaro_winkler: Optimized for short strings and prefixes (good for typos)
+    algorithm: "jaro_winkler"
+    # Minimum similarity score (0.0-1.0) to include a suggestion
+    # Higher = stricter matching, fewer results
+    # Recommended: 0.7 for levenshtein, 0.8 for jaro_winkler
+    threshold: 0.75
+    # Maximum candidates to evaluate with fuzzy matching (performance guard)
+    max_candidates: 1000
+
+# Composite Intent Retriever template selection configuration
+# Improves template selection accuracy when routing queries across multiple intent adapters
+# by using multi-stage scoring with reranking and string similarity
+composite_retrieval:
+  # Two-stage retrieval with reranking
+  # Uses the configured reranker (from rerankers.yaml) to re-score top candidates
+  reranking:
+    enabled: false              # Enable reranker stage for better semantic understanding
+    provider: "ollama"      # Reranker provider from rerankers.yaml (anthropic, cohere, openai, etc.)
+    top_candidates: 10         # Number of embedding candidates to pass to reranker
+    weight: 0.4                # Weight for reranker score in final combined score
+
+  # String similarity scoring
+  # Adds lexical matching to complement semantic embeddings
+  string_similarity:
+    enabled: true              # Enable string similarity scoring
+    # Algorithm options:
+    # - "jaro_winkler": Best for short strings and typo tolerance (recommended)
+    # - "levenshtein": Edit distance, good for detecting insertions/deletions
+    # - "ratio": Simple ratio matching (fastest)
+    algorithm: "jaro_winkler"
+    weight: 0.2                # Weight for string similarity in final combined score
+    # Template fields to compare against query for similarity
+    compare_fields:
+      - "description"          # Template description
+      - "nl_examples"          # Natural language examples (primary matching target)
+    # Minimum string similarity to consider (0.0-1.0)
+    # Results below this are penalized
+    min_threshold: 0.3
+    # Aggregate multiple field scores: "max", "avg", "weighted_avg"
+    aggregation: "max"
+
+  # Combined scoring formula:
+  # final_score = (embedding_weight * emb) + (rerank_weight * rerank) + (string_weight * str_sim)
+  # Weights should sum to 1.0 for normalized scoring
+  scoring:
+    embedding_weight: 0.4      # Weight for embedding similarity (base retrieval)
+    normalize_scores: true     # Normalize all scores to 0-1 before combining
+    # Tie-breaker strategy when scores are very close (within 0.01)
+    tie_breaker: "embedding"   # Options: "embedding", "reranker", "string_similarity"
+
+  # Performance settings
+  performance:
+    parallel_rerank: true      # Rerank candidates in parallel batches
+    cache_rerank_results: true # Cache reranking results for repeated queries
+    cache_ttl_seconds: 300     # TTL for reranking cache (5 minutes)
 
 files:
   # Global defaults for all file adapters
@@ -383,10 +480,6 @@ files:
   default_vector_store: "chroma"  # Default vector store to use
   default_collection_prefix: "files_"  # Default prefix for collection names
 
-reranker:
-  provider: "ollama"
-  enabled: false
-
 monitoring:
   enabled: true                    # Enable/disable monitoring dashboard
   metrics:
@@ -474,4 +567,84 @@ security:
   error_handling:
     # Never expose detailed errors in production
     # Set to true only for development/debugging
-    expose_details: false
+    expose_details: true
+
+  # Rate limiting configuration (requires Redis to be enabled)
+  rate_limiting:
+    enabled: false                    # Master switch (requires Redis to be enabled)
+
+    # Proxy header trust configuration
+    # SECURITY: Only enable trust_proxy_headers when behind a trusted reverse proxy
+    # When false (default), X-Forwarded-For and X-Real-IP headers are ignored
+    # to prevent IP spoofing attacks that bypass rate limiting
+    trust_proxy_headers: false
+
+    # Optional: List of trusted proxy IPs/CIDRs that are allowed to set proxy headers
+    # Only used when trust_proxy_headers is true
+    # If empty, all proxy headers are trusted (use only in controlled environments)
+    trusted_proxies: []
+    # Example trusted_proxies configuration:
+    # trusted_proxies:
+    #   - "10.0.0.0/8"        # Private network
+    #   - "172.16.0.0/12"     # Private network
+    #   - "192.168.0.0/16"    # Private network
+    #   - "127.0.0.1"         # Localhost
+
+    # IP-based limits (applies to all requests)
+    ip_limits:
+      requests_per_minute: 60        # Max requests per IP per minute
+      requests_per_hour: 1000        # Max requests per IP per hour
+
+    # API key limits (higher limits for authenticated requests)
+    api_key_limits:
+      requests_per_minute: 120       # Max requests per API key per minute
+      requests_per_hour: 5000        # Max requests per API key per hour
+
+    # Paths to exclude from rate limiting
+    exclude_paths:
+      - "/health"
+      - "/favicon.ico"
+      - "/metrics"
+      - "/static"
+
+    # Response configuration
+    retry_after_seconds: 60          # Retry-After header value when limited
+
+  # Throttling configuration (executes BEFORE rate limiting)
+  # Delays requests progressively instead of rejecting them
+  throttling:
+    enabled: false                    # Master switch for throttling
+
+    # Default quotas for API keys (can be overridden per-key)
+    default_quotas:
+      daily_limit: 10000             # Default daily request limit
+      monthly_limit: 100000          # Default monthly request limit
+
+    # Delay calculation parameters
+    delay:
+      min_ms: 100                    # Minimum delay when throttling starts
+      max_ms: 5000                   # Maximum delay before quota rejection
+      curve: "exponential"           # "linear" or "exponential"
+      threshold_percent: 70          # Start throttling at 70% of quota
+
+    # Priority-based delay multipliers (priority 1-10)
+    # Higher multiplier = more delay for that priority level
+    priority_multipliers:
+      1: 0.5                         # Premium tier: half delay
+      5: 1.0                         # Standard tier: normal delay
+      10: 2.0                        # Low priority: double delay
+
+    # Paths to exclude from throttling
+    exclude_paths: []
+
+    # Redis configuration
+    redis_key_prefix: "quota:"
+    usage_sync_interval_seconds: 60  # Sync Redis usage to database
+
+    # Response headers
+    headers:
+      delay: "X-Throttle-Delay"
+      daily_remaining: "X-Quota-Daily-Remaining"
+      monthly_remaining: "X-Quota-Monthly-Remaining"
+      daily_reset: "X-Quota-Daily-Reset"
+      monthly_reset: "X-Quota-Monthly-Reset"
