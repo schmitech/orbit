@@ -20,6 +20,7 @@ from services.database_service import (
     DatabaseDuplicateKeyError,
     DatabaseTimeoutError
 )
+from utils.text_utils import mask_api_key
 
 # Import tokenizer utilities for token counting
 try:
@@ -623,7 +624,7 @@ class ChatHistoryService:
                 message_doc["user_id"] = user_id
                 
             if api_key:
-                message_doc["api_key"] = api_key
+                message_doc["api_key"] = mask_api_key(api_key, show_last=True, num_chars=6)
                 
             if metadata and self.store_metadata:
                 message_doc["metadata"] = metadata

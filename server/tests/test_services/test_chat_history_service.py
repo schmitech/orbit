@@ -27,6 +27,7 @@ from services.sqlite_service import SQLiteService
 from services.chat_history_service import ChatHistoryService
 from services.thread_dataset_service import ThreadDatasetService
 from utils.id_utils import generate_id
+from utils.text_utils import mask_api_key
 
 
 @fixture(scope="function")
@@ -438,3 +439,39 @@ async def test_thread_without_messages(chat_history_services):
   # Verify thread is deleted even though it had no messages
   assert await db.find_many('conversation_threads', {'parent_session_id': session_id}) == []
   assert await dataset_service.get_dataset(dataset_key) is None
+
+
+@pytest.mark.asyncio
+async def test_api_key_is_masked_when_stored(chat_history_services):
+  """Test that API keys are masked before being stored in chat history."""
+  services = chat_history_services
+  chat_history = services['chat_history']
+  db = services['db']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  session_id = f"session_{generate_id(backend_type)}"
+  raw_api_key = "sk-test-1234567890abcdef"
+
+  # Add a message with an API key
+  await chat_history.add_message(
+    session_id=session_id,
+    role='user',
+    content='Test message',
+    api_key=raw_api_key
+  )
+
+  # Retrieve the message directly from the database
+  messages = await db.find_many('chat_history', {'session_id': session_id})
+  assert len(messages) == 1
+
+  stored_api_key = messages[0].get('api_key')
+
+  # Verify the API key is NOT stored in plain text
+  assert stored_api_key != raw_api_key
+
+  # Verify the API key is masked correctly (matches mask_api_key output)
+  expected_masked = mask_api_key(raw_api_key, show_last=True, num_chars=6)
+  assert stored_api_key == expected_masked
+
+  # Verify the masked key shows only the last 6 characters
+  assert stored_api_key.endswith(raw_api_key[-6:])
