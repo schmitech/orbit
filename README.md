@@ -31,8 +31,8 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
 - **Updates:** Check the [changelog](CHANGELOG.md)
-- **Commercial Support:** [schmitech.ai](https://schmitech.ai/en)
-- **Maintained by:** [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/)
+- **Commercial Support:** [OrbitPods.io](https://orbitpods.io/)
+- **Maintained by:** [Schmitech.ai](https://schmitech.ai/en/)
 
 ## Table of Contents
 
