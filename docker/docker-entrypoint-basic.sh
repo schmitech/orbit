@@ -63,13 +63,10 @@ while ! curl -s http://localhost:3000/health > /dev/null 2>&1; do
 done
 echo "✓ ORBIT server is ready"
 
-# Start orbitchat web app
+# Start orbitchat web app (direct mode with default API key)
 echo "Starting orbitchat web app on port 5173..."
 
-# Configure available adapters for API middleware mode
-export VITE_ADAPTERS='[{ "name": "Simple Chat", "apiKey": "default-key", "apiUrl": "http://localhost:3000" }]'
-
-orbitchat --api-url http://localhost:3000 --host 0.0.0.0 --enable-api-middleware &
+orbitchat --api-url http://localhost:3000 --api-key default-key --host 0.0.0.0 &
 ORBITCHAT_PID=$!
 
 echo "✓ orbitchat web app started"

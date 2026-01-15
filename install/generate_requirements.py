@@ -68,10 +68,14 @@ def main():
             config = tomllib.load(f)
         
         # Always start with default dependencies
-        if 'default' not in config:
-            print('Error: No default section found', file=sys.stderr)
+        # Check for top-level [default] section first, then fall back to [profiles.default]
+        if 'default' in config:
+            dependencies = config['default'].get('dependencies', [])
+        elif 'profiles' in config and 'default' in config['profiles']:
+            dependencies = config['profiles']['default'].get('dependencies', [])
+        else:
+            print('Error: No default section found (checked [default] and [profiles.default])', file=sys.stderr)
             sys.exit(1)
-        dependencies = config['default'].get('dependencies', [])
         
         # If profile specified, add profile dependencies
         profile = args.profile.strip() if args.profile else ''

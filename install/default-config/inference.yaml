@@ -15,7 +15,7 @@ inference:
   # ═══════════════════════════════════════════════════════════════════════════
   ollama:
     enabled: true
-    use_preset: "ollama-cpu"  # Reference to preset in config/ollama.yaml
+    use_preset: "granite-cpu"  # Reference to preset in config/ollama.yaml
   ollama_cloud:
     enabled: false
     api_key: ${OLLAMA_CLOUD_API_KEY}

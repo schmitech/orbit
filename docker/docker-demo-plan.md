@@ -2,7 +2,7 @@
 
 ## Overview
 
-Create a minimal, ready-to-use Docker image following the same packaging strategy as `build-tarball.sh`. The image will use `default-config` directly (copied as `config`), include only the `simple-chat` adapter, and bundle the `gemma3-1b` model for a self-contained experience that new users can pull and run immediately.
+Create a minimal, ready-to-use Docker image following the same packaging strategy as `build-tarball.sh`. The image will use `default-config` directly (copied as `config`), include only the `simple-chat` adapter, and bundle the `granite4:1b` model for a self-contained experience that new users can pull and run immediately.
 
 ## Implementation Steps
 
@@ -12,7 +12,7 @@ Create a minimal, ready-to-use Docker image following the same packaging strateg
 - Base on existing `docker/Dockerfile` but optimized for basic use case
 - Use default dependencies (no profile needed - simple-chat doesn't require cloud SDKs)
 - Copy `install/default-config/` as `/app/config/` (same as tarball approach)
-- Download and include `gemma3-1b` model during build (using same logic as build-tarball.sh)
+- Download and include `granite4:1b` model during build (using same logic as build-tarball.sh)
 - Copy model to `/app/models/` directory
 - Include entrypoint that uses the config directory
 - Smaller image by excluding unused adapters/configs
@@ -28,7 +28,7 @@ Create a minimal, ready-to-use Docker image following the same packaging strateg
 
 - **File**: `docker/publish-basic.sh`
 - Build the basic Docker image with proper tagging
-- Download gemma3-1b model during build (using install/download_hf_gguf_model.py)
+- Download granite4:1b model during build (using install/download_hf_gguf_model.py)
 - Tag as `schmitech/orbit:basic` and `schmitech/orbit:latest` (or user preference)
 - Push to Docker Hub
 - Include error handling and authentication checks
@@ -83,7 +83,7 @@ Create a minimal, ready-to-use Docker image following the same packaging strateg
 
 ### Model Inclusion:
 
-- Download `gemma3-1b` model during Docker build
+- Download `granite4:1b` model during Docker build
 - Use `install/download_hf_gguf_model.py` script (same as tarball)
 - Copy model to `/app/models/` in the image
 - Model will be available immediately on container start
@@ -110,7 +110,7 @@ Create a minimal, ready-to-use Docker image following the same packaging strateg
 
 1. Build image: `./docker/publish-basic.sh --build`
 
-- Downloads gemma3-1b GGUF model during build
+- Downloads granite4:1b GGUF model during build
 - Creates optimized basic image with model included
 - Uses default-config structure
 
@@ -127,6 +127,6 @@ Create a minimal, ready-to-use Docker image following the same packaging strateg
 
 - Uses `default-config` directly (like tarball) instead of creating minimal config files
 - Only overrides `passthrough.yaml` to disable other adapters
-- Includes gemma3-1b model in image (like tarball includes it)
+- Includes granite4:1b model in image (like tarball includes it)
 - No cloud profile needed (simple-chat uses local llama_cpp)
 - Follows build-tarball.sh structure for consistency

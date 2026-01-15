@@ -259,7 +259,7 @@ internal_services:
     prompts_collection: system_prompts
 
   redis:
-    enabled: true
+    enabled: false
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0
@@ -283,7 +283,7 @@ chat_history:
     required: false
 
 conversation_threading:
-  enabled: true
+  enabled: false
   dataset_ttl_hours: 24  # Global default TTL for stored datasets
   storage_backend: "sqlite"  # redis, sqlite, mongodb (fallback order: redis -> sqlite/mongodb)
   redis_key_prefix: "thread_dataset:"

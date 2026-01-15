@@ -92,7 +92,7 @@ The <a href="https://orbitsandbox.dev" target="_blank"><strong>ORBIT Sandbox</st
 
 ```bash
 docker pull schmitech/orbit:basic
-docker run -d --name orbit-basic -p 5173:5173 schmitech/orbit:basic
+docker run -d --name orbit-basic -p 5173:5173 -p 3000:3000 schmitech/orbit:basic
 ```
 
 Open **http://localhost:5173** in your browser and start chatting.
