@@ -2,7 +2,15 @@ FROM python:3.12-slim
 
 WORKDIR /orbit
 
-# Install system dependencies including curl for Ollama installation
+# ═══════════════════════════════════════════════════════════════════════════
+# Performance Optimizations for CPU/GPU inference
+# ═══════════════════════════════════════════════════════════════════════════
+# - OpenBLAS: Optimized linear algebra for CPU inference
+# - numactl: NUMA-aware memory allocation for multi-socket systems
+# - Environment variables optimize threading and memory for ML workloads
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Install system dependencies including performance libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
@@ -14,8 +22,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     libpq-dev \
     zstd \
+    # Performance optimizations
+    libopenblas-dev \
+    numactl \
+    # GPU detection utilities (works without NVIDIA driver)
+    pciutils \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CPU Performance Environment Variables
+# ═══════════════════════════════════════════════════════════════════════════
+# These optimize threading and memory allocation for inference workloads
+ENV OMP_NUM_THREADS=4 \
+    MKL_NUM_THREADS=4 \
+    OPENBLAS_NUM_THREADS=4 \
+    VECLIB_MAXIMUM_THREADS=4 \
+    NUMEXPR_NUM_THREADS=4 \
+    # Reduce Python memory fragmentation
+    MALLOC_TRIM_THRESHOLD_=100000 \
+    # Optimize for inference (not training)
+    TOKENIZERS_PARALLELISM=false
 
 # Install Node.js (LTS version) for orbitchat web app
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
@@ -77,11 +104,15 @@ RUN mkdir -p /orbit/logs /orbit/data /orbit/models
 # Copy default database file (so user won't need to create a default key)
 COPY install/orbit.db.default /orbit/orbit.db
 
-# Pull the models during build
-# Start Ollama in background, pull the models, then stop it
+# ═══════════════════════════════════════════════════════════════════════════
+# Pull Models During Build
+# ═══════════════════════════════════════════════════════════════════════════
+# SmolLM2 1.7B: Ultra-fast inference model (~1.2GB) - optimized for edge
+# nomic-embed-text: Embedding model for RAG/search functionality
+# ═══════════════════════════════════════════════════════════════════════════
 RUN ollama serve & \
     sleep 5 && \
-    ollama pull granite4:1b && \
+    ollama pull smollm2 && \
     ollama pull nomic-embed-text:latest && \
     pkill ollama || true
 
@@ -89,6 +120,17 @@ RUN ollama serve & \
 ENV PYTHONPATH=/orbit:/orbit/server
 ENV PATH="/orbit/bin:${PATH}"
 ENV OLLAMA_HOST=0.0.0.0:11434
+
+# ═══════════════════════════════════════════════════════════════════════════
+# GPU/CPU Auto-Detection Configuration
+# ═══════════════════════════════════════════════════════════════════════════
+# ORBIT_PRESET: Override automatic GPU detection (optional)
+#   - "auto" (default): Detect GPU and select smollm2-1.7b-gpu or smollm2-1.7b-cpu
+#   - "smollm2-1.7b-gpu": Force GPU preset
+#   - "smollm2-1.7b-cpu": Force CPU preset
+#   - Any other preset name from ollama.yaml
+# ═══════════════════════════════════════════════════════════════════════════
+ENV ORBIT_PRESET=auto
 
 # Expose the web app port and API port (Ollama runs internally)
 EXPOSE 5173 3000

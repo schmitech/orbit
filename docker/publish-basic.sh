@@ -3,8 +3,14 @@
 # ORBIT Basic Docker Image Publishing Script
 # -------------------------------------------
 # This script builds and publishes a minimal ORBIT Docker image containing
-# only the simple-chat adapter using Ollama with the granite4:1b model.
+# only the simple-chat adapter using Ollama with SmolLM2 1.7B model.
 # Includes the orbitchat web app for easy browser-based interaction.
+#
+# FEATURES:
+#   - Automatic GPU/CPU detection at runtime
+#   - SmolLM2 1.7B: Ultra-fast inference (~1.2GB model)
+#   - Performance-optimized for both CPU and NVIDIA GPU
+#   - orbitchat web interface included
 #
 # USAGE:
 #   ./publish-basic.sh [OPTIONS]
@@ -19,6 +25,16 @@
 #   ./publish-basic.sh --build
 #   ./publish-basic.sh --publish
 #   ./publish-basic.sh --publish --tag v1.0.0
+#
+# RUNNING THE IMAGE:
+#   CPU mode:
+#     docker run -p 5173:5173 -p 3000:3000 schmitech/orbit:basic
+#
+#   GPU mode (NVIDIA):
+#     docker run --gpus all -p 5173:5173 -p 3000:3000 schmitech/orbit:basic
+#
+#   Force specific preset:
+#     docker run -e ORBIT_PRESET=smollm2-1.7b-gpu --gpus all -p 5173:5173 -p 3000:3000 schmitech/orbit:basic
 #
 set -e
 
@@ -119,17 +135,20 @@ if [ "$BUILD" = true ]; then
     echo -e "${BLUE}🔨 Building ORBIT basic Docker image...${NC}"
     
     # Ollama model configuration
-    CHAT_MODEL="granite4:1b"
+    CHAT_MODEL="smollm2:latest"
     EMBED_MODEL="nomic-embed-text:latest"
     OLLAMA_PORT="11434"
-    
+
     echo -e "${GREEN}✅ Ollama configuration:${NC}"
-    echo -e "${BLUE}   Chat Model: $CHAT_MODEL${NC}"
+    echo -e "${BLUE}   Chat Model: $CHAT_MODEL (SmolLM2 1.7B - ultra-fast inference)${NC}"
     echo -e "${BLUE}   Embeddings Model: $EMBED_MODEL${NC}"
     echo -e "${BLUE}   Port: $OLLAMA_PORT (internal)${NC}"
-    echo -e "${BLUE}   Config: install/default-config/ollama.yaml${NC}"
+    echo -e "${BLUE}   Presets: smollm2-1.7b-cpu / smollm2-1.7b-gpu (auto-detected)${NC}"
     echo -e "${GREEN}✅ Web App:${NC}"
     echo -e "${BLUE}   orbitchat on port 5173${NC}"
+    echo -e "${GREEN}✅ Hardware Support:${NC}"
+    echo -e "${BLUE}   CPU: Optimized with OpenBLAS${NC}"
+    echo -e "${BLUE}   GPU: NVIDIA CUDA (use --gpus all)${NC}"
     
     # Verify default database exists
     if [ -f "install/orbit.db.default" ]; then
@@ -206,7 +225,12 @@ if [ "$PUBLISH" = true ]; then
     echo ""
     echo -e "${BLUE}🚀 Users can now pull and run:${NC}"
     echo -e "   docker pull ${IMAGE_NAME}:${IMAGE_TAG_BASIC}"
+    echo ""
+    echo -e "${BLUE}   CPU mode:${NC}"
     echo -e "   docker run -p 5173:5173 -p 3000:3000 ${IMAGE_NAME}:${IMAGE_TAG_BASIC}"
+    echo ""
+    echo -e "${BLUE}   GPU mode (NVIDIA - requires nvidia-container-toolkit):${NC}"
+    echo -e "   docker run --gpus all -p 5173:5173 -p 3000:3000 ${IMAGE_NAME}:${IMAGE_TAG_BASIC}"
     echo ""
     echo -e "${BLUE}📱 Then open http://localhost:5173 in your browser${NC}"
 fi

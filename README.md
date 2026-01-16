@@ -92,7 +92,12 @@ The <a href="https://orbitsandbox.dev" target="_blank"><strong>ORBIT Sandbox</st
 
 ```bash
 docker pull schmitech/orbit:basic
+
+# CPU mode (auto-detected)
 docker run -d --name orbit-basic -p 5173:5173 -p 3000:3000 schmitech/orbit:basic
+
+# GPU mode (NVIDIA - requires nvidia-container-toolkit)
+docker run -d --name orbit-basic --gpus all -p 5173:5173 -p 3000:3000 schmitech/orbit:basic
 ```
 
 Open **http://localhost:5173** in your browser and start chatting.
@@ -100,8 +105,14 @@ Open **http://localhost:5173** in your browser and start chatting.
 The Docker image includes:
 - ORBIT server (API on port 3000)
 - orbitchat web app (browser UI on port 5173)
-- Ollama with pre-pulled models
+- Ollama with SmolLM2 1.7B (ultra-fast inference model)
+- **Automatic GPU/CPU detection** - selects optimal preset at runtime
 - Pre-configured API key (no setup needed)
+
+**Environment Variables:**
+- `ORBIT_PRESET=auto` (default) - Auto-detect GPU and select best preset
+- `ORBIT_PRESET=smollm2-1.7b-gpu` - Force GPU preset
+- `ORBIT_PRESET=smollm2-1.7b-cpu` - Force CPU preset
 
 For more Docker options, see [docker/README.md](docker/README.md).
 
