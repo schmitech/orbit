@@ -198,5 +198,6 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
                             continue  # Skip invalid JSON lines
 
         except Exception as e:
-            logger.error(f"Error in streaming generation: {str(e)}")
-            yield f"Error: {str(e)}"
+            error_detail = f"{type(e).__name__}: {str(e)}" if str(e) else type(e).__name__
+            logger.error(f"Error in streaming generation: {error_detail}", exc_info=True)
+            yield f"Error: {error_detail}"

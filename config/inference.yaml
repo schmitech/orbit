@@ -15,11 +15,11 @@ inference:
   # ═══════════════════════════════════════════════════════════════════════════
   ollama:
     enabled: true
-    use_preset: "lfm2-700m-cpu"  # Reference to preset in config/ollama.yaml
+    use_preset: "smollm2-1.7b-cpu"  # Reference to preset in config/ollama.yaml
   ollama_cloud:
     enabled: true
     api_key: ${OLLAMA_CLOUD_API_KEY}
-    model: "qwen3-coder:480b" # Supported models: https://docs.ollama.com/cloud
+    model: "gpt-oss:120b" # Supported models: https://docs.ollama.com/cloud
     stream: true
     think: false  # Enable/disable think mode (shows reasoning in <think> tags)
     # Generation parameters - Optimized for large SQL result sets

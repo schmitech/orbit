@@ -277,51 +277,44 @@ ollama_presets:
     keep_alive: "10m"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # Liquid LFM2 700M on CPU - Ultra-fast edge model optimized for CPU
+  # Gemma 3 4B on CPU - Excellent quality-to-size ratio for edge deployment
   # ═══════════════════════════════════════════════════════════════════════════
-  # Model: https://ollama.com/sam860/LFM2
-  # Card: https://huggingface.co/LiquidAI/LFM2-700M-GGUF
+  # Model: https://ollama.com/library/gemma3
   # 
-  # LFM2 uses a hybrid Liquid architecture (gated convolutions + GQA) that is
-  # 2x faster on CPU than standard transformers. Only 792MB with 125K context!
-  # Outperforms Gemma 3 1B IT despite being smaller.
+  # Google's Gemma 3 4B is highly optimized for edge inference.
+  # Exceptional performance for its size, very memory efficient (~3GB).
+  # Great for general-purpose tasks, reasoning, and instruction following.
   # ═══════════════════════════════════════════════════════════════════════════
-  lfm2-700m-cpu:
+  gemma3-4b-cpu:
     base_url: "http://localhost:11434"
-    model: "sam860/LFM2:700m"
+    model: "gemma3:4b"
     stream: true
     think: false
-    # Generation parameters - Per Liquid AI recommendations
-    # Temperature 0.4-0.6 works best for instruction-following and reasoning
-    temperature: 0.5  # Sweet spot for LFM2 per Liquid AI docs
+    # Generation parameters - Gemma 3 works well with moderate temperatures
+    temperature: 0.7
     top_p: 0.9
     top_k: 40
     min_p: 0.0
     typical_p: 0.9
-    num_predict: 4096  # Good output length for 16GB RAM
-    repeat_penalty: 1.1  # Lighter penalty - LFM2 handles repetition well
+    num_predict: 4096
+    repeat_penalty: 1.1
     repeat_last_n: 64
     presence_penalty: 0.0
     frequency_penalty: 0.0
-    # Mirostat sampling (0=disabled)
     mirostat: 0
     mirostat_tau: 4.0
     mirostat_eta: 0.1
-    # Context - LFM2 supports massive 125K context, but limit for 16GB RAM
-    # The model is only 792MB so we can afford larger context than bigger models
-    num_ctx: 16384  # 16K context - generous for 16GB RAM given tiny model size
-    num_keep: 2048  # Keep more context since model is so small
+    # Context - Gemma 3 supports up to 128K but limit for CPU/16GB RAM
+    num_ctx: 8192  # 8K context for 16GB RAM efficiency
+    num_keep: 1024
     penalize_newline: false
     stop: []
-    # Threading - LFM2 is 2x faster on CPU due to hybrid architecture
-    # Can use more threads since the model is so efficient
-    num_threads: 8  # More threads - LFM2's architecture handles parallelism well
-    num_batch: 128  # Larger batch - model is very memory efficient
-    # CPU only settings
+    # CPU optimized settings
+    num_threads: 6
+    num_batch: 64
     num_gpu: 0  # CPU only
     main_gpu: 0
     low_vram: false
-    # Memory management - Model is tiny (792MB) so very RAM-friendly
     use_mmap: true
     use_mlock: false
     vocab_only: false
@@ -335,6 +328,230 @@ ollama_presets:
       exponential_base: 2
     timeout:
       connect: 10000
-      total: 90000   # 1.5 minutes - LFM2 is fast
-      warmup: 60000  # 1 minute warmup - small model loads quickly
-    keep_alive: "15m"  # Keep loaded longer - it's so small!
+      total: 120000
+      warmup: 120000
+    keep_alive: "10m"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SmolLM2 1.7B on CPU - Ultra-fast inference for latency-sensitive apps
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Model: https://ollama.com/library/smollm2
+  # 
+  # HuggingFace's SmolLM2 is designed for maximum speed on edge devices.
+  # Only ~1.2GB with excellent instruction-following capabilities.
+  # Ideal for: chatbots, quick responses, resource-constrained environments.
+  # ═══════════════════════════════════════════════════════════════════════════
+  smollm2-1.7b-cpu:
+    base_url: "http://localhost:11434"
+    model: "SmolLM2:latest"
+    stream: true
+    think: false
+    # Generation parameters - SmolLM2 benefits from slightly lower temps
+    temperature: 0.6
+    top_p: 0.9
+    top_k: 40
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 2048  # Smaller output for speed
+    repeat_penalty: 1.1
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # Context - Keep moderate for speed
+    num_ctx: 8192
+    num_keep: 1024
+    penalize_newline: false
+    stop: []
+    # CPU optimized - can use more threads since model is tiny
+    num_threads: 8
+    num_batch: 128  # Larger batch for tiny model
+    num_gpu: 0  # CPU only
+    main_gpu: 0
+    low_vram: false
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    seed: null
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 120000   # 2 minutes - allow time for cold starts
+      warmup: 120000  # 2 minutes for initial model loading
+    keep_alive: "15m"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SmolLM2 1.7B on GPU - Ultra-fast inference with NVIDIA CUDA acceleration
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Model: https://ollama.com/library/smollm2
+  #
+  # HuggingFace's SmolLM2 with full GPU acceleration for VMs with NVIDIA GPUs.
+  # Only ~1.8GB VRAM required - fits easily on most GPUs.
+  # Ideal for: high-throughput chatbots, low-latency responses, cloud VMs.
+  # ═══════════════════════════════════════════════════════════════════════════
+  smollm2-1.7b-gpu:
+    base_url: "http://localhost:11434"
+    model: "SmolLM2:latest"
+    stream: true
+    think: false
+    # Generation parameters - SmolLM2 benefits from slightly lower temps
+    temperature: 0.6
+    top_p: 0.9
+    top_k: 40
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 4096  # Larger output with GPU acceleration
+    repeat_penalty: 1.1
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # Context - Larger context with GPU acceleration
+    num_ctx: 16384  # 16K context with GPU
+    num_keep: 2048  # Keep more context with GPU
+    penalize_newline: false
+    stop: []
+    # GPU optimized - fewer CPU threads when GPU does heavy lifting
+    num_threads: 4
+    num_batch: 512  # Larger batch size for GPU efficiency
+    # GPU settings - Full NVIDIA CUDA acceleration
+    num_gpu: -1  # -1 = all layers on GPU (maximum acceleration)
+    main_gpu: 0  # Primary GPU device (change for multi-GPU setups)
+    low_vram: false  # Set to true if running low on VRAM (unlikely for 1.7B model)
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    seed: null
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 120000   # 2 minutes - allow time for cold starts
+      warmup: 120000  # 2 minutes for initial model loading
+    keep_alive: "15m"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Qwen2.5 3B on CPU - Strong multilingual with good reasoning
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Model: https://ollama.com/library/qwen2.5
+  # 
+  # Alibaba's Qwen2.5 3B offers excellent quality for its size.
+  # Strong multilingual support and coding capabilities.
+  # Good balance of speed and capability for 16GB systems.
+  # ═══════════════════════════════════════════════════════════════════════════
+  qwen2.5-3b-cpu:
+    base_url: "http://localhost:11434"
+    model: "qwen2.5:3b"
+    stream: true
+    think: false
+    temperature: 0.7
+    top_p: 0.9
+    top_k: 40
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 4096
+    repeat_penalty: 1.1
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # Context - Qwen2.5 supports up to 128K, limit for 16GB RAM
+    num_ctx: 8192
+    num_keep: 1024
+    penalize_newline: false
+    stop: []
+    # CPU optimized settings
+    num_threads: 6
+    num_batch: 64
+    num_gpu: 0  # CPU only
+    main_gpu: 0
+    low_vram: false
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    seed: null
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 120000
+      warmup: 120000
+    keep_alive: "10m"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phi-4 Mini on CPU - Microsoft's strong reasoning model
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Model: https://ollama.com/library/phi4-mini
+  # 
+  # Microsoft's Phi-4 Mini excels at reasoning and structured tasks.
+  # ~2.5GB with surprisingly strong performance on complex queries.
+  # Great for: code, math, logical reasoning, structured output.
+  # ═══════════════════════════════════════════════════════════════════════════
+  phi4-mini-cpu:
+    base_url: "http://localhost:11434"
+    model: "phi4-mini"
+    stream: true
+    think: false
+    # Phi models work well with lower temperatures for reasoning
+    temperature: 0.5
+    top_p: 0.9
+    top_k: 40
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 4096
+    repeat_penalty: 1.1
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    num_ctx: 8192
+    num_keep: 1024
+    penalize_newline: false
+    stop: []
+    # CPU optimized settings
+    num_threads: 6
+    num_batch: 64
+    num_gpu: 0  # CPU only
+    main_gpu: 0
+    low_vram: false
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    seed: null
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 120000
+      warmup: 120000
+    keep_alive: "10m"
+
