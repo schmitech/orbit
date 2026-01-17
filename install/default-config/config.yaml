@@ -389,14 +389,14 @@ files:
     # Set to false to disable docling processor and prevent outbound connections to HuggingFace at startup
     # When disabled, docling will not be initialized until actually needed (lazy initialization)
     # Default: true (enabled)
-    docling_enabled: true
+    docling_enabled: false
 
     # MarkItDown processor configuration (Microsoft's document-to-markdown converter)
     # Set to true to enable MarkItDown as an alternative/fallback document processor
     # Supports: PDF, DOCX, PPTX, XLSX, XLS, HTML, CSV, JSON, XML, images, audio, ZIP, EPUB
     # Requires: pip install markitdown[all]
     # Default: false (opt-in)
-    markitdown_enabled: true
+    markitdown_enabled: false
 
     # Processor priority when multiple universal processors are enabled
     # Determines which processor is tried first for overlapping MIME types

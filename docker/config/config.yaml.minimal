@@ -1,0 +1,192 @@
+# ORBIT Basic Docker - Minimal Configuration
+# Optimized for simple chat with Ollama - no extra dependencies
+
+import:
+  - "ollama.yaml"
+  - "adapters.yaml"
+  - "inference.yaml"
+  - "datasources.yaml"
+  - "embeddings.yaml"
+  - "rerankers.yaml"
+  - "stores.yaml"
+  - "moderators.yaml"
+  - "guardrails.yaml"
+
+general:
+  port: 3000
+  https:
+    enabled: false
+  session_id:
+    header_name: "X-Session-ID"
+    required: true
+  inference_provider: "ollama"
+
+# DISABLED - Saves ~50MB (pycld2, langdetect, langid libraries)
+language_detection:
+  enabled: false
+  fallback_language: "en"
+
+performance:
+  workers: 4
+  keep_alive_timeout: 30
+  adapter_preload_timeout: 120
+  thread_pools:
+    io_workers: 20
+    cpu_workers: 10
+    inference_workers: 10
+    embedding_workers: 5
+    db_workers: 10
+
+fault_tolerance:
+  circuit_breaker:
+    failure_threshold: 5
+    recovery_timeout: 30
+    success_threshold: 3
+    timeout: 30
+  execution:
+    strategy: "all"
+    timeout: 35
+    max_retries: 3
+    retry_delay: 1
+
+messages:
+  no_results_response: "I'm sorry, but I don't have any specific information about that topic."
+  collection_not_found: "Collection not found."
+
+auth:
+  session_duration_hours: 12
+  default_admin_username: admin
+  default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
+  pbkdf2_iterations: 600000
+  credential_storage: file
+
+api_keys:
+  header_name: "X-API-Key"
+  prefix: "orbit_"
+
+logging:
+  level: "INFO"
+  handlers:
+    file:
+      enabled: true
+      directory: "logs"
+      filename: "orbit.log"
+      max_size_mb: 10
+      backup_count: 5
+      rotation: "midnight"
+      format: "text"
+    console:
+      enabled: true
+      format: "text"
+  capture_warnings: true
+  propagate: false
+
+# DISABLED - Not needed for basic chat
+clock_service:
+  enabled: false
+
+internal_services:
+  backend:
+    type: "sqlite"
+    sqlite:
+      database_path: "orbit.db"
+
+  # DISABLED - Not needed for basic chat
+  elasticsearch:
+    enabled: false
+
+  # DISABLED - Reduces startup overhead
+  audit:
+    enabled: false
+
+  # DISABLED - Not needed for basic chat
+  mongodb:
+    host: ""
+    port: 27017
+
+  # DISABLED - Not needed for basic chat
+  redis:
+    enabled: false
+
+# Keep chat history for conversation context
+chat_history:
+  enabled: true
+  collection_name: "chat_history"
+  store_metadata: false
+  retention_days: 7
+  max_tracked_sessions: 1000
+  session:
+    auto_generate: false
+    required: true
+    header_name: "X-Session-ID"
+  user:
+    header_name: "X-User-ID"
+    required: false
+
+# DISABLED - Not needed for basic chat
+conversation_threading:
+  enabled: false
+
+# DISABLED - Not needed for basic chat
+autocomplete:
+  enabled: false
+
+# DISABLED - Not needed for basic chat
+composite_retrieval:
+  reranking:
+    enabled: false
+  string_similarity:
+    enabled: false
+
+# DISABLED - File processing not needed
+files:
+  processing:
+    docling_enabled: false
+    markitdown_enabled: false
+
+# DISABLED - Reduces overhead (enable if you need dashboard)
+monitoring:
+  enabled: false
+
+security:
+  cors:
+    allowed_origins: ["*"]
+    allow_credentials: false
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+    allowed_headers:
+      - "Authorization"
+      - "Content-Type"
+      - "X-API-Key"
+      - "X-Session-ID"
+      - "X-User-ID"
+      - "X-Request-ID"
+    expose_headers:
+      - "X-Request-ID"
+      - "X-RateLimit-Limit"
+      - "X-RateLimit-Remaining"
+      - "X-RateLimit-Reset"
+    max_age: 600
+
+  headers:
+    enabled: true
+    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; frame-ancestors 'self'"
+    strict_transport_security: "max-age=31536000; includeSubDomains"
+    x_content_type_options: "nosniff"
+    x_frame_options: "SAMEORIGIN"
+    x_xss_protection: "1; mode=block"
+    referrer_policy: "strict-origin-when-cross-origin"
+    permissions_policy: "geolocation=(), microphone=(), camera=()"
+
+  request_limits:
+    max_body_size_mb: 10
+
+  error_handling:
+    expose_details: false
+
+  # DISABLED - Requires Redis
+  rate_limiting:
+    enabled: false
+
+  # DISABLED - Requires Redis
+  throttling:
+    enabled: false

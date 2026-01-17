@@ -54,6 +54,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "redis>=7.1.0",
     "elasticsearch>=9.2.1",
+    "pymongo>=4.16.0",  # Provides bson module used for ID handling (also enables MongoDB backend)
     "ollama>=0.6.1",
     "langchain-ollama>=1.0.1",
     "langchain-community>=0.4.1",

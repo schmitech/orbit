@@ -64,11 +64,11 @@ COPY install/generate_requirements.py /orbit/install/
 COPY install/setup.sh /orbit/install/
 RUN chmod +x /orbit/install/setup.sh
 
-# Install Python dependencies (all profile - full installation)
+# Install Python dependencies (default profile only - minimal for basic chat)
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir tomli && \
     cd /orbit/install && \
-    python3 generate_requirements.py all --output /tmp/requirements.txt && \
+    python3 generate_requirements.py default --output /tmp/requirements.txt && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
@@ -86,11 +86,16 @@ COPY LICENSE* /orbit/
 # Includes ollama.yaml which is referenced by inference.yaml
 COPY install/default-config/ /orbit/config/
 
-# Override passthrough adapter config to only enable simple-chat
-COPY docker/config/adapters/passthrough-basic.yaml /orbit/config/adapters/passthrough.yaml
-
-# Enable console logging for Docker (logs to stdout/stderr for docker logs command)
-RUN sed -i '/console:/,/format:/ s/enabled: false/enabled: true/' /orbit/config/config.yaml
+# ═══════════════════════════════════════════════════════════════════════════
+# Docker Config Profiles
+# ═══════════════════════════════════════════════════════════════════════════
+# Available profiles in docker/config/:
+#   - config.yaml.minimal    : Basic chat only (smallest image, ~2GB)
+#   - config.yaml.multimodal : Files, vision, audio support (future)
+#   - config.yaml.full       : All features enabled (future)
+# ═══════════════════════════════════════════════════════════════════════════
+COPY docker/config/config.yaml.minimal /orbit/config/config.yaml
+COPY docker/config/adapters/passthrough.yaml.minimal /orbit/config/adapters/passthrough.yaml
 
 # Create .env file from env.example (same as tarball approach)
 COPY env.example /orbit/.env
