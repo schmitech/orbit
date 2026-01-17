@@ -69,7 +69,7 @@ visions:
 
   ollama:
     enabled: false
-    base_url: "http://35.183.132.58:11434"
+    base_url: "http://localhost:11434"
     model: "qwen3-vl:8b"
     temperature: 0.0
     max_tokens: 1000
