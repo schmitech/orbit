@@ -39,7 +39,6 @@
 #   qa-vector-chroma -> chroma-key
 #   qa-vector-qdrant-demo -> demo-key (EXCLUDED: requires special Qdrant deployment)
 #   intent-sql-sqlite-hr -> hr
-#   intent-sql-sqlite-classified -> classified
 #   intent-duckdb-analytics -> analytical
 #   intent-duckdb-ev-population -> ev
 #   intent-sql-postgres -> postgres
@@ -417,29 +416,28 @@ echo ""
 # Format: "adapter|key_name|prompt_file|prompt_name"
 
 declare -a all_adapters=(
-    "simple-chat|default-key|examples/prompts/examples/default-conversational-adapter-prompt.txt|Conversational Prompt"
-    "simple-chat-with-files|multimodal|examples/prompts/examples/default-file-adapter-prompt.txt|Multimodal Prompt"
-    "simple-chat-with-files-audio|multimodal-audio|examples/prompts/audio/simple-chat-with-files-audio-prompt.txt|Multimodal Audio Prompt"
-    "voice-chat|voice-chat|examples/prompts/audio/voice-chat-prompt.txt|Voice Chat Prompt"
-    "audio-transcription|transcription|examples/prompts/audio/audio-transcription-prompt.txt|Audio Transcription Prompt"
-    "multilingual-voice-assistant|multilingual-voice-chat|examples/prompts/audio/multilingual-voice-assistant-prompt.txt|Multilingual Voice Prompt"
-    "premium-voice-chat|premium-voice-chat|examples/prompts/audio/premium-voice-chat-prompt.txt|Premium Voice Prompt"
-    "local-voice-chat|whisper|examples/prompts/audio/local-audio-transcription-prompt.txt|Local Voice Prompt"
-    "qa-sql|sql-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|SQL QA Prompt"
-    "qa-vector-chroma|chroma-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|Chroma QA Prompt"
+    "simple-chat|default-key|examples/prompts/examples/default-conversational-adapter-prompt.md|Conversational Prompt"
+    "simple-chat-with-files|multimodal|examples/prompts/examples/default-file-adapter-prompt.md|Multimodal Prompt"
+    "simple-chat-with-files-audio|multimodal-audio|examples/prompts/audio/simple-chat-with-files-audio-prompt.md|Multimodal Audio Prompt"
+    "voice-chat|voice-chat|examples/prompts/audio/voice-chat-prompt.md|Voice Chat Prompt"
+    "audio-transcription|transcription|examples/prompts/audio/audio-transcription-prompt.md|Audio Transcription Prompt"
+    "multilingual-voice-assistant|multilingual-voice-chat|examples/prompts/audio/multilingual-voice-assistant-prompt.md|Multilingual Voice Prompt"
+    "premium-voice-chat|premium-voice-chat|examples/prompts/audio/premium-voice-chat-prompt.md|Premium Voice Prompt"
+    "local-voice-chat|whisper|examples/prompts/audio/local-audio-transcription-prompt.md|Local Voice Prompt"
+    "qa-sql|sql-key|examples/prompts/examples/city/city-assistant-normal-prompt.md|SQL QA Prompt"
+    "qa-vector-chroma|chroma-key|examples/prompts/examples/city/city-assistant-normal-prompt.md|Chroma QA Prompt"
     # "qa-vector-qdrant-demo|demo-key|..." excluded: requires special Qdrant deployment
-    "intent-sql-sqlite-hr|hr|examples/prompts/hr-assistant-prompt.txt|HR Assistant Prompt"
-    "intent-sql-sqlite-classified|classified|examples/prompts/analytics-assistant-prompt.txt|Classified Data Prompt"
-    "intent-duckdb-analytics|analytical|utils/duckdb-intent-template/examples/analytics/analytics-assistant-prompt.txt|DuckDB Analytics Prompt"
-    "intent-duckdb-ev-population|ev|utils/duckdb-intent-template/examples/ev-population/ev-assistant-prompt.md|EV Population Prompt"
+    "intent-sql-sqlite-hr|hr|examples/intent-templates/sql-intent-template/examples/sqlite/hr/hr-assistant-prompt.md|HR Assistant Prompt"
+    "intent-duckdb-analytics|analytical|examples/intent-templates/duckdb-intent-template/examples/analytics/analytics-assistant-prompt.md|DuckDB Analytics Prompt"
+    "intent-duckdb-ev-population|ev|examples/intent-templates/duckdb-intent-template/examples/ev-population/ev-assistant-prompt.md|EV Population Prompt"
     "intent-sql-postgres|postgres|examples/postgres/prompts/customer-assistant-enhanced-prompt.txt|PostgreSQL Customer Orders Prompt"
-    "intent-elasticsearch-app-logs|elasticsearch|examples/prompts/elasticsearch-log-assistant-prompt.txt|Elasticsearch Logs Prompt"
-    "intent-firecrawl-webscrape|web|examples/prompts/firecrawl-knowledge-assistant-prompt.txt|Firecrawl Web Prompt"
-    "intent-mongodb-mflix|mflix|examples/prompts/mongodb-mflix-assistant-prompt.txt|MongoDB MFlix Prompt"
-    "intent-http-jsonplaceholder|rest|examples/prompts/jsonplaceholder-api-assistant-prompt.txt|JSONPlaceholder API Prompt"
-    "intent-http-paris-opendata|paris|utils/http-intent-template/examples/paris-open-data/paris-assistant-prompt.txt|Paris Open Data Prompt"
-    "intent-graphql-spacex|spacex|examples/prompts/spacex-graphql-assistant-prompt.txt|SpaceX GraphQL Prompt"
-    "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.txt|File Document QA Prompt"
+    "intent-elasticsearch-app-logs|elasticsearch|examples/intent-templates/elasticsearch-intent-template/elasticsearch-log-assistant-prompt.md|Elasticsearch Logs Prompt"
+    "intent-firecrawl-webscrape|web|examples/intent-templates/firecrawl-intent-template/firecrawl-knowledge-assistant-prompt.md|Firecrawl Web Prompt"
+    "intent-mongodb-mflix|mflix|examples/intent-templates/mongodb-intent-template/mongodb-mflix-assistant-prompt.md|MongoDB MFlix Prompt"
+    "intent-http-jsonplaceholder|rest|examples/intent-templates/http-intent-template/examples/jsonplaceholder/jsonplaceholder-api-assistant-prompt.md|JSONPlaceholder API Prompt"
+    "intent-http-paris-opendata|paris|examples/intent-templates/http-intent-template/examples/paris-open-data/paris-assistant-prompt.txt|Paris Open Data Prompt"
+    "intent-graphql-spacex|spacex|examples/intent-templates/graphql-intent-template/spacex-graphql-assistant-prompt.md|SpaceX GraphQL Prompt"
+    "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.md|File Document QA Prompt"
 )
 
 # Function to get notes for each adapter (bash 3.2 compatible - no associative arrays)
@@ -620,23 +618,6 @@ I can help you with:
 I support both English and French responses.
 
 **What HR information do you need?**
-NOTES_EOF
-            ;;
-        "intent-sql-sqlite-classified")
-            cat <<'NOTES_EOF'
-## Welcome to ORBIT Analytics Assistant 📊
-
-I'm your **business intelligence assistant** for sales and product analytics!
-
-I can analyze:
-- 💹 Sales performance and trends
-- 📦 Product analytics
-- 👥 Customer behavior
-- 🌍 Regional patterns
-
-I provide data-driven insights with specific numbers and comparisons.
-
-**What would you like to analyze?**
 NOTES_EOF
             ;;
         "intent-duckdb-analytics")

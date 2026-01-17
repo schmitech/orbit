@@ -2,14 +2,6 @@
 
 This tutorial walks you through connecting ORBIT to databases, files, vector stores, and APIs so you can query them using natural language.
 
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/68190983-d996-458f-8024-c9c15272d1c3" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>Querying an HR database through natural language.</i>
-</div>
-
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
@@ -60,9 +52,9 @@ This example uses a local SQLite database with sample HR/employee data.
 ### 1. Generate Test Data
 
 ```bash
-python utils/sql-intent-template/examples/sqlite/hr/generate_hr_data.py \
+python examples/intent-templates/sql-intent-template/examples/sqlite/hr/generate_hr_data.py \
   --records 100 \
-  --output utils/sql-intent-template/examples/sqlite/hr/hr.db
+  --output examples/intent-templates/sql-intent-template/examples/sqlite/hr/hr.db
 ```
 
 ### 2. Restart ORBIT
@@ -252,9 +244,9 @@ Example from `config/adapters/intent.yaml`:
   embedding_provider: "ollama"
   
   config:
-    domain_config_path: "utils/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
+    domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
     template_library_path:
-      - "utils/duckdb-intent-template/examples/analytics/analytics_templates.yaml"
+      - "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics_templates.yaml"
     
     template_collection_name: "duckdb_analytics_templates"
     store_name: "chroma"
@@ -296,9 +288,9 @@ Query MongoDB collections using natural language.
   embedding_provider: "openrouter"
   
   config:
-    domain_config_path: "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_domain.yaml"
+    domain_config_path: "examples/intent-templates/mongodb-intent-template/examples/sample_mflix/templates/mflix_domain.yaml"
     template_library_path:
-      - "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_templates.yaml"
+      - "examples/intent-templates/mongodb-intent-template/examples/sample_mflix/templates/mflix_templates.yaml"
     
     database: "sample_mflix"
     default_collection: "movies"
@@ -335,9 +327,9 @@ Query REST APIs using natural language.
   embedding_provider: "ollama"
   
   config:
-    domain_config_path: "utils/http-intent-template/examples/jsonplaceholder/templates/jsonplaceholder_domain.yaml"
+    domain_config_path: "examples/intent-templates/http-intent-template/examples/jsonplaceholder/templates/jsonplaceholder_domain.yaml"
     template_library_path:
-      - "utils/http-intent-template/examples/jsonplaceholder/templates/jsonplaceholder_templates.yaml"
+      - "examples/intent-templates/http-intent-template/examples/jsonplaceholder/templates/jsonplaceholder_templates.yaml"
     
     base_url: "https://jsonplaceholder.typicode.com"
     default_timeout: 30
@@ -489,7 +481,7 @@ API keys control access and define which adapter and system prompt to use.
 
 1. **Generate templates** from your schema:
    ```bash
-   python utils/sql-intent-template/generate_templates.py \
+   python examples/intent-templates/sql-intent-template/generate_templates.py \
      --database path/to/your.db \
      --output templates/
    ```
