@@ -1,0 +1,114 @@
+# Agent Tools Domain Configuration
+# Defines the domain context for agent-based function calling
+
+domain:
+  name: "agent_tools"
+  display_name: "Agent Tools"
+  description: >
+    Domain configuration for agent-based function calling with built-in tools
+    (calculator, date_time, json_transform) and custom HTTP-based tools.
+
+  domain_type: "agent"
+  version: "1.0.0"
+
+  # Entities represent the core objects the agent can work with
+  entities:
+    calculation:
+      name: "calculation"
+      entity_type: "primary"
+      display_name: "Calculation"
+      description: "Mathematical calculations and operations"
+      searchable_fields:
+        - "operation"
+        - "result"
+      metadata:
+        icon: "calculator"
+        category: "utility"
+
+    datetime:
+      name: "datetime"
+      entity_type: "secondary"
+      display_name: "Date/Time"
+      description: "Date and time operations"
+      searchable_fields:
+        - "date"
+        - "time"
+        - "format"
+      metadata:
+        icon: "calendar"
+        category: "utility"
+
+    data_transform:
+      name: "data_transform"
+      entity_type: "secondary"
+      display_name: "Data Transformation"
+      description: "JSON data filtering, sorting, and aggregation"
+      searchable_fields:
+        - "field"
+        - "operation"
+        - "value"
+      metadata:
+        icon: "filter"
+        category: "data"
+
+  # Vocabulary for intent matching
+  vocabulary:
+    entity_synonyms:
+      calculation:
+        - "calculate"
+        - "compute"
+        - "math"
+        - "arithmetic"
+        - "percentage"
+        - "sum"
+        - "average"
+      datetime:
+        - "date"
+        - "time"
+        - "today"
+        - "now"
+        - "current"
+        - "tomorrow"
+        - "yesterday"
+      data_transform:
+        - "filter"
+        - "sort"
+        - "select"
+        - "aggregate"
+        - "transform"
+
+    action_synonyms:
+      calculate:
+        - "compute"
+        - "find"
+        - "get"
+        - "what is"
+        - "determine"
+      format:
+        - "show"
+        - "display"
+        - "convert"
+        - "present"
+      transform:
+        - "filter"
+        - "sort"
+        - "extract"
+        - "aggregate"
+
+  # Response templates for formatting tool outputs
+  response_templates:
+    calculation_result: >
+      The result of the calculation is {result}.
+    
+    date_result: >
+      {formatted_date}
+    
+    data_result: >
+      Found {count} items matching your criteria.
+
+  # Default settings
+  defaults:
+    decimal_places: 2
+    date_format: "%Y-%m-%d"
+    time_format: "%H:%M:%S"
+    datetime_format: "%Y-%m-%d %H:%M:%S"

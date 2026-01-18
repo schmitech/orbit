@@ -48,6 +48,7 @@
 #   intent-http-jsonplaceholder -> rest
 #   intent-http-paris-opendata -> paris
 #   intent-graphql-spacex -> spacex
+#   intent-agent-example -> agent
 #   file-document-qa -> files
 #
 # Notes:
@@ -437,6 +438,7 @@ declare -a all_adapters=(
     "intent-http-jsonplaceholder|rest|examples/intent-templates/http-intent-template/examples/jsonplaceholder/jsonplaceholder-api-assistant-prompt.md|JSONPlaceholder API Prompt"
     "intent-http-paris-opendata|paris|examples/intent-templates/http-intent-template/examples/paris-open-data/paris-assistant-prompt.txt|Paris Open Data Prompt"
     "intent-graphql-spacex|spacex|examples/intent-templates/graphql-intent-template/spacex-graphql-assistant-prompt.md|SpaceX GraphQL Prompt"
+    "intent-agent-example|agent|examples/intent-templates/agent-template/agent-assistant-prompt.md|Agent Assistant Prompt"
     "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.md|File Document QA Prompt"
 )
 
@@ -774,6 +776,28 @@ I can help you discover:
 Explore SpaceX's journey to revolutionize space travel!
 
 **What SpaceX mission interests you?**
+NOTES_EOF
+            ;;
+        "intent-agent-example")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Agent Assistant 🤖
+
+I'm your **intelligent agent** powered by function calling!
+
+I can help you with:
+- 🧮 Calculations (percentages, arithmetic, averaging)
+- 📅 Date & time operations (current time, date math, formatting)
+- 🔄 JSON transformations (filter, sort, aggregate)
+- 🌤️ Weather (current conditions and forecasts)
+- 💱 Finance (stock quotes, currency conversion)
+- 📍 Location search (geocoding, place lookup)
+- ✅ Productivity (notifications, task creation)
+
+I execute tools to provide accurate, computed answers rather than estimates.
+
+I support both **English** and **French** responses.
+
+**What would you like me to calculate or look up?**
 NOTES_EOF
             ;;
         "file-document-qa")

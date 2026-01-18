@@ -13,6 +13,7 @@ This tutorial walks you through connecting ORBIT to databases, files, vector sto
 - [Example 5: MongoDB Queries](#example-5-mongodb-queries)
 - [Example 6: HTTP APIs](#example-6-http-apis)
 - [Example 7: Multi-Source Composite](#example-7-multi-source-composite)
+- [Example 8: Agent with Function Calling](#example-8-agent-with-function-calling)
 - [Creating API Keys](#creating-api-keys)
 - [Connecting Your Own Data](#connecting-your-own-data)
 
@@ -41,6 +42,7 @@ ORBIT supports different adapter types for different use cases:
 | **Intent HTTP** | Natural language to API calls | `intent-http-jsonplaceholder` |
 | **Intent MongoDB** | Natural language to MongoDB queries | `intent-mongodb-mflix` |
 | **Intent GraphQL** | Natural language to GraphQL queries | `intent-graphql-spacex` |
+| **Intent Agent** | Function calling with built-in tools | `intent-agent-example` |
 | **Composite** | Query across multiple data sources | `composite-multi-source` |
 
 ---
@@ -432,6 +434,158 @@ See the [Composite Intent Retriever documentation](adapters/composite-intent-ret
 
 ---
 
+## Example 8: Agent with Function Calling
+
+Execute tools and functions using natural language. The Agent Retriever extends intent-based retrieval with built-in tool execution capabilities.
+
+### How It Works
+
+1. User asks a question (e.g., "What is 15% of 200?")
+2. ORBIT matches the query to a function template
+3. The function model generates a tool call with parameters
+4. Built-in tool executes the operation
+5. Response is synthesized in natural language
+
+### Built-in Tools
+
+| Tool | Operations | Examples |
+|:---|:---|:---|
+| **Calculator** | percentage, add, subtract, multiply, divide, average, round | "What is 20% of 500?" |
+| **Date/Time** | now, format, diff, add_days, parse | "How many days until March 1st?" |
+| **JSON Transform** | filter, sort, select, aggregate | "Filter items where price > 100" |
+
+### HTTP API Tools (Configurable)
+
+| Tool | Description | Examples |
+|:---|:---|:---|
+| **Weather** | Current conditions and forecasts | "What's the weather in London?" |
+| **Location** | Geocoding and place search | "Find coordinates of the Eiffel Tower" |
+| **Finance** | Stock quotes and currency conversion | "Convert 100 USD to EUR" |
+| **Productivity** | Notifications and task creation | "Create a task for tomorrow" |
+
+> **Note:** HTTP API tools require configuration with your API endpoints and credentials.
+
+### Adapter Configuration
+
+The agent adapter is pre-configured in `config/adapters/intent.yaml`:
+
+```yaml
+- name: "intent-agent-example"
+  enabled: true
+  type: "retriever"
+  datasource: "http"
+  adapter: "intent"
+  implementation: "retrievers.implementations.intent.IntentAgentRetriever"
+  
+  # Embedding for template matching
+  embedding_provider: "ollama"
+  embedding_model: "nomic-embed-text"
+  
+  # Inference model for response synthesis
+  inference_model_provider: "ollama"
+  inference_model: "gemma3:270m"
+  
+  config:
+    domain_config_path: "examples/intent-templates/agent-template/domain.yaml"
+    template_library_path:
+      - "examples/intent-templates/agent-template/tools.yaml"
+    
+    confidence_threshold: 0.6
+    max_templates: 5
+    
+    agent:
+      # Optional: Dedicated function-calling model
+      function_model_provider: "ollama"
+      function_model: "functiongemma"
+      
+      # Generate natural language responses
+      synthesize_response: true
+```
+
+### Create an API Key
+
+```bash
+./bin/orbit.sh key create \
+  --adapter intent-agent-example \
+  --name "Agent Assistant" \
+  --prompt-file ./examples/intent-templates/agent-template/agent-assistant-prompt.md \
+  --prompt-name "Agent Assistant"
+```
+
+Or use the automated script:
+
+```bash
+./utils/scripts/generate-sample-api-keys.sh --adapter intent-agent-example
+```
+
+### Example Questions
+
+**Calculator:**
+- "What is 15% of 200?"
+- "Calculate the average of 10, 20, 30, 40"
+- "Multiply 125 by 8"
+
+**Date/Time:**
+- "What's today's date?"
+- "How many days until December 25th?"
+- "Add 30 days to January 15, 2026"
+
+**JSON Transform:**
+- "Sort this data by price descending"
+- "Filter items where quantity is greater than 10"
+- "Calculate the sum of all amounts"
+
+**HTTP API (when configured):**
+- "What's the weather in San Francisco?"
+- "Get me the Apple stock price"
+- "Convert 100 dollars to euros"
+- "Create a task to review the report"
+
+### Multi-Model Setup (Optional)
+
+For better accuracy, use separate models for each task:
+
+```yaml
+# Text generation
+inference_model_provider: "ollama"
+inference_model: "gemma3:270m"
+
+# Semantic search
+embedding_provider: "ollama"
+embedding_model: "nomic-embed-text"
+
+# Function calling (optional dedicated model)
+config:
+  agent:
+    function_model_provider: "ollama"
+    function_model: "functiongemma"
+```
+
+If no `function_model` is specified, the inference model handles both text generation and function calling.
+
+### Response Format
+
+Tool execution results include metadata:
+
+```json
+{
+  "content": "15% of 200 is **30**.",
+  "metadata": {
+    "tool_execution": {
+      "tool_name": "calculator",
+      "operation": "percentage",
+      "parameters": {"value": 200, "percentage": 15},
+      "result": {"result": 30},
+      "status": "success"
+    }
+  }
+}
+```
+
+See the [Intent Agent Retriever documentation](adapters/intent-agent-retriever.md) for advanced configuration and custom tool development.
+
+---
+
 ## Creating API Keys
 
 API keys control access and define which adapter and system prompt to use.
@@ -583,5 +737,6 @@ config:
 - [Configuration Guide](configuration.md) – Full configuration reference
 - [SQL Retriever Architecture](sql-retriever-architecture.md) – Deep dive into SQL adapters
 - [Composite Intent Retriever](adapters/composite-intent-retriever.md) – Multi-source query routing
+- [Intent Agent Retriever](adapters/intent-agent-retriever.md) – Function calling and tool execution
 - [API Keys Guide](api-keys.md) – Advanced API key management
 - [Authentication Guide](authentication.md) – User and role management

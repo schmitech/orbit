@@ -113,6 +113,7 @@ ORBIT comes with a variety of pre-built retriever implementations and domain ada
 | **QA (SQL)** | `QASSQLRetriever` | `sqlite` | Specialized for QA over SQLite using text similarity. |
 | **Intent (SQL)** | `IntentPostgreSQLRetriever` | `postgres` | A powerful text-to-SQL retriever for PostgreSQL. |
 | | `IntentMySQLRetriever` | `mysql` | A powerful text-to-SQL retriever for MySQL. |
+| **Intent (Agent)** | `IntentAgentRetriever` | `http` | Extends intent retrieval with function calling and tool execution. |
 | **Composite** | `CompositeIntentRetriever` | multiple | Routes queries across multiple intent adapters to find the best matching source. |
 | **Generic Vector**| `ChromaRetriever` | `chroma` | Generic retriever for ChromaDB. |
 | | `QdrantRetriever` | `qdrant` | Generic retriever for Qdrant. |
@@ -130,6 +131,7 @@ ORBIT comes with a variety of pre-built retriever implementations and domain ada
 | :--- | :--- | :--- |
 | `qa` | `QADocumentAdapter` | Formats documents for question-answering tasks. |
 | `intent` | `IntentAdapter` | Manages domain knowledge and templates for text-to-SQL translation. |
+| `intent` (agent) | `IntentAgentRetriever` | Extends intent adapter with function calling and built-in tool execution. |
 | `composite` | N/A (uses child adapters) | Routes queries to child adapters; delegates formatting to the selected child. |
 | `generic` | `GenericDocumentAdapter` | Provides basic, general-purpose document formatting. |
 
@@ -231,3 +233,5 @@ For more in-depth information on specific retriever types, see the following gui
 -   **[Intent-SQL RAG System](./intent-sql-rag-system.md)**: A deep-dive into the powerful Intent-to-SQL system, explaining how to configure and extend it for any business domain.
 
 -   **[Composite Intent Retriever](./composite-intent-retriever.md)**: A guide to the composite retriever that routes queries across multiple intent adapters to find the best matching data source.
+
+-   **[Intent Agent Retriever](./intent-agent-retriever.md)**: A guide to the agent retriever that extends intent-based retrieval with function calling, tool execution, and response synthesis.

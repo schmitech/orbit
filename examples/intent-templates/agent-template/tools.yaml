@@ -1,0 +1,901 @@
+# Agent Tool Templates
+# Defines function-type templates for the IntentAgentRetriever
+
+templates:
+  # ============================================================================
+  # CALCULATOR TOOLS
+  # ============================================================================
+
+  - id: calculate_percentage
+    version: "1.0.0"
+    description: "Calculate percentage of a value or what percentage one number is of another"
+    tool_type: "function"  # Distinguishes from query templates
+
+    function_schema:
+      name: "calculate_percentage"
+      description: "Calculate what percentage one number is of another, or calculate a percentage of a value"
+      parameters:
+        - name: value
+          type: number
+          required: true
+          description: "The value to calculate percentage of"
+          example: 25
+        - name: total
+          type: number
+          required: true
+          description: "The total value (denominator)"
+          example: 100
+
+    execution:
+      type: "builtin"
+      builtin_function: "calculator"
+      operation: "percentage"
+
+    nl_examples:
+      - "What is 25 out of 100 as a percentage?"
+      - "What percentage is 50 of 200?"
+      - "Calculate what percent 15 is of 60"
+      - "What fraction of 80 is 20, expressed as a percentage?"
+      - "Find the percentage: 30 out of 150"
+
+    semantic_tags:
+      action: "calculate"
+      primary_entity: "calculation"
+      qualifiers:
+        - "percentage"
+        - "fraction"
+        - "ratio"
+
+    tags: ["math", "percentage", "calculate", "ratio"]
+
+  # ============================================================================
+
+  - id: add_numbers
+    version: "1.0.0"
+    description: "Add a list of numbers together"
+    tool_type: "function"
+
+    function_schema:
+      name: "add_numbers"
+      description: "Add multiple numbers together to get their sum"
+      parameters:
+        - name: values
+          type: array
+          required: true
+          description: "List of numbers to add"
+          example: [10, 20, 30]
+
+    execution:
+      type: "builtin"
+      builtin_function: "calculator"
+      operation: "add"
+
+    nl_examples:
+      - "Add 10, 20, and 30 together"
+      - "What is the sum of 5, 15, and 25?"
+      - "Calculate 100 plus 200 plus 300"
+      - "Sum these numbers: 1, 2, 3, 4, 5"
+
+    semantic_tags:
+      action: "calculate"
+      primary_entity: "calculation"
+      qualifiers:
+        - "sum"
+        - "add"
+        - "total"
+
+    tags: ["math", "add", "sum", "calculate"]
+
+  # ============================================================================
+
+  - id: calculate_average
+    version: "1.0.0"
+    description: "Calculate the average (mean) of a list of numbers"
+    tool_type: "function"
+
+    function_schema:
+      name: "calculate_average"
+      description: "Calculate the arithmetic mean of a list of numbers"
+      parameters:
+        - name: values
+          type: array
+          required: true
+          description: "List of numbers to average"
+          example: [10, 20, 30, 40]
+
+    execution:
+      type: "builtin"
+      builtin_function: "calculator"
+      operation: "average"
+
+    nl_examples:
+      - "What is the average of 10, 20, 30, and 40?"
+      - "Calculate the mean of these numbers: 5, 10, 15"
+      - "Find the average: 100, 200, 300"
+      - "What's the mean value of 25, 50, 75?"
+
+    semantic_tags:
+      action: "calculate"
+      primary_entity: "calculation"
+      qualifiers:
+        - "average"
+        - "mean"
+
+    tags: ["math", "average", "mean", "calculate", "statistics"]
+
+  # ============================================================================
+
+  - id: divide_numbers
+    version: "1.0.0"
+    description: "Divide one number by another"
+    tool_type: "function"
+
+    function_schema:
+      name: "divide_numbers"
+      description: "Divide the first number by the second number"
+      parameters:
+        - name: a
+          type: number
+          required: true
+          description: "The dividend (number to be divided)"
+          example: 100
+        - name: b
+          type: number
+          required: true
+          description: "The divisor (number to divide by)"
+          example: 4
+
+    execution:
+      type: "builtin"
+      builtin_function: "calculator"
+      operation: "divide"
+
+    nl_examples:
+      - "Divide 100 by 4"
+      - "What is 50 divided by 5?"
+      - "Calculate 200 / 8"
+      - "How many times does 7 go into 49?"
+
+    semantic_tags:
+      action: "calculate"
+      primary_entity: "calculation"
+      qualifiers:
+        - "divide"
+        - "quotient"
+
+    tags: ["math", "divide", "quotient", "calculate"]
+
+  # ============================================================================
+  # DATE/TIME TOOLS
+  # ============================================================================
+
+  - id: get_current_datetime
+    version: "1.0.0"
+    description: "Get the current date and time"
+    tool_type: "function"
+
+    function_schema:
+      name: "get_current_datetime"
+      description: "Returns the current date and time in ISO format"
+      parameters: []  # No parameters needed
+
+    execution:
+      type: "builtin"
+      builtin_function: "date_time"
+      operation: "now"
+
+    nl_examples:
+      - "What time is it?"
+      - "What is the current date?"
+      - "What is today's date?"
+      - "Show me the current datetime"
+      - "What day is it today?"
+
+    semantic_tags:
+      action: "get"
+      primary_entity: "datetime"
+      qualifiers:
+        - "current"
+        - "now"
+        - "today"
+
+    tags: ["date", "time", "current", "today", "now"]
+
+  # ============================================================================
+
+  - id: format_date
+    version: "1.0.0"
+    description: "Format a date according to a specified format string"
+    tool_type: "function"
+
+    function_schema:
+      name: "format_date"
+      description: "Format a date string according to the specified format"
+      parameters:
+        - name: date
+          type: string
+          required: true
+          description: "Date in ISO format (YYYY-MM-DD or full ISO datetime)"
+          example: "2025-01-18"
+        - name: format_string
+          type: string
+          required: true
+          description: "Python strftime format string"
+          example: "%B %d, %Y"
+
+    execution:
+      type: "builtin"
+      builtin_function: "date_time"
+      operation: "format"
+
+    nl_examples:
+      - "Format 2025-01-18 as January 18, 2025"
+      - "Convert 2025-12-25 to a readable format"
+      - "Show 2025-06-15 in month day year format"
+
+    semantic_tags:
+      action: "format"
+      primary_entity: "datetime"
+      qualifiers:
+        - "convert"
+        - "display"
+
+    tags: ["date", "format", "convert", "display"]
+
+  # ============================================================================
+
+  - id: calculate_date_difference
+    version: "1.0.0"
+    description: "Calculate the difference between two dates"
+    tool_type: "function"
+
+    function_schema:
+      name: "calculate_date_difference"
+      description: "Calculate the difference between two dates in the specified unit"
+      parameters:
+        - name: date1
+          type: string
+          required: true
+          description: "First date in ISO format"
+          example: "2025-01-01"
+        - name: date2
+          type: string
+          required: true
+          description: "Second date in ISO format"
+          example: "2025-12-31"
+        - name: unit
+          type: string
+          required: false
+          description: "Unit for difference (days, hours, minutes, seconds, weeks)"
+          default: "days"
+          enum:
+            - "days"
+            - "hours"
+            - "minutes"
+            - "seconds"
+            - "weeks"
+
+    execution:
+      type: "builtin"
+      builtin_function: "date_time"
+      operation: "diff"
+
+    nl_examples:
+      - "How many days between January 1 and December 31, 2025?"
+      - "Calculate the number of days from 2025-01-01 to 2025-06-30"
+      - "What is the difference in weeks between March 1 and April 15?"
+      - "How many hours between these two dates?"
+
+    semantic_tags:
+      action: "calculate"
+      primary_entity: "datetime"
+      qualifiers:
+        - "difference"
+        - "between"
+        - "duration"
+
+    tags: ["date", "difference", "duration", "calculate", "days"]
+
+  # ============================================================================
+
+  - id: add_days_to_date
+    version: "1.0.0"
+    description: "Add a number of days to a date"
+    tool_type: "function"
+
+    function_schema:
+      name: "add_days_to_date"
+      description: "Add or subtract days from a date"
+      parameters:
+        - name: date
+          type: string
+          required: true
+          description: "Starting date in ISO format"
+          example: "2025-01-18"
+        - name: days
+          type: integer
+          required: true
+          description: "Number of days to add (negative to subtract)"
+          example: 30
+
+    execution:
+      type: "builtin"
+      builtin_function: "date_time"
+      operation: "add_days"
+
+    nl_examples:
+      - "What date is 30 days from January 18, 2025?"
+      - "Add 7 days to 2025-01-01"
+      - "What date is 2 weeks from today?"
+      - "Subtract 10 days from March 15, 2025"
+
+    semantic_tags:
+      action: "calculate"
+      primary_entity: "datetime"
+      qualifiers:
+        - "add"
+        - "future"
+        - "from"
+
+    tags: ["date", "add", "days", "future", "calculate"]
+
+  # ============================================================================
+  # JSON TRANSFORM TOOLS
+  # ============================================================================
+
+  - id: filter_data
+    version: "1.0.0"
+    description: "Filter an array of objects by a field condition"
+    tool_type: "function"
+
+    function_schema:
+      name: "filter_data"
+      description: "Filter an array of objects based on a field condition"
+      parameters:
+        - name: data
+          type: array
+          required: true
+          description: "Array of objects to filter"
+        - name: field
+          type: string
+          required: true
+          description: "Field name to filter on"
+          example: "status"
+        - name: operator
+          type: string
+          required: true
+          description: "Comparison operator"
+          enum:
+            - "eq"      # equals
+            - "ne"      # not equals
+            - "gt"      # greater than
+            - "gte"     # greater than or equal
+            - "lt"      # less than
+            - "lte"     # less than or equal
+            - "contains"
+            - "startswith"
+            - "endswith"
+            - "in"
+        - name: value
+          type: string
+          required: true
+          description: "Value to compare against"
+          example: "active"
+
+    execution:
+      type: "builtin"
+      builtin_function: "json_transform"
+      operation: "filter"
+
+    nl_examples:
+      - "Filter items where status equals active"
+      - "Find all records with price greater than 100"
+      - "Get items where name contains 'test'"
+      - "Filter by category equal to 'electronics'"
+
+    semantic_tags:
+      action: "transform"
+      primary_entity: "data_transform"
+      qualifiers:
+        - "filter"
+        - "where"
+        - "condition"
+
+    tags: ["filter", "data", "transform", "json", "query"]
+
+  # ============================================================================
+
+  - id: sort_data
+    version: "1.0.0"
+    description: "Sort an array of objects by a field"
+    tool_type: "function"
+
+    function_schema:
+      name: "sort_data"
+      description: "Sort an array of objects by a specified field"
+      parameters:
+        - name: data
+          type: array
+          required: true
+          description: "Array of objects to sort"
+        - name: field
+          type: string
+          required: true
+          description: "Field name to sort by"
+          example: "created_at"
+        - name: order
+          type: string
+          required: false
+          description: "Sort order (asc or desc)"
+          default: "asc"
+          enum:
+            - "asc"
+            - "desc"
+
+    execution:
+      type: "builtin"
+      builtin_function: "json_transform"
+      operation: "sort"
+
+    nl_examples:
+      - "Sort by date ascending"
+      - "Order items by price from highest to lowest"
+      - "Sort the data by name alphabetically"
+      - "Arrange by created_at descending"
+
+    semantic_tags:
+      action: "transform"
+      primary_entity: "data_transform"
+      qualifiers:
+        - "sort"
+        - "order"
+        - "arrange"
+
+    tags: ["sort", "order", "data", "transform", "json"]
+
+  # ============================================================================
+
+  - id: aggregate_data
+    version: "1.0.0"
+    description: "Aggregate values from a field in an array of objects"
+    tool_type: "function"
+
+    function_schema:
+      name: "aggregate_data"
+      description: "Perform aggregation on a field (sum, avg, count, min, max)"
+      parameters:
+        - name: data
+          type: array
+          required: true
+          description: "Array of objects to aggregate"
+        - name: field
+          type: string
+          required: true
+          description: "Field name to aggregate"
+          example: "amount"
+        - name: operation
+          type: string
+          required: true
+          description: "Aggregation operation"
+          enum:
+            - "sum"
+            - "avg"
+            - "count"
+            - "min"
+            - "max"
+
+    execution:
+      type: "builtin"
+      builtin_function: "json_transform"
+      operation: "aggregate"
+
+    nl_examples:
+      - "Calculate the sum of all amounts"
+      - "What is the average price?"
+      - "Count the number of items"
+      - "Find the maximum value"
+      - "Get the minimum score"
+
+    semantic_tags:
+      action: "transform"
+      primary_entity: "data_transform"
+      qualifiers:
+        - "aggregate"
+        - "sum"
+        - "average"
+        - "count"
+
+    tags: ["aggregate", "sum", "average", "count", "data", "statistics"]
+
+  # ============================================================================
+  # HTTP API TOOLS (PLACEHOLDERS)
+  # Configure these with your actual API endpoints and credentials
+  # ============================================================================
+
+  - id: get_current_weather
+    version: "1.0.0"
+    description: "Get current weather conditions for a location"
+    tool_type: "function"
+
+    function_schema:
+      name: "get_current_weather"
+      description: "Retrieve current weather data including temperature, humidity, and conditions"
+      parameters:
+        - name: location
+          type: string
+          required: true
+          description: "City name or location (e.g., 'London', 'New York, NY', 'Paris, France')"
+          example: "London"
+        - name: units
+          type: string
+          required: false
+          description: "Temperature units: 'metric' (Celsius) or 'imperial' (Fahrenheit)"
+          default: "metric"
+          enum:
+            - "metric"
+            - "imperial"
+
+    execution:
+      type: "http_call"
+      http_method: "GET"
+      # TODO: Replace with your weather API endpoint
+      # Example for OpenWeatherMap: https://api.openweathermap.org/data/2.5/weather
+      endpoint_template: "https://api.example.com/weather/current?q={location}&units={units}"
+      headers:
+        Content-Type: "application/json"
+        # TODO: Add your API key header
+        # X-API-Key: "${WEATHER_API_KEY}"
+      query_params: {}
+
+    nl_examples:
+      - "What's the weather in London?"
+      - "Current weather in New York"
+      - "How's the weather in Paris today?"
+      - "Is it raining in Tokyo?"
+      - "What's the temperature in Los Angeles?"
+
+    semantic_tags:
+      action: "get"
+      primary_entity: "weather"
+      qualifiers:
+        - "current"
+        - "temperature"
+        - "conditions"
+
+    tags: ["weather", "temperature", "current", "api", "external"]
+
+  # ============================================================================
+
+  - id: get_weather_forecast
+    version: "1.0.0"
+    description: "Get weather forecast for upcoming days"
+    tool_type: "function"
+
+    function_schema:
+      name: "get_weather_forecast"
+      description: "Retrieve weather forecast for the next several days"
+      parameters:
+        - name: location
+          type: string
+          required: true
+          description: "City name or location"
+          example: "San Francisco"
+        - name: days
+          type: integer
+          required: false
+          description: "Number of days to forecast (1-7)"
+          default: 3
+          min: 1
+          max: 7
+        - name: units
+          type: string
+          required: false
+          description: "Temperature units"
+          default: "metric"
+          enum:
+            - "metric"
+            - "imperial"
+
+    execution:
+      type: "http_call"
+      http_method: "GET"
+      # TODO: Replace with your weather API endpoint
+      endpoint_template: "https://api.example.com/weather/forecast?q={location}&days={days}&units={units}"
+      headers:
+        Content-Type: "application/json"
+
+    nl_examples:
+      - "What's the forecast for Seattle this week?"
+      - "Will it rain in Chicago tomorrow?"
+      - "5 day forecast for Miami"
+      - "Weather forecast for Boston"
+      - "What will the weather be like in Denver next 3 days?"
+
+    semantic_tags:
+      action: "get"
+      primary_entity: "weather"
+      qualifiers:
+        - "forecast"
+        - "prediction"
+        - "upcoming"
+
+    tags: ["weather", "forecast", "prediction", "api", "external"]
+
+  # ============================================================================
+
+  - id: search_locations
+    version: "1.0.0"
+    description: "Search for locations and get geographic information"
+    tool_type: "function"
+
+    function_schema:
+      name: "search_locations"
+      description: "Search for places by name and get coordinates, timezone, and other details"
+      parameters:
+        - name: query
+          type: string
+          required: true
+          description: "Search query (city name, address, or place)"
+          example: "Central Park, New York"
+        - name: limit
+          type: integer
+          required: false
+          description: "Maximum number of results"
+          default: 5
+          min: 1
+          max: 10
+
+    execution:
+      type: "http_call"
+      http_method: "GET"
+      # TODO: Replace with your geocoding API endpoint
+      # Example: OpenStreetMap Nominatim, Google Geocoding, Mapbox
+      endpoint_template: "https://api.example.com/geocode/search?q={query}&limit={limit}"
+      headers:
+        Content-Type: "application/json"
+
+    nl_examples:
+      - "Find the coordinates of the Eiffel Tower"
+      - "Where is Silicon Valley located?"
+      - "Search for Times Square"
+      - "Get location info for Sydney Opera House"
+      - "Find places named Springfield"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "location"
+      qualifiers:
+        - "geocode"
+        - "coordinates"
+        - "place"
+
+    tags: ["location", "geocode", "search", "coordinates", "api", "external"]
+
+  # ============================================================================
+
+  - id: get_stock_quote
+    version: "1.0.0"
+    description: "Get current stock price and market data"
+    tool_type: "function"
+
+    function_schema:
+      name: "get_stock_quote"
+      description: "Retrieve current stock price, change, and trading information"
+      parameters:
+        - name: symbol
+          type: string
+          required: true
+          description: "Stock ticker symbol (e.g., 'AAPL', 'GOOGL', 'MSFT')"
+          example: "AAPL"
+
+    execution:
+      type: "http_call"
+      http_method: "GET"
+      # TODO: Replace with your stock API endpoint
+      # Example: Alpha Vantage, Yahoo Finance, IEX Cloud
+      endpoint_template: "https://api.example.com/stocks/quote/{symbol}"
+      headers:
+        Content-Type: "application/json"
+
+    nl_examples:
+      - "What's the current price of Apple stock?"
+      - "Get me the TSLA stock quote"
+      - "How is Microsoft stock doing?"
+      - "Current price for GOOGL"
+      - "Check Amazon stock price"
+
+    semantic_tags:
+      action: "get"
+      primary_entity: "stock"
+      qualifiers:
+        - "price"
+        - "quote"
+        - "market"
+
+    tags: ["stock", "finance", "price", "market", "api", "external"]
+
+  # ============================================================================
+
+  - id: convert_currency
+    version: "1.0.0"
+    description: "Convert between currencies using current exchange rates"
+    tool_type: "function"
+
+    function_schema:
+      name: "convert_currency"
+      description: "Convert an amount from one currency to another"
+      parameters:
+        - name: amount
+          type: number
+          required: true
+          description: "Amount to convert"
+          example: 100
+        - name: from_currency
+          type: string
+          required: true
+          description: "Source currency code (e.g., 'USD', 'EUR', 'GBP')"
+          example: "USD"
+        - name: to_currency
+          type: string
+          required: true
+          description: "Target currency code"
+          example: "EUR"
+
+    execution:
+      type: "http_call"
+      http_method: "GET"
+      # TODO: Replace with your currency API endpoint
+      # Example: ExchangeRate-API, Open Exchange Rates, Fixer.io
+      endpoint_template: "https://api.example.com/currency/convert?amount={amount}&from={from_currency}&to={to_currency}"
+      headers:
+        Content-Type: "application/json"
+
+    nl_examples:
+      - "Convert 100 USD to EUR"
+      - "How much is 50 pounds in dollars?"
+      - "What's 1000 yen in euros?"
+      - "Exchange rate from CAD to USD"
+      - "Convert 250 euros to British pounds"
+
+    semantic_tags:
+      action: "convert"
+      primary_entity: "currency"
+      qualifiers:
+        - "exchange"
+        - "rate"
+        - "money"
+
+    tags: ["currency", "exchange", "convert", "finance", "api", "external"]
+
+  # ============================================================================
+
+  - id: send_notification
+    version: "1.0.0"
+    description: "Send a notification or alert message"
+    tool_type: "function"
+
+    function_schema:
+      name: "send_notification"
+      description: "Send a notification to a specified channel or recipient"
+      parameters:
+        - name: message
+          type: string
+          required: true
+          description: "The notification message content"
+          example: "Task completed successfully"
+        - name: channel
+          type: string
+          required: false
+          description: "Notification channel (email, slack, webhook)"
+          default: "default"
+          enum:
+            - "default"
+            - "email"
+            - "slack"
+            - "webhook"
+        - name: priority
+          type: string
+          required: false
+          description: "Message priority level"
+          default: "normal"
+          enum:
+            - "low"
+            - "normal"
+            - "high"
+            - "urgent"
+
+    execution:
+      type: "http_call"
+      http_method: "POST"
+      # TODO: Replace with your notification service endpoint
+      endpoint_template: "https://api.example.com/notifications/send"
+      headers:
+        Content-Type: "application/json"
+      body_template:
+        message: "{message}"
+        channel: "{channel}"
+        priority: "{priority}"
+
+    nl_examples:
+      - "Send a notification that the report is ready"
+      - "Alert the team about the deployment"
+      - "Notify me when the task is complete"
+      - "Send an urgent message to the channel"
+      - "Post a notification to Slack"
+
+    semantic_tags:
+      action: "send"
+      primary_entity: "notification"
+      qualifiers:
+        - "alert"
+        - "message"
+        - "notify"
+
+    tags: ["notification", "alert", "message", "send", "api", "external"]
+
+  # ============================================================================
+
+  - id: create_task
+    version: "1.0.0"
+    description: "Create a new task or todo item"
+    tool_type: "function"
+
+    function_schema:
+      name: "create_task"
+      description: "Create a new task with title, description, and due date"
+      parameters:
+        - name: title
+          type: string
+          required: true
+          description: "Task title"
+          example: "Review quarterly report"
+        - name: description
+          type: string
+          required: false
+          description: "Detailed task description"
+          default: ""
+        - name: due_date
+          type: string
+          required: false
+          description: "Due date in ISO format (YYYY-MM-DD)"
+          example: "2025-02-01"
+        - name: priority
+          type: string
+          required: false
+          description: "Task priority"
+          default: "medium"
+          enum:
+            - "low"
+            - "medium"
+            - "high"
+
+    execution:
+      type: "http_call"
+      http_method: "POST"
+      # TODO: Replace with your task management API endpoint
+      # Example: Todoist, Asana, Trello, Notion
+      endpoint_template: "https://api.example.com/tasks"
+      headers:
+        Content-Type: "application/json"
+      body_template:
+        title: "{title}"
+        description: "{description}"
+        due_date: "{due_date}"
+        priority: "{priority}"
+
+    nl_examples:
+      - "Create a task to review the budget"
+      - "Add a todo item for tomorrow"
+      - "Create a high priority task for the meeting prep"
+      - "Add a task due next Friday"
+      - "Make a reminder to call the client"
+
+    semantic_tags:
+      action: "create"
+      primary_entity: "task"
+      qualifiers:
+        - "todo"
+        - "reminder"
+        - "item"
+
+    tags: ["task", "todo", "create", "productivity", "api", "external"]

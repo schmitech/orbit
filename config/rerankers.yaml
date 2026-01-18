@@ -1,7 +1,7 @@
 # Global reranker configuration
 reranker:
   provider: "anthropic"  # Default reranker provider (options: ollama, cohere, jina, openai, anthropic, voyage)
-  enabled: true       # Whether reranking is enabled globally
+  enabled: false       # Whether reranking is enabled globally
 
 # Provider-specific configurations
 # Choose the provider that best fits your needs:

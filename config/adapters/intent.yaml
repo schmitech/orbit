@@ -549,10 +549,10 @@ adapters:
     config:
       reranker_top_n: 10
       # Domain and template configuration
-      domain_config_path: "examples/intent-templates/mongodb-intent-template/examples/sample_mflix/templates/mflix_domain.yaml"
+      domain_config_path: "examples/intent-templates/mongodb-intent-template/sample_mflix/templates/mflix_domain.yaml"
       template_library_path:
-        - "examples/intent-templates/mongodb-intent-template/examples/sample_mflix/templates/mflix_templates.yaml"
-        - "examples/intent-templates/mongodb-intent-template/examples/sample_mflix/templates/mflix_advanced_templates.yaml"
+        - "examples/intent-templates/mongodb-intent-template/sample_mflix/templates/mflix_templates.yaml"
+        - "examples/intent-templates/mongodb-intent-template/sample_mflix/templates/mflix_advanced_templates.yaml"
 
       # Vector store configuration for template matching
       template_collection_name: "intent_mongodb_templates"
@@ -710,6 +710,80 @@ adapters:
       #   header_name: "Authorization"
       #   token_prefix: "Bearer"
 
+    # Fault tolerance settings
+    fault_tolerance:
+      operation_timeout: 30.0
+      failure_threshold: 5
+      recovery_timeout: 60.0
+      max_retries: 3
+      retry_delay: 1.0
+
+  # =============================================================================
+  # AGENT ADAPTER - Function Calling with Built-in Tools
+  # =============================================================================
+  # This adapter demonstrates function-calling capabilities inspired by
+  # FunctionGemma patterns. Supports built-in tools (calculator, date_time,
+  # json_transform) and HTTP-based tool calls defined in YAML templates.
+  #
+  # Key Features:
+  # - YAML-defined tools with function_schema and execution config
+  # - Configurable model for function calling (separate or same as inference)
+  # - Built-in tools for common operations
+  # - Response synthesis for natural language output
+  - name: "intent-agent-example"
+    enabled: true
+    type: "retriever"
+    datasource: "http"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentAgentRetriever"
+    
+    # Model configuration - supports both single-model and multi-model patterns
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"              # Main inference model
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+    
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: false
+      supports_autocomplete: true
+      requires_api_key_validation: true
+    
+    config:
+      # Optional: Dedicated function-calling model (FunctionGemma-style)
+      # If not set, uses main inference model for function calling
+      function_model_provider: "ollama"
+      function_model: "functiongemma"  # Uncomment to use separate function model
+      
+      # Tool/Template configuration
+      domain_config_path: "examples/intent-templates/agent-template/domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/agent-template/tools.yaml"
+      
+      # Vector store for template matching
+      template_collection_name: "agent_tools"
+      store_name: "chroma"
+      confidence_threshold: 0.4
+      max_templates: 5
+      return_results: 10
+      
+      # Agent-specific settings
+      enable_builtin_tools: true   # Enable calculator, date_time, json_transform
+      function_output_format: "json"  # json or text
+      synthesize_response: true    # Generate natural language response
+      verbose: false               # Enable debug logging
+      
+      # Template loading settings
+      reload_templates_on_start: true
+      force_reload_templates: true
+      
+      # HTTP configuration (base_url required even for builtin tools)
+      base_url: "http://localhost:8080"  # Placeholder for HTTP tools
+      default_timeout: 30
+    
     # Fault tolerance settings
     fault_tolerance:
       operation_timeout: 30.0
