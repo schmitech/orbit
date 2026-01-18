@@ -39,20 +39,49 @@ class AudioHandler:
         self.config = config
         self.adapter_manager = adapter_manager
 
+        # Support both legacy `sound` config and new `tts` config structures
+        sound_config = config.get('sound', {}) or {}
+        if not isinstance(sound_config, dict):
+            sound_config = {}
+        tts_config = config.get('tts') or {}
+        if not isinstance(tts_config, dict):
+            tts_config = {}
+
+        def _get_config_value(key: str, default: Any = None) -> Any:
+            """Get a config value preferring tts config, falling back to sound config."""
+            if key in tts_config:
+                return tts_config.get(key)
+            if key in sound_config:
+                return sound_config.get(key)
+            return default
+
         # Extract TTS limits from config
-        tts_config = config.get('tts', {})
-        self.tts_limits = tts_config.get('tts_limits', {})
+        tts_limits_config = tts_config.get('tts_limits') if isinstance(tts_config.get('tts_limits'), dict) else None
+        if not tts_limits_config:
+            sound_limits = sound_config.get('tts_limits')
+            tts_limits_config = sound_limits if isinstance(sound_limits, dict) else config.get('tts_limits', {})
+        self.tts_limits = tts_limits_config or {}
         self.max_text_length = self.tts_limits.get('max_text_length', 4096)
         self.max_audio_size_mb = self.tts_limits.get('max_audio_size_mb', 5)
         self.truncate_text = self.tts_limits.get('truncate_text', True)
         self.warn_on_truncate = self.tts_limits.get('warn_on_truncate', True)
 
-        # Default TTS provider from config
-        self.default_provider = tts_config.get('provider', 'openai')
+        # Default TTS provider from config (respect explicit None)
+        provider = None
+        provider_defined = False
+        if 'provider' in tts_config:
+            provider = tts_config.get('provider')
+            provider_defined = True
+        elif 'provider' in sound_config:
+            provider = sound_config.get('provider')
+            provider_defined = True
+        if not provider_defined:
+            provider = 'openai'
+        self.default_provider = provider
 
         # Content sanitization settings
-        self.sanitize_content = tts_config.get('sanitize_content', True)
-        self.announce_skipped_content = tts_config.get('announce_skipped_content', True)
+        self.sanitize_content = _get_config_value('sanitize_content', True)
+        self.announce_skipped_content = _get_config_value('announce_skipped_content', True)
 
         # Cache for audio services to avoid repeated creation
         self._audio_services = {}
@@ -378,7 +407,14 @@ class AudioHandler:
         Returns:
             Audio format string
         """
-        tts_providers_config = self.config.get('tts_providers', {})
+        tts_providers_config = self.config.get('tts_providers') or {}
+        if not isinstance(tts_providers_config, dict):
+            tts_providers_config = {}
+        if not tts_providers_config:
+            sound_providers = self.config.get('sounds', {}) or {}
+            if not isinstance(sound_providers, dict):
+                sound_providers = {}
+            tts_providers_config = sound_providers
         provider_config = tts_providers_config.get(provider, {})
         return provider_config.get('tts_format', 'mp3')
 
