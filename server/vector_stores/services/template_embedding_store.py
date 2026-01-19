@@ -60,7 +60,7 @@ class TemplateEmbeddingStore:
     async def initialize(self, config_path: Optional[str] = None):
         """
         Initialize the vector store connection.
-        
+
         Args:
             config_path: Optional path to configuration file
         """
@@ -70,18 +70,36 @@ class TemplateEmbeddingStore:
                 store_manager = self.store_manager
             else:
                 store_manager = get_store_manager(config_path)
-            
+
+            # Determine which store type to use
+            store_type_to_use = self.store_type
+            available_types = store_manager.get_available_store_types()
+
+            if not available_types:
+                raise ValueError("No vector stores are enabled in stores.yaml configuration")
+
+            # Check if requested store type is available
+            if store_type_to_use not in available_types:
+                # Fall back to the first available store type
+                fallback_type = available_types[0]
+                logger.warning(
+                    f"Requested store type '{store_type_to_use}' is not available "
+                    f"(available: {available_types}). Falling back to '{fallback_type}'"
+                )
+                store_type_to_use = fallback_type
+                self.store_type = fallback_type  # Update instance variable
+
             # Create or get vector store
             store_config = self.config.copy()
             # Don't override ephemeral setting if it's already specified
             # The config should come from intent_sql_base.py which sets it based on chroma_persist
-            
+
             self._vector_store = await store_manager.get_or_create_store(
                 name=self.store_name,
-                store_type=self.store_type,
+                store_type=store_type_to_use,
                 config={'connection_params': store_config}
             )
-            
+
             # Ensure collection exists - but don't create it with wrong dimensions
             # Let the collection be created automatically when first vectors are added
             # This ensures the dimension matches the actual embeddings
@@ -89,9 +107,9 @@ class TemplateEmbeddingStore:
             if collection_exists:
                 collection_info = await self._vector_store.get_collection_info(self.collection_name)
                 existing_dim = collection_info.get('metadata', {}).get('dimension')
-            
-            logger.info("TemplateEmbeddingStore initialized successfully")
-            
+
+            logger.info(f"TemplateEmbeddingStore initialized successfully with store_type={store_type_to_use}")
+
         except Exception as e:
             logger.error(f"Failed to initialize TemplateEmbeddingStore: {e}")
             raise

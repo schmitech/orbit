@@ -358,28 +358,40 @@ class IntentAdapter(DocumentAdapter):
                 if not template_store:
                     # Create new template embedding store
                     logger.info("Creating new template embedding store")
-                    
+
                     # Get vector store configuration from stores.yaml
                     vector_config = self.config.get('vector_store', {})
                     # Get the collection name from adapter config, falling back to default
                     collection_name = self.config.get('template_collection_name', 'intent_query_templates')
-                    
-                    if not vector_config:
-                        # Use default ChromaDB configuration
-                        vector_config = {
-                            'type': 'chroma',
-                            'persist_directory': './chroma_db',
-                            'collection_name': collection_name
-                        }
-                    else:
+
+                    # Determine store type - use config value, or let TemplateEmbeddingStore
+                    # auto-detect from available stores during initialization
+                    store_type = vector_config.get('type') if vector_config else None
+
+                    # If no store type configured, use a placeholder that will be
+                    # replaced during initialization with the first available store
+                    if not store_type:
+                        # Get the first available store type from the store manager
+                        first_available = self.store_manager.get_first_available_store_type()
+                        if first_available:
+                            store_type = first_available
+                            logger.info(f"No vector_store type configured, using first available: {store_type}")
+                        else:
+                            # Fall back to 'chroma' and let TemplateEmbeddingStore.initialize()
+                            # handle the fallback logic if chroma is not available
+                            store_type = 'chroma'
+                            logger.warning("No vector stores available, defaulting to 'chroma'")
+
+                    if vector_config:
                         # Ensure the collection name from adapter config is used
                         vector_config['collection_name'] = collection_name
-                    
+
                     template_store = TemplateEmbeddingStore(
                         store_name='template_embeddings',
-                        store_type=vector_config.get('type', 'chroma'),
+                        store_type=store_type,
                         collection_name=collection_name,
-                        config=vector_config
+                        config=vector_config or {},
+                        store_manager=self.store_manager
                     )
                     # Store managers don't have register_store method, they manage stores internally
                     # Just keep a reference to our template store

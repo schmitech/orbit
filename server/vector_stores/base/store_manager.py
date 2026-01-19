@@ -393,7 +393,7 @@ class StoreManager:
     def get_statistics(self) -> Dict[str, Any]:
         """
         Get statistics about managed stores.
-        
+
         Returns:
             Dictionary of statistics
         """
@@ -402,12 +402,31 @@ class StoreManager:
             'stores_by_type': {},
             'available_store_types': list(self._store_classes.keys())
         }
-        
+
         for store in self._stores.values():
             store_type = store.__class__.__name__
             stats['stores_by_type'][store_type] = stats['stores_by_type'].get(store_type, 0) + 1
-        
+
         return stats
+
+    def get_available_store_types(self) -> List[str]:
+        """
+        Get list of available (enabled and registered) store types.
+
+        Returns:
+            List of store type names that are enabled and available
+        """
+        return list(self._store_classes.keys())
+
+    def get_first_available_store_type(self) -> Optional[str]:
+        """
+        Get the first available store type, or None if no stores are enabled.
+
+        Returns:
+            Name of the first available store type, or None
+        """
+        available = self.get_available_store_types()
+        return available[0] if available else None
     
     async def __aenter__(self):
         """Async context manager entry."""
