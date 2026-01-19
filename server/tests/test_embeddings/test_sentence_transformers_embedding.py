@@ -20,6 +20,12 @@ from typing import Dict, Any
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
 import asyncio
 
+# Skip all tests in this module if sentence-transformers is not installed
+sentence_transformers = pytest.importorskip(
+    "sentence_transformers",
+    reason="sentence-transformers library required for these tests"
+)
+
 # Get the absolute path to the server directory (parent of tests)
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Get the absolute path to the project root directory (parent of server)
