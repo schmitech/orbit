@@ -1,15 +1,56 @@
 # Agent Tool Templates
 # Defines function-type templates for the IntentAgentRetriever
+#
+# =============================================================================
+# TESTING GUIDE
+# =============================================================================
+#
+# This file contains two types of tools:
+#
+# 1. BUILT-IN TOOLS (Ready to test)
+#    - Calculator: percentage, add, average, divide
+#    - Date/Time: current datetime, format, difference, add days
+#    - JSON Transform: filter, sort, aggregate (require array of objects)
+#
+# 2. HTTP API TOOLS (Require configuration)
+#    - Weather, Stock, Currency, etc.
+#    - These have placeholder URLs (api.example.com) that must be replaced
+#    - See individual tool sections for API configuration instructions
+#
+# =============================================================================
+# TEST PROMPTS FOR BUILT-IN TOOLS
+# =============================================================================
+#
+# Copy these prompts to test via curl or chat client:
+#
+# --- CALCULATOR ---
+# "What percentage is 25 of 100?"
+# "Add 10, 20, and 30 together"
+# "What is the average of 85, 90, 78, 92?"
+# "Divide 100 by 4"
+#
+# --- DATE/TIME ---
+# "What is the current date and time?"
+# "Format the date 2025-06-15 as June 15, 2025"
+# "How many days between 2025-01-01 and 2025-12-31?"
+# "What date is 30 days after 2025-01-18?"
+#
+# --- JSON TRANSFORM (must include data as JSON array of objects) ---
+# 'Sort this data by price descending: [{"name": "apple", "price": 1.50}, {"name": "banana", "price": 0.75}, {"name": "orange", "price": 2.00}]'
+# 'Filter where status equals active: [{"name": "Task 1", "status": "active"}, {"name": "Task 2", "status": "done"}, {"name": "Task 3", "status": "active"}]'
+# 'Calculate the sum of amount: [{"item": "A", "amount": 100}, {"item": "B", "amount": 250}, {"item": "C", "amount": 150}]'
+#
+# =============================================================================
 
 templates:
   # ============================================================================
-  # CALCULATOR TOOLS
+  # CALCULATOR TOOLS (Built-in, ready to use)
   # ============================================================================
 
   - id: calculate_percentage
     version: "1.0.0"
     description: "Calculate percentage of a value or what percentage one number is of another"
-    tool_type: "function"  # Distinguishes from query templates
+    tool_type: "function"
 
     function_schema:
       name: "calculate_percentage"
@@ -31,8 +72,13 @@ templates:
       builtin_function: "calculator"
       operation: "percentage"
 
+    # TEST PROMPTS:
+    # "What percentage is 25 of 100?"           -> Expected: 25.0
+    # "What percentage is 50 of 200?"           -> Expected: 25.0
+    # "Calculate what percent 15 is of 60"      -> Expected: 25.0
+    # "What fraction of 80 is 20 as a percent?" -> Expected: 25.0
     nl_examples:
-      - "What is 25 out of 100 as a percentage?"
+      - "What percentage is 25 of 100?"
       - "What percentage is 50 of 200?"
       - "Calculate what percent 15 is of 60"
       - "What fraction of 80 is 20, expressed as a percentage?"
@@ -70,6 +116,11 @@ templates:
       builtin_function: "calculator"
       operation: "add"
 
+    # TEST PROMPTS:
+    # "Add 10, 20, and 30 together"           -> Expected: 60
+    # "What is the sum of 5, 15, and 25?"     -> Expected: 45
+    # "Calculate 100 plus 200 plus 300"       -> Expected: 600
+    # "Sum these numbers: 1, 2, 3, 4, 5"      -> Expected: 15
     nl_examples:
       - "Add 10, 20, and 30 together"
       - "What is the sum of 5, 15, and 25?"
@@ -108,11 +159,16 @@ templates:
       builtin_function: "calculator"
       operation: "average"
 
+    # TEST PROMPTS:
+    # "What is the average of 10, 20, 30, and 40?"  -> Expected: 25.0
+    # "Calculate the mean of these numbers: 5, 10, 15" -> Expected: 10.0
+    # "Find the average: 100, 200, 300"             -> Expected: 200.0
+    # "What's the mean value of 85, 90, 78, 92?"    -> Expected: 86.25
     nl_examples:
       - "What is the average of 10, 20, 30, and 40?"
       - "Calculate the mean of these numbers: 5, 10, 15"
       - "Find the average: 100, 200, 300"
-      - "What's the mean value of 25, 50, 75?"
+      - "What's the mean value of 85, 90, 78, 92?"
 
     semantic_tags:
       action: "calculate"
@@ -150,6 +206,11 @@ templates:
       builtin_function: "calculator"
       operation: "divide"
 
+    # TEST PROMPTS:
+    # "Divide 100 by 4"              -> Expected: 25.0
+    # "What is 50 divided by 5?"     -> Expected: 10.0
+    # "Calculate 200 / 8"            -> Expected: 25.0
+    # "How many times does 7 go into 49?" -> Expected: 7.0
     nl_examples:
       - "Divide 100 by 4"
       - "What is 50 divided by 5?"
@@ -166,7 +227,7 @@ templates:
     tags: ["math", "divide", "quotient", "calculate"]
 
   # ============================================================================
-  # DATE/TIME TOOLS
+  # DATE/TIME TOOLS (Built-in, ready to use)
   # ============================================================================
 
   - id: get_current_datetime
@@ -184,6 +245,11 @@ templates:
       builtin_function: "date_time"
       operation: "now"
 
+    # TEST PROMPTS:
+    # "What time is it?"              -> Returns current ISO datetime
+    # "What is the current date?"     -> Returns current ISO datetime
+    # "What is today's date?"         -> Returns current ISO datetime
+    # "Show me the current datetime"  -> Returns current ISO datetime
     nl_examples:
       - "What time is it?"
       - "What is the current date?"
@@ -220,7 +286,7 @@ templates:
         - name: format_string
           type: string
           required: true
-          description: "Python strftime format string"
+          description: "Python strftime format string (e.g., '%B %d, %Y' for 'January 18, 2025')"
           example: "%B %d, %Y"
 
     execution:
@@ -228,10 +294,15 @@ templates:
       builtin_function: "date_time"
       operation: "format"
 
+    # TEST PROMPTS:
+    # "Format the date 2025-01-18 as January 18, 2025"  -> Expected: "January 18, 2025"
+    # "Format 2025-12-25 using format %Y/%m/%d"         -> Expected: "2025/12/25"
+    # "Show 2025-06-15 in month day year format"        -> Expected: "June 15, 2025"
     nl_examples:
-      - "Format 2025-01-18 as January 18, 2025"
-      - "Convert 2025-12-25 to a readable format"
+      - "Format the date 2025-01-18 as January 18, 2025"
+      - "Format 2025-12-25 using format %Y/%m/%d"
       - "Show 2025-06-15 in month day year format"
+      - "Convert 2025-03-01 to March 1, 2025 format"
 
     semantic_tags:
       action: "format"
@@ -280,11 +351,16 @@ templates:
       builtin_function: "date_time"
       operation: "diff"
 
+    # TEST PROMPTS:
+    # "How many days between 2025-01-01 and 2025-12-31?"           -> Expected: 364
+    # "Calculate the number of days from 2025-01-01 to 2025-06-30" -> Expected: 180
+    # "How many weeks between 2025-01-01 and 2025-03-01?"          -> Expected: ~8.43
+    # "What is the difference in days between 2025-03-01 and 2025-03-15?" -> Expected: 14
     nl_examples:
-      - "How many days between January 1 and December 31, 2025?"
+      - "How many days between 2025-01-01 and 2025-12-31?"
       - "Calculate the number of days from 2025-01-01 to 2025-06-30"
-      - "What is the difference in weeks between March 1 and April 15?"
-      - "How many hours between these two dates?"
+      - "How many weeks between 2025-01-01 and 2025-03-01?"
+      - "What is the difference in days between 2025-03-01 and 2025-03-15?"
 
     semantic_tags:
       action: "calculate"
@@ -323,11 +399,16 @@ templates:
       builtin_function: "date_time"
       operation: "add_days"
 
+    # TEST PROMPTS:
+    # "What date is 30 days after 2025-01-18?"    -> Expected: 2025-02-17
+    # "Add 7 days to 2025-01-01"                  -> Expected: 2025-01-08
+    # "Add 14 days to 2025-02-15"                 -> Expected: 2025-03-01
+    # "Subtract 10 days from 2025-03-15"          -> Expected: 2025-03-05 (days=-10)
     nl_examples:
-      - "What date is 30 days from January 18, 2025?"
+      - "What date is 30 days after 2025-01-18?"
       - "Add 7 days to 2025-01-01"
-      - "What date is 2 weeks from today?"
-      - "Subtract 10 days from March 15, 2025"
+      - "Add 14 days to 2025-02-15"
+      - "Subtract 10 days from 2025-03-15"
 
     semantic_tags:
       action: "calculate"
@@ -340,7 +421,15 @@ templates:
     tags: ["date", "add", "days", "future", "calculate"]
 
   # ============================================================================
-  # JSON TRANSFORM TOOLS
+  # JSON TRANSFORM TOOLS (Built-in, ready to use)
+  # ============================================================================
+  #
+  # IMPORTANT: These tools require data to be provided as an array of objects.
+  # The data MUST be JSON objects with fields, NOT primitive arrays.
+  #
+  # CORRECT:   [{"name": "A", "price": 10}, {"name": "B", "price": 20}]
+  # INCORRECT: [10, 20, 30]  <- This will fail!
+  #
   # ============================================================================
 
   - id: filter_data
@@ -350,12 +439,12 @@ templates:
 
     function_schema:
       name: "filter_data"
-      description: "Filter an array of objects based on a field condition"
+      description: "Filter an array of objects based on a field condition. Data must be an array of objects with named fields."
       parameters:
         - name: data
           type: array
           required: true
-          description: "Array of objects to filter"
+          description: "Array of objects to filter (e.g., [{\"name\": \"A\", \"status\": \"active\"}, ...])"
         - name: field
           type: string
           required: true
@@ -387,11 +476,22 @@ templates:
       builtin_function: "json_transform"
       operation: "filter"
 
+    # TEST PROMPTS (include data as JSON array of objects):
+    #
+    # 'Filter where status equals active: [{"name": "Task 1", "status": "active"}, {"name": "Task 2", "status": "done"}, {"name": "Task 3", "status": "active"}]'
+    # -> Expected: [{"name": "Task 1", "status": "active"}, {"name": "Task 3", "status": "active"}]
+    #
+    # 'Filter this data where price is greater than 50: [{"item": "A", "price": 30}, {"item": "B", "price": 75}, {"item": "C", "price": 100}]'
+    # -> Expected: [{"item": "B", "price": 75}, {"item": "C", "price": 100}]
+    #
+    # 'Get items where category equals electronics: [{"name": "Phone", "category": "electronics"}, {"name": "Shirt", "category": "clothing"}, {"name": "Laptop", "category": "electronics"}]'
+    # -> Expected: [{"name": "Phone", "category": "electronics"}, {"name": "Laptop", "category": "electronics"}]
+    #
     nl_examples:
-      - "Filter items where status equals active"
-      - "Find all records with price greater than 100"
-      - "Get items where name contains 'test'"
-      - "Filter by category equal to 'electronics'"
+      - 'Filter where status equals active: [{"name": "Task 1", "status": "active"}, {"name": "Task 2", "status": "done"}, {"name": "Task 3", "status": "active"}]'
+      - 'Filter this data where price is greater than 50: [{"item": "A", "price": 30}, {"item": "B", "price": 75}, {"item": "C", "price": 100}]'
+      - 'Get items where category equals electronics: [{"name": "Phone", "category": "electronics"}, {"name": "Shirt", "category": "clothing"}]'
+      - 'Filter by score greater than or equal to 80: [{"student": "Alice", "score": 85}, {"student": "Bob", "score": 72}, {"student": "Carol", "score": 91}]'
 
     semantic_tags:
       action: "transform"
@@ -412,17 +512,17 @@ templates:
 
     function_schema:
       name: "sort_data"
-      description: "Sort an array of objects by a specified field"
+      description: "Sort an array of objects by a specified field. Data must be an array of objects with named fields."
       parameters:
         - name: data
           type: array
           required: true
-          description: "Array of objects to sort"
+          description: "Array of objects to sort (e.g., [{\"name\": \"A\", \"price\": 10}, ...])"
         - name: field
           type: string
           required: true
           description: "Field name to sort by"
-          example: "created_at"
+          example: "price"
         - name: order
           type: string
           required: false
@@ -437,11 +537,22 @@ templates:
       builtin_function: "json_transform"
       operation: "sort"
 
+    # TEST PROMPTS (include data as JSON array of objects):
+    #
+    # 'Sort this data by price descending: [{"name": "apple", "price": 1.50}, {"name": "banana", "price": 0.75}, {"name": "orange", "price": 2.00}]'
+    # -> Expected: [{"name": "orange", "price": 2.00}, {"name": "apple", "price": 1.50}, {"name": "banana", "price": 0.75}]
+    #
+    # 'Sort by name ascending: [{"name": "Charlie", "age": 30}, {"name": "Alice", "age": 25}, {"name": "Bob", "age": 35}]'
+    # -> Expected: [{"name": "Alice", "age": 25}, {"name": "Bob", "age": 35}, {"name": "Charlie", "age": 30}]
+    #
+    # 'Order these items by score from highest to lowest: [{"student": "Alice", "score": 85}, {"student": "Bob", "score": 92}, {"student": "Carol", "score": 78}]'
+    # -> Expected: [{"student": "Bob", "score": 92}, {"student": "Alice", "score": 85}, {"student": "Carol", "score": 78}]
+    #
     nl_examples:
-      - "Sort by date ascending"
-      - "Order items by price from highest to lowest"
-      - "Sort the data by name alphabetically"
-      - "Arrange by created_at descending"
+      - 'Sort this data by price descending: [{"name": "apple", "price": 1.50}, {"name": "banana", "price": 0.75}, {"name": "orange", "price": 2.00}]'
+      - 'Sort by name ascending: [{"name": "Charlie", "age": 30}, {"name": "Alice", "age": 25}, {"name": "Bob", "age": 35}]'
+      - 'Order these items by score from highest to lowest: [{"student": "Alice", "score": 85}, {"student": "Bob", "score": 92}, {"student": "Carol", "score": 78}]'
+      - 'Sort by date ascending: [{"event": "Meeting", "date": "2025-03-15"}, {"event": "Call", "date": "2025-01-10"}, {"event": "Review", "date": "2025-02-20"}]'
 
     semantic_tags:
       action: "transform"
@@ -462,12 +573,12 @@ templates:
 
     function_schema:
       name: "aggregate_data"
-      description: "Perform aggregation on a field (sum, avg, count, min, max)"
+      description: "Perform aggregation on a field (sum, avg, count, min, max). Data must be an array of objects with named fields."
       parameters:
         - name: data
           type: array
           required: true
-          description: "Array of objects to aggregate"
+          description: "Array of objects to aggregate (e.g., [{\"item\": \"A\", \"amount\": 100}, ...])"
         - name: field
           type: string
           required: true
@@ -489,12 +600,29 @@ templates:
       builtin_function: "json_transform"
       operation: "aggregate"
 
+    # TEST PROMPTS (include data as JSON array of objects):
+    #
+    # 'Calculate the sum of amount: [{"item": "A", "amount": 100}, {"item": "B", "amount": 250}, {"item": "C", "amount": 150}]'
+    # -> Expected: 500
+    #
+    # 'What is the average price: [{"product": "X", "price": 10}, {"product": "Y", "price": 20}, {"product": "Z", "price": 30}]'
+    # -> Expected: 20.0
+    #
+    # 'Find the maximum score: [{"name": "Alice", "score": 85}, {"name": "Bob", "score": 92}, {"name": "Carol", "score": 78}]'
+    # -> Expected: 92
+    #
+    # 'Count the items: [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}]'
+    # -> Expected: 4
+    #
+    # 'Get the minimum value: [{"x": 5}, {"x": 2}, {"x": 8}, {"x": 1}]'
+    # -> Expected: 1
+    #
     nl_examples:
-      - "Calculate the sum of all amounts"
-      - "What is the average price?"
-      - "Count the number of items"
-      - "Find the maximum value"
-      - "Get the minimum score"
+      - 'Calculate the sum of amount: [{"item": "A", "amount": 100}, {"item": "B", "amount": 250}, {"item": "C", "amount": 150}]'
+      - 'What is the average price: [{"product": "X", "price": 10}, {"product": "Y", "price": 20}, {"product": "Z", "price": 30}]'
+      - 'Find the maximum score: [{"name": "Alice", "score": 85}, {"name": "Bob", "score": 92}, {"name": "Carol", "score": 78}]'
+      - 'Count the items in this data: [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}]'
+      - 'Get the minimum value from: [{"x": 5}, {"x": 2}, {"x": 8}, {"x": 1}]'
 
     semantic_tags:
       action: "transform"
@@ -508,14 +636,24 @@ templates:
     tags: ["aggregate", "sum", "average", "count", "data", "statistics"]
 
   # ============================================================================
-  # HTTP API TOOLS (PLACEHOLDERS)
-  # Configure these with your actual API endpoints and credentials
+  # HTTP API TOOLS (Require configuration - placeholder URLs)
+  # ============================================================================
+  #
+  # WARNING: The following tools use placeholder URLs (api.example.com) and
+  # will NOT work until you configure them with real API endpoints.
+  #
+  # To configure:
+  # 1. Replace endpoint_template with your actual API URL
+  # 2. Add required authentication headers (API keys, tokens, etc.)
+  # 3. Adjust query parameters as needed for your API
+  #
   # ============================================================================
 
   - id: get_current_weather
     version: "1.0.0"
     description: "Get current weather conditions for a location"
     tool_type: "function"
+    # STATUS: REQUIRES CONFIGURATION - Replace api.example.com with real API
 
     function_schema:
       name: "get_current_weather"
@@ -570,6 +708,7 @@ templates:
     version: "1.0.0"
     description: "Get weather forecast for upcoming days"
     tool_type: "function"
+    # STATUS: REQUIRES CONFIGURATION - Replace api.example.com with real API
 
     function_schema:
       name: "get_weather_forecast"
@@ -627,6 +766,7 @@ templates:
     version: "1.0.0"
     description: "Search for locations and get geographic information"
     tool_type: "function"
+    # STATUS: REQUIRES CONFIGURATION - Replace api.example.com with real API
 
     function_schema:
       name: "search_locations"
@@ -677,6 +817,7 @@ templates:
     version: "1.0.0"
     description: "Get current stock price and market data"
     tool_type: "function"
+    # STATUS: REQUIRES CONFIGURATION - Replace api.example.com with real API
 
     function_schema:
       name: "get_stock_quote"
@@ -720,6 +861,7 @@ templates:
     version: "1.0.0"
     description: "Convert between currencies using current exchange rates"
     tool_type: "function"
+    # STATUS: REQUIRES CONFIGURATION - Replace api.example.com with real API
 
     function_schema:
       name: "convert_currency"
@@ -773,6 +915,7 @@ templates:
     version: "1.0.0"
     description: "Send a notification or alert message"
     tool_type: "function"
+    # STATUS: REQUIRES CONFIGURATION - Replace api.example.com with real API
 
     function_schema:
       name: "send_notification"
@@ -839,6 +982,7 @@ templates:
     version: "1.0.0"
     description: "Create a new task or todo item"
     tool_type: "function"
+    # STATUS: REQUIRES CONFIGURATION - Replace api.example.com with real API
 
     function_schema:
       name: "create_task"

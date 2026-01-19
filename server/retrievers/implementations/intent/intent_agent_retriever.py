@@ -605,7 +605,10 @@ Output format: <start_function_call>call:function_name{{param:<escape>value<esca
             return None
 
         except Exception as e:
-            logger.error(f"Error calling function model: {e}")
+            error_msg = str(e) if str(e) else type(e).__name__
+            logger.error(f"Error calling function model: {error_msg}")
+            if self.verbose:
+                logger.error(traceback.format_exc())
             return None
 
     async def _prompt_based_function_calling(
@@ -650,7 +653,10 @@ Output format: <start_function_call>call:function_name{{param:<escape>value<esca
                 logger.warning(f"Could not parse FunctionGemma response as function call")
                 return None
             except Exception as e:
-                logger.error(f"Error in FunctionGemma function calling: {e}")
+                error_msg = str(e) if str(e) else type(e).__name__
+                logger.error(f"Error in FunctionGemma function calling: {error_msg}")
+                if self.verbose:
+                    logger.error(traceback.format_exc())
                 return None
 
         # Generic prompt-based function calling (for other models)
@@ -693,7 +699,10 @@ Response:"""
             response = await self.function_client.generate(prompt)
             return self._parse_json_response(response)
         except Exception as e:
-            logger.error(f"Error in prompt-based function calling: {e}")
+            error_msg = str(e) if str(e) else type(e).__name__
+            logger.error(f"Error in prompt-based function calling: {error_msg}")
+            if self.verbose:
+                logger.error(traceback.format_exc())
             return None
 
     async def _template_matching_flow(self, query: str) -> List[Dict[str, Any]]:
@@ -799,18 +808,24 @@ Response:"""
 Function: {function_schema.get('name', 'unknown')}
 Description: {function_schema.get('description', '')}
 
-Parameters needed:
+Parameters needed (extract each as a SEPARATE top-level key):
 {chr(10).join(param_descriptions)}
 
 User query: "{query}"
 
 Instructions:
-- Extract values for each parameter from the query
+- Extract EACH parameter as a separate top-level key in the JSON response
+- For 'data' or array parameters: extract the array/list exactly as provided, do NOT add extra fields to objects
+- For other parameters like 'field', 'order', 'operator': extract from the descriptive text of the query
 - Return ONLY a valid JSON object with parameter names as keys
 - Use appropriate types (numbers for numeric values, strings for text)
-- For array parameters, return a JSON array
 - If a parameter value is not found in the query, omit it from the response
 - Do not include any explanation, just the JSON object
+
+Example for a sort operation:
+Query: "Sort this by price descending: [{{"name": "A", "price": 10}}, {{"name": "B", "price": 5}}]"
+Correct response: {{"data": [{{"name": "A", "price": 10}}, {{"name": "B", "price": 5}}], "field": "price", "order": "desc"}}
+WRONG response: {{"data": [{{"name": "A", "price": 10, "field": "price"}}, ...]}}
 
 JSON response:"""
 

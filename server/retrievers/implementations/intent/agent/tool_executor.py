@@ -210,13 +210,50 @@ class BuiltinTools:
     # ========================================================================
 
     @staticmethod
+    def _validate_data_array(data: Any, operation_name: str) -> List[Dict[str, Any]]:
+        """
+        Validate that data is a list of dictionaries.
+
+        Args:
+            data: The data to validate
+            operation_name: Name of the operation for error messages
+
+        Returns:
+            The validated data as List[Dict]
+
+        Raises:
+            ValueError: If data is not a valid array of objects
+        """
+        if not isinstance(data, list):
+            raise ValueError(
+                f"json_transform.{operation_name} requires 'data' to be an array of objects, "
+                f"but received {type(data).__name__}: {str(data)[:100]}"
+            )
+
+        if not data:
+            return []
+
+        # Check if first element is a dict (assumes homogeneous array)
+        if not isinstance(data[0], dict):
+            raise ValueError(
+                f"json_transform.{operation_name} requires 'data' to be an array of objects "
+                f"(e.g., [{{'name': 'item1', 'price': 10}}, ...]), but received an array of "
+                f"{type(data[0]).__name__} values: {str(data)[:100]}. "
+                f"These operations work on structured data with fields, not primitive arrays."
+            )
+
+        return data
+
+    @staticmethod
     def json_transform_filter(
-        data: List[Dict[str, Any]], 
-        field: str, 
-        operator: str, 
+        data: List[Dict[str, Any]],
+        field: str,
+        operator: str,
         value: Any
     ) -> List[Dict[str, Any]]:
         """Filter an array by condition."""
+        data = BuiltinTools._validate_data_array(data, "filter")
+
         operators = {
             "eq": lambda x, v: x == v,
             "ne": lambda x, v: x != v,
@@ -229,37 +266,52 @@ class BuiltinTools:
             "endswith": lambda x, v: str(x).endswith(str(v)),
             "in": lambda x, v: x in v,
         }
-        
+
         op_func = operators.get(operator, operators["eq"])
         return [item for item in data if field in item and op_func(item[field], value)]
 
     @staticmethod
     def json_transform_sort(
-        data: List[Dict[str, Any]], 
-        field: str, 
+        data: List[Dict[str, Any]],
+        field: str,
         order: str = "asc"
     ) -> List[Dict[str, Any]]:
         """Sort an array by field."""
+        data = BuiltinTools._validate_data_array(data, "sort")
+
+        if not data:
+            return []
+
         reverse = order.lower() in ("desc", "descending")
         return sorted(data, key=lambda x: x.get(field, ""), reverse=reverse)
 
     @staticmethod
     def json_transform_select(
-        data: List[Dict[str, Any]], 
+        data: List[Dict[str, Any]],
         fields: List[str]
     ) -> List[Dict[str, Any]]:
         """Select specific fields from each item."""
+        data = BuiltinTools._validate_data_array(data, "select")
         return [{k: v for k, v in item.items() if k in fields} for item in data]
 
     @staticmethod
     def json_transform_aggregate(
-        data: List[Dict[str, Any]], 
-        field: str, 
+        data: List[Dict[str, Any]],
+        field: str,
         operation: str
     ) -> Union[int, float]:
         """Aggregate values from a field."""
+        data = BuiltinTools._validate_data_array(data, "aggregate")
+
+        valid_operations = ["sum", "avg", "count", "min", "max"]
+        if operation not in valid_operations:
+            raise ValueError(
+                f"Unknown aggregation operation: '{operation}'. "
+                f"Valid operations are: {valid_operations}"
+            )
+
         values = [item.get(field, 0) for item in data if field in item]
-        
+
         if operation == "sum":
             return sum(values)
         elif operation == "avg":
@@ -430,8 +482,15 @@ class ToolExecutor:
         sig = inspect.signature(func)
         param_names = list(sig.parameters.keys())
 
+        # Identify which parameters are required (no default value)
+        required_params = [
+            name for name, param in sig.parameters.items()
+            if param.default is inspect.Parameter.empty
+        ]
+
         if self.verbose:
             logger.debug(f"Function {function_name}.{operation} expects params: {param_names}")
+            logger.debug(f"Required params (no defaults): {required_params}")
             logger.debug(f"Received parameters (after coercion): {parameters}")
 
         # Build kwargs from parameters
@@ -444,25 +503,25 @@ class ToolExecutor:
         if not param_names:
             return func()
 
-        # Check for missing required parameters
-        missing_params = [p for p in param_names if p not in kwargs]
-        if missing_params:
+        # Check for missing REQUIRED parameters (those without defaults)
+        missing_required = [p for p in required_params if p not in kwargs]
+        if missing_required:
             # Try to map parameters by position if names don't match
             # This handles cases where LLM uses different parameter names
             param_values = list(parameters.values())
-            if len(param_values) >= len(param_names):
+            if len(param_values) >= len(required_params):
                 logger.info(f"Parameter names don't match, attempting positional mapping")
                 for i, name in enumerate(param_names):
                     if name not in kwargs and i < len(param_values):
                         kwargs[name] = param_values[i]
                         logger.debug(f"Mapped positional value {param_values[i]} to parameter '{name}'")
 
-            # Check again after positional mapping
-            still_missing = [p for p in param_names if p not in kwargs]
+            # Check again after positional mapping - only required params
+            still_missing = [p for p in required_params if p not in kwargs]
             if still_missing:
                 raise ValueError(
                     f"Missing required parameters for {function_name}.{operation}: {still_missing}. "
-                    f"Expected: {param_names}, Got: {list(parameters.keys())}"
+                    f"Required: {required_params}, Got: {list(parameters.keys())}"
                 )
 
         if self.verbose:
