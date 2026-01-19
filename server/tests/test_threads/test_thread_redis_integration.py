@@ -67,8 +67,9 @@ async def redis_test_services():
     if not redis_available():
         pytest.skip("Redis not available - skipping Redis integration tests")
 
-    # Clear any existing Redis service instances to avoid singleton issues
+    # Clear any existing singleton instances to avoid stale connections
     RedisService.clear_cache()
+    ThreadDatasetService.clear_cache()
 
     # Create temporary directory for test database
     temp_dir = tempfile.mkdtemp()
@@ -184,8 +185,9 @@ async def redis_test_services():
     sqlite_service.close()
     shutil.rmtree(temp_dir, ignore_errors=True)
 
-    # Clear cache again after cleanup to ensure clean state for next test
+    # Clear singleton caches after cleanup to ensure clean state for next test
     RedisService.clear_cache()
+    ThreadDatasetService.clear_cache()
 
 
 @pytest.mark.asyncio
