@@ -66,12 +66,34 @@ def config() -> Dict[str, Any]:
 
 @pytest.fixture
 def ollama_config(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract and return Ollama configuration"""
+    """Extract and return Ollama configuration, resolving presets if needed"""
     ollama_config = config.get('inference', {}).get('ollama', {})
     if not ollama_config:
         # Fallback to root level for backward compatibility
         ollama_config = config.get('ollama', {})
-    
+
+    # Check if using a preset
+    use_preset = ollama_config.get('use_preset')
+    if use_preset:
+        # Load ollama presets from config/ollama.yaml
+        ollama_presets_path = os.path.join(project_root, 'config', 'ollama.yaml')
+        if os.path.exists(ollama_presets_path):
+            with open(ollama_presets_path, 'r') as file:
+                presets_config = yaml.safe_load(file)
+                presets = presets_config.get('ollama_presets', {})
+                preset = presets.get(use_preset)
+                if preset:
+                    # Merge preset with any overrides from main config
+                    merged_config = preset.copy()
+                    for key, value in ollama_config.items():
+                        if key != 'use_preset' and value is not None:
+                            merged_config[key] = value
+                    ollama_config = merged_config
+                else:
+                    pytest.skip(f"Ollama preset '{use_preset}' not found in ollama.yaml")
+        else:
+            pytest.skip("config/ollama.yaml not found for preset resolution")
+
     assert ollama_config.get('base_url'), "Ollama base_url must be specified in config"
     return ollama_config
 
