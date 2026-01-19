@@ -9,10 +9,14 @@ Compare with: server/inference/pipeline/providers/gemini_provider.py (old implem
 
 from typing import Dict, Any, AsyncGenerator
 import asyncio
+import logging
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
 from ...services import InferenceService
+
+logger = logging.getLogger(__name__)
+
 
 
 class GeminiInferenceService(InferenceService, GoogleBaseService):
@@ -42,6 +46,20 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
         self.top_p = self._get_top_p(default=1.0)
         self.top_k = self._get_top_k(default=40)
         self.transport = config.get('transport', 'rest')  # Use REST to avoid gRPC/ALTS warnings
+        self.disable_safety = config.get('disable_safety', False)
+
+    def _get_safety_settings(self, genai_module):
+        """Get safety settings based on configuration."""
+        if not self.disable_safety:
+            return None
+        
+        # Disable all safety filters if requested
+        return [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ]
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using Gemini."""
@@ -56,8 +74,12 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             if api_key:
                 genai.configure(api_key=api_key, transport=self.transport)
 
-            # Initialize model
-            model = genai.GenerativeModel(self.model)
+            # Initialize model with safety settings
+            safety_settings = self._get_safety_settings(genai)
+            model = genai.GenerativeModel(
+                model_name=self.model,
+                safety_settings=safety_settings
+            )
 
             generation_config = genai.GenerationConfig(
                 temperature=kwargs.get('temperature', self.temperature),
@@ -121,7 +143,11 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             if api_key:
                 genai.configure(api_key=api_key, transport=self.transport)
 
-            model = genai.GenerativeModel(self.model)
+            safety_settings = self._get_safety_settings(genai)
+            model = genai.GenerativeModel(
+                model_name=self.model,
+                safety_settings=safety_settings
+            )
 
             generation_config = genai.GenerationConfig(
                 temperature=kwargs.get('temperature', self.temperature),
@@ -161,5 +187,29 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
                             yield part.text
 
         except Exception as e:
+            # The Google GenAI SDK often returns a generic 400 error for streaming failures
+            # asking to retry with stream=False to get more details.
+            # We automate this here to log the actual error.
+            if "stream=False" in str(e):
+                try:
+                    logger.info("Encountered generic streaming error. Retrying with stream=False to get detailed error message...")
+                    if self.transport == 'rest':
+                        model.generate_content(
+                            prompt,
+                            generation_config=generation_config,
+                            stream=False
+                        )
+                    else:
+                        await model.generate_content_async(
+                            prompt,
+                            generation_config=generation_config,
+                            stream=False
+                        )
+                except Exception as detailed_e:
+                    # Log the detailed error which effectively replaces the generic one
+                    self._handle_google_error(detailed_e, "streaming generation (detailed check)")
+                    yield f"Error: {str(detailed_e)}"
+                    return
+
             self._handle_google_error(e, "streaming generation")
             yield f"Error: {str(e)}"
