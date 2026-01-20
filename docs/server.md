@@ -843,6 +843,78 @@ The server will automatically verify and initialize the llama.cpp model at start
 
 ---
 
+## ⚡ Performance Optimizations
+
+ORBIT includes several performance optimizations to improve response times and reduce bandwidth usage.
+
+### ORJSON Fast JSON Serialization
+
+ORBIT uses [orjson](https://github.com/ijl/orjson) as the default JSON serializer, providing 20-40% faster JSON serialization compared to the standard library.
+
+This is enabled by default and requires no configuration.
+
+### GZip Response Compression (Opt-in)
+
+Large JSON responses can be compressed using GZip, typically reducing response sizes by 30-60%. This is **disabled by default** as it adds overhead that may not benefit chat-focused deployments.
+
+**When to enable**: Deployments with large JSON responses on non-streaming endpoints (e.g., admin APIs returning large datasets).
+
+**Important**: Streaming endpoints (`/v1/chat`, `/ws`, `/mcp`) are automatically excluded from compression to preserve word-by-word streaming behavior.
+
+**Configuration** (`config.yaml`):
+```yaml
+performance:
+  compression:
+    enabled: true           # Set to true to enable
+    minimum_size: 2048      # Only compress responses larger than this (bytes)
+    excluded_paths:         # Paths excluded from compression (streaming)
+      - "/v1/chat"          # SSE streaming endpoint
+      - "/ws"               # WebSocket endpoints
+      - "/mcp"              # MCP protocol endpoints
+```
+
+**Verification**:
+```bash
+# Check that compression is working on non-streaming endpoints
+curl -H "Accept-Encoding: gzip" http://localhost:3000/health/adapters -v
+# Look for "Content-Encoding: gzip" in response headers
+```
+
+### ETag Caching (Opt-in)
+
+GET requests with JSON responses can include ETag headers for client-side caching. This is **disabled by default** as it's most useful for read-heavy REST APIs, not chat-focused deployments.
+
+**When to enable**: Deployments where clients make repeated GET requests to the same endpoints and implement ETag caching.
+
+**Configuration** (`config.yaml`):
+```yaml
+performance:
+  etag_caching:
+    enabled: true           # Set to true to enable
+    excluded_paths:         # Paths to exclude from ETag processing
+      - "/v1/chat"          # SSE streaming endpoint
+      - "/ws"               # WebSocket endpoints
+      - "/mcp"              # MCP protocol endpoints
+```
+
+**Verification**:
+```bash
+# First request - returns full response with ETag header
+curl -v http://localhost:3000/health/adapters
+# Note the ETag value (e.g., "abc123def456")
+
+# Second request with If-None-Match - returns 304 if unchanged
+curl -H 'If-None-Match: "abc123def456"' http://localhost:3000/health/adapters -v
+# Should return 304 Not Modified
+```
+
+**Client Compatibility**: These optimizations are transparent to clients:
+- GZip decompression is handled automatically by `fetch`, `httpx`, `requests`, and other HTTP clients
+- ETag caching is opt-in for both server and clients
+- JSON format remains unchanged - only serialization speed improves
+
+---
+
 ## 📌 Dependencies
 - FastAPI
 - Uvicorn
@@ -852,6 +924,7 @@ The server will automatically verify and initialize the llama.cpp model at start
 - PyYAML
 - aiohttp
 - python-json-logger
+- orjson (for fast JSON serialization)
 - llama-cpp-python (for local LLM inference)
 - huggingface-hub (for model downloading)
 - tqdm (for progress bars)

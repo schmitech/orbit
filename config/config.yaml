@@ -13,7 +13,7 @@ import:
   - "stt.yaml"
 
 general:
-  port: 3001
+  port: 3000
   https:
     enabled: false
     port: 3443
@@ -67,6 +67,28 @@ performance:
   # Adapter preload timeout (seconds) - increase for Ollama cold starts
   # This is the maximum time to wait for each adapter to initialize during startup
   adapter_preload_timeout: 120  # 2 minutes (default was 60s)
+
+  # GZip compression for responses (opt-in)
+  # Compresses responses larger than minimum_size bytes (30-60% bandwidth savings for JSON)
+  # Note: Streaming endpoints are automatically excluded to preserve word-by-word streaming
+  # Recommended for deployments with large JSON responses on non-streaming endpoints
+  compression:
+    enabled: false  # Disabled by default - enable if needed for bandwidth optimization
+    minimum_size: 2048  # Minimum response size in bytes to compress
+    excluded_paths:     # Paths excluded from compression (streaming endpoints)
+      - "/v1/chat"      # SSE streaming endpoint
+      - "/ws"           # WebSocket endpoints
+      - "/mcp"          # MCP protocol endpoints
+
+  # ETag caching for GET requests (opt-in)
+  # Returns 304 Not Modified for unchanged responses
+  # Recommended for read-heavy REST API deployments, less useful for chat-focused use
+  etag_caching:
+    enabled: false  # Disabled by default - enable if clients implement ETag caching
+    excluded_paths:
+      - "/v1/chat"  # SSE streaming endpoint
+      - "/ws"       # WebSocket endpoints
+      - "/mcp"      # MCP protocol endpoints
 
   thread_pools:
     io_workers: 50              # Up from 10

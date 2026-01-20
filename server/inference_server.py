@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.responses import ORJSONResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from fastapi_mcp import FastApiMCP
@@ -129,7 +130,8 @@ class InferenceServer:
             title="ORBIT",
             description="A FastAPI server with chat endpoint and RAG capabilities",
             version="2.3.0",
-            lifespan=self._create_lifespan_manager()
+            lifespan=self._create_lifespan_manager(),
+            default_response_class=ORJSONResponse  # Fast JSON serialization
         )
         self.app.mount("/static", StaticFiles(directory="server/templates"), name="static")
         

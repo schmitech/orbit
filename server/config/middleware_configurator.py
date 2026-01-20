@@ -85,6 +85,8 @@ class MiddlewareConfigurator:
         Configure all middleware for the FastAPI application.
 
         This method sets up:
+        - GZip compression middleware (added first, executed last)
+        - ETag caching middleware
         - Security headers middleware
         - CORS middleware for cross-origin requests
         - Custom logging middleware for request/response tracking
@@ -96,7 +98,13 @@ class MiddlewareConfigurator:
             config: The application configuration dictionary
             logger: Logger instance for middleware logging
         """
-        # Configure security headers middleware (added first, executed last)
+        # Configure GZip compression middleware (added first, executed last)
+        MiddlewareConfigurator._configure_compression_middleware(app, config, logger)
+
+        # Configure ETag caching middleware
+        MiddlewareConfigurator._configure_etag_middleware(app, config, logger)
+
+        # Configure security headers middleware
         MiddlewareConfigurator._configure_security_headers_middleware(app, config, logger)
 
         # Configure CORS middleware
@@ -393,3 +401,84 @@ class MiddlewareConfigurator:
         except Exception as e:
             _logger.warning(f"Failed to configure throttle middleware: {e}")
             logger.warning(f"Failed to configure throttle middleware: {e}")
+
+    @staticmethod
+    def _configure_compression_middleware(app: FastAPI, config: Dict[str, Any], logger: logging.Logger) -> None:
+        """
+        Configure GZip compression middleware for response compression.
+
+        Compresses responses larger than the minimum size threshold to reduce
+        bandwidth usage. Typically provides 30-60% smaller responses for JSON.
+
+        IMPORTANT: Streaming endpoints (SSE, WebSocket) are excluded to preserve
+        the word-by-word streaming effect.
+
+        Args:
+            app: The FastAPI application instance
+            config: The application configuration dictionary
+            logger: Logger instance for compression logging
+        """
+        compression_config = config.get('performance', {}).get('compression', {})
+
+        if not compression_config.get('enabled', True):
+            _logger.info("GZip compression middleware is disabled in configuration")
+            logger.info("GZip compression middleware is disabled in configuration")
+            return
+
+        try:
+            from server.middleware.compression_middleware import SelectiveGZipMiddleware
+
+            minimum_size = compression_config.get('minimum_size', 2048)
+            # Exclude streaming endpoints from compression to preserve word-by-word streaming
+            excluded_paths = compression_config.get('excluded_paths', [
+                '/v1/chat',  # SSE streaming endpoint
+                '/ws',       # WebSocket endpoints
+                '/mcp',      # MCP protocol endpoints
+            ])
+
+            app.add_middleware(
+                SelectiveGZipMiddleware,
+                minimum_size=minimum_size,
+                excluded_paths=excluded_paths
+            )
+            _logger.info(f"GZip compression middleware configured (min_size={minimum_size}, excluded: {excluded_paths})")
+            logger.info(f"GZip compression middleware configured (min_size={minimum_size}, excluded: {excluded_paths})")
+        except ImportError as e:
+            _logger.warning(f"SelectiveGZipMiddleware not available - compression disabled: {e}")
+            logger.warning(f"SelectiveGZipMiddleware not available - compression disabled: {e}")
+        except Exception as e:
+            _logger.warning(f"Failed to configure compression middleware: {e}")
+            logger.warning(f"Failed to configure compression middleware: {e}")
+
+    @staticmethod
+    def _configure_etag_middleware(app: FastAPI, config: Dict[str, Any], logger: logging.Logger) -> None:
+        """
+        Configure ETag caching middleware for GET requests.
+
+        Returns 304 Not Modified for unchanged responses, reducing bandwidth
+        and improving response times for read-heavy endpoints.
+
+        Args:
+            app: The FastAPI application instance
+            config: The application configuration dictionary
+            logger: Logger instance for ETag logging
+        """
+        etag_config = config.get('performance', {}).get('etag_caching', {})
+
+        if not etag_config.get('enabled', True):
+            _logger.info("ETag caching middleware is disabled in configuration")
+            logger.info("ETag caching middleware is disabled in configuration")
+            return
+
+        try:
+            from server.middleware.etag_middleware import ETagMiddleware
+            excluded_paths = etag_config.get('excluded_paths', ['/v1/chat', '/ws', '/mcp'])
+            app.add_middleware(ETagMiddleware, excluded_paths=excluded_paths)
+            _logger.info(f"ETag caching middleware configured (excluded: {excluded_paths})")
+            logger.info(f"ETag caching middleware configured (excluded: {excluded_paths})")
+        except ImportError as e:
+            _logger.warning(f"ETagMiddleware not available - ETag caching disabled: {e}")
+            logger.warning(f"ETagMiddleware not available - ETag caching disabled: {e}")
+        except Exception as e:
+            _logger.warning(f"Failed to configure ETag middleware: {e}")
+            logger.warning(f"Failed to configure ETag middleware: {e}")
