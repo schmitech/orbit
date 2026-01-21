@@ -53,6 +53,16 @@ import sys
 import argparse
 import re
 from pathlib import Path
+
+# Monkey-patch torch.xpu for older PyTorch versions (< 2.4) that don't have it
+# This fixes compatibility with docling which checks for xpu availability
+import torch
+if not hasattr(torch, 'xpu'):
+    class _XPUStub:
+        def is_available(self): return False
+        def __getattr__(self, name): return lambda *args, **kwargs: False
+    torch.xpu = _XPUStub()
+
 from docling.document_converter import DocumentConverter
 
 
