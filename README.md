@@ -48,7 +48,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
   - [At a Glance](#at-a-glance)
   - [✨ Highlights](#-highlights)
   - [⚡ Start in Minutes](#-start-in-minutes)
-    - [1. Launch the sandbox](#1-launch-the-sandbox)
+    - [1. Explore the sandbox](#1-explore-the-sandbox)
     - [2. Run the Docker demo](#2-run-the-docker-demo)
     - [3. Install the latest release](#3-install-the-latest-release)
     - [4. Build from source](#4-build-from-source)
@@ -72,13 +72,13 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 ## ⚡ Start in Minutes
 
-### 1. Launch the sandbox
+### 1. Explore the sandbox
 
 <p align="center">
-  <a href="https://orbitpods.io/#proof" target="_blank"><img src="https://img.shields.io/badge/🚀_Try_ORBIT_Sandbox-Live_Demo-brightgreen?style=for-the-badge" alt="Try ORBIT Sandbox"></a>
+  <a href="https://orbitpods.io/#proof" target="_blank"><img src="https://img.shields.io/badge/🚀_Try_ORBIT_Sandbox-Interactive_Examples-brightgreen?style=for-the-badge" alt="Try ORBIT Sandbox"></a>
 </p>
 
-Explore adapters, test prompts, and preview the dashboard—no install required.
+Browse interactive examples showcasing ORBIT's adapters, prompts, and capabilities—no install required.
 
 ### 2. Run the Docker demo
 
