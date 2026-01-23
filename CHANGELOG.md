@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.4.0] - 2026-01-23
+
+### Core System Updates
+- Intent Agent Retriever: Added IntentAgentRetriever with function calling capabilities for complex task execution
+- FastAPI Optimizations: Implemented ORJSONResponse for improved API performance and serialization speed
+- GPU Auto-Detection: Added automatic GPU detection and included SmolLM2 model support
+- Audit & Logging: Separated audit and logging Elasticsearch indices for better data organization
+
+### Bug Fixes & Technical Improvements
+- Ollama Streaming: Fixed streaming timeout issues and added SmolLM2 GPU preset
+- Vector Store Fallback: Fixed vector store fallback logic when ChromaDB is disabled
+- Gemini Provider: Fixed streaming errors in Gemini integration
+- Torch XPU: Fixed compatibility issues with torch.xpu backend
+- Intent Agent: Fixed parameter extraction bugs and added tool validation logic
+- Test Suite: Fixed CLI integration and Redis integration tests
+
+### Documentation & Configuration
+- README Revamp: Redesigned README for better readability and scannable onboarding
+- Docker Profiles: Added minimal configuration profile for Docker deployments
+- Documentation Updates: Updated contact links, support information, and sandbox references
+- Docker Scripts: Updated and improved Docker deployment scripts
+
 ## [2.3.0] - 2026-01-14
 
 ### Core System Updates

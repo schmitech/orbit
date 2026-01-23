@@ -97,8 +97,8 @@ docker run -d --name orbit-basic -p 5173:5173 -p 3000:3000 schmitech/orbit:basic
 - **Optional deps:** MongoDB, Redis, and a vector DB (Chroma, Qdrant, Pinecone, etc.).
 
 ```bash
-curl -L https://github.com/schmitech/orbit/releases/download/v2.3.0/orbit-2.3.0.tar.gz -o orbit-2.3.0.tar.gz
-tar -xzf orbit-2.3.0.tar.gz && cd orbit-2.3.0
+curl -L https://github.com/schmitech/orbit/releases/download/v2.4.0/orbit-2.4.0.tar.gz -o orbit-2.4.0.tar.gz
+tar -xzf orbit-2.4.0.tar.gz && cd orbit-2.4.0
 
 cp env.example .env && ./install/setup.sh
 source venv/bin/activate
