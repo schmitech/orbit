@@ -133,10 +133,9 @@ class LoggerService:
                             }
                         },
                         mappings={
+                            # Note: query and response fields removed - now stored in audit service
                             "properties": {
                                 "timestamp": {"type": "date"},
-                                "query": {"type": "text", "analyzer": "standard"},
-                                "response": {"type": "text", "analyzer": "standard"},
                                 "backend": {"type": "keyword"},
                                 "blocked": {"type": "boolean"},
                                 "ip": {"type": "ip"},
@@ -312,10 +311,9 @@ class LoggerService:
 
         try:
             ip_for_elastic = "127.0.0.1" if ip_metadata["type"] == "local" else ip_metadata["address"]
+            # Note: query and response are excluded - they are now stored in audit service
             document = {
                 "timestamp": timestamp.isoformat(),
-                "query": query,
-                "response": response,
                 "backend": backend,
                 "blocked": blocked,
                 "ip": ip_for_elastic,
@@ -330,7 +328,7 @@ class LoggerService:
             # Add optional fields if provided
             if api_key:
                 document["api_key"] = {
-                    "key": api_key,  # Log unmasked API key to Elasticsearch
+                    "key": mask_api_key(api_key, show_last=True, num_chars=6),
                     "timestamp": timestamp.isoformat()
                 }
             

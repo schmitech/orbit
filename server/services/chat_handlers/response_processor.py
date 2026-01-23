@@ -125,7 +125,7 @@ class ResponseProcessor:
             user_id: Optional user ID
             adapter_name: Optional adapter name used for this request
         """
-        # Log to Elasticsearch via LoggerService (existing behavior)
+        # Log metadata to Elasticsearch via LoggerService (query/response excluded - handled by audit)
         try:
             await self.logger_service.log_conversation(
                 query=query,
@@ -140,7 +140,7 @@ class ResponseProcessor:
         except Exception as e:
             logger.error(f"Error logging conversation to LoggerService: {str(e)}", exc_info=True)
 
-        # Log to AuditService (SQLite/MongoDB/Elasticsearch based on config)
+        # Log full conversation to AuditService (SQLite/MongoDB/Elasticsearch based on config)
         if self.audit_service:
             try:
                 await self.audit_service.log_conversation(

@@ -112,11 +112,15 @@ class TestResponseProcessor:
     async def test_log_conversation_success(
         self, base_config, mock_conversation_handler, mock_logger_service
     ):
-        """Test successful conversation logging."""
+        """Test successful conversation logging via both logger and audit service."""
+        mock_audit_service = AsyncMock()
+        mock_audit_service.log_conversation = AsyncMock()
+
         processor = ResponseProcessor(
             config=base_config,
             conversation_handler=mock_conversation_handler,
-            logger_service=mock_logger_service
+            logger_service=mock_logger_service,
+            audit_service=mock_audit_service
         )
 
         await processor.log_conversation(
@@ -126,9 +130,11 @@ class TestResponseProcessor:
             backend="openai",
             api_key="key123",
             session_id="session456",
-            user_id="user789"
+            user_id="user789",
+            adapter_name="test_adapter"
         )
 
+        # Should call logger_service (logs metadata to orbit index, without query/response)
         mock_logger_service.log_conversation.assert_called_once_with(
             query="User query",
             response="Assistant response",
@@ -140,17 +146,82 @@ class TestResponseProcessor:
             user_id="user789"
         )
 
+        # Should also call audit_service (logs full conversation to audit_logs index)
+        mock_audit_service.log_conversation.assert_called_once_with(
+            query="User query",
+            response="Assistant response",
+            ip="127.0.0.1",
+            backend="openai",
+            blocked=False,
+            api_key="key123",
+            session_id="session456",
+            user_id="user789",
+            adapter_name="test_adapter"
+        )
+
     @pytest.mark.asyncio
-    async def test_log_conversation_handles_error(
+    async def test_log_conversation_handles_logger_error(
         self, base_config, mock_conversation_handler, mock_logger_service
     ):
-        """Test that logging errors are handled gracefully."""
+        """Test that logger service errors are handled gracefully."""
         mock_logger_service.log_conversation.side_effect = Exception("Logging failed")
+        mock_audit_service = AsyncMock()
+        mock_audit_service.log_conversation = AsyncMock()
 
         processor = ResponseProcessor(
             config=base_config,
             conversation_handler=mock_conversation_handler,
-            logger_service=mock_logger_service
+            logger_service=mock_logger_service,
+            audit_service=mock_audit_service
+        )
+
+        # Should not raise exception even when logger service fails
+        await processor.log_conversation(
+            query="User query",
+            response="Assistant response",
+            client_ip="127.0.0.1",
+            backend="openai"
+        )
+
+        # Audit service should still be called
+        mock_audit_service.log_conversation.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_log_conversation_handles_audit_error(
+        self, base_config, mock_conversation_handler, mock_logger_service
+    ):
+        """Test that audit service errors are handled gracefully."""
+        mock_audit_service = AsyncMock()
+        mock_audit_service.log_conversation = AsyncMock(side_effect=Exception("Audit failed"))
+
+        processor = ResponseProcessor(
+            config=base_config,
+            conversation_handler=mock_conversation_handler,
+            logger_service=mock_logger_service,
+            audit_service=mock_audit_service
+        )
+
+        # Should not raise exception even when audit service fails
+        await processor.log_conversation(
+            query="User query",
+            response="Assistant response",
+            client_ip="127.0.0.1",
+            backend="openai"
+        )
+
+        # Logger service should still have been called
+        mock_logger_service.log_conversation.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_log_conversation_no_audit_service(
+        self, base_config, mock_conversation_handler, mock_logger_service
+    ):
+        """Test logging works when no audit service is provided."""
+        processor = ResponseProcessor(
+            config=base_config,
+            conversation_handler=mock_conversation_handler,
+            logger_service=mock_logger_service,
+            audit_service=None  # No audit service
         )
 
         # Should not raise exception
@@ -161,15 +232,22 @@ class TestResponseProcessor:
             backend="openai"
         )
 
+        # logger_service.log_conversation should still be called
+        mock_logger_service.log_conversation.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_process_response_complete_flow(
         self, base_config, mock_conversation_handler, mock_logger_service
     ):
         """Test complete response processing flow."""
+        mock_audit_service = AsyncMock()
+        mock_audit_service.log_conversation = AsyncMock()
+
         processor = ResponseProcessor(
             config=base_config,
             conversation_handler=mock_conversation_handler,
-            logger_service=mock_logger_service
+            logger_service=mock_logger_service,
+            audit_service=mock_audit_service
         )
 
         # process_response now returns (processed_response, assistant_message_id)
@@ -197,8 +275,9 @@ class TestResponseProcessor:
         assert call_args[1]['user_message'] == "User message"
         assert call_args[1]['adapter_name'] == "test_adapter"
 
-        # Check that conversation was logged
+        # Check that conversation was logged via both services
         mock_logger_service.log_conversation.assert_called_once()
+        mock_audit_service.log_conversation.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_process_response_with_warning(
@@ -234,10 +313,14 @@ class TestResponseProcessor:
         self, base_config, mock_conversation_handler, mock_logger_service
     ):
         """Test response processing without session ID."""
+        mock_audit_service = AsyncMock()
+        mock_audit_service.log_conversation = AsyncMock()
+
         processor = ResponseProcessor(
             config=base_config,
             conversation_handler=mock_conversation_handler,
-            logger_service=mock_logger_service
+            logger_service=mock_logger_service,
+            audit_service=mock_audit_service
         )
 
         processed_response, assistant_message_id = await processor.process_response(
@@ -258,8 +341,9 @@ class TestResponseProcessor:
         # assistant_message_id should be None when no session
         assert assistant_message_id is None
 
-        # But should still log
+        # But should still log via both services
         mock_logger_service.log_conversation.assert_called_once()
+        mock_audit_service.log_conversation.assert_called_once()
 
     def test_build_result_basic(
         self, base_config, mock_conversation_handler, mock_logger_service

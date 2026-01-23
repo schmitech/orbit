@@ -36,8 +36,9 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         """
         super().__init__(config)
         self._es_client: Optional[AsyncElasticsearch] = None
-        self._index_name = config.get('internal_services', {}).get('elasticsearch', {}).get(
-            'index', 'orbit'
+        # Use audit collection_name as the ES index name (separate from logger's 'orbit' index)
+        self._index_name = config.get('internal_services', {}).get('audit', {}).get(
+            'collection_name', 'audit_logs'
         )
         # Compression setting
         self._compress_responses = config.get('internal_services', {}).get('audit', {}).get(
