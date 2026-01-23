@@ -19,6 +19,36 @@ from .audit_storage_strategy import AuditStorageStrategy, AuditRecord, compress_
 logger = logging.getLogger(__name__)
 
 
+def extract_client_ip(ip_value: str) -> tuple[str, str | None]:
+    """
+    Extract the client IP from a potentially comma-separated list of IPs.
+
+    When behind proxies like Cloudflare, X-Forwarded-For contains multiple IPs:
+    "client_ip, proxy1_ip, proxy2_ip, ..."
+
+    The first IP is the original client IP.
+
+    Args:
+        ip_value: A single IP or comma-separated list of IPs
+
+    Returns:
+        Tuple of (client_ip, full_chain or None if single IP)
+    """
+    if not ip_value:
+        return "127.0.0.1", None
+
+    ip_value = ip_value.strip()
+
+    # Check if there are multiple IPs
+    if ',' in ip_value:
+        ips = [ip.strip() for ip in ip_value.split(',')]
+        # First IP is the original client IP
+        client_ip = ips[0] if ips else "127.0.0.1"
+        return client_ip, ip_value  # Return client IP and full chain
+    else:
+        return ip_value, None  # Single IP, no chain
+
+
 class ElasticsearchAuditStrategy(AuditStorageStrategy):
     """
     Elasticsearch implementation of audit storage.
@@ -131,6 +161,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                             "backend": {"type": "keyword"},
                             "blocked": {"type": "boolean"},
                             "ip": {"type": "ip"},
+                            "ip_chain": {"type": "keyword"},  # Full IP chain when behind proxies (e.g., Cloudflare)
                             "ip_metadata": {
                                 "properties": {
                                     "type": {"type": "keyword"},
@@ -175,7 +206,12 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
 
         try:
             # Build document (matches existing LoggerService schema)
-            ip_for_elastic = "127.0.0.1" if record.ip_metadata.get("type") == "local" else record.ip
+            # Handle proxy scenarios (e.g., Cloudflare) where IP may contain multiple addresses
+            if record.ip_metadata.get("type") == "local":
+                ip_for_elastic = "127.0.0.1"
+                ip_chain = None
+            else:
+                ip_for_elastic, ip_chain = extract_client_ip(record.ip)
 
             # Handle compression
             response_value = record.response
@@ -195,6 +231,10 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                 "ip": ip_for_elastic,
                 "ip_metadata": record.ip_metadata
             }
+
+            # Store full IP chain if present (for proxy scenarios like Cloudflare)
+            if ip_chain:
+                document["ip_chain"] = ip_chain
 
             # Add optional fields
             if record.api_key:
