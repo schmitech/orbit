@@ -58,7 +58,7 @@ stt_providers:
     api_key: ${OPENAI_API_KEY}
     api_base: "https://api.openai.com/v1"
     # STT configuration
-    stt_model: "whisper-1"  # OpenAI Whisper model for transcription
+    stt_model: "gpt-4o-mini-transcribe"  # OpenAI Whisper model for transcription
     # Timeout configuration
     timeout:
       connect: 15000   # 15 seconds (increased for slow networks)

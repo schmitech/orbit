@@ -35,6 +35,7 @@
 #   multilingual-voice-assistant -> multilingual-voice-chat
 #   premium-voice-chat -> premium-voice-chat
 #   local-voice-chat -> whisper
+#   real-time-voice-chat -> real-time-voice-chat
 #   qa-sql -> sql-key
 #   qa-vector-chroma -> chroma-key
 #   qa-vector-qdrant-demo -> demo-key (EXCLUDED: requires special Qdrant deployment)
@@ -425,6 +426,7 @@ declare -a all_adapters=(
     "multilingual-voice-assistant|multilingual-voice-chat|examples/prompts/audio/multilingual-voice-assistant-prompt.md|Multilingual Voice Prompt"
     "premium-voice-chat|premium-voice-chat|examples/prompts/audio/premium-voice-chat-prompt.md|Premium Voice Prompt"
     "local-voice-chat|whisper|examples/prompts/audio/local-audio-transcription-prompt.md|Local Voice Prompt"
+    "real-time-voice-chat|real-time-voice-chat|examples/prompts/audio/real-time-voice-chat-prompt.md|Real-Time Voice Chat Prompt"
     "qa-sql|sql-key|examples/prompts/examples/city/city-assistant-normal-prompt.md|SQL QA Prompt"
     "qa-vector-chroma|chroma-key|examples/prompts/examples/city/city-assistant-normal-prompt.md|Chroma QA Prompt"
     # "qa-vector-qdrant-demo|demo-key|..." excluded: requires special Qdrant deployment
@@ -571,6 +573,23 @@ Benefits:
 Upload an audio file and I'll transcribe it completely privately.
 
 **What audio would you like me to transcribe?**
+NOTES_EOF
+            ;;
+        "real-time-voice-chat")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Real-Time Voice 🎧
+
+I'm your **live voice assistant** for real-time, WebSocket-based conversations—like a phone call with AI!
+
+I support:
+- 🎙️ **Bidirectional audio streaming** — speak and listen in real time
+- ⚡ **Low-latency responses** — quick, natural turn-taking
+- ✂️ **Interruption-friendly** — you can jump in anytime
+- 🗣️ **Conversational flow** — optimized for voice, not text
+
+Best for interactive voice assistants, customer service bots, and voice-controlled apps.
+
+**Just start speaking—what would you like to talk about?**
 NOTES_EOF
             ;;
         "qa-sql")

@@ -116,7 +116,7 @@ sounds:
       exponential_base: 2
 
   elevenlabs:
-    enabled: true
+    enabled: false
     api_key: ${ELEVENLABS_API_KEY}
     api_base: "https://api.elevenlabs.io/v1"
     # TTS (Text-to-Speech) configuration
