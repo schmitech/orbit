@@ -75,7 +75,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 ### 1. Explore the sandbox
 
 <p align="center">
-  <a href="https://orbitpods.io/#proof" target="_blank"><img src="https://img.shields.io/badge/🚀_Try_ORBIT_Sandbox-Interactive_Examples-brightgreen?style=for-the-badge" alt="Try ORBIT Sandbox"></a>
+  <a href="https://orbitsandbox.dev/" target="_blank"><img src="https://img.shields.io/badge/🚀_Try_ORBIT_Sandbox-Interactive_Examples-brightgreen?style=for-the-badge" alt="Try ORBIT Sandbox"></a>
 </p>
 
 Browse interactive examples showcasing ORBIT's adapters, prompts, and capabilities—no install required.
