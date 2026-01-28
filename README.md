@@ -25,17 +25,34 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 **Ship faster. Stay portable. Keep your data private.**
 
-<p align="center">
-  <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=for-the-badge&logo=github&label=Star%20on%20GitHub&color=yellow" alt="Star on GitHub"></a>
-</p>
-
 <div align="center">
   <video src="https://github.com/user-attachments/assets/b188a903-c6b0-44a9-85ad-5191f36778dc" controls width="100%">
     Your browser does not support the video tag.
   </video>
   <br/>
-  <em>See ORBIT’s unified LLM workspace in action.</em>
+  <em>See ORBIT's unified LLM workspace in action.</em>
 </div>
+
+---
+
+## 🎯 Why ORBIT?
+
+**The Problem:** Building AI apps means choosing between vendor lock-in, complex integrations, and privacy concerns.
+
+- **Vendor lock-in:** Switching from OpenAI to Anthropic means rewriting your code
+- **Complex RAG:** Connecting databases, vector stores, and APIs requires custom glue code
+- **Privacy concerns:** Sending sensitive data to third-party APIs
+- **Fragmented tools:** Different SDKs, auth methods, and APIs for each provider
+
+**The Solution:** ORBIT is a **self-hosted, unified gateway** that gives you:
+
+✅ **Portability** — Switch LLM providers with a config change, not code changes  
+✅ **Built-in RAG** — Connect SQL databases, vector stores, and APIs through natural language  
+✅ **Data sovereignty** — Keep your data on your infrastructure  
+✅ **One API** — OpenAI-compatible interface that works with any provider  
+✅ **Production-ready** — Rate limiting, security, monitoring, and fault tolerance built-in
+
+**Who it's for:** Developers building AI applications who want flexibility, privacy, and control without the complexity of managing multiple integrations.
 
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
 - **Updates:** Check the [changelog](CHANGELOG.md)
@@ -45,9 +62,9 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 ## At a Glance
 
 - [ORBIT – One gateway for every model and data source.](#orbit--one-gateway-for-every-model-and-data-source)
+  - [🎯 Why ORBIT?](#-why-orbit)
   - [At a Glance](#at-a-glance)
-  - [✨ Highlights](#-highlights)
-  - [⚡ Start in Minutes](#-start-in-minutes)
+  - [⚡ Getting Started](#-getting-started)
     - [1. Explore the sandbox](#1-explore-the-sandbox)
     - [2. Run the Docker demo](#2-run-the-docker-demo)
     - [3. Install the latest release](#3-install-the-latest-release)
@@ -60,17 +77,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 ---
 
-## ✨ Highlights
-
-- **One control plane** for 20+ LLM providers, plus Ollama, llama.cpp, and vLLM for local inference.
-- **First-class RAG adapters** for SQL, MongoDB, Elasticsearch, Pinecone, Qdrant, Chroma, Redis, HTTP APIs, and file uploads.
-- **Intent-aware routing** that converts natural language to SQL queries, Elasticsearch DSL, Mongo filters, and custom API calls.
-- **Multimodal** support across OpenAI, Gemini, Anthropic, Ollama and vLLM.
-- **Built-in security** with API keys and moderation hooks.
-
----
-
-## ⚡ Start in Minutes
+## ⚡ Getting Started
 
 ### 1. Explore the sandbox
 
