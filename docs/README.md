@@ -23,6 +23,7 @@ Welcome to the official documentation for **ORBIT** (Open Retrieval-Based Infere
     - [Databases](#databases)
     - [APIs \& External Services](#apis--external-services)
     - [Files \& Documents](#files--documents)
+  - [🎤 Audio \& Multimodal](#-audio--multimodal)
   - [🔐 Security \& Authentication](#-security--authentication)
   - [🔧 Advanced Topics](#-advanced-topics)
     - [Local Model Servers](#local-model-servers)
@@ -31,7 +32,6 @@ Welcome to the official documentation for **ORBIT** (Open Retrieval-Based Infere
   - [🛠️ Development](#️-development)
   - [🏢 Commercial Support](#-commercial-support)
     - [Services Available](#services-available)
-    - [Support Plans](#support-plans)
   - [📄 License](#-license)
 
 ---
@@ -42,7 +42,8 @@ New to ORBIT? Start here.
 
 | Guide | Description |
 |-------|-------------|
-| [Quick Start](../README.md#-quick-start) | Get ORBIT running in minutes with Docker or manual installation |
+| [Quick Start](../README.md#-start-in-minutes) | Get ORBIT running in minutes with Docker or manual installation |
+| [Tutorial](tutorial.md) | Step-by-step guide to chat with your data |
 | [Server Setup](server.md) | Detailed server configuration and deployment options |
 | [Configuration Guide](configuration.md) | Complete configuration reference |
 
@@ -56,7 +57,7 @@ Understand how ORBIT works.
 
 | Guide | Description |
 |-------|-------------|
-| [Adapters Overview](adapters/overview.md) | How adapters connect AI models to data sources |
+| [Adapters Overview](adapters/adapters.md) | How adapters connect AI models to data sources |
 | [Pipeline Architecture](pipeline-inference-architecture.md) | Request flow and processing pipeline |
 | [Fault Tolerance](fault-tolerance/fault-tolerance-architecture.md) | Circuit breakers, retries, and high availability |
 
@@ -64,11 +65,14 @@ Understand how ORBIT works.
 
 | Guide | Description |
 |-------|-------------|
-| [Adapter Configuration](adapters/configuration.md) | Setting up and configuring adapters |
-| [QA Adapters](adapters/qa-adapters.md) | Question-answering with SQL and vector stores |
-| [Intent Adapters](adapters/intent-adapters.md) | Natural language to SQL/API query generation |
-| [File Adapter](adapters/file-adapter.md) | Document upload and processing |
-| [Passthrough Adapter](adapters/passthrough.md) | Direct conversational AI without retrieval |
+| [Adapter Configuration](adapters/adapter-configuration.md) | Setting up and configuring adapters |
+| [Adapter Capabilities](adapters/capabilities/capability_for_all_adapters.md) | Capability system for adapter behavior control |
+| [QA Adapters](adapters/adapters.md) | Question-answering with SQL and vector stores |
+| [Intent Adapters](intent-sql-rag-system.md) | Natural language to SQL/API query generation |
+| [Composite Intent Retriever](adapters/composite-intent-retriever.md) | Route queries across multiple data sources |
+| [Intent Agent Retriever](adapters/intent-agent-retriever.md) | Function calling and tool execution capabilities |
+| [File Adapter](file-adapter-guide.md) | Document upload and processing |
+| [Passthrough Adapter](multimodal-conversational-adapter.md) | Direct conversational AI without retrieval |
 
 ---
 
@@ -81,7 +85,7 @@ Customize ORBIT for your environment.
 | [Configuration Reference](configuration.md) | All configuration options explained |
 | [Environment Variables](configuration.md#environment-variables) | Required and optional environment settings |
 | [Inference Providers](configuration.md#inference-providers) | Configure OpenAI, Anthropic, Ollama, llama.cpp, and more |
-| [System Prompts](chat_service_system_prompts.md) | Customize AI behavior with system prompts |
+| [System Prompts](server.md#system-prompts) | Customize AI behavior with system prompts |
 
 ---
 
@@ -93,25 +97,41 @@ Connect ORBIT to your data.
 
 | Guide | Description |
 |-------|-------------|
-| [SQL Databases](adapters/sql-retriever-architecture.md) | PostgreSQL, MySQL, SQLite, DuckDB, Oracle, SQL Server |
+| [SQL Databases](sql-retriever-architecture.md) | PostgreSQL, MySQL, SQLite, DuckDB, Oracle, SQL Server |
 | [MongoDB](mongodb-installation-linux.md) | NoSQL document database setup |
 | [Vector Stores](vector_store_integration_guide.md) | Chroma, Qdrant, Pinecone, Milvus integration |
+| [Vector Retriever Architecture](vector-retriever-architecture.md) | Technical deep dive into vector retriever implementation |
 | [Chroma Setup](chroma-setup.md) | Detailed Chroma vector database configuration |
-| [Elasticsearch](adapters/intent-adapters.md#elasticsearch) | Full-text search integration |
+| [Elasticsearch](intent-sql-rag-system.md) | Full-text search integration |
 
 ### APIs & External Services
 
 | Guide | Description |
 |-------|-------------|
-| [REST APIs](adapters/intent-adapters.md#http-apis) | Connect to any JSON REST API |
-| [GraphQL](adapters/intent-adapters.md#graphql) | Query GraphQL endpoints with natural language |
+| [REST APIs](intent-sql-rag-system.md) | Connect to any JSON REST API |
+| [GraphQL](intent-sql-rag-system.md) | Query GraphQL endpoints with natural language |
 
 ### Files & Documents
 
 | Guide | Description |
 |-------|-------------|
-| [File Processing](adapters/file-adapter.md) | PDF, DOCX, CSV, images, audio support |
-| [Chunking Strategies](chunking/) | Document chunking and embedding strategies |
+| [File Processing](file-adapter-guide.md) | PDF, DOCX, CSV, images, audio support |
+| [Chunking Architecture](chunking/chunking-architecture.md) | Document chunking and embedding strategies |
+| [Chunking Safeguards](chunking/chunking_safeguards.md) | Safety considerations for document processing |
+
+---
+
+## 🎤 Audio & Multimodal
+
+Audio processing and multimodal capabilities.
+
+| Guide | Description |
+|-------|-------------|
+| [Audio Services](audio/audio-services-adapter-guide.md) | TTS, STT, transcription, and translation integration |
+| [Audio Client Integration](audio/audio-client-integration-summary.md) | Client-side audio integration patterns |
+| [Whisper Integration](audio/whisper/whisper-integration-guide.md) | OpenAI Whisper for speech recognition |
+| [Whisper Setup](audio/whisper/whisper-setup-guide.md) | Configure Whisper for audio processing |
+| [Whisper Quick Reference](audio/whisper/whisper-quick-reference.md) | Quick reference for Whisper usage |
 
 ---
 
@@ -148,14 +168,20 @@ For power users and contributors.
 | [Troubleshooting](fault-tolerance/fault-tolerance-troubleshooting.md) | Debug common issues |
 | [Performance Tuning](performance-enhancements.md) | Optimize for production workloads |
 | [Memory Management](memory_leak_prevention.md) | Prevent memory leaks |
+| [Rate Limiting](rate-limiting-architecture.md) | Rate limiting and throttling architecture |
+| [Datasource Pooling](datasource-pooling.md) | Connection pooling for data sources |
 
 ### Protocols & Extensions
 
 | Guide | Description |
 |-------|-------------|
-| [MCP Protocol](mcp_protocol.md) | Model Context Protocol integration |
+| [MCP Protocol](orbit-flow-diagrams.md) | Model Context Protocol integration |
 | [Reranker Architecture](reranker-architecture.md) | Document reranking for improved accuracy |
 | [Language Detection](language-detection-architecture.md) | Multilingual support |
+| [Conversation Threading](conversation-threading-architecture.md) | Sub-conversations and cached dataset reuse |
+| [Autocomplete](autocomplete-architecture.md) | Query suggestions from intent templates |
+| [Conversation History](conversation_history.md) | Chat history management |
+| [Request Context Propagation](request_context_propagation.md) | Context handling across the pipeline |
 
 ---
 
@@ -167,6 +193,8 @@ Contribute to ORBIT or extend its capabilities.
 |----------|-------------|
 | [Contributing Guide](../CONTRIBUTING.md) | How to contribute to ORBIT |
 | [Development Roadmap](roadmap/README.md) | Planned features and architecture designs |
+| [Testing PRs Locally](testing-prs-locally.md) | Guide for testing pull requests |
+| [SQLite Schema](sqlite-schema.md) | Database schema reference |
 | [Code of Conduct](../CODE_OF_CONDUCT.md) | Community guidelines |
 | [Changelog](../CHANGELOG.md) | Release history and updates |
 
@@ -184,14 +212,6 @@ Need enterprise-grade support? **[Schmitech](https://schmitech.ai/en)** is the o
 - **Installation & Setup** — On-premise and cloud deployment assistance
 - **Training & Workshops** — Hands-on training for your team
 - **Dedicated Support** — Priority response and dedicated support engineer
-
-### Support Plans
-
-| Plan | Best For | Includes |
-|------|----------|----------|
-| **Community** | Developers & small teams | GitHub Issues, public docs |
-| **Professional** | Growing organizations | Email support, Slack, quarterly reviews |
-| **Enterprise** | Mission-critical deployments | 4-hour SLA, dedicated engineer, 24/7 support |
 
 👉 **[Contact Schmitech](https://schmitech.ai/en/contact)** to discuss your requirements.
 
