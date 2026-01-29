@@ -20,6 +20,7 @@ const ChatbotThemingPlatform = () => {
   
   const isServiceUnavailable = import.meta.env.VITE_UNAVAILABLE_MSG === 'true';
   const isEndpointFieldEnabled = import.meta.env.VITE_ENDPOINT_FIELD_ENABLED === 'true';
+  const isApiConfigEnabled = import.meta.env.VITE_API_CONFIG_ENABLED !== 'false';
   
   const { 
     widgetConfig, 
@@ -231,7 +232,7 @@ const ChatbotThemingPlatform = () => {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Left Column - Customization Panel */}
           <div className="lg:col-span-3 space-y-6">
-            {/* API Configuration */}
+            {/* Header always visible; API key/endpoint fields and Update button hidden when VITE_API_CONFIG_ENABLED=false */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">ORBIT Chatbot Widget Builder</h2>
@@ -252,48 +253,50 @@ const ChatbotThemingPlatform = () => {
                   )}
                 </div>
               </div>
-              <div className="space-y-4">
-                <FormInput
-                  label="API Key"
-                  value={tempApiKey}
-                  onChange={setTempApiKey}
-                  placeholder="your-api-key"
-                  type="password"
-                  showPasswordToggle={true}
-                  className="font-mono text-sm"
-                  maxLength={50}
-                />
-                {isEndpointFieldEnabled && (
+              {isApiConfigEnabled && (
+                <div className="space-y-4">
                   <FormInput
-                    label="API Endpoint"
-                    value={tempApiEndpoint}
-                    onChange={setTempApiEndpoint}
-                    placeholder="https://your-api-endpoint.com"
+                    label="API Key"
+                    value={tempApiKey}
+                    onChange={setTempApiKey}
+                    placeholder="your-api-key"
+                    type="password"
+                    showPasswordToggle={true}
                     className="font-mono text-sm"
                     maxLength={50}
                   />
-                )}
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-start gap-2">
-                    {WIDGET_CONFIG.source === 'local' && (
-                      <div className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                        Testing with local build - make sure the widget is built in ../dist/
-                      </div>
-                    )}
+                  {isEndpointFieldEnabled && (
+                    <FormInput
+                      label="API Endpoint"
+                      value={tempApiEndpoint}
+                      onChange={setTempApiEndpoint}
+                      placeholder="https://your-api-endpoint.com"
+                      className="font-mono text-sm"
+                      maxLength={50}
+                    />
+                  )}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-start gap-2">
+                      {WIDGET_CONFIG.source === 'local' && (
+                        <div className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                          Testing with local build - make sure the widget is built in ../dist/
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleApiUpdate}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Update API Settings
+                    </button>
                   </div>
-                  <button
-                    onClick={handleApiUpdate}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Update API Settings
-                  </button>
+                  {apiUpdateMessage && (
+                    <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg border border-green-200">
+                      ✓ {apiUpdateMessage}
+                    </div>
+                  )}
                 </div>
-                {apiUpdateMessage && (
-                  <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg border border-green-200">
-                    ✓ {apiUpdateMessage}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
             {/* Tabs */}
