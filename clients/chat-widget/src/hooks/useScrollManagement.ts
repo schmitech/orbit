@@ -8,8 +8,8 @@ export interface ScrollManagementReturn {
   isScrolling: boolean;
   
   // Refs
-  messagesContainerRef: React.RefObject<HTMLDivElement>;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
+  messagesContainerRef: React.RefObject<HTMLDivElement | null>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
   shouldScrollRef: React.MutableRefObject<boolean>;
   scrollTimeoutRef: React.MutableRefObject<number | undefined>;
   
@@ -33,7 +33,7 @@ export const useScrollManagement = (isAnimating: boolean): ScrollManagementRetur
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollRef = useRef(true);
-  const scrollTimeoutRef = useRef<number>();
+  const scrollTimeoutRef = useRef<number | undefined>(undefined);
   
   // Scroll to bottom function with immediate option
   const scrollToBottom = useCallback((immediate = false) => {

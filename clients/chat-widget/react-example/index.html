@@ -9,10 +9,8 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- Widget dependencies -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@schmitech/chatbot-widget@0.5.0/dist/chatbot-widget.umd.js" crossorigin></script>
+    <!-- React is exposed as globals via main.tsx for UMD widget compatibility -->
+    <!-- Widget is loaded dynamically by App.tsx after React globals are available -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

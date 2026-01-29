@@ -8,7 +8,7 @@ export interface ChatInputProps {
   isFocused: boolean;
   isLoading: boolean;
   theme: any; // TODO: Type this properly
-  inputRef: React.RefObject<HTMLTextAreaElement>;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
   handleMessageChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleKeyDown: (e: React.KeyboardEvent) => void;
   handleSendMessage: () => void;

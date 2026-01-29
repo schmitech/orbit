@@ -13,8 +13,8 @@ export interface MessagesListProps {
   showScrollTop: boolean;
   showScrollBottom: boolean;
   isAnimating: boolean;
-  messagesContainerRef: React.RefObject<HTMLDivElement>;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
+  messagesContainerRef: React.RefObject<HTMLDivElement | null>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
   scrollToTop: () => void;
   scrollToBottom: () => void;
   handleScroll: () => void;
@@ -23,13 +23,13 @@ export interface MessagesListProps {
   copiedMessageId: string | null;
   onCopyToClipboard: (text: string, messageId: string) => void;
   onMarkMessageAnimated: (id: string, messagesLength: number, scrollToBottom: () => void) => void;
-  inputRef: React.RefObject<HTMLTextAreaElement>;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
   hasBeenAnimated: (id: string) => boolean;
   typingProgressRef: React.MutableRefObject<Map<string, number>>;
   isTypingRef: React.MutableRefObject<boolean>;
   setIsAnimating: (value: boolean) => void;
   formatTime: (date: Date) => string;
-  lastMessageRef: React.RefObject<HTMLDivElement>;
+  lastMessageRef: React.RefObject<HTMLDivElement | null>;
   maxSuggestedQuestionLength?: number;
   maxSuggestedQuestionQueryLength?: number;
 }

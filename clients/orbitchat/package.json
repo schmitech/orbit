@@ -1,7 +1,7 @@
 {
   "name": "orbitchat",
   "private": false,
-  "version": "2.12.1",
+  "version": "2.13.0",
   "type": "module",
   "bin": {
     "orbitchat": "./bin/orbitchat.js"
@@ -26,14 +26,14 @@
   },
   "dependencies": {
     "@schmitech/chatbot-api": "^2.1.6",
-    "@schmitech/markdown-renderer": "^0.7.4",
+    "@schmitech/markdown-renderer": "^0.8.0",
     "express": "^5.0.1",
     "http-proxy-middleware": "^3.0.5",
     "js-yaml": "^4.1.1",
-    "lucide-react": "^0.344.0",
+    "lucide-react": "^0.469.0",
     "path": "^0.12.7",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "vite-plugin-dts": "^4.5.4",
     "zustand": "^5.0.5"
   },
@@ -42,8 +42,8 @@
     "@types/express": "^5.0.1",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.0.1",
-    "@types/react": "^18.2.66",
-    "@types/react-dom": "^18.2.22",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
     "eslint": "^9.0.0",

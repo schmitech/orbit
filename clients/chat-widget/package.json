@@ -1,7 +1,7 @@
 {
   "name": "@schmitech/chatbot-widget",
   "private": false,
-  "version": "0.6.3",
+  "version": "0.7.0",
   "type": "module",
   "main": "./dist/chatbot-widget.umd.js",
   "module": "./dist/chatbot-widget.es.js",
@@ -28,19 +28,19 @@
   },
   "dependencies": {
     "@schmitech/chatbot-api": "^2.1.6",
-    "@schmitech/markdown-renderer": "^0.7.4",
+    "@schmitech/markdown-renderer": "^0.8.0",
     "clsx": "^2.1.0",
-    "lucide-react": "^0.344.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "lucide-react": "^0.469.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.13.11",
-    "@types/react": "^18.3.5",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.18",
     "eslint": "^9.9.1",
@@ -55,7 +55,7 @@
     "vite-plugin-svgr": "^4.3.0"
   },
   "peerDependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
   }
 }

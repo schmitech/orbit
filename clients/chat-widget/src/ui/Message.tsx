@@ -56,13 +56,13 @@ export interface MessageProps {
   onMarkMessageAnimated: (id: string, messagesLength: number, scrollToBottom: () => void) => void;
   messagesLength: number;
   scrollToBottom: () => void;
-  inputRef: React.RefObject<HTMLTextAreaElement>;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
   hasBeenAnimated: (id: string) => boolean;
   typingProgressRef: React.MutableRefObject<Map<string, number>>;
   isTypingRef: React.MutableRefObject<boolean>;
   setIsAnimating: (value: boolean) => void;
   formatTime: (date: Date) => string;
-  lastMessageRef: React.RefObject<HTMLDivElement>;
+  lastMessageRef: React.RefObject<HTMLDivElement | null>;
 }
 
 /**

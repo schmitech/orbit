@@ -82,6 +82,38 @@ declare global {
   }
 }
 
+// Widget version to load from unpkg
+const WIDGET_VERSION = '0.7.0';
+
+// Function to dynamically load a script
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.crossOrigin = 'anonymous';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+// Function to dynamically load a stylesheet
+function loadStylesheet(href: string): void {
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = href;
+  document.head.appendChild(link);
+}
+
+// Load the widget script and CSS
+async function loadWidgetDependencies(): Promise<void> {
+  // Load CSS
+  loadStylesheet(`https://unpkg.com/@schmitech/chatbot-widget@${WIDGET_VERSION}/dist/chatbot-widget.css`);
+
+  // Load widget script (React globals should already be available from main.tsx)
+  await loadScript(`https://unpkg.com/@schmitech/chatbot-widget@${WIDGET_VERSION}/dist/chatbot-widget.umd.js`);
+}
+
 function App() {
   const widgetInitialized = React.useRef(false);
 
@@ -227,26 +259,26 @@ function App() {
 
   useEffect(() => {
     if (!widgetInitialized.current) {
-      const checkWidgetLoaded = () => {
-        if (typeof window.initChatbotWidget !== 'undefined') {
-          if (typeof window.React === 'undefined' || typeof window.ReactDOM === 'undefined') {
-            console.error('React or ReactDOM not loaded!');
-            console.log('Waiting for React to load...');
-            setTimeout(checkWidgetLoaded, 100);
-            return;
+      const initWidget = async () => {
+        try {
+          // Load widget dependencies (React globals are already set up by main.tsx)
+          console.log('Loading widget dependencies...');
+          await loadWidgetDependencies();
+
+          // Check if widget loaded successfully
+          if (typeof window.initChatbotWidget !== 'undefined') {
+            console.log('ChatbotWidget loaded successfully! Starting initialization...');
+            initializeWidget();
+            widgetInitialized.current = true;
+          } else {
+            console.error('Widget loaded but initChatbotWidget not found');
           }
-          
-          console.log('ChatbotWidget loaded successfully! Starting initialization...');
-          initializeWidget();
-          widgetInitialized.current = true;
-        } else {
-          console.log('Waiting for ChatbotWidget to load...');
-          setTimeout(checkWidgetLoaded, 100);
+        } catch (error) {
+          console.error('Failed to load widget dependencies:', error);
         }
       };
-      
-      const timer = setTimeout(checkWidgetLoaded, 100);
-      return () => clearTimeout(timer);
+
+      initWidget();
     }
   }, []);
 

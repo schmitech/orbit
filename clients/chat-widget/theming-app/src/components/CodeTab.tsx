@@ -77,9 +77,9 @@ export const CodeTab: React.FC<CodeTabProps> = ({
     loadStyle('https://unpkg.com/@schmitech/chatbot-widget@${WIDGET_CONFIG.npm.version}/dist/chatbot-widget.css');
     
     // Load React
-    loadScript('https://unpkg.com/react@18/umd/react.production.min.js', function() {
+    loadScript('https://unpkg.com/react@19/umd/react.production.min.js', function() {
       // Load ReactDOM
-      loadScript('https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', function() {
+      loadScript('https://unpkg.com/react-dom@19/umd/react-dom.production.min.js', function() {
         // Load Widget
         loadScript('https://unpkg.com/@schmitech/chatbot-widget@${WIDGET_CONFIG.npm.version}/dist/chatbot-widget.umd.js', function() {
           // Initialize widget after all dependencies are loaded

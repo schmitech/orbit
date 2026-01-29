@@ -9,7 +9,7 @@ export interface AnimationManagementReturn {
   animatedMessagesRef: React.MutableRefObject<Set<string>>;
   typingProgressRef: React.MutableRefObject<Map<string, number>>;
   isTypingRef: React.MutableRefObject<boolean>;
-  lastMessageRef: React.RefObject<HTMLDivElement>;
+  lastMessageRef: React.RefObject<HTMLDivElement | null>;
   
   // Functions
   markMessageAnimated: (id: string, messagesLength: number, scrollToBottom: () => void) => void;

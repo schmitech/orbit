@@ -7,7 +7,7 @@ export interface InputManagementReturn {
   isFocused: boolean;
   
   // Refs
-  inputRef: React.RefObject<HTMLTextAreaElement>;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
   
   // Functions
   handleMessageChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
