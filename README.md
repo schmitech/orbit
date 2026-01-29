@@ -26,7 +26,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 **Ship faster. Stay portable. Keep your data private.**
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/b188a903-c6b0-44a9-85ad-5191f36778dc" controls width="100%">
+  <video src="https://github.com/user-attachments/assets/865e3683-6c86-481d-b545-e52e3088540d" controls width="100%">
     Your browser does not support the video tag.
   </video>
   <br/>
