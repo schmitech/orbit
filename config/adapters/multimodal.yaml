@@ -10,13 +10,13 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "cohere"    # Override default inference provider
-    model: "command-a-03-2025"            # Specific model for this adapter
-    embedding_provider: "openai"          # Embedding provider for file chunk retrieval (matches uploaded files)
-    embedding_model: "text-embedding-3-small"
-    vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
-    # stt_provider: "whisper"               # STT provider for audio transcription (see stt.yaml) - local, free!
-    tts_provider: "openai"                # TTS provider for audio output (see tts.yaml)
+    inference_provider: "ollama"    # Override default inference provider
+    model: "granite-cpu"            # Specific model for this adapter
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text"
+    vision_provider: "openai"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    stt_provider: "whisper"               # STT provider for audio transcription (see stt.yaml) - local, free!
+    
 
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
@@ -210,3 +210,61 @@ adapters:
       # - small: ~6x faster, better accuracy
       # - medium: ~2x faster, high quality
       # - large-v3: Best accuracy, slower
+
+  # Math teacher quadratic specialist with file support (exercise sheets, PDFs, images)
+  - name: "math-teacher-quadratic-files"
+    enabled: false
+    type: "passthrough"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    inference_provider: "ollama_cloud"
+    model: "qwen3-coder:480b-cloud"
+    embedding_provider: "openrouter"
+    embedding_model: "openai/text-embedding-3-small"
+    vision_provider: "openai"
+    tts_provider: "openai"
+
+    capabilities:
+      retrieval_behavior: "conditional"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_file_ids: true
+      supports_session_tracking: true
+      requires_api_key_validation: true
+      skip_when_no_files: true
+      optional_parameters:
+        - "file_ids"
+        - "api_key"
+        - "session_id"
+
+    config:
+      storage_backend: "filesystem"
+      storage_root: "./uploads"
+      max_file_size: 52428800  # 50MB
+
+      chunking_strategy: "recursive"
+      chunk_size: 1000
+      chunk_overlap: 100
+
+      vector_store: "chroma"
+      collection_prefix: "files_math_quadratic_"
+
+      confidence_threshold: 0.3
+      max_results: 10
+      return_results: 10
+
+      # Supported file types for exercise sheets, handouts, scanned problems
+      supported_types:
+        - "application/pdf"
+        - "text/plain"
+        - "text/markdown"
+        - "text/csv"
+        - "application/json"
+        - "text/html"
+        - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        - "image/png"
+        - "image/jpeg"
+        - "image/tiff"
+        - "image/webp"

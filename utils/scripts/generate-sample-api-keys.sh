@@ -29,6 +29,7 @@
 # Adapter to Key Name Mappings:
 #   simple-chat -> default-key
 #   simple-chat-with-files -> multimodal
+#   math-teacher-quadratic-files -> math-teacher-quadratic
 #   simple-chat-with-files-audio -> multimodal-audio
 #   voice-chat -> voice-chat
 #   audio-transcription -> transcription
@@ -442,6 +443,7 @@ declare -a all_adapters=(
     "intent-graphql-spacex|spacex|examples/intent-templates/graphql-intent-template/spacex-graphql-assistant-prompt.md|SpaceX GraphQL Prompt"
     "intent-agent-example|agent|examples/intent-templates/agent-template/agent-assistant-prompt.md|Agent Assistant Prompt"
     "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.md|File Document QA Prompt"
+    "math-teacher-quadratic-files|math-teacher-quadratic|examples/prompts/examples/math-teacher-quadratic/math-teacher-quadratic-prompt.md|Math Teacher Quadratic Prompt"
 )
 
 # Function to get notes for each adapter (bash 3.2 compatible - no associative arrays)
@@ -834,6 +836,21 @@ I can analyze:
 Upload a document and ask me questions. I'll provide precise answers with source citations.
 
 **What document would you like to explore?**
+NOTES_EOF
+            ;;
+        "math-teacher-quadratic-files")
+            cat <<'NOTES_EOF'
+## Welcome to the Quadratic Functions Math Buddy 📐✨
+
+I'm your **high school quadratic specialist**—patient, clear, and here to help with quadratics!
+
+I can help with:
+- 📐 Graphing parabolas (standard, vertex, factored form)
+- 🧮 Solving quadratics: factoring, square roots, completing the square, quadratic formula
+- 📊 Vertex, axis of symmetry, roots, discriminant
+- 📄 **Upload exercise sheets, PDFs, or images** of problems and I'll work through them step-by-step
+
+**What quadratic problem would you like to tackle?**
 NOTES_EOF
             ;;
         *)
