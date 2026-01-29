@@ -89,8 +89,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       <div
         className="relative rounded-2xl transition-all duration-300 overflow-hidden input-modern shadow-soft"
         style={{
-          borderColor: theme.secondary || theme.input.border || '#9ca3af',
-          border: '1.5px solid',
+          border: `1.5px solid ${theme.secondary || theme.input.border || '#9ca3af'}`,
           background: opaqueBackground,
           backgroundColor: opaqueBackground,
           boxShadow: 'none',

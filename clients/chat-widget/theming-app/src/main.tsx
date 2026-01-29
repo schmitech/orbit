@@ -4,16 +4,16 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 
-// Expose React and ReactDOM as globals for UMD widget compatibility
-// React 19 removed UMD builds, so we expose the ESM imports as globals
-declare global {
-  interface Window {
-    React: typeof React;
-    ReactDOM: typeof ReactDOM;
-  }
+// Expose React and ReactDOM as globals for UMD widget compatibility.
+// - NPM widget (0.7.1+): built with React 19 externals → use app's React 19.
+// - Local widget: use React 18 from index.html (UMD expects React 18 internals).
+// Window.React/ReactDOM are declared in src/types/widget.types.ts
+const widgetSource = import.meta.env.VITE_WIDGET_SOURCE as string | undefined;
+if (widgetSource === 'npm') {
+  window.React = React;
+  window.ReactDOM = ReactDOM;
 }
-window.React = React;
-window.ReactDOM = ReactDOM;
+// else: keep React 18 from index.html for local widget (don't overwrite)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

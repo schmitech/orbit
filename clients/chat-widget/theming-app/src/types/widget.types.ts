@@ -120,5 +120,7 @@ export interface ThemeConfig {
         getCurrentConfig?: () => any;
       };
       REACT_APP_MAX_PROMPT_LENGTH?: number;
+      CHATBOT_API_KEY?: string;
+      CHATBOT_API_URL?: string;
     }
   }

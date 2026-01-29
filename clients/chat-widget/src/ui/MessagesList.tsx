@@ -238,10 +238,10 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
                     title={safeQuery}
                   >
                     <div
-                      className="w-full px-4 py-3 rounded-xl border transition-all duration-300 ease-in-out cursor-pointer group-hover:shadow-md group-active:shadow-sm"
+                      className="w-full px-4 py-3 rounded-xl transition-all duration-300 ease-in-out cursor-pointer group-hover:shadow-md group-active:shadow-sm"
                       style={{
                         background: theme.suggestedQuestions.questionsBackground || '#ffffff',
-                        borderColor: theme.suggestedQuestions.text || '#e5e7eb',
+                        border: `1px solid ${theme.suggestedQuestions.text || '#e5e7eb'}`,
                         color: theme.suggestedQuestions.text,
                         fontWeight: 500,
                         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
@@ -249,7 +249,7 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
                       onMouseEnter={(e) => {
                         // Apply highlighted background immediately on hover
                         e.currentTarget.style.background = theme.suggestedQuestions.highlightedBackground || '#f8fafc';
-                        e.currentTarget.style.borderColor = theme.primary;
+                        e.currentTarget.style.border = `1px solid ${theme.primary}`;
                         e.currentTarget.style.transform = 'translateY(-1px)';
                         e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)';
                         
@@ -262,7 +262,7 @@ const MessagesListComponent: React.FC<MessagesListProps> = ({
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = theme.suggestedQuestions.questionsBackground || '#ffffff';
-                        e.currentTarget.style.borderColor = theme.suggestedQuestions.text || '#e5e7eb';
+                        e.currentTarget.style.border = `1px solid ${theme.suggestedQuestions.text || '#e5e7eb'}`;
                         e.currentTarget.style.transform = 'translateY(0)';
                         e.currentTarget.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
                         

@@ -9,8 +9,15 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- React is exposed as globals via main.tsx for UMD widget compatibility -->
-    <!-- Widget is loaded dynamically by dependencies.ts -->
+    <!-- React 18 UMD: required for chatbot-widget.umd.js (React 19 changed internals, UMD expects React 18 shape) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script>
+      if (typeof window.React === 'undefined' || typeof window.ReactDOM === 'undefined') {
+        console.warn('Chatbot Widget: React/ReactDOM UMD failed to load; widget may not work.');
+      }
+    </script>
+    <!-- App (React 19) runs after; main.tsx only sets window.React if not set, so widget keeps React 18 -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
