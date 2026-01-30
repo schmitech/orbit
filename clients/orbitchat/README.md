@@ -1,6 +1,6 @@
 # ORBIT Chat App
 
-A standalone chat application for ORBIT that can be installed as an npm package and run as a CLI tool. Integrates with the `@schmitech/chatbot-api` package for real-time streaming chat responses and file upload capabilities.
+A standalone chat application for ORBIT that can be installed as an npm package and run as a CLI tool. Integrates with the `@schmitech/chatbot-api` package for real-time streaming chat responses and uses the open-source [`@schmitech/markdown-renderer`](https://github.com/schmitech/markdown-renderer) for rich content display including math and charts.
 
 ## Installation
 
@@ -316,6 +316,7 @@ Files are processed through the following pipeline:
 The integration uses:
 - **Zustand** for state management (replacing React Context)
 - **@schmitech/chatbot-api** for streaming chat functionality and file operations
+- **@schmitech/markdown-renderer** ([GitHub](https://github.com/schmitech/markdown-renderer) | [NPM](https://www.npmjs.com/package/@schmitech/markdown-renderer)) for rich markdown rendering
 - **localStorage** for persistent session and conversation storage
 - **TypeScript** for type safety throughout the integration
 - **File Upload Service** for handling file uploads with progress tracking

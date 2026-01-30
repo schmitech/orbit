@@ -71,6 +71,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
     - [4. Build from source](#4-build-from-source)
   - [💬 Clients \& SDKs](#-clients--sdks)
   - [🗃️ Chat with Your Data](#️-chat-with-your-data)
+  - [📐 Math & Scientific Rendering](#-math--scientific-rendering)
   - [📚 Resources](#-resources)
   - [🧠 Need help?](#-need-help)
   - [📄 License](#-license)
@@ -168,6 +169,20 @@ See the **[tutorial](docs/tutorial.md)** for step-by-step instructions on connec
   </video>
   <br/>
   <i>Electric Vehicle Population Data through natural language (Data Source: <a href="https://data.wa.gov/Transportation/Electric-Vehicle-Population-Data/f6w7-q2d2/about_data">data.wa.gov</a>).</i>
+</div>
+
+---
+
+## 📐 Math & Scientific Rendering
+
+ORBIT's built-in adapters and clients support advanced rendering for mathematical notation (KaTeX) and interactive charts, perfect for educational and scientific applications.
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/38630cdc-ed1b-46cd-a804-35850837e9d0" controls width="100%">
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>Demo of the Math Tutor adapter showcasing KaTeX and interactive graphing.</i>
 </div>
 
 ---
