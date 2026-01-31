@@ -26,7 +26,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 **Ship faster. Stay portable. Keep your data private.**
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/865e3683-6c86-481d-b545-e52e3088540d" controls width="100%">
+  <video src="https://github.com/user-attachments/assets/bdb0330d-b03a-44ba-ad97-c3a363a45a7d" controls width="100%">
     Your browser does not support the video tag.
   </video>
   <br/>
@@ -71,7 +71,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
     - [4. Build from source](#4-build-from-source)
   - [💬 Clients \& SDKs](#-clients--sdks)
   - [🗃️ Chat with Your Data](#️-chat-with-your-data)
-  - [📐 Math & Scientific Rendering](#-math--scientific-rendering)
+  - [📐 Math \& Scientific Rendering](#-math--scientific-rendering)
   - [📚 Resources](#-resources)
   - [🧠 Need help?](#-need-help)
   - [📄 License](#-license)
