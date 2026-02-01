@@ -27,6 +27,7 @@ class ServiceType(Enum):
     RERANKING = "reranking"
     VISION = "vision"
     AUDIO = "audio"
+    SPEECH_TO_SPEECH = "speech_to_speech"
 
 
 class AIService(ABC, Generic[T]):

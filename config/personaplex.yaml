@@ -1,0 +1,180 @@
+# PersonaPlex-7B Configuration
+# NVIDIA's full-duplex speech-to-speech conversational AI model
+# https://github.com/nvidia/personaplex
+
+personaplex:
+  enabled: true
+
+  # Deployment mode: "embedded" (same process) or "proxy" (remote server)
+  # - embedded: Loads model into local GPU memory, lowest latency
+  # - proxy: Connects to separate PersonaPlex server, enables GPU sharing
+  mode: "proxy"
+
+  # =============================================================================
+  # Embedded Mode Configuration
+  # Used when mode: "embedded" - model runs in same process as ORBIT
+  # =============================================================================
+  embedded:
+    # HuggingFace repository for model weights
+    hf_repo: "nvidia/personaplex-7b-v1"
+
+    # Device selection
+    device: "cuda"  # Options: cuda, cpu
+
+    # Enable CPU offload for low-VRAM systems (slower but uses less GPU memory)
+    cpu_offload: false
+
+    # Voice prompt directory (null = auto-download from HuggingFace)
+    voice_prompt_dir: null
+
+    # Warm up model on startup (recommended for production)
+    warmup_on_start: true
+    warmup_iterations: 4
+
+  # =============================================================================
+  # Proxy Mode Configuration
+  # Used when mode: "proxy" - connects to external PersonaPlex server
+  # =============================================================================
+  proxy:
+    # PersonaPlex server WebSocket URL
+    # The server can be started with: python -m moshi.server --port 8998
+    server_url: "wss://15.223.1.109:8998/api/chat"
+
+    # SSL verification (disable for self-signed certs in dev)
+    ssl_verify: false
+
+    # Connection settings
+    connection_timeout: 30  # seconds
+    reconnect_attempts: 3
+    reconnect_delay: 1.0  # seconds
+
+  # =============================================================================
+  # Audio Configuration
+  # =============================================================================
+  audio:
+    # PersonaPlex native sample rate (do not change)
+    sample_rate: 32000
+
+    # Frame rate in Hz (80ms frames)
+    frame_rate: 12.5
+
+    # Opus codec for efficient audio streaming
+    opus_enabled: true
+
+    # Audio buffer settings
+    input_buffer_frames: 4
+    output_buffer_frames: 2
+
+  # =============================================================================
+  # Default Persona Settings
+  # =============================================================================
+  defaults:
+    # Default voice prompt (voice embedding file)
+    voice_prompt: "NATF2.pt"
+
+    # Default text prompt (role/system prompt)
+    text_prompt: ""
+
+    # Generation parameters
+    temperature: 0.8       # Audio generation temperature
+    temperature_text: 0.7  # Text generation temperature
+    top_k: 250             # Audio top-k sampling
+    top_k_text: 25         # Text top-k sampling
+
+  # =============================================================================
+  # Available Voices
+  # Pre-trained voice embeddings included with PersonaPlex
+  # =============================================================================
+  voices:
+    natural_female:
+      - id: "NATF0.pt"
+        name: "Natural Female 1"
+        description: "Clear, professional female voice"
+      - id: "NATF1.pt"
+        name: "Natural Female 2"
+        description: "Warm, friendly female voice"
+      - id: "NATF2.pt"
+        name: "Natural Female 3"
+        description: "Bright, upbeat female voice"
+      - id: "NATF3.pt"
+        name: "Natural Female 4"
+        description: "Calm, soothing female voice"
+
+    natural_male:
+      - id: "NATM0.pt"
+        name: "Natural Male 1"
+        description: "Clear, professional male voice"
+      - id: "NATM1.pt"
+        name: "Natural Male 2"
+        description: "Warm, friendly male voice"
+      - id: "NATM2.pt"
+        name: "Natural Male 3"
+        description: "Deep, authoritative male voice"
+      - id: "NATM3.pt"
+        name: "Natural Male 4"
+        description: "Calm, steady male voice"
+
+    variety_female:
+      - id: "VARF0.pt"
+        name: "Variety Female 1"
+        description: "Expressive, dynamic female voice"
+      - id: "VARF1.pt"
+        name: "Variety Female 2"
+        description: "Melodic, engaging female voice"
+      - id: "VARF2.pt"
+        name: "Variety Female 3"
+        description: "Enthusiastic, energetic female voice"
+      - id: "VARF3.pt"
+        name: "Variety Female 4"
+        description: "Gentle, nurturing female voice"
+      - id: "VARF4.pt"
+        name: "Variety Female 5"
+        description: "Confident, assertive female voice"
+
+    variety_male:
+      - id: "VARM0.pt"
+        name: "Variety Male 1"
+        description: "Expressive, dynamic male voice"
+      - id: "VARM1.pt"
+        name: "Variety Male 2"
+        description: "Friendly, conversational male voice"
+      - id: "VARM2.pt"
+        name: "Variety Male 3"
+        description: "Enthusiastic, energetic male voice"
+      - id: "VARM3.pt"
+        name: "Variety Male 4"
+        description: "Thoughtful, measured male voice"
+      - id: "VARM4.pt"
+        name: "Variety Male 5"
+        description: "Confident, charismatic male voice"
+
+  # =============================================================================
+  # Session Management
+  # =============================================================================
+  session:
+    # Maximum session duration (seconds)
+    max_duration: 3600  # 1 hour
+
+    # Idle timeout before auto-close (seconds)
+    idle_timeout: 300  # 5 minutes
+
+    # Maximum concurrent sessions (embedded mode)
+    max_concurrent_sessions: 4
+
+  # =============================================================================
+  # Timeout Configuration
+  # =============================================================================
+  timeout:
+    connect: 30000     # 30 seconds for initial connection
+    total: 3600000     # 1 hour max session
+    frame: 5000        # 5 seconds per frame processing
+
+  # =============================================================================
+  # Retry Configuration
+  # =============================================================================
+  retry:
+    enabled: true
+    max_retries: 3
+    initial_wait_ms: 1000
+    max_wait_ms: 10000
+    exponential_base: 2

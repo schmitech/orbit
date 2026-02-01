@@ -371,6 +371,65 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
             )
 
 
+def register_speech_to_speech_services(config: Dict[str, Any] = None) -> None:
+    """
+    Register all speech-to-speech service implementations with the factory.
+
+    Speech-to-speech services handle full-duplex voice conversations where
+    the AI can listen and speak simultaneously (e.g., PersonaPlex).
+
+    This makes them available for creation via AIServiceFactory.create_service()
+    Services with missing dependencies are skipped with a warning.
+    Services that are disabled in config are not registered.
+
+    Configuration structure (from personaplex.yaml):
+    - config['personaplex']['enabled']
+    - config['personaplex']['mode']
+
+    Args:
+        config: Optional configuration dictionary. If provided, only enabled providers
+                will be registered based on the config structure.
+    """
+    if config:
+        pp_config = config.get('personaplex', {})
+        pp_enabled = pp_config.get('enabled', False)
+
+        if not _is_enabled(pp_enabled):
+            logger.info(
+                "PersonaPlex is disabled in config - "
+                "skipping speech-to-speech service registration."
+            )
+            return
+
+    # Define services to register with their import paths
+    services = [
+        ("personaplex", "PersonaPlexService", "PersonaPlex"),
+        ("personaplex_proxy", "PersonaPlexProxyService", "PersonaPlex (Proxy)"),
+        ("personaplex_embedded", "PersonaPlexEmbeddedService", "PersonaPlex (Embedded)"),
+    ]
+
+    for provider_key, class_name, display_name in services:
+        try:
+            # Lazy import - only import what we can
+            module = __import__(
+                'ai_services.implementations.speech_to_speech',
+                fromlist=[class_name]
+            )
+            service_class = getattr(module, class_name)
+
+            AIServiceFactory.register_service(
+                ServiceType.SPEECH_TO_SPEECH,
+                provider_key,
+                service_class
+            )
+            logger.info(f"Registered {display_name} speech-to-speech service")
+        except (ImportError, AttributeError) as e:
+            logger.debug(
+                f"Skipping {display_name} speech-to-speech service - "
+                f"missing dependencies: {e}"
+            )
+
+
 def register_all_services(config: Dict[str, Any] = None) -> None:
     """
     Register all available service implementations.
@@ -410,6 +469,7 @@ def register_all_services(config: Dict[str, Any] = None) -> None:
         register_reranking_services(config)
         register_vision_services(config)
         register_audio_services(config)
+        register_speech_to_speech_services(config)
 
         _services_registered = True
 

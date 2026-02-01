@@ -2,10 +2,18 @@
 Voice Routes
 
 WebSocket endpoints for real-time voice conversations with AI.
+
+Supports two handler types:
+- VoiceWebSocketHandler: Traditional cascade (STT -> LLM -> TTS)
+- PersonaPlexWebSocketHandler: Full-duplex speech-to-speech (PersonaPlex)
+
+Handler selection is automatic based on adapter type:
+- type: "speech_to_speech" -> PersonaPlexWebSocketHandler
+- other types -> VoiceWebSocketHandler
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Tuple, Any, Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Query, HTTPException
 from services.chat_handlers.voice_websocket_handler import VoiceWebSocketHandler
 
@@ -30,7 +38,7 @@ def get_config(request: Request):
     return config
 
 
-async def validate_adapter(adapter_name: str, request: Request) -> bool:
+async def validate_adapter(adapter_name: str, request: Request) -> Dict[str, Any]:
     """
     Validate that the adapter exists and supports real-time audio.
 
@@ -39,7 +47,7 @@ async def validate_adapter(adapter_name: str, request: Request) -> bool:
         request: FastAPI request
 
     Returns:
-        True if adapter is valid
+        Adapter configuration dictionary
 
     Raises:
         HTTPException: If adapter is invalid or doesn't support real-time audio
@@ -69,20 +77,97 @@ async def validate_adapter(adapter_name: str, request: Request) -> bool:
             detail=f"Adapter '{adapter_name}' does not support real-time audio conversations"
         )
 
-    # Check if audio provider is configured
+    # Check adapter type
+    adapter_type = adapter_config.get('type', '')
+
+    # For speech_to_speech adapters (PersonaPlex), audio_provider is not required
+    if adapter_type == 'speech_to_speech':
+        logger.info(
+            f"Adapter validation successful: {adapter_name}, "
+            f"type: speech_to_speech (full-duplex)"
+        )
+        return adapter_config
+
+    # For other adapter types, audio provider must be configured
     audio_provider = adapter_config.get('audio_provider')
     if not audio_provider:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Adapter '{adapter_name}' has no audio provider configured"
-        )
+        # Also check stt_provider/tts_provider for voice adapters
+        stt_provider = adapter_config.get('stt_provider')
+        tts_provider = adapter_config.get('tts_provider')
+        if not (stt_provider or tts_provider):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Adapter '{adapter_name}' has no audio provider configured"
+            )
+        audio_provider = f"stt:{stt_provider or 'none'}, tts:{tts_provider or 'none'}"
 
     logger.info(
         f"Adapter validation successful: {adapter_name}, "
         f"audio provider: {audio_provider}"
     )
 
-    return True
+    return adapter_config
+
+
+async def _create_personaplex_handler(
+    websocket: WebSocket,
+    adapter_name: str,
+    adapter_config: Dict[str, Any],
+    config: Dict[str, Any],
+    session_id: Optional[str],
+    user_id: Optional[str]
+):
+    """
+    Create and initialize a PersonaPlex WebSocket handler.
+
+    Args:
+        websocket: WebSocket connection
+        adapter_name: Name of the adapter
+        adapter_config: Adapter configuration
+        config: Global configuration
+        session_id: Optional session ID
+        user_id: Optional user ID
+
+    Returns:
+        Initialized PersonaPlexWebSocketHandler
+    """
+    from services.chat_handlers.personaplex_websocket_handler import PersonaPlexWebSocketHandler
+    from ai_services.factory import AIServiceFactory
+    from ai_services.base import ServiceType
+
+    # Get or create PersonaPlex service
+    try:
+        personaplex_service = AIServiceFactory.create_service(
+            ServiceType.SPEECH_TO_SPEECH,
+            'personaplex',
+            config
+        )
+
+        # Initialize service if needed
+        if not personaplex_service.initialized:
+            success = await personaplex_service.initialize()
+            if not success:
+                raise RuntimeError("Failed to initialize PersonaPlex service")
+
+    except Exception as e:
+        logger.error(f"Failed to create PersonaPlex service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"PersonaPlex service unavailable: {str(e)}"
+        )
+
+    # Create handler
+    handler = PersonaPlexWebSocketHandler(
+        websocket=websocket,
+        personaplex_service=personaplex_service,
+        adapter_name=adapter_name,
+        adapter_config=adapter_config,
+        config=config,
+        session_id=session_id,
+        user_id=user_id
+    )
+
+    return handler
 
 
 @router.websocket("/ws/voice/{adapter_name}")
@@ -119,44 +204,53 @@ async def websocket_voice(
 
     try:
         # Validate adapter before accepting connection
-        await validate_adapter(adapter_name, websocket)
+        adapter_config = await validate_adapter(adapter_name, websocket)
 
         # Get services from app state
         chat_service = get_chat_service(websocket)
         config = get_config(websocket)
 
         # Validate API key if required by adapter
-        if hasattr(chat_service, 'context_builder') and chat_service.context_builder:
-            adapter_manager = chat_service.context_builder.adapter_manager
-            if adapter_manager:
-                adapter_config = adapter_manager.get_adapter_config(adapter_name)
-                if adapter_config:
-                    requires_auth = adapter_config.get('capabilities', {}).get('requires_api_key_validation', False)
-                    if requires_auth:
-                        if not api_key:
-                            raise HTTPException(
-                                status_code=401,
-                                detail="API key required for this adapter"
-                            )
-                        # TODO: Add actual API key validation logic here
-                        # For now, we accept any non-empty API key
-                        logger.info(f"API key provided for adapter: {adapter_name}")
+        requires_auth = adapter_config.get('capabilities', {}).get('requires_api_key_validation', False)
+        if requires_auth:
+            if not api_key:
+                raise HTTPException(
+                    status_code=401,
+                    detail="API key required for this adapter"
+                )
+            # TODO: Add actual API key validation logic here
+            # For now, we accept any non-empty API key
+            logger.info(f"API key provided for adapter: {adapter_name}")
 
-        # Create handler
-        handler = VoiceWebSocketHandler(
-            websocket=websocket,
-            chat_service=chat_service,
-            adapter_name=adapter_name,
-            config=config,
-            session_id=session_id,
-            user_id=user_id
-        )
+        # Check adapter type to determine handler
+        adapter_type = adapter_config.get('type', '')
 
-        # Initialize handler
-        await handler.initialize()
+        if adapter_type == 'speech_to_speech':
+            # Use PersonaPlex handler for full-duplex speech-to-speech
+            handler = await _create_personaplex_handler(
+                websocket=websocket,
+                adapter_name=adapter_name,
+                adapter_config=adapter_config,
+                config=config,
+                session_id=session_id,
+                user_id=user_id
+            )
+        else:
+            # Use standard voice handler for cascade (STT -> LLM -> TTS)
+            handler = VoiceWebSocketHandler(
+                websocket=websocket,
+                chat_service=chat_service,
+                adapter_name=adapter_name,
+                config=config,
+                session_id=session_id,
+                user_id=user_id
+            )
 
-        # Accept connection
-        await handler.accept_connection()
+            # Initialize handler
+            await handler.initialize()
+
+            # Accept connection
+            await handler.accept_connection()
 
         # Run message loop
         await handler.run()
@@ -236,11 +330,29 @@ async def voice_status(request: Request):
 
             capabilities = adapter_config.get('capabilities', {})
             if capabilities.get('supports_realtime_audio', False):
-                voice_adapters.append({
+                adapter_type = adapter_config.get('type', 'passthrough')
+                is_full_duplex = adapter_type == 'speech_to_speech'
+
+                adapter_info = {
                     "name": adapter_name,
-                    "audio_provider": adapter_config.get('audio_provider', 'unknown'),
-                    "enabled": adapter_config.get('enabled', False)
-                })
+                    "type": adapter_type,
+                    "enabled": adapter_config.get('enabled', False),
+                    "full_duplex": is_full_duplex
+                }
+
+                if is_full_duplex:
+                    # PersonaPlex adapters
+                    adapter_info["mode"] = "speech_to_speech"
+                    persona = adapter_config.get('persona', {})
+                    adapter_info["voice"] = persona.get('voice_prompt', 'default')
+                else:
+                    # Traditional cascade adapters
+                    adapter_info["mode"] = "cascade"
+                    adapter_info["audio_provider"] = adapter_config.get('audio_provider', 'unknown')
+                    adapter_info["stt_provider"] = adapter_config.get('stt_provider')
+                    adapter_info["tts_provider"] = adapter_config.get('tts_provider')
+
+                voice_adapters.append(adapter_info)
 
         # Get global sound configuration
         sound_config = config.get('sound', {})

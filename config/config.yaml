@@ -11,6 +11,7 @@ import:
   - "vision.yaml"
   - "tts.yaml"
   - "stt.yaml"
+  - "personaplex.yaml"
 
 general:
   port: 3000
@@ -263,7 +264,7 @@ internal_services:
     # Enable gzip compression for response field (saves storage, reduces I/O)
     # Set to false for debugging/testing to see plain text responses
     # Compressed responses are stored as base64-encoded gzip data
-    compress_responses: false
+    compress_responses: true
     # Clear audit logs on server startup
     # WARNING: This will delete ALL audit logs when the server starts
     # Use with caution - only recommended for development/testing environments

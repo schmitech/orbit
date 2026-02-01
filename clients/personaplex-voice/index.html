@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ORBIT PersonaPlex Voice</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(90deg, #76b900, #00d4ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 2rem;
+    }
+
+    .config-section {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .config-row {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .config-row:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-bottom: 0.5rem;
+      text-align: left;
+    }
+
+    input, select {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      background: rgba(0,0,0,0.3);
+      color: #fff;
+      font-size: 1rem;
+      width: 100%;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #76b900;
+    }
+
+    .visualizer-container {
+      display: flex;
+      gap: 2rem;
+      justify-content: center;
+      margin: 2rem 0;
+    }
+
+    .visualizer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .visualizer-label {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 0.5rem;
+    }
+
+    canvas {
+      border-radius: 50%;
+      background: rgba(0,0,0,0.3);
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin: 1.5rem 0;
+    }
+
+    button {
+      padding: 1rem 2rem;
+      border: none;
+      border-radius: 50px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #connectBtn {
+      background: linear-gradient(90deg, #76b900, #00d4ff);
+      color: #000;
+    }
+
+    #connectBtn:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 4px 20px rgba(118, 185, 0, 0.4);
+    }
+
+    #connectBtn.connected {
+      background: linear-gradient(90deg, #ff4444, #ff6666);
+    }
+
+    #interruptBtn {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+
+    #interruptBtn:hover:not(:disabled) {
+      background: rgba(255,255,255,0.2);
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #666;
+      transition: background 0.3s ease;
+    }
+
+    .status-dot.connecting {
+      background: #ffaa00;
+      animation: pulse 1s infinite;
+    }
+
+    .status-dot.connected {
+      background: #76b900;
+    }
+
+    .status-dot.error {
+      background: #ff4444;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .transcript {
+      background: rgba(0,0,0,0.3);
+      border-radius: 12px;
+      padding: 1rem;
+      min-height: 100px;
+      max-height: 200px;
+      overflow-y: auto;
+      text-align: left;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: #ccc;
+      margin-top: 1rem;
+    }
+
+    .transcript:empty::before {
+      content: 'Transcription will appear here...';
+      color: #666;
+      font-style: italic;
+    }
+
+    .stats {
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 1rem;
+    }
+
+    .field-group {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ORBIT PersonaPlex Voice</h1>
+    <p class="subtitle">Full-duplex speech-to-speech conversation</p>
+
+    <div class="config-section">
+      <div class="config-row">
+        <div class="field-group">
+          <label for="serverUrl">ORBIT Server URL</label>
+          <input type="text" id="serverUrl" value="ws://localhost:3000" placeholder="ws://localhost:3000">
+        </div>
+      </div>
+      <div class="config-row">
+        <div class="field-group">
+          <label for="adapterName">Adapter Name</label>
+          <input type="text" id="adapterName" value="personaplex-assistant" placeholder="personaplex-assistant">
+        </div>
+        <div class="field-group">
+          <label for="apiKey">API Key (optional)</label>
+          <input type="text" id="apiKey" value="personaplex" placeholder="personaplex">
+        </div>
+      </div>
+    </div>
+
+    <div class="status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Disconnected</span>
+    </div>
+
+    <div class="visualizer-container">
+      <div class="visualizer">
+        <span class="visualizer-label">Your Voice</span>
+        <canvas id="userCanvas" width="120" height="120"></canvas>
+      </div>
+      <div class="visualizer">
+        <span class="visualizer-label">AI Voice</span>
+        <canvas id="serverCanvas" width="120" height="120"></canvas>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="connectBtn">Connect</button>
+      <button id="interruptBtn" disabled>Interrupt</button>
+    </div>
+
+    <div class="transcript" id="transcript"></div>
+
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

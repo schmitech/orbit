@@ -106,6 +106,24 @@ def register_adapters():
 
     logger.info("Registered multimodal passthrough adapter")
 
+    # Register PersonaPlex speech-to-speech adapter
+    def _create_personaplex_adapter(config=None, **kwargs):
+        """Factory function for PersonaPlex adapter - returns None as the service handles everything."""
+        # PersonaPlex doesn't use a traditional domain adapter pattern.
+        # The service itself (PersonaPlexService) handles all processing.
+        # This registration just allows the adapter loader to find it.
+        return None
+
+    ADAPTER_REGISTRY.register(
+        adapter_type="speech_to_speech",
+        datasource="none",
+        adapter_name="personaplex",
+        factory_func=_create_personaplex_adapter,
+        config={}
+    )
+
+    logger.info("Registered PersonaPlex speech-to-speech adapter")
+
 
 # Register adapters when module is imported
 register_adapters()

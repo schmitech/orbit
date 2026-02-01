@@ -1,0 +1,253 @@
+# PersonaPlex Full-Duplex Voice Adapters
+# NVIDIA PersonaPlex-7B speech-to-speech conversational AI
+#
+# These adapters enable real-time, full-duplex voice conversations where the AI
+# can listen and speak simultaneously, supporting natural human conversational
+# dynamics like backchannels ("mm-hmm", "oh!"), interruptions, and overlapping speech.
+#
+# Key differences from traditional voice adapters (audio.yaml):
+# - Full-duplex: AI listens while speaking (not turn-based)
+# - Unified model: No separate STT -> LLM -> TTS cascade
+# - Lower latency: Single model handles entire conversation
+# - Natural dynamics: Built-in support for interruptions and backchannels
+
+adapters:
+  # =============================================================================
+  # General-Purpose PersonaPlex Assistant
+  # A helpful, friendly AI assistant for general conversations
+  # =============================================================================
+  - name: "personaplex-assistant"
+    enabled: true
+    type: "speech_to_speech"
+    datasource: "none"
+    adapter: "personaplex"
+    implementation: "ai_services.implementations.speech_to_speech.PersonaPlexService"
+
+    # Capabilities: Full-duplex voice conversation
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      supports_realtime_audio: true
+      supports_full_duplex: true
+      supports_interruption: true
+      supports_backchannels: true
+
+    # Persona configuration
+    persona:
+      voice_prompt: "NATF2.pt"  # Bright, upbeat female voice
+      text_prompt: |
+        You are a helpful and friendly AI assistant. You enjoy having engaging
+        conversations and helping people with their questions. You speak naturally
+        and conversationally, using appropriate backchannels like "I see" or "right"
+        to show you're listening. Be concise but thorough in your responses.
+
+    config:
+      # WebSocket settings
+      websocket_enabled: true
+      max_session_duration_seconds: 3600  # 1 hour
+      ping_interval_seconds: 30
+
+      # Audio settings (ORBIT client-side)
+      audio_chunk_size_ms: 80  # 80ms = one PersonaPlex frame at 12.5 Hz
+      orbit_sample_rate: 24000
+      personaplex_sample_rate: 32000
+
+  # =============================================================================
+  # Customer Service Agent
+  # Professional customer support persona with patience and expertise
+  # =============================================================================
+  - name: "personaplex-customer-service"
+    enabled: true
+    type: "speech_to_speech"
+    datasource: "none"
+    adapter: "personaplex"
+    implementation: "ai_services.implementations.speech_to_speech.PersonaPlexService"
+
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      supports_realtime_audio: true
+      supports_full_duplex: true
+      supports_interruption: true
+      supports_backchannels: true
+
+    persona:
+      voice_prompt: "NATM1.pt"  # Warm, friendly male voice
+      text_prompt: |
+        You work for TechSupport Pro and your name is Alex. You help customers
+        troubleshoot technical issues with patience and expertise. Always be
+        polite, empathetic, and solution-oriented. When customers are frustrated,
+        acknowledge their feelings before diving into solutions. Ask clarifying
+        questions when needed and provide step-by-step guidance.
+
+    config:
+      websocket_enabled: true
+      max_session_duration_seconds: 1800  # 30 minutes
+      ping_interval_seconds: 30
+      audio_chunk_size_ms: 80
+      orbit_sample_rate: 24000
+      personaplex_sample_rate: 32000
+
+  # =============================================================================
+  # Language Tutor
+  # Patient language teacher with encouraging feedback
+  # =============================================================================
+  - name: "personaplex-language-tutor"
+    enabled: true
+    type: "speech_to_speech"
+    datasource: "none"
+    adapter: "personaplex"
+    implementation: "ai_services.implementations.speech_to_speech.PersonaPlexService"
+
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      supports_realtime_audio: true
+      supports_full_duplex: true
+      supports_interruption: true
+      supports_backchannels: true
+
+    persona:
+      voice_prompt: "NATF1.pt"  # Warm, friendly female voice
+      text_prompt: |
+        You are an experienced and patient language tutor named Sofia. You help
+        students practice their conversational skills through natural dialogue.
+        Gently correct pronunciation and grammar mistakes, but keep the conversation
+        flowing naturally. Offer encouragement and positive reinforcement. Adapt
+        your vocabulary and pace to the student's level. Use backchannels like
+        "good!" and "exactly!" to encourage the student.
+
+    config:
+      websocket_enabled: true
+      max_session_duration_seconds: 3600
+      ping_interval_seconds: 30
+      audio_chunk_size_ms: 80
+      orbit_sample_rate: 24000
+      personaplex_sample_rate: 32000
+
+  # =============================================================================
+  # Casual Chat Companion
+  # Relaxed, conversational AI for casual discussions
+  # =============================================================================
+  - name: "personaplex-chat"
+    enabled: true
+    type: "speech_to_speech"
+    datasource: "none"
+    adapter: "personaplex"
+    implementation: "ai_services.implementations.speech_to_speech.PersonaPlexService"
+
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      supports_realtime_audio: true
+      supports_full_duplex: true
+      supports_interruption: true
+      supports_backchannels: true
+
+    persona:
+      voice_prompt: "VARF2.pt"  # Enthusiastic, energetic female voice
+      text_prompt: |
+        You enjoy having good conversations about all kinds of topics. You're
+        curious, friendly, and have a good sense of humor. Share your thoughts
+        and ask follow-up questions to keep the conversation interesting. Use
+        natural conversational patterns including backchannels, thinking pauses,
+        and occasional light-hearted remarks.
+
+    config:
+      websocket_enabled: true
+      max_session_duration_seconds: 3600
+      ping_interval_seconds: 30
+      audio_chunk_size_ms: 80
+      orbit_sample_rate: 24000
+      personaplex_sample_rate: 32000
+
+  # =============================================================================
+  # Interview Practice Coach
+  # Professional coach for practicing job interviews
+  # =============================================================================
+  - name: "personaplex-interview-coach"
+    enabled: true
+    type: "speech_to_speech"
+    datasource: "none"
+    adapter: "personaplex"
+    implementation: "ai_services.implementations.speech_to_speech.PersonaPlexService"
+
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      supports_realtime_audio: true
+      supports_full_duplex: true
+      supports_interruption: true
+      supports_backchannels: true
+
+    persona:
+      voice_prompt: "NATM2.pt"  # Deep, authoritative male voice
+      text_prompt: |
+        You are an experienced hiring manager and interview coach named James.
+        You conduct mock interviews to help candidates prepare for job interviews.
+        Ask typical interview questions, follow up on answers, and provide
+        constructive feedback. Be professional but encouraging. After each answer,
+        offer brief feedback on what worked well and what could be improved.
+        Vary your questions between behavioral, technical, and situational types.
+
+    config:
+      websocket_enabled: true
+      max_session_duration_seconds: 2700  # 45 minutes
+      ping_interval_seconds: 30
+      audio_chunk_size_ms: 80
+      orbit_sample_rate: 24000
+      personaplex_sample_rate: 32000
+
+  # =============================================================================
+  # Storyteller
+  # Engaging narrator for interactive storytelling
+  # =============================================================================
+  - name: "personaplex-storyteller"
+    enabled: false  # Enable when needed
+    type: "speech_to_speech"
+    datasource: "none"
+    adapter: "personaplex"
+    implementation: "ai_services.implementations.speech_to_speech.PersonaPlexService"
+
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      supports_realtime_audio: true
+      supports_full_duplex: true
+      supports_interruption: true
+      supports_backchannels: true
+
+    persona:
+      voice_prompt: "VARM1.pt"  # Friendly, conversational male voice
+      text_prompt: |
+        You are an engaging storyteller who creates interactive narratives with
+        the listener. You weave tales that respond to the listener's input and
+        choices, making them feel like a part of the story. Use vivid descriptions
+        and vary your tone to match the mood of different story moments. Pause
+        at key moments to let the listener make choices about what happens next.
+
+    config:
+      websocket_enabled: true
+      max_session_duration_seconds: 3600
+      ping_interval_seconds: 30
+      audio_chunk_size_ms: 80
+      orbit_sample_rate: 24000
+      personaplex_sample_rate: 32000
