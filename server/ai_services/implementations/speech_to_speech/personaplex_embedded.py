@@ -491,7 +491,7 @@ class PersonaPlexEmbeddedService(SpeechToSpeechService):
             session = self._sessions.pop(session_id, None)
 
         if session:
-            self.logger.info(f"Closing PersonaPlex session: {session_id}")
+            self.logger.debug(f"Closing PersonaPlex session: {session_id}")
             session.close()
 
     async def interrupt(self, session_id: str) -> None:

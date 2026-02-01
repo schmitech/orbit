@@ -279,7 +279,7 @@ class PersonaPlexProxyService(SpeechToSpeechService):
                             messages_received += 1
                             if messages_received == 1:
                                 # Log first audio payload details for debugging
-                                self.logger.info(f"First audio payload: {len(payload)} bytes, starts with: {payload[:20].hex() if len(payload) >= 20 else payload.hex()}")
+                                self.logger.debug(f"First audio payload: {len(payload)} bytes, starts with: {payload[:20].hex() if len(payload) >= 20 else payload.hex()}")
                             yield payload
                         elif msg_type == 0x02:  # Text token
                             text = payload.decode('utf-8')
@@ -331,7 +331,7 @@ class PersonaPlexProxyService(SpeechToSpeechService):
             session = self._sessions.pop(session_id, None)
 
         if session:
-            self.logger.info(f"Closing PersonaPlex session: {session_id}")
+            self.logger.debug(f"Closing PersonaPlex session: {session_id}")
             await session.close()
 
     async def interrupt(self, session_id: str) -> None:

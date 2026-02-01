@@ -126,7 +126,7 @@ class PersonaPlexWebSocketHandler:
                 text_prompt=text_prompt
             )
 
-            logger.info(f"PersonaPlex session created: {self.pp_session_id}")
+            logger.debug(f"PersonaPlex session created: {self.pp_session_id}")
             return True
 
         except Exception as e:
@@ -345,7 +345,7 @@ class PersonaPlexWebSocketHandler:
                 self._frames_sent += 1
 
                 if self._frames_sent % 50 == 0:
-                    logger.info(f"Sent {self._frames_sent} audio frames to client")
+                    logger.debug(f"Sent {self._frames_sent} audio frames to client")
 
             except asyncio.TimeoutError:
                 # No output available, continue waiting
@@ -412,7 +412,7 @@ class PersonaPlexWebSocketHandler:
         if self.pp_session_id:
             try:
                 await self.personaplex_service.close_session(self.pp_session_id)
-                logger.info(f"PersonaPlex session closed: {self.pp_session_id}")
+                logger.debug(f"PersonaPlex session closed: {self.pp_session_id}")
             except Exception as e:
                 logger.error(f"Error closing PersonaPlex session: {e}")
 

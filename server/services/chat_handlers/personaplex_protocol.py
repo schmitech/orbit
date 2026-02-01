@@ -118,7 +118,7 @@ class PersonaPlexProtocolTranslator:
             # Use opus_sample_rate (24000 Hz) which is supported by Opus
             self._opus_encoder = sphn.OpusStreamWriter(self.opus_sample_rate)
             self._opus_decoder = sphn.OpusStreamReader(self.opus_sample_rate)
-            logger.info(f"Opus codec initialized at {self.opus_sample_rate} Hz")
+            logger.debug(f"Opus codec initialized at {self.opus_sample_rate} Hz")
         except Exception as e:
             logger.error(f"Failed to initialize Opus codec: {e}")
             self._opus_encoder = None
