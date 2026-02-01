@@ -193,7 +193,9 @@ create_and_rename_key() {
     # Add notes if provided
     if [ -n "$notes" ]; then
         echo -e "${GREEN}    ✓ Adding notes for chat interface${NC}"
-        create_cmd="$create_cmd --notes \"$notes\""
+        # Escape double quotes in notes to prevent command injection/breaking
+        local escaped_notes="${notes//\"/\\\"}"
+        create_cmd="$create_cmd --notes \"$escaped_notes\""
     fi
     
     # Add prompt file if provided
@@ -444,6 +446,7 @@ declare -a all_adapters=(
     "intent-agent-example|agent|examples/intent-templates/agent-template/agent-assistant-prompt.md|Agent Assistant Prompt"
     "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.md|File Document QA Prompt"
     "math-teacher-quadratic-files|math-teacher-quadratic|examples/prompts/examples/math-teacher-quadratic/math-teacher-quadratic-prompt.md|Math Teacher Quadratic Prompt"
+    "personaplex-assistant|personaplex||PersonaPlex Voice Assistant"
 )
 
 # Function to get notes for each adapter (bash 3.2 compatible - no associative arrays)
@@ -851,6 +854,23 @@ I can help with:
 - 📄 **Upload exercise sheets, PDFs, or images** of problems and I'll work through them step-by-step
 
 **What quadratic problem would you like to tackle?**
+NOTES_EOF
+            ;;
+        "personaplex-assistant")
+            cat <<'NOTES_EOF'
+## Welcome to PersonaPlex Voice 🎙️✨
+
+I'm your **full-duplex voice assistant** powered by NVIDIA's PersonaPlex-7B!
+
+Unlike traditional voice assistants, I can:
+- 🔄 **Listen while speaking** — true simultaneous conversation
+- ⚡ **Respond naturally** — with backchannels like "mm-hmm" and "I see"
+- ✂️ **Handle interruptions** — jump in anytime, I'll adapt
+- 🗣️ **Speak fluidly** — no awkward turn-taking delays
+
+This is a phone-call style experience—just start talking!
+
+**Note:** Requires WebSocket audio streaming. Use a compatible voice client.
 NOTES_EOF
             ;;
         *)

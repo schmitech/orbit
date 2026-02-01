@@ -38,7 +38,7 @@ personaplex:
   proxy:
     # PersonaPlex server WebSocket URL
     # The server can be started with: python -m moshi.server --port 8998
-    server_url: "wss://15.223.1.109:8998/api/chat"
+    server_url: "wss://localhost:8998/api/chat"
 
     # SSL verification (disable for self-signed certs in dev)
     ssl_verify: false
