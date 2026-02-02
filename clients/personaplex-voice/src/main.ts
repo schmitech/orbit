@@ -79,10 +79,17 @@ const serverUrlInput = document.getElementById('serverUrl') as HTMLInputElement 
 const apiKeyInput = document.getElementById('apiKey') as HTMLInputElement | null;
 const settingsPanel = document.getElementById('settingsPanel') as HTMLDivElement | null;
 const titleText = document.getElementById('appTitleText') as HTMLSpanElement | null;
+const serverUrlCounter = document.querySelector('[data-counter=\"serverUrl\"]') as HTMLDivElement | null;
+const apiKeyCounter = document.querySelector('[data-counter=\"apiKey\"]') as HTMLDivElement | null;
 const connectBtn = document.getElementById('connectBtn') as HTMLButtonElement;
 const statusDot = document.getElementById('statusDot') as HTMLDivElement;
 const statusText = document.getElementById('statusText') as HTMLSpanElement;
 const responseCanvas = document.getElementById('responseCanvas') as HTMLCanvasElement;
+
+const INPUT_LIMITS = {
+  serverUrl: 120,
+  apiKey: 120
+} as const;
 
 // ============================================================================
 // UI Updates
@@ -105,6 +112,23 @@ function setStatus(status: 'disconnected' | 'connecting' | 'connected' | 'error'
     connectBtn.classList.remove('connected');
     connectBtn.disabled = false;
   }
+}
+
+function updateCharCounter(field: keyof typeof INPUT_LIMITS) {
+  const input = field === 'serverUrl' ? serverUrlInput : apiKeyInput;
+  const counter = field === 'serverUrl' ? serverUrlCounter : apiKeyCounter;
+  if (!input || !counter) return;
+  const max = INPUT_LIMITS[field];
+  const remaining = Math.max(0, max - input.value.length);
+  counter.textContent = `${remaining} characters left`;
+}
+
+function bindCharCounter(field: keyof typeof INPUT_LIMITS) {
+  const input = field === 'serverUrl' ? serverUrlInput : apiKeyInput;
+  if (!input) return;
+  input.maxLength = INPUT_LIMITS[field];
+  input.addEventListener('input', () => updateCharCounter(field));
+  updateCharCounter(field);
 }
 
 // ============================================================================
@@ -498,9 +522,11 @@ setInterval(() => {
 if (ENV_CONFIG.displaySettings) {
   if (serverUrlInput) {
     serverUrlInput.value = ENV_CONFIG.serverUrl;
+    bindCharCounter('serverUrl');
   }
   if (apiKeyInput) {
     apiKeyInput.value = ENV_CONFIG.apiKey;
+    bindCharCounter('apiKey');
   }
 } else if (settingsPanel) {
   settingsPanel.remove();
