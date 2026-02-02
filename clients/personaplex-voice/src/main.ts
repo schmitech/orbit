@@ -42,27 +42,19 @@ interface AudioChunkMessage extends OrbitMessage {
   chunk_index: number;
 }
 
-interface TranscriptionMessage extends OrbitMessage {
-  type: 'transcription';
-  text: string;
-  partial: boolean;
-}
-
 // ============================================================================
 // Configuration
 // ============================================================================
 
 const SAMPLE_RATE = 24000;  // ORBIT PersonaPlex uses 24kHz
-const CHUNK_DURATION_MS = 80;  // 80ms chunks
-// ScriptProcessor requires power-of-2 buffer size, use 2048 (~85ms at 24kHz)
-const CHUNK_SIZE = 2048;
 
 // Environment variables (loaded from .env.local via Vite)
 const ENV_CONFIG = {
   serverUrl: import.meta.env.VITE_ORBIT_SERVER_URL || 'ws://localhost:3000',
   adapterName: import.meta.env.VITE_ADAPTER_NAME || 'personaplex-assistant',
   apiKey: import.meta.env.VITE_API_KEY || 'personaplex',
-  appTitle: import.meta.env.VITE_APP_TITLE || 'ORBIT PersonaPlex Voice'
+  appTitle: import.meta.env.VITE_APP_TITLE || 'ORBIT PersonaPlex Voice',
+  displaySettings: String(import.meta.env.VITE_DISPLAY_SETTINGS).toLowerCase() === 'true'
 };
 
 // ============================================================================
@@ -72,37 +64,25 @@ const ENV_CONFIG = {
 let audioContext: AudioContext | null = null;
 let mediaStream: MediaStream | null = null;
 let audioWorkletNode: AudioWorkletNode | null = null;
+let playbackWorkletNode: AudioWorkletNode | null = null;
 let socket: WebSocket | null = null;
 let isConnected = false;
-let userAnalyser: AnalyserNode | null = null;
-let serverAnalyser: AnalyserNode | null = null;
-
-// Audio playback buffer with scheduled playback for gapless audio
-const audioQueue: Float32Array[] = [];
-let isPlaying = false;
-let nextPlayTime = 0;  // When to schedule the next chunk
-let activeAudioSources: AudioBufferSourceNode[] = [];  // Track playing sources for interrupt
-
-// Statistics
-let framesSent = 0;
-let framesReceived = 0;
-let bytesReceived = 0;
+let responseAnalyser: AnalyserNode | null = null;
+let waveAnimationId: number | null = null;
+let idleWavePhase = 0;
 
 // ============================================================================
 // DOM Elements
 // ============================================================================
 
-const serverUrlInput = document.getElementById('serverUrl') as HTMLInputElement;
-const adapterNameInput = document.getElementById('adapterName') as HTMLInputElement;
-const apiKeyInput = document.getElementById('apiKey') as HTMLInputElement;
+const serverUrlInput = document.getElementById('serverUrl') as HTMLInputElement | null;
+const apiKeyInput = document.getElementById('apiKey') as HTMLInputElement | null;
+const settingsPanel = document.getElementById('settingsPanel') as HTMLDivElement | null;
+const titleText = document.getElementById('appTitleText') as HTMLSpanElement | null;
 const connectBtn = document.getElementById('connectBtn') as HTMLButtonElement;
-const interruptBtn = document.getElementById('interruptBtn') as HTMLButtonElement;
 const statusDot = document.getElementById('statusDot') as HTMLDivElement;
 const statusText = document.getElementById('statusText') as HTMLSpanElement;
-const transcriptDiv = document.getElementById('transcript') as HTMLDivElement;
-const statsDiv = document.getElementById('stats') as HTMLDivElement;
-const userCanvas = document.getElementById('userCanvas') as HTMLCanvasElement;
-const serverCanvas = document.getElementById('serverCanvas') as HTMLCanvasElement;
+const responseCanvas = document.getElementById('responseCanvas') as HTMLCanvasElement;
 
 // ============================================================================
 // UI Updates
@@ -115,95 +95,120 @@ function setStatus(status: 'disconnected' | 'connecting' | 'connected' | 'error'
   if (status === 'connected') {
     connectBtn.textContent = 'Disconnect';
     connectBtn.classList.add('connected');
-    interruptBtn.disabled = false;
+    connectBtn.disabled = false;
+  } else if (status === 'connecting') {
+    connectBtn.textContent = 'Connecting...';
+    connectBtn.classList.remove('connected');
+    connectBtn.disabled = true;
   } else {
     connectBtn.textContent = 'Connect';
     connectBtn.classList.remove('connected');
-    interruptBtn.disabled = true;
+    connectBtn.disabled = false;
   }
-}
-
-function appendTranscript(text: string) {
-  transcriptDiv.textContent += text;
-  transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
-}
-
-function clearTranscript() {
-  transcriptDiv.textContent = '';
-}
-
-function updateStats() {
-  statsDiv.textContent = `Sent: ${framesSent} frames | Received: ${framesReceived} frames | ${(bytesReceived / 1024).toFixed(1)} KB`;
 }
 
 // ============================================================================
 // Audio Visualization
 // ============================================================================
 
-function drawVisualizer(canvas: HTMLCanvasElement, analyser: AnalyserNode | null, color: string) {
-  const ctx = canvas.getContext('2d')!;
-  const width = canvas.width;
-  const height = canvas.height;
-  const centerX = width / 2;
-  const centerY = height / 2;
-  const radius = Math.min(width, height) / 2 - 10;
+function drawResponseWave() {
+  if (!responseCanvas) return;
+  const ctx = responseCanvas.getContext('2d');
+  if (!ctx) return;
 
-  // Clear canvas
-  ctx.clearRect(0, 0, width, height);
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.floor(responseCanvas.clientWidth * dpr) || responseCanvas.width;
+  const height = Math.floor(responseCanvas.clientHeight * dpr) || responseCanvas.height;
 
-  let amplitude = 0;
-  if (analyser) {
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteTimeDomainData(dataArray);
+  if (width === 0 || height === 0) return;
 
-    // Calculate RMS amplitude
-    let sum = 0;
-    for (let i = 0; i < dataArray.length; i++) {
-      const val = (dataArray[i] - 128) / 128;
-      sum += val * val;
-    }
-    amplitude = Math.sqrt(sum / dataArray.length);
+  if (responseCanvas.width !== width || responseCanvas.height !== height) {
+    responseCanvas.width = width;
+    responseCanvas.height = height;
   }
 
-  // Draw circle with amplitude-based radius
-  const dynamicRadius = radius * (0.3 + amplitude * 2);
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = 'rgba(2, 6, 23, 0.4)';
+  ctx.fillRect(0, 0, width, height);
+
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, 'rgba(52, 211, 153, 0.85)');
+  gradient.addColorStop(1, 'rgba(56, 189, 248, 0.85)');
+
+  const sampleCount = responseAnalyser && isConnected ? responseAnalyser.fftSize : 256;
+  const dataPoints: Array<{ x: number; y: number }> = [];
+  let waveform: Uint8Array<ArrayBuffer> | null = null;
+
+  if (responseAnalyser && isConnected) {
+    waveform = new Uint8Array(responseAnalyser.fftSize) as Uint8Array<ArrayBuffer>;
+    responseAnalyser.getByteTimeDomainData(waveform);
+  }
+
+  for (let i = 0; i < sampleCount; i++) {
+    const x = (i / (sampleCount - 1)) * width;
+    const value = waveform
+      ? (waveform[i] - 128) / 128
+      : Math.sin((i / sampleCount) * 4 * Math.PI + idleWavePhase) * 0.25;
+    const y = height / 2 + value * (height / 2 - 24);
+    dataPoints.push({ x, y });
+  }
+
+  if (dataPoints.length === 0) return;
 
   ctx.beginPath();
-  ctx.arc(centerX, centerY, Math.min(dynamicRadius, radius), 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.globalAlpha = 0.3 + amplitude * 0.7;
+  ctx.moveTo(dataPoints[0].x, dataPoints[0].y);
+  for (let i = 1; i < dataPoints.length; i++) {
+    ctx.lineTo(dataPoints[i].x, dataPoints[i].y);
+  }
+
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = gradient;
+  ctx.shadowColor = 'rgba(56, 189, 248, 0.35)';
+  ctx.shadowBlur = 20;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.lineTo(width, height);
+  ctx.lineTo(0, height);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
   ctx.fill();
-  ctx.globalAlpha = 1;
 
-  // Draw outer ring
   ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.12)';
+  ctx.lineWidth = 1;
+  ctx.moveTo(0, height / 2);
+  ctx.lineTo(width, height / 2);
   ctx.stroke();
 }
 
-function animateVisualizers() {
-  drawVisualizer(userCanvas, userAnalyser, '#76b900');
-  drawVisualizer(serverCanvas, serverAnalyser, '#00d4ff');
+function startWaveAnimation() {
+  if (waveAnimationId !== null) return;
 
-  if (isConnected) {
-    requestAnimationFrame(animateVisualizers);
-  }
+  const render = () => {
+    drawResponseWave();
+    idleWavePhase += isConnected ? 0.2 : 0.05;
+    waveAnimationId = requestAnimationFrame(render);
+  };
+
+  waveAnimationId = requestAnimationFrame(render);
 }
 
 // ============================================================================
-// Audio Capture (Microphone)
+// Audio Capture (Microphone) & Playback Setup
 // ============================================================================
 
-async function startAudioCapture() {
+async function startAudio() {
   try {
     // Create audio context
     audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
 
-    // Load AudioWorklet module
+    // Load AudioWorklet modules
     await audioContext.audioWorklet.addModule('/audio-processor.js');
+    await audioContext.audioWorklet.addModule('/playback-processor.js');
 
+    // --- Setup Microphone Capture ---
+    
     // Request microphone access
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -218,20 +223,10 @@ async function startAudioCapture() {
     // Create audio source from microphone
     const source = audioContext.createMediaStreamSource(mediaStream);
 
-    // Create analyser for visualization
-    userAnalyser = audioContext.createAnalyser();
-    userAnalyser.fftSize = 256;
-    source.connect(userAnalyser);
-
-    // Create analyser for server audio visualization
-    serverAnalyser = audioContext.createAnalyser();
-    serverAnalyser.fftSize = 256;
-
     // Create AudioWorkletNode for capturing audio data
-    // Runs in a separate audio thread for better performance
     audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor');
 
-    // Handle audio data from the worklet
+    // Handle audio data from the capture worklet
     audioWorkletNode.port.onmessage = (event) => {
       if (!isConnected || !socket || socket.readyState !== WebSocket.OPEN) return;
 
@@ -249,26 +244,49 @@ async function startAudioCapture() {
         };
 
         socket.send(JSON.stringify(message));
-        framesSent++;
-        updateStats();
       }
     };
 
     source.connect(audioWorkletNode);
     // AudioWorklet doesn't need to connect to destination for capture-only
 
+    // --- Setup Audio Playback ---
+
+    // Create analyser for visualization (AI response)
+    responseAnalyser = audioContext.createAnalyser();
+    responseAnalyser.fftSize = 512;
+    responseAnalyser.smoothingTimeConstant = 0.8;
+
+    // Create Playback Worklet
+    playbackWorkletNode = new AudioWorkletNode(audioContext, 'playback-processor');
+    playbackWorkletNode.port.postMessage({ 
+      type: 'config', 
+      inputSampleRate: SAMPLE_RATE 
+    });
+    
+    // Connect Playback -> Analyser -> Destination
+    playbackWorkletNode.connect(responseAnalyser);
+    responseAnalyser.connect(audioContext.destination);
+
     return true;
   } catch (error) {
-    setStatus('error', 'Microphone access denied');
+    console.error(error);
+    setStatus('error', 'Audio access denied or error');
     return false;
   }
 }
 
-function stopAudioCapture() {
+function stopAudio() {
   if (audioWorkletNode) {
     audioWorkletNode.disconnect();
     audioWorkletNode.port.close();
     audioWorkletNode = null;
+  }
+  
+  if (playbackWorkletNode) {
+    playbackWorkletNode.disconnect();
+    playbackWorkletNode.port.close();
+    playbackWorkletNode = null;
   }
 
   if (mediaStream) {
@@ -276,111 +294,60 @@ function stopAudioCapture() {
     mediaStream = null;
   }
 
-  userAnalyser = null;
-  serverAnalyser = null;
+  responseAnalyser = null;
 }
 
 // ============================================================================
 // Audio Playback
 // ============================================================================
 
-// Minimum chunks to buffer before starting playback (reduces jitter)
-const MIN_BUFFER_CHUNKS = 3;
-
 function queueAudioForPlayback(pcmData: Float32Array) {
-  // Skip empty audio chunks
-  if (!pcmData || pcmData.length === 0) {
-    return;
-  }
-
-  audioQueue.push(pcmData);
-
-  // Start playback once we have enough buffered chunks
-  if (!isPlaying && audioQueue.length >= MIN_BUFFER_CHUNKS) {
-    playNextChunk();
+  // Send data to the playback worklet
+  if (playbackWorkletNode && pcmData.length > 0) {
+    playbackWorkletNode.port.postMessage({
+      type: 'audio',
+      data: pcmData
+    });
   }
 }
 
 function stopAllAudio() {
-  // Stop all active audio sources
-  for (const source of activeAudioSources) {
-    try {
-      source.stop();
-      source.disconnect();
-    } catch (e) {
-      // Source may have already ended
-    }
+  // Reset the playback worklet buffer
+  if (playbackWorkletNode) {
+    playbackWorkletNode.port.postMessage({ type: 'reset' });
   }
-  activeAudioSources = [];
-  audioQueue.length = 0;
-  isPlaying = false;
-  nextPlayTime = 0;
-}
-
-function playNextChunk() {
-  if (audioQueue.length === 0 || !audioContext) {
-    isPlaying = false;
-    return;
-  }
-
-  isPlaying = true;
-  const pcmData = audioQueue.shift()!;
-
-  // Create buffer and source
-  const buffer = audioContext.createBuffer(1, pcmData.length, SAMPLE_RATE);
-  buffer.getChannelData(0).set(pcmData);
-
-  const source = audioContext.createBufferSource();
-  source.buffer = buffer;
-
-  // Track this source for interrupt
-  activeAudioSources.push(source);
-
-  // Connect to server analyser for visualization
-  if (serverAnalyser) {
-    source.connect(serverAnalyser);
-    serverAnalyser.connect(audioContext.destination);
-  } else {
-    source.connect(audioContext.destination);
-  }
-
-  // Schedule playback for gapless audio
-  const currentTime = audioContext.currentTime;
-  const startTime = Math.max(currentTime, nextPlayTime);
-
-  // Calculate duration of this chunk
-  const duration = pcmData.length / SAMPLE_RATE;
-  nextPlayTime = startTime + duration;
-
-  source.onended = () => {
-    // Remove from active sources
-    const index = activeAudioSources.indexOf(source);
-    if (index > -1) {
-      activeAudioSources.splice(index, 1);
-    }
-
-    // Continue playing if more chunks available
-    if (audioQueue.length > 0) {
-      playNextChunk();
-    } else {
-      isPlaying = false;
-    }
-  };
-
-  source.start(startTime);
 }
 
 // ============================================================================
 // WebSocket Connection
 // ============================================================================
 
-function connect() {
-  const baseUrl = serverUrlInput.value.trim();
-  const adapterName = adapterNameInput.value.trim();
-  const apiKey = apiKeyInput.value.trim();
+function getServerUrl() {
+  if (ENV_CONFIG.displaySettings && serverUrlInput) {
+    return serverUrlInput.value.trim();
+  }
+  return ENV_CONFIG.serverUrl.trim();
+}
 
-  if (!baseUrl || !adapterName) {
-    setStatus('error', 'Please enter server URL and adapter name');
+function getApiKey() {
+  if (ENV_CONFIG.displaySettings && apiKeyInput) {
+    return apiKeyInput.value.trim();
+  }
+  return ENV_CONFIG.apiKey.trim();
+}
+
+function connect() {
+  const baseUrl = getServerUrl();
+  const adapterName = ENV_CONFIG.adapterName.trim();
+  const apiKey = getApiKey();
+
+  if (!baseUrl) {
+    setStatus('error', 'Please enter server URL');
+    return;
+  }
+
+  if (!adapterName) {
+    setStatus('error', 'Missing adapter name in configuration');
     return;
   }
 
@@ -394,22 +361,15 @@ function connect() {
   socket.onopen = async () => {
 
     // Start audio capture after connection
-    const captureStarted = await startAudioCapture();
-    if (!captureStarted) {
+    const audioStarted = await startAudio();
+    if (!audioStarted) {
       disconnect();
       return;
     }
 
     isConnected = true;
-    clearTranscript();
-    framesSent = 0;
-    framesReceived = 0;
-    bytesReceived = 0;
-    nextPlayTime = 0;  // Reset scheduled playback timing
-    updateStats();
-
-    // Start visualizers
-    requestAnimationFrame(animateVisualizers);
+    idleWavePhase = 0;
+    startWaveAnimation();
   };
 
   socket.onmessage = (event) => {
@@ -445,10 +405,8 @@ function disconnect() {
 
 function handleDisconnect() {
   isConnected = false;
-  stopAudioCapture();
-  audioQueue.length = 0;
-  isPlaying = false;
-
+  stopAudio();
+  
   if (audioContext) {
     audioContext.close();
     audioContext = null;
@@ -467,10 +425,6 @@ function handleMessage(message: OrbitMessage) {
 
     case 'audio_chunk': {
       const audioMsg = message as AudioChunkMessage;
-      framesReceived++;
-      bytesReceived += audioMsg.data.length * 0.75;  // Base64 overhead
-      updateStats();
-
       // Decode base64 and queue for playback
       const pcmData = base64ToFloat32(audioMsg.data);
       queueAudioForPlayback(pcmData);
@@ -478,16 +432,12 @@ function handleMessage(message: OrbitMessage) {
     }
 
     case 'transcription': {
-      const txMsg = message as TranscriptionMessage;
-      if (txMsg.text) {
-        appendTranscript(txMsg.text);
-      }
+      // Transcriptions are intentionally hidden in the simplified UI
       break;
     }
 
     case 'interrupted': {
       stopAllAudio();
-      appendTranscript('\n[interrupted]\n');
       break;
     }
 
@@ -500,16 +450,6 @@ function handleMessage(message: OrbitMessage) {
       setStatus('error', `Error: ${message.message}`);
       break;
     }
-  }
-}
-
-function sendInterrupt() {
-  // Immediately stop local audio for responsive feel
-  stopAllAudio();
-
-  // Also notify server to stop PersonaPlex
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: 'interrupt' }));
   }
 }
 
@@ -547,10 +487,6 @@ connectBtn.addEventListener('click', () => {
   }
 });
 
-interruptBtn.addEventListener('click', () => {
-  sendInterrupt();
-});
-
 // Keep connection alive with ping
 setInterval(() => {
   if (socket && socket.readyState === WebSocket.OPEN) {
@@ -559,17 +495,21 @@ setInterval(() => {
 }, 5000);
 
 // Initialize from environment variables
-serverUrlInput.value = ENV_CONFIG.serverUrl;
-adapterNameInput.value = ENV_CONFIG.adapterName;
-apiKeyInput.value = ENV_CONFIG.apiKey;
+if (ENV_CONFIG.displaySettings) {
+  if (serverUrlInput) {
+    serverUrlInput.value = ENV_CONFIG.serverUrl;
+  }
+  if (apiKeyInput) {
+    apiKeyInput.value = ENV_CONFIG.apiKey;
+  }
+} else if (settingsPanel) {
+  settingsPanel.remove();
+}
 document.title = ENV_CONFIG.appTitle;
-
-// Update the h1 title if present
-const titleElement = document.querySelector('h1');
-if (titleElement) {
-  titleElement.textContent = ENV_CONFIG.appTitle;
+if (titleText) {
+  titleText.textContent = ENV_CONFIG.appTitle;
 }
 
-// Initialize visualizers with empty state
-drawVisualizer(userCanvas, null, '#76b900');
-drawVisualizer(serverCanvas, null, '#00d4ff');
+// Initialize the wave visualizer
+drawResponseWave();
+startWaveAnimation();

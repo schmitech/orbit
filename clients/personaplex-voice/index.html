@@ -11,261 +11,210 @@
       padding: 0;
     }
 
+    :root {
+      color-scheme: dark;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      background: radial-gradient(circle at top, #1f2a4a 0%, #0a0c14 60%);
       min-height: 100vh;
-      color: #fff;
+      color: #f1f5f9;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: 24px;
     }
 
-    .container {
-      max-width: 600px;
-      width: 100%;
-      text-align: center;
+    .app-shell {
+      width: min(420px, 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
     }
 
     h1 {
       font-size: 2rem;
-      margin-bottom: 0.5rem;
-      background: linear-gradient(90deg, #76b900, #00d4ff);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      text-align: center;
+      font-weight: 600;
+      letter-spacing: -0.01em;
     }
 
-    .subtitle {
-      color: #888;
-      margin-bottom: 2rem;
+    #appTitleText {
+      display: block;
     }
 
-    .config-section {
-      background: rgba(255,255,255,0.05);
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
+    .tagline {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 400;
+      color: #94a3b8;
+      margin-top: 0.25rem;
     }
 
-    .config-row {
+    .card {
+      background: rgba(23, 25, 35, 0.8);
+      border-radius: 24px;
+      padding: 24px;
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(148, 163, 184, 0.15);
       display: flex;
-      gap: 1rem;
-      margin-bottom: 1rem;
+      flex-direction: column;
+      gap: 1.25rem;
     }
 
-    .config-row:last-child {
-      margin-bottom: 0;
+    .settings {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
     }
 
     label {
       display: block;
-      font-size: 0.85rem;
-      color: #aaa;
-      margin-bottom: 0.5rem;
-      text-align: left;
+      font-size: 0.8rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 0.35rem;
     }
 
-    input, select {
-      flex: 1;
-      padding: 0.75rem 1rem;
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 8px;
-      background: rgba(0,0,0,0.3);
-      color: #fff;
-      font-size: 1rem;
+    input {
       width: 100%;
-    }
-
-    input:focus, select:focus {
-      outline: none;
-      border-color: #76b900;
-    }
-
-    .visualizer-container {
-      display: flex;
-      gap: 2rem;
-      justify-content: center;
-      margin: 2rem 0;
-    }
-
-    .visualizer {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .visualizer-label {
-      font-size: 0.85rem;
-      color: #888;
-      margin-bottom: 0.5rem;
-    }
-
-    canvas {
-      border-radius: 50%;
-      background: rgba(0,0,0,0.3);
-    }
-
-    .controls {
-      display: flex;
-      gap: 1rem;
-      justify-content: center;
-      margin: 1.5rem 0;
-    }
-
-    button {
-      padding: 1rem 2rem;
-      border: none;
-      border-radius: 50px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 16px;
+      background: rgba(15, 17, 28, 0.8);
+      color: inherit;
       font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
+      padding: 0.85rem 1.1rem;
+      transition: border 0.2s ease;
     }
 
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    input:focus {
+      outline: none;
+      border-color: #38bdf8;
     }
 
-    #connectBtn {
-      background: linear-gradient(90deg, #76b900, #00d4ff);
-      color: #000;
-    }
-
-    #connectBtn:hover:not(:disabled) {
-      transform: scale(1.05);
-      box-shadow: 0 4px 20px rgba(118, 185, 0, 0.4);
-    }
-
-    #connectBtn.connected {
-      background: linear-gradient(90deg, #ff4444, #ff6666);
-    }
-
-    #interruptBtn {
-      background: rgba(255,255,255,0.1);
-      color: #fff;
-    }
-
-    #interruptBtn:hover:not(:disabled) {
-      background: rgba(255,255,255,0.2);
-    }
-
-    .status {
-      display: flex;
+    .status-chip {
+      display: inline-flex;
       align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.12);
+      font-size: 0.85rem;
+      align-self: center;
     }
 
     .status-dot {
-      width: 12px;
-      height: 12px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
-      background: #666;
+      background: #475569;
       transition: background 0.3s ease;
     }
 
     .status-dot.connecting {
-      background: #ffaa00;
+      background: #fbbf24;
       animation: pulse 1s infinite;
     }
 
     .status-dot.connected {
-      background: #76b900;
+      background: #34d399;
     }
 
     .status-dot.error {
-      background: #ff4444;
+      background: #f87171;
+    }
+
+    .wave-panel {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem 0 0.5rem;
+    }
+
+    canvas {
+      width: 100%;
+      height: 240px;
+      border-radius: 32px;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(34, 197, 94, 0.15));
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      box-shadow: inset 0 0 40px rgba(15, 23, 42, 0.4);
+    }
+
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    #connectBtn {
+      border: none;
+      border-radius: 20px;
+      padding: 1rem 1.2rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(120deg, #34d399, #22d3ee);
+      color: #020617;
+      transition: transform 0.2s ease, filter 0.2s ease;
+    }
+
+    #connectBtn.connected {
+      background: linear-gradient(120deg, #f87171, #fb7185);
+    }
+
+    #connectBtn:active {
+      transform: scale(0.98);
+    }
+
+    #connectBtn:disabled {
+      cursor: not-allowed;
+      filter: grayscale(0.4);
+      opacity: 0.8;
     }
 
     @keyframes pulse {
       0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
-    .transcript {
-      background: rgba(0,0,0,0.3);
-      border-radius: 12px;
-      padding: 1rem;
-      min-height: 100px;
-      max-height: 200px;
-      overflow-y: auto;
-      text-align: left;
-      font-size: 0.95rem;
-      line-height: 1.5;
-      color: #ccc;
-      margin-top: 1rem;
-    }
-
-    .transcript:empty::before {
-      content: 'Transcription will appear here...';
-      color: #666;
-      font-style: italic;
-    }
-
-    .stats {
-      font-size: 0.8rem;
-      color: #666;
-      margin-top: 1rem;
-    }
-
-    .field-group {
-      flex: 1;
+      50% { opacity: 0.4; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>ORBIT PersonaPlex Voice</h1>
-    <p class="subtitle">Full-duplex speech-to-speech conversation</p>
+  <div class="app-shell">
+    <h1>
+      <span id="appTitleText">PersonaPlex Voice</span>
+      <span class="tagline">Tap connect and speak.</span>
+    </h1>
 
-    <div class="config-section">
-      <div class="config-row">
-        <div class="field-group">
-          <label for="serverUrl">ORBIT Server URL</label>
-          <input type="text" id="serverUrl" value="ws://localhost:3000" placeholder="ws://localhost:3000">
+    <div class="card">
+      <div class="settings" id="settingsPanel">
+        <div>
+          <label for="serverUrl">Server URL</label>
+          <input type="text" id="serverUrl" placeholder="ws://localhost:3000">
         </div>
-      </div>
-      <div class="config-row">
-        <div class="field-group">
-          <label for="adapterName">Adapter Name</label>
-          <input type="text" id="adapterName" value="personaplex-assistant" placeholder="personaplex-assistant">
-        </div>
-        <div class="field-group">
+        <div>
           <label for="apiKey">API Key (optional)</label>
-          <input type="text" id="apiKey" value="personaplex" placeholder="personaplex">
+          <input type="text" id="apiKey" placeholder="personaplex">
         </div>
       </div>
-    </div>
 
-    <div class="status">
-      <div class="status-dot" id="statusDot"></div>
-      <span id="statusText">Disconnected</span>
-    </div>
-
-    <div class="visualizer-container">
-      <div class="visualizer">
-        <span class="visualizer-label">Your Voice</span>
-        <canvas id="userCanvas" width="120" height="120"></canvas>
+      <div class="wave-panel">
+        <canvas id="responseCanvas" width="320" height="240"></canvas>
       </div>
-      <div class="visualizer">
-        <span class="visualizer-label">AI Voice</span>
-        <canvas id="serverCanvas" width="120" height="120"></canvas>
+
+      <div class="status-chip">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Disconnected</span>
+      </div>
+
+      <div class="actions">
+        <button id="connectBtn">Connect</button>
       </div>
     </div>
-
-    <div class="controls">
-      <button id="connectBtn">Connect</button>
-      <button id="interruptBtn" disabled>Interrupt</button>
-    </div>
-
-    <div class="transcript" id="transcript"></div>
-
-    <div class="stats" id="stats"></div>
   </div>
 
   <script type="module" src="/src/main.ts"></script>
