@@ -46,7 +46,8 @@ interface AudioChunkMessage extends OrbitMessage {
 // Configuration
 // ============================================================================
 
-const SAMPLE_RATE = 24000;  // ORBIT PersonaPlex uses 24kHz
+const STREAM_SAMPLE_RATE = 24000;  // ORBIT PersonaPlex expects 24kHz PCM
+const CAPTURE_SAMPLE_RATE = 48000; // Capture at 48kHz for smoother macOS audio
 
 // Environment variables (loaded from .env.local via Vite)
 const ENV_CONFIG = {
@@ -91,6 +92,13 @@ const INPUT_LIMITS = {
   apiKey: 120
 } as const;
 
+const OUTBOUND_TARGET_SAMPLES = Math.floor(STREAM_SAMPLE_RATE * 0.05); // ~50ms
+const OUTBOUND_FLUSH_INTERVAL_MS = 40;
+
+let outboundChunks: Float32Array[] = [];
+let outboundSampleCount = 0;
+let outboundFlushTimer: number | null = null;
+
 // ============================================================================
 // UI Updates
 // ============================================================================
@@ -129,6 +137,61 @@ function bindCharCounter(field: keyof typeof INPUT_LIMITS) {
   input.maxLength = INPUT_LIMITS[field];
   input.addEventListener('input', () => updateCharCounter(field));
   updateCharCounter(field);
+}
+
+function resetOutboundQueue() {
+  outboundChunks = [];
+  outboundSampleCount = 0;
+  if (outboundFlushTimer !== null) {
+    clearTimeout(outboundFlushTimer);
+    outboundFlushTimer = null;
+  }
+}
+
+function scheduleOutboundFlush() {
+  if (outboundFlushTimer !== null) return;
+  outboundFlushTimer = window.setTimeout(() => {
+    outboundFlushTimer = null;
+    flushOutboundQueue(true);
+  }, OUTBOUND_FLUSH_INTERVAL_MS);
+}
+
+function flushOutboundQueue(force = false) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  if (outboundSampleCount === 0) return;
+  if (!force && outboundSampleCount < OUTBOUND_TARGET_SAMPLES) {
+    scheduleOutboundFlush();
+    return;
+  }
+
+  const merged = new Float32Array(outboundSampleCount);
+  let offset = 0;
+  for (const chunk of outboundChunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  resetOutboundQueue();
+
+  const base64 = float32ToBase64(merged);
+  const message = {
+    type: 'audio_chunk',
+    data: base64,
+    format: 'pcm'
+  };
+  socket.send(JSON.stringify(message));
+}
+
+function queueOutboundChunk(chunk: Float32Array) {
+  if (chunk.length === 0) return;
+  outboundChunks.push(chunk);
+  outboundSampleCount += chunk.length;
+
+  if (outboundSampleCount >= OUTBOUND_TARGET_SAMPLES) {
+    flushOutboundQueue();
+  } else {
+    scheduleOutboundFlush();
+  }
 }
 
 // ============================================================================
@@ -225,7 +288,10 @@ function startWaveAnimation() {
 async function startAudio() {
   try {
     // Create audio context
-    audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+    audioContext = new AudioContext({
+      sampleRate: CAPTURE_SAMPLE_RATE,
+      latencyHint: 'balanced'
+    });
 
     // Load AudioWorklet modules
     await audioContext.audioWorklet.addModule('/audio-processor.js');
@@ -236,7 +302,7 @@ async function startAudio() {
     // Request microphone access
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
-        sampleRate: SAMPLE_RATE,
+        sampleRate: CAPTURE_SAMPLE_RATE,
         channelCount: 1,
         echoCancellation: true,
         noiseSuppression: true,
@@ -256,18 +322,13 @@ async function startAudio() {
 
       if (event.data.type === 'audio') {
         const inputData = event.data.data as Float32Array;
+        const processedData = resampleBuffer(
+          inputData,
+          CAPTURE_SAMPLE_RATE,
+          STREAM_SAMPLE_RATE
+        );
 
-        // Convert Float32 to base64
-        const base64 = float32ToBase64(inputData);
-
-        // Send audio chunk
-        const message = {
-          type: 'audio_chunk',
-          data: base64,
-          format: 'pcm'
-        };
-
-        socket.send(JSON.stringify(message));
+        queueOutboundChunk(processedData);
       }
     };
 
@@ -285,7 +346,7 @@ async function startAudio() {
     playbackWorkletNode = new AudioWorkletNode(audioContext, 'playback-processor');
     playbackWorkletNode.port.postMessage({ 
       type: 'config', 
-      inputSampleRate: SAMPLE_RATE 
+      inputSampleRate: STREAM_SAMPLE_RATE 
     });
     
     // Connect Playback -> Analyser -> Destination
@@ -391,6 +452,7 @@ function connect() {
       return;
     }
 
+    resetOutboundQueue();
     isConnected = true;
     idleWavePhase = 0;
     startWaveAnimation();
@@ -429,6 +491,7 @@ function disconnect() {
 
 function handleDisconnect() {
   isConnected = false;
+  resetOutboundQueue();
   stopAudio();
   
   if (audioContext) {
@@ -497,6 +560,45 @@ function base64ToFloat32(base64: string): Float32Array {
     bytes[i] = binary.charCodeAt(i);
   }
   return new Float32Array(bytes.buffer);
+}
+
+function resampleBuffer(buffer: Float32Array, inputRate: number, targetRate: number): Float32Array {
+  if (inputRate === targetRate) {
+    return buffer;
+  }
+
+  const ratio = inputRate / targetRate;
+
+  if (ratio > 1) {
+    // Downsample with simple averaging
+    const newLength = Math.floor(buffer.length / ratio);
+    const result = new Float32Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+      const start = Math.floor(i * ratio);
+      const end = Math.min(Math.floor((i + 1) * ratio), buffer.length);
+      let sum = 0;
+      let count = 0;
+      for (let j = start; j < end; j++) {
+        sum += buffer[j];
+        count++;
+      }
+      result[i] = count > 0 ? sum / count : 0;
+    }
+    return result;
+  } else {
+    // Upsample with linear interpolation
+    const newLength = Math.floor(buffer.length / ratio);
+    const result = new Float32Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+      const position = i * ratio;
+      const index = Math.floor(position);
+      const frac = position - index;
+      const s0 = buffer[index] ?? 0;
+      const s1 = buffer[index + 1] ?? s0;
+      result[i] = s0 + (s1 - s0) * frac;
+    }
+    return result;
+  }
 }
 
 // ============================================================================

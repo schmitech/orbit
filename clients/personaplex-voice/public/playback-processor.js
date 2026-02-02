@@ -4,8 +4,10 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     this.inputSampleRate = 24000; // Default expected input rate
     
     // Buffer settings (in Input Samples)
-    // 80ms initial buffer
-    this.bufferThresholdMs = 80; 
+    // 200ms initial buffer for smoother playback, still low-latency
+    this.bufferThresholdMs = 200; 
+    this.maxBufferThresholdMs = 600;
+    this.targetBufferMs = 350;
     
     this.updateThresholds();
     
@@ -34,8 +36,9 @@ class PlaybackProcessor extends AudioWorkletProcessor {
   
   updateThresholds() {
      this.minStartSamples = Math.floor(this.bufferThresholdMs * this.inputSampleRate / 1000);
-     // Drop buffer if it gets too large (> 300ms) to reduce latency
-     this.maxBufferSamples = Math.floor(300 * this.inputSampleRate / 1000); 
+     this.targetBufferSamples = Math.floor(this.targetBufferMs * this.inputSampleRate / 1000);
+     // Drop buffer if it gets too large (> max threshold) to reduce latent backlog
+     this.maxBufferSamples = Math.floor(this.maxBufferThresholdMs * this.inputSampleRate / 1000); 
   }
   
   currentInputSamples() {
@@ -56,9 +59,8 @@ class PlaybackProcessor extends AudioWorkletProcessor {
       
       // Latency check: if we have too much buffer, skip some old frames
       if (this.currentInputSamples() > this.maxBufferSamples) {
-          // Drop oldest frames until we are back to target
-          // This effectively "fast forwards" to catch up
-          while (this.currentInputSamples() > this.minStartSamples * 1.5) {
+          // Drop oldest frames until we are back to a comfortable target
+          while (this.currentInputSamples() > this.targetBufferSamples) {
               if (this.frames.length === 0) break;
               const frame = this.frames[0];
               const remainingInFrame = frame.length - this.sampleOffset;
