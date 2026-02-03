@@ -134,11 +134,25 @@ class PersonaPlexWebSocketHandler:
             return False
 
     async def accept_connection(self):
-        """Accept WebSocket connection and send confirmation."""
+        """Accept WebSocket connection and send initializing status."""
         await self.websocket.accept()
         self.is_connected = True
 
-        # Send ORBIT-style connection message
+        # Send initializing status immediately so client knows we're working
+        # (PersonaPlex handshake can take 10+ seconds for large prompts)
+        await self._send_message({
+            "type": "status",
+            "status": "initializing",
+            "message": "Initializing PersonaPlex session..."
+        })
+
+        logger.info(
+            f"WebSocket connection accepted for PersonaPlex adapter '{self.adapter_name}' "
+            f"(session: {self.orbit_session_id})"
+        )
+
+    async def send_ready(self):
+        """Send ready/connected message after PersonaPlex session is initialized."""
         await self._send_message({
             "type": "connected",
             "adapter": self.adapter_name,
@@ -153,10 +167,7 @@ class PersonaPlexWebSocketHandler:
             }
         })
 
-        logger.info(
-            f"WebSocket connection accepted for PersonaPlex adapter '{self.adapter_name}' "
-            f"(session: {self.orbit_session_id})"
-        )
+        logger.info(f"PersonaPlex session ready for adapter '{self.adapter_name}'")
 
     async def run(self):
         """
@@ -165,13 +176,17 @@ class PersonaPlexWebSocketHandler:
         Runs concurrent receive and send tasks for full-duplex operation.
         """
         try:
-            # Initialize PersonaPlex session
+            # Accept WebSocket connection FIRST so client doesn't timeout
+            # while we wait for PersonaPlex handshake (can take 10+ seconds)
+            await self.accept_connection()
+
+            # Initialize PersonaPlex session (this waits for handshake)
             if not await self.initialize():
                 await self._send_error("Failed to initialize PersonaPlex session")
                 return
 
-            # Accept WebSocket connection
-            await self.accept_connection()
+            # Send ready message now that PersonaPlex is initialized
+            await self.send_ready()
 
             # Start concurrent tasks for full-duplex
             self._receive_task = asyncio.create_task(self._receive_loop())

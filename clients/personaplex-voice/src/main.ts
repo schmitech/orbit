@@ -153,8 +153,10 @@ let outboundFlushTimer: number | null = null;
 // UI Updates
 // ============================================================================
 
-function setStatus(status: 'disconnected' | 'connecting' | 'connected' | 'error', text: string) {
-  statusDot.className = 'status-dot ' + status;
+function setStatus(status: 'disconnected' | 'connecting' | 'initializing' | 'connected' | 'error', text: string) {
+  // Map 'initializing' to 'connecting' for CSS class (same visual style)
+  const cssClass = status === 'initializing' ? 'connecting' : status;
+  statusDot.className = 'status-dot ' + cssClass;
   statusText.textContent = text;
 
   if (status === 'connected') {
@@ -162,8 +164,8 @@ function setStatus(status: 'disconnected' | 'connecting' | 'connected' | 'error'
     connectBtn.textContent = 'Disconnect';
     connectBtn.classList.add('connected');
     connectBtn.disabled = false;
-  } else if (status === 'connecting') {
-    connectBtn.textContent = 'Connecting...';
+  } else if (status === 'connecting' || status === 'initializing') {
+    connectBtn.textContent = status === 'initializing' ? 'Initializing...' : 'Connecting...';
     connectBtn.classList.remove('connected');
     connectBtn.disabled = true;
   } else {
@@ -595,8 +597,10 @@ async function connect() {
   socket = new WebSocket(wsUrl);
 
   socket.onopen = async () => {
+    // WebSocket is open, but don't set isConnected yet - wait for 'connected' message
+    // Server may be initializing PersonaPlex (can take 10+ seconds for large prompts)
 
-    // Start audio capture after connection
+    // Start audio capture so we're ready when PersonaPlex is initialized
     const audioStarted = await startAudio();
     if (!audioStarted) {
       disconnect();
@@ -604,7 +608,8 @@ async function connect() {
     }
 
     resetOutboundQueue();
-    isConnected = true;
+    // Note: isConnected stays false until we receive 'connected' message
+    // This prevents sending audio before PersonaPlex is ready
     idleWavePhase = 0;
     startWaveAnimation();
   };
@@ -666,9 +671,21 @@ function handleDisconnect() {
 
 function handleMessage(message: OrbitMessage) {
   switch (message.type) {
+    case 'status': {
+      // Server is still initializing (e.g., waiting for PersonaPlex handshake)
+      const statusMsg = message.status as string || 'initializing';
+      const statusText = message.message as string || 'Initializing...';
+      if (statusMsg === 'initializing') {
+        setStatus('initializing', statusText);
+      }
+      break;
+    }
+
     case 'connected': {
       const connMsg = message as ConnectedMessage;
       const adapterLabel = connMsg.adapter ? `Connected to ${connMsg.adapter}` : 'Connected';
+      // NOW we're ready to send/receive audio
+      isConnected = true;
       playbackSuppressed = false;
       setStatus('connected', adapterLabel);
       break;
@@ -701,6 +718,7 @@ function handleMessage(message: OrbitMessage) {
     }
 
     case 'error': {
+      isConnected = false;
       setStatus('error', `Error: ${message.message}`);
       break;
     }

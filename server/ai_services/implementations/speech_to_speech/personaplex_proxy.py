@@ -95,6 +95,10 @@ class PersonaPlexProxyService(SpeechToSpeechService):
         self.server_url = proxy_config.get('server_url', 'wss://localhost:8998/api/chat')
         self.ssl_verify = proxy_config.get('ssl_verify', True)
         self.connection_timeout = proxy_config.get('connection_timeout', 30)
+        # Handshake timeout should be longer than connection timeout since
+        # PersonaPlex server processes system prompts BEFORE sending handshake.
+        # Large text_prompts can take 30+ seconds to tokenize and initialize.
+        self.handshake_timeout = proxy_config.get('handshake_timeout', 60)
         self.reconnect_attempts = proxy_config.get('reconnect_attempts', 3)
         self.reconnect_delay = proxy_config.get('reconnect_delay', 1.0)
 
@@ -183,6 +187,9 @@ class PersonaPlexProxyService(SpeechToSpeechService):
 
         self.logger.info(f"Creating PersonaPlex session: {session_id}")
         self.logger.debug(f"Connection URL: {url[:100]}...")
+        if text:
+            prompt_len = len(text)
+            self.logger.debug(f"Text prompt length: {prompt_len} chars (handshake timeout: {self.handshake_timeout}s)")
 
         # Establish WebSocket connection with retries
         for attempt in range(self.reconnect_attempts):
@@ -197,7 +204,9 @@ class PersonaPlexProxyService(SpeechToSpeechService):
                 )
 
                 # Wait for handshake (0x00 byte)
-                msg = await asyncio.wait_for(ws.receive(), timeout=10)
+                # PersonaPlex processes system prompts before sending handshake,
+                # so large text_prompts need a longer timeout here
+                msg = await asyncio.wait_for(ws.receive(), timeout=self.handshake_timeout)
 
                 if msg.type == aiohttp.WSMsgType.BINARY:
                     if msg.data and msg.data[0] == 0x00:
@@ -223,7 +232,10 @@ class PersonaPlexProxyService(SpeechToSpeechService):
                 await http_session.close()
 
             except asyncio.TimeoutError:
-                self.logger.warning(f"Connection timeout (attempt {attempt + 1}/{self.reconnect_attempts})")
+                self.logger.warning(
+                    f"Handshake timeout after {self.handshake_timeout}s (attempt {attempt + 1}/{self.reconnect_attempts}). "
+                    f"If using a large text_prompt, consider increasing handshake_timeout in config."
+                )
             except aiohttp.ClientError as e:
                 self.logger.warning(f"Connection error (attempt {attempt + 1}): {e}")
             except Exception as e:
