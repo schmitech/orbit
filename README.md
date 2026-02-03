@@ -25,6 +25,8 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 **Ship faster. Stay portable. Keep your data private.**
 
+> ⭐ **Help ORBIT grow:** Star + watch the repo so other builders can find it and we can keep funding new adapters, tutorials, and sandbox credits.
+
 <div align="center">
   <video src="https://github.com/user-attachments/assets/bdb0330d-b03a-44ba-ad97-c3a363a45a7d" controls width="100%">
     Your browser does not support the video tag.
@@ -63,6 +65,10 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 - [ORBIT – One gateway for every model and data source.](#orbit--one-gateway-for-every-model-and-data-source)
   - [🎯 Why ORBIT?](#-why-orbit)
+  - [⭐ Help ORBIT Grow](#-help-orbit-grow)
+  - [🚀 Highlights](#-highlights)
+  - [🧩 Supported Integrations](#-supported-integrations)
+  - [🛠️ Common Use Cases](#-common-use-cases)
   - [At a Glance](#at-a-glance)
   - [⚡ Getting Started](#-getting-started)
     - [1. Explore the sandbox](#1-explore-the-sandbox)
@@ -77,6 +83,45 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
   - [📄 License](#-license)
 
 ---
+
+## ⭐ Help ORBIT Grow
+
+Open-source traction is the fuel that keeps ORBIT's sandbox, docs, adapters, and demos free for everyone.
+
+- ⭐ **Star + watch** the repo to surface ORBIT in GitHub search and get notified when a new release drops.
+- ✉️ **Share** the sandbox or demo video with the teammate who's still wiring SDKs by hand.
+- 📣 **Tell us what to build next** in [Discussions](https://github.com/schmitech/orbit/discussions); upvotes there help us prioritize the roadmap you care about.
+
+## 🚀 Highlights
+
+- **Unified API for 20+ AI providers** – Swap between OpenAI, Anthropic, Gemini, Groq, DeepSeek, Cohere, Mistral, AWS Bedrock, Azure OpenAI, Together, xAI/Grok, and any local stack (Ollama, llama.cpp, vLLM, Hugging Face) via config only.
+- **Adapters for every data shape** – Intent + QA retrievers cover Postgres/MySQL/DuckDB/SQLite, MongoDB, Elasticsearch, HTTP APIs, and the major vector stores (Chroma, Qdrant, Pinecone, Milvus, Weaviate).
+- **Batteries included** – Per-key RBAC, rate limits/quotas, audit logging (SQLite or MongoDB + optional Elasticsearch), content safety providers, retries/circuit breakers, and observability dashboards ship by default.
+- **Multimodal + widgets** – Ship chat UIs via orbitchat CLI, React widget, or OpenAI-compatible API; render charts, math, and audio/video streams out of the box.
+- **Zero lock-in deployments** – Try it in the hosted sandbox, run a Docker preset in under 60 seconds, or install the full server with TLS + GPU detection when you're ready for production.
+
+## 🧩 Supported Integrations
+
+No more glue code—connect everything through adapters and declarative config.
+
+**Inference & embeddings**
+- LLM providers: OpenAI, Anthropic, Google Gemini/Vertex, Groq, DeepSeek, Mistral, Cohere, AWS Bedrock, Azure OpenAI, Together, xAI, OpenRouter, IBM watsonx, plus local engines (Ollama, vLLM, llama.cpp, Hugging Face).
+- Embeddings & rerankers: OpenAI, Jina, Cohere, Mistral, Ollama, llama.cpp, and any custom GGUF via the embeddings service.
+- Vision/speech: Gemini, OpenAI, Anthropic, plus audio adapters documented in [`docs/audio/`](docs/audio/).
+
+**Data & knowledge sources**
+- SQL + analytics: PostgreSQL, MySQL, SQL Server, DuckDB, SQLite, and intent-based adapters for customer schemas.
+- NoSQL & search: MongoDB aggregation pipelines, Elasticsearch, Redis JSON/hashes.
+- Vector stores: Chroma, Qdrant, Pinecone, Milvus, Weaviate (with QA + intent specializations).
+- Files & APIs: PDF/Markdown/CSV ingestion, HTTP/REST connectors, and composite adapters that orchestrate multiple sources with guardrails.
+- Infra glue: Redis caching, MongoDB or SQLite backends, optional Elasticsearch auditing.
+
+## 🛠️ Common Use Cases
+
+- **Analytics copilots** – Turn "How many signups came from APAC last week?" into SQL, MongoDB, or DuckDB queries with safety filters.
+- **Enterprise knowledge chat** – Blend product docs, support tickets, and vector embeddings into a single chat endpoint with automatic citations.
+- **Provider gateways** – Route traffic between OpenAI/Anthropic/local Ollama with fallbacks, budgets, and tenant-specific presets.
+- **Agentic workflows** – Chain adapters that hit REST APIs, trigger automations, or fan out to multiple retrievers before summarizing responses.
 
 ## ⚡ Getting Started
 
