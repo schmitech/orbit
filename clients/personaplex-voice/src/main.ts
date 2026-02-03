@@ -112,10 +112,12 @@ function getApiBaseUrl(serverUrl: string): string {
 let audioContext: AudioContext | null = null;
 let mediaStream: MediaStream | null = null;
 let audioWorkletNode: AudioWorkletNode | null = null;
+let captureSource: MediaStreamAudioSourceNode | null = null;
 let playbackWorkletNode: AudioWorkletNode | null = null;
 let socket: WebSocket | null = null;
 let isConnected = false;
 let responseAnalyser: AnalyserNode | null = null;
+let captureAnalyser: AnalyserNode | null = null;
 let waveAnimationId: number | null = null;
 let idleWavePhase = 0;
 let playbackSuppressed = false;
@@ -247,6 +249,27 @@ function queueOutboundChunk(chunk: Float32Array) {
 // Audio Visualization
 // ============================================================================
 
+function getWaveformData(analyser: AnalyserNode | null): Uint8Array | null {
+  if (!analyser) return null;
+  const length = analyser.fftSize;
+  if (!length) return null;
+  const buffer = new Uint8Array(length);
+  analyser.getByteTimeDomainData(buffer);
+  return buffer;
+}
+
+function sampleWaveformValue(waveform: Uint8Array, index: number, totalSamples: number): number {
+  if (waveform.length === 0) return 0;
+  const denominator = Math.max(totalSamples - 1, 1);
+  const position = (index / denominator) * (waveform.length - 1);
+  const baseIndex = Math.floor(position);
+  const nextIndex = Math.min(baseIndex + 1, waveform.length - 1);
+  const frac = position - baseIndex;
+  const baseValue = (waveform[baseIndex] - 128) / 128;
+  const nextValue = (waveform[nextIndex] - 128) / 128;
+  return baseValue + (nextValue - baseValue) * frac;
+}
+
 function drawResponseWave() {
   if (!responseCanvas) return;
   const ctx = responseCanvas.getContext('2d');
@@ -271,20 +294,35 @@ function drawResponseWave() {
   gradient.addColorStop(0, 'rgba(52, 211, 153, 0.85)');
   gradient.addColorStop(1, 'rgba(56, 189, 248, 0.85)');
 
-  const sampleCount = responseAnalyser && isConnected ? responseAnalyser.fftSize : 256;
+  const captureWaveform = captureAnalyser && isConnected ? getWaveformData(captureAnalyser) : null;
+  const responseWaveform = responseAnalyser && isConnected ? getWaveformData(responseAnalyser) : null;
+  const hasLiveWave = Boolean(captureWaveform || responseWaveform);
+  const sampleCount = hasLiveWave
+    ? Math.max(captureWaveform?.length ?? 0, responseWaveform?.length ?? 0, 2)
+    : 256;
   const dataPoints: Array<{ x: number; y: number }> = [];
-  let waveform: Uint8Array<ArrayBuffer> | null = null;
-
-  if (responseAnalyser && isConnected) {
-    waveform = new Uint8Array(responseAnalyser.fftSize) as Uint8Array<ArrayBuffer>;
-    responseAnalyser.getByteTimeDomainData(waveform);
-  }
 
   for (let i = 0; i < sampleCount; i++) {
     const x = (i / (sampleCount - 1)) * width;
-    const value = waveform
-      ? (waveform[i] - 128) / 128
-      : Math.sin((i / sampleCount) * 4 * Math.PI + idleWavePhase) * 0.25;
+    let value: number;
+
+    if (hasLiveWave) {
+      const captureValue = captureWaveform ? sampleWaveformValue(captureWaveform, i, sampleCount) : null;
+      const responseValue = responseWaveform ? sampleWaveformValue(responseWaveform, i, sampleCount) : null;
+
+      if (captureValue !== null && responseValue !== null) {
+        value = Math.abs(captureValue) >= Math.abs(responseValue) ? captureValue : responseValue;
+      } else if (captureValue !== null) {
+        value = captureValue;
+      } else if (responseValue !== null) {
+        value = responseValue;
+      } else {
+        value = Math.sin((i / sampleCount) * 4 * Math.PI + idleWavePhase) * 0.25;
+      }
+    } else {
+      value = Math.sin((i / sampleCount) * 4 * Math.PI + idleWavePhase) * 0.25;
+    }
+
     const y = height / 2 + value * (height / 2 - 24);
     dataPoints.push({ x, y });
   }
@@ -360,7 +398,7 @@ async function startAudio() {
     });
 
     // Create audio source from microphone
-    const source = audioContext.createMediaStreamSource(mediaStream);
+    captureSource = audioContext.createMediaStreamSource(mediaStream);
 
     // Create AudioWorkletNode for capturing audio data
     audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor');
@@ -381,8 +419,13 @@ async function startAudio() {
       }
     };
 
-    source.connect(audioWorkletNode);
+    captureSource.connect(audioWorkletNode);
     // AudioWorklet doesn't need to connect to destination for capture-only
+
+    captureAnalyser = audioContext.createAnalyser();
+    captureAnalyser.fftSize = 512;
+    captureAnalyser.smoothingTimeConstant = 0.8;
+    captureSource.connect(captureAnalyser);
 
     // --- Setup Audio Playback ---
 
@@ -421,6 +464,16 @@ function stopAudio() {
     playbackWorkletNode.disconnect();
     playbackWorkletNode.port.close();
     playbackWorkletNode = null;
+  }
+
+  if (captureSource) {
+    captureSource.disconnect();
+    captureSource = null;
+  }
+
+  if (captureAnalyser) {
+    captureAnalyser.disconnect();
+    captureAnalyser = null;
   }
 
   if (mediaStream) {
