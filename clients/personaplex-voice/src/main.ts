@@ -118,6 +118,7 @@ let isConnected = false;
 let responseAnalyser: AnalyserNode | null = null;
 let waveAnimationId: number | null = null;
 let idleWavePhase = 0;
+let playbackSuppressed = false;
 
 // ============================================================================
 // DOM Elements
@@ -155,6 +156,7 @@ function setStatus(status: 'disconnected' | 'connecting' | 'connected' | 'error'
   statusText.textContent = text;
 
   if (status === 'connected') {
+    playbackSuppressed = false;
     connectBtn.textContent = 'Disconnect';
     connectBtn.classList.add('connected');
     connectBtn.disabled = false;
@@ -572,10 +574,20 @@ async function connect() {
   };
 }
 
+function sendInterrupt() {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    return;
+  }
+  playbackSuppressed = true;
+  socket.send(JSON.stringify({ type: 'interrupt', reason: 'user_request' }));
+  stopAllAudio();
+}
+
 function disconnect() {
   if (socket) {
     // Send end message
     if (socket.readyState === WebSocket.OPEN) {
+      sendInterrupt();
       socket.send(JSON.stringify({ type: 'end' }));
     }
     socket.close();
@@ -587,6 +599,7 @@ function disconnect() {
 
 function handleDisconnect() {
   isConnected = false;
+  playbackSuppressed = false;
   resetOutboundQueue();
   stopAudio();
   
@@ -603,15 +616,18 @@ function handleMessage(message: OrbitMessage) {
     case 'connected': {
       const connMsg = message as ConnectedMessage;
       const adapterLabel = connMsg.adapter ? `Connected to ${connMsg.adapter}` : 'Connected';
+      playbackSuppressed = false;
       setStatus('connected', adapterLabel);
       break;
     }
 
     case 'audio_chunk': {
       const audioMsg = message as AudioChunkMessage;
-      // Decode base64 and queue for playback
-      const pcmData = base64ToFloat32(audioMsg.data);
-      queueAudioForPlayback(pcmData);
+      if (!playbackSuppressed) {
+        // Decode base64 and queue for playback
+        const pcmData = base64ToFloat32(audioMsg.data);
+        queueAudioForPlayback(pcmData);
+      }
       break;
     }
 
@@ -621,6 +637,7 @@ function handleMessage(message: OrbitMessage) {
     }
 
     case 'interrupted': {
+      playbackSuppressed = false;
       stopAllAudio();
       break;
     }
