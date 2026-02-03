@@ -35,8 +35,11 @@ Before connecting, configure:
 | Field | Description | Example |
 |-------|-------------|---------|
 | **Server URL** | ORBIT WebSocket endpoint | `ws://localhost:3000` |
-| **Adapter Name** | PersonaPlex adapter name | `personaplex-assistant` |
-| **API Key** | ORBIT API key (optional) | `personaplex` |
+| **API Key** | ORBIT API key (required). The client now uses the shared `@schmitech/chatbot-api` package to validate the key and automatically load the adapter it’s linked to. | `personaplex` |
+
+If your REST API base URL differs from the WebSocket host (for example, when fronted by a proxy), set `VITE_ORBIT_API_URL` in `.env.local`. This override is passed directly to the API client.
+
+In rare cases where an API key is not yet linked to an adapter, you can still provide `VITE_ADAPTER_NAME` to force a specific adapter name, but the API-driven lookup is preferred.
 
 ## Usage
 

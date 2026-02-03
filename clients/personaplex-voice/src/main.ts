@@ -1,3 +1,5 @@
+import { ApiClient, AdapterInfo } from '@schmitech/chatbot-api';
+
 /**
  * ORBIT PersonaPlex Voice Client
  *
@@ -50,13 +52,58 @@ const STREAM_SAMPLE_RATE = 24000;  // ORBIT PersonaPlex expects 24kHz PCM
 const CAPTURE_SAMPLE_RATE = 48000; // Capture at 48kHz for smoother macOS audio
 
 // Environment variables (loaded from .env.local via Vite)
+const DEFAULT_SERVER_URL = (import.meta.env.VITE_ORBIT_SERVER_URL || 'ws://localhost:3000').trim();
+const API_BASE_OVERRIDE = (import.meta.env.VITE_ORBIT_API_URL || '').trim();
+const DEFAULT_ADAPTER_NAME = (import.meta.env.VITE_ADAPTER_NAME || '').trim();
+const DEFAULT_API_KEY = (import.meta.env.VITE_API_KEY || 'personaplex').trim();
+const DEFAULT_APP_TITLE = (import.meta.env.VITE_APP_TITLE || 'ORBIT PersonaPlex Voice').trim();
+
 const ENV_CONFIG = {
-  serverUrl: import.meta.env.VITE_ORBIT_SERVER_URL || 'ws://localhost:3000',
-  adapterName: import.meta.env.VITE_ADAPTER_NAME || 'personaplex-assistant',
-  apiKey: import.meta.env.VITE_API_KEY || 'personaplex',
-  appTitle: import.meta.env.VITE_APP_TITLE || 'ORBIT PersonaPlex Voice',
+  serverUrl: DEFAULT_SERVER_URL || 'ws://localhost:3000',
+  apiBaseUrlOverride: API_BASE_OVERRIDE.length > 0 ? API_BASE_OVERRIDE : null,
+  adapterName: DEFAULT_ADAPTER_NAME,
+  apiKey: DEFAULT_API_KEY || '',
+  appTitle: DEFAULT_APP_TITLE,
   displaySettings: String(import.meta.env.VITE_DISPLAY_SETTINGS).toLowerCase() === 'true'
 };
+
+function stripTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, '');
+}
+
+function convertWebsocketToHttpUrl(url: string): string {
+  if (!url) {
+    return '';
+  }
+
+  let candidate = url.trim();
+  if (/^ws:\/\//i.test(candidate)) {
+    candidate = candidate.replace(/^ws:\/\//i, 'http://');
+  } else if (/^wss:\/\//i.test(candidate)) {
+    candidate = candidate.replace(/^wss:\/\//i, 'https://');
+  }
+
+  if (!/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    parsed.search = '';
+    parsed.hash = '';
+    const normalizedPath = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/, '');
+    return `${parsed.protocol}//${parsed.host}${normalizedPath}`;
+  } catch {
+    return stripTrailingSlash(candidate);
+  }
+}
+
+function getApiBaseUrl(serverUrl: string): string {
+  if (ENV_CONFIG.apiBaseUrlOverride) {
+    return stripTrailingSlash(ENV_CONFIG.apiBaseUrlOverride);
+  }
+  return convertWebsocketToHttpUrl(serverUrl);
+}
 
 // ============================================================================
 // State
@@ -421,25 +468,74 @@ function getApiKey() {
   return ENV_CONFIG.apiKey.trim();
 }
 
-function connect() {
+async function connect() {
   const baseUrl = getServerUrl();
-  const adapterName = ENV_CONFIG.adapterName.trim();
-  const apiKey = getApiKey();
+  const apiKey = getApiKey().trim();
 
   if (!baseUrl) {
     setStatus('error', 'Please enter server URL');
     return;
   }
 
-  if (!adapterName) {
-    setStatus('error', 'Missing adapter name in configuration');
+  if (!apiKey) {
+    setStatus('error', 'Please enter API key');
+    return;
+  }
+
+  const apiBaseUrl = getApiBaseUrl(baseUrl);
+  if (!apiBaseUrl) {
+    setStatus('error', 'Unable to determine API base URL');
+    return;
+  }
+
+  setStatus('connecting', 'Validating API key...');
+
+  let adapterName = ENV_CONFIG.adapterName.trim();
+  let statusMessage = 'Connecting...';
+
+  try {
+    const apiClient = new ApiClient({
+      apiUrl: apiBaseUrl,
+      apiKey
+    });
+
+    const validation = await apiClient.validateApiKey();
+
+    if (validation.adapter_name && validation.adapter_name.trim().length > 0) {
+      adapterName = validation.adapter_name.trim();
+    } else if (!adapterName) {
+      throw new Error('API key is valid but no adapter is assigned to it.');
+    }
+
+    const friendlyTarget = validation.client_name || validation.adapter_name || adapterName;
+    if (friendlyTarget) {
+      statusMessage = `Connecting to ${friendlyTarget}...`;
+    }
+
+    try {
+      const adapterInfo: AdapterInfo = await apiClient.getAdapterInfo();
+      const label = adapterInfo.client_name || adapterInfo.adapter_name || adapterName;
+      statusMessage = `Connecting to ${label}...`;
+    } catch (infoError) {
+      console.warn('Failed to fetch adapter info', infoError);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to validate API key';
+    setStatus('error', message);
+    return;
+  }
+
+  const normalizedAdapterName = adapterName.trim();
+  if (!normalizedAdapterName) {
+    setStatus('error', 'Unable to determine adapter for this API key');
     return;
   }
 
   // Build WebSocket URL
-  const wsUrl = `${baseUrl}/ws/voice/${adapterName}${apiKey ? `?api_key=${apiKey}` : ''}`;
+  const query = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : '';
+  const wsUrl = `${baseUrl}/ws/voice/${encodeURIComponent(normalizedAdapterName)}${query}`;
 
-  setStatus('connecting', 'Connecting...');
+  setStatus('connecting', statusMessage);
 
   socket = new WebSocket(wsUrl);
 
@@ -506,7 +602,8 @@ function handleMessage(message: OrbitMessage) {
   switch (message.type) {
     case 'connected': {
       const connMsg = message as ConnectedMessage;
-      setStatus('connected', `Connected (${connMsg.mode})`);
+      const adapterLabel = connMsg.adapter ? `Connected to ${connMsg.adapter}` : 'Connected';
+      setStatus('connected', adapterLabel);
       break;
     }
 
@@ -609,7 +706,10 @@ connectBtn.addEventListener('click', () => {
   if (isConnected) {
     disconnect();
   } else {
-    connect();
+    connect().catch((error) => {
+      console.error('Failed to establish connection', error);
+      setStatus('error', error instanceof Error ? error.message : 'Failed to connect');
+    });
   }
 });
 
