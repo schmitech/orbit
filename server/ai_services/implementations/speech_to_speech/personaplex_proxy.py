@@ -13,6 +13,7 @@ handling protocol conversion and session lifecycle.
 
 import asyncio
 import logging
+import ssl
 from typing import Any, AsyncIterator, Dict, List, Optional
 import uuid
 
@@ -196,7 +197,22 @@ class PersonaPlexProxyService(SpeechToSpeechService):
             try:
                 http_session = aiohttp.ClientSession()
 
-                ssl_context = None if self.ssl_verify else False
+                # Determine SSL context based on URL scheme and ssl_verify setting
+                is_secure = self.server_url.startswith('wss://')
+                if is_secure:
+                    if self.ssl_verify:
+                        # Use default SSL verification
+                        ssl_context = None
+                    else:
+                        # Create SSL context that doesn't verify certificates
+                        # (for self-signed certs in development)
+                        ssl_context = ssl.create_default_context()
+                        ssl_context.check_hostname = False
+                        ssl_context.verify_mode = ssl.CERT_NONE
+                else:
+                    # Non-secure WebSocket (ws://), no SSL needed
+                    ssl_context = False
+
                 ws = await http_session.ws_connect(
                     url,
                     timeout=aiohttp.ClientTimeout(total=self.connection_timeout),
