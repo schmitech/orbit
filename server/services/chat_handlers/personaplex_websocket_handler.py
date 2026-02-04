@@ -22,6 +22,7 @@ from typing import Any, Dict, Optional
 import uuid
 
 from fastapi import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 
 from .audio_resampler import AudioResampler
 from .personaplex_protocol import PersonaPlexProtocolTranslator
@@ -436,8 +437,24 @@ class PersonaPlexWebSocketHandler:
         Args:
             message: Message dictionary to send
         """
+        if self.websocket.client_state != WebSocketState.CONNECTED:
+            logger.debug("Skipping send_message; websocket already closed")
+            self.is_connected = False
+            return
+
         try:
             await self.websocket.send_text(json.dumps(message))
+        except WebSocketDisconnect:
+            logger.debug("WebSocket disconnected while sending message")
+            self.is_connected = False
+        except RuntimeError as e:
+            # Starlette raises RuntimeError("WebSocket is not connected") after close.
+            if "WebSocket is not connected" in str(e):
+                logger.debug("WebSocket not connected; dropping outbound message")
+                self.is_connected = False
+            else:
+                logger.error(f"Error sending message: {e}")
+                self.is_connected = False
         except Exception as e:
             logger.error(f"Error sending message: {e}")
             self.is_connected = False

@@ -102,6 +102,9 @@ class PersonaPlexProxyService(SpeechToSpeechService):
         self.handshake_timeout = proxy_config.get('handshake_timeout', 60)
         self.reconnect_attempts = proxy_config.get('reconnect_attempts', 3)
         self.reconnect_delay = proxy_config.get('reconnect_delay', 1.0)
+        # Some PersonaPlex servers (e.g., moshi) do not implement control frames.
+        # Only send 0x03 control packets when explicitly enabled.
+        self.supports_control_messages = proxy_config.get('supports_control_messages', False)
 
         # Default persona settings
         defaults = pp_config.get('defaults', {})
@@ -371,6 +374,10 @@ class PersonaPlexProxyService(SpeechToSpeechService):
         """
         session = self._sessions.get(session_id)
         if not session or not session.is_active:
+            return
+
+        if not self.supports_control_messages:
+            self.logger.debug("Skipping interrupt; remote server does not support control messages")
             return
 
         try:
