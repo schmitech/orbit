@@ -49,7 +49,9 @@ class PersonaPlexWebSocketHandler:
         adapter_config: Dict[str, Any],
         config: Dict[str, Any],
         session_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        prompt_service: Optional[Any] = None,
+        system_prompt_id: Optional[str] = None
     ):
         """
         Initialize the handler.
@@ -62,6 +64,8 @@ class PersonaPlexWebSocketHandler:
             config: Global configuration
             session_id: Optional ORBIT session ID
             user_id: Optional user ID
+            prompt_service: Optional prompt service for dynamic prompt loading
+            system_prompt_id: Optional system prompt ID from API key
         """
         self.websocket = websocket
         self.personaplex_service = personaplex_service
@@ -70,6 +74,8 @@ class PersonaPlexWebSocketHandler:
         self.config = config
         self.orbit_session_id = session_id or str(uuid.uuid4())
         self.user_id = user_id
+        self.prompt_service = prompt_service
+        self.system_prompt_id = system_prompt_id
 
         # PersonaPlex session ID (created on initialize)
         self.pp_session_id: Optional[str] = None
@@ -113,11 +119,13 @@ class PersonaPlexWebSocketHandler:
             # Get persona configuration from adapter
             persona_config = self.adapter_config.get('persona', {})
             voice_prompt = persona_config.get('voice_prompt')
-            text_prompt = persona_config.get('text_prompt')
+
+            # Load text_prompt from database via prompt_service
+            text_prompt = await self._resolve_text_prompt()
 
             logger.info(
                 f"Creating PersonaPlex session for adapter '{self.adapter_name}' "
-                f"(voice: {voice_prompt})"
+                f"(voice: {voice_prompt}, text_prompt: {'loaded' if text_prompt else 'none'})"
             )
 
             # Create PersonaPlex session
@@ -132,6 +140,33 @@ class PersonaPlexWebSocketHandler:
         except Exception as e:
             logger.error(f"Failed to initialize PersonaPlex session: {e}")
             return False
+
+    async def _resolve_text_prompt(self) -> Optional[str]:
+        """
+        Load text prompt from database via prompt_service.
+
+        Returns:
+            Text prompt string from database, or None if not available
+        """
+        if not self.system_prompt_id:
+            logger.debug("No system_prompt_id provided, text_prompt will be None")
+            return None
+
+        if not self.prompt_service:
+            logger.warning("No prompt_service available, text_prompt will be None")
+            return None
+
+        try:
+            prompt_doc = await self.prompt_service.get_prompt_by_id(self.system_prompt_id)
+            if prompt_doc and prompt_doc.get('prompt'):
+                logger.info(f"Loaded text_prompt from database: '{prompt_doc.get('name')}' v{prompt_doc.get('version')}")
+                return prompt_doc.get('prompt')
+            else:
+                logger.warning(f"No prompt found for ID: {self.system_prompt_id}")
+                return None
+        except Exception as e:
+            logger.error(f"Error loading prompt from database: {e}")
+            return None
 
     async def accept_connection(self):
         """Accept WebSocket connection and send initializing status."""

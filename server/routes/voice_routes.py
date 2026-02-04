@@ -115,7 +115,9 @@ async def _create_personaplex_handler(
     adapter_config: Dict[str, Any],
     config: Dict[str, Any],
     session_id: Optional[str],
-    user_id: Optional[str]
+    user_id: Optional[str],
+    prompt_service: Optional[Any] = None,
+    system_prompt_id: Optional[str] = None
 ):
     """
     Create and initialize a PersonaPlex WebSocket handler.
@@ -127,6 +129,8 @@ async def _create_personaplex_handler(
         config: Global configuration
         session_id: Optional session ID
         user_id: Optional user ID
+        prompt_service: Optional prompt service for dynamic prompt loading
+        system_prompt_id: Optional system prompt ID from API key
 
     Returns:
         Initialized PersonaPlexWebSocketHandler
@@ -164,7 +168,9 @@ async def _create_personaplex_handler(
         adapter_config=adapter_config,
         config=config,
         session_id=session_id,
-        user_id=user_id
+        user_id=user_id,
+        prompt_service=prompt_service,
+        system_prompt_id=system_prompt_id
     )
 
     return handler
@@ -222,18 +228,37 @@ async def websocket_voice(
             # For now, we accept any non-empty API key
             logger.info(f"API key provided for adapter: {adapter_name}")
 
+        # Extract system_prompt_id from API key if provided
+        system_prompt_id = None
+        if api_key:
+            api_key_service = getattr(websocket.app.state, 'api_key_service', None)
+            if api_key_service:
+                try:
+                    adapter_manager = getattr(websocket.app.state, 'adapter_manager', None)
+                    is_valid, _, system_prompt_id = await api_key_service.validate_api_key(
+                        api_key, adapter_manager=adapter_manager
+                    )
+                    if system_prompt_id:
+                        logger.info(f"API key has system_prompt_id: {system_prompt_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to validate API key for prompt lookup: {e}")
+
         # Check adapter type to determine handler
         adapter_type = adapter_config.get('type', '')
 
         if adapter_type == 'speech_to_speech':
             # Use PersonaPlex handler for full-duplex speech-to-speech
+            prompt_service = getattr(websocket.app.state, 'prompt_service', None)
+
             handler = await _create_personaplex_handler(
                 websocket=websocket,
                 adapter_name=adapter_name,
                 adapter_config=adapter_config,
                 config=config,
                 session_id=session_id,
-                user_id=user_id
+                user_id=user_id,
+                prompt_service=prompt_service,
+                system_prompt_id=str(system_prompt_id) if system_prompt_id else None
             )
         else:
             # Use standard voice handler for cascade (STT -> LLM -> TTS)

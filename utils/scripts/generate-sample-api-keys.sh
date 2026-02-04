@@ -52,6 +52,12 @@
 #   intent-graphql-spacex -> spacex
 #   intent-agent-example -> agent
 #   file-document-qa -> files
+#   personaplex-assistant -> personaplex
+#   personaplex-customer-service -> personaplex-cs
+#   personaplex-language-tutor -> personaplex-tutor
+#   personaplex-chat -> personaplex-chat
+#   personaplex-interview-coach -> personaplex-interview
+#   personaplex-storyteller -> personaplex-story
 #
 # Notes:
 #   - Each adapter includes a markdown "notes" field that appears in the chat interface
@@ -446,7 +452,12 @@ declare -a all_adapters=(
     "intent-agent-example|agent|examples/intent-templates/agent-template/agent-assistant-prompt.md|Agent Assistant Prompt"
     "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.md|File Document QA Prompt"
     "math-teacher-quadratic-files|math-teacher-quadratic|examples/prompts/examples/math-teacher-quadratic/math-teacher-quadratic-prompt.md|Math Teacher Quadratic Prompt"
-    "personaplex-assistant|personaplex||PersonaPlex Voice Assistant"
+    "personaplex-assistant|personaplex|examples/prompts/audio/personaplex-assistant-prompt.md|PersonaPlex Voice Assistant Prompt"
+    "personaplex-customer-service|personaplex-cs|examples/prompts/audio/personaplex-customer-service-prompt.md|PersonaPlex Customer Service Prompt"
+    "personaplex-language-tutor|personaplex-tutor|examples/prompts/audio/personaplex-language-tutor-prompt.md|PersonaPlex Language Tutor Prompt"
+    "personaplex-chat|personaplex-chat|examples/prompts/audio/personaplex-chat-prompt.md|PersonaPlex Chat Prompt"
+    "personaplex-interview-coach|personaplex-interview|examples/prompts/audio/personaplex-interview-coach-prompt.md|PersonaPlex Interview Coach Prompt"
+    "personaplex-storyteller|personaplex-story|examples/prompts/audio/personaplex-storyteller-prompt.md|PersonaPlex Storyteller Prompt"
 )
 
 # Function to get notes for each adapter (bash 3.2 compatible - no associative arrays)
@@ -869,6 +880,86 @@ Unlike traditional voice assistants, I can:
 - 🗣️ **Speak fluidly** — no awkward turn-taking delays
 
 This is a phone-call style experience—just start talking!
+
+**Note:** Requires WebSocket audio streaming. Use a compatible voice client.
+NOTES_EOF
+            ;;
+        "personaplex-customer-service")
+            cat <<'NOTES_EOF'
+## Welcome to TechSupport Pro 🛠️
+
+I'm **Alex**, your full-duplex customer service agent powered by PersonaPlex!
+
+I can help you with:
+- 🔧 Technical troubleshooting
+- 💡 Step-by-step guidance
+- 🎧 Patient, real-time support
+
+Just describe your issue and I'll help you work through it. I can listen while you explain—no need to wait for beeps or prompts.
+
+**Note:** Requires WebSocket audio streaming. Use a compatible voice client.
+NOTES_EOF
+            ;;
+        "personaplex-language-tutor")
+            cat <<'NOTES_EOF'
+## Welcome to Language Practice 🌍
+
+I'm **Sofia**, your full-duplex language tutor powered by PersonaPlex!
+
+I can help you with:
+- 🗣️ Conversational practice
+- 📝 Gentle pronunciation and grammar corrections
+- 💬 Natural dialogue flow
+
+Let's have a conversation! I'll adapt to your level and keep things encouraging.
+
+**Note:** Requires WebSocket audio streaming. Use a compatible voice client.
+NOTES_EOF
+            ;;
+        "personaplex-chat")
+            cat <<'NOTES_EOF'
+## Welcome to Casual Chat 💬
+
+I'm your **full-duplex chat companion** powered by PersonaPlex!
+
+I enjoy:
+- 🎭 Good conversations about anything
+- 😄 Humor and tangents
+- 🤔 Curious back-and-forth
+
+This is just two people chatting—no agenda, no scripts. Jump in whenever!
+
+**Note:** Requires WebSocket audio streaming. Use a compatible voice client.
+NOTES_EOF
+            ;;
+        "personaplex-interview-coach")
+            cat <<'NOTES_EOF'
+## Welcome to Interview Practice 💼
+
+I'm **James**, your full-duplex interview coach powered by PersonaPlex!
+
+I can help you with:
+- 🎯 Mock interview questions
+- 📋 Real-time feedback on your answers
+- 💡 Tips for behavioral, technical, and situational questions
+
+Let's practice! Tell me what role you're preparing for and we'll get started.
+
+**Note:** Requires WebSocket audio streaming. Use a compatible voice client.
+NOTES_EOF
+            ;;
+        "personaplex-storyteller")
+            cat <<'NOTES_EOF'
+## Welcome to Interactive Stories 📖✨
+
+I'm your **full-duplex storyteller** powered by PersonaPlex!
+
+Together we can:
+- 🏰 Create adventures where you make the choices
+- 🎭 Explore different genres and worlds
+- 🔮 Shape the narrative in real-time
+
+Tell me what kind of story you're in the mood for, and let's begin!
 
 **Note:** Requires WebSocket audio streaming. Use a compatible voice client.
 NOTES_EOF
