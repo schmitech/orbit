@@ -38,15 +38,26 @@ personaplex:
   proxy:
     # PersonaPlex server WebSocket URL
     # The server can be started with: python -m moshi.server --port 8998
+    # Use wss:// for SSL/TLS connections, ws:// for non-SSL
     server_url: "wss://localhost:8998/api/chat"
 
     # SSL verification (disable for self-signed certs in dev)
     ssl_verify: false
 
     # Connection settings
-    connection_timeout: 30  # seconds
+    connection_timeout: 30  # seconds - WebSocket connection timeout
+
+    # Handshake timeout - time to wait for PersonaPlex server to send 0x00 handshake.
+    # The server processes system prompts (text_prompt tokenization) BEFORE sending
+    # handshake, so large prompts need a longer timeout. With knowledge injection
+    # (20-25 Q&A pairs) and time instruction, prompts can exceed 3000 characters.
+    handshake_timeout: 120  # seconds (increased for knowledge-injected prompts)
+
     reconnect_attempts: 3
     reconnect_delay: 1.0  # seconds
+    # Some PersonaPlex servers (e.g., moshi) ignore control frames such as interrupt/pause.
+    # Set to true ONLY if the remote server explicitly supports 0x03 control packets.
+    supports_control_messages: false
 
   # =============================================================================
   # Audio Configuration

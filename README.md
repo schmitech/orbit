@@ -48,10 +48,11 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 **The Solution:** ORBIT is a **self-hosted, unified gateway** that gives you:
 
-✅ **Portability** — Switch LLM providers with a config change, not code changes  
-✅ **Built-in RAG** — Connect SQL databases, vector stores, and APIs through natural language  
-✅ **Data sovereignty** — Keep your data on your infrastructure  
-✅ **One API** — OpenAI-compatible interface that works with any provider  
+✅ **Portability** — Switch LLM providers with a config change, not code changes
+✅ **Built-in RAG** — Connect SQL databases, vector stores, and APIs through natural language
+✅ **Full-Duplex Voice** — Real-time speech-to-speech conversations with knowledge injection
+✅ **Data sovereignty** — Keep your data on your infrastructure
+✅ **One API** — OpenAI-compatible interface that works with any provider
 ✅ **Production-ready** — Rate limiting, security, monitoring, and fault tolerance built-in
 
 **Who it's for:** Developers building AI applications who want flexibility, privacy, and control without the complexity of managing multiple integrations.
@@ -65,11 +66,11 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 - [ORBIT – One gateway for every model and data source.](#orbit--one-gateway-for-every-model-and-data-source)
   - [🎯 Why ORBIT?](#-why-orbit)
+  - [At a Glance](#at-a-glance)
   - [⭐ Help ORBIT Grow](#-help-orbit-grow)
   - [🚀 Highlights](#-highlights)
   - [🧩 Supported Integrations](#-supported-integrations)
-  - [🛠️ Common Use Cases](#-common-use-cases)
-  - [At a Glance](#at-a-glance)
+  - [🛠️ Common Use Cases](#️-common-use-cases)
   - [⚡ Getting Started](#-getting-started)
     - [1. Explore the sandbox](#1-explore-the-sandbox)
     - [2. Run the Docker demo](#2-run-the-docker-demo)
@@ -95,6 +96,7 @@ Open-source traction is the fuel that keeps ORBIT's sandbox, docs, adapters, and
 ## 🚀 Highlights
 
 - **Unified API for 20+ AI providers** – Swap between OpenAI, Anthropic, Gemini, Groq, DeepSeek, Cohere, Mistral, AWS Bedrock, Azure OpenAI, Together, xAI/Grok, and any local stack (Ollama, llama.cpp, vLLM, Hugging Face) via config only.
+- **Full-duplex speech-to-speech** – Build voice assistants with real-time, bidirectional audio using NVIDIA's PersonaPlex integration. Natural conversations with interruptions, backchannels, and knowledge injection—no STT→LLM→TTS cascade needed.
 - **Adapters for every data shape** – Intent + QA retrievers cover Postgres/MySQL/DuckDB/SQLite, MongoDB, Elasticsearch, HTTP APIs, and the major vector stores (Chroma, Qdrant, Pinecone, Milvus, Weaviate).
 - **Batteries included** – Per-key RBAC, rate limits/quotas, audit logging (SQLite or MongoDB + optional Elasticsearch), content safety providers, retries/circuit breakers, and observability dashboards ship by default.
 - **Multimodal + widgets** – Ship chat UIs via orbitchat CLI, React widget, or OpenAI-compatible API; render charts, math, and audio/video streams out of the box.
@@ -108,6 +110,7 @@ No more glue code—connect everything through adapters and declarative config.
 - LLM providers: OpenAI, Anthropic, Google Gemini/Vertex, Groq, DeepSeek, Mistral, Cohere, AWS Bedrock, Azure OpenAI, Together, xAI, OpenRouter, IBM watsonx, plus local engines (Ollama, vLLM, llama.cpp, Hugging Face).
 - Embeddings & rerankers: OpenAI, Jina, Cohere, Mistral, Ollama, llama.cpp, and any custom GGUF via the embeddings service.
 - Vision/speech: Gemini, OpenAI, Anthropic, plus audio adapters documented in [`docs/audio/`](docs/audio/).
+- **Speech-to-speech:** Full-duplex voice with PersonaPlex—real-time bidirectional audio, interruption handling, backchannels, and static knowledge injection for grounded responses.
 
 **Data & knowledge sources**
 - SQL + analytics: PostgreSQL, MySQL, SQL Server, DuckDB, SQLite, and intent-based adapters for customer schemas.
@@ -118,6 +121,7 @@ No more glue code—connect everything through adapters and declarative config.
 
 ## 🛠️ Common Use Cases
 
+- **Voice assistants & IVR** – Deploy full-duplex voice agents for customer service, city hotlines, or internal helpdesks with grounded knowledge from your databases.
 - **Analytics copilots** – Turn "How many signups came from APAC last week?" into SQL, MongoDB, or DuckDB queries with safety filters.
 - **Enterprise knowledge chat** – Blend product docs, support tickets, and vector embeddings into a single chat endpoint with automatic citations.
 - **Provider gateways** – Route traffic between OpenAI/Anthropic/local Ollama with fallbacks, budgets, and tenant-specific presets.
@@ -238,6 +242,8 @@ ORBIT's built-in adapters and clients support advanced rendering for mathematica
 - [Configuration reference](docs/configuration.md)
 - [Authentication & API keys](docs/authentication.md)
 - [RAG adapters](docs/adapters/adapters.md)
+- [Voice & audio adapters](docs/audio/)
+- [PersonaPlex speech-to-speech](docs/adapters/personaplex-knowledge-injection.md)
 - [Roadmap](docs/roadmap/README.md)
 - [Contributing](CONTRIBUTING.md) & [Code of Conduct](CODE_OF_CONDUCT.md)
 
