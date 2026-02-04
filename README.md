@@ -48,11 +48,11 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 **The Solution:** ORBIT is a **self-hosted, unified gateway** that gives you:
 
-✅ **Portability** — Switch LLM providers with a config change, not code changes
-✅ **Built-in RAG** — Connect SQL databases, vector stores, and APIs through natural language
-✅ **Full-Duplex Voice** — Real-time speech-to-speech conversations with knowledge injection
-✅ **Data sovereignty** — Keep your data on your infrastructure
-✅ **One API** — OpenAI-compatible interface that works with any provider
+✅ **Portability** — Switch LLM providers with a config change, not code changes  
+✅ **Built-in RAG** — Connect SQL databases, vector stores, and APIs through natural language  
+✅ **Full-Duplex Voice** — Real-time speech-to-speech conversations with knowledge injection  
+✅ **Data sovereignty** — Keep your data on your infrastructure  
+✅ **One API** — OpenAI-compatible interface that works with any provider  
 ✅ **Production-ready** — Rate limiting, security, monitoring, and fault tolerance built-in
 
 **Who it's for:** Developers building AI applications who want flexibility, privacy, and control without the complexity of managing multiple integrations.
