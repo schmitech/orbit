@@ -1,0 +1,54 @@
+# City Utilities Facts
+# 50 verified facts for PersonaPlex knowledge injection
+# Lines starting with # are comments and will be ignored
+
+Hazardous waste can be disposed of at the city's Environmental Services Center located at 456 Green Ave.
+Online water bill payments can be made through the Utilities section of the city's website.
+Bulk item pickups can be scheduled by calling Waste Management at 555-1234 at least 48 hours in advance.
+Late water bill payments incur a 5% penalty if not paid within 15 days of the due date.
+Applications for utility assistance are available at Social Services or online.
+Leaf collection schedules are published each fall on the Public Works Department's webpage.
+Water main breaks should be reported immediately to the Utilities Department at 555-2468.
+The recycling center is open Tuesday through Saturday from 8 AM to 4 PM.
+The stormwater management plan is available on the Public Works Department's website.
+New trash bins can be requested through the Waste Management Division for a $25 replacement fee.
+Water quality concerns can be reported to the Utilities Department's Water Quality Division.
+Hazardous waste can be dropped off at the Waste Management Facility on Elm Street.
+The trash pickup schedule is posted on the Waste Management section of the city website.
+You can pay your water bill online, set up automatic payments, or pay in person at the Utility Billing office.
+Water leaks can be reported by calling the Utilities Department or using the online form.
+Bulk trash pickup can be scheduled online through the Waste Management portal.
+The recycling calendar is available on the Waste Management section of the website.
+New recycling bins can be requested through the Waste Management Department.
+Sewer backups can be reported to the Utilities Department by phone or online.
+Low-income utility discounts can be applied for through the Utilities Department.
+The recycling center is open from 8 AM to 4 PM, Tuesday through Saturday.
+Missed trash pickups can be reported online or by calling Waste Management.
+Broken water fountains can be reported to the Parks and Recreation Department.
+Hazardous waste can be disposed of at the Hazardous Waste Collection Center at 789 Maple Ave.
+Garbage and recycling are collected weekly; your specific day can be found on the city website.
+Assistance programs for utility payments are available through Social Services.
+Utility bills can be paid online, by mail, or in person at the Utility Services office.
+Garbage collection days vary by neighborhood. You can find your collection schedule by entering your address in the Waste Management section of the city website.
+Yard waste must be placed in paper bags or designated containers and set out for collection on your regular garbage day during yard waste collection season.
+Swimming pool fill credits can be applied for by submitting the Pool Fill Credit Application to the Utility Billing Department within 30 days of filling your pool.
+Hazardous household waste can be disposed of at the Environmental Services Facility on the first Saturday of each month from 8 AM to 2 PM.
+Water bill disputes can be filed with the Utility Billing Customer Service Department either in person or by submitting the online dispute form.
+Holiday trash collection schedules are posted on the Solid Waste Department website and typically involve a one-day delay following the observed holiday.
+Lead testing information and free test kits are available through the Water Quality Division of the Public Utilities Department.
+Missed garbage collections should be reported to the Solid Waste Division within 24 hours either through the city's mobile app or by calling 555-890-1234.
+Water shutoff notices can be contested by contacting the Utility Billing Department immediately and setting up a payment plan or demonstrating billing errors.
+Information about city recycling programs is available on the Environmental Services section of the city website or by contacting the Recycling Division.
+Replacement recycling bins can be requested through the Solid Waste Division's online service portal or by calling their customer service line at 555-123-4567.
+Special waste pickups for large items can be scheduled through the Solid Waste Division's online portal or by calling their customer service line at least 48 hours in advance.
+You can schedule pickup, report missed collections, and learn about recycling programs online or by calling Waste Management.
+You can start, stop, or transfer electric service, report outages, and view usage through the Utilities Department.
+Water quality concerns can be reported to the Water Quality Division at 555-234-5678 or through the online complaint form.
+Broken water fountains can be reported to the Parks and Recreation Department or Public Works Department depending on location.
+Failure to maintain stormwater drainage on private property can result in fines of $150 per violation, with daily penalties until compliance.
+Water Polo Exploration is a great way to learn the basics of water polo! You'll get to try out the sport and learn some new skills.
+You can register for Water Polo Exploration at https://recreation.example.ca/register/water-polo-exploration/SEUMK8. The activity costs $87.94 and has 22 spots available.
+Water Polo Exploration is held at Summer Heights Community Center.
+Water Polo Exploration is for All Ages.
+Water Polo Exploration runs on Tuesday, Monday, and Saturday.
+Water Polo Exploration costs $87.94.

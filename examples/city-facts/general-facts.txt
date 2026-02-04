@@ -1,0 +1,54 @@
+# City General Facts
+# 50 verified facts for PersonaPlex knowledge injection
+# Lines starting with # are comments and will be ignored
+
+Noise violations after 11 PM can be reported to the Police Department's non-emergency line.
+Traffic tickets can be paid online through the Municipal Court's payment portal.
+Community center room rental fees start at $50 per hour.
+City job openings are listed on the Human Resources page of the website.
+Noise ordinance hours are from 10 PM to 7 AM daily.
+Picnic shelter reservation fees start at $20 per day.
+Open burning rules are outlined in the Fire Department's regulations.
+Pet adoption fees start at $50 at the Animal Shelter.
+Tennis court reservation fees are $10 per hour.
+Public Wi-Fi locations are listed on the Information Technology webpage.
+Softball field rental fees start at $25 per game.
+Feedback can be submitted online or through suggestion boxes at city facilities.
+Speeding tickets can be paid online through the Municipal Court website, by mail, or in person at the Court Clerk's office.
+Home daycare operations require a zoning clearance, business license, state childcare license, and compliance with fire and safety codes.
+Opening a restaurant requires health department approval, certificate of occupancy, food service permit, business license, and compliance with zoning regulations.
+You can contact city departments by phone, email, or through the contact form on the city website. Emergency and non-emergency numbers are also available.
+After logging in, select 'Pay Bills' to view outstanding balances and make payments for water, sewer, electric, and property tax bills.
+After logging in, go to your account settings to update your email, phone number, or address.
+Cemetery plots cost $1,200 for residents and $1,800 for non-residents, with additional fees for opening and closing services.
+Police report copies cost $15 for standard reports and $25 for accident reports.
+Community center room rentals cost $50 per hour for residents and $75 per hour for non-residents, with a 4-hour minimum.
+Tennis court reservations cost $15 per hour for residents and $25 per hour for non-residents.
+Printed copies of city ordinances cost $50 for the complete set, while individual ordinances are $5 each.
+Softball field reservations cost $30 per game for residents and $50 per game for non-residents.
+Basketball court reservations cost $20 per hour for residents and $35 per hour for non-residents.
+Soccer field reservations cost $40 per game for residents and $60 per game for non-residents.
+City council meeting minutes cost $5 per page for printed copies, with a $10 processing fee for each request.
+Volleyball court reservations cost $25 per hour for residents and $40 per hour for non-residents.
+Baseball field reservations cost $35 per game for residents and $55 per game for non-residents.
+Introduction to Gymnastics costs $70.83.
+Summer Competitive Contemporary Dance costs $68.71.
+Financial Literacy League costs $34.36.
+Hiking Fundamentals costs $50.21.
+Prenatal Fitness Skills Development costs $98.23.
+Zumba Social costs $54.83.
+Family Fitness Clinic costs $39.63.
+Winter Board Games for All costs $27.77.
+Community Events for Beginners costs $39.63.
+The Competitive Board Games program costs $60.26.
+Nutrition Drop-in costs $90.
+Cooking Club costs $83.51.
+Advanced Mindfulness costs $58.63.
+Fall Dance Exploration costs $48.86.
+Nutrition for All costs $60.8.
+Creative Writing Techniques costs $82.99.
+Computer Skills Bootcamp costs $82.51.
+Spring Introduction to Arts & Crafts costs $83.06.
+Winter Theatre Mastery costs $40.17.
+The Sculpture Program costs $78.71.
+Summer Rugby Bootcamp costs $88.49.

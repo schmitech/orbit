@@ -117,7 +117,8 @@ async def _create_personaplex_handler(
     session_id: Optional[str],
     user_id: Optional[str],
     prompt_service: Optional[Any] = None,
-    system_prompt_id: Optional[str] = None
+    system_prompt_id: Optional[str] = None,
+    clock_service: Optional[Any] = None
 ):
     """
     Create and initialize a PersonaPlex WebSocket handler.
@@ -131,11 +132,13 @@ async def _create_personaplex_handler(
         user_id: Optional user ID
         prompt_service: Optional prompt service for dynamic prompt loading
         system_prompt_id: Optional system prompt ID from API key
+        clock_service: Optional clock service for time awareness
 
     Returns:
         Initialized PersonaPlexWebSocketHandler
     """
     from services.chat_handlers.personaplex_websocket_handler import PersonaPlexWebSocketHandler
+    from services.personaplex_knowledge_service import PersonaPlexKnowledgeService
     from ai_services.factory import AIServiceFactory
     from ai_services.base import ServiceType
 
@@ -160,6 +163,13 @@ async def _create_personaplex_handler(
             detail=f"PersonaPlex service unavailable: {str(e)}"
         )
 
+    # Create knowledge service if adapter has knowledge config with facts_file
+    knowledge_service = None
+    knowledge_config = adapter_config.get('knowledge', {})
+    if knowledge_config.get('enabled', False) and knowledge_config.get('facts_file'):
+        logger.info(f"Creating knowledge service for adapter '{adapter_name}'")
+        knowledge_service = PersonaPlexKnowledgeService(config)
+
     # Create handler
     handler = PersonaPlexWebSocketHandler(
         websocket=websocket,
@@ -170,7 +180,9 @@ async def _create_personaplex_handler(
         session_id=session_id,
         user_id=user_id,
         prompt_service=prompt_service,
-        system_prompt_id=system_prompt_id
+        system_prompt_id=system_prompt_id,
+        knowledge_service=knowledge_service,
+        clock_service=clock_service
     )
 
     return handler
@@ -249,6 +261,7 @@ async def websocket_voice(
         if adapter_type == 'speech_to_speech':
             # Use PersonaPlex handler for full-duplex speech-to-speech
             prompt_service = getattr(websocket.app.state, 'prompt_service', None)
+            clock_service = getattr(websocket.app.state, 'clock_service', None)
 
             handler = await _create_personaplex_handler(
                 websocket=websocket,
@@ -258,7 +271,8 @@ async def websocket_voice(
                 session_id=session_id,
                 user_id=user_id,
                 prompt_service=prompt_service,
-                system_prompt_id=str(system_prompt_id) if system_prompt_id else None
+                system_prompt_id=str(system_prompt_id) if system_prompt_id else None,
+                clock_service=clock_service
             )
         else:
             # Use standard voice handler for cascade (STT -> LLM -> TTS)

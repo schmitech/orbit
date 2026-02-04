@@ -58,6 +58,10 @@
 #   personaplex-chat -> personaplex-chat
 #   personaplex-interview-coach -> personaplex-interview
 #   personaplex-storyteller -> personaplex-story
+#   personaplex-city-general -> city-general (knowledge injection - general FAQ)
+#   personaplex-city-permits -> city-permits (knowledge injection - permits/licenses)
+#   personaplex-city-utilities -> city-utilities (knowledge injection - water/garbage)
+#   personaplex-city-records -> city-records (knowledge injection - vital records/parks)
 #
 # Notes:
 #   - Each adapter includes a markdown "notes" field that appears in the chat interface
@@ -458,6 +462,11 @@ declare -a all_adapters=(
     "personaplex-chat|personaplex-chat|examples/prompts/audio/personaplex-chat-prompt.md|PersonaPlex Chat Prompt"
     "personaplex-interview-coach|personaplex-interview|examples/prompts/audio/personaplex-interview-coach-prompt.md|PersonaPlex Interview Coach Prompt"
     "personaplex-storyteller|personaplex-story|examples/prompts/audio/personaplex-storyteller-prompt.md|PersonaPlex Storyteller Prompt"
+    # Topic-specific city assistants (knowledge injection)
+    "personaplex-city-general|city-general|examples/prompts/audio/personaplex-city-general-prompt.md|City General FAQ Prompt"
+    "personaplex-city-permits|city-permits|examples/prompts/audio/personaplex-city-permits-prompt.md|City Permits Prompt"
+    "personaplex-city-utilities|city-utilities|examples/prompts/audio/personaplex-city-utilities-prompt.md|City Utilities Prompt"
+    "personaplex-city-records|city-records|examples/prompts/audio/personaplex-city-records-prompt.md|City Records Prompt"
 )
 
 # Function to get notes for each adapter (bash 3.2 compatible - no associative arrays)
@@ -962,6 +971,69 @@ Together we can:
 Tell me what kind of story you're in the mood for, and let's begin!
 
 **Note:** Requires WebSocket audio streaming. Use a compatible voice client.
+NOTES_EOF
+            ;;
+        "personaplex-city-general")
+            cat <<'NOTES_EOF'
+## Welcome to City Services - General Information 🏙️🎙️
+
+I'm **Alex**, your city services assistant for **general questions**!
+
+I can help you with:
+- 🏛️ City Hall hours and locations
+- 📞 Department contact information
+- 💳 How to pay bills and fees
+- 🌐 Finding information online
+
+**Note:** Requires WebSocket audio streaming. For permits, utilities, or records, use the specialized assistants.
+NOTES_EOF
+            ;;
+        "personaplex-city-permits")
+            cat <<'NOTES_EOF'
+## Welcome to City Permits 📋🎙️
+
+I'm **Jordan**, your city permits specialist!
+
+I can help you with:
+- 🏗️ Building and construction permits
+- 🏠 Home-based business licenses
+- 🐕 Pet licenses
+- 🎉 Special event permits (block parties, garage sales)
+- 🏘️ Zoning questions
+
+**Note:** Requires WebSocket audio streaming.
+NOTES_EOF
+            ;;
+        "personaplex-city-utilities")
+            cat <<'NOTES_EOF'
+## Welcome to City Utilities 💧🎙️
+
+I'm **Sam**, your city utilities specialist!
+
+I can help you with:
+- 💧 Water bills and meter readings
+- 🗑️ Garbage and recycling schedules
+- 📦 Bulk item pickup
+- ☢️ Hazardous waste disposal
+- 💰 Low-income assistance programs
+
+**Note:** Requires WebSocket audio streaming.
+NOTES_EOF
+            ;;
+        "personaplex-city-records")
+            cat <<'NOTES_EOF'
+## Welcome to City Records & Recreation 📜🎙️
+
+I'm **Taylor**, your records and recreation specialist!
+
+I can help you with:
+- 📜 Birth, death, and marriage certificates
+- 🏞️ Park reservations
+- 🏊 Swimming pool hours
+- 📚 Library services
+- 🏠 Property tax questions
+
+**Note:** Requires WebSocket audio streaming.
 NOTES_EOF
             ;;
         *)

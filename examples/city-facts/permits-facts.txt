@@ -1,0 +1,54 @@
+# City Permits Facts
+# 50 verified facts for PersonaPlex knowledge injection
+# Lines starting with # are comments and will be ignored
+
+The residential parking permit fee is $25 per year.
+Dog licenses can be renewed online through the Animal Services portal or in person at City Hall.
+Both parties must appear in person at the Clerk's Office with valid ID to apply for a marriage license.
+Zoning maps are available for viewing at the Planning Department and on the city's website.
+Home-based businesses must submit an application, pay a $75 fee, and comply with zoning regulations.
+Sidewalk cafe permits are available through the Business Licensing Department and require a $150 fee.
+Food trucks require a mobile vending license ($200/year) and must pass health inspections.
+Garage sale permits cost $5 and are valid for up to 3 consecutive days.
+Block party permits are issued by the Police Department and require 30 days advance notice.
+Broken traffic signals should be reported immediately to the Traffic Division at 555-6789.
+Tree removal permits cost $50 per tree for protected species.
+Disabled parking permits are issued by the DMV with a doctor's certification.
+Farmers market vendor applications are available on the Parks and Recreation website.
+Political signs may be displayed 45 days before an election and must be removed within 5 days after.
+Daycare facilities must meet state regulations and obtain a city business license.
+Residential building permit fees are based on project value, starting at $75.
+Temporary event permits require application 30 days prior and proof of insurance.
+Food handler's permits cost $25 and are valid for 2 years.
+Zoning appeals must be filed with the Board of Zoning Appeals within 30 days of the decision.
+Home occupation permits require application and proof of compliance with zoning regulations.
+Fence permits cost $50 for residential properties under 6 feet in height.
+Catering businesses require a food service license and commercial kitchen inspection.
+Driveway expansion permits cost $100 and require a site plan review.
+Temporary signs may be displayed for up to 30 days and cannot exceed 6 square feet.
+Bed and breakfasts require a special use permit and annual safety inspections.
+Special event alcohol permits cost $150 and require approval from the Police Department.
+Neighborhood watch signs can be requested through the Police Department's Community Relations Unit.
+Damaged street signs can be reported to the Traffic Operations Division.
+Massage therapy businesses require state certification and a city business license.
+Residential plumbing permits start at $75 depending on the scope of work.
+Pawn shops require a special business license and police background check.
+The zoning code is available online through the Planning Department's website.
+Commercial sign permit fees vary by size but start at $100.
+You can sign up for emergency alerts through the city's public safety portal online.
+The cost of a marriage license is $75 at the City Clerk's office.
+Pet licenses can be renewed online or at the Animal Control office.
+The zoning map is available on the Planning and Development page of the city website.
+Vendor permits can be applied for through the Parks and Recreation Department.
+Home renovation permits can be applied for through the Planning and Development portal.
+The cost of a dog license is $15 per year.
+Block party regulations and permits are detailed on the Community Events page.
+Garage sale permits require a $10 fee and registration with the City Clerk.
+The fee for a temporary parking permit is $5 per day.
+Youth sports league registration is available through the Parks and Recreation Department.
+Street closure permits can be applied for through the Public Works Department.
+Food truck regulations are listed on the Business Licensing page.
+New street sign requests can be submitted to the Transportation Department.
+Film permits can be applied for through the City Clerk's office.
+Sidewalk vendor rules are outlined in the Business Licensing ordinances.
+Noise variance permits can be applied for through the City Clerk's office.
