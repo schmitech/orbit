@@ -50,7 +50,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 ✅ **Portability** — Switch LLM providers with a config change, not code changes  
 ✅ **Built-in RAG** — Connect SQL databases, vector stores, and APIs through natural language  
-✅ **Full-Duplex Voice** — Real-time speech-to-speech conversations with natural dynamics
+✅ **Full-Duplex Voice** — Real-time speech-to-speech conversations with natural dynamics  
 ✅ **Data sovereignty** — Keep your data on your infrastructure  
 ✅ **One API** — OpenAI-compatible interface that works with any provider  
 ✅ **Production-ready** — Rate limiting, security, monitoring, and fault tolerance built-in
