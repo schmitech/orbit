@@ -75,12 +75,6 @@ adapters:
     persona:
       voice_prompt: "NATM1.pt"  # Warm, friendly male voice
 
-    # Knowledge injection - loads verified facts from static file
-    knowledge:
-      enabled: true
-      source: "static"
-      facts_file: "examples/city-facts/general-facts.txt"
-
     config:
       websocket_enabled: true
       max_session_duration_seconds: 1800  # 30 minutes
@@ -88,169 +82,6 @@ adapters:
       audio_chunk_size_ms: 80
       orbit_sample_rate: 24000
       personaplex_sample_rate: 32000
-      timezone: "America/Toronto"
-
-  # =============================================================================
-  # TOPIC-SPECIFIC CITY ASSISTANTS
-  # Each adapter focuses on a specific domain for better knowledge accuracy
-  # Route users to the appropriate adapter based on their needs
-  # =============================================================================
-
-  # -----------------------------------------------------------------------------
-  # City General - FAQ, hours, payments, general inquiries
-  # Use this as the default/catch-all for general city questions
-  # -----------------------------------------------------------------------------
-  - name: "personaplex-city-general"
-    enabled: true
-    type: "speech_to_speech"
-    datasource: "none"
-    adapter: "personaplex"
-    implementation: "ai_services.implementations.speech_to_speech.PersonaPlexService"
-
-    capabilities:
-      retrieval_behavior: "none"
-      formatting_style: "standard"
-      supports_file_ids: false
-      supports_session_tracking: true
-      requires_api_key_validation: false
-      supports_realtime_audio: true
-      supports_full_duplex: true
-      supports_interruption: true
-      supports_backchannels: true
-
-    persona:
-      voice_prompt: "NATF2.pt"  # Bright, upbeat female voice
-
-    knowledge:
-      enabled: true
-      source: "static"
-      facts_file: "examples/city-facts/general-facts.txt"
-
-    config:
-      websocket_enabled: true
-      max_session_duration_seconds: 1800
-      ping_interval_seconds: 30
-      audio_chunk_size_ms: 80
-      orbit_sample_rate: 24000
-      personaplex_sample_rate: 32000
-      timezone: "America/Toronto"
-
-  # -----------------------------------------------------------------------------
-  # City Permits - Permits, licenses, applications, building, zoning
-  # Route here for permit/license questions
-  # -----------------------------------------------------------------------------
-  - name: "personaplex-city-permits"
-    enabled: true
-    type: "speech_to_speech"
-    datasource: "none"
-    adapter: "personaplex"
-    implementation: "ai_services.implementations.speech_to_speech.PersonaPlexService"
-
-    capabilities:
-      retrieval_behavior: "none"
-      formatting_style: "standard"
-      supports_file_ids: false
-      supports_session_tracking: true
-      requires_api_key_validation: false
-      supports_realtime_audio: true
-      supports_full_duplex: true
-      supports_interruption: true
-      supports_backchannels: true
-
-    persona:
-      voice_prompt: "NATM1.pt"  # Warm, friendly male voice
-
-    knowledge:
-      enabled: true
-      source: "static"
-      facts_file: "examples/city-facts/permits-facts.txt"
-
-    config:
-      websocket_enabled: true
-      max_session_duration_seconds: 1800
-      ping_interval_seconds: 30
-      audio_chunk_size_ms: 80
-      orbit_sample_rate: 24000
-      personaplex_sample_rate: 32000
-      timezone: "America/Toronto"
-
-  # -----------------------------------------------------------------------------
-  # City Utilities - Water, garbage, recycling, utility bills
-  # Route here for utility/billing questions
-  # -----------------------------------------------------------------------------
-  - name: "personaplex-city-utilities"
-    enabled: true
-    type: "speech_to_speech"
-    datasource: "none"
-    adapter: "personaplex"
-    implementation: "ai_services.implementations.speech_to_speech.PersonaPlexService"
-
-    capabilities:
-      retrieval_behavior: "none"
-      formatting_style: "standard"
-      supports_file_ids: false
-      supports_session_tracking: true
-      requires_api_key_validation: false
-      supports_realtime_audio: true
-      supports_full_duplex: true
-      supports_interruption: true
-      supports_backchannels: true
-
-    persona:
-      voice_prompt: "NATF1.pt"  # Warm, friendly female voice
-
-    knowledge:
-      enabled: true
-      source: "static"
-      facts_file: "examples/city-facts/utilities-facts.txt"
-
-    config:
-      websocket_enabled: true
-      max_session_duration_seconds: 1800
-      ping_interval_seconds: 30
-      audio_chunk_size_ms: 80
-      orbit_sample_rate: 24000
-      personaplex_sample_rate: 32000
-      timezone: "America/Toronto"
-
-  # -----------------------------------------------------------------------------
-  # City Records & Services - Vital records, parks, recreation, community
-  # Route here for certificates, parks, community programs
-  # -----------------------------------------------------------------------------
-  - name: "personaplex-city-records"
-    enabled: true
-    type: "speech_to_speech"
-    datasource: "none"
-    adapter: "personaplex"
-    implementation: "ai_services.implementations.speech_to_speech.PersonaPlexService"
-
-    capabilities:
-      retrieval_behavior: "none"
-      formatting_style: "standard"
-      supports_file_ids: false
-      supports_session_tracking: true
-      requires_api_key_validation: false
-      supports_realtime_audio: true
-      supports_full_duplex: true
-      supports_interruption: true
-      supports_backchannels: true
-
-    persona:
-      voice_prompt: "NATF3.pt"  # Calm, soothing female voice
-
-    knowledge:
-      enabled: true
-      source: "static"
-      facts_file: "examples/city-facts/records-facts.txt"
-
-    config:
-      websocket_enabled: true
-      max_session_duration_seconds: 1800
-      ping_interval_seconds: 30
-      audio_chunk_size_ms: 80
-      orbit_sample_rate: 24000
-      personaplex_sample_rate: 32000
-      timezone: "America/Toronto"
 
   # =============================================================================
   # Language Tutor
@@ -308,7 +139,7 @@ adapters:
       supports_backchannels: true
 
     persona:
-      voice_prompt: "VARF2.pt"  # Enthusiastic, energetic female voice
+      voice_prompt: "NATF3.pt"  # Enthusiastic, energetic female voice
 
     config:
       websocket_enabled: true

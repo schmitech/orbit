@@ -52,9 +52,7 @@ class PersonaPlexWebSocketHandler:
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
         prompt_service: Optional[Any] = None,
-        system_prompt_id: Optional[str] = None,
-        knowledge_service: Optional[Any] = None,
-        clock_service: Optional[Any] = None
+        system_prompt_id: Optional[str] = None
     ):
         """
         Initialize the handler.
@@ -69,8 +67,6 @@ class PersonaPlexWebSocketHandler:
             user_id: Optional user ID
             prompt_service: Optional prompt service for dynamic prompt loading
             system_prompt_id: Optional system prompt ID from API key
-            knowledge_service: Optional knowledge service for injecting QA context
-            clock_service: Optional clock service for injecting current date/time
         """
         self.websocket = websocket
         self.personaplex_service = personaplex_service
@@ -81,8 +77,6 @@ class PersonaPlexWebSocketHandler:
         self.user_id = user_id
         self.prompt_service = prompt_service
         self.system_prompt_id = system_prompt_id
-        self.knowledge_service = knowledge_service
-        self.clock_service = clock_service
 
         # PersonaPlex session ID (created on initialize)
         self.pp_session_id: Optional[str] = None
@@ -150,80 +144,17 @@ class PersonaPlexWebSocketHandler:
 
     async def _resolve_text_prompt(self) -> Optional[str]:
         """
-        Load text prompt from database and inject time/knowledge if configured.
+        Load text prompt from database via prompt_service.
 
         Returns:
-            Text prompt string (potentially augmented with time/knowledge), or None
-        """
-        # Load base prompt from database
-        base_prompt = await self._load_base_prompt()
-
-        # Inject time instruction if clock_service is available
-        time_instruction = self._get_time_instruction()
-        if time_instruction:
-            if base_prompt:
-                base_prompt = f"{base_prompt}\n\n{time_instruction}"
-            else:
-                base_prompt = time_instruction
-            logger.info("Injected time instruction into text_prompt")
-
-        # Check for knowledge injection configuration
-        knowledge_config = self.adapter_config.get('knowledge', {})
-        if knowledge_config.get('enabled', False):
-            knowledge_context = await self._inject_knowledge(knowledge_config)
-            if knowledge_context and self.knowledge_service:
-                augmented = self.knowledge_service.format_augmented_prompt(
-                    base_prompt=base_prompt,
-                    knowledge_context=knowledge_context
-                )
-                if augmented:
-                    logger.info(
-                        f"Augmented text_prompt with knowledge context "
-                        f"({len(knowledge_context)} chars)"
-                    )
-                    return augmented
-
-        return base_prompt
-
-    def _get_time_instruction(self) -> Optional[str]:
-        """
-        Get time instruction from clock service.
-
-        Supports per-adapter timezone override via adapter config.
-
-        Returns:
-            Formatted time instruction string, or None if clock service unavailable
-        """
-        if not self.clock_service or not self.clock_service.enabled:
-            return None
-
-        # Get timezone from adapter config (allows per-adapter override)
-        # Check both adapter config and knowledge config for timezone
-        timezone = self.adapter_config.get('config', {}).get('timezone')
-        if not timezone:
-            # Also check knowledge config for timezone (QA retrievers often have timezone)
-            knowledge_config = self.adapter_config.get('knowledge', {})
-            timezone = knowledge_config.get('timezone')
-
-        try:
-            return self.clock_service.get_time_instruction(timezone_str=timezone)
-        except Exception as e:
-            logger.warning(f"Error getting time instruction: {e}")
-            return None
-
-    async def _load_base_prompt(self) -> Optional[str]:
-        """
-        Load base text prompt from database via prompt_service.
-
-        Returns:
-            Base text prompt string from database, or None if not available
+            Text prompt string from database, or None if not available
         """
         if not self.system_prompt_id:
-            logger.debug("No system_prompt_id provided, base text_prompt will be None")
+            logger.debug("No system_prompt_id provided, text_prompt will be None")
             return None
 
         if not self.prompt_service:
-            logger.warning("No prompt_service available, base text_prompt will be None")
+            logger.warning("No prompt_service available, text_prompt will be None")
             return None
 
         try:
@@ -236,37 +167,6 @@ class PersonaPlexWebSocketHandler:
                 return None
         except Exception as e:
             logger.error(f"Error loading prompt from database: {e}")
-            return None
-
-    async def _inject_knowledge(self, knowledge_config: Dict[str, Any]) -> Optional[str]:
-        """
-        Load knowledge from static facts file.
-
-        Args:
-            knowledge_config: Knowledge injection configuration from adapter
-                - facts_file: Path to text file with facts (one per line)
-                - max_items: Maximum facts to include (optional)
-
-        Returns:
-            Formatted knowledge context string, or None
-        """
-        if not self.knowledge_service:
-            logger.debug("No knowledge_service available, skipping knowledge injection")
-            return None
-
-        facts_file = knowledge_config.get('facts_file')
-        if not facts_file:
-            logger.warning("Knowledge injection enabled but no facts_file specified")
-            return None
-
-        try:
-            knowledge_context = await self.knowledge_service.build_knowledge_context(
-                facts_file=facts_file,
-                max_items=knowledge_config.get('max_items')
-            )
-            return knowledge_context
-        except Exception as e:
-            logger.error(f"Error injecting knowledge: {e}")
             return None
 
     async def accept_connection(self):
