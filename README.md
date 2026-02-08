@@ -131,11 +131,41 @@ No more glue code—connect everything through adapters and declarative config.
 
 ### 1. Explore the sandbox
 
+Try the hosted ORBIT API with no setup: send a chat request and get a streaming-style response. Use the default key and any session ID for quick testing.
+
+**Request** (OpenAI-compatible `/v1/chat`):
+
+```bash
+curl -X POST https://orbit.schmitech.ai/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: test-session' \
+  -d '{
+    "messages": [{"role": "user", "content": "Hello, what is 2+2?"}],
+    "stream": false
+  }'
+```
+
+**Response** (`response` holds the reply; `sources` and `metadata` are optional):
+
+```json
+{
+  "response": "Sure thing! ✨ 2 + 2 equals **4**.\n\nIf you'd like, we can explore more math fun—like how addition builds the foundation for multiplication, or some cool number tricks. What's next on your curiosity list?",
+  "sources": [],
+  "metadata": {
+    "last_detected_language": "en",
+    "last_detected_language_confidence": 1.0,
+    "processing_time": 0.0,
+    "pipeline_used": true
+  }
+}
+```
+
 <p align="center">
   <a href="https://orbitsandbox.dev/" target="_blank"><img src="https://img.shields.io/badge/🚀_Try_ORBIT_Sandbox-Interactive_Examples-brightgreen?style=for-the-badge" alt="Try ORBIT Sandbox"></a>
 </p>
 
-Browse interactive examples showcasing ORBIT's adapters, prompts, and capabilities—no install required.
+The [ORBIT Sandbox](https://orbitsandbox.dev/) offers interactive examples for adapters, prompts, and capabilities—no install required.
 
 ### 2. Run the Docker demo
 
