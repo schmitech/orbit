@@ -165,7 +165,7 @@ curl -X POST https://orbit.schmitech.ai/v1/chat \
   <a href="https://orbitsandbox.dev/" target="_blank"><img src="https://img.shields.io/badge/🚀_Try_ORBIT_Sandbox-Interactive_Examples-brightgreen?style=for-the-badge" alt="Try ORBIT Sandbox"></a>
 </p>
 
-The [ORBIT Sandbox](https://orbitsandbox.dev/) offers interactive examples for adapters, prompts, and capabilities—no install required.
+The [ORBIT Sandbox](https://orbitsandbox.dev/) offers interactive examples for adapters, prompts, and capabilities—no install required. To explore **all API operations** (chat, admin, auth, health, etc.) with request/response schemas, see the [**ORBIT API Reference (ReDoc)**](https://orbit.schmitech.ai/redoc).
 
 ### 2. Run the Docker demo
 
