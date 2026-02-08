@@ -62,7 +62,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
 - **Updates:** Check the [changelog](CHANGELOG.md)
-- **Commercial Support:** [OrbitPods.io](https://orbitpods.io/)
+- **Commercial Support:** [OrbitInfra.ai](https://orbitinfra.ai/)
 - **Maintained by:** [Schmitech.ai](https://schmitech.ai/en/)
 
 ## At a Glance
@@ -283,8 +283,8 @@ ORBIT's built-in adapters and clients support advanced rendering for mathematica
 ## 🧠 Need help?
 
 - Open an [issue](https://github.com/schmitech/orbit/issues) or [discussion](https://github.com/schmitech/orbit/discussions).
-- Commercial support + managed hosting: [OrbitPods.io](https://orbitpods.io/).
-- Say hi on [Schmitech.ai](https://schmitech.ai/en/).
+- Commercial support + managed hosting: [OrbitInfra.ai](https://orbitinfra.ai/).
+- Say hi on [Schmitech.ai](https://schmitech.ai/en/contact).
 
 ## 📄 License
 
