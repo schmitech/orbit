@@ -80,8 +80,9 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
     - [3. Install the latest release](#3-install-the-latest-release)
     - [4. Build from source](#4-build-from-source)
   - [💬 Clients \& SDKs](#-clients--sdks)
-  - [🗃️ Chat with Your Data](#️-chat-with-your-data)
-  - [📐 Math \& Scientific Rendering](#-math--scientific-rendering)
+  - [🎬 What you can do with ORBIT](#-what-you-can-do-with-orbit)
+    - [🗃️ Chat with Your Data](#️-chat-with-your-data)
+    - [📐 Math \& Scientific Rendering](#-math--scientific-rendering)
   - [📚 Resources](#-resources)
   - [🧠 Need help?](#-need-help)
   - [📄 License](#-license)
@@ -166,9 +167,10 @@ curl -X POST https://orbit.schmitech.ai/v1/chat \
 
 <p align="center">
   <a href="https://orbitsandbox.dev/" target="_blank"><img src="https://img.shields.io/badge/🚀_Try_ORBIT_Sandbox-Interactive_Examples-brightgreen?style=for-the-badge" alt="Try ORBIT Sandbox"></a>
+  <a href="https://chatwidget-plum.vercel.app/" target="_blank"><img src="https://img.shields.io/badge/🎨_Widget_Builder-Theme_%26_Embed_AI-orange?style=for-the-badge" alt="Chat Widget Theming"></a>
 </p>
 
-The [ORBIT Sandbox](https://orbitsandbox.dev/) offers interactive examples for adapters, prompts, and capabilities—no install required. To explore **all API operations** (chat, admin, auth, health, etc.) with request/response schemas, see the [**ORBIT API Reference (ReDoc)**](https://orbit.schmitech.ai/redoc).
+The [ORBIT Sandbox](https://orbitsandbox.dev/) offers interactive examples for adapters, prompts, and capabilities—no install required. Use the [**Chat Widget Theming Platform**](https://chatwidget-plum.vercel.app/) to theme and build your own website widget, then embed AI chat on any site (see [widget theming guide](clients/chat-widget/README.md) to run it locally or customize). To explore **all API operations** (chat, admin, auth, health, etc.) with request/response schemas, see the [**ORBIT API Reference (ReDoc)**](https://orbit.schmitech.ai/redoc).
 
 ### 2. Run the Docker demo
 
@@ -241,7 +243,13 @@ cd orbit && cp env.example .env
 
 ---
 
-## 🗃️ Chat with Your Data
+## 🎬 What you can do with ORBIT
+
+The sections below show use cases with video demos—how ORBIT looks in practice.
+
+Anyone can deploy similar use cases in total privacy, without third-party dependencies or cloud subscriptions.
+
+### 🗃️ Chat with Your Data
 
 See the **[tutorial](docs/tutorial.md)** for step-by-step instructions on connecting your data, performing retrieval, and watching as ORBIT converts natural language into SQL queries and API calls.
 
@@ -255,7 +263,7 @@ See the **[tutorial](docs/tutorial.md)** for step-by-step instructions on connec
 
 ---
 
-## 📐 Math & Scientific Rendering
+### 📐 Math & Scientific Rendering
 
 ORBIT's built-in adapters and clients support advanced rendering for mathematical notation (KaTeX) and interactive charts, perfect for educational and scientific applications.
 
