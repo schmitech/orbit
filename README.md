@@ -19,8 +19,6 @@
   </a>
 </p>
 
-</div>
-
 # ORBIT – One gateway for every model and data source.
 **Open Retrieval-Based Inference Toolkit**
 
@@ -57,7 +55,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 ✅ **Data sovereignty** — Keep your data on your infrastructure  
 ✅ **One API** — OpenAI-compatible interface that works with any provider  
 ✅ **Production-ready** — Rate limiting, security, monitoring, and fault tolerance built-in
-****
+
 **Who it's for:** Developers building AI applications who want flexibility, privacy, and control without the complexity of managing multiple integrations.
 
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
@@ -166,11 +164,11 @@ curl -X POST https://orbit.schmitech.ai/v1/chat \
 ```
 
 <p align="center">
-  <a href="https://orbitsandbox.dev/" target="_blank"><img src="https://img.shields.io/badge/🚀_Try_ORBIT_Sandbox-Interactive_Examples-brightgreen?style=for-the-badge" alt="Try ORBIT Sandbox"></a>
-  <a href="https://chatwidget-plum.vercel.app/" target="_blank"><img src="https://img.shields.io/badge/🎨_Widget_Builder-Theme_%26_Embed_AI-orange?style=for-the-badge" alt="Chat Widget Theming"></a>
+  <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/🚀_Try_ORBIT_Sandbox-Interactive_Examples-0d7d0d?style=for-the-badge" alt="Try ORBIT Sandbox"></a>
+  <a href="https://chatwidget-plum.vercel.app/" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/🎨_Widget_Builder-Theme_%26_Embed_AI-orange?style=for-the-badge" alt="Chat Widget Theming"></a>
 </p>
 
-The [ORBIT Sandbox](https://orbitsandbox.dev/) offers interactive examples for adapters, prompts, and capabilities—no install required. Use the [**Chat Widget Theming Platform**](https://chatwidget-plum.vercel.app/) to theme and build your own website widget, then embed AI chat on any site (see [widget theming guide](clients/chat-widget/README.md) to run it locally or customize). To explore **all API operations** (chat, admin, auth, health, etc.) with request/response schemas, see the [**ORBIT API Reference (ReDoc)**](https://orbit.schmitech.ai/redoc).
+The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer">ORBIT Sandbox</a> offers interactive examples for adapters, prompts, and capabilities—no install required. Use the <a href="https://chatwidget-plum.vercel.app/" target="_blank" rel="noopener noreferrer"><strong>Chat Widget Theming Platform</strong></a> to theme and build your own website widget, then embed AI chat on any site (see <a href="clients/chat-widget/README.md" target="_blank" rel="noopener noreferrer">widget theming guide</a> to run it locally or customize). To explore <strong>all API operations</strong> (chat, admin, auth, health, etc.) with request/response schemas, see the <a href="https://orbit.schmitech.ai/redoc" target="_blank" rel="noopener noreferrer"><strong>ORBIT API Reference (ReDoc)</strong></a>.
 
 ### 2. Run the Docker demo
 

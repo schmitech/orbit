@@ -57,7 +57,7 @@ The build outputs are located in `widget/dist`:
 
 ### Using the Theming App
 
-The easiest way to customize your widget is through our interactive theming application:
+The easiest way to customize your widget is through our interactive theming application at [schmitech/chatwidget](https://github.com/schmitech/chatwidget):
 
 1. **Navigate to the theming app:**
 ```bash
