@@ -282,7 +282,7 @@ internal_services:
     prompts_collection: system_prompts
 
   redis:
-    enabled: true
+    enabled: false
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0

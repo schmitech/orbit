@@ -157,18 +157,31 @@ dependencies = [
 ]
 
 # ============================================================================
-# TORCH - PyTorch and local model inference (GPU recommended)
+# TORCH - PyTorch and Hugging Face inference (no vLLM; use profile vllm for vLLM)
 # ============================================================================
+# Without vLLM we can use newer torch/transformers. For vLLM direct mode use --profile vllm.
 [profiles.torch]
-description = "PyTorch and local model inference (GPU recommended)"
+description = "PyTorch and Hugging Face inference (transformers, accelerate; GPU recommended)"
 dependencies = [
     "numpy<2.0.0",  # Pin to NumPy 1.x for compatibility with PyTorch
-    "torch==2.5.1",
-    "vllm>=0.6.4",
-    "transformers>=4.52.4",
+    "torch>=2.6.0",  # Newer torch when not constrained by vLLM (vLLM requires 2.5.1 → use profile vllm)
+    "transformers>=4.56.0",
     "accelerate>=0.27.2",
     "sentencepiece>=0.2.0",
-    "protobuf>=5.27.2,<6.0.0"
+    "protobuf>=5.27.2,<6.0.0",
+    "safetensors>=0.4.0",  # Fast, safe model loading (HF models)
+    "huggingface_hub>=0.26.0",  # Model download and HF Inference API client
+]
+
+# ============================================================================
+# VLLM - vLLM server and direct model loading (pins torch==2.5.1)
+# ============================================================================
+[profiles.vllm]
+description = "vLLM for local model inference (pins PyTorch 2.5.1; use with or without profile torch)"
+dependencies = [
+    "numpy<2.0.0",
+    "torch==2.5.1",  # Required by vLLM 0.6.x; do not upgrade without checking vLLM compatibility
+    "vllm>=0.6.4",
 ]
 
 # ============================================================================
@@ -251,6 +264,12 @@ dependencies = []
 #
 # Minimal + file support (for simple-chat-with-files adapter):
 #   ./setup.sh --profile providers --profile files --profile sentence-transformers --profile vector-stores
+#
+# Hugging Face inference only (newer torch + transformers, no vLLM):
+#   ./setup.sh --profile torch
+#
+# vLLM direct mode (pins torch 2.5.1; combine with default, not with torch for same env):
+#   ./setup.sh --profile vllm
 #
 # With vector stores (if using ChromaDB, Pinecone, etc.):
 #   ./setup.sh --profile vector-stores

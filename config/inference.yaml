@@ -400,14 +400,26 @@ inference:
     max_tokens: 16000
     stream: true
     show_thinking: false
+  # Hugging Face Inference API (serverless or dedicated Inference Endpoints).
+  # Use any model ID from https://huggingface.co/models
   huggingface:
     enabled: false
-    model_name: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-    device: "cpu"
-    max_length: 1024
+    model: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+    api_key: ${HUGGINGFACE_API_KEY}
+    endpoint_url: null  # Optional: custom URL for Inference Endpoints
     temperature: 0.7
-    top_p: 0.9
-    stream: false
+    max_tokens: 1024
+    stream: true
+    # Retry and timeout (optional)
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 120000
   openrouter:
     enabled: true
     api_key: ${OPENROUTER_API_KEY}
