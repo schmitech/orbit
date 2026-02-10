@@ -407,6 +407,12 @@ inference:
     model: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
     api_key: ${HUGGINGFACE_API_KEY}
     endpoint_url: null  # Optional: custom URL for Inference Endpoints
+    # Inference provider routing. Controls which backend runs the model.
+    # Options: hf-inference, cerebras, together, fireworks-ai, replicate,
+    #          sambanova, nebius, novita, scaleway, hyperbolic, auto
+    # Default "hf-inference" uses HF's own serverless API.
+    # Use "auto" to let the client pick the best available provider.
+    provider: "hf-inference"
     temperature: 0.7
     max_tokens: 1024
     stream: true
