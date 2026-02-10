@@ -127,9 +127,9 @@ class TransformersBaseService(ProviderAIService):
                 model_kwargs["device_map"] = self.device_map
 
             if self.dtype != "auto":
-                model_kwargs["torch_dtype"] = self.dtype
+                model_kwargs["dtype"] = self.dtype
             else:
-                model_kwargs["torch_dtype"] = "auto"
+                model_kwargs["dtype"] = "auto"
 
             if self.max_memory is not None:
                 model_kwargs["max_memory"] = self.max_memory

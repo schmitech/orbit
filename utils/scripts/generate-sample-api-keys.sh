@@ -58,6 +58,7 @@
 #   personaplex-chat -> personaplex-chat
 #   personaplex-interview-coach -> personaplex-interview
 #   personaplex-storyteller -> personaplex-story
+#   simple-chat (RedSage) -> redsage
 #
 # Notes:
 #   - Each adapter includes a markdown "notes" field that appears in the chat interface
@@ -458,12 +459,34 @@ declare -a all_adapters=(
     "personaplex-chat|personaplex-chat|examples/prompts/audio/personaplex-chat-prompt.md|PersonaPlex Chat Prompt"
     "personaplex-interview-coach|personaplex-interview|examples/prompts/audio/personaplex-interview-coach-prompt.md|PersonaPlex Interview Coach Prompt"
     "personaplex-storyteller|personaplex-story|examples/prompts/audio/personaplex-storyteller-prompt.md|PersonaPlex Storyteller Prompt"
+    "simple-chat|redsage|examples/prompts/examples/cybersecurity/redsage-cybersecurity-prompt.md|RedSage Cybersecurity Prompt"
 )
 
 # Function to get notes for each adapter (bash 3.2 compatible - no associative arrays)
 # These are displayed in the chat interface as intro messages
+# Optional second arg: key_name (used for adapter-specific keys like redsage)
 get_adapter_notes() {
     local adapter_name="$1"
+    local key_name="${2:-}"
+    # Key-specific notes (same adapter, different key)
+    if [ "$adapter_name" = "simple-chat" ] && [ "$key_name" = "redsage" ]; then
+        cat <<'NOTES_EOF'
+## Welcome to RedSage Cybersecurity Assistant 🔐
+
+I'm your **cybersecurity-focused assistant**, tuned for defensive security and education.
+
+I can help with:
+- 🛡️ **Frameworks:** MITRE ATT&CK, OWASP, and how they apply in practice
+- 🔧 **Tools:** Explaining and suggesting commands for `nmap`, `sqlmap`, Metasploit, and similar (for authorized use)
+- 📚 **Concepts:** Vulnerabilities, attack phases, and remediation steps
+- ✅ **Secure design:** Input validation, least privilege, and avoiding common flaws
+
+Best used with the **Hugging Face** inference provider and model `RISys-Lab/RedSage-Qwen3-8B-Ins`. Ensure `inference.huggingface` is enabled and `HUGGINGFACE_API_KEY` is set.
+
+**What would you like to explore?**
+NOTES_EOF
+        return
+    fi
     case "$adapter_name" in
         "simple-chat")
             cat <<'NOTES_EOF'
@@ -1011,7 +1034,7 @@ for entry in "${adapters[@]}"; do
     IFS='|' read -r adapter key_name prompt_file prompt_name <<< "$entry"
     
     # Look up notes using function (bash 3.2 compatible)
-    notes="$(get_adapter_notes "$adapter")"
+    notes="$(get_adapter_notes "$adapter" "$key_name")"
     
     echo ""
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
