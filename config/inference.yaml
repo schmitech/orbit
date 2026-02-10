@@ -426,6 +426,23 @@ inference:
     timeout:
       connect: 10000
       total: 120000
+  transformers:
+    enabled: false
+    model: "RISys-Lab/RedSage-Qwen3-8B-Ins"
+    device: "auto"              # auto, cuda, mps, cpu
+    device_map: "auto"          # auto (accelerate distributes), cuda:0, null
+    dtype: "auto"               # auto, float16, bfloat16, float32
+    trust_remote_code: false
+    max_memory: null            # e.g. {"0": "20GiB", "cpu": "30GiB"}
+    attn_implementation: null   # flash_attention_2, sdpa, or null
+    temperature: 0.7
+    top_p: 0.9
+    top_k: -1
+    max_tokens: 2048
+    repetition_penalty: 1.0
+    do_sample: true
+    stream: true
+    stop: []
   openrouter:
     enabled: true
     api_key: ${OPENROUTER_API_KEY}

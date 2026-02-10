@@ -30,6 +30,7 @@ Available providers:
     - BitNetInferenceService: BitNet (1.58-bit) inference
     - ZaiInferenceService: Z.AI inference
     - TensorRTInferenceService: TensorRT-LLM (NVIDIA) inference
+    - TransformersInferenceService: Transformers (Local) inference
 """
 
 import logging
@@ -67,6 +68,7 @@ _implementations = [
     ('bitnet_inference_service', 'BitNetInferenceService'),
     ('zai_inference_service', 'ZaiInferenceService'),
     ('tensorrt_inference_service', 'TensorRTInferenceService'),
+    ('transformers_inference_service', 'TransformersInferenceService'),
 ]
 
 for module_name, class_name in _implementations:

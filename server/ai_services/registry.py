@@ -106,6 +106,7 @@ def register_inference_services(config: Dict[str, Any] = None) -> None:
         ("bitnet", "BitNetInferenceService", "BitNet (1.58-bit)"),
         ("zai", "ZaiInferenceService", "Z.AI"),
         ("tensorrt", "TensorRTInferenceService", "TensorRT-LLM"),
+        ("transformers", "TransformersInferenceService", "Transformers (Local)"),
     ]
 
     # Get inference config if available
