@@ -58,6 +58,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 **Who it's for:** Developers building AI applications who want flexibility, privacy, and control without the complexity of managing multiple integrations.
 
+- **New here?** Start with practical guides in [OrbitInfra Articles](https://orbitinfra.ai/articles)
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
 - **Updates:** Check the [changelog](CHANGELOG.md)
 - **Commercial Support:** [OrbitInfra.ai](https://orbitinfra.ai/)
@@ -169,6 +170,7 @@ curl -X POST https://orbit.schmitech.ai/v1/chat \
 </p>
 
 The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer">ORBIT Sandbox</a> offers interactive examples for adapters, prompts, and capabilities—no install required. Use the <a href="https://chatwidget-plum.vercel.app/" target="_blank" rel="noopener noreferrer"><strong>Chat Widget Theming Platform</strong></a> to theme and build your own website widget, then embed AI chat on any site (see <a href="clients/chat-widget/README.md" target="_blank" rel="noopener noreferrer">widget theming guide</a> to run it locally or customize). To explore <strong>all API operations</strong> (chat, admin, auth, health, etc.) with request/response schemas, see the <a href="https://orbit.schmitech.ai/redoc" target="_blank" rel="noopener noreferrer"><strong>ORBIT API Reference (ReDoc)</strong></a>.
+If you're new to ORBIT, read practical implementation guides in the <a href="https://orbitinfra.ai/articles" target="_blank" rel="noopener noreferrer"><strong>OrbitInfra Articles Library</strong></a>.
 
 ### 2. Run the Docker demo
 
@@ -283,6 +285,7 @@ ORBIT's built-in adapters and clients support advanced rendering for mathematica
 - [RAG adapters](docs/adapters/adapters.md)
 - [Voice & audio adapters](docs/audio/)
 - [PersonaPlex speech-to-speech](docs/personaplex-integration.md)
+- [OrbitInfra Articles Library](https://orbitinfra.ai/articles)
 - [Roadmap](docs/roadmap/README.md)
 - [Contributing](CONTRIBUTING.md) & [Code of Conduct](CODE_OF_CONDUCT.md)
 
@@ -290,6 +293,7 @@ ORBIT's built-in adapters and clients support advanced rendering for mathematica
 
 - Open an [issue](https://github.com/schmitech/orbit/issues) or [discussion](https://github.com/schmitech/orbit/discussions).
 - Commercial support + managed hosting: [OrbitInfra.ai](https://orbitinfra.ai/).
+- Implementation guides and tutorials: [OrbitInfra Articles](https://orbitinfra.ai/articles).
 - Say hi on [Schmitech.ai](https://schmitech.ai/en/contact).
 
 ## 📄 License
