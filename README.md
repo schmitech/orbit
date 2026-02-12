@@ -28,14 +28,6 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 > ⭐ **Help ORBIT grow:** Star + watch the repo so other builders can find it and we can keep funding new adapters, tutorials, and sandbox credits.
 
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/bdb0330d-b03a-44ba-ad97-c3a363a45a7d" controls width="100%">
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <em>See ORBIT's unified LLM workspace in action.</em>
-</div>
-
 ---
 
 ## 🎯 Why ORBIT?
@@ -79,9 +71,6 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
     - [3. Install the latest release](#3-install-the-latest-release)
     - [4. Build from source](#4-build-from-source)
   - [💬 Clients \& SDKs](#-clients--sdks)
-  - [🎬 What you can do with ORBIT](#-what-you-can-do-with-orbit)
-    - [🗃️ Chat with Your Data](#️-chat-with-your-data)
-    - [📐 Math \& Scientific Rendering](#-math--scientific-rendering)
   - [📚 Resources](#-resources)
   - [🧠 Need help?](#-need-help)
   - [📄 License](#-license)
@@ -239,40 +228,6 @@ cd orbit && cp env.example .env
   </video>
   <br/>
   <i>Using the <code>orbit-chat</code> CLI. Run <code>orbit-chat -h</code> for options.</i>
-</div>
-
----
-
-## 🎬 What you can do with ORBIT
-
-The sections below show use cases with video demos—how ORBIT looks in practice.
-
-Anyone can deploy similar use cases in total privacy, without third-party dependencies or cloud subscriptions.
-
-### 🗃️ Chat with Your Data
-
-See the **[tutorial](docs/tutorial.md)** for step-by-step instructions on connecting your data, performing retrieval, and watching as ORBIT converts natural language into SQL queries and API calls.
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/34ee6047-73b0-4ab6-bb0a-9af99bfe962e" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>Electric Vehicle Population Data through natural language (Data Source: <a href="https://data.wa.gov/Transportation/Electric-Vehicle-Population-Data/f6w7-q2d2/about_data">data.wa.gov</a>).</i>
-</div>
-
----
-
-### 📐 Math & Scientific Rendering
-
-ORBIT's built-in adapters and clients support advanced rendering for mathematical notation (KaTeX) and interactive charts, perfect for educational and scientific applications.
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/38630cdc-ed1b-46cd-a804-35850837e9d0" controls width="100%">
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>Demo of the Math Tutor adapter showcasing KaTeX and interactive graphing.</i>
 </div>
 
 ---
