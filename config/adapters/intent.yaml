@@ -59,17 +59,25 @@ adapters:
       query_timeout: 5000  # 5 seconds
 
   - name: "intent-sql-sqlite-classified"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "sqlite"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
     database: "../demos/classified-data/classified_data.db"
     inference_provider: "ollama_cloud"
-    model: "minimax-m2"
+    model: "glm-5"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     # reranker_provider: "cohere"
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true
+      requires_api_key_validation: true
     config:
       # reranker_top_n: 10      # Optional: limit reranked results (overrides return_results)
       check_same_thread: false  # Allow multi-threaded access
@@ -89,7 +97,7 @@ adapters:
       max_templates: 5
 
       # Return top N results
-      return_results: 100
+      return_results: 1000
 
       # Template loading settings
       reload_templates_on_start: false  # Whether to reload templates on startup
@@ -103,7 +111,7 @@ adapters:
       # Query monitoring (automatically provided by unified base)
       enable_query_monitoring: true
       query_timeout: 5000  # 5 seconds
-  
+
   - name: "intent-duckdb-analytics"
     enabled: true
     type: "retriever"
@@ -113,8 +121,6 @@ adapters:
     database: "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics.duckdb"
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    # embedding_provider: "openrouter"
-    # embedding_model: "openai/text-embedding-3-small"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     capabilities:
@@ -169,12 +175,10 @@ adapters:
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
     database: "examples/intent-templates/duckdb-intent-template/examples/ev-population/ev_population.duckdb"
-    inference_provider: "openrouter"
-    model: "google/gemini-3-flash-preview"
-    embedding_provider: "openrouter"
-    embedding_model: "openai/text-embedding-3-small"
-    # embedding_provider: "ollama"
-    # embedding_model: "nomic-embed-text:latest"
+    inference_provider: "gemini"
+    model: "gemini-3-pro-preview"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
     capabilities:
       retrieval_behavior: "always"
       formatting_style: "standard"
@@ -234,6 +238,7 @@ adapters:
       supports_file_ids: false           # Does not support file filtering
       supports_session_tracking: false   # Does not need session tracking
       requires_api_key_validation: false # API key used for access control only
+      supports_autocomplete: true
       optional_parameters:
         - "api_key"
 
@@ -273,21 +278,31 @@ adapters:
   # This adapter demonstrates Elasticsearch Query DSL generation from natural language
   # Connection parameters are inherited from config/datasources.yaml
   - name: "intent-elasticsearch-app-logs"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "elasticsearch"  # References datasources.yaml elasticsearch config
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentElasticsearchRetriever"
-    inference_provider: "cohere"
-    # model: "minimax-m2:cloud"
+    inference_provider: "gemini"
+    model: "gemini-3-pro-preview"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     # reranker_provider: "ollama"
+    
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true
+      requires_api_key_validation: true
+    
     config:
       # Domain and template configuration
-      domain_config_path: "examples/intent-templates/elasticsearch-intent-template/examples/application-logs/templates/logs_domain.yaml"
+      domain_config_path: "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_domain.yaml"
       template_library_path:
-        - "examples/intent-templates/elasticsearch-intent-template/examples/application-logs/templates/logs_templates.yaml"
+        - "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_templates.yaml"
 
       # reranker_top_n: 3      # Optional: limit reranked results (overrides return_results)
       # Vector store configuration for template matching
@@ -440,7 +455,7 @@ adapters:
   # Supports both cloud API (api.firecrawl.dev) and self-hosted Firecrawl deployments
   # Features intelligent content chunking for large documents (e.g., Wikipedia articles)
   - name: "intent-firecrawl-webscrape"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "http"  # Reuse HTTP placeholder
     adapter: "intent"
@@ -534,9 +549,9 @@ adapters:
     adapter: "intent"
     implementation: "retrievers.implementations.intent.intent_mongodb_retriever.IntentMongoDBRetriever"
     inference_provider: "ollama_cloud"
-    model: "glm-4.7:cloud"
-    embedding_provider: "openrouter"
-    embedding_model: "openai/text-embedding-3-small"
+    model: "glm-5:cloud"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
     reranker_provider: "anthropic"
     capabilities:
       retrieval_behavior: "always"
@@ -731,7 +746,7 @@ adapters:
   # - Built-in tools for common operations
   # - Response synthesis for natural language output
   - name: "intent-agent-example"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "http"
     adapter: "intent"

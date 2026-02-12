@@ -73,7 +73,7 @@ templates:
     approved: true
 
   # Knowledge Item Queries - Title/Content Search
-  - id: find_documents_by_title_content #FIXME
+  - id: find_documents_by_title_content
     version: "1.0.0"
     description: "Search documents by title or content keywords"
     nl_examples:
@@ -108,10 +108,11 @@ templates:
         required: true
         aliases: ["keyword", "term", "text"]
     sql_template: |
-      SELECT * FROM knowledge_item
-      WHERE title LIKE '%' || ? || '%'
-         OR content LIKE '%' || ? || '%'
-      ORDER BY created_at DESC
+      SELECT ki.* FROM knowledge_item ki,
+        (SELECT ? AS term) p
+      WHERE ki.title LIKE '%' || p.term || '%'
+         OR ki.content LIKE '%' || p.term || '%'
+      ORDER BY ki.created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "search", "content", "title"]
     semantic_tags:
@@ -454,7 +455,7 @@ templates:
       qualifiers: ["active"]
     approved: true
 
-  - id: find_inactive_users #FIXME
+  - id: find_inactive_users
     version: "1.0.0"
     description: "Find inactive users"
     nl_examples:
@@ -686,7 +687,7 @@ templates:
       qualifiers: ["by_user"]
     approved: true
 
-  - id: find_recent_access_attempts #FIXME
+  - id: find_recent_access_attempts
     version: "1.0.0"
     description: "Find recent access attempts"
     nl_examples:
@@ -908,8 +909,9 @@ templates:
       SELECT ki.*, o.name as org_name
       FROM knowledge_item ki
       LEFT JOIN organizations o ON ki.originator_org = o.code
-      WHERE ki.classification = ?
-        AND (o.name LIKE '%' || ? || '%' OR ki.originator_org LIKE '%' || ? || '%')
+      JOIN (SELECT ? AS cls, ? AS org) p
+      WHERE ki.classification = p.cls
+        AND (o.name LIKE '%' || p.org || '%' OR ki.originator_org LIKE '%' || p.org || '%')
       ORDER BY ki.created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "classification", "organization", "complex"]
@@ -1044,7 +1046,7 @@ templates:
       JOIN access_audit aa ON ki.item_id = aa.item_id
       GROUP BY ki.item_id, ki.title, ki.classification
       ORDER BY access_count DESC
-      LIMIT 10
+      LIMIT COALESCE(?, 1000)
     result_format: "table"
     tags: ["knowledge_item", "statistics", "access", "popular"]
     semantic_tags:
@@ -1196,7 +1198,7 @@ templates:
         AND aa.ts >= datetime('now', '-' || ? || ' days')
         AND aa.decision IN ('ALLOW', 'REDACT')
       ORDER BY aa.ts DESC
-      LIMIT 50
+      LIMIT 1000
     result_format: "table"
     tags: ["access_audit", "users", "classification", "access_details"]
     semantic_tags:
@@ -1273,7 +1275,7 @@ templates:
       GROUP BY aa.user_id
       HAVING COUNT(DISTINCT ki.compartments) >= ?
       ORDER BY unique_compartments_accessed DESC, denied_accesses DESC, total_access_attempts DESC
-      LIMIT 25
+      LIMIT 1000
     result_format: "table"
     tags: ["access_audit", "security", "compartment_hopping", "intelligence_gathering", "reconnaissance", "analytics"]
     semantic_tags:
@@ -1364,7 +1366,7 @@ templates:
       GROUP BY aa.user_id
       HAVING risk_score >= ?
       ORDER BY risk_score DESC, total_attempts DESC
-      LIMIT 25
+      LIMIT 1000
     result_format: "table"
     tags: ["access_audit", "security", "anomaly_detection", "insider_threat", "intelligence", "analytics"]
     semantic_tags:

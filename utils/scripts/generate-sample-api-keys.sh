@@ -41,6 +41,7 @@
 #   qa-vector-chroma -> chroma-key
 #   qa-vector-qdrant-demo -> demo-key (EXCLUDED: requires special Qdrant deployment)
 #   intent-sql-sqlite-hr -> hr
+#   intent-sql-sqlite-classified -> classified
 #   intent-duckdb-analytics -> analytical
 #   intent-duckdb-ev-population -> ev
 #   intent-sql-postgres -> postgres
@@ -441,6 +442,7 @@ declare -a all_adapters=(
     "qa-vector-chroma|chroma-key|examples/prompts/examples/city/city-assistant-normal-prompt.md|Chroma QA Prompt"
     # "qa-vector-qdrant-demo|demo-key|..." excluded: requires special Qdrant deployment
     "intent-sql-sqlite-hr|hr|examples/intent-templates/sql-intent-template/examples/sqlite/hr/hr-assistant-prompt.md|HR Assistant Prompt"
+    "intent-sql-sqlite-classified|classified|examples/intent-templates/sql-intent-template/examples/sqlite/classified-data/classified-data-assistant-prompt.md|Classified Data Assistant Prompt"
     "intent-duckdb-analytics|analytical|examples/intent-templates/duckdb-intent-template/examples/analytics/analytics-assistant-prompt.md|DuckDB Analytics Prompt"
     "intent-duckdb-ev-population|ev|examples/intent-templates/duckdb-intent-template/examples/ev-population/ev-assistant-prompt.md|EV Population Prompt"
     "intent-sql-postgres|postgres|examples/postgres/prompts/customer-assistant-enhanced-prompt.txt|PostgreSQL Customer Orders Prompt"
@@ -678,6 +680,23 @@ I can help you with:
 I support both English and French responses.
 
 **What HR information do you need?**
+NOTES_EOF
+            ;;
+        "intent-sql-sqlite-classified")
+            cat <<'NOTES_EOF'
+## Welcome to ORBIT Classified Data Assistant 🔒
+
+I'm your **secure Classified Data Management Assistant** for intelligence and defense organizations.
+
+I can help you with:
+- 📄 Classified document search and metadata (Knowledge Items)
+- 📋 Access audit logs and access decisions (ALLOW, REDACT, DENY)
+- 👤 User security profiles, clearances, and compartments
+- 🔐 Security compliance (classifications, caveats, PII awareness)
+
+Classifications range from **UNCLASSIFIED** to **TOP SECRET**; I respect caveats (e.g. NOFORN, ORCON) and compartments.
+
+**What classified information or audit data do you need?**
 NOTES_EOF
             ;;
         "intent-duckdb-analytics")
