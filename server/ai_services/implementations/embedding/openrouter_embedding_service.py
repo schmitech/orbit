@@ -1,26 +1,30 @@
 """
-OpenRouter embedding service implementation using the native OpenRouter SDK.
+OpenRouter embedding service implementation using the OpenAI-compatible API.
 
-This implementation uses the official OpenRouter Python SDK for embedding generation.
-OpenRouter provides access to various embedding models through a unified API.
+OpenRouter provides access to various embedding models through a unified API
+that is fully compatible with the OpenAI SDK. This implementation uses the
+AsyncOpenAI client pointed at OpenRouter's base URL for reliable error handling
+and consistent behavior.
 
-SDK Documentation: https://openrouter.ai/docs/sdks/python/embeddings
+API Documentation: https://openrouter.ai/docs/features/embeddings
 """
 
 import logging
 from typing import List, Dict, Any, Optional
 
-from openrouter import OpenRouter
+from openai import AsyncOpenAI
 
 from ...services import EmbeddingService
 
 
 logger = logging.getLogger(__name__)
 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
 
 class OpenRouterEmbeddingService(EmbeddingService):
     """
-    OpenRouter embedding service using the native OpenRouter SDK.
+    OpenRouter embedding service using the OpenAI-compatible API.
 
     OpenRouter is a unified gateway to multiple AI providers, including
     embedding models from OpenAI, Cohere, and others.
@@ -48,7 +52,7 @@ class OpenRouterEmbeddingService(EmbeddingService):
             raise ValueError("OpenRouter embedding model must be specified in configuration.")
 
         # Client will be initialized in initialize()
-        self.client: Optional[OpenRouter] = None
+        self.client: Optional[AsyncOpenAI] = None
 
         logger.info(f"Configured OpenRouter embedding service with model: {self.model}")
 
@@ -58,8 +62,11 @@ class OpenRouterEmbeddingService(EmbeddingService):
             if self.initialized:
                 return True
 
-            # Create OpenRouter client
-            self.client = OpenRouter(api_key=self.api_key)
+            # Create AsyncOpenAI client pointed at OpenRouter
+            self.client = AsyncOpenAI(
+                api_key=self.api_key,
+                base_url=OPENROUTER_BASE_URL,
+            )
 
             self.initialized = True
             logger.info(f"Initialized OpenRouter embedding service with model {self.model}")
@@ -77,7 +84,7 @@ class OpenRouterEmbeddingService(EmbeddingService):
                 return False
 
             # Make a minimal test request
-            response = await self.client.embeddings.generate_async(
+            response = await self.client.embeddings.create(
                 input="test",
                 model=self.model
             )
@@ -95,6 +102,7 @@ class OpenRouterEmbeddingService(EmbeddingService):
     async def close(self) -> None:
         """Close the OpenRouter service and release resources."""
         if self.client:
+            await self.client.close()
             self.client = None
 
         self.initialized = False
@@ -115,11 +123,11 @@ class OpenRouterEmbeddingService(EmbeddingService):
                 raise ValueError("Failed to initialize OpenRouter embedding service")
 
         try:
-            response = await self.client.embeddings.generate_async(
-                input=text,
-                model=self.model
-            )
+            kwargs = dict(input=text, model=self.model)
+            if self.dimensions:
+                kwargs["dimensions"] = self.dimensions
 
+            response = await self.client.embeddings.create(**kwargs)
             return response.data[0].embedding
 
         except Exception as e:
@@ -150,13 +158,15 @@ class OpenRouterEmbeddingService(EmbeddingService):
             batch_texts = texts[i:i + self.batch_size]
 
             try:
-                response = await self.client.embeddings.generate_async(
-                    input=batch_texts,
-                    model=self.model
-                )
+                kwargs = dict(input=batch_texts, model=self.model)
+                if self.dimensions:
+                    kwargs["dimensions"] = self.dimensions
 
-                # Extract embeddings from response
-                batch_embeddings = [item.embedding for item in response.data]
+                response = await self.client.embeddings.create(**kwargs)
+
+                # Sort by index to ensure order matches input order
+                sorted_data = sorted(response.data, key=lambda x: x.index)
+                batch_embeddings = [item.embedding for item in sorted_data]
                 all_embeddings.extend(batch_embeddings)
 
                 # Log progress for large batches
