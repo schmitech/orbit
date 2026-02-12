@@ -116,7 +116,7 @@ No more glue code—connect everything through adapters and declarative config.
 - **Voice assistants & IVR** – Deploy full-duplex voice agents for customer service, city hotlines, or internal helpdesks powered by PersonaPlex full-duplex speech-to-speech.
 - **Analytics copilots** – Turn "How many signups came from APAC last week?" into SQL, MongoDB, or DuckDB queries with safety filters.
 - **Enterprise knowledge chat** – Blend product docs, support tickets, and vector embeddings into a single chat endpoint with automatic citations.
-- **Provider gateways** – Route traffic between OpenAI/Anthropic/local Ollama with fallbacks, budgets, and tenant-specific presets.
+- **Provider gateways** – Route traffic between OpenAI/Anthropic/local Ollama with fallbacks, and tenant-specific presets.
 - **Agentic workflows** – Chain adapters that hit REST APIs, trigger automations, or fan out to multiple retrievers before summarizing responses.
 
 ## ⚡ Getting Started
