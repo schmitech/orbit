@@ -64,7 +64,6 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
   - [⭐ Help ORBIT Grow](#-help-orbit-grow)
   - [🚀 Highlights](#-highlights)
   - [🧩 Supported Integrations](#-supported-integrations)
-  - [🛠️ Common Use Cases](#️-common-use-cases)
   - [⚡ Getting Started](#-getting-started)
     - [1. Explore the sandbox](#1-explore-the-sandbox)
     - [2. Run the Docker demo](#2-run-the-docker-demo)
@@ -110,14 +109,6 @@ No more glue code—connect everything through adapters and declarative config.
 - Vector stores: Chroma, Qdrant, Pinecone, Milvus, Weaviate (with QA + intent specializations).
 - Files & APIs: PDF/Markdown/CSV ingestion, HTTP/REST connectors, and composite adapters that orchestrate multiple sources with guardrails.
 - Infra glue: Redis caching, MongoDB or SQLite backends, optional Elasticsearch auditing.
-
-## 🛠️ Common Use Cases
-
-- **Voice assistants & IVR** – Deploy full-duplex voice agents for customer service, city hotlines, or internal helpdesks powered by PersonaPlex full-duplex speech-to-speech.
-- **Analytics copilots** – Turn "How many signups came from APAC last week?" into SQL, MongoDB, or DuckDB queries with safety filters.
-- **Enterprise knowledge chat** – Blend product docs, support tickets, and vector embeddings into a single chat endpoint with automatic citations.
-- **Provider gateways** – Route traffic between OpenAI/Anthropic/local Ollama with fallbacks, and tenant-specific presets.
-- **Agentic workflows** – Chain adapters that hit REST APIs, trigger automations, or fan out to multiple retrievers before summarizing responses.
 
 ## ⚡ Getting Started
 
