@@ -289,11 +289,11 @@ inference:
     enabled: true
     api_key: ${GOOGLE_API_KEY}
     model: "gemini-3-pro-preview"
-    context_window: 1000000  # Gemini supports up to 1M tokens
+    context_window: 1000000  # Gemini supports up to 1M tokens (input context)
     temperature: 0.1
     top_p: 0.8
     top_k: 20
-    max_tokens: 1024
+    max_tokens: 8192         # Max output tokens; 1024 was causing cut-off responses
     stream: true
     transport: "rest"
     # Safety settings - set to true to disable all safety filters (useful for reducing false positives)

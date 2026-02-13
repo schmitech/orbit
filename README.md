@@ -90,7 +90,7 @@ Open-source traction is the fuel that keeps ORBIT's sandbox, docs, adapters, and
 - **Full-duplex speech-to-speech** – Build voice assistants with real-time, bidirectional audio using NVIDIA's PersonaPlex integration. Natural conversations with interruptions and backchannels—no STT→LLM→TTS cascade needed.
 - **Adapters for every data shape** – Intent + QA retrievers cover Postgres/MySQL/DuckDB/SQLite, MongoDB, Elasticsearch, HTTP APIs, and the major vector stores (Chroma, Qdrant, Pinecone, Milvus, Weaviate).
 - **Batteries included** – Per-key RBAC, rate limits/quotas, audit logging (SQLite or MongoDB + optional Elasticsearch), content safety providers, retries/circuit breakers, and observability dashboards ship by default.
-- **Multimodal + widgets** – Ship chat UIs via orbitchat CLI, React widget, or OpenAI-compatible API; render charts, math, and audio/video streams out of the box.
+- **Multimodal + widgets** – Ship chat UIs via orbitchat CLI, React widget, [orbit-mobile](clients/orbit-mobile/README.md) (iOS), or OpenAI-compatible API; render charts, math, and audio/video streams out of the box.
 - **Zero lock-in deployments** – Try it in the hosted sandbox, run a Docker preset in under 60 seconds, or install the full server with TLS + GPU detection when you're ready for production.
 
 ## 🧩 Supported Integrations
@@ -201,6 +201,7 @@ cd orbit && cp env.example .env
 
 - **`orbit-chat` CLI:** `pip install schmitech-orbit-client && orbit-chat --api-key <KEY>`
 - **React web app:** `npm install -g orbitchat && orbitchat --api-url http://localhost:3000 --api-key <KEY> --open`
+- **Mobile app (iOS):** Native-feeling chat via [orbit-mobile](clients/orbit-mobile/README.md) (React Native/Expo)—conversation list, streaming, markdown, light/dark theme.
 - **Embeddable widget:** Drop [@schmitech/chatbot-widget](clients/chat-widget/README.md) into any site for floating or inline chat.
 - **Node SDK:** `npm install @schmitech/chatbot-api` and stream responses in TypeScript/JavaScript apps.
 - **OpenAI-compatible API:** Point the official `openai` Python client at `base_url="http://localhost:3000/v1"` to reuse existing code.

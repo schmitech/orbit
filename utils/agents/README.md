@@ -10,6 +10,7 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 |------|---------|
 | `code-review-agent.md` | Evaluates code quality, design principles (SOLID, DRY, KISS), clean code practices, performance, and maintainability |
 | `security-audit-agent.md` | Identifies security vulnerabilities, assesses severity, and provides concrete mitigations |
+| `ux-review-agent.md` | Evaluates UX quality — accessibility, responsive design, interaction patterns, performance UX, and design consistency (React / Vite / Node) |
 
 ---
 
@@ -19,7 +20,8 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 
 - **Code needs optimization, refactoring, or cleanup?** → Use `code-review-agent.md`
 - **Need to find security risks and vulnerabilities?** → Use `security-audit-agent.md`
-- **Want both?** → Combine them in a single session (see below)
+- **UI feels off, inaccessible, or inconsistent?** → Use `ux-review-agent.md`
+- **Want the full picture?** → Combine all three in a single session (see below)
 
 ### 2. Start a new conversation with your AI assistant
 
@@ -59,16 +61,28 @@ Apply the following assessment framework to the attached codebase:
 [Paste or attach your code]
 ```
 
+### Single Agent — UX Review
+
+```
+Apply the following assessment framework to the attached codebase:
+
+[Paste contents of ux-review-agent.md here]
+
+[Paste or attach your code]
+```
+
 ### Combined — Full Review
 
 ```
 Using the following assessment frameworks, conduct a comprehensive code quality
-review and security vulnerability assessment of the attached codebase. Address
-all findings in the specified output formats:
+review, security vulnerability assessment, and UX evaluation of the attached
+codebase. Address all findings in the specified output formats:
 
 [Paste contents of code-review-agent.md here]
 
 [Paste contents of security-audit-agent.md here]
+
+[Paste contents of ux-review-agent.md here]
 
 [Paste or attach your code]
 ```
@@ -92,6 +106,7 @@ This is deployed on [AWS/GCP/Azure/self-hosted].
 ```
 Focus especially on [performance / readability / testability / security].
 Focus especially on [API security / auth flows / data protection / third-party integrations].
+Focus especially on [accessibility / responsive design / interaction feedback / performance UX / design consistency].
 ```
 
 ### Scope Modifiers
@@ -100,12 +115,14 @@ Focus especially on [API security / auth flows / data protection / third-party i
 Only refactor — don't change external APIs or behavior.
 This is exposed to the public internet / internal only.
 This handles [payment data / health records / PII].
+The design system uses [Tailwind / MUI / Chakra / shadcn/ui / custom tokens].
 ```
 
 ### Compliance Modifiers
 
 ```
 Also check for [OWASP Top 10 / SOC 2 / HIPAA / PCI-DSS] compliance where relevant.
+Also check for [WCAG 2.1 AA / WCAG 2.1 AAA / Section 508] compliance.
 ```
 
 ---
@@ -116,7 +133,7 @@ Also check for [OWASP Top 10 / SOC 2 / HIPAA / PCI-DSS] compliance where relevan
 
 2. **Specify your stack.** Adding your language, framework, and database helps the agent give relevant, idiomatic recommendations instead of generic advice.
 
-3. **Run both agents.** Code quality and security are complementary. A well-structured codebase is easier to secure, and a security review often catches logic issues a code review misses.
+3. **Run multiple agents.** Code quality, security, and UX are complementary. A well-structured codebase is easier to secure, and a UX review often catches interaction and state management issues that pure code review misses.
 
 4. **Iterate.** After applying the suggested fixes, run the agent again on the updated code. Some improvements reveal deeper issues that weren't visible before.
 
@@ -155,6 +172,21 @@ Summary includes:
 - Top 3 most urgent fixes
 - Overall security posture score (1–10)
 - Tooling and process recommendations
+
+### UX Review Agent
+
+For each issue:
+- **Location** — file and line/section
+- **Issue** — what the UX problem is and which principle it violates
+- **Impact** — how it affects users (confusion, inaccessibility, performance, abandonment risk)
+- **Severity** — Critical / High / Medium / Low
+- **Fix** — refactored code
+
+Summary includes:
+- Findings count by severity
+- Top 3 highest-impact improvements
+- Overall UX quality score (1–10)
+- Design system, tooling, and workflow recommendations
 
 ---
 
