@@ -182,14 +182,6 @@ source venv/bin/activate
 - Default adapters live in `config/adapters/passthrough.yaml` and `config/adapters/multimodal.yaml`; update `config/ollama.yaml` for model changes.
 - Visit [`http://localhost:3000/dashboard`](http://localhost:3000/dashboard) to monitor the ORBIT server.
 
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/ec9bda9b-3b86-488f-af16-ec8e9d964697" controls width="100%">
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <em>The ORBIT dashboard for adapter management and monitoring.</em>
-</div>
-
 ### 4. Build from source
 
 ```bash
