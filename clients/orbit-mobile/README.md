@@ -85,6 +85,9 @@ EXPO_PUBLIC_ORBIT_HOST=https://your-orbit-server.example.com
 
 # Your ORBIT API key
 EXPO_PUBLIC_ORBIT_API_KEY=your-api-key-here
+
+# Enable text-to-speech audio output (requires server-side TTS support)
+EXPO_PUBLIC_ENABLE_AUDIO_OUTPUT=false
 ```
 
 ### How config injection works
@@ -95,7 +98,7 @@ The `src/config/env.ts` module reads these variables via `process.env.EXPO_PUBLI
 
 - **Changes to `.env` require a restart.** After editing `.env`, stop the dev server (`Ctrl+C`) and run `npx expo start` again. Metro does not hot-reload environment variables.
 - **The `.env` file is gitignored.** It will not be committed to version control. This is intentional — never commit API keys.
-- **For CI/CD builds**, set `EXPO_PUBLIC_ORBIT_HOST` and `EXPO_PUBLIC_ORBIT_API_KEY` as pipeline secrets (e.g., GitHub Actions secrets or EAS Build secrets).
+- **For CI/CD builds**, set `EXPO_PUBLIC_ORBIT_HOST`, `EXPO_PUBLIC_ORBIT_API_KEY`, and `EXPO_PUBLIC_ENABLE_AUDIO_OUTPUT` as pipeline secrets (e.g., GitHub Actions secrets or EAS Build secrets).
 
 ---
 
@@ -164,24 +167,27 @@ orbit-mobile/
 │   │   └── orbitApi.ts                 # ORBIT API client (local copy from node-api)
 │   ├── components/
 │   │   ├── ChatBubble.tsx              # User/assistant message bubble
-│   │   ├── ChatInput.tsx               # Bottom input bar with send/stop button
+│   │   ├── ChatInput.tsx               # Bottom input bar with send/stop/mic/speaker buttons
 │   │   ├── ConversationCard.tsx        # Conversation list item
 │   │   ├── EmptyState.tsx              # Empty state placeholder
 │   │   ├── MarkdownContent.tsx         # Markdown renderer for assistant messages
-│   │   ├── StreamingCursor.tsx         # Animated blinking cursor during streaming
+│   │   ├── StreamingCursor.tsx         # Animated bouncing dots during streaming
 │   │   └── SwipeableRow.tsx            # Swipe-to-delete wrapper
 │   ├── config/
 │   │   ├── constants.ts                # App-wide constants (timings, limits, keys)
 │   │   └── env.ts                      # Environment variable loader
 │   ├── hooks/
-│   │   └── useTheme.ts                 # Theme management hook (light/dark/system)
+│   │   ├── useTheme.ts                 # Theme management hook (light/dark/system)
+│   │   └── useVoice.ts                 # Speech-to-text hook (expo-speech-recognition)
 │   ├── stores/
-│   │   └── chatStore.ts                # Zustand state store (conversations, streaming)
+│   │   ├── chatStore.ts                # Zustand state store (conversations, streaming, audio)
+│   │   └── themeStore.ts               # Zustand theme persistence store
 │   ├── theme/
 │   │   └── colors.ts                   # Light and dark color palettes
 │   ├── types/
 │   │   └── index.ts                    # TypeScript interfaces (Message, Conversation, etc.)
 │   └── utils/
+│       ├── audioPlayer.ts              # Audio chunk streaming manager (TTS playback)
 │       ├── session.ts                  # ID generators for sessions and messages
 │       └── storage.ts                  # AsyncStorage persistence helpers
 ├── assets/                             # App icon, splash screen images
@@ -208,6 +214,9 @@ orbit-mobile/
 | **Animations** | Reanimated 4 | Streaming cursor animation |
 | **Gestures** | Gesture Handler 2 | Swipe-to-delete |
 | **Markdown** | react-native-markdown-display | Rich text rendering in chat |
+| **Audio Playback** | expo-audio | TTS audio chunk streaming and playback |
+| **Speech Recognition** | expo-speech-recognition | Voice input (speech-to-text) |
+| **File System** | expo-file-system | Temp file management for audio chunks |
 | **API Client** | `@schmitech/chatbot-api` (local copy) | SSE streaming, all ORBIT endpoints |
 
 ### Data Flow
@@ -248,7 +257,7 @@ The singleton wrapper in `src/api/client.ts` creates a single `ApiClient` instan
 
 | Method | Purpose |
 |--------|---------|
-| `streamChat()` | Async generator yielding SSE chunks (text, request_id, done) |
+| `streamChat()` | Async generator yielding SSE chunks (text, audio_chunk, request_id, done) |
 | `stopChat(sessionId, requestId)` | Server-side cancellation of an active stream |
 | `validateApiKey()` | Checks if the API key is valid and active |
 | `getAdapterInfo()` | Returns adapter name, model, and client name |
@@ -278,8 +287,10 @@ Each conversation card displays:
 The main chat interface where you interact with the ORBIT server.
 
 - **Send a message:** Type in the bottom input bar and tap the blue arrow button
-- **Stop generation:** While the assistant is responding, the send button becomes a red stop button. Tap it to cancel the response. This sends both a local abort signal and a server-side cancellation request.
-- **Streaming:** Assistant responses appear incrementally as they are received from the server. A blinking cursor indicates that streaming is in progress.
+- **Voice input:** Tap the microphone button to dictate a message using speech-to-text. The mic icon turns red while listening. Speech is transcribed and placed in the text input field. After 2 seconds of silence, recognition stops automatically.
+- **Audio output (TTS):** When `EXPO_PUBLIC_ENABLE_AUDIO_OUTPUT=true`, a speaker toggle button appears to the left of the text input. Tap it to enable/disable audio responses per conversation. When enabled, the server streams audio chunks that play in real-time as the text response arrives.
+- **Stop generation:** While the assistant is responding, the send button becomes a red stop button. Tap it to cancel the response. This sends both a local abort signal and a server-side cancellation request. Audio playback also stops.
+- **Streaming:** Assistant responses appear incrementally as they are received from the server. Animated bouncing dots indicate streaming is in progress.
 - **Markdown:** Assistant responses render markdown including headings, bold/italic, code blocks (with syntax highlighting), lists, tables, blockquotes, and links.
 - **Copy message:** Long-press on any assistant message to copy its content to the clipboard.
 - **Keyboard handling:** The input bar moves up smoothly when the keyboard appears (iOS `KeyboardAvoidingView`).
@@ -291,6 +302,7 @@ App configuration and status information.
 
 - **Connection status:** Shows a green or red dot indicating whether the ORBIT server is reachable. Tap to re-check. When connected, displays the client name, adapter name, and model.
 - **Appearance:** Toggle between Light, Dark, and System theme. The selection is persisted across app launches.
+- **Audio:** Shows availability of text-to-speech (controlled by `EXPO_PUBLIC_ENABLE_AUDIO_OUTPUT`) and voice input (always available).
 - **Data:** Shows the total number of conversations. "Clear All Conversations" deletes all local data after confirmation.
 - **Version:** Displays the app version from `app.json`.
 
@@ -327,6 +339,36 @@ The app supports three theme modes:
 
 Theme preference is persisted to AsyncStorage. The `useTheme()` hook provides the current color palette to all components. Colors are defined in `src/theme/colors.ts` using iOS-native conventions.
 
+### Audio Output (Text-to-Speech)
+
+When `EXPO_PUBLIC_ENABLE_AUDIO_OUTPUT=true` is set, the app supports real-time TTS audio playback, matching the orbitchat web app's audio functionality.
+
+**How it works:**
+
+1. The user enables audio via the speaker toggle in the chat input bar (per-conversation setting)
+2. When sending a message, the store passes `returnAudio: true` and optional `ttsVoice` to the streaming API
+3. The server includes `audio_chunk` events in the SSE stream alongside text chunks
+4. The `AudioStreamManager` (`src/utils/audioPlayer.ts`) receives chunks, writes them as temporary files, and plays them sequentially using `expo-audio`
+5. Chunks are ordered by `chunk_index` and played back in real-time as they arrive
+6. Temporary audio files are cleaned up after playback
+
+**Supported audio formats:** MP3, WAV, Opus, OGG, WebM, AAC (depends on server configuration).
+
+### Voice Input (Speech-to-Text)
+
+Voice input uses the device's native speech recognition via `expo-speech-recognition`. **Note:** This requires a native dev build (`npx expo run:ios`) — it will not work in Expo Go. The mic button is automatically hidden when the native module is unavailable.
+
+**How it works:**
+
+1. The user taps the microphone button in the chat input bar
+2. The app requests microphone and speech recognition permissions (first time only)
+3. Speech is transcribed in real-time using iOS on-device speech recognition
+4. Interim results are displayed as they are recognized; final results are appended to the text input
+5. After 2 seconds of silence, recognition stops automatically
+6. The user can then edit the transcribed text before sending
+
+The `useVoice` hook (`src/hooks/useVoice.ts`) manages the speech recognition lifecycle and provides `startListening`, `stopListening`, and `isListening` state.
+
 ---
 
 ## Testing on a Physical Device
@@ -347,7 +389,7 @@ Tunnel mode routes through Expo's servers, so your phone and computer don't need
 
 ### Using a Development Build (for native module testing)
 
-If you need native modules not available in Expo Go, create a dev build directly on your device:
+If you need native modules not available in Expo Go (e.g., `expo-speech-recognition` for voice input), create a dev build directly on your device:
 
 1. Connect your iPhone to your Mac via USB
 2. Open the project in Xcode: `open ios/orbit-mobile.xcworkspace` (run `npx expo prebuild` first if the `ios/` folder doesn't exist)
@@ -361,7 +403,31 @@ Alternatively, use the Expo CLI:
 npx expo run:ios --device
 ```
 
-This will list connected devices and let you pick one.
+This will list connected devices and let you pick one. The native build only needs to happen once (or when native dependencies change). For subsequent JS/TS code changes, just run `npx expo start` and the app on your device will hot-reload.
+
+### Important: Connecting to Metro on a physical device
+
+After installing a dev build on your iPhone, the app needs to connect to the Metro bundler running on your Mac to load the JavaScript bundle. If you see the error **"No script URL provided"**, it means the app can't find Metro.
+
+**Solution — start Metro in tunnel mode before opening the app:**
+
+```bash
+npx expo start --tunnel
+```
+
+Tunnel mode routes through Expo's servers, so your phone and Mac don't need to be on the same Wi-Fi network. Once Metro is running, open the app on your iPhone and it will connect automatically.
+
+> **Tip:** If the app still doesn't connect, shake your phone to open the React Native dev menu, tap **"Change Bundle Location"**, and enter your Mac's local IP and port (e.g., `192.168.1.100:8081`).
+
+### Trusting the developer profile
+
+The first time you install a dev build on your iPhone, iOS may block the app from launching with an "untrusted developer" error. To fix this:
+
+1. On your iPhone, go to **Settings > General > VPN & Device Management**
+2. Tap your developer certificate under "Developer App"
+3. Tap **Trust** and confirm
+
+The app will launch normally after this one-time step.
 
 ---
 
@@ -657,12 +723,16 @@ npx expo start --clear
 - Conversation persistence (AsyncStorage)
 - Connection status and adapter info in Settings
 - Copy assistant messages to clipboard
+- Voice input (speech-to-text via on-device recognition)
+- Audio output (text-to-speech with streaming audio chunk playback)
+- Per-conversation audio settings
 
 ### V1.1 (planned)
 - QR code / deep link configuration (no `.env` needed)
 - Share messages
 - Haptic feedback on interactions
 - Error retry UI with tap-to-retry
+- TTS voice selection (alloy, echo, fable, onyx, nova, shimmer)
 
 ### V2 (planned)
 - Multi-adapter support (switch models mid-conversation)
@@ -671,7 +741,6 @@ npx expo start --clear
 - iPad layout optimization
 
 ### V3 (planned)
-- Voice input/output
 - Conversation threading
 - Push notifications
 - Android release

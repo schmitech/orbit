@@ -1,10 +1,12 @@
 import { create } from 'zustand';
-import { ChatState, Conversation, Message, AdapterInfo } from '../types';
+import { ChatState, Conversation, Message, AdapterInfo, AudioSettings } from '../types';
 import { getApiClient } from '../api/client';
 import type { StreamResponse } from '../api/client';
 import { generateSessionId, generateMessageId } from '../utils/session';
 import { saveConversations, loadConversations } from '../utils/storage';
 import { STREAMING_BATCH_DELAY, MAX_TITLE_LENGTH } from '../config/constants';
+import { getConfig } from '../config/env';
+import { audioStreamManager } from '../utils/audioPlayer';
 
 // Streaming content buffer for batching rapid updates (~30fps)
 const streamingBuffer: Map<
@@ -64,6 +66,10 @@ interface ChatActions {
   deleteConversation: (id: string) => void;
   setCurrentConversation: (id: string | null) => void;
   clearAllConversations: () => void;
+
+  // Audio
+  toggleAudioForConversation: (conversationId: string) => void;
+  updateAudioSettings: (conversationId: string, settings: Partial<AudioSettings>) => void;
 
   // Messaging
   sendMessage: (content: string) => Promise<void>;
@@ -138,6 +144,47 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
 
   clearError: () => set({ error: null }),
 
+  toggleAudioForConversation: (conversationId: string) => {
+    set((state) => {
+      const conversations = state.conversations.map((conv) => {
+        if (conv.id !== conversationId) return conv;
+        const currentEnabled = conv.audioSettings?.enabled ?? false;
+        return {
+          ...conv,
+          audioSettings: {
+            ...conv.audioSettings,
+            enabled: !currentEnabled,
+            autoPlay: true,
+          },
+        };
+      });
+      saveConversations(conversations);
+      return { conversations };
+    });
+
+    // Enable/disable audio playback manager
+    const conv = get().conversations.find((c) => c.id === conversationId);
+    if (conv?.audioSettings?.enabled) {
+      audioStreamManager.enableAudio();
+    } else {
+      audioStreamManager.disableAudio();
+    }
+  },
+
+  updateAudioSettings: (conversationId: string, settings: Partial<AudioSettings>) => {
+    set((state) => {
+      const conversations = state.conversations.map((conv) => {
+        if (conv.id !== conversationId) return conv;
+        return {
+          ...conv,
+          audioSettings: { ...conv.audioSettings, enabled: false, ...settings },
+        };
+      });
+      saveConversations(conversations);
+      return { conversations };
+    });
+  },
+
   appendToLastMessage: (content: string, conversationId: string) => {
     const bufferKey = conversationId;
     const existing = streamingBuffer.get(bufferKey);
@@ -197,6 +244,12 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     const conversation = get().conversations.find((c) => c.id === conversationId);
     if (!conversation) return;
 
+    // Resolve audio settings
+    const config = getConfig();
+    const audioEnabled = config.enableAudioOutput && (conversation.audioSettings?.enabled ?? false);
+    const ttsVoice = conversation.audioSettings?.ttsVoice;
+    const language = conversation.audioSettings?.language || 'en-US';
+
     // Create user and assistant placeholder messages
     const userMessage: Message = {
       id: generateMessageId('user'),
@@ -239,6 +292,12 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
 
     const streamingConversationId = conversationId;
 
+    // Prepare audio manager if audio is enabled
+    if (audioEnabled) {
+      audioStreamManager.reset();
+      await audioStreamManager.enableAudio();
+    }
+
     try {
       const api = getApiClient();
       api.setSessionId(conversation.sessionId);
@@ -257,9 +316,9 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
         undefined, // threadId
         undefined, // audioInput
         undefined, // audioFormat
-        undefined, // language
-        false, // returnAudio
-        undefined, // ttsVoice
+        audioEnabled ? language : undefined, // language
+        audioEnabled, // returnAudio
+        audioEnabled ? ttsVoice : undefined, // ttsVoice
         undefined, // sourceLanguage
         undefined, // targetLanguage
         abortController.signal
@@ -273,6 +332,15 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
         if (response.text) {
           get().appendToLastMessage(response.text, streamingConversationId);
           receivedAnyText = true;
+        }
+
+        // Handle audio chunks for TTS playback
+        if (response.audio_chunk && audioEnabled) {
+          audioStreamManager.addChunk({
+            audio: response.audio_chunk,
+            audioFormat: response.audioFormat || 'opus',
+            chunkIndex: response.chunk_index ?? 0,
+          });
         }
 
         if (response.done) {
@@ -341,6 +409,9 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     if (activeAbortController) {
       activeAbortController.abort();
     }
+
+    // Stop audio playback
+    audioStreamManager.stop();
 
     if (activeStreamSessionId && activeRequestId) {
       try {

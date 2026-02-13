@@ -21,6 +21,15 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   adapterInfo?: AdapterInfo;
+  audioSettings?: AudioSettings;
+}
+
+export interface AudioSettings {
+  enabled: boolean;
+  ttsVoice?: string;
+  language?: string;
+  audioFormat?: string;
+  autoPlay?: boolean;
 }
 
 export interface ChatState {

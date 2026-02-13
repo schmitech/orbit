@@ -113,16 +113,7 @@ export default function SettingsScreen() {
               <View style={[styles.divider, { backgroundColor: theme.border }]} />
               <View style={styles.row}>
                 <Text style={[styles.rowLabel, { color: theme.text }]}>
-                  Client
-                </Text>
-                <Text style={[styles.rowValue, { color: theme.textSecondary }]}>
-                  {adapterInfo.client_name}
-                </Text>
-              </View>
-              <View style={[styles.divider, { backgroundColor: theme.border }]} />
-              <View style={styles.row}>
-                <Text style={[styles.rowLabel, { color: theme.text }]}>
-                  Adapter
+                  Agent
                 </Text>
                 <Text style={[styles.rowValue, { color: theme.textSecondary }]}>
                   {adapterInfo.adapter_name}

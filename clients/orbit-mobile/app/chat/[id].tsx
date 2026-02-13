@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -14,6 +14,7 @@ import { ChatBubble } from '../../src/components/ChatBubble';
 import { ChatInput } from '../../src/components/ChatInput';
 import { EmptyState } from '../../src/components/EmptyState';
 import { Message } from '../../src/types';
+import { getConfig } from '../../src/config/env';
 
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,7 +23,10 @@ export default function ChatScreen() {
   const stopGeneration = useChatStore((s) => s.stopGeneration);
   const isLoading = useChatStore((s) => s.isLoading);
   const setCurrentConversation = useChatStore((s) => s.setCurrentConversation);
+  const toggleAudioForConversation = useChatStore((s) => s.toggleAudioForConversation);
   const { theme } = useTheme();
+
+  const audioOutputSupported = useMemo(() => getConfig().enableAudioOutput, []);
   const listRef = useRef<FlashListRef<Message>>(null);
 
   const conversation = conversations.find((c) => c.id === id);
@@ -55,6 +59,12 @@ export default function ChatScreen() {
   const handleStop = useCallback(() => {
     stopGeneration();
   }, [stopGeneration]);
+
+  const handleToggleAudio = useCallback(() => {
+    if (id) {
+      toggleAudioForConversation(id);
+    }
+  }, [id, toggleAudioForConversation]);
 
   const renderItem = useCallback(
     ({ item }: { item: Message }) => (
@@ -113,6 +123,9 @@ export default function ChatScreen() {
           onStop={handleStop}
           isLoading={isLoading}
           theme={theme}
+          audioEnabled={conversation.audioSettings?.enabled ?? false}
+          audioOutputSupported={audioOutputSupported}
+          onToggleAudio={handleToggleAudio}
         />
       </KeyboardAvoidingView>
     </>

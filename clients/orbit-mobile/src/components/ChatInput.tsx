@@ -11,18 +11,42 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors } from '../theme/colors';
 import { MAX_MESSAGE_LENGTH } from '../config/constants';
+import { useVoice } from '../hooks/useVoice';
 
 interface Props {
   onSend: (message: string) => void;
   onStop: () => void;
   isLoading: boolean;
   theme: ThemeColors;
+  audioEnabled?: boolean;
+  audioOutputSupported?: boolean;
+  onToggleAudio?: () => void;
 }
 
-export function ChatInput({ onSend, onStop, isLoading, theme }: Props) {
+export function ChatInput({
+  onSend,
+  onStop,
+  isLoading,
+  theme,
+  audioEnabled = false,
+  audioOutputSupported = false,
+  onToggleAudio,
+}: Props) {
   const [text, setText] = useState('');
   const inputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
+
+  const handleTranscript = useCallback(
+    (transcript: string) => {
+      setText((prev) => {
+        const combined = prev ? prev + ' ' + transcript : transcript;
+        return combined.slice(0, MAX_MESSAGE_LENGTH);
+      });
+    },
+    []
+  );
+
+  const { isListening, isSupported: voiceSupported, startListening, stopListening } = useVoice(handleTranscript);
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
@@ -34,6 +58,14 @@ export function ChatInput({ onSend, onStop, isLoading, theme }: Props) {
   const handleStopPress = useCallback(() => {
     onStop();
   }, [onStop]);
+
+  const handleMicPress = useCallback(() => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  }, [isListening, startListening, stopListening]);
 
   const atLimit = text.length >= MAX_MESSAGE_LENGTH;
 
@@ -49,9 +81,31 @@ export function ChatInput({ onSend, onStop, isLoading, theme }: Props) {
       ]}
     >
       <View style={[styles.inputWrapper, { backgroundColor: theme.inputBackground }]}>
+        {/* Audio output toggle */}
+        {audioOutputSupported && (
+          <Pressable
+            onPress={onToggleAudio}
+            style={[
+              styles.iconButton,
+              audioEnabled && { backgroundColor: theme.primary + '20' },
+            ]}
+            hitSlop={6}
+          >
+            <Ionicons
+              name={audioEnabled ? 'volume-high' : 'volume-mute'}
+              size={20}
+              color={audioEnabled ? theme.primary : theme.textTertiary}
+            />
+          </Pressable>
+        )}
+
         <TextInput
           ref={inputRef}
-          style={[styles.input, { color: theme.text }]}
+          style={[
+            styles.input,
+            { color: theme.text },
+            audioOutputSupported && styles.inputWithLeftButton,
+          ]}
           placeholder="Message..."
           placeholderTextColor={theme.textTertiary}
           value={text}
@@ -61,7 +115,31 @@ export function ChatInput({ onSend, onStop, isLoading, theme }: Props) {
           returnKeyType="default"
           blurOnSubmit={false}
         />
-        {isLoading ? (
+
+        {/* Mic button - show when not loading, no text, and voice is supported */}
+        {voiceSupported && !isLoading && !text.trim() && (
+          <Pressable
+            onPress={handleMicPress}
+            style={[
+              styles.button,
+              {
+                backgroundColor: isListening
+                  ? theme.destructive + '20'
+                  : theme.surfaceSecondary,
+              },
+            ]}
+            hitSlop={8}
+          >
+            <Ionicons
+              name={isListening ? 'mic-off' : 'mic'}
+              size={18}
+              color={isListening ? theme.destructive : theme.textTertiary}
+            />
+          </Pressable>
+        )}
+
+        {/* Stop button during loading */}
+        {isLoading && (
           <Pressable
             onPress={handleStopPress}
             style={[styles.button, { backgroundColor: theme.destructive }]}
@@ -69,28 +147,27 @@ export function ChatInput({ onSend, onStop, isLoading, theme }: Props) {
           >
             <Ionicons name="stop" size={16} color="#FFFFFF" />
           </Pressable>
-        ) : (
+        )}
+
+        {/* Send button when there's text and not loading */}
+        {!isLoading && text.trim() ? (
           <Pressable
             onPress={handleSend}
-            style={[
-              styles.button,
-              {
-                backgroundColor: text.trim()
-                  ? theme.primary
-                  : theme.surfaceSecondary,
-              },
-            ]}
-            disabled={!text.trim()}
+            style={[styles.button, { backgroundColor: theme.primary }]}
             hitSlop={8}
           >
-            <Ionicons
-              name="arrow-up"
-              size={18}
-              color={text.trim() ? '#FFFFFF' : theme.textTertiary}
-            />
+            <Ionicons name="arrow-up" size={18} color="#FFFFFF" />
           </Pressable>
-        )}
+        ) : null}
       </View>
+
+      {/* Listening indicator */}
+      {isListening && (
+        <Text style={[styles.listeningText, { color: theme.destructive }]}>
+          Listening...
+        </Text>
+      )}
+
       {text.length > 0 && (
         <Text style={[styles.charCount, { color: atLimit ? theme.error : theme.textTertiary }]}>
           {text.length}/{MAX_MESSAGE_LENGTH}
@@ -122,6 +199,17 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 8 : 6,
     paddingBottom: Platform.OS === 'ios' ? 8 : 6,
   },
+  inputWithLeftButton: {
+    marginLeft: 4,
+  },
+  iconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
   button: {
     width: 30,
     height: 30,
@@ -130,6 +218,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 8,
     marginBottom: 2,
+  },
+  listeningText: {
+    fontSize: 12,
+    textAlign: 'center',
+    paddingTop: 4,
+    fontWeight: '500',
   },
   charCount: {
     fontSize: 12,

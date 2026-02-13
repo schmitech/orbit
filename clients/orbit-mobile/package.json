@@ -4,8 +4,8 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "dependencies": {
@@ -13,11 +13,14 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@shopify/flash-list": "2.0.2",
     "expo": "~54.0.33",
+    "expo-audio": "~1.1.1",
     "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.13",
+    "expo-file-system": "~19.0.21",
     "expo-linking": "~8.0.11",
     "expo-router": "~6.0.23",
     "expo-secure-store": "~15.0.8",
+    "expo-speech-recognition": "^3.1.0",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-native": "0.81.5",
@@ -33,6 +36,11 @@
     "@expo/ngrok": "^4.1.0",
     "@types/react": "~19.1.0",
     "typescript": "~5.9.2"
+  },
+  "overrides": {
+    "glob": "^13.0.0",
+    "rimraf": "^5.0.5",
+    "uuid": "^9.0.0"
   },
   "private": true
 }

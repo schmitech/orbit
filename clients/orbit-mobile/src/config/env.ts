@@ -1,6 +1,7 @@
 export interface AppConfig {
   orbitHost: string;
   apiKey: string;
+  enableAudioOutput: boolean;
 }
 
 export function getConfig(): AppConfig {
@@ -19,8 +20,11 @@ export function getConfig(): AppConfig {
     );
   }
 
+  const audioOutput = process.env.EXPO_PUBLIC_ENABLE_AUDIO_OUTPUT;
+
   return {
     orbitHost: host.endsWith('/') ? host.slice(0, -1) : host,
     apiKey: key,
+    enableAudioOutput: audioOutput === 'true',
   };
 }

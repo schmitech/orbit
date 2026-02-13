@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.orbit.chat"
+      "bundleIdentifier": "com.orbit.chat",
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "ORBIT Chat uses speech recognition to convert your voice to text for sending messages.",
+        "NSMicrophoneUsageDescription": "ORBIT Chat uses the microphone for voice input."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,11 +27,21 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.orbit.chat",
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "ORBIT Chat uses the microphone for voice input.",
+          "speechRecognitionPermission": "ORBIT Chat uses speech recognition to convert your voice to text."
+        }
+      ]
     ]
   }
 }
