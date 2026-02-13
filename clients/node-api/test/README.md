@@ -30,13 +30,24 @@ npm run test-query "your query here" "http://localhost:3000"
 
 # Test npm package functionality with real server
 npm run test:npm -- "your message here" "http://your-api-server.com"
+
+# Live integration test with env vars
+ORBIT_TEST_API_URL="https://orbit.schmitech.ai" \
+ORBIT_TEST_API_KEY="default-key" \
+npm run test:live
 ```
 
 ## API Configuration
 
-The tests use the `configureApi` function to set the API URL and API key for testing purposes. Tests are configured to use:
-- **API URL**: `http://localhost:3000`
-- **API Key**: `chat-key`
+The tests use `test/config.ts` defaults and support environment overrides:
+- **Default API URL**: `http://localhost:3000`
+- **Default API Key**: `chat-key`
+- **Default Session ID**: `test-session`
+
+Environment overrides:
+- `TEST_API_URL`
+- `TEST_API_KEY`
+- `TEST_SESSION_ID`
 
 This reflects the way the library will be used in production, where clients must explicitly configure the API URL and optionally provide an API key before using any other functions.
 
@@ -111,6 +122,18 @@ This script:
 - ORBIT server must be running
 - For local testing: run `npm run build` first
 - For npm testing: install `@schmitech/chatbot-api` package
+
+## Live Integration Test
+
+`npm run test:live` provides a deterministic live smoke test using environment variables.
+
+Required:
+- `ORBIT_TEST_API_URL`
+- `ORBIT_TEST_API_KEY`
+
+Optional:
+- `ORBIT_TEST_SESSION_ID`
+- `ORBIT_TEST_MESSAGE`
 
 ## Adding New Tests
 

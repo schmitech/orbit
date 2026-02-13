@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { streamChat, configureApi, ApiClient } from '../api';
+import { TEST_API_KEY, TEST_API_URL } from './config';
 
 describe('Edge Cases and Error Handling', () => {
   beforeEach(() => {
-    configureApi('http://localhost:3000', 'chat-key');
+    configureApi(TEST_API_URL, TEST_API_KEY);
   });
 
   afterEach(() => {
@@ -18,7 +19,8 @@ describe('Edge Cases and Error Handling', () => {
           // Send malformed JSON
           controller.enqueue(encoder.encode('data: {invalid json}\n\n'));
           // Then send valid JSON
-          controller.enqueue(encoder.encode('data: {"response": "Valid response", "done": true}\n\n'));
+          controller.enqueue(encoder.encode('data: {"response": "Valid response", "done": false}\n\n'));
+          controller.enqueue(encoder.encode('data: {"done": true}\n\n'));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         }
@@ -235,8 +237,8 @@ describe('Edge Cases and Error Handling', () => {
   describe('Session Management', () => {
     it('should maintain session ID across requests', async () => {
       const client = new ApiClient({
-        apiUrl: 'http://localhost:3000',
-        apiKey: 'chat-key',
+        apiUrl: TEST_API_URL,
+        apiKey: TEST_API_KEY,
         sessionId: 'test-session-123'
       });
 
@@ -273,8 +275,8 @@ describe('Edge Cases and Error Handling', () => {
 
     it('should allow updating session ID', () => {
       const client = new ApiClient({
-        apiUrl: 'http://localhost:3000',
-        apiKey: 'chat-key',
+        apiUrl: TEST_API_URL,
+        apiKey: TEST_API_KEY,
         sessionId: 'old-session'
       });
 
@@ -319,7 +321,8 @@ describe('Edge Cases and Error Handling', () => {
           for (let i = 0; i < 100; i++) {
             controller.enqueue(encoder.encode(`data: {"response": "Chunk ${i} ", "done": false}\n\n`));
           }
-          controller.enqueue(encoder.encode('data: {"response": "Final", "done": true}\n\n'));
+          controller.enqueue(encoder.encode('data: {"response": "Final", "done": false}\n\n'));
+          controller.enqueue(encoder.encode('data: {"done": true}\n\n'));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         }

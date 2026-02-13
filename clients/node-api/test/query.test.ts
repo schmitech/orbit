@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { streamChat, StreamResponse, configureApi } from '../api';
-import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
+import { TEST_API_KEY, TEST_API_URL } from './config';
 
 // Import the server from setup.ts (it's automatically imported by Vitest)
 // We'll just add handlers to the existing server instead of creating a new one
@@ -10,7 +9,7 @@ describe('Query Testing', () => {
   // Add query-specific handlers before each test
   beforeEach(() => {
     // Configure API with test URL and API key
-    configureApi('http://localhost:3000', 'chat-key');
+    configureApi(TEST_API_URL, TEST_API_KEY);
     
     // Reset the server handlers and add our custom handler
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url, options) => {
@@ -55,6 +54,11 @@ describe('Query Testing', () => {
             // Final chunk
             controller.enqueue(encoder.encode('data: ' + JSON.stringify({
               response: 'Is there anything else you would like to know?',
+              done: false
+            }) + '\n\n'));
+
+            // Terminal done chunk
+            controller.enqueue(encoder.encode('data: ' + JSON.stringify({
               done: true
             }) + '\n\n'));
 
@@ -114,7 +118,7 @@ describe('Query Testing', () => {
 
     // Check the third response
     expect(responses[2].text).toContain('anything else');
-    expect(responses[2].done).toBe(true);
+    expect(responses[2].done).toBe(false);
 
     // Check the final done signal
     expect(responses[3].text).toBe('');

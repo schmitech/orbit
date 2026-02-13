@@ -175,6 +175,11 @@ interface ApiClientConfig {
   middlewareBaseUrl?: string | null;
 }
 
+const NETWORK_ERROR_MESSAGE = 'Could not connect to the server. Please check if the server is running.';
+const CHAT_TIMEOUT_MS = 60000;
+const STREAM_BUFFER_MAX_LENGTH = 1000000;
+const STREAM_BUFFER_TRIMMED_LENGTH = 500000;
+
 export class ApiClient {
   private readonly apiUrl: string;
   private readonly apiKey: string | null;
@@ -222,6 +227,54 @@ export class ApiClient {
     return this.sessionId;
   }
 
+  private hasFailedToFetch(error: any): boolean {
+    return error?.name === 'TypeError' && error?.message?.includes('Failed to fetch');
+  }
+
+  private rethrowNetworkError(error: any): void {
+    if (this.hasFailedToFetch(error)) {
+      throw new Error(NETWORK_ERROR_MESSAGE);
+    }
+  }
+
+  private async fetchWithNetworkErrorHandling(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    try {
+      return await fetch(input, init);
+    } catch (error: any) {
+      this.rethrowNetworkError(error);
+      throw error;
+    }
+  }
+
+  private async requestJsonOrThrow<T>(
+    url: string,
+    options: RequestInit,
+    errorPrefix: string
+  ): Promise<T> {
+    try {
+      const response = await fetch(url, {
+        ...this.getFetchOptions(options)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`${errorPrefix}: ${response.status} ${errorText}`);
+      }
+
+      return await response.json() as T;
+    } catch (error: any) {
+      this.rethrowNetworkError(error);
+      throw error;
+    }
+  }
+
+  private getRequiredApiKey(errorMessage: string): string {
+    if (!this.apiKey) {
+      throw new Error(errorMessage);
+    }
+    return this.apiKey;
+  }
+
   /**
    * Validate that the API key exists and is active.
    *
@@ -229,21 +282,13 @@ export class ApiClient {
    * @throws Error if API key is not provided, invalid, inactive, or validation fails
    */
   public async validateApiKey(): Promise<ApiKeyStatus> {
-    if (!this.apiKey) {
-      throw new Error('API key is required for validation');
-    }
+    const apiKey = this.getRequiredApiKey('API key is required for validation');
 
     try {
-      const response = await fetch(`${this.apiUrl}/admin/api-keys/${this.apiKey}/status`, {
+      const response = await this.fetchWithNetworkErrorHandling(`${this.apiUrl}/admin/api-keys/${apiKey}/status`, {
         ...this.getFetchOptions({
           method: 'GET'
         })
-      }).catch((fetchError: any) => {
-        // Catch network errors before they bubble up
-        if (fetchError.name === 'TypeError' && fetchError.message.includes('Failed to fetch')) {
-          throw new Error('Could not connect to the server. Please check if the server is running.');
-        }
-        throw fetchError;
       });
 
       if (!response.ok) {
@@ -324,8 +369,8 @@ export class ApiClient {
         } else {
           friendlyMessage = `API key validation failed: ${error.message}`;
         }
-      } else if (error.name === 'TypeError' && error.message?.includes('Failed to fetch')) {
-        friendlyMessage = 'Could not connect to the server. Please check if the server is running.';
+      } else if (this.hasFailedToFetch(error)) {
+        friendlyMessage = NETWORK_ERROR_MESSAGE;
       } else {
         friendlyMessage = 'API key validation failed. Please check your API key and try again.';
       }
@@ -350,21 +395,13 @@ export class ApiClient {
    * @throws Error if API key is not provided, invalid, disabled, or request fails
    */
   public async getAdapterInfo(): Promise<AdapterInfo> {
-    if (!this.apiKey) {
-      throw new Error('API key is required to get adapter information');
-    }
+    this.getRequiredApiKey('API key is required to get adapter information');
 
     try {
-      const response = await fetch(`${this.apiUrl}/admin/adapters/info`, {
+      const response = await this.fetchWithNetworkErrorHandling(`${this.apiUrl}/admin/adapters/info`, {
         ...this.getFetchOptions({
           method: 'GET'
         })
-      }).catch((fetchError: any) => {
-        // Catch network errors before they bubble up
-        if (fetchError.name === 'TypeError' && fetchError.message.includes('Failed to fetch')) {
-          throw new Error('Could not connect to the server. Please check if the server is running.');
-        }
-        throw fetchError;
       });
 
       if (!response.ok) {
@@ -426,8 +463,8 @@ export class ApiClient {
         } else {
           friendlyMessage = `Failed to get adapter info: ${error.message}`;
         }
-      } else if (error.name === 'TypeError' && error.message?.includes('Failed to fetch')) {
-        friendlyMessage = 'Could not connect to the server. Please check if the server is running.';
+      } else if (this.hasFailedToFetch(error)) {
+        friendlyMessage = NETWORK_ERROR_MESSAGE;
       } else {
         friendlyMessage = 'Failed to get adapter information. Please try again.';
       }
@@ -644,7 +681,7 @@ export class ApiClient {
     try {
       // Add timeout to the fetch request
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS); // 60 second timeout
 
       // Link external abort signal to internal controller
       if (abortSignal) {
@@ -814,9 +851,9 @@ export class ApiClient {
           
           buffer = buffer.slice(lineStartIndex);
 
-          if (buffer.length > 1000000) { // 1MB limit
+          if (buffer.length > STREAM_BUFFER_MAX_LENGTH) { // 1MB limit
             console.warn('[ApiClient] Buffer too large, truncating...');
-            buffer = buffer.slice(-500000); // Keep last 500KB
+            buffer = buffer.slice(-STREAM_BUFFER_TRIMMED_LENGTH); // Keep last 500KB
           }
         }
         
@@ -835,8 +872,8 @@ export class ApiClient {
           throw new Error('Stream cancelled by user');
         }
         throw new Error('Connection timed out. Please check if the server is running.');
-      } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else if (this.hasFailedToFetch(error)) {
+        throw new Error(NETWORK_ERROR_MESSAGE);
       } else {
         throw error;
       }
@@ -900,40 +937,28 @@ export class ApiClient {
       headers['X-API-Key'] = this.apiKey;
     }
 
-    try {
-      const url = new URL(`${this.apiUrl}/admin/chat-history/${targetSessionId}`);
-      if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
-        url.searchParams.set('limit', String(Math.floor(limit)));
-      }
-
-      const response = await fetch(url.toString(), {
-        ...this.getFetchOptions({
-          method: 'GET',
-          headers
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch conversation history: ${response.status} ${errorText}`);
-      }
-
-      const result = await response.json();
-      const messages = Array.isArray(result?.messages) ? result.messages : [];
-      const count = typeof result?.count === 'number' ? result.count : messages.length;
-
-      return {
-        session_id: result?.session_id || targetSessionId,
-        messages,
-        count
-      };
-    } catch (error: any) {
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
-      } else {
-        throw error;
-      }
+    const url = new URL(`${this.apiUrl}/admin/chat-history/${targetSessionId}`);
+    if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
+      url.searchParams.set('limit', String(Math.floor(limit)));
     }
+
+    const result = await this.requestJsonOrThrow<any>(
+      url.toString(),
+      {
+        method: 'GET',
+        headers
+      },
+      'Failed to fetch conversation history'
+    );
+
+    const messages = Array.isArray(result?.messages) ? result.messages : [];
+    const count = typeof result?.count === 'number' ? result.count : messages.length;
+
+    return {
+      session_id: result?.session_id || targetSessionId,
+      messages,
+      count
+    };
   }
 
   public async clearConversationHistory(sessionId?: string): Promise<{
@@ -956,39 +981,28 @@ export class ApiClient {
       throw new Error('No session ID provided and no current session available');
     }
 
-    if (!this.apiKey) {
-      throw new Error('API key is required for clearing conversation history');
-    }
+    const apiKey = this.getRequiredApiKey('API key is required for clearing conversation history');
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Session-ID': targetSessionId,
-      'X-API-Key': this.apiKey
+      'X-API-Key': apiKey
     };
 
-    try {
-      const response = await fetch(`${this.apiUrl}/admin/chat-history/${targetSessionId}`, {
-        ...this.getFetchOptions({
-          method: 'DELETE',
-          headers
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to clear conversation history: ${response.status} ${errorText}`);
-      }
-
-      const result = await response.json();
-      return result;
-
-    } catch (error: any) {
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
-      } else {
-        throw error;
-      }
-    }
+    return await this.requestJsonOrThrow<{
+      status: string;
+      message: string;
+      session_id: string;
+      deleted_count: number;
+      timestamp: string;
+    }>(
+      `${this.apiUrl}/admin/chat-history/${targetSessionId}`,
+      {
+        method: 'DELETE',
+        headers
+      },
+      'Failed to clear conversation history'
+    );
   }
 
   public async deleteConversationWithFiles(sessionId?: string, fileIds?: string[]): Promise<{
@@ -1021,43 +1035,34 @@ export class ApiClient {
       throw new Error('No session ID provided and no current session available');
     }
 
-    if (!this.apiKey) {
-      throw new Error('API key is required for deleting conversation');
-    }
+    const apiKey = this.getRequiredApiKey('API key is required for deleting conversation');
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Session-ID': targetSessionId,
-      'X-API-Key': this.apiKey
+      'X-API-Key': apiKey
     };
 
     // Build URL with file_ids query parameter
     const fileIdsParam = fileIds && fileIds.length > 0 ? `?file_ids=${fileIds.join(',')}` : '';
     const url = `${this.apiUrl}/admin/conversations/${targetSessionId}${fileIdsParam}`;
 
-    try {
-      const response = await fetch(url, {
-        ...this.getFetchOptions({
-          method: 'DELETE',
-          headers
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to delete conversation: ${response.status} ${errorText}`);
-      }
-
-      const result = await response.json();
-      return result;
-
-    } catch (error: any) {
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
-      } else {
-        throw error;
-      }
-    }
+    return await this.requestJsonOrThrow<{
+      status: string;
+      message: string;
+      session_id: string;
+      deleted_messages: number;
+      deleted_files: number;
+      file_deletion_errors: string[] | null;
+      timestamp: string;
+    }>(
+      url,
+      {
+        method: 'DELETE',
+        headers
+      },
+      'Failed to delete conversation'
+    );
   }
 
   /**
@@ -1069,42 +1074,25 @@ export class ApiClient {
    * @throws Error if the operation fails
    */
   public async createThread(messageId: string, sessionId: string): Promise<ThreadInfo> {
-    if (!this.apiKey) {
-      throw new Error('API key is required for creating threads');
-    }
+    const apiKey = this.getRequiredApiKey('API key is required for creating threads');
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'X-API-Key': this.apiKey
+      'X-API-Key': apiKey
     };
 
-    try {
-      const response = await fetch(`${this.apiUrl}/api/threads`, {
-        ...this.getFetchOptions({
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            message_id: messageId,
-            session_id: sessionId
-          })
+    return await this.requestJsonOrThrow<ThreadInfo>(
+      `${this.apiUrl}/api/threads`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          message_id: messageId,
+          session_id: sessionId
         })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to create thread: ${response.status} ${errorText}`);
-      }
-
-      const result = await response.json();
-      return result;
-
-    } catch (error: any) {
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
-      } else {
-        throw error;
-      }
-    }
+      },
+      'Failed to create thread'
+    );
   }
 
   /**
@@ -1115,37 +1103,20 @@ export class ApiClient {
    * @throws Error if the operation fails
    */
   public async getThreadInfo(threadId: string): Promise<ThreadInfo> {
-    if (!this.apiKey) {
-      throw new Error('API key is required for getting thread info');
-    }
+    const apiKey = this.getRequiredApiKey('API key is required for getting thread info');
 
     const headers: Record<string, string> = {
-      'X-API-Key': this.apiKey
+      'X-API-Key': apiKey
     };
 
-    try {
-      const response = await fetch(`${this.apiUrl}/api/threads/${threadId}`, {
-        ...this.getFetchOptions({
-          method: 'GET',
-          headers
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to get thread info: ${response.status} ${errorText}`);
-      }
-
-      const result = await response.json();
-      return result;
-
-    } catch (error: any) {
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
-      } else {
-        throw error;
-      }
-    }
+    return await this.requestJsonOrThrow<ThreadInfo>(
+      `${this.apiUrl}/api/threads/${threadId}`,
+      {
+        method: 'GET',
+        headers
+      },
+      'Failed to get thread info'
+    );
   }
 
   /**
@@ -1156,37 +1127,20 @@ export class ApiClient {
    * @throws Error if the operation fails
    */
   public async deleteThread(threadId: string): Promise<{ status: string; message: string; thread_id: string }> {
-    if (!this.apiKey) {
-      throw new Error('API key is required for deleting threads');
-    }
+    const apiKey = this.getRequiredApiKey('API key is required for deleting threads');
 
     const headers: Record<string, string> = {
-      'X-API-Key': this.apiKey
+      'X-API-Key': apiKey
     };
 
-    try {
-      const response = await fetch(`${this.apiUrl}/api/threads/${threadId}`, {
-        ...this.getFetchOptions({
-          method: 'DELETE',
-          headers
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to delete thread: ${response.status} ${errorText}`);
-      }
-
-      const result = await response.json();
-      return result;
-
-    } catch (error: any) {
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
-      } else {
-        throw error;
-      }
-    }
+    return await this.requestJsonOrThrow<{ status: string; message: string; thread_id: string }>(
+      `${this.apiUrl}/api/threads/${threadId}`,
+      {
+        method: 'DELETE',
+        headers
+      },
+      'Failed to delete thread'
+    );
   }
 
   /**
@@ -1197,34 +1151,19 @@ export class ApiClient {
    * @throws Error if upload fails
    */
   public async uploadFile(file: File): Promise<FileUploadResponse> {
-    if (!this.apiKey) {
-      throw new Error('API key is required for file upload');
-    }
+    this.getRequiredApiKey('API key is required for file upload');
 
     const formData = new FormData();
     formData.append('file', file);
 
-    try {
-      const response = await fetch(`${this.apiUrl}/api/files/upload`, {
-        ...this.getFetchOptions({
-          method: 'POST',
-          body: formData
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to upload file: ${response.status} ${errorText}`);
-      }
-
-      return await response.json();
-    } catch (error: any) {
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
-      } else {
-        throw error;
-      }
-    }
+    return await this.requestJsonOrThrow<FileUploadResponse>(
+      `${this.apiUrl}/api/files/upload`,
+      {
+        method: 'POST',
+        body: formData
+      },
+      'Failed to upload file'
+    );
   }
 
   /**
@@ -1234,30 +1173,15 @@ export class ApiClient {
    * @throws Error if request fails
    */
   public async listFiles(): Promise<FileInfo[]> {
-    if (!this.apiKey) {
-      throw new Error('API key is required for listing files');
-    }
+    this.getRequiredApiKey('API key is required for listing files');
 
-    try {
-      const response = await fetch(`${this.apiUrl}/api/files`, {
-        ...this.getFetchOptions({
-          method: 'GET'
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to list files: ${response.status} ${errorText}`);
-      }
-
-      return await response.json();
-    } catch (error: any) {
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
-      } else {
-        throw error;
-      }
-    }
+    return await this.requestJsonOrThrow<FileInfo[]>(
+      `${this.apiUrl}/api/files`,
+      {
+        method: 'GET'
+      },
+      'Failed to list files'
+    );
   }
 
   /**
@@ -1268,30 +1192,15 @@ export class ApiClient {
    * @throws Error if file not found or request fails
    */
   public async getFileInfo(fileId: string): Promise<FileInfo> {
-    if (!this.apiKey) {
-      throw new Error('API key is required for getting file info');
-    }
+    this.getRequiredApiKey('API key is required for getting file info');
 
-    try {
-      const response = await fetch(`${this.apiUrl}/api/files/${fileId}`, {
-        ...this.getFetchOptions({
-          method: 'GET'
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to get file info: ${response.status} ${errorText}`);
-      }
-
-      return await response.json();
-    } catch (error: any) {
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
-      } else {
-        throw error;
-      }
-    }
+    return await this.requestJsonOrThrow<FileInfo>(
+      `${this.apiUrl}/api/files/${fileId}`,
+      {
+        method: 'GET'
+      },
+      'Failed to get file info'
+    );
   }
 
   /**
@@ -1304,34 +1213,19 @@ export class ApiClient {
    * @throws Error if query fails
    */
   public async queryFile(fileId: string, query: string, maxResults: number = 10): Promise<FileQueryResponse> {
-    if (!this.apiKey) {
-      throw new Error('API key is required for querying files');
-    }
+    this.getRequiredApiKey('API key is required for querying files');
 
-    try {
-      const response = await fetch(`${this.apiUrl}/api/files/${fileId}/query`, {
-        ...this.getFetchOptions({
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ query, max_results: maxResults })
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to query file: ${response.status} ${errorText}`);
-      }
-
-      return await response.json();
-    } catch (error: any) {
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
-      } else {
-        throw error;
-      }
-    }
+    return await this.requestJsonOrThrow<FileQueryResponse>(
+      `${this.apiUrl}/api/files/${fileId}/query`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ query, max_results: maxResults })
+      },
+      'Failed to query file'
+    );
   }
 
   /**
@@ -1342,9 +1236,7 @@ export class ApiClient {
    * @throws Error if deletion fails
    */
   public async deleteFile(fileId: string): Promise<{ message: string; file_id: string }> {
-    if (!this.apiKey) {
-      throw new Error('API key is required for deleting files');
-    }
+    this.getRequiredApiKey('API key is required for deleting files');
 
     const url = `${this.apiUrl}/api/files/${fileId}`;
     const fetchOptions = this.getFetchOptions({
@@ -1373,8 +1265,8 @@ export class ApiClient {
       // Extract user-friendly error message
       let friendlyMessage: string;
       
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        friendlyMessage = 'Could not connect to the server. Please check if the server is running.';
+      if (this.hasFailedToFetch(error)) {
+        friendlyMessage = NETWORK_ERROR_MESSAGE;
       } else if (error.message && !error.message.includes('Failed to delete file')) {
         // Use existing message if it's already user-friendly
         friendlyMessage = error.message;

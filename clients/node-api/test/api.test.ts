@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { streamChat, StreamResponse, configureApi } from '../api';
+import { TEST_API_KEY, TEST_API_URL } from './config';
 
 describe('Chatbot API', () => {
   // Set up the API configuration before each test
   beforeEach(() => {
     // Configure with the test server URL and API key
-    configureApi('http://localhost:3000', 'chat-key');
+    configureApi(TEST_API_URL, TEST_API_KEY);
   });
 
   describe('streamChat', () => {
@@ -29,7 +30,7 @@ describe('Chatbot API', () => {
 
       // Check the third response (last content)
       expect(responses[2].text).toBe('Response complete.');
-      expect(responses[2].done).toBe(true);
+      expect(responses[2].done).toBe(false);
 
       // Check the final empty done signal
       expect(responses[3].text).toBe('');

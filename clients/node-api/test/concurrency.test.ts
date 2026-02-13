@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { streamChat, configureApi, ApiClient } from '../api';
+import { TEST_API_KEY, TEST_API_URL } from './config';
 
 describe('Concurrency and Race Conditions', () => {
   beforeEach(() => {
-    configureApi('http://localhost:3000', 'chat-key');
+    configureApi(TEST_API_URL, TEST_API_KEY);
   });
 
   afterEach(() => {
@@ -141,7 +142,7 @@ describe('Concurrency and Race Conditions', () => {
 
   it('should isolate client instances', async () => {
     const client1 = new ApiClient({
-      apiUrl: 'http://localhost:3000',
+      apiUrl: TEST_API_URL,
       apiKey: 'key-1',
       sessionId: 'session-1'
     });

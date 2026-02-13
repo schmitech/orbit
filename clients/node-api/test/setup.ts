@@ -2,16 +2,14 @@ import { afterAll, afterEach, beforeAll } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { configureApi } from '../api';
-
-// Define the default test API URL
-const TEST_API_URL = 'http://localhost:3000';
+import { TEST_API_KEY, TEST_API_URL } from './config';
 
 // Configure the API with the test URL and API key
-configureApi(TEST_API_URL, 'chat-key');
+configureApi(TEST_API_URL, TEST_API_KEY);
 
 // Define mock handlers
 const handlers = [
-  http.post(`http://localhost:3000/v1/chat`, async ({ request }) => {
+  http.post(`${TEST_API_URL}/v1/chat`, async ({ request }) => {
     // Add type annotation to fix linter error
     interface ChatRequest {
       messages: Array<{ role: string; content: string; }>;
@@ -56,7 +54,12 @@ const handlers = [
         // Final chunk
         controller.enqueue(encoder.encode('data: ' + JSON.stringify({ 
           response: 'Response complete.',
-          done: true 
+          done: false
+        }) + '\n\n'));
+
+        // Terminal done chunk
+        controller.enqueue(encoder.encode('data: ' + JSON.stringify({
+          done: true
         }) + '\n\n'));
         
         // End of stream

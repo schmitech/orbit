@@ -30,9 +30,10 @@
         "preview": "vite preview",
         "test": "vitest run",
         "test:watch": "vitest",
-        "test:npm": "node --import 'data:text/javascript,import { register } from \"node:module\"; import { pathToFileURL } from \"node:url\"; register(\"ts-node/esm\", pathToFileURL(\"./\"));' ./test/test-npm-package.ts",
-        "test-query": "node --import 'data:text/javascript,import { register } from \"node:module\"; import { pathToFileURL } from \"node:url\"; register(\"ts-node/esm\", pathToFileURL(\"./\"));' ./test/run-query.js",
-        "test-query-from-pairs": "node --import 'data:text/javascript,import { register } from \"node:module\"; import { pathToFileURL } from \"node:url\"; register(\"ts-node/esm\", pathToFileURL(\"./\"));' ./test/run-query-from-pairs.js"
+        "test:npm": "node ./test/test-npm-package.mjs",
+        "test-query": "node ./test/run-query.js",
+        "test-query-from-pairs": "node ./test/run-query-from-pairs.js",
+        "test:live": "node ./test/live-integration.mjs"
     },
     "dependencies": {},
     "devDependencies": {
