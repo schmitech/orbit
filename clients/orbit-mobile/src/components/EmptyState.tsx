@@ -21,7 +21,7 @@ export function EmptyState({ theme, variant, onPress, adapterNotes }: Props) {
             contentContainerStyle={styles.notesScrollContent}
             showsVerticalScrollIndicator={false}
           >
-            <View style={[styles.notesContainer, { borderColor: theme.border, backgroundColor: theme.card }]}>
+            <View style={styles.notesContainer}>
               <MarkdownContent
                 content={adapterNotes}
                 theme={theme}
@@ -98,9 +98,7 @@ const styles = StyleSheet.create({
   },
   notesContainer: {
     width: '100%',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 2,
+    paddingVertical: 2,
   },
 });

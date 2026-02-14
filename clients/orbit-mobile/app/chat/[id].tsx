@@ -116,7 +116,7 @@ export default function ChatScreen() {
                 style={[styles.headerMetaText, { color: theme.text }]}
                 numberOfLines={1}
               >
-                <Text style={styles.headerLabel}>AI Agent: </Text>
+                <Text style={styles.headerLabel}>Agent: </Text>
                 <Text style={styles.headerValue}>{title}</Text>
               </Text>
               {modelBadge ? (
@@ -124,7 +124,7 @@ export default function ChatScreen() {
                   style={[styles.headerMetaText, styles.modelMetaText, { color: theme.text }]}
                   numberOfLines={1}
                 >
-                  <Text style={styles.headerLabel}>AI Model: </Text>
+                  <Text style={styles.headerLabel}>Model: </Text>
                   <Text style={styles.headerValue}>{modelBadge}</Text>
                 </Text>
               ) : null}
