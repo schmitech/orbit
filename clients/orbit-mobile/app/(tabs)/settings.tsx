@@ -12,21 +12,18 @@ import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { useChatStore } from '../../src/stores/chatStore';
 import { useTheme } from '../../src/hooks/useTheme';
-import { AdapterInfo } from '../../src/types';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
 export default function SettingsScreen() {
   const clearAllConversations = useChatStore((s) => s.clearAllConversations);
   const validateConnection = useChatStore((s) => s.validateConnection);
-  const fetchAdapterInfo = useChatStore((s) => s.fetchAdapterInfo);
   const conversations = useChatStore((s) => s.conversations);
   const { theme, isDark, mode, setThemeMode } = useTheme();
 
   const [connectionStatus, setConnectionStatus] = useState<
     'checking' | 'connected' | 'error'
   >('checking');
-  const [adapterInfo, setAdapterInfo] = useState<AdapterInfo | null>(null);
 
   useEffect(() => {
     checkConnection();
@@ -36,12 +33,7 @@ export default function SettingsScreen() {
     setConnectionStatus('checking');
     const valid = await validateConnection();
     setConnectionStatus(valid ? 'connected' : 'error');
-
-    if (valid) {
-      const info = await fetchAdapterInfo();
-      setAdapterInfo(info);
-    }
-  }, [validateConnection, fetchAdapterInfo]);
+  }, [validateConnection]);
 
   const handleClearAll = useCallback(() => {
     Alert.alert(
@@ -108,32 +100,6 @@ export default function SettingsScreen() {
             </Text>
           </Pressable>
 
-          {adapterInfo && (
-            <>
-              <View style={[styles.divider, { backgroundColor: theme.border }]} />
-              <View style={styles.row}>
-                <Text style={[styles.rowLabel, { color: theme.text }]}>
-                  Agent
-                </Text>
-                <Text style={[styles.rowValue, { color: theme.textSecondary }]}>
-                  {adapterInfo.adapter_name}
-                </Text>
-              </View>
-              {adapterInfo.model && (
-                <>
-                  <View style={[styles.divider, { backgroundColor: theme.border }]} />
-                  <View style={styles.row}>
-                    <Text style={[styles.rowLabel, { color: theme.text }]}>
-                      Model
-                    </Text>
-                    <Text style={[styles.rowValue, { color: theme.textSecondary }]}>
-                      {adapterInfo.model}
-                    </Text>
-                  </View>
-                </>
-              )}
-            </>
-          )}
         </View>
       </View>
 

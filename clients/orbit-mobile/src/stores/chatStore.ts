@@ -123,6 +123,8 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   },
 
   deleteConversation: (id: string) => {
+    const conversation = get().conversations.find((c) => c.id === id);
+
     set((state) => {
       const updated = state.conversations.filter((c) => c.id !== id);
       saveConversations(updated);
@@ -132,6 +134,15 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
           state.currentConversationId === id ? null : state.currentConversationId,
       };
     });
+
+    // Delete from backend
+    if (conversation?.sessionId) {
+      const api = getApiClient();
+      api.setSessionId(conversation.sessionId);
+      api.deleteConversationWithFiles(conversation.sessionId).catch((err) => {
+        console.warn('[chatStore] Failed to delete conversation from server:', err.message);
+      });
+    }
   },
 
   setCurrentConversation: (id: string | null) => {
@@ -139,8 +150,21 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   },
 
   clearAllConversations: () => {
+    const conversations = get().conversations;
+
     set({ conversations: [], currentConversationId: null });
     saveConversations([]);
+
+    // Delete all from backend in parallel
+    const api = getApiClient();
+    for (const conversation of conversations) {
+      if (conversation.sessionId) {
+        api.setSessionId(conversation.sessionId);
+        api.deleteConversationWithFiles(conversation.sessionId).catch((err) => {
+          console.warn('[chatStore] Failed to delete conversation from server:', err.message);
+        });
+      }
+    }
   },
 
   setConversationAdapterInfo: (conversationId: string, adapterInfo: AdapterInfo) => {

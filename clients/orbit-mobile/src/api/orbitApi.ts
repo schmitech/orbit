@@ -616,60 +616,6 @@ export class ApiClient {
     abortSignal?: AbortSignal
   ): AsyncGenerator<StreamResponse> {
     try {
-      // Add timeout to the fetch request
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-
-      // Link external abort signal to internal controller
-      if (abortSignal) {
-        abortSignal.addEventListener('abort', () => controller.abort());
-      }
-
-      const response = await fetch(`${this.apiUrl}/v1/chat`, {
-        ...this.getFetchOptions({
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': stream ? 'text/event-stream' : 'application/json'
-          },
-          body: JSON.stringify(this.createChatRequest(
-            message, 
-            stream, 
-            fileIds,
-            threadId,
-            audioInput,
-            audioFormat,
-            language,
-            returnAudio,
-            ttsVoice,
-            sourceLanguage,
-            targetLanguage
-          )),
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Network response was not ok: ${response.status} ${errorText}`);
-      }
-
-      if (!stream) {
-        // Handle non-streaming response
-        const data = await response.json() as ChatResponse;
-        if (data.response) {
-          yield {
-            text: data.response,
-            done: true,
-            audio: data.audio,
-            audioFormat: data.audio_format
-          } as StreamResponse & { audio?: string; audioFormat?: string };
-        }
-        return;
-      }
-      
       // SSE line parser shared by both ReadableStream and XHR paths
       function* parseSSELines(
         lines: string[],
@@ -745,48 +691,9 @@ export class ApiClient {
         }
       }
 
-      // Try ReadableStream (browsers, some RN environments with polyfills)
-      const reader = response.body?.getReader?.();
-      if (reader) {
-        const decoder = new TextDecoder();
-        let buffer = '';
-        const state = { hasReceivedContent: false };
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            let lineStartIndex = 0;
-            let newlineIndex;
-            const lines: string[] = [];
-
-            while ((newlineIndex = buffer.indexOf('\n', lineStartIndex)) !== -1) {
-              lines.push(buffer.slice(lineStartIndex, newlineIndex));
-              lineStartIndex = newlineIndex + 1;
-            }
-            buffer = buffer.slice(lineStartIndex);
-
-            for (const parsed of parseSSELines(lines, state)) {
-              yield parsed;
-              if (parsed.done) return;
-            }
-
-            if (buffer.length > 1000000) {
-              buffer = buffer.slice(-500000);
-            }
-          }
-
-          if (state.hasReceivedContent) {
-            yield { text: '', done: true };
-          }
-        } finally {
-          reader.releaseLock();
-        }
-      } else {
-        // Fallback for React Native where response.body is not available.
-        // XHR provides progressive responseText access for real-time streaming.
+      // React Native: always use XHR for streaming (fetch ReadableStream is unreliable in RN).
+      // XHR provides progressive responseText access for real-time streaming.
+      {
         const chatRequest = this.createChatRequest(
           message, stream, fileIds, threadId,
           audioInput, audioFormat, language,

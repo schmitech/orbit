@@ -2,7 +2,7 @@ export const STREAMING_BATCH_DELAY = 12; // lower latency while keeping update b
 
 export const MAX_TITLE_LENGTH = 100;
 
-export const MAX_MESSAGE_LENGTH = 1000;
+export const MAX_MESSAGE_LENGTH = 500;
 
 export const MAX_CONVERSATIONS = 100;
 

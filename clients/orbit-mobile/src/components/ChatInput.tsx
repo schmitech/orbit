@@ -6,6 +6,8 @@ import {
   Pressable,
   StyleSheet,
   Platform,
+  NativeSyntheticEvent,
+  TextInputKeyPressEventData,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +35,7 @@ export function ChatInput({
   onToggleAudio,
 }: Props) {
   const [text, setText] = useState('');
+  const [isMultiline, setIsMultiline] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
 
@@ -67,6 +70,24 @@ export function ChatInput({
     }
   }, [isListening, startListening, stopListening]);
 
+  const handleKeyPress = useCallback(
+    (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+      if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !(e as any).shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    },
+    [handleSend]
+  );
+
+  const handleContentSizeChange = useCallback(
+    (e: any) => {
+      const height = e.nativeEvent.contentSize.height;
+      setIsMultiline(height > 30);
+    },
+    []
+  );
+
   const atLimit = text.length >= MAX_MESSAGE_LENGTH;
 
   return (
@@ -74,19 +95,30 @@ export function ChatInput({
       style={[
         styles.container,
         {
-          backgroundColor: theme.headerBackground,
-          borderTopColor: theme.border,
           paddingBottom: Math.max(insets.bottom, 8),
         },
       ]}
     >
-      <View style={[styles.inputWrapper, { backgroundColor: theme.inputBackground }]}>
+      <View style={[styles.inputWrapper, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}>
+        {/* Character count - shown when input expands to multiple lines */}
+        {isMultiline && text.length > 0 && (
+          <Text
+            style={[
+              styles.charCount,
+              { color: atLimit ? theme.error : theme.textSecondary },
+            ]}
+          >
+            {text.length}/{MAX_MESSAGE_LENGTH}
+          </Text>
+        )}
+
         {/* Audio output toggle */}
         {audioOutputSupported && (
           <Pressable
             onPress={onToggleAudio}
             style={[
-              styles.iconButton,
+              styles.button,
+              { marginRight: 4 },
               audioEnabled && { backgroundColor: theme.primary + '20' },
             ]}
             hitSlop={6}
@@ -112,8 +144,11 @@ export function ChatInput({
           onChangeText={(t) => setText(t.slice(0, MAX_MESSAGE_LENGTH))}
           multiline
           maxLength={MAX_MESSAGE_LENGTH}
-          returnKeyType="default"
+          returnKeyType="send"
           blurOnSubmit={false}
+          onSubmitEditing={handleSend}
+          onKeyPress={handleKeyPress}
+          onContentSizeChange={handleContentSizeChange}
         />
 
         {/* Mic button - keep visible for consistent UX, disable when unsupported */}
@@ -123,6 +158,7 @@ export function ChatInput({
             style={[
               styles.button,
               {
+                marginLeft: 8,
                 backgroundColor: isListening
                   ? theme.destructive + '20'
                   : theme.surfaceSecondary,
@@ -141,7 +177,7 @@ export function ChatInput({
                     : 'mic'
               }
               size={18}
-              color={isListening ? theme.destructive : theme.textTertiary}
+              color={isListening ? theme.destructive : theme.textSecondary}
             />
           </Pressable>
         )}
@@ -150,7 +186,7 @@ export function ChatInput({
         {isLoading && (
           <Pressable
             onPress={handleStopPress}
-            style={[styles.button, { backgroundColor: theme.destructive }]}
+            style={[styles.button, { marginLeft: 8, backgroundColor: theme.destructive }]}
             hitSlop={8}
           >
             <Ionicons name="stop" size={16} color="#FFFFFF" />
@@ -161,7 +197,7 @@ export function ChatInput({
         {!isLoading && text.trim() ? (
           <Pressable
             onPress={handleSend}
-            style={[styles.button, { backgroundColor: theme.primary }]}
+            style={[styles.button, { marginLeft: 8, backgroundColor: theme.primary }]}
             hitSlop={8}
           >
             <Ionicons name="arrow-up" size={18} color="#FFFFFF" />
@@ -176,28 +212,28 @@ export function ChatInput({
         </Text>
       )}
 
-      {text.length > 0 && (
-        <Text style={[styles.charCount, { color: atLimit ? theme.error : theme.textTertiary }]}>
-          {text.length}/{MAX_MESSAGE_LENGTH}
-        </Text>
-      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 12,
     paddingTop: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    borderRadius: 22,
+    alignItems: 'center',
+    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 14,
     paddingVertical: 6,
-    minHeight: 44,
+    minHeight: 48,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   input: {
     flex: 1,
@@ -210,22 +246,12 @@ const styles = StyleSheet.create({
   inputWithLeftButton: {
     marginLeft: 4,
   },
-  iconButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
-  },
   button: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
-    marginBottom: 2,
   },
   listeningText: {
     fontSize: 12,
@@ -234,9 +260,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   charCount: {
-    fontSize: 12,
-    textAlign: 'right',
-    paddingTop: 4,
-    paddingRight: 4,
+    position: 'absolute',
+    top: -18,
+    right: 14,
+    fontSize: 10,
+    opacity: 0.7,
   },
 });

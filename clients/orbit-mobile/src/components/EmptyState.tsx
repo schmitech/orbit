@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors } from '../theme/colors';
 import { MarkdownContent } from './MarkdownContent';
+import { getConfig } from '../config/env';
 
 interface Props {
   theme: ThemeColors;
@@ -35,24 +36,24 @@ export function EmptyState({ theme, variant, onPress, adapterNotes }: Props) {
     );
   }
 
+  const { appTitle } = getConfig();
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.container,
-        pressed && styles.pressed,
-      ]}
-      onPress={onPress}
-    >
-      <View style={[styles.iconCircle, { backgroundColor: theme.primaryLight }]}>
-        <Ionicons name="add" size={36} color={theme.primary} />
-      </View>
-      <Text style={[styles.title, { color: theme.text }]}>
-        Start a new chat
+    <View style={styles.container}>
+      <Text style={[styles.appTitle, { color: theme.text }]}>
+        {appTitle}
       </Text>
-      <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-        Tap here to begin a conversation
-      </Text>
-    </Pressable>
+      <Pressable
+        style={({ pressed }) => [
+          styles.newChatButton,
+          { backgroundColor: theme.primary },
+          pressed && styles.pressed,
+        ]}
+        onPress={onPress}
+      >
+        <Ionicons name="add" size={22} color="#FFFFFF" />
+        <Text style={styles.newChatButtonText}>New Chat</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -62,6 +63,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
+    paddingBottom: 96,
   },
   chatContainer: {
     flex: 1,
@@ -75,26 +77,27 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   pressed: {
-    opacity: 0.6,
+    opacity: 0.8,
   },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  appTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  newChatButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    gap: 8,
   },
-  title: {
-    fontSize: 20,
+  newChatButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 22,
   },
   notesContainer: {
     width: '100%',

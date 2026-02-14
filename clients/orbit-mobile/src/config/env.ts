@@ -2,6 +2,7 @@ export interface AppConfig {
   orbitHost: string;
   apiKey: string;
   enableAudioOutput: boolean;
+  appTitle: string;
 }
 
 export function getConfig(): AppConfig {
@@ -21,10 +22,12 @@ export function getConfig(): AppConfig {
   }
 
   const audioOutput = process.env.EXPO_PUBLIC_ENABLE_AUDIO_OUTPUT;
+  const appTitle = process.env.EXPO_PUBLIC_APP_TITLE || 'ORBIT Chat';
 
   return {
     orbitHost: host.endsWith('/') ? host.slice(0, -1) : host,
     apiKey: key,
     enableAudioOutput: audioOutput === 'true',
+    appTitle,
   };
 }
