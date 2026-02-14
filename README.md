@@ -146,10 +146,15 @@ curl -X POST https://orbit.schmitech.ai/v1/chat \
 
 <p align="center">
   <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/🚀_Try_ORBIT_Sandbox-Interactive_Examples-0d7d0d?style=for-the-badge" alt="Try ORBIT Sandbox"></a>
-  <a href="https://chatwidget-plum.vercel.app/" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/🎨_Widget_Builder-Theme_%26_Embed_AI-orange?style=for-the-badge" alt="Chat Widget Theming"></a>
 </p>
 
-The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer">ORBIT Sandbox</a> offers interactive examples for adapters, prompts, and capabilities—no install required. Use the <a href="https://chatwidget-plum.vercel.app/" target="_blank" rel="noopener noreferrer"><strong>Chat Widget Theming Platform</strong></a> to theme and build your own website widget, then embed AI chat on any site (see <a href="clients/chat-widget/README.md" target="_blank" rel="noopener noreferrer">widget theming guide</a> to run it locally or customize). To explore <strong>all API operations</strong> (chat, admin, auth, health, etc.) with request/response schemas, see the <a href="https://orbit.schmitech.ai/redoc" target="_blank" rel="noopener noreferrer"><strong>ORBIT API Reference (ReDoc)</strong></a>.
+The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer"><strong>ORBIT Sandbox</strong></a> offers interactive examples for adapters, prompts, and capabilities.
+
+Use the <a href="https://chatwidget-plum.vercel.app/" target="_blank" rel="noopener noreferrer"><strong>Chat Widget Theming Platform</strong></a> to theme and embed AI chat on any site (see <a href="clients/chat-widget/README.md" target="_blank" rel="noopener noreferrer">widget theming guide</a> to run locally or customize).
+
+See the <a href="https://orbit.schmitech.ai/redoc" target="_blank" rel="noopener noreferrer"><strong>ORBIT API Reference (ReDoc)</strong></a> for full API docs.
+
+
 If you're new to ORBIT, read practical implementation guides in the <a href="https://orbitinfra.ai/articles" target="_blank" rel="noopener noreferrer"><strong>OrbitInfra Articles Library</strong></a>.
 
 ### 2. Run the Docker demo
