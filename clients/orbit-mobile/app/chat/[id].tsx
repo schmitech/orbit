@@ -5,9 +5,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Text,
+  Pressable,
 } from 'react-native';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { useLocalSearchParams, Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useChatStore } from '../../src/stores/chatStore';
 import { useTheme } from '../../src/hooks/useTheme';
 import { ChatBubble } from '../../src/components/ChatBubble';
@@ -26,7 +28,7 @@ export default function ChatScreen() {
   const toggleAudioForConversation = useChatStore((s) => s.toggleAudioForConversation);
   const fetchAdapterInfo = useChatStore((s) => s.fetchAdapterInfo);
   const setConversationAdapterInfo = useChatStore((s) => s.setConversationAdapterInfo);
-  const { theme } = useTheme();
+  const { theme, isDark, setThemeMode } = useTheme();
 
   const audioOutputSupported = useMemo(() => getConfig().enableAudioOutput, []);
   const listRef = useRef<FlashListRef<Message>>(null);
@@ -86,6 +88,10 @@ export default function ChatScreen() {
     }
   }, [id, toggleAudioForConversation]);
 
+  const handleToggleTheme = useCallback(() => {
+    setThemeMode(isDark ? 'light' : 'dark');
+  }, [isDark, setThemeMode]);
+
   const renderItem = useCallback(
     ({ item }: { item: Message }) => (
       <ChatBubble message={item} theme={theme} />
@@ -112,22 +118,35 @@ export default function ChatScreen() {
         options={{
           headerTitle: () => (
             <View style={styles.headerTitleContainer}>
-              <Text
-                style={[styles.headerMetaText, { color: theme.text }]}
-                numberOfLines={1}
-              >
-                <Text style={styles.headerLabel}>Agent: </Text>
-                <Text style={styles.headerValue}>{title}</Text>
-              </Text>
-              {modelBadge ? (
+              <View style={styles.headerMetaColumn}>
                 <Text
-                  style={[styles.headerMetaText, styles.modelMetaText, { color: theme.text }]}
+                  style={[styles.headerMetaText, { color: theme.text }]}
                   numberOfLines={1}
                 >
-                  <Text style={styles.headerLabel}>Model: </Text>
-                  <Text style={styles.headerValue}>{modelBadge}</Text>
+                  <Text style={styles.headerLabel}>Agent: </Text>
+                  <Text style={styles.headerValue}>{title}</Text>
                 </Text>
-              ) : null}
+                {modelBadge ? (
+                  <Text
+                    style={[styles.headerMetaText, styles.modelMetaText, { color: theme.text }]}
+                    numberOfLines={1}
+                  >
+                    <Text style={styles.headerLabel}>Model: </Text>
+                    <Text style={styles.headerValue}>{modelBadge}</Text>
+                  </Text>
+                ) : null}
+              </View>
+              <Pressable
+                onPress={handleToggleTheme}
+                style={[styles.themeToggleButton, { borderColor: theme.border }]}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name={isDark ? 'sunny-outline' : 'moon-outline'}
+                  size={24}
+                  color={theme.text}
+                />
+              </Pressable>
             </View>
           ),
         }}
@@ -179,11 +198,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   headerTitleContainer: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
     width: '100%',
     paddingTop: 4,
     paddingRight: 12,
+  },
+  headerMetaColumn: {
+    flex: 1,
   },
   headerMetaText: {
     fontSize: 13,
@@ -199,5 +221,14 @@ const styles = StyleSheet.create({
   },
   headerValue: {
     fontWeight: '400',
+  },
+  themeToggleButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
   },
 });
