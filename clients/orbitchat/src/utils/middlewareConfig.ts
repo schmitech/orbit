@@ -11,7 +11,6 @@
  */
 
 import { getEnableApiMiddleware } from './runtimeConfig';
-import type { RuntimeConfig } from './runtimeConfig';
 import { debugLog, debugError } from './debug';
 
 export interface Adapter {
@@ -23,14 +22,6 @@ export interface Adapter {
 
 export interface AdaptersResponse {
   adapters: Adapter[];
-}
-
-declare global {
-  interface Window {
-    ORBIT_CHAT_CONFIG?: Partial<RuntimeConfig> & {
-      adapters?: RuntimeConfig['adapters'];
-    };
-  }
 }
 
 const toTrimmedString = (value: unknown): string | undefined => {

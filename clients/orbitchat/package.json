@@ -1,7 +1,7 @@
 {
   "name": "orbitchat",
   "private": false,
-  "version": "2.13.0",
+  "version": "2.13.1",
   "type": "module",
   "bin": {
     "orbitchat": "./bin/orbitchat.js"
@@ -25,7 +25,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@schmitech/chatbot-api": "^2.1.6",
+    "@schmitech/chatbot-api": "^2.2.0",
     "@schmitech/markdown-renderer": "^0.8.0",
     "express": "^5.0.1",
     "http-proxy-middleware": "^3.0.5",

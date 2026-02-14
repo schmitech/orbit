@@ -525,7 +525,6 @@ export function MessageInput({
   // Sync and poll file status when switching to a conversation
   useEffect(() => {
     const middlewareMode = getEnableApiMiddleware();
-    let conversationApiKey: string | undefined;
     
     if (!currentConversationId || !currentConversation) {
       return;
@@ -807,6 +806,7 @@ export function MessageInput({
 
     let pasteConversationId: string | null = null;
     const middlewareMode = getEnableApiMiddleware();
+    let conversationApiKey: string | undefined;
 
     try {
       const pasteStore = useChatStore.getState();

@@ -19,7 +19,7 @@ export interface UseAutocompleteOptions {
   /**
    * Optional ref to refocus after accepting a suggestion (helps on mobile/touch).
    */
-  inputRef?: RefObject<HTMLInputElement | HTMLTextAreaElement> | null;
+  inputRef?: RefObject<HTMLInputElement | HTMLTextAreaElement | null> | null;
 }
 
 export interface UseAutocompleteResult {
@@ -64,8 +64,8 @@ export function useAutocomplete(
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
 
-  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const abortControllerRef = useRef<AbortController>();
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const suppressedQueryRef = useRef<string | null>(null);
   const sanitizeSuggestionText = useCallback((text: unknown): AutocompleteSuggestion | null => {
     if (typeof text !== 'string') {

@@ -189,7 +189,7 @@ function createMiddlewareApi(): ApiFunctions {
   let sessionId: string | null = null;
   let adapterName: string | null = null;
 
-  const configureApi = (apiUrl: string, apiKey?: string | null, sessId?: string | null, adapter?: string | null) => {
+  const configureApi = (_apiUrl: string, _apiKey?: string | null, sessId?: string | null, adapter?: string | null) => {
     sessionId = sessId || null;
     adapterName = adapter || null;
     // In middleware mode, we don't configure the base API with the actual key

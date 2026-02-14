@@ -4,7 +4,7 @@
  * API client for thread management operations.
  */
 
-import { ThreadInfo } from '../../../node-api/api';
+import { ThreadInfo } from '../types';
 import { ApiClient } from '../api/loader';
 
 export class ThreadService {
@@ -54,4 +54,3 @@ export class ThreadService {
     return await this.apiClient.deleteThread(threadId);
   }
 }
-
