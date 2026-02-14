@@ -56,6 +56,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: 80,
     flexDirection: 'column',
+    marginVertical: 6,
+    marginRight: 12,
+    borderRadius: 14,
   },
   deleteText: {
     color: '#FFFFFF',

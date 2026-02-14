@@ -56,7 +56,7 @@ cp .env.example .env
 open -a Simulator
 
 # 6. Start the Expo dev server
-npx expo start --tunnel --clean
+npx expo start --tunnel --clear
 
 # 7. Press 'i' to open in iOS Simulator
 ```

@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
@@ -15,6 +15,8 @@ export default function ConversationsScreen() {
   const createConversation = useChatStore((s) => s.createConversation);
   const deleteConversation = useChatStore((s) => s.deleteConversation);
   const setCurrentConversation = useChatStore((s) => s.setCurrentConversation);
+  const fetchAdapterInfo = useChatStore((s) => s.fetchAdapterInfo);
+  const setConversationAdapterInfo = useChatStore((s) => s.setConversationAdapterInfo);
   const { theme } = useTheme();
 
   const sortedConversations = [...conversations].sort(
@@ -47,6 +49,28 @@ export default function ConversationsScreen() {
     [theme, deleteConversation, handleOpenChat]
   );
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateMissingAdapterInfo = async () => {
+      const missingAdapterInfo = conversations.filter((c) => !c.adapterInfo);
+      if (missingAdapterInfo.length === 0) return;
+
+      const info = await fetchAdapterInfo();
+      if (!info || cancelled) return;
+
+      for (const conversation of missingAdapterInfo) {
+        setConversationAdapterInfo(conversation.id, info);
+      }
+    };
+
+    hydrateMissingAdapterInfo();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversations, fetchAdapterInfo, setConversationAdapterInfo]);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {sortedConversations.length === 0 ? (
@@ -57,11 +81,7 @@ export default function ConversationsScreen() {
             data={sortedConversations}
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
-            ItemSeparatorComponent={() => (
-              <View
-                style={[styles.separator, { backgroundColor: theme.border }]}
-              />
-            )}
+            contentContainerStyle={styles.listContent}
           />
           <Pressable
             onPress={handleNewChat}
@@ -79,9 +99,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 64,
+  listContent: {
+    paddingVertical: 6,
   },
   fab: {
     position: 'absolute',

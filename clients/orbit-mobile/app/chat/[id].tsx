@@ -24,6 +24,8 @@ export default function ChatScreen() {
   const isLoading = useChatStore((s) => s.isLoading);
   const setCurrentConversation = useChatStore((s) => s.setCurrentConversation);
   const toggleAudioForConversation = useChatStore((s) => s.toggleAudioForConversation);
+  const fetchAdapterInfo = useChatStore((s) => s.fetchAdapterInfo);
+  const setConversationAdapterInfo = useChatStore((s) => s.setConversationAdapterInfo);
   const { theme } = useTheme();
 
   const audioOutputSupported = useMemo(() => getConfig().enableAudioOutput, []);
@@ -39,6 +41,24 @@ export default function ChatScreen() {
       setCurrentConversation(null);
     };
   }, [id, setCurrentConversation]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateAdapterInfo = async () => {
+      if (!conversation || conversation.adapterInfo) return;
+      const info = await fetchAdapterInfo();
+      if (!cancelled && info) {
+        setConversationAdapterInfo(conversation.id, info);
+      }
+    };
+
+    hydrateAdapterInfo();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation, fetchAdapterInfo, setConversationAdapterInfo]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -73,7 +93,7 @@ export default function ChatScreen() {
     [theme]
   );
 
-  const title = conversation?.title || 'Chat';
+  const title = conversation?.adapterInfo?.adapter_name || conversation?.title || 'Chat';
   const modelBadge = conversation?.adapterInfo?.model;
 
   if (!conversation) {
@@ -90,16 +110,26 @@ export default function ChatScreen() {
     <>
       <Stack.Screen
         options={{
-          title: title,
-          headerRight: modelBadge
-            ? () => (
-                <View style={[styles.badge, { backgroundColor: theme.primaryLight }]}>
-                  <Text style={[styles.badgeText, { color: theme.primary }]}>
-                    {modelBadge}
-                  </Text>
-                </View>
-              )
-            : undefined,
+          headerTitle: () => (
+            <View style={styles.headerTitleContainer}>
+              <Text
+                style={[styles.headerMetaText, { color: theme.text }]}
+                numberOfLines={1}
+              >
+                <Text style={styles.headerLabel}>AI Agent: </Text>
+                <Text style={styles.headerValue}>{title}</Text>
+              </Text>
+              {modelBadge ? (
+                <Text
+                  style={[styles.headerMetaText, styles.modelMetaText, { color: theme.text }]}
+                  numberOfLines={1}
+                >
+                  <Text style={styles.headerLabel}>AI Model: </Text>
+                  <Text style={styles.headerValue}>{modelBadge}</Text>
+                </Text>
+              ) : null}
+            </View>
+          ),
         }}
       />
       <KeyboardAvoidingView
@@ -108,7 +138,11 @@ export default function ChatScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {conversation.messages.length === 0 ? (
-          <EmptyState theme={theme} variant="chat" />
+          <EmptyState
+            theme={theme}
+            variant="chat"
+            adapterNotes={conversation.adapterInfo?.notes}
+          />
         ) : (
           <FlashList
             ref={listRef}
@@ -144,13 +178,26 @@ const styles = StyleSheet.create({
     marginTop: 40,
     fontSize: 16,
   },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+  headerTitleContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    width: '100%',
+    paddingTop: 4,
+    paddingRight: 12,
   },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '500',
+  headerMetaText: {
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
+  modelMetaText: {
+    marginTop: 4,
+  },
+  headerLabel: {
+    fontWeight: '700',
+  },
+  headerValue: {
+    fontWeight: '400',
   },
 });

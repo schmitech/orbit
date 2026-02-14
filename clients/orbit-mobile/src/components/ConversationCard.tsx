@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Conversation } from '../types';
 import { ThemeColors } from '../theme/colors';
+import { MarkdownContent } from './MarkdownContent';
 
 interface Props {
   conversation: Conversation;
@@ -26,44 +26,62 @@ function formatTimestamp(date: Date): string {
 
 export function ConversationCard({ conversation, onPress, theme }: Props) {
   const lastMessage = conversation.messages[conversation.messages.length - 1];
+  const title = conversation.adapterInfo?.adapter_name || conversation.title;
+  const model = conversation.adapterInfo?.model;
   const preview = lastMessage
-    ? lastMessage.content.slice(0, 80) + (lastMessage.content.length > 80 ? '...' : '')
+    ? lastMessage.content.slice(0, 140) + (lastMessage.content.length > 140 ? '...' : '')
     : 'No messages yet';
+  const isAssistantPreview = lastMessage?.role === 'assistant';
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.container,
-        { backgroundColor: pressed ? theme.surface : theme.card },
+        {
+          backgroundColor: pressed ? theme.surface : theme.card,
+          borderColor: theme.border,
+        },
       ]}
     >
-      <View style={styles.iconContainer}>
-        <Ionicons name="chatbubble-outline" size={20} color={theme.primary} />
-      </View>
       <View style={styles.content}>
-        <View style={styles.header}>
-          <Text
-            style={[styles.title, { color: theme.text }]}
-            numberOfLines={1}
-          >
-            {conversation.title}
-          </Text>
-          <Text style={[styles.timestamp, { color: theme.textTertiary }]}>
-            {formatTimestamp(conversation.updatedAt)}
-          </Text>
+        <View style={styles.mainRow}>
+          <View style={styles.leftColumn}>
+            <Text
+              style={[styles.title, { color: theme.text }]}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+            {isAssistantPreview ? (
+              <View style={styles.previewMarkdownContainer}>
+                <MarkdownContent
+                  content={preview}
+                  theme={theme}
+                  variant="preview"
+                  textColor={theme.textSecondary}
+                />
+              </View>
+            ) : (
+              <Text
+                style={[styles.preview, { color: theme.textSecondary }]}
+                numberOfLines={2}
+              >
+                {preview}
+              </Text>
+            )}
+          </View>
+          <View style={styles.rightColumn}>
+            <Text style={[styles.timestamp, { color: theme.textTertiary }]} numberOfLines={1}>
+              {formatTimestamp(conversation.updatedAt)}
+            </Text>
+            {model ? (
+              <Text style={[styles.model, { color: theme.textTertiary }]} numberOfLines={1}>
+                {model}
+              </Text>
+            ) : null}
+          </View>
         </View>
-        <Text
-          style={[styles.preview, { color: theme.textSecondary }]}
-          numberOfLines={2}
-        >
-          {preview}
-        </Text>
-        {conversation.adapterInfo && (
-          <Text style={[styles.model, { color: theme.textTertiary }]}>
-            {conversation.adapterInfo.model || conversation.adapterInfo.adapter_name}
-          </Text>
-        )}
       </View>
     </Pressable>
   );
@@ -71,44 +89,51 @@ export function ConversationCard({ conversation, onPress, theme }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    alignItems: 'flex-start',
-  },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    marginTop: 2,
+    marginHorizontal: 12,
+    marginVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   content: {
     flex: 1,
   },
-  header: {
+  mainRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
+    alignItems: 'flex-start',
+  },
+  leftColumn: {
+    flex: 1,
+    marginRight: 12,
+    minWidth: 0,
+  },
+  rightColumn: {
+    width: 112,
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
   },
   title: {
     fontSize: 16,
     fontWeight: '600',
-    flex: 1,
-    marginRight: 8,
   },
   timestamp: {
-    fontSize: 13,
+    fontSize: 12,
   },
   preview: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 18,
+    marginTop: 8,
+  },
+  previewMarkdownContainer: {
+    marginTop: 8,
+    maxHeight: 36,
+    overflow: 'hidden',
   },
   model: {
     fontSize: 12,
-    marginTop: 4,
+    marginTop: 8,
+    maxWidth: 112,
   },
 });

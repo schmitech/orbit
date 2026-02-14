@@ -31,13 +31,10 @@ export function ChatBubble({ message, theme }: Props) {
       >
         <View
           style={[
-            styles.bubble,
+            styles.bubbleBase,
             isUser
               ? [styles.userBubble, { backgroundColor: theme.userBubble }]
-              : [
-                  styles.assistantBubble,
-                  { backgroundColor: theme.assistantBubble },
-                ],
+              : styles.assistantBubble,
           ]}
         >
           {isUser ? (
@@ -46,14 +43,24 @@ export function ChatBubble({ message, theme }: Props) {
             </Text>
           ) : (
             <View style={styles.assistantContent}>
-              {message.content ? (
-                <MarkdownContent content={message.content} theme={theme} />
-              ) : null}
+              {message.content
+                ? message.isStreaming
+                  ? (
+                    <Text style={[styles.assistantStreamingText, { color: theme.assistantBubbleText }]}>
+                      {message.content}
+                    </Text>
+                  )
+                  : (
+                    <MarkdownContent content={message.content} theme={theme} />
+                  )
+                : null}
               {message.isStreaming && !message.content && (
                 <StreamingCursor color={theme.textTertiary} />
               )}
               {message.isStreaming && message.content ? (
-                <StreamingCursor color={theme.primary} />
+                <View style={styles.streamingCursorWithText}>
+                  <StreamingCursor color={theme.primary} />
+                </View>
               ) : null}
             </View>
           )}
@@ -74,25 +81,36 @@ const styles = StyleSheet.create({
   assistantContainer: {
     alignItems: 'flex-start',
   },
-  bubble: {
+  bubbleBase: {
     maxWidth: '85%',
+  },
+  userBubble: {
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 10,
-  },
-  userBubble: {
     borderBottomRightRadius: 4,
+    overflow: 'hidden',
   },
   assistantBubble: {
-    borderBottomLeftRadius: 4,
+    borderRadius: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    backgroundColor: 'transparent',
   },
   userText: {
     fontSize: 16,
     lineHeight: 22,
   },
   assistantContent: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'flex-end',
+    width: '100%',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  assistantStreamingText: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  streamingCursorWithText: {
+    marginTop: 8,
   },
 });

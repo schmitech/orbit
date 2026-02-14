@@ -1,27 +1,36 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeColors } from '../theme/colors';
+import { MarkdownContent } from './MarkdownContent';
 
 interface Props {
   theme: ThemeColors;
   variant: 'chat' | 'conversations';
   onPress?: () => void;
+  adapterNotes?: string | null;
 }
 
-export function EmptyState({ theme, variant, onPress }: Props) {
+export function EmptyState({ theme, variant, onPress, adapterNotes }: Props) {
   if (variant === 'chat') {
     return (
-      <View style={styles.container}>
-        <View style={[styles.iconCircle, { backgroundColor: theme.primaryLight }]}>
-          <Ionicons name="sparkles" size={32} color={theme.primary} />
-        </View>
-        <Text style={[styles.title, { color: theme.text }]}>
-          How can I help you?
-        </Text>
-        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Send a message to start chatting
-        </Text>
+      <View style={styles.chatContainer}>
+        {adapterNotes?.trim() ? (
+          <ScrollView
+            style={styles.notesScroll}
+            contentContainerStyle={styles.notesScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.notesContainer, { borderColor: theme.border, backgroundColor: theme.card }]}>
+              <MarkdownContent
+                content={adapterNotes}
+                theme={theme}
+                variant="notes"
+                textColor={theme.text}
+              />
+            </View>
+          </ScrollView>
+        ) : null}
       </View>
     );
   }
@@ -54,6 +63,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 32,
   },
+  chatContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  notesScroll: {
+    flex: 1,
+  },
+  notesScrollContent: {
+    paddingBottom: 12,
+  },
   pressed: {
     opacity: 0.6,
   },
@@ -75,5 +95,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  notesContainer: {
+    width: '100%',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
 });

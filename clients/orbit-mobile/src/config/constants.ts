@@ -1,4 +1,4 @@
-export const STREAMING_BATCH_DELAY = 32; // ~30fps
+export const STREAMING_BATCH_DELAY = 12; // lower latency while keeping update batching
 
 export const MAX_TITLE_LENGTH = 100;
 

@@ -106,7 +106,7 @@ export function ChatInput({
             { color: theme.text },
             audioOutputSupported && styles.inputWithLeftButton,
           ]}
-          placeholder="Message..."
+          placeholder="Ask me anything..."
           placeholderTextColor={theme.textTertiary}
           value={text}
           onChangeText={(t) => setText(t.slice(0, MAX_MESSAGE_LENGTH))}
@@ -116,22 +116,30 @@ export function ChatInput({
           blurOnSubmit={false}
         />
 
-        {/* Mic button - show when not loading, no text, and voice is supported */}
-        {voiceSupported && !isLoading && !text.trim() && (
+        {/* Mic button - keep visible for consistent UX, disable when unsupported */}
+        {!isLoading && !text.trim() && (
           <Pressable
-            onPress={handleMicPress}
+            onPress={voiceSupported ? handleMicPress : undefined}
             style={[
               styles.button,
               {
                 backgroundColor: isListening
                   ? theme.destructive + '20'
                   : theme.surfaceSecondary,
+                opacity: voiceSupported ? 1 : 0.45,
               },
             ]}
+            disabled={!voiceSupported}
             hitSlop={8}
           >
             <Ionicons
-              name={isListening ? 'mic-off' : 'mic'}
+              name={
+                !voiceSupported
+                  ? 'mic-off-outline'
+                  : isListening
+                    ? 'mic-off'
+                    : 'mic'
+              }
               size={18}
               color={isListening ? theme.destructive : theme.textTertiary}
             />

@@ -66,6 +66,7 @@ interface ChatActions {
   deleteConversation: (id: string) => void;
   setCurrentConversation: (id: string | null) => void;
   clearAllConversations: () => void;
+  setConversationAdapterInfo: (conversationId: string, adapterInfo: AdapterInfo) => void;
 
   // Audio
   toggleAudioForConversation: (conversationId: string) => void;
@@ -142,6 +143,17 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     saveConversations([]);
   },
 
+  setConversationAdapterInfo: (conversationId: string, adapterInfo: AdapterInfo) => {
+    set((state) => {
+      const conversations = state.conversations.map((conv) => {
+        if (conv.id !== conversationId) return conv;
+        return { ...conv, adapterInfo };
+      });
+      saveConversations(conversations);
+      return { conversations };
+    });
+  },
+
   clearError: () => set({ error: null }),
 
   toggleAudioForConversation: (conversationId: string) => {
@@ -188,6 +200,7 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   appendToLastMessage: (content: string, conversationId: string) => {
     const bufferKey = conversationId;
     const existing = streamingBuffer.get(bufferKey);
+    const isFirstChunk = !existing;
 
     if (existing) {
       existing.content += content;
@@ -229,6 +242,11 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       }));
     };
 
+    if (isFirstChunk) {
+      flushBuffer();
+      return;
+    }
+
     const buffer = streamingBuffer.get(bufferKey)!;
     buffer.timeoutId = setTimeout(flushBuffer, STREAMING_BATCH_DELAY);
   },
@@ -241,7 +259,18 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       conversationId = get().createConversation();
     }
 
-    const conversation = get().conversations.find((c) => c.id === conversationId);
+    let conversation = get().conversations.find((c) => c.id === conversationId);
+    if (!conversation) return;
+
+    if (!conversation.adapterInfo) {
+      const adapterInfo = await get().fetchAdapterInfo();
+      if (adapterInfo) {
+        get().setConversationAdapterInfo(conversationId, adapterInfo);
+      }
+    }
+
+    // Re-read conversation after async operations to avoid stale audio settings/state.
+    conversation = get().conversations.find((c) => c.id === conversationId);
     if (!conversation) return;
 
     // Resolve audio settings
