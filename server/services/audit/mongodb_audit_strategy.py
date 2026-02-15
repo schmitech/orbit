@@ -194,14 +194,21 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
                 sort=[(sort_by, sort_order)]
             )
 
-            # Decompress responses if needed
+            # Decompress queries and responses if needed
             for record in results:
-                if record.get('response_compressed') and record.get('response'):
-                    try:
-                        record['response'] = decompress_text(record['response'])
-                    except Exception as e:
-                        logger.warning(f"Failed to decompress response: {e}")
-                        # Keep compressed response if decompression fails
+                if record.get('response_compressed'):
+                    if record.get('query'):
+                        try:
+                            record['query'] = decompress_text(record['query'])
+                        except Exception as e:
+                            logger.warning(f"Failed to decompress query: {e}")
+                            # Keep compressed query if decompression fails
+                    if record.get('response'):
+                        try:
+                            record['response'] = decompress_text(record['response'])
+                        except Exception as e:
+                            logger.warning(f"Failed to decompress response: {e}")
+                            # Keep compressed response if decompression fails
 
             return results
 
@@ -228,16 +235,5 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             return True
 
         except Exception as e:
-            logger.error(f"Error clearing audit records from MongoDB: {e}")
+            logger.error(f"Error clearing MongoDB audit records: {e}")
             return False
-
-    async def close(self) -> None:
-        """
-        Close the MongoDB storage backend.
-
-        Note: We don't close the database service here as it may be shared
-        with other parts of the application.
-        """
-        self._initialized = False
-        self._indexes_created = False
-        logger.debug("MongoDB audit storage closed")
