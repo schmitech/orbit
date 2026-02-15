@@ -13,6 +13,7 @@ A native-feeling iOS chat app for the [ORBIT](https://github.com/schmitech/orbit
 - [Screens](#screens)
 - [Key Concepts](#key-concepts)
 - [Testing on a Physical Device](#testing-on-a-physical-device)
+- [Beta Testing with TestFlight](#beta-testing-with-testflight)
 - [Publishing to the App Store](#publishing-to-the-app-store)
 - [Troubleshooting](#troubleshooting)
 - [Feature Roadmap](#feature-roadmap)
@@ -88,6 +89,9 @@ EXPO_PUBLIC_ORBIT_API_KEY=your-api-key-here
 
 # Enable text-to-speech audio output (requires server-side TTS support)
 EXPO_PUBLIC_ENABLE_AUDIO_OUTPUT=false
+
+# The title displayed in the app header
+EXPO_PUBLIC_APP_TITLE=ORBIT Chat
 ```
 
 ### How config injection works
@@ -98,7 +102,7 @@ The `src/config/env.ts` module reads these variables via `process.env.EXPO_PUBLI
 
 - **Changes to `.env` require a restart.** After editing `.env`, stop the dev server (`Ctrl+C`) and run `npx expo start` again. Metro does not hot-reload environment variables.
 - **The `.env` file is gitignored.** It will not be committed to version control. This is intentional — never commit API keys.
-- **For CI/CD builds**, set `EXPO_PUBLIC_ORBIT_HOST`, `EXPO_PUBLIC_ORBIT_API_KEY`, and `EXPO_PUBLIC_ENABLE_AUDIO_OUTPUT` as pipeline secrets (e.g., GitHub Actions secrets or EAS Build secrets).
+- **For CI/CD builds**, set `EXPO_PUBLIC_ORBIT_HOST`, `EXPO_PUBLIC_ORBIT_API_KEY`, `EXPO_PUBLIC_ENABLE_AUDIO_OUTPUT`, and `EXPO_PUBLIC_APP_TITLE` as pipeline secrets (e.g., GitHub Actions secrets or EAS Build secrets).
 
 ---
 
@@ -431,6 +435,22 @@ The app will launch normally after this one-time step.
 
 ---
 
+## Beta Testing with TestFlight
+
+Beta testing allows you to distribute the app to a wider audience before the official App Store release. This is done through [Apple's TestFlight](https://testflight.apple.com/).
+
+### Getting Started
+1. **Install TestFlight:** Download the [TestFlight app](https://apps.apple.com/app/testflight/id899247664) on the iOS device you want to use for testing.
+2. **Accept Invitation:** Open your email invitation or follow a public link provided by the developers.
+3. **Install the App:** Tap **Install** or **Update** within the TestFlight app to get the latest beta version of ORBIT Chat.
+
+### Feedback and Crash Reports
+When using a TestFlight build, you can send feedback directly to the developers by taking a screenshot and tapping **Done > Share Beta Feedback**, or by going to the app's page in the TestFlight app and tapping **Send Beta Feedback**. Crash reports are automatically shared with the developers if you have opted in.
+
+> **Developer Note:** To set up TestFlight for your own builds, refer to [Step 7](#step-7-testflight-beta-testing) in the Publishing section.
+
+---
+
 ## Publishing to the App Store
 
 This section walks through the complete process of shipping the app to the Apple App Store so users can download it.
@@ -501,6 +521,7 @@ Your `.env` file is only used locally. For EAS Build, set your environment varia
 ```bash
 eas secret:create --name EXPO_PUBLIC_ORBIT_HOST --value "https://your-production-orbit-server.com" --scope project
 eas secret:create --name EXPO_PUBLIC_ORBIT_API_KEY --value "your-production-api-key" --scope project
+eas secret:create --name EXPO_PUBLIC_APP_TITLE --value "ORBIT Chat" --scope project
 ```
 
 These secrets are injected at build time and are never visible in logs or build artifacts.

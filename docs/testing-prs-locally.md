@@ -23,10 +23,24 @@ git checkout -b test-pr-[PR-NUMBER]
 Replace `[PR-NUMBER]` with the actual PR number (e.g., `test-pr-47`).
 
 ### Step 3: Fetch the PR
+
+**If the PR is from the same repo** (e.g. `schmitech/orbit`):
 ```bash
 git fetch origin pull/[PR-NUMBER]/head:pr-[PR-NUMBER]
 ```
 Replace `[PR-NUMBER]` with the actual PR number (e.g., `git fetch origin pull/47/head:pr-47`).
+
+**If the PR is from a fork**, add the fork as a remote (once per contributor) and fetch their branch:
+```bash
+git remote add [CONTRIBUTOR] https://github.com/[CONTRIBUTOR]/orbit.git
+git fetch [CONTRIBUTOR] [BRANCH-NAME]:pr-[PR-NUMBER]
+```
+Example: for a PR from a contributor on branch `fix/some-feature`:
+```bash
+git remote add contributor https://github.com/contributor-name/orbit.git
+git fetch contributor fix/some-feature:pr-146
+```
+Then use `pr-146` in the merge step below.
 
 ### Step 4: Merge PR Changes
 ```bash
@@ -70,8 +84,8 @@ git stash push -m "Testing PR [PR-NUMBER]"
 ```
 
 ### Step 2: Fetch and Checkout PR
+Use the same fetch as in Method 1 (same-repo: `git fetch origin pull/[PR-NUMBER]/head:pr-[PR-NUMBER]`; for a fork, add the fork remote and fetch the branch).
 ```bash
-git fetch origin pull/[PR-NUMBER]/head:pr-[PR-NUMBER]
 git checkout pr-[PR-NUMBER]
 ```
 
@@ -158,5 +172,6 @@ git branch -D pr-47
 
 - This guide assumes you're working on the `main` branch
 - Replace `[PR-NUMBER]` with the actual PR number throughout
+- **Same repo vs fork**: `git fetch origin pull/N/head` only works for PRs opened from the same repository. For PRs from contributor forks, add their fork as a remote and fetch the branch by name (see Step 3 in Method 1).
 - The test branch approach is recommended as it's the safest method
 - Always review PR changes before merging them into your test branch
