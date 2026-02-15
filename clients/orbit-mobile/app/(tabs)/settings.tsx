@@ -5,7 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Alert,
+  Modal,
   ActivityIndicator,
 } from 'react-native';
 import Constants from 'expo-constants';
@@ -35,20 +35,20 @@ export default function SettingsScreen() {
     setConnectionStatus(valid ? 'connected' : 'error');
   }, [validateConnection]);
 
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
   const handleClearAll = useCallback(() => {
-    Alert.alert(
-      'Clear All Conversations',
-      `Are you sure you want to delete all ${conversations.length} conversations? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete All',
-          style: 'destructive',
-          onPress: clearAllConversations,
-        },
-      ]
-    );
-  }, [conversations.length, clearAllConversations]);
+    setShowClearConfirm(true);
+  }, []);
+
+  const handleClearCancel = useCallback(() => {
+    setShowClearConfirm(false);
+  }, []);
+
+  const handleClearConfirm = useCallback(() => {
+    setShowClearConfirm(false);
+    clearAllConversations();
+  }, [clearAllConversations]);
 
   const handleThemeSelect = useCallback(
     (newMode: ThemeMode) => {
@@ -60,6 +60,7 @@ export default function SettingsScreen() {
   const version = Constants.expoConfig?.version || '1.0.0';
 
   return (
+    <>
     <ScrollView
       style={[styles.container, { backgroundColor: theme.background }]}
       contentContainerStyle={styles.content}
@@ -184,6 +185,48 @@ export default function SettingsScreen() {
         </View>
       </View>
     </ScrollView>
+    <Modal
+      visible={showClearConfirm}
+      transparent
+      animationType="fade"
+      onRequestClose={handleClearCancel}
+    >
+      <Pressable style={styles.overlay} onPress={handleClearCancel}>
+        <View
+          style={[styles.dialog, { backgroundColor: theme.card, borderColor: theme.border }]}
+          onStartShouldSetResponder={() => true}
+        >
+          <Text style={[styles.dialogTitle, { color: theme.text }]}>
+            Clear All Conversations
+          </Text>
+          <Text style={[styles.dialogMessage, { color: theme.textSecondary }]}>
+            Are you sure you want to delete all {conversations.length} conversations? This cannot be undone.
+          </Text>
+          <View style={[styles.dialogActions, { borderTopColor: theme.border }]}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.dialogButton,
+                { borderRightColor: theme.border, borderRightWidth: StyleSheet.hairlineWidth },
+                pressed && { backgroundColor: theme.surface },
+              ]}
+              onPress={handleClearCancel}
+            >
+              <Text style={[styles.dialogButtonText, { color: theme.primary }]}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.dialogButton,
+                pressed && { backgroundColor: theme.surface },
+              ]}
+              onPress={handleClearConfirm}
+            >
+              <Text style={[styles.dialogButtonText, styles.dialogDeleteText]}>Delete All</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Pressable>
+    </Modal>
+    </>
   );
 }
 
@@ -242,5 +285,51 @@ const styles = StyleSheet.create({
   divider: {
     height: StyleSheet.hairlineWidth,
     marginLeft: 16,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  dialog: {
+    width: '100%',
+    maxWidth: 300,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  dialogTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingTop: 20,
+    paddingHorizontal: 20,
+  },
+  dialogMessage: {
+    fontSize: 13,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 20,
+    lineHeight: 18,
+  },
+  dialogActions: {
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  dialogButton: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogButtonText: {
+    fontSize: 17,
+  },
+  dialogDeleteText: {
+    fontWeight: '600',
+    color: '#FF3B30',
   },
 });
