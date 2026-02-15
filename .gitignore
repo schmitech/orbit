@@ -68,3 +68,5 @@ results/
 *.db-wal
 *.duckdb
 *performance_results*
+.firecrawl_cache
+.claude

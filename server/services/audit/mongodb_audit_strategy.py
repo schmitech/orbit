@@ -33,6 +33,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         """
         super().__init__(config)
         self._database_service = database_service
+        self._owns_database_service = False
         self._collection_name = config.get('internal_services', {}).get('audit', {}).get(
             'collection_name', 'audit_logs'
         )
@@ -57,6 +58,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             if self._database_service is None:
                 from services.database_service import create_database_service
                 self._database_service = create_database_service(self.config)
+                self._owns_database_service = True
 
             # Ensure database is initialized
             if not self._database_service._initialized:
@@ -215,6 +217,16 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         except Exception as e:
             logger.error(f"Error querying audit records from MongoDB: {e}")
             return []
+
+    async def close(self) -> None:
+        """Close MongoDB audit storage resources."""
+        if self._database_service and self._owns_database_service:
+            try:
+                self._database_service.close()
+            except Exception as e:
+                logger.error(f"Error closing MongoDB audit database service: {e}")
+
+        self._initialized = False
 
     async def clear(self) -> bool:
         """
