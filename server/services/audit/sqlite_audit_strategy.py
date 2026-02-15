@@ -166,9 +166,17 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         Returns:
             Record with nested ip_metadata and api_key structures
         """
-        # Get response and check if it needs decompression
+        # Get query and response and check if they need decompression
+        query = flat_record.get('query', '')
         response = flat_record.get('response', '')
         is_compressed = bool(flat_record.get('response_compressed', 0))
+
+        if is_compressed and query:
+            try:
+                query = decompress_text(query)
+            except Exception as e:
+                logger.warning(f"Failed to decompress query: {e}")
+                # Return compressed query as-is if decompression fails
 
         if is_compressed and response:
             try:
@@ -179,7 +187,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
 
         result = {
             'timestamp': flat_record.get('timestamp'),
-            'query': flat_record.get('query'),
+            'query': query,
             'response': response,
             'response_compressed': is_compressed,
             'backend': flat_record.get('backend'),
@@ -231,15 +239,5 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             return True
 
         except Exception as e:
-            logger.error(f"Error clearing audit records from SQLite: {e}")
+            logger.error(f"Error clearing SQLite audit records: {e}")
             return False
-
-    async def close(self) -> None:
-        """
-        Close the SQLite storage backend.
-
-        Note: We don't close the database service here as it may be shared
-        with other parts of the application.
-        """
-        self._initialized = False
-        logger.debug("SQLite audit storage closed")
