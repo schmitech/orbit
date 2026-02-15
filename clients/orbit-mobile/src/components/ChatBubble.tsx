@@ -33,7 +33,7 @@ export function ChatBubble({ message, theme }: Props) {
           style={[
             styles.bubbleBase,
             isUser
-              ? [styles.userBubble, { backgroundColor: theme.userBubble }]
+              ? [styles.bubbleConstrained, styles.userBubble, { backgroundColor: theme.userBubble }]
               : styles.assistantBubble,
           ]}
         >
@@ -73,7 +73,7 @@ export function ChatBubble({ message, theme }: Props) {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
-    paddingVertical: 4,
+    paddingVertical: 8,
   },
   userContainer: {
     alignItems: 'flex-end',
@@ -81,7 +81,8 @@ const styles = StyleSheet.create({
   assistantContainer: {
     alignItems: 'flex-start',
   },
-  bubbleBase: {
+  bubbleBase: {},
+  bubbleConstrained: {
     maxWidth: '85%',
   },
   userBubble: {

@@ -1,5 +1,6 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import Markdown, { ASTNode, RenderRules } from 'react-native-markdown-display';
 import { ThemeColors } from '../theme/colors';
 
@@ -9,6 +10,95 @@ interface Props {
   variant?: 'chat' | 'preview' | 'notes';
   textColor?: string;
 }
+
+interface TableScrollProps {
+  children: React.ReactNode;
+  showIndicator: boolean;
+  darkMode: boolean;
+  fadeColor: string;
+}
+
+function TableScrollView({ children, showIndicator, darkMode, fadeColor }: TableScrollProps) {
+  const scrollRef = useRef<ScrollView>(null);
+  const [showFade, setShowFade] = useState(false);
+  const sizesRef = useRef({ container: 0, content: 0 });
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      const timer = setTimeout(() => {
+        (scrollRef.current as any)?.flashScrollIndicators?.();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const checkFade = useCallback((scrollX = 0) => {
+    const { container, content } = sizesRef.current;
+    if (container === 0 || content === 0) return;
+    const canScroll = content > container + 2;
+    const atEnd = scrollX + container >= content - 4;
+    setShowFade(canScroll && !atEnd);
+  }, []);
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={{ overflowX: 'auto' } as any}>
+        {children}
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        nestedScrollEnabled
+        bounces={false}
+        showsHorizontalScrollIndicator={showIndicator}
+        indicatorStyle={darkMode ? 'white' : 'black'}
+        onScroll={(e) => {
+          sizesRef.current.container = e.nativeEvent.layoutMeasurement.width;
+          sizesRef.current.content = e.nativeEvent.contentSize.width;
+          checkFade(e.nativeEvent.contentOffset.x);
+        }}
+        scrollEventThrottle={100}
+        onContentSizeChange={(w) => {
+          sizesRef.current.content = w;
+          checkFade();
+        }}
+        onLayout={(e) => {
+          sizesRef.current.container = e.nativeEvent.layout.width;
+          checkFade();
+        }}
+      >
+        {children}
+      </ScrollView>
+      {showFade && (
+        <View style={fadeStyles.container} pointerEvents="none">
+          <View style={[fadeStyles.strip, { backgroundColor: fadeColor, opacity: 0 }]} />
+          <View style={[fadeStyles.strip, { backgroundColor: fadeColor, opacity: 0.4 }]} />
+          <View style={[fadeStyles.strip, { backgroundColor: fadeColor, opacity: 0.7 }]} />
+          <View style={[fadeStyles.strip, { backgroundColor: fadeColor, opacity: 0.95 }]} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+const fadeStyles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 24,
+    flexDirection: 'row',
+  },
+  strip: {
+    flex: 1,
+  },
+});
 
 interface ChartConfigLite {
   title?: string;
@@ -341,30 +431,14 @@ export function MarkdownContent({
       backgroundColor: 'transparent',
     },
     tableViewport: {
-      width: '100%',
-      maxWidth: '100%',
       marginVertical: isPreview ? 2 : 8,
-      alignSelf: 'stretch',
     },
     tableFrame: {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: theme.border,
       borderRadius: 8,
-      overflow: 'hidden',
       backgroundColor: 'transparent',
-      width: '100%',
-    },
-    tableScroll: {
-      width: '100%',
-      maxWidth: '100%',
-    },
-    tableScrollContent: {
-      paddingRight: 0,
-      backgroundColor: 'transparent',
-    },
-    tableInner: {
       alignSelf: 'flex-start',
-      backgroundColor: 'transparent',
       minWidth: '100%',
     },
     chartContainer: {
@@ -426,24 +500,40 @@ export function MarkdownContent({
   });
 
   const markdownRules: RenderRules = {
-    table: (node: ASTNode, children, _parent, styles) => (
-      <View key={node.key} style={styles.tableViewport}>
-        <View style={styles.tableFrame}>
-          <ScrollView
-            horizontal
-            nestedScrollEnabled
-            style={styles.tableScroll}
-            directionalLockEnabled
-            alwaysBounceHorizontal={false}
-            showsHorizontalScrollIndicator={!isPreview}
-            contentContainerStyle={styles.tableScrollContent}
-          >
-            <View style={styles.tableInner}>
-              <View style={styles._VIEW_SAFE_table}>{children}</View>
-            </View>
-          </ScrollView>
+    table: (node: ASTNode, children) => {
+      const isDarkMode = theme.background === '#000000';
+      const tableContent = (
+        <View style={markdownStyles.tableFrame}>
+          <View style={markdownStyles.table}>{children}</View>
         </View>
-      </View>
+      );
+
+      return (
+        <View key={node.key} style={markdownStyles.tableViewport}>
+          <TableScrollView
+            showIndicator={!isPreview}
+            darkMode={isDarkMode}
+            fadeColor={theme.background}
+          >
+            {tableContent}
+          </TableScrollView>
+        </View>
+      );
+    },
+    thead: (node: ASTNode, children) => (
+      <View key={node.key}>{children}</View>
+    ),
+    tbody: (node: ASTNode, children) => (
+      <View key={node.key}>{children}</View>
+    ),
+    tr: (node: ASTNode, children) => (
+      <View key={node.key} style={markdownStyles.tr}>{children}</View>
+    ),
+    th: (node: ASTNode, children) => (
+      <View key={node.key} style={markdownStyles.th}>{children}</View>
+    ),
+    td: (node: ASTNode, children) => (
+      <View key={node.key} style={markdownStyles.td}>{children}</View>
     ),
     fence: (node: ASTNode & { sourceInfo?: string }, _children, _parent, styles) => {
       const language = (node.sourceInfo || '').trim().toLowerCase();
