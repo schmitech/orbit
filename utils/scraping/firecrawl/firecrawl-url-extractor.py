@@ -138,7 +138,7 @@ class FirecrawlUrlExtractor:
                 scrape_params['max_age'] = max_age_ms  # Confirmed: underscore version works
                 print(f"    -> Using fast mode with max age: {self.config.get('max_age_hours')} hours")
 
-            response = await self.app.scrape_url(url, **scrape_params)
+            response = await self.app.v1.scrape_url(url, **scrape_params)
             print(f"    -> Response type: {type(response)}")
             
             if response and hasattr(response, 'links'):

@@ -156,7 +156,7 @@ class AdvancedFirecrawlScraper:
         # Wait for specific selector
         if self.config.get('wait_for'):
             actions.append({
-                'type': 'wait_for',  # Use snake_case for AsyncFirecrawlApp
+                'type': 'wait',
                 'selector': self.config['wait_for']
             })
         
@@ -188,7 +188,7 @@ class AdvancedFirecrawlScraper:
         
         # Add structured data extraction
         if self.config.get('extract_schema'):
-            params['jsonOptions'] = {
+            params['json_options'] = {
                 'schema': self.config['extract_schema'],
                 'systemPrompt': self.config.get('extract_prompt', 
                     'Extract structured data according to the provided schema.')
@@ -245,10 +245,23 @@ class AdvancedFirecrawlScraper:
                     await asyncio.sleep(self.request_delay)
                 
                 # Perform scraping (pass url separately, other params as kwargs)
-                response = await self.app.scrape_url(url, **params)
+                response = await self.app.v1.scrape_url(url, **params)
                 
                 if response:
+                    # Convert Pydantic model to dict
                     response_dict = dict(response)
+                    
+                    # Map new SDK fields back to the names expected by the script
+                    if response_dict.get('extract'):
+                        response_dict['jsonData'] = response_dict['extract']
+                    elif response_dict.get('json_field'):
+                        response_dict['jsonData'] = response_dict['json_field']
+                    
+                    # Handle metadata mapping if needed
+                    if response_dict.get('metadata') and isinstance(response_dict['metadata'], dict):
+                        # The script expects some fields at the top level in some places
+                        pass
+
                     # Save to cache
                     self.save_to_cache(url, response_dict)
                     

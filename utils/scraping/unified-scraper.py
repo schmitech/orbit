@@ -327,7 +327,7 @@ class UnifiedScraper:
                     await asyncio.sleep(self.config['request_delay'])
                 
                 # Scrape with Firecrawl
-                response = await self.firecrawl_app.scrape_url(url, **params)
+                response = await self.firecrawl_app.v1.scrape_url(url, **params)
                 
                 if response:
                     response_dict = dict(response)
