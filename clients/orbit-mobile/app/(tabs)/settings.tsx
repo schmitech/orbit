@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   Modal,
+  Animated,
   ActivityIndicator,
 } from 'react-native';
 import Constants from 'expo-constants';
@@ -36,19 +37,34 @@ export default function SettingsScreen() {
   }, [validateConnection]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const showToast = useCallback((message: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMessage(message);
+    Animated.timing(toastOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastOpacity, { toValue: 0, duration: 400, useNativeDriver: true }).start();
+    }, 2000);
+  }, [toastOpacity]);
 
   const handleClearAll = useCallback(() => {
+    if (conversations.length === 0) return;
     setShowClearConfirm(true);
-  }, []);
+  }, [conversations.length]);
 
   const handleClearCancel = useCallback(() => {
     setShowClearConfirm(false);
   }, []);
 
   const handleClearConfirm = useCallback(() => {
+    const count = conversations.length;
     setShowClearConfirm(false);
     clearAllConversations();
-  }, [clearAllConversations]);
+    showToast(`${count} conversation${count !== 1 ? 's' : ''} deleted`);
+  }, [conversations.length, clearAllConversations, showToast]);
 
   const handleThemeSelect = useCallback(
     (newMode: ThemeMode) => {
@@ -160,8 +176,12 @@ export default function SettingsScreen() {
             </Text>
           </View>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
-          <Pressable style={styles.row} onPress={handleClearAll}>
-            <Text style={[styles.rowLabel, { color: theme.destructive }]}>
+          <Pressable
+            style={styles.row}
+            onPress={handleClearAll}
+            disabled={conversations.length === 0}
+          >
+            <Text style={[styles.rowLabel, { color: conversations.length === 0 ? theme.textTertiary : theme.destructive }]}>
               Clear All Conversations
             </Text>
           </Pressable>
@@ -226,6 +246,15 @@ export default function SettingsScreen() {
         </View>
       </Pressable>
     </Modal>
+    {toastMessage ? (
+      <Animated.View
+        style={[styles.toast, { backgroundColor: theme.surface, borderColor: theme.border, opacity: toastOpacity }]}
+        pointerEvents="none"
+      >
+        <Ionicons name="checkmark-circle" size={18} color={theme.success} />
+        <Text style={[styles.toastText, { color: theme.text }]}>{toastMessage}</Text>
+      </Animated.View>
+    ) : null}
     </>
   );
 }
@@ -331,5 +360,21 @@ const styles = StyleSheet.create({
   dialogDeleteText: {
     fontWeight: '600',
     color: '#FF3B30',
+  },
+  toast: {
+    position: 'absolute',
+    bottom: 48,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  toastText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
