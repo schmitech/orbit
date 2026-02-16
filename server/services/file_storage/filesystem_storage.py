@@ -9,7 +9,6 @@ import logging
 import json
 import os
 import tempfile
-import shutil
 from pathlib import Path
 from typing import Dict, Any, List
 from .base_storage import FileStorageBackend

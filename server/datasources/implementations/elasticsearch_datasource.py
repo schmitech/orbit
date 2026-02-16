@@ -6,7 +6,6 @@ Compatible with Elasticsearch 9.x and OpenSearch.
 """
 
 import logging
-import os
 from typing import Dict, Any, Optional
 from elasticsearch import AsyncElasticsearch
 

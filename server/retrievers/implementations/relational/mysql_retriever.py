@@ -121,7 +121,7 @@ class MySQLRetriever(BaseSQLDatabaseRetriever):
                 self.connection.commit()
                 return [{"affected_rows": cursor.rowcount}]
                 
-        except Exception as e:
+        except Exception:
             if self.connection:
                 self.connection.rollback()
             raise

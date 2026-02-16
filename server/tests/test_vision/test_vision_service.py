@@ -15,7 +15,6 @@ import sys
 import os
 from typing import Dict, Any
 from unittest.mock import patch, MagicMock, AsyncMock
-from pathlib import Path
 from io import BytesIO
 from PIL import Image
 
@@ -26,7 +25,6 @@ sys.path.append(server_dir)
 
 from ai_services.registry import register_vision_services
 from ai_services.factory import AIServiceFactory
-from ai_services.base import ServiceType
 
 
 class TestVisionServiceRegistration:

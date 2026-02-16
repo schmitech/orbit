@@ -38,7 +38,6 @@ Notes:
 
 import yaml
 import os
-import re
 import argparse
 from pathlib import Path
 from dotenv import load_dotenv

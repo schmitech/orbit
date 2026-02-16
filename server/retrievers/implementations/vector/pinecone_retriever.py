@@ -65,7 +65,7 @@ class PineconeRetriever(AbstractVectorRetriever):
 
             self.pinecone_client = Pinecone(**init_kwargs)
 
-            logger.info(f"Connected to Pinecone")
+            logger.info("Connected to Pinecone")
 
         except ImportError:
             error_msg = "pinecone package is required for Pinecone retriever. Install with: pip install pinecone>=3.0.0"

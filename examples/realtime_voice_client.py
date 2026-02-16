@@ -72,8 +72,6 @@ import json
 import base64
 import argparse
 from typing import Optional
-import wave
-import io
 import struct
 
 try:
@@ -217,7 +215,7 @@ class RealTimeVoiceClient:
         right = samples[1::2]
 
         # Average channels to create mono
-        mono_samples = [(l + r) // 2 for l, r in zip(left, right)]
+        mono_samples = [(left_ch + right_ch) // 2 for left_ch, right_ch in zip(left, right)]
 
         # Pack back to bytes
         return struct.pack(f'{len(mono_samples)}h', *mono_samples)

@@ -16,11 +16,10 @@ Note: This test mirrors test_admin_integration.py but ensures SQLite backend is 
 
 import asyncio
 import aiohttp
-import json
 import logging
 import time
 import pytest
-from typing import Optional, Dict, Any
+from typing import Optional
 import os
 from pathlib import Path
 

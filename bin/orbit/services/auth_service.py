@@ -7,7 +7,6 @@ using keyring or file-based storage.
 
 import base64
 import logging
-from pathlib import Path
 from typing import Optional
 
 from bin.orbit.services.config_service import DEFAULT_ENV_FILE

@@ -7,7 +7,6 @@ Claude excels at instruction following and nuanced relevance judgments.
 
 import logging
 from typing import Dict, Any, List, Optional
-import asyncio
 import json
 
 from ...providers import AnthropicBaseService

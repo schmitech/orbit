@@ -3,11 +3,10 @@ Tests for SQL retriever result truncation and metadata tracking
 """
 
 import pytest
-import asyncio
 import sys
 import os
-from typing import Dict, Any, List, Optional
-from unittest.mock import Mock, MagicMock, AsyncMock, patch
+from typing import Dict, Any, List
+from unittest.mock import Mock, AsyncMock
 
 # Add the server directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -112,7 +111,7 @@ async def test_no_truncation_when_results_below_limit(test_config, mock_datasour
 
     # Check metadata
     assert results[0]["metadata"]["total_available"] == 2
-    assert results[0]["metadata"]["truncated"] == False
+    assert not results[0]["metadata"]["truncated"]
     assert results[0]["metadata"]["result_count"] == 2
 
 
@@ -134,7 +133,7 @@ async def test_truncation_when_results_exceed_limit(test_config, mock_datasource
 
     # Check metadata shows original count
     assert results[0]["metadata"]["total_available"] == 100
-    assert results[0]["metadata"]["truncated"] == True
+    assert results[0]["metadata"]["truncated"]
     assert results[0]["metadata"]["result_count"] == 3
 
     # Verify only first 3 rows are returned (sorted by confidence)
@@ -174,7 +173,7 @@ async def test_custom_return_results_limit(mock_datasource):
 
     # Check metadata
     assert results[0]["metadata"]["total_available"] == 50
-    assert results[0]["metadata"]["truncated"] == True
+    assert results[0]["metadata"]["truncated"]
     assert results[0]["metadata"]["result_count"] == 10
 
 
@@ -196,7 +195,7 @@ async def test_truncation_metadata_consistent_across_results(test_config, mock_d
 
     for result in results:
         assert result["metadata"]["total_available"] == 20
-        assert result["metadata"]["truncated"] == True
+        assert result["metadata"]["truncated"]
         assert result["metadata"]["result_count"] == 3
 
 
@@ -234,7 +233,7 @@ async def test_exact_limit_no_truncation(test_config, mock_datasource):
 
     # Check metadata (no truncation since count matches limit)
     assert results[0]["metadata"]["total_available"] == 3
-    assert results[0]["metadata"]["truncated"] == False
+    assert not results[0]["metadata"]["truncated"]
     assert results[0]["metadata"]["result_count"] == 3
 
 

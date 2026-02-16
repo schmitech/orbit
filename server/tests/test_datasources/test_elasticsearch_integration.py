@@ -13,7 +13,6 @@ Run this test manually when needed: python test_elasticsearch_integration.py
 import asyncio
 import os
 import sys
-import json
 import pytest
 from datetime import datetime, UTC
 from pathlib import Path
@@ -100,7 +99,7 @@ async def test_elasticsearch_connection(logger_service: LoggerService):
     
     # Test ping
     ping_result = await logger_service.es_client.ping()
-    assert ping_result == True, "Elasticsearch ping failed"
+    assert ping_result, "Elasticsearch ping failed"
     
     # Check cluster info
     cluster_info = await logger_service.es_client.info()
@@ -110,7 +109,7 @@ async def test_elasticsearch_connection(logger_service: LoggerService):
     index_name = logger_service.config["internal_services"]["elasticsearch"]["index"]
     exists = await logger_service.es_client.indices.exists(index=index_name)
     # Index should exist after initialization
-    assert exists == True, f"Index '{index_name}' does not exist"
+    assert exists, f"Index '{index_name}' does not exist"
 
 
 @pytest.mark.asyncio
@@ -201,7 +200,7 @@ async def test_blocked_conversation(logger_service: LoggerService):
     assert search_result["hits"]["total"]["value"] > 0, "Blocked document not found"
     
     doc = search_result["hits"]["hits"][0]["_source"]
-    assert doc.get("blocked") == True, f"Blocked flag not set correctly: {doc.get('blocked')}"
+    assert doc.get("blocked"), f"Blocked flag not set correctly: {doc.get('blocked')}"
     assert test_data["query"] in doc.get("query", ""), "Query content mismatch"
 
 

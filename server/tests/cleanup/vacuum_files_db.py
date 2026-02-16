@@ -274,7 +274,7 @@ class DatabaseVacuum:
         print(f"    - File chunks: {stats.get('chunk_count', 0):,}")
         print(f"    - Chat history: {stats.get('chat_history_count', 0):,}")
         print(f"    - Users: {stats.get('user_count', 0):,}")
-        print(f"\n  Storage details:")
+        print("\n  Storage details:")
         print(f"    - Pages: {stats.get('page_count', 0):,}")
         print(f"    - Page size: {stats.get('page_size', 0):,} bytes")
         print(f"    - Estimated used: {stats.get('estimated_used_mb', 0):.2f} MB ({stats.get('estimated_used_bytes', 0):,} bytes)")

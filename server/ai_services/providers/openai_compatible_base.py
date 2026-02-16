@@ -11,7 +11,7 @@ These providers use the same API structure as OpenAI but with different:
 - Some minor parameter variations
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import asyncio
 from openai import AsyncOpenAI
 import httpx
@@ -241,7 +241,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
                     f"{self.provider_name.title()} connection verified successfully"
                 )
                 return True
-            except Exception as models_error:
+            except Exception:
                 # If models endpoint doesn't work, try a minimal test request
                 logger.debug(
                     f"{self.provider_name.title()} models endpoint not available, "

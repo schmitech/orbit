@@ -29,7 +29,6 @@ Notes:
       * delete_pinecone_index.py - Deletes indexes
 """
 
-import sys
 import os
 import argparse
 from pathlib import Path
@@ -60,7 +59,7 @@ def delete_pinecone_index(index_name: str):
     Args:
         index_name (str): Name of the index to delete
     """
-    print(f"Connecting to Pinecone service...")
+    print("Connecting to Pinecone service...")
 
     try:
         # Initialize Pinecone client

@@ -13,7 +13,7 @@ logger.info("LOADING ChromaQAAdapter MODULE")
 
 # Register with the factory only as "chroma_qa", not as the default "qa"
 DocumentAdapterFactory.register_adapter("chroma_qa", lambda **kwargs: ChromaQAAdapter(**kwargs))
-logger.info(f"Registered ChromaQAAdapter as 'chroma_qa'")
+logger.info("Registered ChromaQAAdapter as 'chroma_qa'")
 
 class ChromaQAAdapter(DocumentAdapter):
     """Adapter for question-answer pairs in ChromaDB, matching original implementation"""

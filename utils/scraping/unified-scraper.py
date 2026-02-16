@@ -45,10 +45,9 @@ import time
 import hashlib
 import random
 from pathlib import Path
-from typing import List, Dict, Optional, Any, Literal
+from typing import List, Dict, Optional, Any
 from urllib.parse import urlparse
 from dotenv import load_dotenv
-import re
 
 # Load environment variables
 load_dotenv()
@@ -622,7 +621,7 @@ class UnifiedScraper:
             # Write frontmatter
             f.write("---\n")
             f.write(f"source: {url}\n")
-            f.write(f"scraped_with: unified-scraper\n")
+            f.write("scraped_with: unified-scraper\n")
             f.write(f"backend: {content['backend']}\n")
             f.write(f"scraped_at: {content['timestamp']}\n")
             
@@ -715,7 +714,7 @@ class UnifiedScraper:
         jina_count = self.stats.get('jina_success', 0)  # Jina has free tier
         
         if firecrawl_count > 0 or jina_count > 0:
-            print(f"\nCost estimation:")
+            print("\nCost estimation:")
             if firecrawl_count > 0:
                 estimated_cost = firecrawl_count * 0.01  # $0.01 per scrape estimate
                 print(f"  Firecrawl cost: ~${estimated_cost:.2f}")
@@ -732,7 +731,7 @@ class UnifiedScraper:
                 print(f"  Saved by free backends: ~${saved_amount:.2f}")
         
         if self.stats['errors']:
-            print(f"\nErrors encountered:")
+            print("\nErrors encountered:")
             for error in self.stats['errors'][:5]:
                 print(f"  - {error['url']}: {error['error']}")
             if len(self.stats['errors']) > 5:
@@ -840,7 +839,7 @@ async def main(input_source: str, output_dir: str, args):
             print(f"✓ Filtered out {original_count - len(urls)} image URLs")
     
     print(f"Found {len(urls)} URL(s) to process")
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  - Backend: {config['backend']}")
     print(f"  - Auto-fallback: {config['auto_fallback']}")
     print(f"  - Cache: {'enabled' if config['use_cache'] else 'disabled'}")

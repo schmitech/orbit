@@ -480,12 +480,12 @@ Examples:
     conn.close()
 
     print(f"\nDatabase created successfully: {db_path}")
-    print(f"\nNext steps:")
-    print(f"  1. Test queries with DuckDB:")
+    print("\nNext steps:")
+    print("  1. Test queries with DuckDB:")
     print(f"     duckdb {db_path} 'SELECT * FROM electric_vehicles LIMIT 5;'")
-    print(f"\n  2. Run test queries:")
-    print(f"     ./test_ev_queries.sh")
-    print(f"\n  3. Configure Intent adapter in config/adapters.yaml")
+    print("\n  2. Run test queries:")
+    print("     ./test_ev_queries.sh")
+    print("\n  3. Configure Intent adapter in config/adapters.yaml")
 
     return 0
 

@@ -452,7 +452,7 @@ class DependencyCacheCleaner:
         vector_store = config_section.get('vector_store')
 
         # Get template collection name for intent adapters
-        template_collection = config_section.get('template_collection_name')
+        config_section.get('template_collection_name')
 
         stores_to_check = []
         if store_name:

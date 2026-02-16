@@ -10,12 +10,8 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, UploadFile, File, HTTPException, Header, Depends, Request, BackgroundTasks, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from datetime import datetime
 
 from services.file_processing.file_processing_service import FileProcessingService
-from services.file_storage.filesystem_storage import FilesystemStorage
-from services.file_metadata.metadata_store import FileMetadataStore
-from utils import is_true_value
 
 logger = logging.getLogger(__name__)
 

@@ -32,13 +32,12 @@ Examples:
 """
 
 import argparse
-import json
 import random
 import sys
 import time
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Optional, List
 from dataclasses import dataclass, field
 
 try:
@@ -309,7 +308,7 @@ class RateLimitSimulator:
             endpoint: API endpoint to test
             method: HTTP method (GET or POST)
         """
-        delay = 1.0 / requests_per_second
+        1.0 / requests_per_second
         self._log(f"Starting SUSTAINED test: {requests_per_second} RPS for {duration_seconds}s")
         self._log(f"API Key: {'Yes' if self.api_key else 'No'}")
         self._log("-" * 60)

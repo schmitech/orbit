@@ -6,7 +6,7 @@ Automatically tracks HTTP request metrics for monitoring.
 
 import time
 import logging
-from fastapi import Request, Response
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)

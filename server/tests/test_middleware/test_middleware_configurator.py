@@ -10,14 +10,12 @@ Tests cover:
 - Edge cases and security validations
 """
 
-import pytest
 import logging
 import sys
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch, call, AsyncMock
+from unittest.mock import Mock, patch
 from fastapi import FastAPI, Request, Response
 from fastapi.testclient import TestClient
-from starlette.middleware.cors import CORSMiddleware
 
 # Add server directory to Python path
 SCRIPT_DIR = Path(__file__).parent.absolute()
@@ -109,7 +107,6 @@ class TestSecurityHeadersMiddleware:
     def test_security_headers_on_error_response(self):
         """Test that security headers are added on handled error responses."""
         from fastapi import HTTPException
-        from fastapi.responses import JSONResponse
 
         app = FastAPI()
 

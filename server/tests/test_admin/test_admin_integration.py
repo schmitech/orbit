@@ -19,11 +19,10 @@ Expected Server Warnings:
 
 import asyncio
 import aiohttp
-import json
 import logging
 import time
 import pytest
-from typing import Optional, Dict, Any
+from typing import Optional
 import os
 from pathlib import Path
 
@@ -552,7 +551,7 @@ class AdminTester:
                 timeout=10
             ) as response:
                 if response.status == 200:
-                    result = await response.json()
+                    await response.json()
                     logger.info(f"✓ Associated prompt {prompt_id} with API key ***{api_key[-4:]}")
                     return True
                 elif response.status == 404:
@@ -635,7 +634,7 @@ class AdminTester:
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-                    logger.info(f"✓ Adapters reloaded successfully")
+                    logger.info("✓ Adapters reloaded successfully")
 
                     # Verify response format
                     if not all(field in result for field in ["status", "message", "summary", "timestamp"]):
@@ -732,7 +731,7 @@ class AdminTester:
                 timeout=30
             ) as response:
                 if response.status == 404:
-                    logger.info(f"✓ Non-existent adapter correctly returns 404")
+                    logger.info("✓ Non-existent adapter correctly returns 404")
                     return True
                 elif response.status == 503:
                     error = await response.text()

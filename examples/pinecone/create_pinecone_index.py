@@ -116,7 +116,7 @@ async def ingest_to_pinecone(
     
     # Initialize Pinecone client
     pc = get_pinecone_client()
-    print(f"Connected to Pinecone")
+    print("Connected to Pinecone")
     
     # Initialize Embedding service based on config
     embedding_service = EmbeddingServiceFactory.create_embedding_service(config, embedding_provider)
@@ -126,7 +126,7 @@ async def ingest_to_pinecone(
     if not initialized:
         raise ValueError(f"Failed to initialize {embedding_provider} embedding service")
     
-    print(f"\nEmbedding Service Details:")
+    print("\nEmbedding Service Details:")
     print(f"Provider: {embedding_provider}")
     # Get model name from config
     model_name = config['embeddings'][embedding_provider]['model']
@@ -228,7 +228,7 @@ async def ingest_to_pinecone(
     
     # Get index stats
     stats = index.describe_index_stats()
-    print(f"\nIngestion complete!")
+    print("\nIngestion complete!")
     print(f"Total vectors in index: {stats['total_vector_count']}")
     
     # Test retrieval with a sample query

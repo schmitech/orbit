@@ -149,7 +149,6 @@ class ShimmyInferenceService(InferenceService, ShimmyBaseService):
             Concatenated content from all chunks
         """
         import json
-        import re
         
         content_parts = []
         

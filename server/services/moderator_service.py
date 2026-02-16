@@ -17,7 +17,6 @@ from typing import Dict, Any, Tuple, Optional
 # Import from new AI services architecture
 from ai_services.factory import AIServiceFactory
 from ai_services.base import ServiceType
-from ai_services.services.moderation_service import ModerationResult
 from ai_services.registry import register_all_services
 
 from utils import is_true_value
@@ -339,7 +338,7 @@ Query: """
                         logger.debug(f"All category scores: {result.categories}")
                     except Exception as category_error:
                         logger.error(f"Error processing moderation categories: {str(category_error)}")
-                        logger.info(f"🛑 MODERATION BLOCKED: Query was flagged as UNSAFE (categories unavailable)")
+                        logger.info("🛑 MODERATION BLOCKED: Query was flagged as UNSAFE (categories unavailable)")
 
                 # Return appropriate response with category information for transparency
                 if is_safe:
@@ -467,9 +466,9 @@ Query: """
 
                     # Add more visible logging with emojis
                     if is_safe:
-                        logger.debug(f"✅ LLM SAFETY CHECK PASSED: Query was deemed SAFE")
+                        logger.debug("✅ LLM SAFETY CHECK PASSED: Query was deemed SAFE")
                     else:
-                        logger.debug(f"🛑 LLM SAFETY CHECK BLOCKED: Query was deemed UNSAFE")
+                        logger.debug("🛑 LLM SAFETY CHECK BLOCKED: Query was deemed UNSAFE")
 
                     return is_safe, refusal_message
 

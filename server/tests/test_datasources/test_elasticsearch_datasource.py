@@ -104,7 +104,7 @@ async def test_direct_connection(elasticsearch_config):
     username = elasticsearch_config['username']
     password = os.getenv('DATASOURCE_ELASTICSEARCH_PASSWORD')
 
-    print(f"\n=== Testing Direct Connection ===")
+    print("\n=== Testing Direct Connection ===")
     print(f"Node: {node}")
     print(f"Username: {username}")
     print(f"Password: {'*' * len(password) if password else 'NOT SET'}")
@@ -121,7 +121,7 @@ async def test_direct_connection(elasticsearch_config):
     try:
         # Test ping
         ping_result = await client.ping()
-        assert ping_result == True, "Elasticsearch ping failed"
+        assert ping_result, "Elasticsearch ping failed"
         print("✓ Ping successful")
 
         # Get cluster info
@@ -140,7 +140,7 @@ async def test_datasource_creation(elasticsearch_config):
     """Test that datasource can be created with correct configuration."""
     from datasources.registry import get_registry
 
-    print(f"\n=== Testing Datasource Creation ===")
+    print("\n=== Testing Datasource Creation ===")
 
     registry = get_registry()
 
@@ -173,7 +173,7 @@ async def test_datasource_creation(elasticsearch_config):
 async def test_datasource_connection(elasticsearch_datasource):
     """Test Elasticsearch datasource connection and operations."""
 
-    print(f"\n=== Testing Datasource Connection ===")
+    print("\n=== Testing Datasource Connection ===")
 
     # Verify datasource is initialized
     assert elasticsearch_datasource.is_initialized, "Datasource not initialized"
@@ -183,7 +183,7 @@ async def test_datasource_connection(elasticsearch_datasource):
     cluster_info = await elasticsearch_datasource.client.info()
     assert 'cluster_name' in cluster_info, "Failed to get cluster info"
 
-    print(f"✓ Connected to Elasticsearch cluster")
+    print("✓ Connected to Elasticsearch cluster")
     print(f"  Cluster name: {cluster_info.get('cluster_name', 'unknown')}")
     print(f"  Version: {cluster_info.get('version', {}).get('number', 'unknown')}")
     print(f"  Tagline: {cluster_info.get('tagline', 'unknown')}")
@@ -193,10 +193,10 @@ async def test_datasource_connection(elasticsearch_datasource):
 async def test_datasource_health_check(elasticsearch_datasource):
     """Test datasource health check functionality."""
 
-    print(f"\n=== Testing Health Check ===")
+    print("\n=== Testing Health Check ===")
 
     is_healthy = await elasticsearch_datasource.health_check()
-    assert is_healthy == True, "Health check failed"
+    assert is_healthy, "Health check failed"
 
     print("✓ Health check passed")
 
@@ -205,7 +205,7 @@ async def test_datasource_health_check(elasticsearch_datasource):
 async def test_datasource_query(elasticsearch_datasource):
     """Test querying indices through the datasource."""
 
-    print(f"\n=== Testing Query Operations ===")
+    print("\n=== Testing Query Operations ===")
 
     # List indices
     indices = await elasticsearch_datasource.client.cat.indices(format='json')
@@ -226,7 +226,7 @@ async def test_datasource_query(elasticsearch_datasource):
 async def test_config_loading():
     """Test that config manager properly loads and substitutes environment variables."""
 
-    print(f"\n=== Testing Config Loading ===")
+    print("\n=== Testing Config Loading ===")
 
     # Load config
     config_path = PROJECT_ROOT / 'config' / 'config.yaml'
@@ -255,7 +255,7 @@ async def test_config_loading():
     assert username, "Username is empty after substitution"
     assert password, "Password is empty after substitution"
 
-    print(f"✓ Environment variables properly substituted")
+    print("✓ Environment variables properly substituted")
     print(f"  Username: {username}")
     print(f"  Password: {'*' * len(password)}")
 

@@ -4,14 +4,13 @@ Retriever package for handling different types of data retrieval implementations
 
 import logging
 
-# Configure logging
-logger = logging.getLogger(__name__)
-logger.info("Initializing retrievers package")
-
 from .base.base_retriever import BaseRetriever, RetrieverFactory
 from .base.abstract_vector_retriever import AbstractVectorRetriever
 from .base.sql_retriever import AbstractSQLRetriever
 from adapters.factory import DocumentAdapterFactory
+
+logger = logging.getLogger(__name__)
+logger.info("Initializing retrievers package")
 
 # Import implementations to register them
 try:

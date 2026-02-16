@@ -6,7 +6,6 @@ import asyncio
 import logging
 from typing import Dict, Any, Optional
 
-from utils.text_utils import sanitize_error_message
 from models.schema import HealthStatus
 
 # Configure logging

@@ -81,7 +81,7 @@ async def test_vision(file_path: str, server_url: str, api_key: str, timeout: in
     print(f"✅ Loaded image: {filename} ({len(file_content)} bytes, {mime_type})")
     print(f"🌐 Server URL: {server_url}")
     print(f"📝 Using prompt: {prompt}")
-    print(f"ℹ️  Vision provider is configured in config/vision.yaml")
+    print("ℹ️  Vision provider is configured in config/vision.yaml")
 
     file_id = None
     async with httpx.AsyncClient(timeout=180.0) as client:
@@ -110,7 +110,7 @@ async def test_vision(file_path: str, server_url: str, api_key: str, timeout: in
 
         # Poll for completion
         print("\n⏳ Waiting for vision processing...")
-        print(f"   (Check logs/orbit.log for detailed progress)")
+        print("   (Check logs/orbit.log for detailed progress)")
 
         for i in range(timeout):
             await asyncio.sleep(1)
@@ -129,7 +129,7 @@ async def test_vision(file_path: str, server_url: str, api_key: str, timeout: in
                     print(f"   [{i}s] Status: {status}, Chunks: {chunks}")
 
                 if status == 'completed':
-                    print(f"\n✅ Processing completed!")
+                    print("\n✅ Processing completed!")
                     print(f"   Chunks created: {chunks}")
                     if chunks > 0:
                         print("\n🎉 VISION PROCESSING WORKS!")
@@ -205,19 +205,19 @@ async def test_vision(file_path: str, server_url: str, api_key: str, timeout: in
                     # Cleanup
                     try:
                         await client.delete(f"{server_url}/api/files/{file_id}", headers=headers)
-                    except:
+                    except Exception:
                         pass
                     return
 
                 elif status == 'failed':
-                    print(f"\n❌ Processing failed!")
+                    print("\n❌ Processing failed!")
                     if file_info.get('error_message'):
                         print(f"   Error: {file_info['error_message']}")
 
                     # Cleanup
                     try:
                         await client.delete(f"{server_url}/api/files/{file_id}", headers=headers)
-                    except:
+                    except Exception:
                         pass
                     return
 
@@ -228,7 +228,7 @@ async def test_vision(file_path: str, server_url: str, api_key: str, timeout: in
         if file_id:
             try:
                 await client.delete(f"{server_url}/api/files/{file_id}", headers=headers)
-            except:
+            except Exception:
                 pass
 
 def main():

@@ -4,7 +4,6 @@ SQLite Datasource Implementation
 
 import logging
 import sqlite3
-from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
 
 logger = logging.getLogger(__name__)

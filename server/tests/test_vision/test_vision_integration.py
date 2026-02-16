@@ -12,9 +12,7 @@ This module tests the complete integration of vision services with:
 import pytest
 import sys
 import os
-from typing import Dict, Any
 from unittest.mock import patch, MagicMock, AsyncMock
-from pathlib import Path
 from io import BytesIO
 from PIL import Image
 
@@ -143,7 +141,7 @@ class TestVisionFileProcessingIntegration:
         """Create sample PNG image bytes."""
         img = Image.new('RGB', (300, 300), color='green')
         # Add some text to the image (simulating a document image)
-        from PIL import ImageDraw, ImageFont
+        from PIL import ImageDraw
         draw = ImageDraw.Draw(img)
         # Use default font
         draw.text((10, 10), "Sample Document", fill='white')

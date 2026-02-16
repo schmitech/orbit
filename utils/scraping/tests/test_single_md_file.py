@@ -10,8 +10,7 @@ from pathlib import Path
 # Import functions from the main script
 from ollama_firecrawl_question_extractor import (
     parse_frontmatter_and_clean, 
-    extract_questions_from_text,
-    generate_answer
+    extract_questions_from_text
 )
 
 async def test_single_file(file_path):
@@ -50,7 +49,7 @@ async def test_single_file(file_path):
                 
                 # Check if any question relates to organization description
                 if any(keyword in question.lower() for keyword in ['description', 'democracy', 'cooperative', 'co-op', 'community', 'mission', 'purpose']):
-                    print(f"    ✅ This question relates to organization description!")
+                    print("    ✅ This question relates to organization description!")
             
         except Exception as e:
             print(f"❌ Error: {e}")

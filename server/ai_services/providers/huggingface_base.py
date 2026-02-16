@@ -1,7 +1,7 @@
 """Hugging Face base class."""
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
 
@@ -69,7 +69,7 @@ class HuggingFaceBaseService(ProviderAIService):
 
     async def verify_connection(self) -> bool:
         try:
-            info = await self.client.get_endpoint_info()
+            await self.client.get_endpoint_info()
             logger.info(f"Hugging Face connection verified for model: {self.model}")
             return True
         except Exception as e:

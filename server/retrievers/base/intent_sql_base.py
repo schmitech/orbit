@@ -8,7 +8,6 @@ import traceback
 import asyncio
 import re
 from typing import Dict, Any, List, Optional, Tuple
-from abc import abstractmethod
 
 from .base_sql_database import BaseSQLDatabaseRetriever
 from adapters.intent.adapter import IntentAdapter
@@ -192,7 +191,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 await self.embedding_client.initialize()
                 logger.info(f"Successfully initialized {embedding_provider} embedding provider")
             else:
-                logger.debug(f"Embedding service already initialized, skipping initialization")
+                logger.debug("Embedding service already initialized, skipping initialization")
 
         except Exception as e:
             logger.warning(f"Failed to initialize {embedding_provider}: {e}")
@@ -206,7 +205,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                     await self.embedding_client.initialize()
                     logger.info("Successfully initialized Ollama fallback embedding provider")
                 else:
-                    logger.debug(f"Ollama embedding service already initialized, skipping initialization")
+                    logger.debug("Ollama embedding service already initialized, skipping initialization")
             except Exception as fallback_error:
                 logger.error(f"Failed to initialize fallback embedding provider: {fallback_error}")
                 raise Exception("Unable to initialize any embedding provider")
@@ -379,7 +378,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             
         except ImportError as e:
             logger.error(f"Vector store system not available: {e}")
-            raise Exception(f"Intent adapter requires vector store support. Install required dependencies.") from e
+            raise Exception("Intent adapter requires vector store support. Install required dependencies.") from e
         except Exception as e:
             logger.error(f"Error initializing vector store: {e}")
             raise Exception(f"Intent adapter requires a properly configured vector store. Failed to initialize store '{self.store_name}'.") from e
@@ -398,14 +397,14 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 return
             
             logger.debug(f"Loading {len(templates)} templates into vector store")
-            logger.debug(f"=== Template Loading Debug Info ===")
+            logger.debug("=== Template Loading Debug Info ===")
             logger.debug(f"  Store name: {self.store_name}")
             logger.debug(f"  Collection name: {self.template_collection_name}")
             logger.debug(f"  Template store collection: {self.template_store.collection_name}")
             logger.debug(f"  Template store name: {self.template_store.store_name}")
             logger.debug(f"  Template library path: {self.intent_config.get('template_library_path')}")
             logger.debug(f"  Template IDs (first 3): {[t.get('id', 'no-id') for t in templates[:3]]}")
-            logger.debug(f"===================================")
+            logger.debug("===================================")
 
             # Check if we should reload templates
             force_reload = self.intent_config.get('force_reload_templates', False)
@@ -421,7 +420,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 if existing_dim and existing_dim != expected_dim:
                     dimension_changed = True
                     logger.info(f"Dimension changed from {existing_dim} to {expected_dim}, forcing reload")
-            except:
+            except Exception:
                 pass
             
             if not force_reload and not reload_on_start and not dimension_changed:
@@ -432,7 +431,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                     if existing_count > 0:
                         logger.info(f"Found {existing_count} existing templates, skipping reload")
                         return
-                except:
+                except Exception:
                     pass
             
             # Load templates into the template store
@@ -803,13 +802,13 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 logger.debug(f"Could not verify dimension compatibility: {e}")
             
             # Debug logging for template collection isolation
-            logger.debug(f"=== Template Search Debug Info ===")
+            logger.debug("=== Template Search Debug Info ===")
             logger.debug(f"  Adapter config store_name: {self.store_name}")
             logger.debug(f"  Template collection name: {self.template_collection_name}")
             logger.debug(f"  Template store collection: {self.template_store.collection_name}")
             logger.debug(f"  Template store name: {self.template_store.store_name}")
             logger.debug(f"  Template store type: {self.template_store.store_type}")
-            logger.debug(f"==================================")
+            logger.debug("==================================")
 
             # Search for similar templates
             search_results = await self.template_store.search_similar_templates(

@@ -7,7 +7,6 @@ providing a unified API regardless of the underlying provider.
 
 from abc import abstractmethod
 from typing import List, Dict, Any, Optional
-import logging
 
 from ..base import ProviderAIService, ServiceType
 

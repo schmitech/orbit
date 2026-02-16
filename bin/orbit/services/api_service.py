@@ -287,9 +287,9 @@ class ApiService:
             response.raise_for_status()
             # Try to get status to verify
             try:
-                status_response = self.get_api_key_status(api_key)
+                self.get_api_key_status(api_key)
                 return {"status": "success", "message": "API key is valid and active"}
-            except:
+            except Exception:
                 return {"status": "error", "error": "API key is invalid or deactivated"}
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 401:
@@ -399,7 +399,7 @@ class ApiService:
         
         # Check keyring availability
         try:
-            import keyring
+            import keyring  # noqa: F401
             keyring_available = True
         except ImportError:
             keyring_available = False

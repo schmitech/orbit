@@ -9,7 +9,7 @@ import pytest
 import sys
 import warnings
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from unittest.mock import Mock, patch
 
 # Suppress SWIG-related deprecation warnings from dependencies
 warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*builtin type SwigPyPacked.*")
@@ -354,8 +354,6 @@ async def test_markitdown_extract_text_empty_result():
 async def test_markitdown_extract_text_preserves_extension():
     """Test that extract_text preserves file extension for proper format detection"""
     from services.file_processing.markitdown_processor import MarkItDownProcessor, MARKITDOWN_AVAILABLE
-    import tempfile
-    import os
 
     if not MARKITDOWN_AVAILABLE:
         pytest.skip("markitdown library not available")

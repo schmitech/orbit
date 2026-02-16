@@ -10,12 +10,9 @@ This file contains performance tests for various endpoints including:
 Run with: locust -f locustfile.py --host=http://localhost:3000
 """
 
-import json
 import random
 import time
-from typing import Dict, Any
 from locust import HttpUser, task, between, events
-from locust.exception import StopUser
 
 
 class OrbitInferenceServerUser(HttpUser):

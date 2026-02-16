@@ -13,7 +13,7 @@ This module tests the ElevenLabs audio service specifically:
 import pytest
 import sys
 import os
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock
 from aiohttp import ClientResponse
 
 # Get the absolute path to the server directory
@@ -96,7 +96,7 @@ class TestElevenLabsAudioService:
 
             # Service constructor should raise ValueError when API key is missing
             with pytest.raises(ValueError, match="ElevenLabs API key is required"):
-                service = ElevenLabsAudioService(config)
+                ElevenLabsAudioService(config)
         finally:
             # Restore the environment variable
             if original_key:

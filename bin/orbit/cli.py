@@ -9,12 +9,12 @@ import sys
 import argparse
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Optional, Any
 
 from rich.console import Console
 from rich.logging import RichHandler
 
-from bin.orbit.services.config_service import ConfigService, DEFAULT_LOG_DIR
+from bin.orbit.services.config_service import ConfigService
 from bin.orbit.services.api_client import ApiClient
 from bin.orbit.services.auth_service import AuthService
 from bin.orbit.services.api_service import ApiService

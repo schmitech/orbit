@@ -5,7 +5,6 @@ This module provides monitoring capabilities for the pipeline architecture,
 including metrics collection, health checks, and performance tracking.
 """
 
-import time
 import logging
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
@@ -277,26 +276,26 @@ class PipelineMonitor:
         
         # Pipeline metrics
         pipeline_metrics = self.get_pipeline_metrics()
-        lines.append(f"# HELP pipeline_executions_total Total pipeline executions")
-        lines.append(f"# TYPE pipeline_executions_total counter")
+        lines.append("# HELP pipeline_executions_total Total pipeline executions")
+        lines.append("# TYPE pipeline_executions_total counter")
         lines.append(f"pipeline_executions_total {pipeline_metrics['total_executions']}")
         
-        lines.append(f"# HELP pipeline_success_rate Pipeline success rate")
-        lines.append(f"# TYPE pipeline_success_rate gauge")
+        lines.append("# HELP pipeline_success_rate Pipeline success rate")
+        lines.append("# TYPE pipeline_success_rate gauge")
         lines.append(f"pipeline_success_rate {pipeline_metrics['overall_success_rate']}")
         
         # Step metrics
         for step_name, step_metrics in self.step_metrics.items():
-            lines.append(f"# HELP pipeline_step_executions_total Total step executions")
-            lines.append(f"# TYPE pipeline_step_executions_total counter")
+            lines.append("# HELP pipeline_step_executions_total Total step executions")
+            lines.append("# TYPE pipeline_step_executions_total counter")
             lines.append(f'pipeline_step_executions_total{{step="{step_name}"}} {step_metrics.total_executions}')
             
-            lines.append(f"# HELP pipeline_step_success_rate Step success rate")
-            lines.append(f"# TYPE pipeline_step_success_rate gauge")
+            lines.append("# HELP pipeline_step_success_rate Step success rate")
+            lines.append("# TYPE pipeline_step_success_rate gauge")
             lines.append(f'pipeline_step_success_rate{{step="{step_name}"}} {step_metrics.success_rate}')
             
-            lines.append(f"# HELP pipeline_step_execution_time_seconds Step execution time")
-            lines.append(f"# TYPE pipeline_step_execution_time_seconds histogram")
+            lines.append("# HELP pipeline_step_execution_time_seconds Step execution time")
+            lines.append("# TYPE pipeline_step_execution_time_seconds histogram")
             lines.append(f'pipeline_step_execution_time_seconds{{step="{step_name}"}} {step_metrics.avg_execution_time}')
         
         return "\n".join(lines) 

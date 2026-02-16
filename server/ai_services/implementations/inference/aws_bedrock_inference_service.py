@@ -9,7 +9,6 @@ Compare with: server/inference/pipeline/providers/aws_provider.py (old implement
 
 import json
 from typing import Dict, Any, AsyncGenerator
-from botocore.exceptions import ClientError
 
 from ...base import ServiceType
 from ...providers import AWSBaseService

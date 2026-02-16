@@ -8,7 +8,7 @@ import pytest
 import pytest_asyncio
 import sys
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 
 # Add server directory to Python path
 SCRIPT_DIR = Path(__file__).parent.absolute()

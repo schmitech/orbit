@@ -10,7 +10,7 @@ import pytest
 import pytest_asyncio
 import sys
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock
 from typing import List, Dict, Any
 from dataclasses import dataclass, field
 
@@ -208,7 +208,7 @@ async def test_file_retriever_get_relevant_context_with_file_ids(mock_retriever)
             )
 
         # Call get_relevant_context with file_ids
-        results = await mock_retriever.get_relevant_context(
+        await mock_retriever.get_relevant_context(
             query="Test query",
             api_key='test_key',
             file_ids=file_ids
@@ -253,7 +253,7 @@ async def test_file_retriever_get_relevant_context_single_file_id(mock_retriever
         )
 
         # Call get_relevant_context with file_ids array
-        results = await mock_retriever.get_relevant_context(
+        await mock_retriever.get_relevant_context(
             query="Test query",
             api_key='test_key',
             file_ids=[file_id]  # Use file_ids array
@@ -335,7 +335,7 @@ async def test_file_retriever_multiple_file_ids_filtering():
 
         # Search with specific file_ids
         target_file_ids = ['file_123', 'file_456']
-        results = await retriever.get_relevant_context(
+        await retriever.get_relevant_context(
             query="Test query",
             api_key='test_key',
             file_ids=target_file_ids
@@ -424,7 +424,7 @@ async def test_empty_file_ids_does_not_add_filter():
         )
 
         # Query with empty file_ids
-        results = await retriever.get_relevant_context(
+        await retriever.get_relevant_context(
             query="Test",
             api_key='test_key',
             file_ids=[]
@@ -485,7 +485,7 @@ async def test_file_ids_with_api_key_ownership_validation():
         )
 
         # Try to access owned file
-        results = await retriever.get_relevant_context(
+        await retriever.get_relevant_context(
             query="Test",
             api_key='owner_key',
             file_ids=['file_owned']

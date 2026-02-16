@@ -22,7 +22,7 @@ from rich.console import Console
 
 from bin.orbit.services.api_client import ApiClient
 from bin.orbit.services.auth_service import AuthService
-from bin.orbit.utils.exceptions import ServerError, NetworkError
+from bin.orbit.utils.exceptions import AuthenticationError, NetworkError
 from bin.orbit.utils.output import OutputFormatter
 
 logger = logging.getLogger(__name__)

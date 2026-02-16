@@ -11,7 +11,7 @@ This module contains authentication-related endpoints for:
 
 import logging
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from routes.auth_dependencies import get_auth_service, get_current_user, get_current_user_with_token, require_admin

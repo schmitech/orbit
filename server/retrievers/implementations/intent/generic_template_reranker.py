@@ -4,7 +4,7 @@ Generic template reranking system with pluggable domain strategies
 
 import logging
 from typing import Dict, List, Any, Optional
-from .reranking_strategies import RerankingStrategy, RerankingStrategyFactory
+from .reranking_strategies import RerankingStrategyFactory
 from .template_processor import TemplateProcessor
 
 logger = logging.getLogger(__name__)

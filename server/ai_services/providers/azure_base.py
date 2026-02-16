@@ -6,7 +6,7 @@ consolidating common functionality like credential management, client initializa
 and error handling for Azure services.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import logging
 
 from ..base import ProviderAIService, ServiceType

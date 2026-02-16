@@ -7,7 +7,7 @@ It can be used by multiple services to avoid duplicating Redis connection logic.
 """
 
 import logging
-from typing import Dict, Any, Optional, Union, List, Tuple
+from typing import Dict, Any, Optional, List
 import json
 import redis.asyncio as redis
 import threading
@@ -15,7 +15,7 @@ import hashlib
 
 # Optional Redis imports - service will gracefully handle missing dependency
 try:
-    from redis.asyncio import Redis
+    from redis.asyncio import Redis  # noqa: F401
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False

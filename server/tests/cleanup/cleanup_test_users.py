@@ -29,11 +29,10 @@ Options:
 import argparse
 import logging
 import os
-import sys
 import sqlite3
 import yaml
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -46,7 +45,7 @@ logger = logging.getLogger(__name__)
 # Import MongoDB
 try:
     from pymongo import MongoClient
-    from bson import ObjectId
+    from bson import ObjectId  # noqa: F401
     MONGO_AVAILABLE = True
 except ImportError:
     logger.warning("pymongo not installed. MongoDB cleanup will be disabled.")
@@ -320,7 +319,7 @@ class DirectTestUserCleanup:
                     api_keys_result = self.mongo_db.api_keys.delete_many({'user_id': str(user_id)})
                     if api_keys_result.deleted_count > 0:
                         logger.debug(f"  Deleted {api_keys_result.deleted_count} API key(s) for user {username}")
-                except:
+                except Exception:
                     pass  # API keys collection might not exist
                 
                 return True
@@ -1000,12 +999,12 @@ def main():
         deleted_users, deleted_keys, deleted_prompts = cleanup.cleanup_all()
         
         if args.dry_run:
-            logger.info(f"\nDRY RUN: Would have deleted:")
+            logger.info("\nDRY RUN: Would have deleted:")
             logger.info(f"  • {deleted_users} test users")
             logger.info(f"  • {deleted_keys} test API keys")
             logger.info(f"  • {deleted_prompts} test system prompts")
         else:
-            logger.info(f"\nCleanup complete:")
+            logger.info("\nCleanup complete:")
             logger.info(f"  • Deleted {deleted_users} test users")
             logger.info(f"  • Deleted {deleted_keys} test API keys")
             logger.info(f"  • Deleted {deleted_prompts} test system prompts")

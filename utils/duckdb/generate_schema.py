@@ -607,9 +607,9 @@ Examples:
 
     # Print next steps
     if not args.quiet:
-        print(f"\nNext steps:")
+        print("\nNext steps:")
         print(f"  1. Review and adjust: {sql_path}")
-        print(f"  2. Add to csv_to_duckdb.yaml")
+        print("  2. Add to csv_to_duckdb.yaml")
         print(f"  3. Run: python generate_duckdbs.py {table_name} --clean")
 
 

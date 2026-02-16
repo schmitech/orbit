@@ -439,7 +439,7 @@ def convert_pdf_to_markdown(input_file, output_file, verbose=False, exclude_toc=
         if exclude_toc or exclude_page_numbers or enhance_for_qa:
             if verbose:
                 original_size = len(markdown_content)
-                print(f"🔍 Processing content...")
+                print("🔍 Processing content...")
                 print(f"   - Exclude ToC: {exclude_toc}")
                 print(f"   - Exclude page numbers: {exclude_page_numbers}")
                 print(f"   - Enhance for Q&A: {enhance_for_qa}")
@@ -462,13 +462,13 @@ def convert_pdf_to_markdown(input_file, output_file, verbose=False, exclude_toc=
         # Verify the output file was created
         if os.path.exists(output_file):
             output_size = os.path.getsize(output_file)
-            print(f"✅ Conversion successful!")
+            print("✅ Conversion successful!")
             print(f"📄 Output file: '{output_file}'")
             if verbose:
                 print(f"📊 Output size: {output_size} bytes")
             return True
         else:
-            print(f"❌ Error: Output file was not created")
+            print("❌ Error: Output file was not created")
             return False
             
     except FileNotFoundError as e:

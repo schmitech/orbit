@@ -9,8 +9,7 @@ for correctness, completeness, and consistency.
 import argparse
 import yaml
 import sys
-from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, List
 
 
 class HTTPTemplateValidator:
@@ -73,7 +72,7 @@ class HTTPTemplateValidator:
                 for warning in self.warnings:
                     print(f"   - {warning}")
 
-            print(f"✓ Domain configuration is valid")
+            print("✓ Domain configuration is valid")
             return True
 
         except yaml.YAMLError as e:
@@ -146,13 +145,13 @@ class HTTPTemplateValidator:
 
             if 'templates' not in data:
                 self.errors.append("Missing 'templates' key in template file")
-                print(f"❌ Missing 'templates' key")
+                print("❌ Missing 'templates' key")
                 return False
 
             templates = data['templates']
             if not isinstance(templates, list):
                 self.errors.append("'templates' must be a list")
-                print(f"❌ 'templates' must be a list")
+                print("❌ 'templates' must be a list")
                 return False
 
             print(f"   Found {len(templates)} templates")
@@ -186,7 +185,7 @@ class HTTPTemplateValidator:
                 if len(self.warnings) > 10:
                     print(f"   ... and {len(self.warnings) - 10} more warnings")
 
-            print(f"✓ Template library is valid")
+            print("✓ Template library is valid")
             return True
 
         except yaml.YAMLError as e:

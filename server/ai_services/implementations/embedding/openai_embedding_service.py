@@ -67,7 +67,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
 
         try:
             # Debug logging
-            logger.debug(f"OpenAIEmbeddingService.embed_query called")
+            logger.debug("OpenAIEmbeddingService.embed_query called")
             logger.debug(f"  self.client = {self.client}")
             logger.debug(f"  self.client is None: {self.client is None}")
             if self.client:

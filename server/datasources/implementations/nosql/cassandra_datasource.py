@@ -3,7 +3,6 @@ Apache Cassandra Datasource Implementation
 """
 
 import logging
-from typing import Any, Dict, Optional, List
 from ...base.base_datasource import BaseDatasource
 
 logger = logging.getLogger(__name__)

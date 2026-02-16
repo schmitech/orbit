@@ -5,7 +5,6 @@ This step checks message safety using guardrail services before processing.
 """
 
 import logging
-from typing import Dict, Any
 from ..base import PipelineStep, ProcessingContext
 
 logger = logging.getLogger(__name__)

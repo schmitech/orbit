@@ -27,7 +27,6 @@ from retrievers.base.base_retriever import RetrieverFactory
 
 from .agent.tool_definitions import (
     ToolDefinition,
-    ToolResult,
     ToolResultStatus,
     ExecutionType,
 )
@@ -633,7 +632,7 @@ Output format: <start_function_call>call:function_name{{param:<escape>value<esca
         if is_functiongemma:
             # Use FunctionGemma-specific format
             prompt = self._build_functiongemma_prompt(query, tools)
-            logger.info(f"Using FunctionGemma format for function calling")
+            logger.info("Using FunctionGemma format for function calling")
             try:
                 response = await self.function_client.generate(prompt)
                 logger.info(f"FunctionGemma raw response: {response[:500] if response else 'None'}...")
@@ -650,7 +649,7 @@ Output format: <start_function_call>call:function_name{{param:<escape>value<esca
                     logger.info(f"JSON parsed result: {json_result}")
                     return json_result
 
-                logger.warning(f"Could not parse FunctionGemma response as function call")
+                logger.warning("Could not parse FunctionGemma response as function call")
                 return None
             except Exception as e:
                 error_msg = str(e) if str(e) else type(e).__name__

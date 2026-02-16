@@ -128,7 +128,7 @@ class AbstractVectorRetriever(BaseRetriever):
             if not self.embeddings.initialized:
                 await self.embeddings.initialize()
             else:
-                logger.debug(f"Embedding service already initialized, skipping initialization")
+                logger.debug("Embedding service already initialized, skipping initialization")
             self.using_new_embedding_service = True
         else:
             # Fall back to legacy Ollama embeddings

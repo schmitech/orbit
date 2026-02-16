@@ -18,44 +18,44 @@ logger = logging.getLogger(__name__)
 
 __all__ = []
 
-# Import from subpackages
+# Import from subpackages (star imports intentional for re-export)
 try:
-    from .inference import *
+    from .inference import *  # noqa: F403
     from .inference import __all__ as inference_all
     __all__.extend(inference_all)
 except ImportError as e:
     logger.debug(f"Could not import inference implementations: {e}")
 
 try:
-    from .embedding import *
+    from .embedding import *  # noqa: F403
     from .embedding import __all__ as embedding_all
     __all__.extend(embedding_all)
 except ImportError as e:
     logger.debug(f"Could not import embedding implementations: {e}")
 
 try:
-    from .vision import *
+    from .vision import *  # noqa: F403
     from .vision import __all__ as vision_all
     __all__.extend(vision_all)
 except ImportError as e:
     logger.debug(f"Could not import vision implementations: {e}")
 
 try:
-    from .audio import *
+    from .audio import *  # noqa: F403
     from .audio import __all__ as audio_all
     __all__.extend(audio_all)
 except ImportError as e:
     logger.debug(f"Could not import audio implementations: {e}")
 
 try:
-    from .reranking import *
+    from .reranking import *  # noqa: F403
     from .reranking import __all__ as reranking_all
     __all__.extend(reranking_all)
 except ImportError as e:
     logger.debug(f"Could not import reranking implementations: {e}")
 
 try:
-    from .moderation import *
+    from .moderation import *  # noqa: F403
     from .moderation import __all__ as moderation_all
     __all__.extend(moderation_all)
 except ImportError as e:

@@ -98,7 +98,7 @@ JSON output:"""
                 data = json.loads(output)
                 return data.get('qa_pairs', [])
             except json.JSONDecodeError:
-                print(f"Warning: Could not parse JSON response")
+                print("Warning: Could not parse JSON response")
                 return []
         else:
             print(f"Error: HTTP {response.status_code}")
@@ -122,7 +122,7 @@ def main():
     model = ollama_config.get('model', 'gemma3:12b')
     base_url = ollama_config.get('base_url', 'http://localhost:11434')
 
-    print(f"Direct Ollama Q&A Extractor")
+    print("Direct Ollama Q&A Extractor")
     print(f"Model: {model}")
     print(f"Server: {base_url}")
 

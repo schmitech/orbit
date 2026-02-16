@@ -200,7 +200,7 @@ class ThreadService:
             query_context_str = thread_doc.get('query_context', '{}')
             try:
                 query_context = json.loads(query_context_str)
-            except:
+            except Exception:
                 query_context = {}
 
             return {

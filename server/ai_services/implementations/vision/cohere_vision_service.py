@@ -6,8 +6,6 @@ This implementation provides vision capabilities using Cohere's multimodal model
 
 from typing import Dict, Any, Union, List
 from PIL import Image
-import base64
-from io import BytesIO
 import logging
 
 from ...base import ServiceType

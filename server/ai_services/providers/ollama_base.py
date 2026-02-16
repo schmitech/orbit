@@ -9,7 +9,6 @@ from typing import Dict, Any, Optional
 import logging
 
 from ..base import ProviderAIService, ServiceType
-from ..connection import ConnectionManager, RetryHandler
 
 
 logger = logging.getLogger(__name__)

@@ -2,10 +2,8 @@
 Tests for RequestContextBuilder.
 """
 
-import pytest
 import sys
 import os
-from unittest.mock import MagicMock
 from bson import ObjectId
 
 # Add the server directory to the Python path

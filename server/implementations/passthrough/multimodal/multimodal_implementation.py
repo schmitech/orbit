@@ -65,7 +65,7 @@ class MultimodalImplementation(BaseRetriever):
                 }
 
                 
-                logger.debug(f"MultimodalImplementation: Creating FileVectorRetriever")
+                logger.debug("MultimodalImplementation: Creating FileVectorRetriever")
                 logger.debug(f"  self.config.get('embedding') = {self.config.get('embedding', {})}")
                 logger.debug(f"  file_retriever_config.get('embedding') = {file_retriever_config.get('embedding', {})}")
 

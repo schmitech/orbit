@@ -5,12 +5,11 @@ This module provides a fault-tolerant adapter manager that integrates
 parallel execution and circuit breaker protection without complex layering.
 """
 
-import asyncio
 import logging
 from typing import Dict, Any, List, Optional
 
 from .dynamic_adapter_manager import DynamicAdapterManager
-from .parallel_adapter_executor import ParallelAdapterExecutor, AdapterResult
+from .parallel_adapter_executor import ParallelAdapterExecutor
 
 logger = logging.getLogger(__name__)
 

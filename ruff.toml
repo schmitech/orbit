@@ -1,0 +1,15 @@
+# Ruff configuration for the ORBIT project
+# https://docs.astral.sh/ruff/configuration/
+
+target-version = "py311"
+line-length = 120
+
+[lint.per-file-ignores]
+# Test files often import conftest or use late imports for fixtures
+"server/tests/**" = ["E402"]
+# Bin entry points modify sys.path before importing the CLI
+"bin/orbit.py" = ["E402"]
+"bin/orbit/__main__.py" = ["E402"]
+# Example and utility scripts often set up path/env before imports
+"examples/**" = ["E402"]
+"utils/**" = ["E402"]

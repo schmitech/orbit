@@ -13,7 +13,7 @@ logger.info("LOADING QASQLAdapter MODULE")
 
 # Register with the factory as both "sql_qa" and the default "qa"
 DocumentAdapterFactory.register_adapter("sql_qa", lambda **kwargs: QASQLAdapter(**kwargs))
-logger.info(f"Registered QASQLAdapter as 'sql_qa'")
+logger.info("Registered QASQLAdapter as 'sql_qa'")
 
 class QASQLAdapter(DocumentAdapter):
     """Generic adapter for question-answer pairs in SQL databases"""

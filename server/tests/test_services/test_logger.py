@@ -8,10 +8,8 @@ Tests for the LoggerService that handles logging to file and Elasticsearch.
 
 import os
 import sys
-import tempfile
-import shutil
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from pytest_asyncio import fixture

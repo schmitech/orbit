@@ -5,7 +5,7 @@ ChromaDB Datasource Implementation
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from ...base.base_datasource import BaseDatasource
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ class ChromaDBDatasource(BaseDatasource):
     async def initialize(self) -> None:
         """Initialize the ChromaDB client."""
         try:
-            import chromadb
+            import chromadb  # noqa: F401 - availability check
         except ImportError:
             logger.error("chromadb not available. Install with: pip install chromadb")
             raise

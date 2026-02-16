@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, List, Optional, Union
 
 from .base_chunker import TextChunker, Chunk
-from .utils import TokenizerProtocol, get_tokenizer
+from .utils import TokenizerProtocol
 
 logger = logging.getLogger(__name__)
 

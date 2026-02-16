@@ -42,7 +42,6 @@ import yaml
 import os
 import sys
 import asyncio
-from langchain_ollama import OllamaEmbeddings
 import chromadb
 import argparse
 from pathlib import Path
@@ -145,7 +144,7 @@ async def test_chroma_query(test_query: str, collection_name: str = None, use_lo
     # Test connection by getting dimensions
     try:
         dimensions = await embedding_service.get_dimensions()
-        print(f"Successfully connected to embedding service")
+        print("Successfully connected to embedding service")
         print(f"Embedding dimensions: {dimensions}")
     except Exception as e:
         print(f"Failed to connect to embedding service: {str(e)}")
@@ -219,7 +218,7 @@ async def test_chroma_query(test_query: str, collection_name: str = None, use_lo
         await embedding_service.close()
 
 async def main():
-    config = load_config()
+    load_config()
     
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Query a Chroma collection using semantic search')

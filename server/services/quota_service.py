@@ -8,7 +8,6 @@ Handles daily/monthly quota tracking, usage increments, and period resets.
 
 import logging
 import time
-import asyncio
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Tuple
 import threading

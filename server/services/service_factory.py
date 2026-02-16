@@ -5,13 +5,11 @@ This module handles the creation, initialization, and management of all services
 required by the inference server, including dependency injection and lifecycle management.
 """
 
-import asyncio
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from fastapi import FastAPI
 
 from utils import is_true_value
-from services.auth_service import AuthService
 
 from ai_services.registry import register_all_services
 
@@ -249,15 +247,15 @@ class ServiceFactory:
                 logger.warning("CONFIGURATION WARNING: Main inference provider not available")
                 logger.warning("=" * 80)
                 logger.warning(f"The default inference provider '{configured_provider}' is not registered.")
-                logger.warning(f"This is likely because the provider is disabled in config/inference.yaml.")
+                logger.warning("This is likely because the provider is disabled in config/inference.yaml.")
                 logger.warning("")
                 logger.warning("The server will continue to start, but:")
-                logger.warning(f"  - Adapters WITHOUT their own inference_provider override will NOT work")
-                logger.warning(f"  - Adapters WITH their own inference_provider override WILL work normally")
+                logger.warning("  - Adapters WITHOUT their own inference_provider override will NOT work")
+                logger.warning("  - Adapters WITH their own inference_provider override WILL work normally")
                 logger.warning("")
                 logger.warning("To fix this warning:")
                 logger.warning(f"  1. Enable '{configured_provider}' in config/inference.yaml by setting 'enabled: true'")
-                logger.warning(f"  2. Change 'inference_provider' in config/config.yaml to an enabled provider")
+                logger.warning("  2. Change 'inference_provider' in config/config.yaml to an enabled provider")
                 logger.warning("")
 
                 # Try to extract available providers from error message

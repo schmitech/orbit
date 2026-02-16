@@ -11,7 +11,6 @@ import logging
 import asyncio
 from typing import Dict, Any, AsyncGenerator
 
-from ...base import ServiceType
 from ...providers.vllm_base import VLLMBaseService
 from ...services import InferenceService
 

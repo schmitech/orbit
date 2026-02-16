@@ -94,7 +94,7 @@ def test_microphone():
                 left = samples[0::2]
                 right = samples[1::2]
                 # Average them
-                mono_samples = [(l + r) // 2 for l, r in zip(left, right)]
+                mono_samples = [(left_ch + right_ch) // 2 for left_ch, right_ch in zip(left, right)]
                 samples = mono_samples
 
             rms = (sum(s*s for s in samples) / len(samples)) ** 0.5
@@ -137,7 +137,7 @@ def test_microphone():
         stream.close()
         audio.terminate()
 
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Total chunks: {chunk_count}")
     print(f"  Speech chunks detected: {speech_chunks}")
     print(f"  Max amplitude: {max_amplitude:.6f}")

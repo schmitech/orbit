@@ -73,7 +73,6 @@ AUTHOR:
 """
 
 import sys
-import os
 from pathlib import Path
 
 # Add the project root to sys.path
@@ -90,7 +89,7 @@ def test_adapter_loading(domain_path: str, template_path: str):
         # Import the Intent adapter
         from server.retrievers.adapters.intent.intent_adapter import IntentAdapter
 
-        print(f"✅ Successfully imported IntentAdapter")
+        print("✅ Successfully imported IntentAdapter")
 
         # Try to create an adapter instance
         print(f"\n📂 Loading domain config: {domain_path}")
@@ -103,7 +102,7 @@ def test_adapter_loading(domain_path: str, template_path: str):
             verbose=True
         )
 
-        print(f"\n✅ Successfully created IntentAdapter instance")
+        print("\n✅ Successfully created IntentAdapter instance")
 
         # Verify domain config loaded
         domain_config = adapter.get_domain_config()
@@ -113,7 +112,7 @@ def test_adapter_loading(domain_path: str, template_path: str):
             print(f"   - Fields: {sum(len(fields) for fields in domain_config.get('fields', {}).values())}")
             print(f"   - Relationships: {len(domain_config.get('relationships', []))}")
         else:
-            print(f"⚠️  Domain config is None")
+            print("⚠️  Domain config is None")
 
         # Verify template library loaded
         template_library = adapter.get_template_library()
@@ -124,13 +123,13 @@ def test_adapter_loading(domain_path: str, template_path: str):
             # Show first template
             if templates:
                 first_template = templates[0]
-                print(f"\n   First template:")
+                print("\n   First template:")
                 print(f"   - ID: {first_template.get('id')}")
                 print(f"   - Description: {first_template.get('description')}")
                 print(f"   - Parameters: {len(first_template.get('parameters', []))}")
                 print(f"   - NL Examples: {len(first_template.get('nl_examples', []))}")
         else:
-            print(f"⚠️  Template library is None")
+            print("⚠️  Template library is None")
 
         # Test getting a specific template
         all_templates = adapter.get_all_templates()
@@ -153,7 +152,7 @@ def test_adapter_loading(domain_path: str, template_path: str):
 
     except ImportError as e:
         print(f"❌ Failed to import IntentAdapter: {e}")
-        print(f"   Note: This is expected if not running from Orbit project root")
+        print("   Note: This is expected if not running from Orbit project root")
         return False
     except Exception as e:
         print(f"❌ Error loading adapter: {e}")

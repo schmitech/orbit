@@ -131,7 +131,7 @@ if __name__ == "__main__":
     # Try to import Google Generative AI
     try:
         import google.generativeai as genai
-        print(f"Google Generative AI library imported successfully")
+        print("Google Generative AI library imported successfully")
         
         # Configure the API
         genai.configure(api_key=api_key)
@@ -186,7 +186,7 @@ if __name__ == "__main__":
                         model = genai.GenerativeModel(alt_model)
                         response = model.generate_content("Say hello!")
                         print(f"Success! Gemini completion works with '{alt_model}'. Response: {response.text}")
-                        print(f"\nYour Google Gemini API key is working correctly!")
+                        print("\nYour Google Gemini API key is working correctly!")
                         print(f"Note: Please use '{alt_model}' as your model name in your application.")
                         break
                     except Exception as alt_error:

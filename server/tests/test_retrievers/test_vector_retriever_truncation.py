@@ -3,11 +3,10 @@ Tests for vector retriever result truncation and metadata tracking
 """
 
 import pytest
-import asyncio
 import sys
 import os
-from typing import Dict, Any, List, Optional
-from unittest.mock import Mock, MagicMock, AsyncMock, patch
+from typing import Dict, Any, List
+from unittest.mock import Mock, AsyncMock
 
 # Add the server directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -142,7 +141,7 @@ async def test_no_truncation_when_results_below_limit(test_config, mock_datasour
 
     # Check metadata
     assert results[0]["metadata"]["total_available"] == 2
-    assert results[0]["metadata"]["truncated"] == False
+    assert not results[0]["metadata"]["truncated"]
     assert results[0]["metadata"]["result_count"] == 2
     assert results[0]["metadata"]["vector_search_count"] == 2
 
@@ -169,7 +168,7 @@ async def test_truncation_when_results_exceed_limit(test_config, mock_datasource
 
     # Check metadata shows original count
     assert results[0]["metadata"]["total_available"] == 40
-    assert results[0]["metadata"]["truncated"] == True
+    assert results[0]["metadata"]["truncated"]
     assert results[0]["metadata"]["result_count"] == 3
     assert results[0]["metadata"]["vector_search_count"] == 50
 
@@ -205,7 +204,7 @@ async def test_confidence_filtering_tracked(test_config, mock_datasource, mock_e
     assert results[0]["metadata"]["vector_search_count"] == 5  # Original from vector DB
     assert results[0]["metadata"]["after_confidence_filtering"] == 3  # After filtering
     assert results[0]["metadata"]["total_available"] == 3  # Available after all filtering
-    assert results[0]["metadata"]["truncated"] == False  # No truncation needed
+    assert not results[0]["metadata"]["truncated"]  # No truncation needed
 
 
 @pytest.mark.asyncio
@@ -233,7 +232,7 @@ async def test_confidence_filtering_with_truncation(test_config, mock_datasource
     assert results[0]["metadata"]["vector_search_count"] == 20  # Vector search returned 20
     assert results[0]["metadata"]["after_confidence_filtering"] == 20  # All passed confidence
     assert results[0]["metadata"]["total_available"] == 20  # 20 available before truncation
-    assert results[0]["metadata"]["truncated"] == True  # Truncated to 3
+    assert results[0]["metadata"]["truncated"]  # Truncated to 3
     assert results[0]["metadata"]["result_count"] == 3
 
 
@@ -277,7 +276,7 @@ async def test_custom_return_results_limit(mock_datasource, mock_embeddings):
 
     # Check metadata
     assert results[0]["metadata"]["total_available"] == 30
-    assert results[0]["metadata"]["truncated"] == True
+    assert results[0]["metadata"]["truncated"]
     assert results[0]["metadata"]["result_count"] == 10
 
 
@@ -303,7 +302,7 @@ async def test_metadata_consistency_across_results(test_config, mock_datasource,
 
     for result in results:
         assert result["metadata"]["total_available"] == 15
-        assert result["metadata"]["truncated"] == True
+        assert result["metadata"]["truncated"]
         assert result["metadata"]["result_count"] == 3
         assert result["metadata"]["vector_search_count"] == 15
 
@@ -350,7 +349,7 @@ async def test_exact_limit_no_truncation(test_config, mock_datasource, mock_embe
 
     # Check metadata (no truncation since count matches limit)
     assert results[0]["metadata"]["total_available"] == 3
-    assert results[0]["metadata"]["truncated"] == False
+    assert not results[0]["metadata"]["truncated"]
     assert results[0]["metadata"]["result_count"] == 3
 
 
@@ -378,7 +377,7 @@ async def test_max_results_limits_vector_search(test_config, mock_datasource, mo
     # Metadata should show vector search returned 20 (not 100)
     assert results[0]["metadata"]["vector_search_count"] == 20
     assert results[0]["metadata"]["total_available"] == 20
-    assert results[0]["metadata"]["truncated"] == True
+    assert results[0]["metadata"]["truncated"]
 
 
 # Run tests

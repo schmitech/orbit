@@ -9,7 +9,7 @@ Configuration is read from config.yaml under files.processing.json
 
 import logging
 import json
-from typing import Dict, Any, List, Union, Optional
+from typing import Dict, Any, List, Optional
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
@@ -231,7 +231,7 @@ class JSONProcessor(FileProcessor):
 
         for key in shown_keys:
             value = data[key]
-            type_name = self._get_type_name(value)
+            self._get_type_name(value)
 
             if isinstance(value, list):
                 lines.append(f"{indent}{key}: array[{len(value)}]")

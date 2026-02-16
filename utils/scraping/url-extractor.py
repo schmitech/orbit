@@ -75,11 +75,8 @@ Author: QA Pipeline Contributors
 License: MIT
 """
 
-import asyncio
 import json
-import os
 import argparse
-import re
 import random
 import time
 from urllib.parse import urlparse, urljoin

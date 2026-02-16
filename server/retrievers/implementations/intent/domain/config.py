@@ -275,9 +275,9 @@ class DomainConfig:
         """Get all fields with a specific semantic type"""
         fields = []
         for entity in self.entities.values():
-            for field in entity.fields.values():
-                if field.semantic_type == semantic_type:
-                    fields.append(field)
+            for f in entity.fields.values():
+                if f.semantic_type == semantic_type:
+                    fields.append(f)
         return fields
 
     def to_dict(self) -> Dict[str, Any]:

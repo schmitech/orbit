@@ -556,7 +556,6 @@ class QdrantStore(BaseVectorStore):
 
         try:
             from qdrant_client.models import Distance, VectorParams, HnswConfigDiff, ScalarQuantization, ScalarQuantizationConfig, ScalarType
-            from qdrant_client.http import models
 
             # Check if collection already exists
             if await self.collection_exists(collection_name):

@@ -6,12 +6,10 @@ import logging
 import string
 import traceback
 from abc import abstractmethod
-from typing import Dict, Any, List, Optional, Union, Set
+from typing import Dict, Any, List, Optional
 from difflib import SequenceMatcher
-from fastapi import HTTPException
 
 from .base_retriever import BaseRetriever
-from .base_retriever import RetrieverFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -325,7 +323,7 @@ class AbstractSQLRetriever(BaseRetriever):
             search_config = self._get_search_query(query, self.collection)
             sql_query = search_config["sql"]
             params = search_config.get("params", [])
-            fields = search_config.get("fields", self.default_search_fields)
+            search_config.get("fields", self.default_search_fields)
 
             logger.debug(f"Search query: {sql_query}")
             logger.debug(f"Search params: {params}")

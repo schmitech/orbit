@@ -9,14 +9,18 @@ Enhanced with language-aware retrieval:
 - Filters or de-prioritizes documents in non-matching languages when confidence is high
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..service_container import ServiceContainer
 from ..base import PipelineStep, ProcessingContext
 from adapters.capabilities import (
     AdapterCapabilities,
     get_capability_registry,
-    FormattingStyle,
-    RetrievalBehavior
+    FormattingStyle
 )
 
 logger = logging.getLogger(__name__)
@@ -37,7 +41,7 @@ class ContextRetrievalStep(PipelineStep):
         super().__init__(container)
         self._capability_registry = get_capability_registry()
 
-        config = container.get('config') if container.has('config') else {}
+        container.get('config') if container.has('config') else {}
 
         self._initialize_capabilities()
 
@@ -288,7 +292,7 @@ class ContextRetrievalStep(PipelineStep):
             truncation_info = self._get_truncation_info(docs)
 
             if truncation_info:
-                shown = truncation_info['shown']
+                truncation_info['shown']
                 total = truncation_info['total']
                 logger.info(
                     f"Retrieved {len(docs)} documents "

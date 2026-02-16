@@ -7,7 +7,6 @@ This example demonstrates how to use the RAG system for a
 healthcare domain with patients, appointments, and medical records.
 """
 
-from datetime import datetime, date
 from base_rag_system import RAGSystem
 from domain_configuration import (
     DomainConfiguration, DomainEntity, DomainField, 
@@ -15,8 +14,6 @@ from domain_configuration import (
 )
 from template_library import TemplateLibrary, QueryTemplateBuilder, TemplateType, ParameterType
 from domain_plugin import DomainSpecificPlugin, DomainAnalyticsPlugin
-from plugin_system import PluginManager
-from base_classes import BaseEmbeddingClient, BaseInferenceClient, BaseDatabaseClient
 
 # Import the actual implementations
 from clients import OllamaEmbeddingClient, OllamaInferenceClient, PostgreSQLDatabaseClient
@@ -604,7 +601,7 @@ def main():
     db_client = PostgreSQLDatabaseClient()
     
     # Create RAG system
-    rag_system = RAGSystem(
+    RAGSystem(
         domain=healthcare_domain,
         template_library=template_library,
         embedding_client=embedding_client,
@@ -613,13 +610,13 @@ def main():
     )
     
     # Register domain-specific plugins
-    domain_plugin = DomainSpecificPlugin(healthcare_domain, inference_client)
-    analytics_plugin = DomainAnalyticsPlugin(healthcare_domain)
+    DomainSpecificPlugin(healthcare_domain, inference_client)
+    DomainAnalyticsPlugin(healthcare_domain)
     
     # Would register with plugin manager if using the full system
     print("✅ Healthcare domain configured")
     print(f"📋 Loaded {len(template_library.templates)} query templates")
-    print(f"🔌 Domain plugins ready")
+    print("🔌 Domain plugins ready")
     
     # Export configuration for reference
     healthcare_domain.to_yaml("healthcare_domain.yaml")

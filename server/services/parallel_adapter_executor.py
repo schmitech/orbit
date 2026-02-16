@@ -928,7 +928,7 @@ class ParallelAdapterExecutor:
                 context=context
             )
             
-        except asyncio.TimeoutError as e:
+        except asyncio.TimeoutError:
             execution_time = time.time() - start_time
             cb.record_failure(execution_time=execution_time)
             cb.stats.timeout_calls += 1

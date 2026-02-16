@@ -357,7 +357,7 @@ class ChromaStore(BaseVectorStore):
             
             if vector:
                 update_params['embeddings'] = [vector]
-                update_params['documents'] = [f"vector_updated"]
+                update_params['documents'] = ["vector_updated"]
             
             if metadata:
                 update_params['metadatas'] = [metadata]

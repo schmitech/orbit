@@ -15,10 +15,9 @@ Tests cover:
 """
 
 import pytest
-import time
 import sys
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -196,7 +195,7 @@ class TestThrottleMiddlewareConfiguration:
         app = FastAPI()
         middleware = ThrottleMiddleware(app, config)
 
-        assert middleware.enabled == False
+        assert not middleware.enabled
         assert middleware.default_daily_limit == 10000
         assert middleware.default_monthly_limit == 100000
         assert middleware.min_delay_ms == 100
@@ -239,7 +238,7 @@ class TestThrottleMiddlewareConfiguration:
         app = FastAPI()
         middleware = ThrottleMiddleware(app, config)
 
-        assert middleware.enabled == True
+        assert middleware.enabled
         assert middleware.default_daily_limit == 5000
         assert middleware.default_monthly_limit == 50000
         assert middleware.min_delay_ms == 200

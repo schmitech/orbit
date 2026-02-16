@@ -7,7 +7,7 @@ Supports pluggable storage backends (filesystem, S3, MinIO, etc.).
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 

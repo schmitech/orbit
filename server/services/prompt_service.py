@@ -101,8 +101,8 @@ class PromptService:
                 if self.prompt_cache_ttl:
                     logger.debug(f"  → Cache TTL: {self.prompt_cache_ttl} seconds ({self.prompt_cache_ttl/60:.1f} minutes)")
                 else:
-                    logger.debug(f"  → Cache TTL: No expiration (persistent cache)")
-                logger.debug(f"  → Cache keys format: prompt:<ObjectId>")
+                    logger.debug("  → Cache TTL: No expiration (persistent cache)")
+                logger.debug("  → Cache keys format: prompt:<ObjectId>")
             except Exception as exc:
                 logger.warning(f"✗ Disabling prompt caching due to Redis initialization error: {exc}")
                 self.redis_service = None
@@ -138,7 +138,7 @@ class PromptService:
             existing = await self.database.find_one(self.collection_name, {"name": name})
             if existing:
                 # Update the existing prompt instead of creating a new one
-                result = await self.database.update_one(
+                await self.database.update_one(
                     self.collection_name,
                     {"name": name},
                     {"$set": {
@@ -204,7 +204,7 @@ class PromptService:
                         return cached_prompt
                     except Exception as exc:
                         logger.warning(f"Failed to parse cached prompt for key {cache_key}: {exc}")
-                        logger.debug(f"  → Cache entry corrupted, will fetch from MongoDB")
+                        logger.debug("  → Cache entry corrupted, will fetch from MongoDB")
                 else:
                     logger.debug(f"✗ Cache MISS for prompt {cache_key} - fetching from MongoDB")
 
@@ -244,7 +244,7 @@ class PromptService:
                             logger.warning(f"✗ Failed to cache prompt {cache_key} - Redis set returned False")
                     except Exception as exc:
                         logger.warning(f"Failed to cache prompt {cache_key}: {exc}")
-                        logger.debug(f"  → Cache write failed, but prompt still returned from MongoDB")
+                        logger.debug("  → Cache write failed, but prompt still returned from MongoDB")
             else:
                 logger.warning(f"No prompt found for ID: {prompt_id}")
 
@@ -435,7 +435,7 @@ class PromptService:
                         cached_data = json.loads(cached_value)
                         stats["cached_prompt_name"] = cached_data.get("name")
                         stats["cached_prompt_version"] = cached_data.get("version")
-                    except:
+                    except Exception:
                         pass
 
         return stats

@@ -9,12 +9,10 @@ Tests the composite retriever's ability to:
 """
 
 import pytest
-import asyncio
 import sys
 import os
 from typing import Dict, Any, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
-from dataclasses import dataclass
 
 # Add the server directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))

@@ -14,7 +14,7 @@ import pytest
 import sys
 import os
 import base64
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock
 from aiohttp import ClientResponse
 
 # Get the absolute path to the server directory

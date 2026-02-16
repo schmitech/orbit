@@ -17,7 +17,6 @@ from datetime import datetime, timedelta, UTC
 
 from services.database_service import (
     DatabaseService,
-    DatabaseError,
     DatabaseConnectionError,
     DatabaseOperationError,
     DatabaseDuplicateKeyError,

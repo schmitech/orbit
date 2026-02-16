@@ -257,7 +257,7 @@ class FileAdapter(DocumentAdapter):
                     item['json_keys'] = list(data.keys())
                 elif isinstance(data, list):
                     item['json_array_length'] = len(data)
-            except:
+            except Exception:
                 pass
         
         return item

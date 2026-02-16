@@ -2,11 +2,7 @@ import logging
 import os
 import ssl
 import asyncio
-import atexit
-import aiohttp
-import warnings
 from typing import Any, Optional
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -16,23 +12,22 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from fastapi_mcp import FastApiMCP
 
+from config.config_manager import load_config
+from config.resolver import ConfigResolver
+from config.logging_configurator import LoggingConfigurator
+from config.middleware_configurator import MiddlewareConfigurator
+from config.configuration_summary_logger import ConfigurationSummaryLogger
+from services.service_factory import ServiceFactory
+from utils import is_true_value
+from utils.http_utils import close_all_aiohttp_sessions, setup_aiohttp_session_tracking
+from utils.thread_pool_manager import ThreadPoolManager
+from routes.routes_configurator import RouteConfigurator
+from datasources import DatasourceFactory
+
 logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
-
-# Import local modules (ensure these exist in your project structure)
-from config.config_manager import load_config
-from utils import is_true_value
-from config.resolver import ConfigResolver
-from config.logging_configurator import LoggingConfigurator
-from config.middleware_configurator import MiddlewareConfigurator
-from services.service_factory import ServiceFactory
-from utils.http_utils import close_all_aiohttp_sessions, setup_aiohttp_session_tracking
-from utils.thread_pool_manager import ThreadPoolManager
-from routes.routes_configurator import RouteConfigurator
-from config.configuration_summary_logger import ConfigurationSummaryLogger
-from datasources import DatasourceFactory
 
 # Lazy imports for retrievers - only imported when needed
 RetrieverFactory = None

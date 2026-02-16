@@ -11,7 +11,7 @@ import logging
 import os
 import sys
 import time
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 import pytest
 from copy import deepcopy
 

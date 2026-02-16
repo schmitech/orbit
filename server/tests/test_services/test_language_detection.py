@@ -12,10 +12,8 @@ Run with:
 """
 
 import pytest
-import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, field
+from unittest.mock import MagicMock, AsyncMock
+from typing import Dict, Any, Optional
 
 # Import the language detection module directly to avoid import chain issues
 import sys
@@ -844,7 +842,7 @@ class TestRedisServiceIntegration:
         detector, redis_mock = detector_with_redis
         context = create_context("Hello", session_id=None)
 
-        result = await detector._get_session_language(context)
+        await detector._get_session_language(context)
         redis_mock.get_json.assert_not_called()
 
 
@@ -1028,7 +1026,7 @@ class TestConfidenceCalculation:
         # by checking that ambiguous text triggers stickiness
 
         # First detect clear English
-        result1 = await detector._detect_language_ensemble_async(
+        await detector._detect_language_ensemble_async(
             "Please help me with this problem."
         )
 

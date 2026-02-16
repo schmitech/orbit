@@ -8,7 +8,6 @@ NOTE: This test requires valid Qdrant Cloud credentials in .env file.
 Run this test manually: python test_qdrant_cloud.py
 """
 
-import asyncio
 import os
 import sys
 from pathlib import Path
@@ -43,7 +42,7 @@ def test_qdrant_connection():
 
     # Determine connection mode
     if QDRANT_URL:
-        print(f"\nMode: Qdrant Cloud")
+        print("\nMode: Qdrant Cloud")
         print(f"URL: {QDRANT_URL}")
         print(f"API Key: {'*' * 10}..." if QDRANT_API_KEY else "Not set")
 
@@ -56,7 +55,7 @@ def test_qdrant_connection():
             print(f"\nERROR: Failed to create client: {e}")
             return False
     else:
-        print(f"\nMode: Self-hosted")
+        print("\nMode: Self-hosted")
         print(f"Host: {QDRANT_HOST or 'localhost'}")
         print(f"Port: {QDRANT_PORT}")
 
@@ -75,7 +74,7 @@ def test_qdrant_connection():
     print("\n=== Testing connection ===")
     try:
         collections = client.get_collections()
-        print(f"✓ Connected successfully!")
+        print("✓ Connected successfully!")
         print(f"\nExisting collections ({len(collections.collections)}):")
         for col in collections.collections:
             print(f"  - {col.name}")
@@ -86,7 +85,7 @@ def test_qdrant_connection():
 
     # Test creating a collection
     test_collection = "orbit_test_collection"
-    print(f"\n=== Testing collection operations ===")
+    print("\n=== Testing collection operations ===")
 
     try:
         from qdrant_client.models import Distance, VectorParams
@@ -97,7 +96,7 @@ def test_qdrant_connection():
             collection_name=test_collection,
             vectors_config=VectorParams(size=384, distance=Distance.COSINE),
         )
-        print(f"✓ Collection created")
+        print("✓ Collection created")
 
         # Add a test vector
         print("Adding test vector...")
@@ -115,7 +114,7 @@ def test_qdrant_connection():
                 )
             ]
         )
-        print(f"✓ Vector added")
+        print("✓ Vector added")
 
         # Search for similar vectors
         print("Searching for similar vectors...")
@@ -137,9 +136,9 @@ def test_qdrant_connection():
             print("✗ No results found")
 
         # Cleanup - delete test collection
-        print(f"\nCleaning up test collection...")
+        print("\nCleaning up test collection...")
         client.delete_collection(collection_name=test_collection)
-        print(f"✓ Test collection deleted")
+        print("✓ Test collection deleted")
 
     except Exception as e:
         print(f"✗ Collection operations failed: {e}")
@@ -149,7 +148,7 @@ def test_qdrant_connection():
         # Try to cleanup anyway
         try:
             client.delete_collection(collection_name=test_collection)
-        except:
+        except Exception:
             pass
         return False
 

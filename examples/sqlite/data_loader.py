@@ -1,7 +1,6 @@
 import json
 import sqlite3
 import os
-import re
 import string
 
 def tokenize_text(text):

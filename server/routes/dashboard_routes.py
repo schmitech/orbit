@@ -6,7 +6,6 @@ Provides web-based dashboard and metrics endpoints.
 
 import asyncio
 import base64
-import json
 import logging
 from http.cookies import SimpleCookie
 from typing import Dict, Any, Optional
@@ -14,7 +13,6 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Depends,
 from fastapi.responses import HTMLResponse, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pathlib import Path
-from utils import is_true_value
 
 logger = logging.getLogger(__name__)
 

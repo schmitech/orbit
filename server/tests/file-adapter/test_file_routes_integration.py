@@ -13,11 +13,6 @@ Prerequisites:
 
 import pytest
 import httpx
-import json
-import tempfile
-import os
-from pathlib import Path
-from typing import Dict, Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -174,10 +169,6 @@ async def test_query_file(http_client, test_file, server_health_check):
     import asyncio
     await asyncio.sleep(1)
     
-    query_headers = {
-        "X-API-Key": TEST_API_KEY,
-        "Content-Type": "application/json"
-    }
     
     query_data = {
         "query": "What is this document about?",

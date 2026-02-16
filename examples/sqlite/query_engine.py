@@ -1,8 +1,6 @@
 import sqlite3
 import string
-import re
 from difflib import SequenceMatcher
-from collections import Counter
 
 def tokenize_query(query):
     """Tokenize the user query similarly to how we tokenized the stored data."""

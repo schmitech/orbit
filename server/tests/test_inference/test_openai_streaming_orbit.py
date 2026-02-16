@@ -55,7 +55,7 @@ async def test_orbit_streaming():
                 first_chunk_time = time.time()
                 ttft = first_chunk_time - start_time
                 print(f"\n⏱️  Time to first chunk: {ttft:.3f}s")
-                print(f"\nStreaming response: ", end="", flush=True)
+                print("\nStreaming response: ", end="", flush=True)
 
             print(chunk, end="", flush=True)
             chunk_count += 1
@@ -63,7 +63,7 @@ async def test_orbit_streaming():
         total_time = time.time() - start_time
         streaming_time = total_time - (first_chunk_time - start_time if first_chunk_time else 0)
 
-        print(f"\n\n✅ Streaming completed")
+        print("\n\n✅ Streaming completed")
         print(f"   Total time: {total_time:.3f}s")
         print(f"   Time to first chunk: {(first_chunk_time - start_time) if first_chunk_time else 0:.3f}s")
         print(f"   Streaming time: {streaming_time:.3f}s")

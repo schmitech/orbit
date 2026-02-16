@@ -24,7 +24,7 @@ from .cache import (
     VisionCacheManager,
     AudioCacheManager,
 )
-from .config import AdapterConfigManager, ConfigChangeDetector
+from .config import AdapterConfigManager
 from .loader import AdapterLoader
 from .reload import DependencyCacheCleaner, AdapterReloader
 
@@ -257,8 +257,8 @@ class DynamicAdapterManager:
             logger.warning("")
             logger.warning("To fix this:")
             logger.warning(f"  1. Enable '{inference_provider}' in config/inference.yaml, OR")
-            logger.warning(f"  2. Change the adapter's inference_provider in config/adapters.yaml, OR")
-            logger.warning(f"  3. Disable this adapter by setting 'enabled: false' in config/adapters.yaml")
+            logger.warning("  2. Change the adapter's inference_provider in config/adapters.yaml, OR")
+            logger.warning("  3. Disable this adapter by setting 'enabled: false' in config/adapters.yaml")
             logger.warning("")
             logger.warning(f"The adapter '{adapter_name}' will NOT be available.")
             logger.warning("=" * 80)

@@ -13,7 +13,6 @@ This module tests the local Whisper audio service specifically:
 import pytest
 import sys
 import os
-from pathlib import Path
 
 # Get the absolute path to the server directory
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -213,7 +212,7 @@ class TestWhisperAudioService:
         }
 
         with pytest.raises(ImportError, match="Whisper library not available"):
-            service = WhisperAudioService(config)
+            WhisperAudioService(config)
 
 
 @pytest.mark.skipif(WHISPER_AVAILABLE, reason="Only test when Whisper is not installed")

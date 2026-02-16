@@ -157,7 +157,6 @@ class TestAudioServiceDisabled:
 
     def test_logging_when_audio_globally_disabled(self, audio_disabled_config, caplog):
         """Test that appropriate log message is shown when audio is globally disabled."""
-        import logging
         caplog.set_level(logging.INFO)
 
         # Mock the import to prevent actual module loading
@@ -275,7 +274,6 @@ class TestAudioCacheManagerDisabled:
         self, audio_disabled_config, caplog
     ):
         """Test that cache manager logs at INFO level (not ERROR) when audio is disabled."""
-        import logging
         caplog.set_level(logging.INFO)
 
         from services.cache.audio_cache_manager import AudioCacheManager
@@ -329,7 +327,6 @@ class TestAdapterLoaderAudioDisabled:
         self, audio_disabled_config, caplog
     ):
         """Test that adapter loader logs at DEBUG level when skipping audio service."""
-        import logging
         caplog.set_level(logging.DEBUG)
 
         from services.loader.adapter_loader import AdapterLoader

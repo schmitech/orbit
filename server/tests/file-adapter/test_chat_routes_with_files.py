@@ -15,8 +15,6 @@ import pytest
 import httpx
 import json
 import tempfile
-from pathlib import Path
-from typing import Optional
 import logging
 import asyncio
 
@@ -247,7 +245,7 @@ async def test_chat_streaming_with_file_context(http_client, uploaded_file, serv
             headers=headers,
             json=chat_request
         ) as response:
-            assert response.status_code == 200, f"Streaming request failed"
+            assert response.status_code == 200, "Streaming request failed"
 
             chunks = []
             async for line in response.aiter_lines():
@@ -413,7 +411,7 @@ async def test_chat_file_context_isolation(http_client, server_health_check):
         # Request should succeed but not have access to the file
         # (The file will be filtered out during retrieval)
         if response.status_code == 200:
-            data = response.json()
+            response.json()
             # Should not contain "Secret content"
             # (unless the different API key has access, which depends on implementation)
             pass

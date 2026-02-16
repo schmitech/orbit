@@ -3,7 +3,7 @@ Base class for domain-specific strategies
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 
 class DomainStrategy(ABC):

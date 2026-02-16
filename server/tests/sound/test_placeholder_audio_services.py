@@ -13,7 +13,6 @@ These services should properly raise NotImplementedError with helpful messages.
 import pytest
 import sys
 import os
-from unittest.mock import patch, MagicMock
 
 # Get the absolute path to the server directory
 # Since we're in tests/sound/, we need to go up two levels to get to server/

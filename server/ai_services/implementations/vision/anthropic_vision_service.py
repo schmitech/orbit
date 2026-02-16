@@ -6,8 +6,6 @@ This implementation provides vision capabilities using Anthropic's Claude models
 
 from typing import Dict, Any, Union, List
 from PIL import Image
-import base64
-from io import BytesIO
 
 from ...base import ServiceType
 from ...providers import AnthropicBaseService

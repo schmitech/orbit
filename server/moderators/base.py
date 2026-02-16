@@ -7,11 +7,10 @@ Please use ai_services.services.moderation_service instead.
 
 import logging
 import abc
-from typing import Dict, Any, List, Optional, Union, Type
+from typing import Dict, Any, List, Type
 
 # Import from new location for backward compatibility
 from ai_services.services.moderation_service import (
-    ModerationCategory,
     ModerationResult
 )
 
@@ -123,8 +122,8 @@ class ModeratorFactory:
             moderator_class: The moderator class to use for this provider
         """
         logger.warning(
-            f"ModeratorFactory.register() is deprecated. "
-            f"Use AIServiceFactory.register_service() instead."
+            "ModeratorFactory.register() is deprecated. "
+            "Use AIServiceFactory.register_service() instead."
         )
         cls._registry[provider_name] = moderator_class
 
@@ -149,8 +148,8 @@ class ModeratorFactory:
         from ai_services.base import ServiceType
 
         logger.warning(
-            f"ModeratorFactory.create_moderator() is deprecated. "
-            f"Use AIServiceFactory.create_service() instead."
+            "ModeratorFactory.create_moderator() is deprecated. "
+            "Use AIServiceFactory.create_service() instead."
         )
 
         if provider_name is None:

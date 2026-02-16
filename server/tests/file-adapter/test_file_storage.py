@@ -7,7 +7,6 @@ and file lifecycle management.
 
 import pytest
 import sys
-import os
 from pathlib import Path
 
 # Add server directory to Python path
@@ -15,7 +14,6 @@ SCRIPT_DIR = Path(__file__).parent.absolute()
 SERVER_DIR = SCRIPT_DIR.parent.parent
 sys.path.append(str(SERVER_DIR))
 
-from services.file_storage.base_storage import FileStorageBackend
 from services.file_storage.filesystem_storage import FilesystemStorage
 
 
@@ -23,7 +21,7 @@ from services.file_storage.filesystem_storage import FilesystemStorage
 async def test_filesystem_storage_initialization(tmp_path):
     """Test filesystem storage backend initialization"""
     storage_root = tmp_path / "uploads"
-    storage = FilesystemStorage(storage_root=str(storage_root))
+    FilesystemStorage(storage_root=str(storage_root))
 
     # Verify storage root was created
     assert storage_root.exists()
@@ -143,7 +141,7 @@ async def test_delete_file_cleans_empty_directories(tmp_path):
     # Check if directory exists before trying to access its contents
     if api_key_dir.exists():
         # Directory still exists - verify it's empty (cleanup should remove empty dirs)
-        remaining_items = list(api_key_dir.iterdir())
+        list(api_key_dir.iterdir())
         # If empty, the directory should have been removed, but if it wasn't, that's okay too
         # The important thing is that the file_id directory is removed
     # If directory doesn't exist, that's the expected behavior after cleanup

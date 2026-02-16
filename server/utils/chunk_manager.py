@@ -182,7 +182,7 @@ class ChunkManager:
                 self._cached_urls[url_hash] = datetime.utcnow()
                 logger.info(f"Successfully stored {len(chunks)} chunks for {source_url}")
             else:
-                logger.error(f"Failed to store chunks in vector store")
+                logger.error("Failed to store chunks in vector store")
 
             return success
 

@@ -8,9 +8,7 @@ It can generate templates from natural language examples using AI.
 
 import argparse
 import yaml
-import json
 import sys
-import os
 import asyncio
 from typing import List, Dict, Any, Optional
 from pathlib import Path
@@ -339,11 +337,11 @@ Examples:
         output_path = args.output or f'{args.api_name}_templates.yaml'
         creator.save_templates(output_path)
         print(f"\n✓ Successfully created {len(creator.templates)} templates!")
-        print(f"\nNext steps:")
+        print("\nNext steps:")
         print(f"1. Review the templates in {output_path}")
-        print(f"2. Create a domain configuration file")
-        print(f"3. Add the adapter to config/adapters.yaml")
-        print(f"4. Test with: python test_adapter_loading.py --adapter-name <name>")
+        print("2. Create a domain configuration file")
+        print("3. Add the adapter to config/adapters.yaml")
+        print("4. Test with: python test_adapter_loading.py --adapter-name <name>")
     else:
         print("No templates created.")
 

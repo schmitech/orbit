@@ -9,7 +9,6 @@ Compare with: server/inference/pipeline/providers/cohere_provider.py (old implem
 
 from typing import Dict, Any, AsyncGenerator
 
-from ...base import ServiceType
 from ...providers import CohereBaseService
 from ...services import InferenceService
 

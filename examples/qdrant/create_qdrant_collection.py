@@ -245,7 +245,7 @@ async def ingest_to_qdrant(
     if not initialized:
         raise ValueError(f"Failed to initialize {embedding_provider} embedding service")
     
-    print(f"\nEmbedding Service Details:")
+    print("\nEmbedding Service Details:")
     print(f"Provider: {embedding_provider}")
     # Get model name from config
     model_name = config['embeddings'][embedding_provider]['model']
@@ -412,7 +412,7 @@ async def ingest_to_qdrant(
     
     # Get collection info
     collection_info = client.get_collection(collection_name)
-    print(f"\nIngestion complete!")
+    print("\nIngestion complete!")
     print(f"Total vectors in collection: {collection_info.points_count}")
     
     # Test retrieval with a sample query
@@ -463,12 +463,12 @@ async def main():
     
     print(f"Using embedding provider: {embedding_provider}")
     if args.cloud:
-        print(f"Qdrant Cloud mode enabled")
+        print("Qdrant Cloud mode enabled")
     else:
         print(f"Qdrant server: {qdrant_host}:{qdrant_port}")
     
     if args.update:
-        print(f"Update mode: Will add records to existing collection")
+        print("Update mode: Will add records to existing collection")
     
     # Run ingestion with Qdrant
     await ingest_to_qdrant(

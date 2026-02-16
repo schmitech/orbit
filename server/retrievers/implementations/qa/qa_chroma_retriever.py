@@ -5,9 +5,7 @@ QA-specialized ChromaDB retriever using the base class
 import logging
 import traceback
 from typing import Dict, Any, List, Optional, Tuple
-from chromadb import HttpClient, PersistentClient
 from chromadb.errors import InvalidArgumentError
-from fastapi import HTTPException
 
 from .qa_vector_base import QAVectorRetrieverBase
 from ...base.base_retriever import RetrieverFactory

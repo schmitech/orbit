@@ -13,7 +13,7 @@ This module tests the OpenAI audio service specifically:
 import pytest
 import sys
 import os
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock
 from io import BytesIO
 
 # Get the absolute path to the server directory

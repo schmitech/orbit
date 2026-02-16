@@ -74,7 +74,7 @@ class QdrantClientManager:
                 cls._connected[key] = False
             else:
                 if url:
-                    logger.info(f"Reusing existing Qdrant Cloud client instance")
+                    logger.info("Reusing existing Qdrant Cloud client instance")
                 else:
                     logger.info(f"Reusing existing Qdrant client instance for {host}:{port}")
             return cls._clients[key]

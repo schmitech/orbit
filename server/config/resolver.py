@@ -7,7 +7,6 @@ including inference, embedding, datasource, and reranker providers.
 
 import logging
 from typing import Dict, Any
-from utils import is_true_value
 
 
 

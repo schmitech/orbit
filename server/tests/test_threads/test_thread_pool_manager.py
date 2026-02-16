@@ -5,7 +5,7 @@ Unit tests for ThreadPoolManager performance utility.
 import asyncio
 import time
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor, Future
 
 import sys
@@ -170,7 +170,7 @@ class TestThreadPoolManager:
             return "completed"
         
         # Submit a long-running task
-        future = thread_pool_manager.submit_to_pool('cpu', long_task)
+        thread_pool_manager.submit_to_pool('cpu', long_task)
         
         # Shutdown without waiting
         thread_pool_manager.shutdown(wait=False)

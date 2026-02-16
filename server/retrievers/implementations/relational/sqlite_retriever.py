@@ -4,8 +4,6 @@ Uses the datasource registry pattern for connection management.
 """
 
 import logging
-import sqlite3
-import os
 from typing import Dict, Any, List, Optional
 
 from retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
@@ -77,7 +75,7 @@ class SQLiteRetriever(BaseSQLDatabaseRetriever):
                 self.connection.commit()
                 return [{"affected_rows": cursor.rowcount}]
 
-        except Exception as e:
+        except Exception:
             if self.connection:
                 self.connection.rollback()
             raise

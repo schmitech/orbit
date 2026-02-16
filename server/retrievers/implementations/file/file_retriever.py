@@ -7,7 +7,6 @@ Supports semantic search over chunked document content.
 
 import logging
 from typing import Dict, Any, List, Optional
-import uuid
 
 from retrievers.base.abstract_vector_retriever import AbstractVectorRetriever
 from services.file_metadata.metadata_store import FileMetadataStore
@@ -80,7 +79,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
                            files_config.get('default_vector_store', 'chroma')
 
         # Debug logging to trace vector store selection
-        logger.debug(f"FileVectorRetriever.initialize() - Vector store selection:")
+        logger.debug("FileVectorRetriever.initialize() - Vector store selection:")
         logger.debug(f"  adapter_config.get('vector_store') = {adapter_config.get('vector_store')}")
         logger.debug(f"  files_config.get('default_vector_store') = {files_config.get('default_vector_store')}")
         logger.debug(f"  Selected vector_store_name = {vector_store_name}")
@@ -130,7 +129,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
             List of relevant context items
         """
         logger.debug("=" * 80)
-        logger.debug(f"FileVectorRetriever.get_relevant_context called")
+        logger.debug("FileVectorRetriever.get_relevant_context called")
         logger.debug(f"  Query: {query[:100]}")
         logger.debug(f"  file_ids: {file_ids}")
         logger.debug(f"  api_key: {'provided' if api_key else 'None'}")
@@ -201,7 +200,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
             # 1. First check adapter_config (top-level adapter config) for embedding_provider
             # 2. Then check config['embedding']['provider'] (set by adapter_loader from adapter's embedding_provider)
             # 3. Fall back to 'ollama' as default
-            adapter_config = self.config.get('adapter_config', {})
+            self.config.get('adapter_config', {})
 
             # Get embedding_provider from adapter config if present (handles passthrough from adapter loader)
             embedding_provider = self.config.get('embedding', {}).get('provider')

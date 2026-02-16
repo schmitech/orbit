@@ -2,7 +2,6 @@
 """Test vLLM provider with streaming"""
 
 import asyncio
-import json
 import sys
 import os
 

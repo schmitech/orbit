@@ -17,7 +17,6 @@ import logging
 import wave
 import numpy as np
 
-from ...base import ServiceType
 from ...services import AudioService
 from ...connection import ConnectionManager, RetryHandler
 

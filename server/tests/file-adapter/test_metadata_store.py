@@ -7,7 +7,6 @@ Tests SQLite-based metadata tracking for uploaded files and chunks.
 import pytest
 import pytest_asyncio
 import sys
-import os
 from pathlib import Path
 
 # Add server directory to Python path

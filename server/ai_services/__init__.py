@@ -62,41 +62,6 @@ from .config import (
     ConfigMerger
 )
 from .factory import AIServiceFactory
-
-# Provider base classes (conditionally imported based on available dependencies)
-# These are imported dynamically - only providers with installed dependencies are available
-_available_providers = []
-try:
-    from .providers import OpenAIBaseService
-    _available_providers.append('OpenAIBaseService')
-except ImportError:
-    pass
-
-try:
-    from .providers import AnthropicBaseService
-    _available_providers.append('AnthropicBaseService')
-except ImportError:
-    pass
-
-try:
-    from .providers import OllamaBaseService
-    _available_providers.append('OllamaBaseService')
-except ImportError:
-    pass
-
-try:
-    from .providers import CohereBaseService
-    _available_providers.append('CohereBaseService')
-except ImportError:
-    pass
-
-try:
-    from .providers import MistralBaseService
-    _available_providers.append('MistralBaseService')
-except ImportError:
-    pass
-
-# Registry functions
 from .registry import (
     register_all_services,
     register_embedding_services,
@@ -107,6 +72,34 @@ from .registry import (
     register_audio_services,
     get_embedding_service_legacy
 )
+
+# Provider base classes (conditionally imported based on available dependencies)
+_available_providers: list[str] = []
+try:
+    from .providers import OpenAIBaseService
+    _available_providers.append(OpenAIBaseService.__name__)
+except ImportError:
+    pass
+try:
+    from .providers import AnthropicBaseService
+    _available_providers.append(AnthropicBaseService.__name__)
+except ImportError:
+    pass
+try:
+    from .providers import OllamaBaseService
+    _available_providers.append(OllamaBaseService.__name__)
+except ImportError:
+    pass
+try:
+    from .providers import CohereBaseService
+    _available_providers.append(CohereBaseService.__name__)
+except ImportError:
+    pass
+try:
+    from .providers import MistralBaseService
+    _available_providers.append(MistralBaseService.__name__)
+except ImportError:
+    pass
 
 __version__ = "2.4.0"
 

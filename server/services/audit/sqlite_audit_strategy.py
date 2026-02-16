@@ -7,7 +7,7 @@ Uses the existing SQLiteService/DatabaseService interface for storage operations
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 
 from .audit_storage_strategy import AuditStorageStrategy, AuditRecord, decompress_text
 from utils.id_utils import generate_id

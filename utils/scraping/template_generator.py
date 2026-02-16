@@ -95,10 +95,9 @@ import hashlib
 import json
 import os
 import re
-import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 from urllib.parse import urlparse
 import yaml
 

@@ -210,7 +210,7 @@ async def test_qdrant_query(test_query: str, collection_name: str = None, use_cl
     print("\nConfiguration Variables:")
     print(f"Embedding Provider: {embedding_provider}")
     if use_cloud:
-        print(f"Qdrant Cloud mode enabled")
+        print("Qdrant Cloud mode enabled")
     else:
         print(f"QDRANT_HOST: {qdrant_host}")
         print(f"QDRANT_PORT: {qdrant_port}")
@@ -247,7 +247,7 @@ async def test_qdrant_query(test_query: str, collection_name: str = None, use_cl
     # Test connection by getting dimensions
     try:
         dimensions = await embedding_service.get_dimensions()
-        print(f"Successfully connected to embedding service")
+        print("Successfully connected to embedding service")
         print(f"Embedding dimensions: {dimensions}")
     except Exception as e:
         print(f"Failed to connect to embedding service: {str(e)}")
@@ -315,7 +315,7 @@ async def test_qdrant_query(test_query: str, collection_name: str = None, use_cl
         await embedding_service.close()
 
 async def main():
-    config = load_config()
+    load_config()
     
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Query a Qdrant collection using semantic search')

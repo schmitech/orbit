@@ -21,7 +21,6 @@ Prerequisites:
 4. Default admin credentials (admin/admin123) must be available
 """
 
-import asyncio
 import subprocess
 import json
 import logging
@@ -156,7 +155,7 @@ class CLITester:
         # Fallback: try to parse the entire output as JSON
         try:
             return json.loads(output.strip())
-        except:
+        except Exception:
             return None
     
     def create_temp_prompt_file(self, content: str) -> str:
@@ -186,7 +185,7 @@ class CLITester:
         for temp_file in self.temp_files:
             try:
                 os.unlink(temp_file)
-            except:
+            except Exception:
                 pass
         
         # Clean up created API keys if logged in
@@ -195,7 +194,7 @@ class CLITester:
             for api_key in self.created_api_keys:
                 try:
                     self.run_command(["key", "delete", "--key", api_key, "--force"])
-                except:
+                except Exception:
                     pass
         
         # Clean up created prompts if logged in
@@ -204,7 +203,7 @@ class CLITester:
             for prompt_id in self.created_prompts:
                 try:
                     self.run_command(["prompt", "delete", "--id", prompt_id, "--force"])
-                except:
+                except Exception:
                     pass
         
         # Clean up test users if logged in
@@ -266,7 +265,7 @@ class CLITester:
             try:
                 self.run_command(["logout"])
                 self.logged_in = False
-            except:
+            except Exception:
                 pass
     
     def check_server_health(self) -> bool:
@@ -277,7 +276,7 @@ class CLITester:
                 # Server status outputs formatted text with PID, uptime, memory, CPU
                 return "server is running" in result["stdout"].lower() or "pid:" in result["stdout"].lower()
             return False
-        except:
+        except Exception:
             return False
     
     def check_authentication_available(self) -> bool:
@@ -286,7 +285,7 @@ class CLITester:
             result = self.run_command(["auth-status"])
             # Should return some response (even if not authenticated)
             return result["returncode"] in [0, 1]
-        except:
+        except Exception:
             return False
     
     def check_admin_services_available(self) -> bool:
@@ -295,7 +294,7 @@ class CLITester:
             result = self.run_command(["key", "list"])
             # Should return some response (even if not authenticated or no keys)
             return result["returncode"] in [0, 1, 2]
-        except:
+        except Exception:
             return False
     
     def ensure_authenticated(self) -> bool:

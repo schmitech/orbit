@@ -92,7 +92,7 @@ Assistant:"""
 async def main():
     """Run all tests"""
     # Test direct API
-    direct_result = await test_direct_api()
+    await test_direct_api()
     
     # Test provider
     await test_provider()

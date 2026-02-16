@@ -8,7 +8,6 @@ to assess document relevance.
 
 import logging
 from typing import Dict, Any, List, Optional
-import asyncio
 import json
 
 from ...providers import OpenAIBaseService

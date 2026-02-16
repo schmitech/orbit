@@ -5,7 +5,7 @@ Unit tests for adapter capabilities system
 import pytest
 import sys
 import os
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 # Add the server directory to the Python path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -226,11 +226,6 @@ class TestCapabilityInference:
 
     def test_infer_passthrough_conversational(self):
         """Test inferring capabilities for passthrough conversational adapter"""
-        adapter_config = {
-            'type': 'passthrough',
-            'adapter': 'conversational',
-            'name': 'simple-chat'
-        }
 
         # Infer using factory methods directly
         capabilities = AdapterCapabilities.for_passthrough(supports_file_retrieval=False)
@@ -240,11 +235,6 @@ class TestCapabilityInference:
 
     def test_infer_passthrough_multimodal(self):
         """Test inferring capabilities for passthrough multimodal adapter"""
-        adapter_config = {
-            'type': 'passthrough',
-            'adapter': 'multimodal',
-            'name': 'simple-chat-with-files'
-        }
 
         # Infer using factory methods directly
         capabilities = AdapterCapabilities.for_passthrough(supports_file_retrieval=True)
@@ -255,11 +245,6 @@ class TestCapabilityInference:
 
     def test_infer_file_adapter(self):
         """Test inferring capabilities for file adapter"""
-        adapter_config = {
-            'type': 'retriever',
-            'adapter': 'file',
-            'name': 'file-document-qa'
-        }
 
         # Infer using factory methods directly
         capabilities = AdapterCapabilities.for_file_adapter()
@@ -270,11 +255,6 @@ class TestCapabilityInference:
 
     def test_infer_standard_retriever(self):
         """Test inferring capabilities for standard retriever"""
-        adapter_config = {
-            'type': 'retriever',
-            'adapter': 'qa',
-            'name': 'qa-sql'
-        }
 
         # Infer using factory methods directly
         capabilities = AdapterCapabilities.for_standard_retriever()

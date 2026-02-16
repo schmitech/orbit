@@ -12,11 +12,10 @@ Prerequisites:
 
 import asyncio
 import aiohttp
-import json
 import logging
 import time
 import pytest
-from typing import Optional, Dict, Any, List
+from typing import Optional
 import os
 
 # Configure logging
@@ -107,7 +106,7 @@ class ApiKeyAuthTester:
                     result = await response.json()
                     self.admin_token = result.get("token")
                     if self.admin_token:
-                        logger.info(f"✓ Admin authentication successful")
+                        logger.info("✓ Admin authentication successful")
                         return True
                 logger.error(f"✗ Admin authentication failed: {response.status}")
                 return False
@@ -447,7 +446,7 @@ class ApiKeyAuthTester:
                 timeout=10
             ) as response:
                 if response.status == 200:
-                    result = await response.json()
+                    await response.json()
                     logger.info("✓ API key status retrieved successfully")
                     operations.append(True)
                 else:
@@ -865,7 +864,7 @@ async def test_user_listing_filters():
                 ) as response:
                     if response.status == 404:
                         pytest.skip("User listing endpoint not available (inference-only mode)")
-            except:
+            except Exception:
                 pass
             assert False, "User listing with filters failed"
 

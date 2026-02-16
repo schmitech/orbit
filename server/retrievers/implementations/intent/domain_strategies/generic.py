@@ -438,7 +438,7 @@ class GenericDomainStrategy(DomainStrategy):
 
     def _extract_identifier(self, query: str, param: Dict[str, Any]) -> Optional[Any]:
         """Extract generic identifier (numeric ID)."""
-        param_name = param.get('name', '').lower()
+        param.get('name', '').lower()
         param_type = param.get('type') or param.get('data_type', 'string')
 
         # Look for patterns like "ID 123", "#123", "number 123"

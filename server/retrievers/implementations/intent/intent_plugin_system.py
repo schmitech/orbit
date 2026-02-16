@@ -4,7 +4,7 @@ Simplified plugin system for Intent retriever
 
 import logging
 from typing import Protocol, List, Dict, Any, Optional
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
 

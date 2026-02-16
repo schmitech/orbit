@@ -10,8 +10,7 @@ This module handles logging comprehensive configuration summaries, including:
 """
 
 import logging
-import sys
-from typing import Dict, Any, Optional, NoReturn
+from typing import Dict, Any, Optional
 from fastapi import FastAPI
 from utils import is_true_value
 
@@ -122,7 +121,7 @@ class ConfigurationSummaryLogger:
             # Authentication Configuration
             auth_config = self.config.get('auth', {})
             # Authentication is always enabled - no option to disable
-            self._log_message(f"🔐 Authentication Service: ENABLED (always required)")
+            self._log_message("🔐 Authentication Service: ENABLED (always required)")
 
             self._log_message(f"Session duration: {auth_config.get('session_duration_hours', 12)} hours", indent=2)
             self._log_message(f"Default admin username: {auth_config.get('default_admin_username', 'admin')}", indent=2)

@@ -13,7 +13,7 @@ SCRIPT_DIR = Path(__file__).parent.absolute()
 SERVER_DIR = SCRIPT_DIR.parent.parent
 sys.path.append(str(SERVER_DIR))
 
-from services.file_processing.chunking.base_chunker import Chunk, TextChunker
+from services.file_processing.chunking.base_chunker import Chunk
 from services.file_processing.chunking.fixed_chunker import FixedSizeChunker
 from services.file_processing.chunking.semantic_chunker import SemanticChunker
 from services.file_processing.chunking.token_chunker import TokenChunker
@@ -82,8 +82,8 @@ def test_fixed_chunker_overlap():
     # Verify overlap
     if len(chunks) > 1:
         # Last 5 chars of first chunk should be in second chunk
-        first_chunk_end = chunks[0].text[-5:]
-        second_chunk_start = chunks[1].text[:5]
+        chunks[0].text[-5:]
+        chunks[1].text[:5]
         # Due to text being numbers, we can verify some overlap exists
         assert len(chunks[0].text) <= 20
 
@@ -223,7 +223,7 @@ def test_semantic_chunker_sentence_count():
 
     for chunk in chunks:
         # Count actual sentences in chunk
-        sentence_count = chunk.text.count(".")
+        chunk.text.count(".")
         # Metadata should reflect reasonable sentence count
         assert chunk.metadata["sentence_count"] > 0
 
@@ -815,7 +815,7 @@ def test_chunker_special_unicode():
 
 def test_tokenizer_encoding_failure_fallback():
     """Test that chunkers handle tokenizer encoding failures gracefully"""
-    from unittest.mock import Mock, MagicMock
+    from unittest.mock import Mock
 
     # Create a mock tokenizer that fails on encode
     mock_tokenizer = Mock()

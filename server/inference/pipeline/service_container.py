@@ -5,7 +5,7 @@ This module provides a service container that manages dependencies and enables
 loose coupling between components in the pipeline architecture.
 """
 
-from typing import Dict, Any, Type, Optional, Callable
+from typing import Dict, Any, Optional, Callable
 import logging
 
 logger = logging.getLogger(__name__)

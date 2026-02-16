@@ -12,10 +12,9 @@ Tests cover:
 """
 
 import pytest
-import time
 import sys
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -177,7 +176,7 @@ class TestRateLimitMiddlewareConfiguration:
         app = FastAPI()
         middleware = RateLimitMiddleware(app, config)
         
-        assert middleware.enabled == False
+        assert not middleware.enabled
         assert middleware.ip_requests_per_minute == 60
         assert middleware.ip_requests_per_hour == 1000
 
@@ -207,7 +206,7 @@ class TestRateLimitMiddlewareConfiguration:
         app = FastAPI()
         middleware = RateLimitMiddleware(app, config)
         
-        assert middleware.enabled == True
+        assert middleware.enabled
         assert middleware.ip_requests_per_minute == 100
         assert middleware.ip_requests_per_hour == 2000
         assert middleware.api_key_requests_per_minute == 200

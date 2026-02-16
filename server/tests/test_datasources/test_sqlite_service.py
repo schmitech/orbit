@@ -32,7 +32,6 @@ SERVER_DIR = SCRIPT_DIR.parent.parent
 sys.path.append(str(SERVER_DIR))
 
 from services.sqlite_service import SQLiteService
-from utils.id_utils import generate_id
 
 # Test collection name
 TEST_COLLECTION = "test_users"

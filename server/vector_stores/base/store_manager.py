@@ -11,7 +11,7 @@ from datetime import datetime, UTC
 import yaml
 from pathlib import Path
 
-from .base_store import BaseStore, StoreConfig, StoreStatus
+from .base_store import BaseStore, StoreConfig
 
 logger = logging.getLogger(__name__)
 

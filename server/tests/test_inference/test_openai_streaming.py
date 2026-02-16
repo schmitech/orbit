@@ -2,7 +2,6 @@
 """
 Test script to diagnose OpenAI streaming performance.
 """
-import asyncio
 import time
 import os
 import sys

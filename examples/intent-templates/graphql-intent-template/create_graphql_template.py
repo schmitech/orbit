@@ -28,7 +28,7 @@ import re
 import yaml
 import sys
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 
@@ -388,7 +388,7 @@ def interactive_mode(api_name: str, base_url: str) -> List[Dict[str, Any]]:
     """
     templates = []
 
-    print(f"\n=== GraphQL Template Generator ===")
+    print("\n=== GraphQL Template Generator ===")
     print(f"API: {api_name}")
     print(f"Endpoint: {base_url}")
     print("\nEnter GraphQL operations. Type 'done' when finished.")

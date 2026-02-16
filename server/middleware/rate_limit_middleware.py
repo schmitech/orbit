@@ -300,7 +300,7 @@ return current
             
             # Calculate remaining (use the more restrictive limit)
             minute_remaining = limit_per_minute - minute_count
-            hour_remaining = limit_per_hour - hour_count
+            limit_per_hour - hour_count
             
             # Use minute window for headers (more relevant for clients)
             remaining = max(0, minute_remaining)

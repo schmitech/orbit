@@ -21,9 +21,6 @@ import os
 import sys
 import time
 import argparse
-import json
-from datetime import datetime, timedelta
-from decimal import Decimal
 import re
 from typing import Dict, List, Any, Tuple, Optional
 import random
@@ -431,7 +428,7 @@ class RAGValidator:
         
         # Detailed failure analysis
         if failed > 0:
-            print(f"\n❌ Failed Queries Analysis:")
+            print("\n❌ Failed Queries Analysis:")
             failures = [r for r in results if not r.validation_passed]
             
             # Group by error type
@@ -507,10 +504,10 @@ def main():
         # Overall summary
         total_queries = sum(r['total'] for r in overall_results)
         total_passed = sum(r['passed'] for r in overall_results)
-        total_failed = sum(r['failed'] for r in overall_results)
+        sum(r['failed'] for r in overall_results)
         overall_time = sum(r['total_time'] for r in overall_results)
         
-        print(f"\n🎯 OVERALL VALIDATION RESULTS")
+        print("\n🎯 OVERALL VALIDATION RESULTS")
         print("=" * 60)
         print(f"Categories tested: {len(overall_results)}")
         print(f"Total queries: {total_queries}")
@@ -518,7 +515,7 @@ def main():
         print(f"Total execution time: {overall_time:.2f}s")
         
         # Category breakdown
-        print(f"\n📊 Results by Category:")
+        print("\n📊 Results by Category:")
         for result in overall_results:
             print(f"   {result['category']:<15} {result['pass_rate']:5.1f}% ({result['passed']:2d}/{result['total']:2d})")
         

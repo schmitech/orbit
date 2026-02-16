@@ -5,7 +5,6 @@ Handles reload-adapters command.
 """
 
 import argparse
-from typing import Any
 from rich.console import Console
 from rich.table import Table
 

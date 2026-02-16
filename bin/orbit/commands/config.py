@@ -6,7 +6,6 @@ Handles show, effective, set, and reset commands for CLI-local configuration onl
 
 import argparse
 import json
-from typing import Any
 from rich.console import Console
 from rich.prompt import Confirm
 from rich.table import Table
@@ -99,7 +98,7 @@ class ConfigEffectiveCommand(BaseCommand):
                     })
                 else:
                     console.print(f"[bold]{args.key}:[/bold] {value}")
-                    console.print(f"[dim]Source: cli_config[/dim]")
+                    console.print("[dim]Source: cli_config[/dim]")
             else:
                 self.formatter.error(f"Configuration key '{args.key}' not found")
                 return 1

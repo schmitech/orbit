@@ -6,7 +6,6 @@ This implementation provides vision capabilities using Google's Gemini models.
 
 from typing import Dict, Any, Union, List
 from PIL import Image
-import base64
 from io import BytesIO
 import asyncio
 

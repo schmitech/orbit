@@ -106,7 +106,7 @@ class TemplateEmbeddingStore:
             collection_exists = await self._vector_store.collection_exists(self.collection_name)
             if collection_exists:
                 collection_info = await self._vector_store.get_collection_info(self.collection_name)
-                existing_dim = collection_info.get('metadata', {}).get('dimension')
+                collection_info.get('metadata', {}).get('dimension')
 
             logger.info(f"TemplateEmbeddingStore initialized successfully with store_type={store_type_to_use}")
 
@@ -260,9 +260,8 @@ class TemplateEmbeddingStore:
         
         try:
             # Prepare filter if category specified
-            filter_metadata = None
             if filter_category:
-                filter_metadata = {'category': filter_category}
+                pass
             
             # Search for similar vectors
             results = await self._vector_store.similarity_search_with_threshold(

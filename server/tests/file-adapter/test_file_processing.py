@@ -142,7 +142,7 @@ def test_processor_registry_get_processor_not_found():
     registry = FileProcessorRegistry()
 
     # Try to get processor for unsupported type
-    processor = registry.get_processor("application/x-unknown")
+    registry.get_processor("application/x-unknown")
     # May return None or a fallback processor depending on implementation
     # Just verify it doesn't crash
     assert True

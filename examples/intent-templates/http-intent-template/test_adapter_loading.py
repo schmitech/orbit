@@ -11,7 +11,6 @@ import asyncio
 import sys
 import yaml
 from pathlib import Path
-from typing import Dict, Any
 
 # Add parent directories to path for imports
 project_root = Path(__file__).parent.parent.parent
@@ -62,7 +61,7 @@ async def test_adapter_loading(adapter_name: str, test_query: str = None):
             print("   Enable it in config/adapters.yaml to use it")
             return False
 
-        print(f"✓ Found adapter configuration")
+        print("✓ Found adapter configuration")
         print(f"   Type: {adapter_config.get('type')}")
         print(f"   Implementation: {adapter_config.get('implementation')}")
 
@@ -118,21 +117,21 @@ async def test_adapter_loading(adapter_name: str, test_query: str = None):
 
             # Create retriever instance
             retriever = retriever_class(config=merged_config)
-            print(f"✓ Created retriever instance")
+            print("✓ Created retriever instance")
 
             # Initialize the retriever
             print("   Initializing retriever (this may take a moment)...")
             await retriever.initialize()
-            print(f"✓ Retriever initialized successfully")
+            print("✓ Retriever initialized successfully")
 
             # Execute test query if provided
             if test_query:
-                print(f"\n🔍 Executing test query...")
+                print("\n🔍 Executing test query...")
                 print(f"   Query: \"{test_query}\"")
 
                 results = await retriever.get_relevant_context(test_query)
 
-                print(f"\n📊 Results:")
+                print("\n📊 Results:")
                 print(f"   Found {len(results)} results")
 
                 for i, result in enumerate(results, 1):
@@ -153,7 +152,7 @@ async def test_adapter_loading(adapter_name: str, test_query: str = None):
 
             # Clean up
             await retriever.close()
-            print(f"\n✓ Retriever closed successfully")
+            print("\n✓ Retriever closed successfully")
 
             print(f"\n{'=' * 60}")
             print(f"✅ Adapter '{adapter_name}' is working correctly!")

@@ -1,4 +1,3 @@
-import asyncio
 import sys
 import os
 from bson import ObjectId

@@ -196,7 +196,6 @@ class SentenceTransformersBaseService(ProviderAIService):
             raise ValueError("API key required for remote mode")
 
         # Use the connection manager from base class
-        from aiohttp import ClientSession, ClientTimeout
 
         logger.info(f"Configured remote API for model: {self.model}")
 

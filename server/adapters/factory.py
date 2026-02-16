@@ -6,7 +6,7 @@ It is maintained here for backward compatibility during the transition.
 """
 
 import logging
-from typing import Dict, Any, Callable
+from typing import Dict, Callable
 from adapters.base import DocumentAdapter
 
 # Configure logging

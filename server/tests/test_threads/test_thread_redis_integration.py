@@ -16,13 +16,11 @@ was bypassing ThreadDatasetService and trying to delete datasets
 directly from the database instead of using Redis.
 """
 
-import asyncio
 import os
 import sys
 import pytest
 from pathlib import Path
 from pytest_asyncio import fixture
-from datetime import datetime, timedelta, UTC
 import tempfile
 import shutil
 
@@ -55,7 +53,7 @@ load_dotenv(env_path)
 def redis_available():
     """Check if Redis is available for testing"""
     try:
-        import redis.asyncio as redis
+        import redis.asyncio as redis  # noqa: F401
         return True
     except ImportError:
         return False
@@ -134,7 +132,7 @@ async def redis_test_services():
     try:
         redis_initialized = await redis_service.initialize()
         if not redis_initialized:
-            pytest.skip(f"Failed to connect to Redis. Please check your configuration.")
+            pytest.skip("Failed to connect to Redis. Please check your configuration.")
     except Exception as e:
         pytest.skip(f"Failed to connect to Redis: {e}")
 

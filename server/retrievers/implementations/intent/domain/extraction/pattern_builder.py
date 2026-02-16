@@ -4,7 +4,7 @@ Pattern builder for constructing regex patterns for domain fields
 
 import re
 import logging
-from typing import Dict, List, Optional, Pattern
+from typing import Dict, Optional, Pattern
 from ...domain import DomainConfig, FieldConfig
 
 logger = logging.getLogger(__name__)

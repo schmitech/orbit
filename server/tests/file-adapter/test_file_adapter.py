@@ -4,10 +4,8 @@ Tests for File Adapter
 Tests the FileAdapter class for document formatting, filtering, and domain-specific processing.
 """
 
-import pytest
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 # Add server directory to Python path
 SCRIPT_DIR = Path(__file__).parent.absolute()

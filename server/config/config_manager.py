@@ -7,7 +7,6 @@ import yaml
 import logging
 from typing import Dict, Any, Optional
 from functools import lru_cache
-import re
 
 # Configure logging
 logging.basicConfig(

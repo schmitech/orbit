@@ -486,7 +486,7 @@ class TemplateGenerator:
 
         self.inference_client = UnifiedProviderFactory.create_provider_by_name(self.provider, self.config)
         await self.inference_client.initialize()
-        logger.info(f"✅ Inference client initialized successfully")
+        logger.info("✅ Inference client initialized successfully")
         sys.stdout.flush()
     
     def parse_schema(self, schema_path: str) -> Dict[str, Any]:
@@ -1091,11 +1091,11 @@ JSON Response:"""
             if param_name == 'limit':
                 param['default'] = 100
                 fixed_count += 1
-                logger.debug(f"Fixed null default for 'limit' parameter -> 100")
+                logger.debug("Fixed null default for 'limit' parameter -> 100")
             elif param_name == 'offset':
                 param['default'] = 0
                 fixed_count += 1
-                logger.debug(f"Fixed null default for 'offset' parameter -> 0")
+                logger.debug("Fixed null default for 'offset' parameter -> 0")
 
             # Type-based defaults
             elif param_type == 'integer':
@@ -1239,7 +1239,6 @@ JSON Response:"""
         Returns:
             List of generated SQL templates
         """
-        import time
         start_time = time.time()
 
         # Use instance output_path if not provided
@@ -1259,7 +1258,7 @@ JSON Response:"""
 
         # Check if we have cached analyses for queries that haven't been turned into templates yet
         queries_with_cached_analysis = set(cached_analyses.keys())
-        queries_needing_analysis = [q for q in queries if q not in queries_with_cached_analysis]
+        [q for q in queries if q not in queries_with_cached_analysis]
 
         # Filter out queries that are already in completed templates
         remaining_queries = [q for q in queries if q not in processed_queries]
@@ -1294,7 +1293,7 @@ JSON Response:"""
             }
             with open(output_path, 'w') as f:
                 yaml.dump(initial_output, f, default_flow_style=False, sort_keys=False)
-            logger.info(f"✅ Output file created - you can monitor progress there")
+            logger.info("✅ Output file created - you can monitor progress there")
             sys.stdout.flush()
 
         # Analyze remaining queries
@@ -1334,7 +1333,7 @@ JSON Response:"""
                 query_time = time.time() - query_start
                 logger.info(f"   ✅ Complete ({query_time:.1f}s) - {successful_analyses}/{i+1} successful")
             else:
-                logger.warning(f"   ⚠️  Analysis failed")
+                logger.warning("   ⚠️  Analysis failed")
             sys.stdout.flush()
 
             # Save progress after each analysis (every 5 queries to reduce I/O)
@@ -1452,7 +1451,7 @@ JSON Response:"""
         total_time = time.time() - start_time
         template_time = time.time() - template_start
         logger.info("=" * 60)
-        logger.info(f"🎉 Template generation complete!")
+        logger.info("🎉 Template generation complete!")
         logger.info(f"📈 Generated {len(templates)} templates total ({len(templates) - len(existing_data['templates'])} new)")
         logger.info(f"⏱️  Total time: {total_time:.1f}s (Analysis: {analysis_time:.1f}s, Templates: {template_time:.1f}s)")
         sys.stdout.flush()
@@ -1942,7 +1941,6 @@ JSON Response:"""
 
 async def main():
     """Main function"""
-    import time
     overall_start = time.time()
     
     parser = argparse.ArgumentParser(description='Generate SQL templates from test queries')

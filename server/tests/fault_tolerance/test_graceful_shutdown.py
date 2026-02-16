@@ -5,15 +5,14 @@ Test for graceful shutdown handling in ParallelAdapterExecutor
 import pytest
 import asyncio
 import time
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from services.parallel_adapter_executor import (
     ParallelAdapterExecutor, 
-    AdapterExecutionContext,
-    AdapterResult
+    AdapterExecutionContext
 )
 
 

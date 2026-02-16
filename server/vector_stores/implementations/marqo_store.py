@@ -2,6 +2,11 @@ import logging
 import warnings
 from typing import Dict, Any, Optional, List
 
+from ..base.base_vector_store import BaseVectorStore
+from ..base.base_store import StoreConfig, StoreStatus
+
+logger = logging.getLogger(__name__)
+
 # Suppress Pydantic deprecation warnings from Marqo
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="marqo.*")
 
@@ -9,11 +14,6 @@ try:
     import marqo
 except ImportError:
     raise ImportError("Marqo not installed. Please install with 'pip install marqo'")
-
-from ..base.base_vector_store import BaseVectorStore
-from ..base.base_store import StoreConfig, StoreStatus
-
-logger = logging.getLogger(__name__)
 
 class MarqoStore(BaseVectorStore):
     def __init__(self, config: StoreConfig):

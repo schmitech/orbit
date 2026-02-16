@@ -4,7 +4,6 @@ Test for circuit breaker events and callbacks
 
 import pytest
 import asyncio
-import time
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
@@ -13,8 +12,7 @@ from services.parallel_adapter_executor import (
     SimpleCircuitBreaker,
     CircuitBreakerEventHandler,
     DefaultCircuitBreakerEventHandler,
-    MonitoringCircuitBreakerEventHandler,
-    CircuitState
+    MonitoringCircuitBreakerEventHandler
 )
 
 

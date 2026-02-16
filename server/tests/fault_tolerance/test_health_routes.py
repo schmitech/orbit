@@ -7,12 +7,11 @@ adapter history endpoints that provide detailed observability data.
 """
 
 import pytest
-import asyncio
 import time
-from unittest.mock import Mock, AsyncMock, MagicMock, patch
+from unittest.mock import Mock
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 import sys
 import os
 
@@ -20,7 +19,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from routes.health_routes import create_health_router, get_adapter_manager, get_adapter_manager_optional
-from services.parallel_adapter_executor import SimpleCircuitBreaker, CircuitState
+from services.parallel_adapter_executor import SimpleCircuitBreaker
 
 
 class TestHealthRoutes:

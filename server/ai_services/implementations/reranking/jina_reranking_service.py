@@ -7,8 +7,6 @@ high-quality relevance scoring.
 
 import logging
 from typing import Dict, Any, List, Optional
-import asyncio
-import aiohttp
 
 from ...providers import JinaBaseService
 from ...services import RerankingService

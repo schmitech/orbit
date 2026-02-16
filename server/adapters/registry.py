@@ -4,7 +4,7 @@
 
 import logging
 import importlib
-from typing import Dict, Any, Callable, List, Optional, Type, Union
+from typing import Dict, Any, Callable, List, Optional
 from datasources.registry import get_registry as get_datasource_registry
 
 # Configure logging
@@ -104,7 +104,7 @@ class AdapterRegistry:
 
         if not adapter_info:
             # Try to import dynamically if the adapter is not registered
-            logger.debug(f"Adapter not found in registry, attempting dynamic import")
+            logger.debug("Adapter not found in registry, attempting dynamic import")
             if self._try_import_adapter(adapter_type, datasource, adapter_name):
                 adapter_info = self.get(adapter_type, datasource, adapter_name)
 

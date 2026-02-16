@@ -126,7 +126,7 @@ async def test_pinecone_query(test_query: str, index_name: str = None):
     # Initialize Pinecone client
     try:
         pc = get_pinecone_client()
-        print(f"Connected to Pinecone service")
+        print("Connected to Pinecone service")
         
         # If no index name provided, use the first available index
         if not index_name:
@@ -149,7 +149,7 @@ async def test_pinecone_query(test_query: str, index_name: str = None):
     # Test connection by getting dimensions
     try:
         dimensions = await embedding_service.get_dimensions()
-        print(f"Successfully connected to embedding service")
+        print("Successfully connected to embedding service")
         print(f"Embedding dimensions: {dimensions}")
     except Exception as e:
         print(f"Failed to connect to embedding service: {str(e)}")
@@ -205,7 +205,7 @@ async def test_pinecone_query(test_query: str, index_name: str = None):
         await embedding_service.close()
 
 async def main():
-    config = load_config()
+    load_config()
     
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Query a Pinecone index using semantic search')

@@ -7,13 +7,10 @@ response parsing, and error handling.
 """
 
 import pytest
-import asyncio
 import sys
 import os
 import json
-from pathlib import Path
-from typing import Dict, Any
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from unittest.mock import Mock, AsyncMock
 import httpx
 
 # Add the server directory to path

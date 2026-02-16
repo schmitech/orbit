@@ -52,7 +52,7 @@ class MilvusRetriever(AbstractVectorRetriever):
     async def initialize_client(self) -> None:
         """Initialize the Milvus client."""
         try:
-            from pymilvus import connections, Collection
+            from pymilvus import connections, Collection  # noqa: F401 - Collection used in query path
             
             # Connect to Milvus
             connections.connect(

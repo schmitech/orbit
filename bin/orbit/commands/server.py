@@ -8,7 +8,6 @@ import time
 import argparse
 import logging
 from datetime import datetime
-from typing import Any
 from rich.console import Console
 from rich.table import Table
 

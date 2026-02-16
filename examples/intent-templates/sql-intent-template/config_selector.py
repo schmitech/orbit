@@ -20,8 +20,7 @@ EXAMPLES:
 import re
 import yaml
 import argparse
-from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 
 class SchemaAnalyzer:
     """Analyzes database schema to determine the best configuration"""
@@ -225,13 +224,13 @@ def main():
     analyzer = SchemaAnalyzer()
     analysis = analyzer.analyze_schema(args.schema)
     
-    print(f"Schema Analysis Results:")
+    print("Schema Analysis Results:")
     print(f"Detected Domain: {analysis['detected_domain']}")
     print(f"Confidence Score: {analysis['confidence']}")
     print(f"Recommended Config: {analysis['recommended_config']}")
     
     if args.verbose:
-        print(f"\nAll Domain Scores:")
+        print("\nAll Domain Scores:")
         for domain, score in analysis['all_scores'].items():
             print(f"  {domain}: {score}")
     
@@ -244,7 +243,7 @@ def main():
         print(f"\nCustom configuration saved to: {args.output}")
     
     # Suggest next steps
-    print(f"\nNext Steps:")
+    print("\nNext Steps:")
     print(f"1. Use the recommended config: configs/{analysis['recommended_config']}")
     print(f"2. Or generate a custom config: python config_selector.py --schema {args.schema} --output custom-config.yaml")
     print(f"3. Run template generator: python template_generator.py --schema {args.schema} --config <config_file>")

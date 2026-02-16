@@ -94,7 +94,7 @@ import sys
 import time
 import re
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict, Set
+from typing import Optional, List, Dict, Set
 
 try:
     import requests
@@ -273,8 +273,8 @@ def parse_sql_schema(sql_path: str) -> Dict:
     )
 
     for match in index_pattern.finditer(sql_content):
-        index_name = match.group(1)
-        table_name = match.group(2)
+        match.group(1)
+        match.group(2)
         columns_str = match.group(3)
         # Parse comma-separated column names (handles composite indexes)
         for col in columns_str.split(','):
@@ -664,7 +664,7 @@ def print_stats(conn: duckdb.DuckDBPyConnection, table_name: str, verbose: bool 
     result = conn.execute(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()
     total = result[0] if result else 0
 
-    print(f"\nDatabase Statistics:")
+    print("\nDatabase Statistics:")
     print(f"   Total Records: {total:,}")
 
     # Get schema info
@@ -924,7 +924,8 @@ Examples:
 
     csv_options_display = []
     if delimiter:
-        csv_options_display.append(f"delimiter={repr(delimiter) if delimiter == '\t' else delimiter}")
+        tab = "\t"
+        csv_options_display.append(f"delimiter={repr(delimiter) if delimiter == tab else delimiter}")
     if quote:
         csv_options_display.append(f"quote={quote}")
     if escape_char:
@@ -946,7 +947,7 @@ Examples:
         print("=" * 60)
         print("  CSV to DuckDB Loader")
         print("=" * 60)
-        print(f"Configuration:")
+        print("Configuration:")
         print(f"   CSV File: {csv_path}")
         print(f"   Output: {output_path}")
         print(f"   Table: {table_name}")
@@ -1046,7 +1047,7 @@ Examples:
 
     if not args.quiet:
         print(f"\nDatabase created: {output_path}")
-        print(f"\nTest with:")
+        print("\nTest with:")
         print(f'   duckdb {output_path} \'SELECT * FROM "{table_name}" LIMIT 5;\'')
 
     return 0

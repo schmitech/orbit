@@ -11,12 +11,10 @@ Usage:
 """
 
 import logging
-import traceback
 from typing import Dict, Any, List, Optional
 from fastapi import HTTPException
 
 from ..base.abstract_vector_retriever import AbstractVectorRetriever
-from ..base.base_retriever import RetrieverFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)

@@ -30,12 +30,8 @@ Prerequisites:
 import pytest
 import httpx
 import asyncio
-import tempfile
-import json
 import logging
-from pathlib import Path
-from typing import Dict, Any, Optional
-import time
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -678,7 +674,7 @@ async def test_png_image_full_pipeline(http_client, server_health_check):
 
     # Create a simple test PNG image
     try:
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image, ImageDraw, ImageFont  # noqa: F401
         import io
 
         # Create a simple image with text
@@ -858,7 +854,7 @@ async def test_unsupported_file_type(http_client, server_health_check):
         finally:
             try:
                 await delete_file(http_client, file_id)
-            except:
+            except Exception:
                 pass
     else:
         # Rejected at upload - this is also acceptable
@@ -893,5 +889,5 @@ async def test_oversized_file_handling(http_client, server_health_check):
         try:
             file_id = response.json()["file_id"]
             await delete_file(http_client, file_id)
-        except:
+        except Exception:
             pass

@@ -78,12 +78,11 @@ License: MIT
 import argparse
 import asyncio
 import json
-import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, Any
 from urllib.parse import urlparse
 import yaml
 
@@ -410,7 +409,7 @@ class TemplatePipeline:
         print(f"URLs extracted:      {self.stats['urls_extracted']}")
         print(f"Templates generated: {self.stats['templates_generated']}")
         print(f"Duration:            {duration:.1f} seconds")
-        print(f"\nOutput files:")
+        print("\nOutput files:")
         print(f"  - {self.urls_file}")
         print(f"  - {self.templates_file}")
         if self.domain_file.exists():

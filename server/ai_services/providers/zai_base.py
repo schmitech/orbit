@@ -6,7 +6,7 @@ This module provides a unified base class for all Z.AI-based services
 like API key management, client initialization, and error handling.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from zai import ZaiClient
 import logging
 
@@ -137,7 +137,7 @@ class ZaiBaseService(ProviderAIService):
         """
         try:
             # Test with a simple chat completion call
-            response = await self.client.chat.completions.create(
+            await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": "Hello"}],
                 max_tokens=1

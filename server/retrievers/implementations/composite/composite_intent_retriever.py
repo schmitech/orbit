@@ -15,10 +15,9 @@ many templates with similar vocabulary across different business domains.
 
 import logging
 import traceback
-import asyncio
 from typing import Dict, Any, List, Optional
 
-from retrievers.base.intent_composite_base import CompositeIntentRetriever as BaseCompositeRetriever, TemplateMatch
+from retrievers.base.intent_composite_base import CompositeIntentRetriever as BaseCompositeRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +114,7 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
         await super().initialize()
         
         if self.verbose:
-            logger.info(f"Verbose mode enabled for composite retriever")
+            logger.info("Verbose mode enabled for composite retriever")
             for name, adapter in self._child_adapters.items():
                 try:
                     stats = await adapter.template_store.get_statistics()

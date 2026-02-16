@@ -221,7 +221,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
             await self.initialize()
             
         if not self.model:
-            yield f"Error: BitNet model not initialized"
+            yield "Error: BitNet model not initialized"
             return
             
         try:

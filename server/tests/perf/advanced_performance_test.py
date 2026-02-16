@@ -17,13 +17,10 @@ import argparse
 import asyncio
 import aiohttp
 import time
-import json
 import statistics
 import csv
-import os
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, UTC
 from typing import Dict, List, Any, Optional
-import concurrent.futures
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -204,7 +201,7 @@ class LoadGenerator:
                     try:
                         error_data = await response.json()
                         result.error_message = str(error_data)
-                    except:
+                    except Exception:
                         result.error_message = f"HTTP {response.status}"
 
                 self.metrics.add_result(result)
@@ -237,7 +234,7 @@ class LoadGenerator:
         """Generate health check load."""
         print(f"Generating health check load: {requests_per_second} req/s for {duration}s")
         
-        interval = 1.0 / requests_per_second
+        1.0 / requests_per_second
         end_time = time.time() + duration
         
         while time.time() < end_time:
@@ -316,7 +313,7 @@ class LoadGenerator:
                 ('GET', '/admin/prompts')
             ])
         
-        interval = 1.0 / requests_per_second
+        1.0 / requests_per_second
         end_time = time.time() + duration
         
         while time.time() < end_time:
@@ -410,7 +407,7 @@ async def main():
     # Generate timestamp for this test run
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     
-    print(f"🚀 Starting advanced performance test")
+    print("🚀 Starting advanced performance test")
     print(f"Target: {args.host}")
     print(f"Scenario: {args.scenario}")
     print(f"Duration: {args.duration}s")
@@ -449,7 +446,7 @@ async def main():
         
         if 'response_time_stats' in summary and summary['response_time_stats']:
             stats = summary['response_time_stats']
-            print(f"\nResponse Time Statistics:")
+            print("\nResponse Time Statistics:")
             print(f"  Min: {stats['min']:.3f}s")
             print(f"  Max: {stats['max']:.3f}s")
             print(f"  Mean: {stats['mean']:.3f}s")
@@ -468,7 +465,7 @@ async def main():
         with open(html_file, 'w') as f:
             f.write(html_content)
         
-        print(f"\n📁 Results exported to:")
+        print("\n📁 Results exported to:")
         print(f"  CSV: {csv_file}")
         print(f"  HTML: {html_file}")
         

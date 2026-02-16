@@ -3,7 +3,6 @@ Pinecone Datasource Implementation
 """
 
 import logging
-from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
 
 logger = logging.getLogger(__name__)
@@ -46,7 +45,7 @@ class PineconeDatasource(BaseDatasource):
 
         try:
             # Try to list indexes as a health check
-            indexes = self._client.list_indexes()
+            self._client.list_indexes()
             return True
         except Exception as e:
             logger.error(f"Pinecone health check failed: {e}")

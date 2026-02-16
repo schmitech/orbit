@@ -61,7 +61,7 @@ def test_with_invalid_config():
             # Test connection (should fail)
             import requests
             try:
-                response = requests.get(f"{base_url}/api/tags", timeout=5)
+                requests.get(f"{base_url}/api/tags", timeout=5)
                 print("    ❌ Unexpectedly connected to invalid host")
                 return False
             except requests.exceptions.ConnectionError:
@@ -81,7 +81,7 @@ def test_with_invalid_config():
         try:
             with open('config.yaml', 'w') as f:
                 f.write(original_config)
-        except:
+        except Exception:
             pass
         return False
 

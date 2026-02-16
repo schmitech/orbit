@@ -5,10 +5,8 @@ Provides a health monitoring endpoints for the fault-tolerant system.
 """
 
 import logging
-from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
-from utils import is_true_value
 
 logger = logging.getLogger(__name__)
 

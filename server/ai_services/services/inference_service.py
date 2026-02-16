@@ -7,6 +7,7 @@ providing a unified API for text generation regardless of the underlying provide
 
 from abc import abstractmethod
 from typing import Dict, Any, AsyncGenerator, Optional, List
+import asyncio
 import logging
 import time
 import uuid
@@ -474,10 +475,6 @@ class OpenAIResponseFormatter:
             chunk["orbit"] = orbit_extension
 
         return chunk
-
-
-# Import for async operations
-import asyncio
 
 
 # Helper function for service creation

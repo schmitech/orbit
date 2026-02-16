@@ -46,7 +46,7 @@ import json
 import yaml
 import logging
 from pathlib import Path
-from typing import Dict, List, Any, Set, Tuple, Optional
+from typing import Dict, List, Any, Tuple
 from collections import defaultdict
 from dotenv import load_dotenv
 
@@ -402,7 +402,7 @@ class QueryGenerator:
         logger.info(f"📦 Using model: {model}")
         self.inference_client = UnifiedProviderFactory.create_provider_by_name(self.provider, self.config)
         await self.inference_client.initialize()
-        logger.info(f"✅ Inference client initialized successfully")
+        logger.info("✅ Inference client initialized successfully")
     
     def _create_schema_summary(self, tables: Dict[str, Any]) -> str:
         """Create a summary of the database schema for LLM"""
@@ -600,7 +600,7 @@ def generate_basic_queries(table_name: str, columns: List[Dict[str, str]]) -> Li
     """Generate basic search and filter queries"""
     categories = []
     entity_label = get_entity_label(table_name)
-    entity_singular = entity_label.rstrip('s') if entity_label.endswith('s') else entity_label
+    entity_label.rstrip('s') if entity_label.endswith('s') else entity_label
     
     # Find name column
     name_col = None
@@ -871,7 +871,7 @@ def generate_analytical_queries(table_name: str, columns: List[Dict[str, str]],
     if relationships:
         for foreign_table, foreign_col, local_col in relationships:
             foreign_entity = get_entity_label(foreign_table)
-            foreign_singular = foreign_entity.rstrip('s') if foreign_entity.endswith('s') else foreign_entity
+            foreign_entity.rstrip('s') if foreign_entity.endswith('s') else foreign_entity
             categories.append({
                 'title': f'{foreign_entity} Behavior',
                 'queries': [
@@ -989,7 +989,7 @@ This document provides test queries for the {domain_name.lower()} database schem
         )
         
         if basic_queries:
-            md += f"### Basic Search and Filter Queries\n"
+            md += "### Basic Search and Filter Queries\n"
             for query in basic_queries:
                 md += f"{all_query_num}. \"{query}\"\n"
                 all_query_num += 1
@@ -1002,7 +1002,7 @@ This document provides test queries for the {domain_name.lower()} database schem
         )
         
         if analytical_queries:
-            md += f"### Analytical and Business Intelligence Queries\n"
+            md += "### Analytical and Business Intelligence Queries\n"
             for query in analytical_queries:
                 md += f"{all_query_num}. \"{query}\"\n"
                 all_query_num += 1
@@ -1060,7 +1060,7 @@ async def main():
     await generator.initialize()
 
     # Generate markdown using AI
-    logger.info(f"📝 Generating comprehensive query template using AI...")
+    logger.info("📝 Generating comprehensive query template using AI...")
     markdown = await create_markdown_template(generator, tables, args.domain)
 
     # Save to file
@@ -1073,16 +1073,16 @@ async def main():
 
     logger.info(f"✅ Template created: {output_path}")
     logger.info(f"📊 Generated {query_count} query examples using AI")
-    logger.info(f"\n📖 Next steps:")
+    logger.info("\n📖 Next steps:")
     logger.info(f"   1. Open {output_path}")
-    logger.info(f"   2. Review and customize the generated queries")
-    logger.info(f"   3. Add domain-specific queries as needed")
-    logger.info(f"   4. Run template generator with this file")
-    logger.info(f"\n💡 The template includes:")
-    logger.info(f"   • Basic search and filter queries (AI-generated)")
-    logger.info(f"   • Advanced analytical queries (AI-generated)")
-    logger.info(f"   • Business intelligence queries (AI-generated)")
-    logger.info(f"   • Multi-table join queries (AI-generated)")
+    logger.info("   2. Review and customize the generated queries")
+    logger.info("   3. Add domain-specific queries as needed")
+    logger.info("   4. Run template generator with this file")
+    logger.info("\n💡 The template includes:")
+    logger.info("   • Basic search and filter queries (AI-generated)")
+    logger.info("   • Advanced analytical queries (AI-generated)")
+    logger.info("   • Business intelligence queries (AI-generated)")
+    logger.info("   • Multi-table join queries (AI-generated)")
 
     return 0
 

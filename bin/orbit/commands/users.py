@@ -9,7 +9,6 @@ import getpass
 import secrets
 import string
 from datetime import datetime
-from typing import Any
 from rich.console import Console
 from rich.prompt import Confirm
 

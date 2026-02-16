@@ -57,7 +57,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
             'score_scaling_factor', 1.0
         ) if self.adapter_config else 1.0
 
-        logger.info(f"QAPineconeRetriever initialized with:")
+        logger.info("QAPineconeRetriever initialized with:")
         logger.info(f"  confidence_threshold={self.confidence_threshold} (used for filtering)")
         logger.info(f"  score_scaling_factor={self.score_scaling_factor}")
 
@@ -99,7 +99,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
             # Validate collection name (index name in Pinecone)
             if not collection_name:
                 logger.error("Collection name (index) is None or empty")
-                logger.error(f"Available collection_name sources:")
+                logger.error("Available collection_name sources:")
                 logger.error(f"  - Parameter: {collection_name}")
                 logger.error(f"  - Self.index_name: {getattr(self, 'index_name', 'Not set')}")
                 logger.error(f"  - Adapter config collection: {self.adapter_config.get('collection') if self.adapter_config else 'No adapter config'}")

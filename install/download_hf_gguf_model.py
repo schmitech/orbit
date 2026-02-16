@@ -101,15 +101,12 @@ Usage with llama-cpp-python:
     print(output['choices'][0]['text'])
 """
 
-import os
 import sys
 import argparse
 import logging
 import requests
-import shutil
 from pathlib import Path
 from tqdm import tqdm
-import yaml
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -425,7 +422,7 @@ def main():
                 logger.info(f"  {file}")
             if len(gguf_files) > 10:
                 logger.info(f"  ... and {len(gguf_files) - 10} more files")
-            logger.info(f"\nUse --list-files to see all available files")
+            logger.info("\nUse --list-files to see all available files")
             return 1
         
         # Prepare download
@@ -443,8 +440,8 @@ def main():
             file_size = dest_path.stat().st_size
             logger.info(f"✅ Successfully downloaded model to: {dest_path}")
             logger.info(f"📁 File size: {format_file_size(file_size)}")
-            logger.info(f"🚀 To use this model with llama-cpp-python:")
-            logger.info(f"     from llama_cpp import Llama")
+            logger.info("🚀 To use this model with llama-cpp-python:")
+            logger.info("     from llama_cpp import Llama")
             logger.info(f"     llm = Llama(model_path='{dest_path}')")
             return 0
         else:

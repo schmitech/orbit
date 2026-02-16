@@ -7,7 +7,6 @@ reranking quality with multilingual support.
 
 import logging
 from typing import Dict, Any, List, Optional
-import asyncio
 import aiohttp
 
 from ...providers import CohereBaseService

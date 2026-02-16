@@ -9,7 +9,6 @@ Compare with: server/inference/pipeline/providers/groq_provider.py (old implemen
 
 from typing import Dict, Any, AsyncGenerator
 
-from ...base import ServiceType
 from ...providers import OpenAICompatibleBaseService
 from ...services import InferenceService
 

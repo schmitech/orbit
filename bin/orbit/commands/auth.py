@@ -6,7 +6,6 @@ Handles login, logout, register, me, and auth-status commands.
 
 import argparse
 import getpass
-from typing import Any
 from rich.console import Console
 
 from bin.orbit.commands import BaseCommand
@@ -18,7 +17,7 @@ console = Console()
 
 # Import keyring availability check
 try:
-    import keyring
+    import keyring  # noqa: F401
     KEYRING_AVAILABLE = True
 except ImportError:
     KEYRING_AVAILABLE = False
@@ -224,7 +223,7 @@ class AuthStatusCommand(BaseCommand):
     
     def _display_auth_status(self, result: dict) -> None:
         """Display authentication status."""
-        console.print(f"[bold]Server Authentication:[/bold] [green]ENABLED[/green]")
+        console.print("[bold]Server Authentication:[/bold] [green]ENABLED[/green]")
         
         if result.get('authenticated'):
             self.formatter.success("authenticated")

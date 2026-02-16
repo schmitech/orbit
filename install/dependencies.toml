@@ -19,7 +19,7 @@ dependencies = [
     "numpy<2.0.0",  # Pin to NumPy 1.x for PyTorch compatibility
     "openai>=2.20.0",
     "anthropic>=0.75.0",
-    "cohere>=5.20.1",
+    "cohere>=5.20.5",
     "groq>=1.0.0",
     "replicate>=1.0.7",
     "zai-sdk>=0.2.0",
@@ -228,7 +228,8 @@ dependencies = [
     "locust>=2.43.0",
     "reportlab>=4.4.7",
     "twine>=6.2.0",
-    "build>=1.4.0"
+    "build>=1.4.0",
+    "ruff>=0.15.1",
 ]
 
 # ============================================================================

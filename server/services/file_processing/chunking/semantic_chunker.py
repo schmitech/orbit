@@ -7,7 +7,7 @@ Enhanced with advanced techniques from chonkie.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Union, Literal
+from typing import Dict, Any, List, Optional, Union
 
 from .base_chunker import TextChunker, Chunk
 from .utils import split_sentences, TokenizerProtocol

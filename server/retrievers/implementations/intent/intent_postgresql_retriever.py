@@ -130,7 +130,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
             cursor.execute("SELECT 1")
             cursor.close()
             return True
-        except:
+        except Exception:
             return False
     
     async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
@@ -150,7 +150,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
                 self.connection.commit()
                 return [{"affected_rows": cursor.rowcount}]
                 
-        except Exception as e:
+        except Exception:
             if self.connection and not self.connection.closed:
                 self.connection.rollback()
             raise

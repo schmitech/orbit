@@ -23,7 +23,6 @@ Safety:
 
 import asyncio
 import aiohttp
-import json
 import logging
 import yaml
 import shutil
@@ -225,7 +224,7 @@ class AdapterReloadTester:
                     log_time = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S,%f").timestamp()
                     if log_time >= since_time:
                         filtered_lines.append(line)
-                except:
+                except Exception:
                     continue
             return filtered_lines[-lines:]
 
@@ -277,7 +276,7 @@ class AdapterReloadTester:
                 model_change_logs = [log for log in change_logs if "model:" in log and "simple-chat" in log]
 
                 if model_change_logs:
-                    logger.info(f"✓ Config change detected in logs:")
+                    logger.info("✓ Config change detected in logs:")
                     for log in model_change_logs[:2]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -335,7 +334,7 @@ class AdapterReloadTester:
                 provider_change_logs = [log for log in change_logs if "inference_provider:" in log and "simple-chat" in log]
 
                 if provider_change_logs:
-                    logger.info(f"✓ Provider change detected:")
+                    logger.info("✓ Provider change detected:")
                     for log in provider_change_logs[:2]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -345,7 +344,7 @@ class AdapterReloadTester:
                 provider_clear_logs = [log for log in cache_clear_logs if "provider:" in log]
 
                 if provider_clear_logs:
-                    logger.info(f"✓ Provider cache cleared:")
+                    logger.info("✓ Provider cache cleared:")
                     for log in provider_clear_logs[:2]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -377,7 +376,7 @@ class AdapterReloadTester:
                     for adapter in config.get('adapters', []):
                         if adapter.get('name') == 'simple-chat':
                             adapter['enabled'] = False
-                            logger.info(f"    Set enabled=False for simple-chat")
+                            logger.info("    Set enabled=False for simple-chat")
                     return config
 
                 backup.modify_config(disable_adapter)
@@ -395,7 +394,7 @@ class AdapterReloadTester:
 
                 # Check logs for disabled message
                 disable_logs = self.search_logs("Disabled adapter 'simple-chat'", since_time=before_disable)
-                cache_clear_logs = self.search_logs("Cleared dependency caches for adapter 'simple-chat'", since_time=before_disable)
+                self.search_logs("Cleared dependency caches for adapter 'simple-chat'", since_time=before_disable)
 
                 if not (disable_logs or action == 'disabled'):
                     logger.error("✗ Adapter disable not confirmed")
@@ -411,7 +410,7 @@ class AdapterReloadTester:
                     for adapter in config.get('adapters', []):
                         if adapter.get('name') == 'simple-chat':
                             adapter['enabled'] = True
-                            logger.info(f"    Set enabled=True for simple-chat")
+                            logger.info("    Set enabled=True for simple-chat")
                     return config
 
                 backup.modify_config(enable_adapter)
@@ -478,7 +477,7 @@ class AdapterReloadTester:
                 embedding_logs = [log for log in cache_clear_logs if "embedding:" in log]
 
                 if embedding_logs:
-                    logger.info(f"✓ Embedding cache cleared:")
+                    logger.info("✓ Embedding cache cleared:")
                     for log in embedding_logs[:2]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -486,7 +485,7 @@ class AdapterReloadTester:
                     # Embedding might not have been cached initially, check for config change detection
                     change_logs = self.search_logs("embedding_provider:", since_time=before_time)
                     if change_logs:
-                        logger.info(f"✓ Embedding provider change detected (cache may not have been populated):")
+                        logger.info("✓ Embedding provider change detected (cache may not have been populated):")
                         for log in change_logs[:1]:
                             logger.info(f"    {log.strip()}")
                         return True
@@ -536,7 +535,7 @@ class AdapterReloadTester:
                 nested_logs = [log for log in change_logs if "config." in log and "confidence_threshold" in log]
 
                 if nested_logs:
-                    logger.info(f"✓ Nested config change detected:")
+                    logger.info("✓ Nested config change detected:")
                     for log in nested_logs[:1]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -579,7 +578,7 @@ class AdapterReloadTester:
                 result = await self.reload_adapter(adapter_name=None)
                 summary = result.get('summary', {})
 
-                logger.info(f"  Bulk reload results:")
+                logger.info("  Bulk reload results:")
                 logger.info(f"    Added: {summary.get('added', 0)}")
                 logger.info(f"    Removed: {summary.get('removed', 0)}")
                 logger.info(f"    Updated: {summary.get('updated', 0)}")
@@ -593,7 +592,7 @@ class AdapterReloadTester:
                 reload_logs = self.search_logs("Adapter reload complete", since_time=before_time)
 
                 if reload_logs:
-                    logger.info(f"✓ Bulk reload completed:")
+                    logger.info("✓ Bulk reload completed:")
                     for log in reload_logs[:1]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -642,7 +641,7 @@ class AdapterReloadTester:
         try:
             # Try to reload a non-existent adapter
             try:
-                result = await self.reload_adapter('nonexistent-adapter-12345')
+                await self.reload_adapter('nonexistent-adapter-12345')
                 logger.error("✗ Should have failed for non-existent adapter")
                 return False
             except Exception as e:
@@ -694,7 +693,7 @@ class AdapterReloadTester:
                 provider_logs = self.search_logs("inference_provider:", since_time=before_time)
 
                 if preload_logs or provider_logs:
-                    logger.info(f"✓ Provider change took effect:")
+                    logger.info("✓ Provider change took effect:")
                     for log in (preload_logs + provider_logs)[:3]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -739,7 +738,7 @@ class AdapterReloadTester:
                 model_logs = self.search_logs("model:", since_time=before_time)
 
                 if preload_logs or model_logs:
-                    logger.info(f"✓ Model change took effect:")
+                    logger.info("✓ Model change took effect:")
                     for log in (preload_logs + model_logs)[:3]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -783,11 +782,11 @@ class AdapterReloadTester:
 
                 # Check for change detection
                 change_logs = self.search_logs("config changes", since_time=before_time)
-                both_changes = [log for log in change_logs if "inference_provider:" in log and "model:" in log or 
+                [log for log in change_logs if "inference_provider:" in log and "model:" in log or 
                                ("inference_provider:" in log and "model:" in change_logs)]
 
                 if change_logs:
-                    logger.info(f"✓ Both changes detected:")
+                    logger.info("✓ Both changes detected:")
                     for log in change_logs[:3]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -928,7 +927,7 @@ class AdapterReloadTester:
                 # Check if adapter exists
                 try:
                     result = await self.reload_adapter(adapter_name)
-                except:
+                except Exception:
                     logger.info(f"  Adapter '{adapter_name}' not available, skipping test")
                     return True  # Skip if adapter doesn't exist
 
@@ -993,14 +992,14 @@ class AdapterReloadTester:
                 backup.modify_config(change_vision)
                 await asyncio.sleep(0.5)
 
-                result = await self.reload_adapter(adapter_name)
+                await self.reload_adapter(adapter_name)
                 await asyncio.sleep(1)
 
                 # Check for vision_provider change detection
                 change_logs = self.search_logs("vision_provider:", since_time=before_time)
 
                 if change_logs:
-                    logger.info(f"✓ Vision provider change detected:")
+                    logger.info("✓ Vision provider change detected:")
                     for log in change_logs[:2]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -1067,7 +1066,7 @@ class AdapterReloadTester:
                 # Check if adapter exists
                 try:
                     result = await self.reload_adapter(adapter_name)
-                except:
+                except Exception:
                     logger.info(f"  Adapter '{adapter_name}' not available, skipping test")
                     return True  # Skip if adapter doesn't exist
 
@@ -1132,7 +1131,7 @@ class AdapterReloadTester:
                 await asyncio.sleep(0.5)
 
                 # Reload
-                result = await self.reload_adapter(adapter_name)
+                await self.reload_adapter(adapter_name)
                 await asyncio.sleep(2)
 
                 # Check for successful preload
@@ -1172,7 +1171,7 @@ class AdapterReloadTester:
                 await asyncio.sleep(0.5)
 
                 # Reload
-                result = await self.reload_adapter(adapter_name)
+                await self.reload_adapter(adapter_name)
                 await asyncio.sleep(2)
 
                 # Check for successful preload
@@ -1215,9 +1214,9 @@ class AdapterReloadTester:
                 await asyncio.sleep(0.5)
 
                 # Reload both adapters
-                result1 = await self.reload_adapter(adapter1_name)
+                await self.reload_adapter(adapter1_name)
                 await asyncio.sleep(1)
-                result2 = await self.reload_adapter(adapter2_name)
+                await self.reload_adapter(adapter2_name)
                 await asyncio.sleep(2)
 
                 # Check for cache clearing logs (should clear shared provider cache)
@@ -1272,7 +1271,7 @@ class AdapterReloadTester:
                 await asyncio.sleep(0.5)
 
                 # Reload the adapter
-                result = await self.reload_adapter(adapter_name)
+                await self.reload_adapter(adapter_name)
                 await asyncio.sleep(2)
 
                 # Check for inference provider preload log
@@ -1280,7 +1279,7 @@ class AdapterReloadTester:
                 adapter_preload_logs = [log for log in preload_logs if adapter_name in log]
 
                 if adapter_preload_logs:
-                    logger.info(f"✓ Inference provider preload logged:")
+                    logger.info("✓ Inference provider preload logged:")
                     for log in adapter_preload_logs[:2]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -1288,7 +1287,7 @@ class AdapterReloadTester:
                     # Check for any preload activity
                     all_preload_logs = self.search_logs("Preloaded", since_time=before_time)
                     if all_preload_logs:
-                        logger.info(f"✓ Preload activity detected (may use different log format):")
+                        logger.info("✓ Preload activity detected (may use different log format):")
                         for log in all_preload_logs[:2]:
                             logger.info(f"    {log.strip()}")
                         return True
@@ -1325,14 +1324,14 @@ class AdapterReloadTester:
                 await asyncio.sleep(0.5)
 
                 # Reload the adapter
-                result = await self.reload_adapter(adapter_name)
+                await self.reload_adapter(adapter_name)
                 await asyncio.sleep(2)
 
                 # Check for inference provider preload log with model override
                 preload_logs = self.search_logs("model override", since_time=before_time)
 
                 if preload_logs:
-                    logger.info(f"✓ Inference provider preload with model override logged:")
+                    logger.info("✓ Inference provider preload with model override logged:")
                     for log in preload_logs[:2]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -1340,7 +1339,7 @@ class AdapterReloadTester:
                     # Check for general preload activity
                     general_preload = self.search_logs("Preloaded inference provider", since_time=before_time)
                     if general_preload:
-                        logger.info(f"✓ Inference provider preload logged (model may not be in log):")
+                        logger.info("✓ Inference provider preload logged (model may not be in log):")
                         for log in general_preload[:2]:
                             logger.info(f"    {log.strip()}")
                         return True
@@ -1372,14 +1371,14 @@ class AdapterReloadTester:
                 await asyncio.sleep(0.5)
 
                 # Reload
-                result = await self.reload_adapter(adapter_name)
+                await self.reload_adapter(adapter_name)
                 await asyncio.sleep(2)
 
                 # Check for "cached inference provider" log which indicates successful preload
                 cache_logs = self.search_logs("cached inference provider", since_time=before_time)
 
                 if cache_logs:
-                    logger.info(f"✓ Inference provider cached after reload:")
+                    logger.info("✓ Inference provider cached after reload:")
                     for log in cache_logs[:2]:
                         logger.info(f"    {log.strip()}")
                     return True
@@ -1387,7 +1386,7 @@ class AdapterReloadTester:
                     # Alternative: check for successful preload log
                     preload_logs = self.search_logs("Preloaded inference provider", since_time=before_time)
                     if preload_logs:
-                        logger.info(f"✓ Inference provider preloaded (cache population implied):")
+                        logger.info("✓ Inference provider preloaded (cache population implied):")
                         for log in preload_logs[:2]:
                             logger.info(f"    {log.strip()}")
                         return True

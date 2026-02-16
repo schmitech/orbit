@@ -105,7 +105,7 @@ class IntentMySQLRetriever(IntentSQLRetriever):
                     self.connection.commit()
                 return [{"affected_rows": cursor.rowcount}]
                 
-        except Exception as e:
+        except Exception:
             if self.connection and not self.autocommit:
                 self.connection.rollback()
             raise

@@ -10,11 +10,10 @@ Tests cover:
 
 import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock
 
 # Import modules to test
 import sys
-import os
 from pathlib import Path
 
 # Get the directory of this script

@@ -164,7 +164,7 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
             # Try a simple query to verify connection is working
             self.connection.execute("SELECT 1").fetchone()
             return True
-        except:
+        except Exception:
             return False
 
     async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:

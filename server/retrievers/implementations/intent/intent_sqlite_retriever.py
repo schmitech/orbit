@@ -123,7 +123,7 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
             cursor.execute("SELECT 1")
             cursor.close()
             return True
-        except:
+        except Exception:
             return False
 
     async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
@@ -191,7 +191,7 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
                 self.connection.commit()
                 return [{"affected_rows": cursor.rowcount}]
 
-        except Exception as e:
+        except Exception:
             if self.connection:
                 self.connection.rollback()
             raise

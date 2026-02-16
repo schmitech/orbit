@@ -16,7 +16,7 @@ import re
 import sys
 import yaml
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any
 
 
 # Required fields for templates

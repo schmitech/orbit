@@ -221,7 +221,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                     query=query  # Pass query for chunk ranking
                 )
 
-                logger.debug(f"Successfully processed Firecrawl query")
+                logger.debug("Successfully processed Firecrawl query")
 
                 return formatted_results
 
@@ -691,7 +691,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         # Show each relevant chunk
         for i, chunk in enumerate(chunks, 1):
             similarity = chunk.get('similarity_score', 0.0)
-            section = chunk.get('section', 'Section')
+            chunk.get('section', 'Section')
             hierarchy = chunk.get('hierarchy', [])
             position = chunk.get('position', 0)
             total_chunks = chunk.get('total_chunks', 1)

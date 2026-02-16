@@ -13,7 +13,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
-from inference.pipeline_factory import PipelineFactory
 from services.pipeline_chat_service import PipelineChatService
 
 async def test_full_flow():

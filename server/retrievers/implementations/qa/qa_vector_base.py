@@ -54,7 +54,7 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
             # First check if adapter_config was directly passed in the config
             # This happens when DynamicAdapterManager creates the retriever
             if 'adapter_config' in self.config:
-                logger.debug(f"Using adapter config passed directly from DynamicAdapterManager")
+                logger.debug("Using adapter config passed directly from DynamicAdapterManager")
                 return self.config['adapter_config']
             
             # Otherwise fall back to searching through adapters (for backward compatibility)

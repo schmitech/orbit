@@ -12,7 +12,6 @@ Supported providers return various category taxonomies:
 
 from abc import abstractmethod
 from typing import Dict, Any, List, Optional
-import logging
 import time
 
 from ..base import ProviderAIService, ServiceType

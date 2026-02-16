@@ -12,7 +12,6 @@ import logging
 from typing import Dict, Any, Optional, List
 from bson import ObjectId
 
-from utils import is_true_value
 from inference.pipeline_factory import PipelineFactory
 
 from inference.pipeline import ProcessingContext

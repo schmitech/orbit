@@ -42,7 +42,6 @@ Notes:
       * delete_qdrant_collection.py - Deletes collections
 """
 
-import sys
 import yaml
 import os
 import argparse

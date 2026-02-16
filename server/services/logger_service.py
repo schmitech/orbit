@@ -7,16 +7,13 @@ import json
 import logging
 import ipaddress
 import asyncio
-import traceback
 from typing import Dict, Any, Union, List, Optional, TypedDict
 from datetime import datetime
 
 from elasticsearch import AsyncElasticsearch
-from elasticsearch.exceptions import ConnectionError, TransportError, NotFoundError, ApiError
-from fastapi import HTTPException
+from elasticsearch.exceptions import ApiError
 
 from utils.text_utils import mask_api_key
-from utils import is_true_value
 
 # Configure basic logging
 logging.basicConfig(

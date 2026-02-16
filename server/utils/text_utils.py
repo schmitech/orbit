@@ -12,7 +12,7 @@ try:
     import markdown
     import nh3
     import ftfy
-    from unidecode import unidecode
+    from unidecode import unidecode  # noqa: F401
     TEXT_LIBS_AVAILABLE = True
 except ImportError:
     TEXT_LIBS_AVAILABLE = False

@@ -81,7 +81,7 @@ AUTHOR:
 import yaml
 import sys
 from pathlib import Path
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any
 
 class IntentConfigValidator:
     """Validates domain config and template files against expected schema"""
@@ -294,9 +294,9 @@ class IntentConfigValidator:
             print("\n✅ NO ERRORS FOUND")
             print("   Files are compatible but could be improved (see warnings above).")
         else:
-            print(f"\n❌ VALIDATION FAILED")
+            print("\n❌ VALIDATION FAILED")
             print(f"   Found {len(self.errors)} errors and {len(self.warnings)} warnings.")
-            print(f"   Fix errors before using with Intent adapter.")
+            print("   Fix errors before using with Intent adapter.")
 
         return len(self.errors) == 0
 
@@ -323,8 +323,8 @@ def main():
     # Run validation
     validator = IntentConfigValidator()
 
-    domain_valid = validator.validate_domain_config(domain_path)
-    template_valid = validator.validate_template_library(template_path)
+    validator.validate_domain_config(domain_path)
+    validator.validate_template_library(template_path)
 
     success = validator.print_results()
 

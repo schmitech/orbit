@@ -10,7 +10,6 @@ import pytest_asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock
-import tempfile
 import os
 
 # Add server directory to Python path

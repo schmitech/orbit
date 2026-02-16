@@ -5,8 +5,7 @@ Shared utilities for sentence splitting and tokenization.
 """
 
 import logging
-import re
-from typing import List, Optional, Union, Any
+from typing import List, Optional, Union
 
 # Protocol is available in typing from Python 3.8+, but use typing_extensions for compatibility
 try:

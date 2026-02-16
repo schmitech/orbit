@@ -6,7 +6,7 @@ This module provides unified database operations to reduce code duplication.
 import logging
 import os
 import json
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from decimal import Decimal
 from datetime import datetime, date
 import uuid
@@ -37,7 +37,7 @@ class SQLConnectionMixin:
 
         # Mask sensitive values
         if key.lower() in ['password', 'pass', 'pwd', 'secret', 'token']:
-            masked_value = '*' * len(str(value)) if value else ''
+            '*' * len(str(value)) if value else ''
             logger.debug(f"Config key '{key}': [MASKED]")
         else:
             logger.debug(f"Config key '{key}': {value}")
@@ -244,7 +244,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
 
             # Execute a simple test query
             test_query = self.get_test_query()
-            result = await self.execute_query(test_query)
+            await self.execute_query(test_query)
 
             logger.debug(f"Database connection test successful: {self._get_datasource_name()}")
 
@@ -300,7 +300,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
             error_msg = str(e).lower()
             # Check if this is a connection closed error
             if 'connection' in error_msg and ('closed' in error_msg or 'lost' in error_msg or 'broken' in error_msg):
-                logger.warning(f"Connection appears to be closed, attempting to reinitialize datasource...")
+                logger.warning("Connection appears to be closed, attempting to reinitialize datasource...")
                 try:
                     # Reinitialize the datasource
                     if self._datasource:

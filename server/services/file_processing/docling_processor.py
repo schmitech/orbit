@@ -29,8 +29,8 @@ except Exception:
 
 try:
     from docling.document_converter import DocumentConverter
-    from docling.datamodel.base_models import InputFormat
-    from io import BytesIO
+    from docling.datamodel.base_models import InputFormat  # noqa: F401
+    from io import BytesIO  # noqa: F401
     import tempfile
     import os
     DOCLING_AVAILABLE = True
@@ -162,7 +162,7 @@ class DoclingProcessor(FileProcessor):
                 temp_path = temp_file.name
 
             try:
-                logger.debug(f"[Docling] Converting document to markdown...")
+                logger.debug("[Docling] Converting document to markdown...")
                 # Convert document
                 result = self._converter.convert(temp_path)
 

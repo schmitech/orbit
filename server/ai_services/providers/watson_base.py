@@ -1,7 +1,7 @@
 """IBM Watson base class."""
 
 import logging
-from typing import Dict, Any
+from typing import Dict
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
 

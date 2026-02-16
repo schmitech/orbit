@@ -7,9 +7,7 @@ or speaches-compatible servers for speech-to-text and text-to-speech.
 
 import logging
 from typing import Dict, Any, Optional, Union
-from io import BytesIO
 import base64
-import json
 
 from ...base import ServiceType
 from ...providers import OllamaBaseService
@@ -229,6 +227,6 @@ class OllamaAudioService(AudioService, OllamaBaseService):
             # Fallback: return transcript if translation fails
             try:
                 return await self.speech_to_text(audio, source_language, **kwargs)
-            except:
+            except Exception:
                 raise
 

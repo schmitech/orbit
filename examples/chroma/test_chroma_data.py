@@ -2,7 +2,6 @@
 """
 Test script to check the actual data stored in Chroma collection
 """
-import json
 import yaml
 import sys
 import asyncio
@@ -121,7 +120,7 @@ async def test_chroma_data(collection_name: str = None, use_local: bool = False,
                 
                 # Check for the specific police report entry
                 if "police report" in metadata['question'].lower():
-                    print(f"🔍 FOUND POLICE REPORT ENTRY:")
+                    print("🔍 FOUND POLICE REPORT ENTRY:")
                     print(f"   Question: {metadata['question']}")
                     print(f"   Answer: {metadata['answer']}")
                     print(f"   Answer length: {len(metadata['answer'])}")

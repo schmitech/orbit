@@ -26,7 +26,7 @@ KEY DIFFERENCES:
 import re
 import hashlib
 import logging
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +169,6 @@ class ContentChunker:
         section_stack = []  # Stack to track section hierarchy
 
         # Split content by headers
-        parts = []
         last_end = 0
 
         for match in self.header_pattern.finditer(content):

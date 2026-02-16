@@ -6,7 +6,6 @@ Main service for processing uploaded files: extraction, chunking, and storage pr
 
 import logging
 import uuid
-import json
 import hashlib
 from typing import Dict, Any, List, Optional
 from datetime import datetime, UTC
@@ -521,7 +520,7 @@ class FileProcessingService:
             except ValueError as e:
                 # This happens when STT is globally disabled or provider is not registered
                 logger.error(f"Failed to create audio service: {str(e)}")
-                raise Exception(f"Audio transcription is not available. Please check that STT services are enabled in the configuration.")
+                raise Exception("Audio transcription is not available. Please check that STT services are enabled in the configuration.")
 
             # Initialize if needed
             if not audio_service.initialized:
@@ -537,7 +536,7 @@ class FileProcessingService:
                 )
             except asyncio.TimeoutError as e:
                 logger.error(f"Audio transcription API timeout for {filename}: {e}")
-                raise Exception(f"Audio transcription API request timed out. The audio file may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
+                raise Exception("Audio transcription API request timed out. The audio file may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
             except Exception as e:
                 logger.error(f"Audio transcription API error for {filename}: {e}")
                 raise Exception(f"Audio transcription failed: {str(e)}")
@@ -790,7 +789,7 @@ class FileProcessingService:
                     )
             except asyncio.TimeoutError as e:
                 logger.error(f"Vision API timeout for {filename}: {e}")
-                raise Exception(f"Vision API request timed out. The image may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
+                raise Exception("Vision API request timed out. The image may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
             except Exception as e:
                 logger.error(f"Vision API error for {filename}: {e}")
                 raise Exception(f"Vision processing failed: {str(e)}")

@@ -14,7 +14,6 @@ import time
 from pathlib import Path
 from dotenv import load_dotenv
 import yaml
-import pytest
 import pytest_asyncio
 
 # Get the directory of this script

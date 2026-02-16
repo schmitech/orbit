@@ -6,7 +6,6 @@ Handles quota get, set, reset, and report commands for API key throttling.
 
 import argparse
 from datetime import datetime
-from typing import Any
 from rich.console import Console
 from rich.table import Table
 
@@ -124,7 +123,7 @@ class QuotaSetCommand(BaseCommand):
                 self.formatter.error("No quota settings specified. Use --daily-limit, --monthly-limit, --throttle-enabled, or --priority")
                 return 1
 
-            result = self.api_service.update_quota(args.key, quota_data)
+            self.api_service.update_quota(args.key, quota_data)
 
             self.formatter.success("Quota updated successfully")
 
@@ -167,7 +166,7 @@ class QuotaResetCommand(BaseCommand):
 
     def execute(self, args: argparse.Namespace) -> int:
         try:
-            result = self.api_service.reset_quota(args.key, args.period)
+            self.api_service.reset_quota(args.key, args.period)
 
             self.formatter.success(f"Quota usage ({args.period}) reset successfully")
 

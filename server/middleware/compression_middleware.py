@@ -8,9 +8,7 @@ buffering streaming responses (SSE, WebSocket).
 import logging
 from typing import List, Optional
 
-from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.middleware.gzip import GZipMiddleware, GZipResponder
+from starlette.middleware.gzip import GZipResponder
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)

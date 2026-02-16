@@ -6,9 +6,7 @@ Tests Firecrawl API using the official Python SDK
 
 import os
 import sys
-import json
 from pathlib import Path
-from typing import Dict, Any
 
 # Load .env file from project root (two levels up)
 try:
@@ -133,7 +131,7 @@ def test_firecrawl_api():
                     # Show preview
                     lines = markdown_content.split('\n')
                     preview = '\n'.join(lines[:5])
-                    print(f"\nContent preview:")
+                    print("\nContent preview:")
                     print("-" * 40)
                     print(preview)
                     print("-" * 40)

@@ -191,7 +191,6 @@ class GeminiAudioService(AudioService, GoogleBaseService):
             await self.initialize()
 
         try:
-            from google import genai
             from google.genai import types
 
             # Get client
@@ -268,7 +267,7 @@ class GeminiAudioService(AudioService, GoogleBaseService):
                 logger.warning(f"Returning raw PCM audio (format: {audio_format}). Browser may not support this.")
                 return audio_data
 
-        except ImportError as e:
+        except ImportError:
             logger.error(
                 "google-genai package is required for Gemini audio generation. "
                 "Install it with: pip install google-genai"

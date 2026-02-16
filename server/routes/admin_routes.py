@@ -7,12 +7,10 @@ This module contains all admin-related endpoints including:
 - Chat history management (inference-only mode)
 """
 
-import json
 import logging
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, HTTPException, Header, Query
-from bson import ObjectId
 
 from utils import is_true_value
 from models.schema import (
@@ -226,7 +224,7 @@ async def list_api_keys(
                     try:
                         dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
                         key_dict["created_at"] = dt.timestamp()
-                    except:
+                    except Exception:
                         key_dict["created_at"] = None
                 else:
                     key_dict["created_at"] = created_at
@@ -332,7 +330,7 @@ async def rename_api_key(
     masked_new_key = f"***{new_api_key[-4:]}" if new_api_key else "***"
     logger.info(f"Renamed API key from {masked_old_key} to {masked_new_key}")
 
-    return {"status": "success", "message": f"API key renamed successfully", "new_api_key": new_api_key}
+    return {"status": "success", "message": "API key renamed successfully", "new_api_key": new_api_key}
 
 
 @admin_router.post("/api-keys/deactivate")
@@ -1160,7 +1158,7 @@ async def delete_conversation_with_files(
     Raises:
         HTTPException: If deletion fails or services unavailable
     """
-    config = getattr(request.app.state, 'config', {})
+    getattr(request.app.state, 'config', {})
 
     # Validate session ID consistency
     if x_session_id and x_session_id != session_id:

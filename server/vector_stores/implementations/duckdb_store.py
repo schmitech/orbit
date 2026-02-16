@@ -4,7 +4,7 @@ DuckDB store implementation for analytical and relational data operations.
 
 import logging
 import os
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 import duckdb
 
 from ..base.base_store import BaseStore, StoreConfig, StoreStatus

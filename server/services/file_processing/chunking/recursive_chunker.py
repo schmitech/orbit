@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional, Union, Literal
 from dataclasses import dataclass
 
 from .base_chunker import TextChunker, Chunk
-from .utils import split_sentences, TokenizerProtocol, get_tokenizer
+from .utils import split_sentences, TokenizerProtocol
 
 logger = logging.getLogger(__name__)
 

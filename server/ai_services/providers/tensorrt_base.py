@@ -5,7 +5,7 @@ This module provides a base class for TensorRT-LLM services that supports:
 2. API mode: Connect to a running trtllm-serve server via OpenAI-compatible API
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import os
 import asyncio
 from concurrent.futures import ThreadPoolExecutor

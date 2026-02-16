@@ -7,10 +7,9 @@ Tests:
 """
 
 import pytest
-import asyncio
 import sys
 import os
-from unittest.mock import Mock, MagicMock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock, patch
 
 # Add the server directory to the Python path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -829,7 +828,7 @@ class TestDependencyCacheCleanerExtended:
         cleaner._clear_store_cache = AsyncMock(return_value=[])
         cleaner._clear_datasource_cache = AsyncMock(return_value=[])
 
-        cleared = await cleaner.clear_adapter_dependencies('test_adapter', adapter_config)
+        await cleaner.clear_adapter_dependencies('test_adapter', adapter_config)
 
         cleaner._clear_stt_cache.assert_awaited_once()
         cleaner._clear_tts_cache.assert_awaited_once()
@@ -894,7 +893,7 @@ class TestAIServiceFactoryCacheClearing:
         cleaner = self._create_cleaner()
 
         with patch('services.reload.dependency_cache_cleaner.AIServiceFactory') as mock_factory:
-            cleared = await cleaner._clear_provider_cache(adapter_config)
+            await cleaner._clear_provider_cache(adapter_config)
 
             # Verify AIServiceFactory.clear_cache was called with correct args
             mock_factory.clear_cache.assert_called_once()
@@ -912,7 +911,7 @@ class TestAIServiceFactoryCacheClearing:
         cleaner = self._create_cleaner()
 
         with patch('services.reload.dependency_cache_cleaner.AIServiceFactory') as mock_factory:
-            cleared = await cleaner._clear_embedding_cache(adapter_config)
+            await cleaner._clear_embedding_cache(adapter_config)
 
             mock_factory.clear_cache.assert_called_once()
             call_kwargs = mock_factory.clear_cache.call_args
@@ -928,7 +927,7 @@ class TestAIServiceFactoryCacheClearing:
         cleaner = self._create_cleaner()
 
         with patch('services.reload.dependency_cache_cleaner.AIServiceFactory') as mock_factory:
-            cleared = await cleaner._clear_audio_cache(adapter_config)
+            await cleaner._clear_audio_cache(adapter_config)
 
             mock_factory.clear_cache.assert_called_once()
             call_kwargs = mock_factory.clear_cache.call_args
@@ -985,7 +984,7 @@ class TestPipelineChatServiceSharedAdapterManager:
             )
 
             # Verify the context builder uses the shared adapter manager
-            result = service.context_builder.get_adapter_config('test-adapter')
+            service.context_builder.get_adapter_config('test-adapter')
             mock_adapter_manager.get_adapter_config.assert_called_with('test-adapter')
 
     def test_pipeline_chat_service_extracts_base_adapter_manager(self):
@@ -1010,7 +1009,7 @@ class TestPipelineChatServiceSharedAdapterManager:
             )
 
             # Verify the context builder uses the base_adapter_manager
-            result = service.context_builder.get_adapter_config('test-adapter')
+            service.context_builder.get_adapter_config('test-adapter')
             mock_base_manager.get_adapter_config.assert_called_with('test-adapter')
 
     def test_request_context_builder_sees_config_changes_after_reload(self):

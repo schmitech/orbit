@@ -7,10 +7,9 @@ This module contains example plugins that demonstrate how to extend the RAG syst
 with custom functionality for different use cases.
 """
 
-import re
 import logging
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+from datetime import datetime
 
 from plugin_system import BaseRAGPlugin, PluginContext, PluginPriority
 
@@ -148,10 +147,10 @@ class TimeBasedInsightsPlugin(BaseRAGPlugin):
         elif isinstance(date_value, str):
             try:
                 return datetime.fromisoformat(date_value.replace('Z', '+00:00'))
-            except:
+            except Exception:
                 try:
                     return datetime.strptime(date_value, '%Y-%m-%d')
-                except:
+                except Exception:
                     return None
         return None
 
@@ -395,18 +394,10 @@ def create_example_plugins() -> List[BaseRAGPlugin]:
 
 
 if __name__ == "__main__":
-    # Example of how to use these plugins
-    from base_rag_system import RAGSystem
-    from clients import OllamaEmbeddingClient, OllamaInferenceClient, PostgreSQLDatabaseClient
-    
-    # Note: To use these plugins, create a RAGSystem instance
-    # and register these plugins using the plugin manager
-    
-    # Register example plugins
+    # Example of how to use these plugins:
+    # Create a RAGSystem instance, then register these plugins using the plugin manager.
+    # Example: rag_system = RAGSystem(); rag_system.register_plugin(plugin) for each plugin.
     example_plugins = create_example_plugins()
+    print("🔌 Example plugins created:")
     for plugin in example_plugins:
-        rag_system.register_plugin(plugin)
-    
-    print("🔌 Example plugins registered:")
-    for plugin in rag_system.list_plugins():
-        print(f"  - {plugin['name']} v{plugin['version']} ({plugin['priority']})") 
+        print(f"  - {plugin.name} v{plugin.version} ({plugin.priority})") 

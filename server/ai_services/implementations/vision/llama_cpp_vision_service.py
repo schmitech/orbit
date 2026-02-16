@@ -11,7 +11,6 @@ import asyncio
 from typing import Dict, Any, Union, List
 from PIL import Image
 
-from ...base import ServiceType
 from ...services import VisionService
 from ...providers.llama_cpp_base import LlamaCppBaseService
 
@@ -97,9 +96,6 @@ class LlamaCppVisionService(VisionService, LlamaCppBaseService):
                 # Direct mode: Use llama-cpp-python with vision support
                 if not self.llama_model:
                     raise ValueError("Llama.cpp model not initialized")
-
-                # Prepare image data
-                image_bytes = self._prepare_image(image)
 
                 # Run inference in a separate thread
                 def _generate():

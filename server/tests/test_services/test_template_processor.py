@@ -4,7 +4,6 @@ import os
 import sys
 
 import pytest
-from unittest.mock import MagicMock
 
 # Ensure the server directory is in the path for imports
 _server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

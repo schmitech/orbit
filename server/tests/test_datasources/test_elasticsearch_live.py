@@ -14,7 +14,6 @@ import asyncio
 import aiohttp
 import json
 import os
-import sys
 from datetime import datetime, UTC
 from pathlib import Path
 from dotenv import load_dotenv

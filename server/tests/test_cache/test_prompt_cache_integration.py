@@ -6,10 +6,8 @@ Tests the complete cache flow including hits, misses, and invalidation.
 import pytest
 import sys
 import os
-import asyncio
 import copy
 from bson import ObjectId
-from unittest.mock import AsyncMock, MagicMock
 
 # Add server directory to path
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

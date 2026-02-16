@@ -6,7 +6,6 @@ Handles create, list, get, update, delete, and associate commands.
 
 import argparse
 from datetime import datetime
-from typing import Any
 from rich.console import Console
 from rich.prompt import Confirm
 

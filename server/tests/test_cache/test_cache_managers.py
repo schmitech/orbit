@@ -9,10 +9,9 @@ Tests the specialized cache managers:
 """
 
 import pytest
-import asyncio
 import sys
 import os
-from unittest.mock import Mock, MagicMock, AsyncMock, patch, PropertyMock
+from unittest.mock import Mock, AsyncMock
 from concurrent.futures import ThreadPoolExecutor
 
 # Add the server directory to the Python path for imports

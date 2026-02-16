@@ -12,7 +12,6 @@ import json
 import re
 import httpx
 from typing import Dict, Any, List, Optional, Tuple
-from urllib.parse import urljoin
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
 from retrievers.base.base_retriever import RetrieverFactory
@@ -156,7 +155,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             # Use template processor only if template uses {{param}} syntax and no {param} syntax
             # Otherwise use fallback which handles both
             if self.template_processor and uses_double_braces and not uses_single_braces:
-                logger.debug(f"Using template processor for endpoint substitution (Jinja2 syntax detected)")
+                logger.debug("Using template processor for endpoint substitution (Jinja2 syntax detected)")
                 endpoint = self.template_processor.render_sql(
                     endpoint_template,
                     parameters=parameters,
@@ -166,9 +165,9 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             else:
                 # Fallback: simple string substitution (handles both {{param}} and {param})
                 if uses_single_braces:
-                    logger.debug(f"Using fallback string substitution (single braces {{param}} syntax detected)")
+                    logger.debug("Using fallback string substitution (single braces {param} syntax detected)")
                 else:
-                    logger.debug(f"Using fallback string substitution (no template processor or mixed syntax)")
+                    logger.debug("Using fallback string substitution (no template processor or mixed syntax)")
                 
                 for key, value in parameters.items():
                     # Handle both {{key}} and {key} placeholders
@@ -466,7 +465,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             if 'application/json' in content_type or not content_type:
                 try:
                     data = response.json()
-                except:
+                except Exception:
                     # If JSON parsing fails, return text
                     return [{'response': response.text}]
             else:

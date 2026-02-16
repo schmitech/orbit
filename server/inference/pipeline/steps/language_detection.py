@@ -21,6 +21,8 @@ import math
 from typing import Dict, Any, Optional, List, Tuple, Pattern
 from dataclasses import dataclass, field
 
+from ..base import PipelineStep, ProcessingContext
+
 logger = logging.getLogger(__name__)
 
 # Import detection libraries with availability flags
@@ -34,8 +36,6 @@ except ImportError:
         pass
     class DetectorFactory:
         seed = 0
-
-from ..base import PipelineStep, ProcessingContext
 
 # Seed the language detector for deterministic results when available
 try:
@@ -57,7 +57,7 @@ except ImportError:
 
 # Optional pycountry for language code normalization
 try:
-    import pycountry
+    import pycountry  # noqa: F401 - used for availability check
     PYCOUNTRY_AVAILABLE = True
 except ImportError:
     PYCOUNTRY_AVAILABLE = False

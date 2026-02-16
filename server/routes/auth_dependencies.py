@@ -10,7 +10,6 @@ import logging
 from typing import Optional, Dict, Any
 from fastapi import Request, HTTPException, Header, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from utils import is_true_value
 
 logger = logging.getLogger(__name__)
 

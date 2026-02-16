@@ -44,7 +44,7 @@ def get_pinecone_client():
     return pc
 
 def list_indexes():
-    print(f"Connecting to Pinecone service...")
+    print("Connecting to Pinecone service...")
     
     try:
         # Create Pinecone client
@@ -92,7 +92,7 @@ def list_indexes():
                             if hasattr(serverless, 'cloud') and hasattr(serverless, 'region'):
                                 print(f"  Type: Serverless ({serverless.cloud}/{serverless.region})")
                         elif hasattr(spec, 'pod'):
-                            print(f"  Type: Pod-based")
+                            print("  Type: Pod-based")
                     
                     print()
                 except Exception as e:

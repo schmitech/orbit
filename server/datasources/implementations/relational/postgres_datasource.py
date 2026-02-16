@@ -3,7 +3,6 @@ PostgreSQL Datasource Implementation
 """
 
 import logging
-from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
 
 logger = logging.getLogger(__name__)

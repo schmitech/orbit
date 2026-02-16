@@ -5,8 +5,13 @@ This module defines the core interfaces and data structures used throughout
 the pipeline-based inference system.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, AsyncGenerator
+from typing import Dict, List, Any, Optional, AsyncGenerator, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .service_container import ServiceContainer
 from dataclasses import dataclass, field
 import asyncio
 import logging

@@ -94,7 +94,7 @@ class DatasourceRegistry:
             implementation: Class that implements BaseDatasource
         """
         if not issubclass(implementation, BaseDatasource):
-            raise ValueError(f"Implementation must inherit from BaseDatasource")
+            raise ValueError("Implementation must inherit from BaseDatasource")
             
         self._registry[datasource_name] = implementation
         logger.info(f"Manually registered datasource: {datasource_name} -> {implementation.__name__}")

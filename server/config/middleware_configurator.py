@@ -12,7 +12,7 @@ This module handles all middleware setup and configuration, including:
 import time
 import logging
 from datetime import datetime
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Dict, Any, List
@@ -203,7 +203,7 @@ class MiddlewareConfigurator:
             logger.info(creds_info)
 
         # Log CORS configuration for transparency
-        _logger.info(f"CORS Configuration:")
+        _logger.info("CORS Configuration:")
         _logger.info(f"  - Allowed Origins: {allowed_origins}")
         _logger.info(f"  - Allow Credentials: {allow_credentials}")
         _logger.info(f"  - Allowed Methods: {allowed_methods}")
@@ -211,7 +211,7 @@ class MiddlewareConfigurator:
         _logger.info(f"  - Exposed Headers: {expose_headers}")
         _logger.info(f"  - Max Age: {max_age}s")
 
-        logger.info(f"CORS Configuration:")
+        logger.info("CORS Configuration:")
         logger.info(f"  - Allowed Origins: {allowed_origins}")
         logger.info(f"  - Allow Credentials: {allow_credentials}")
         logger.info(f"  - Allowed Methods: {allowed_methods}")

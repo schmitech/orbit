@@ -4,7 +4,7 @@ Base classes and factory for embedding services.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 
 class EmbeddingService(ABC):
     """

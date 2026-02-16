@@ -5,7 +5,7 @@ Base store class providing common interface for vector storage backends.
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 from dataclasses import dataclass
 import asyncio
 from datetime import datetime, timezone

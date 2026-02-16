@@ -19,7 +19,6 @@
 #
 import os
 import sys
-import json
 
 try:
     from dotenv import load_dotenv

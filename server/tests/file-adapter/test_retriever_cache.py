@@ -5,17 +5,16 @@ Tests the RetrieverCache singleton for caching FileVectorRetriever instances.
 """
 
 import pytest
-import pytest_asyncio
 import sys
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 
 # Add server directory to Python path
 SCRIPT_DIR = Path(__file__).parent.absolute()
 SERVER_DIR = SCRIPT_DIR.parent.parent
 sys.path.append(str(SERVER_DIR))
 
-from services.retriever_cache import RetrieverCache, get_retriever_cache
+from services.retriever_cache import get_retriever_cache
 
 
 @pytest.fixture

@@ -14,9 +14,7 @@ import pytest
 import sys
 import os
 from typing import Dict, Any
-from unittest.mock import patch, MagicMock, AsyncMock
-from pathlib import Path
-from io import BytesIO
+from unittest.mock import patch, MagicMock
 
 # Get the absolute path to the server directory (parent of tests)
 # Since we're in tests/sound/, we need to go up two levels to get to server/

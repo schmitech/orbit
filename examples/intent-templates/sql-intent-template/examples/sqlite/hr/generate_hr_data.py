@@ -63,7 +63,6 @@ AUTHOR:
 import sqlite3
 import argparse
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
 import random
 
@@ -729,7 +728,7 @@ def get_database_stats(conn: sqlite3.Connection):
     print(f"   Total Departments: {total_departments}")
     print(f"   Total Positions: {total_positions}")
     print(f"   Average Salary: ${avg_salary:,.2f}" if avg_salary else "   Average Salary: N/A")
-    print(f"\n   Employees by Department:")
+    print("\n   Employees by Department:")
     for dept_name, count in dept_counts:
         print(f"      {dept_name}: {count} employees")
 
@@ -807,7 +806,7 @@ Examples:
     print("=" * 60)
     print("  HR Management System Data Generator")
     print("=" * 60)
-    print(f"📝 Configuration:")
+    print("📝 Configuration:")
     print(f"   Employees: {args.employees}")
     print(f"   Output: {args.output}")
     print(f"   Clean mode: {'Yes' if args.clean else 'No'}")
@@ -879,16 +878,16 @@ Examples:
     conn.close()
 
     print(f"\n✅ Database created successfully: {args.output}")
-    print(f"\n💡 Next steps:")
-    print(f"   1. Test queries with sqlite3:")
+    print("\n💡 Next steps:")
+    print("   1. Test queries with sqlite3:")
     print(f"      sqlite3 {args.output} 'SELECT * FROM employees LIMIT 5;'")
-    print(f"\n   2. Generate SQL templates:")
-    print(f"      cd ../..")
-    print(f"      ./generate_templates.sh \\")
-    print(f"        --schema examples/sqlite/contact/hr_schema.sql \\")
-    print(f"        --queries examples/sqlite/contact/hr_test_queries.md \\")
-    print(f"        --domain examples/sqlite/contact/hr-domain.yaml \\")
-    print(f"        --output hr-templates.yaml")
+    print("\n   2. Generate SQL templates:")
+    print("      cd ../..")
+    print("      ./generate_templates.sh \\")
+    print("        --schema examples/sqlite/contact/hr_schema.sql \\")
+    print("        --queries examples/sqlite/contact/hr_test_queries.md \\")
+    print("        --domain examples/sqlite/contact/hr-domain.yaml \\")
+    print("        --output hr-templates.yaml")
 
     return 0
 

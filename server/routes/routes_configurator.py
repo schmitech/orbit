@@ -19,7 +19,6 @@ from pydantic import BaseModel
 
 from utils import is_true_value
 from services.stream_registry import stream_registry
-from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse
 from ai_services.services.inference_service import OpenAIResponseFormatter
 
 logger = logging.getLogger(__name__)
@@ -725,7 +724,7 @@ class RouteConfigurator:
             on retrieved datasets without re-querying the database.
             """
             adapter_name, _ = api_key_result
-            api_key = request.headers.get(self.config.get('api_keys', {}).get('header_name', 'X-API-Key'))
+            request.headers.get(self.config.get('api_keys', {}).get('header_name', 'X-API-Key'))
             
             # Get the parent message from chat history using database service
             chat_history_service = getattr(request.app.state, 'chat_history_service', None)
@@ -760,7 +759,7 @@ class RouteConfigurator:
                         metadata = vars(metadata)
                     else:
                         metadata = {}
-                except:
+                except Exception:
                     metadata = {}
             
             # Get retrieved docs from metadata (stored by pipeline)
@@ -770,7 +769,7 @@ class RouteConfigurator:
                     import json
                     metadata_json = json.loads(parent_message['metadata_json'])
                     metadata.update(metadata_json)
-                except:
+                except Exception:
                     pass
             
             retrieved_docs = metadata.get('retrieved_docs', [])

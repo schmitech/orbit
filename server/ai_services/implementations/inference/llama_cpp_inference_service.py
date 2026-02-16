@@ -11,7 +11,6 @@ import logging
 import os
 import asyncio
 from typing import Dict, Any, AsyncGenerator
-from ...base import ServiceType
 from ...services import InferenceService
 from ...providers.llama_cpp_base import LlamaCppBaseService
 

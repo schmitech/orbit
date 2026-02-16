@@ -58,7 +58,6 @@ import asyncio
 import json
 import os
 import argparse
-import time
 from urllib.parse import urlparse, urljoin
 from firecrawl import AsyncFirecrawlApp
 from dotenv import load_dotenv

@@ -244,7 +244,7 @@ def test_api_key_service_cache_stats():
         }
     }
     
-    service = ApiKeyService(config)
+    ApiKeyService(config)
     
     # Stats should show one instance
     stats = ApiKeyService.get_cache_stats()
@@ -287,8 +287,8 @@ def test_api_key_service_clear_cache():
         }
     }
     
-    service1 = ApiKeyService(config1)
-    service2 = ApiKeyService(config2)
+    ApiKeyService(config1)
+    ApiKeyService(config2)
     
     # Should have 2 instances
     stats = ApiKeyService.get_cache_stats()

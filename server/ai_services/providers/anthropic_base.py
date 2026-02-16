@@ -6,7 +6,7 @@ consolidating common functionality like API key management, client initializatio
 and error handling.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from anthropic import AsyncAnthropic
 import logging
 

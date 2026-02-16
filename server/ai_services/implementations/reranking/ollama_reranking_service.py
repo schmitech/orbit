@@ -8,7 +8,6 @@ ollama_utils for maximum compatibility.
 
 import logging
 from typing import Dict, Any, List, Optional
-import asyncio
 import json
 
 from ...providers import OllamaBaseService

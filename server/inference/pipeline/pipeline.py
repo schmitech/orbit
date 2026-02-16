@@ -288,7 +288,7 @@ class InferencePipelineBuilder:
         Returns:
             Configured inference pipeline
         """
-        config = container.get('config')
+        container.get('config')
         
         steps = []
         

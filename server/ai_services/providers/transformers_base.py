@@ -5,7 +5,7 @@ AutoModelForCausalLM + AutoTokenizer from the transformers library.
 Supports CUDA, MPS, and CPU devices with automatic detection.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from ..base import ProviderAIService, ServiceType

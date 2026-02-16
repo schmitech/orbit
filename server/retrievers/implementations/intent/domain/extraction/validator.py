@@ -6,7 +6,7 @@ import re
 import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime, date
-from ...domain import DomainConfig, FieldConfig
+from ...domain import DomainConfig
 
 logger = logging.getLogger(__name__)
 

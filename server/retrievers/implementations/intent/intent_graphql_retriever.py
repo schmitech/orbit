@@ -9,7 +9,6 @@ for any GraphQL endpoint.
 import logging
 import traceback
 import json
-import re
 import httpx
 from typing import Dict, Any, List, Optional, Tuple
 

@@ -7,7 +7,7 @@ Uses the existing MongoDBService/DatabaseService interface for storage operation
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 
 from .audit_storage_strategy import AuditStorageStrategy, AuditRecord, decompress_text
 

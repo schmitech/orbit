@@ -3,9 +3,8 @@ Test for request context propagation in ParallelAdapterExecutor
 """
 
 import pytest
-import asyncio
 import uuid
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
@@ -190,7 +189,6 @@ class TestContextPropagation:
         assert result.context.api_key == "test-api-key"
         
         # Verify auto-generated request_id is a UUID
-        import uuid
         try:
             uuid.UUID(result.context.request_id)
         except ValueError:

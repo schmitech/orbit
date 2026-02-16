@@ -2,7 +2,6 @@ import pytest
 import sys
 import os
 from datetime import datetime
-from unittest.mock import patch, MagicMock
 
 # Add the server directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -10,9 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from services.clock_service import (
     ClockService,
     ZoneInfo,
-    ZoneInfoNotFoundError,
     _get_cached_timezone,
-    _timezone_available,
     _using_pytz
 )
 

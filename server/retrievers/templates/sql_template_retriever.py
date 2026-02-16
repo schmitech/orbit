@@ -12,9 +12,7 @@ Usage:
 """
 
 import logging
-import traceback
-from typing import Dict, Any, List, Optional
-from fastapi import HTTPException
+from typing import Dict, Any, List
 
 from ..base.sql_retriever import AbstractSQLRetriever
 from ..base.base_retriever import RetrieverFactory

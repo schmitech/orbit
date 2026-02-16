@@ -9,7 +9,7 @@ import json
 import asyncio
 import base64
 import logging
-from typing import Dict, Any, Optional, AsyncIterator, Tuple, List
+from typing import Dict, Any, Optional, AsyncIterator, Tuple
 from collections import deque
 
 from utils.sentence_detector import SentenceDetector
@@ -123,7 +123,7 @@ class StreamingHandler:
                 }
 
         except asyncio.TimeoutError:
-            logger.warning(f"TTS generation timeout for sentence, skipping audio chunk")
+            logger.warning("TTS generation timeout for sentence, skipping audio chunk")
         except Exception as e:
             logger.warning(f"Failed to generate streaming audio for sentence: {str(e)}", exc_info=True)
 

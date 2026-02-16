@@ -17,7 +17,6 @@ import logging
 from typing import Dict, Any, Optional, Union
 import tempfile
 import os
-from pathlib import Path
 
 try:
     import whisper
@@ -105,7 +104,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
                 device = self.device
 
             logger.debug(f"🔧 Loading LOCAL Whisper model '{self.model_size}' on device '{device}'...")
-            logger.debug(f"   This is OpenAI's open-source Whisper running locally (NOT the API)")
+            logger.debug("   This is OpenAI's open-source Whisper running locally (NOT the API)")
 
             # Load the model
             # This downloads the model on first use (cached in ~/.cache/whisper/)
@@ -113,7 +112,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
             self.model_loaded = True
 
             logger.debug(f"✅ LOCAL Whisper model '{self.model_size}' loaded successfully on {device}")
-            logger.debug(f"   Ready for offline speech-to-text transcription!")
+            logger.debug("   Ready for offline speech-to-text transcription!")
             self.initialized = True
 
         except Exception as e:
@@ -201,7 +200,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
                 # Clean up temp file
                 try:
                     os.unlink(temp_path)
-                except:
+                except Exception:
                     pass
 
         except Exception as e:

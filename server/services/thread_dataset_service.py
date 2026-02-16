@@ -15,7 +15,6 @@ import threading
 import hashlib
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta, UTC
-from utils.id_utils import generate_id
 
 from services.redis_service import RedisService
 from services.database_service import create_database_service
@@ -120,7 +119,7 @@ class ThreadDatasetService:
                 if self.redis_service.enabled:
                     logger.debug(f"✓ ThreadDatasetService: Redis storage enabled (key prefix: {self.redis_key_prefix})")
                 else:
-                    logger.warning(f"ThreadDatasetService: Redis service created but not yet enabled (will be initialized later)")
+                    logger.warning("ThreadDatasetService: Redis service created but not yet enabled (will be initialized later)")
             except Exception as e:
                 logger.warning(f"Failed to initialize Redis service: {e}. Will fall back to database storage if Redis doesn't become available.")
 

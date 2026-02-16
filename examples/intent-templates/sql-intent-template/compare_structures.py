@@ -72,7 +72,7 @@ AUTHOR:
 import yaml
 import sys
 from pathlib import Path
-from typing import Dict, Any, Set
+from typing import Any, Set
 
 class StructureComparator:
     """Compare YAML structure between generated and reference files"""
@@ -117,7 +117,7 @@ class StructureComparator:
         # Common fields
         common = gen_structure & ref_structure
 
-        print(f"\n📊 Domain Config Structure Analysis:")
+        print("\n📊 Domain Config Structure Analysis:")
         print(f"   Generated file:  {generated_path}")
         print(f"   Reference file:  {reference_path}")
         print(f"\n   Common fields:   {len(common)}")
@@ -125,13 +125,13 @@ class StructureComparator:
         print(f"   Extra fields:    {len(extra)}")
 
         if missing:
-            print(f"\n⚠️  Fields in reference but not in generated:")
+            print("\n⚠️  Fields in reference but not in generated:")
             for field in sorted(missing):
                 print(f"     - {field}")
                 self.differences.append(f"Missing: {field}")
 
         if extra:
-            print(f"\n✨ Extra fields in generated (not in reference):")
+            print("\n✨ Extra fields in generated (not in reference):")
             for field in sorted(extra):
                 print(f"     - {field}")
 
@@ -141,7 +141,7 @@ class StructureComparator:
             'relationships', 'vocabulary'
         ]
 
-        print(f"\n✅ Critical Field Check:")
+        print("\n✅ Critical Field Check:")
         for field in critical_fields:
             if field in generated:
                 print(f"   ✅ {field}: present")
@@ -182,7 +182,7 @@ class StructureComparator:
         extra = gen_structure - ref_structure
         common = gen_structure & ref_structure
 
-        print(f"\n📊 Template Structure Analysis:")
+        print("\n📊 Template Structure Analysis:")
         print(f"   Generated file:  {generated_path}")
         print(f"   Reference file:  {reference_path}")
         print(f"\n   Common fields:   {len(common)}")
@@ -190,13 +190,13 @@ class StructureComparator:
         print(f"   Extra fields:    {len(extra)}")
 
         if missing:
-            print(f"\n⚠️  Fields in reference template but not in generated:")
+            print("\n⚠️  Fields in reference template but not in generated:")
             for field in sorted(missing):
                 print(f"     - {field}")
                 self.differences.append(f"Template missing: {field}")
 
         if extra:
-            print(f"\n✨ Extra fields in generated template:")
+            print("\n✨ Extra fields in generated template:")
             for field in sorted(extra):
                 print(f"     - {field}")
 
@@ -206,13 +206,13 @@ class StructureComparator:
             'result_format', 'semantic_tags'
         ]
 
-        print(f"\n✅ Critical Template Field Check:")
+        print("\n✅ Critical Template Field Check:")
         gen_template = gen_templates[0]
         for field in critical_fields:
             # Check for 'sql' or 'sql_template'
             if field == 'sql' and 'sql_template' in gen_template:
-                print(f"   ✅ sql (as sql_template): present")
-                self.matches.append(f"Critical field 'sql' present")
+                print("   ✅ sql (as sql_template): present")
+                self.matches.append("Critical field 'sql' present")
             elif field in gen_template:
                 print(f"   ✅ {field}: present")
                 self.matches.append(f"Critical field '{field}' present")
@@ -272,8 +272,8 @@ def main():
     # Run comparison
     comparator = StructureComparator()
 
-    domain_match = comparator.compare_domain_configs(gen_domain, ref_domain)
-    template_match = comparator.compare_template_libraries(gen_templates, ref_templates)
+    comparator.compare_domain_configs(gen_domain, ref_domain)
+    comparator.compare_template_libraries(gen_templates, ref_templates)
 
     success = comparator.print_summary()
 

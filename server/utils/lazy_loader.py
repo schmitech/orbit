@@ -5,7 +5,7 @@ Lazy Loader Utility
 A utility class for lazy loading of resources.
 """
 
-from typing import Any, Callable, Optional, Dict
+from typing import Any, Callable, Dict
 import logging
 
 logger = logging.getLogger(__name__)

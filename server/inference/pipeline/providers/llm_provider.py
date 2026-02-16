@@ -5,7 +5,7 @@ This module defines the base interface for LLM providers in the pipeline archite
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional
 
 
 class LLMProvider(ABC):

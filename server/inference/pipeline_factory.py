@@ -14,7 +14,7 @@ automatic retry logic, and easier maintenance.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from .pipeline.pipeline import InferencePipeline, InferencePipelineBuilder
 from .pipeline.service_container import ServiceContainer
 from .pipeline.providers import UnifiedProviderFactory as ProviderFactory

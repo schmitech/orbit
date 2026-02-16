@@ -17,7 +17,6 @@ import logging
 import traceback
 import asyncio
 import time
-import json
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, field
 
@@ -433,7 +432,7 @@ class CompositeIntentRetriever(BaseRetriever):
         if self.cache_rerank_results and cache_key in self._rerank_cache:
             cached_time, cached_results = self._rerank_cache[cache_key]
             if time.time() - cached_time < self.rerank_cache_ttl:
-                logger.debug(f"Using cached rerank results for query")
+                logger.debug("Using cached rerank results for query")
                 return cached_results
 
         try:

@@ -6,7 +6,6 @@ must be managed through the server API endpoints.
 """
 
 import json
-import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -15,7 +14,7 @@ from bin.orbit.utils.exceptions import ConfigurationError
 
 # Secure credential storage
 try:
-    import keyring
+    import keyring  # noqa: F401
     KEYRING_AVAILABLE = True
 except ImportError:
     KEYRING_AVAILABLE = False

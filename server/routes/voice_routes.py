@@ -13,7 +13,7 @@ Handler selection is automatic based on adapter type:
 """
 
 import logging
-from typing import Optional, Tuple, Any, Dict
+from typing import Optional, Any, Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Query, HTTPException
 from services.chat_handlers.voice_websocket_handler import VoiceWebSocketHandler
 

@@ -9,7 +9,6 @@ This module tests:
 """
 
 import asyncio
-import time
 import logging
 import sys
 import os
@@ -17,7 +16,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from services.parallel_adapter_executor import (
     SimpleCircuitBreaker, 
-    DefaultCircuitBreakerEventHandler,
     MonitoringCircuitBreakerEventHandler,
     CircuitBreakerEventHandler
 )

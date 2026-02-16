@@ -213,7 +213,7 @@ async def ingest_to_chroma(
     if not initialized:
         raise ValueError(f"Failed to initialize {embedding_provider} embedding service")
     
-    print(f"\nEmbedding Service Details:")
+    print("\nEmbedding Service Details:")
     print(f"Provider: {embedding_provider}")
     # Get model name from config
     model_name = config['embeddings'][embedding_provider]['model']
@@ -317,7 +317,7 @@ async def ingest_to_chroma(
                                 embeddings=batch_embeddings,
                                 documents=batch_documents
                             )
-                            print(f"Uploaded batch without metadata (simplification)")
+                            print("Uploaded batch without metadata (simplification)")
                             break
                         except Exception as simple_e:
                             print(f"Simplified upsert also failed: {str(simple_e)}")

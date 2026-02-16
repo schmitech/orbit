@@ -68,7 +68,6 @@ AUTHOR:
 import duckdb
 import argparse
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
 import random
 
@@ -234,7 +233,7 @@ def generate_customers(count: int) -> list:
 
 def generate_sales(products: list, customers: list, count: int) -> list:
     """Generate sales transaction records"""
-    fake = Faker()
+    Faker()
     sales = []
     
     # Generate sales over the last year
@@ -421,10 +420,10 @@ def get_database_stats(conn: duckdb.DuckDBPyConnection):
     print(f"   Total Customers: {total_customers}")
     print(f"   Total Revenue: ${total_revenue:,.2f}")
     print(f"   Unique Categories: {unique_categories}")
-    print(f"\n   Top 5 Categories:")
+    print("\n   Top 5 Categories:")
     for category, count in top_categories:
         print(f"      {category}: {count} sales")
-    print(f"\n   Top 5 Regions:")
+    print("\n   Top 5 Regions:")
     for region, count in top_regions:
         print(f"      {region}: {count} sales")
 
@@ -478,7 +477,7 @@ Examples:
     print("=" * 60)
     print("  Analytics Database Generator")
     print("=" * 60)
-    print(f"📝 Configuration:")
+    print("📝 Configuration:")
     print(f"   Records: {args.records}")
     print(f"   Output: {args.output}")
     print(f"   Clean mode: {'Yes' if args.clean else 'No'}")
@@ -529,17 +528,17 @@ Examples:
     conn.close()
     
     print(f"\n✅ Database created successfully: {args.output}")
-    print(f"\n💡 Next steps:")
-    print(f"   1. Test queries with DuckDB:")
+    print("\n💡 Next steps:")
+    print("   1. Test queries with DuckDB:")
     print(f"      duckdb {args.output} 'SELECT * FROM sales LIMIT 5;'")
-    print(f"\n   2. Configure Intent adapter in config/adapters.yaml")
-    print(f"      (See documentation for example configuration)")
-    print(f"\n   3. Generate SQL templates (if needed):")
-    print(f"      cd ../..")
-    print(f"      python template_generator.py \\")
-    print(f"        --schema examples/analytics/analytics.sql \\")
-    print(f"        --queries examples/analytics/analytics_test_queries.md \\")
-    print(f"        --output analytics-templates.yaml")
+    print("\n   2. Configure Intent adapter in config/adapters.yaml")
+    print("      (See documentation for example configuration)")
+    print("\n   3. Generate SQL templates (if needed):")
+    print("      cd ../..")
+    print("      python template_generator.py \\")
+    print("        --schema examples/analytics/analytics.sql \\")
+    print("        --queries examples/analytics/analytics_test_queries.md \\")
+    print("        --output analytics-templates.yaml")
     
     return 0
 

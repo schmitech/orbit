@@ -6,8 +6,6 @@ Coordinates with StreamingHandler to process LLM text streams and generate audio
 """
 
 import logging
-import asyncio
-import json
 import base64
 from typing import Optional, AsyncIterator, Dict, Any
 

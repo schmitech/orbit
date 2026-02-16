@@ -8,8 +8,7 @@ including embeddings, inference, moderation, and reranking.
 import logging
 import asyncio
 import aiohttp
-from typing import Dict, Any, Optional, Callable, TypeVar, Union
-from functools import wraps
+from typing import Dict, Any, Optional, Callable, TypeVar
 
 logger = logging.getLogger(__name__)
 

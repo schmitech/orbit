@@ -15,7 +15,6 @@ SERVER_DIR = SCRIPT_DIR.parent.parent
 sys.path.append(str(SERVER_DIR))
 
 from services.file_processing.file_processing_service import FileProcessingService
-from services.file_storage.filesystem_storage import FilesystemStorage
 from services.file_metadata.metadata_store import FileMetadataStore
 
 

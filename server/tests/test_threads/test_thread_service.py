@@ -11,7 +11,6 @@ Prerequisites:
 3. Chat history service for message retrieval
 """
 
-import asyncio
 import os
 import sys
 import pytest

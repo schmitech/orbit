@@ -6,7 +6,6 @@ QA-specialized Qdrant retriever using the base class
 import logging
 import traceback
 from typing import Dict, Any, List, Optional, Tuple
-from fastapi import HTTPException
 from qdrant_client.http.exceptions import UnexpectedResponse
 
 from .qa_vector_base import QAVectorRetrieverBase
@@ -59,7 +58,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
             'score_scaling_factor', 1.0
         ) if self.adapter_config else 1.0
         
-        logger.info(f"QAQdrantRetriever initialized with:")
+        logger.info("QAQdrantRetriever initialized with:")
         logger.info(f"  confidence_threshold={self.confidence_threshold} (used for filtering)")
         logger.info(f"  score_scaling_factor={self.score_scaling_factor}")
     
@@ -101,7 +100,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
             # Validate collection name
             if not collection_name:
                 logger.error("Collection name is None or empty")
-                logger.error(f"Available collection_name sources:")
+                logger.error("Available collection_name sources:")
                 logger.error(f"  - Parameter: {collection_name}")
                 logger.error(f"  - Self.collection_name: {getattr(self, 'collection_name', 'Not set')}")
                 logger.error(f"  - Adapter config collection: {self.adapter_config.get('collection') if self.adapter_config else 'No adapter config'}")

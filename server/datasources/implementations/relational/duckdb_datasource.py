@@ -4,7 +4,6 @@ DuckDB Datasource Implementation
 
 import logging
 import duckdb
-from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
 
 logger = logging.getLogger(__name__)

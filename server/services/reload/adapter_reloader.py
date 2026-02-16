@@ -4,9 +4,8 @@ Adapter Reloader for orchestrating adapter reload process.
 Coordinates the reload process with cache managers and config manager.
 """
 
-import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from ..config.config_change_detector import ConfigChangeDetector
 

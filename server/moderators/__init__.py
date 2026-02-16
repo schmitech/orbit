@@ -18,18 +18,17 @@ See docs/migration/moderation-services-migration.md for details.
 
 import logging
 
+from .base import (
+    ModeratorFactory,
+    ModerationResult,
+    ModerationCategory
+)
+
 logger = logging.getLogger(__name__)
 logger.warning(
     "The 'moderators' package is deprecated. "
     "Please use 'ai_services.factory.AIServiceFactory' instead. "
     "See docs/migration/moderation-services-migration.md for migration guide."
-)
-
-# Import backward compatibility layer from base.py
-from .base import (
-    ModeratorFactory,
-    ModerationResult,
-    ModerationCategory
 )
 
 __all__ = [

@@ -5,7 +5,6 @@ This step validates the generated response for safety and quality.
 """
 
 import logging
-from typing import Dict, Any
 from ..base import PipelineStep, ProcessingContext
 
 logger = logging.getLogger(__name__)

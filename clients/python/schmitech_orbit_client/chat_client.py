@@ -18,9 +18,8 @@ from rich.markdown import Markdown
 from rich.live import Live
 from rich.text import Text
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import Progress, SpinnerColumn
 from rich.prompt import Prompt
-from rich.syntax import Syntax
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -626,7 +625,7 @@ def stream_chat(url, message, api_key=None, session_id=None, debug=False, progre
                         try:
                             error_detail = response.json()
                             console.print(f"Error details: {error_detail}", style=ERROR_STYLE)
-                        except:
+                        except Exception:
                             console.print(f"Error response: {response.text}", style=ERROR_STYLE)
                         if debug:
                             console.print(Panel(response.text, title="Full Response", border_style="red"))
@@ -756,7 +755,7 @@ def main():
             )
             client.validate_api_key()
             if args.debug:
-                console.print(f"[green]✓[/green] API key validated successfully", style="green")
+                console.print("[green]✓[/green] API key validated successfully", style="green")
         except ValueError as e:
             console.print(f"❌ {e}", style=ERROR_STYLE)
             sys.exit(1)
@@ -833,7 +832,7 @@ def main():
                 refresh_per_second=10
             )
             progress.start()
-            task = progress.add_task("", total=None)
+            progress.add_task("", total=None)
             
             # Start streaming response - progress will be stopped inside stream_chat
             response, timing_info = stream_chat(

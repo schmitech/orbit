@@ -3,7 +3,6 @@ Qdrant Datasource Implementation
 """
 
 import logging
-from typing import Any, Dict, Optional
 from ...base.base_datasource import BaseDatasource
 
 logger = logging.getLogger(__name__)
@@ -51,7 +50,7 @@ class QdrantDatasource(BaseDatasource):
 
         try:
             # Try to get collections as a health check
-            collections = self._client.get_collections()
+            self._client.get_collections()
             return True
         except Exception as e:
             logger.error(f"Qdrant health check failed: {e}")

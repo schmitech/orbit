@@ -12,7 +12,6 @@ This module contains tests for the Ollama embedding service functionality:
 import pytest
 import requests
 import yaml
-import json
 import os
 import sys
 from typing import Dict, Any

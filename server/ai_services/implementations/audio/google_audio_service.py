@@ -7,7 +7,6 @@ Speech-to-Text and Text-to-Speech APIs.
 
 import logging
 from typing import Dict, Any, Optional, Union
-from io import BytesIO
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
@@ -153,9 +152,6 @@ class GoogleAudioService(AudioService, GoogleBaseService):
             # Prepare audio data
             audio_data = self._prepare_audio(audio)
             
-            # Get audio format
-            audio_format = self._get_audio_format(audio) if isinstance(audio, str) else 'wav'
-
             # Map format to Google encoding
             encoding_map = {
                 'linear16': speech.RecognitionConfig.AudioEncoding.LINEAR16,

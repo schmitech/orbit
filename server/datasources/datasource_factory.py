@@ -7,7 +7,7 @@ ChromaDB, SQLite, PostgreSQL, Oracle, MySQL, MariaDB, SQL Server, MongoDB, and C
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from .registry import get_registry
 
 logger = logging.getLogger(__name__)

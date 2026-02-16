@@ -8,14 +8,13 @@ import yaml
 import sys
 import subprocess
 import os
-from pathlib import Path
 
 def load_config(config_path):
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 
 def generate_database(target_name, config, clean=False):
-    print(f"----------------------------------------")
+    print("----------------------------------------")
     print(f"Generating: {config['description']} ({target_name})")
     print(f"  CSV:    {config['csv_path']}")
     print(f"  Schema: {config['schema_path']}")

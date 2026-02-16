@@ -14,7 +14,6 @@ from typing import Dict, Any, Optional, List, Tuple, Callable, TypeVar, Awaitabl
 from datetime import datetime, timedelta, UTC
 
 from services.database_service import (
-    DatabaseError,
     DatabaseConnectionError,
     DatabaseOperationError,
     DatabaseDuplicateKeyError,

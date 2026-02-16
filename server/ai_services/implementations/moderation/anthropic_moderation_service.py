@@ -236,7 +236,7 @@ Respond with only the JSON object."""
                 categories={"interpreted_unsafe": 0.8},
                 provider="anthropic",
                 model=self.model,
-                error=f"Non-JSON response interpreted as unsafe"
+                error="Non-JSON response interpreted as unsafe"
             )
 
         # Check for safe indicators
@@ -247,7 +247,7 @@ Respond with only the JSON object."""
                 categories={"interpreted_safe": 0.5},
                 provider="anthropic",
                 model=self.model,
-                error=f"Non-JSON response interpreted as safe"
+                error="Non-JSON response interpreted as safe"
             )
 
         # Ambiguous - fail-open

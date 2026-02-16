@@ -7,11 +7,9 @@ offering good performance and cost-effectiveness.
 
 import logging
 from typing import Dict, Any, List, Optional
-import asyncio
 import aiohttp
 
 from ...services import RerankingService
-from ...base import ServiceType
 
 logger = logging.getLogger(__name__)
 

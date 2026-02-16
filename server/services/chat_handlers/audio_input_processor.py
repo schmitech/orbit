@@ -6,8 +6,7 @@ using Voice Activity Detection (VAD) for real-time voice conversations.
 """
 
 import logging
-import asyncio
-from typing import Optional, List, Tuple
+from typing import Optional
 from collections import deque
 import time
 import struct
@@ -184,7 +183,7 @@ class AudioInputProcessor:
 
             # Log when speech starts or resumes
             if not self.audio_buffer or was_silent:
-                logger.debug(f"Speech detected, buffering started")
+                logger.debug("Speech detected, buffering started")
             elif len(self.audio_buffer) % 10 == 0:  # Log every 10 chunks to reduce spam
                 logger.debug(
                     f"Buffering speech: {self.buffer_duration_ms}ms "

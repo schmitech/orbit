@@ -8,7 +8,6 @@ to prevent duplicate Redis connections for the same configuration.
 import pytest
 import sys
 import os
-import asyncio
 
 # Add server directory to path
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -159,7 +158,7 @@ def test_redis_cache_stats():
         }
     }
     
-    service = RedisService(config)
+    RedisService(config)
     
     # Stats should show one instance
     stats = RedisService.get_cache_stats()
@@ -194,8 +193,8 @@ def test_redis_clear_cache():
         }
     }
     
-    service1 = RedisService(config1)
-    service2 = RedisService(config2)
+    RedisService(config1)
+    RedisService(config2)
     
     # Should have 2 instances
     stats = RedisService.get_cache_stats()

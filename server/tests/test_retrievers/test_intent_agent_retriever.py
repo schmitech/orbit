@@ -9,13 +9,10 @@ This test suite verifies:
 """
 
 import pytest
-import asyncio
 import sys
 import os
 import json
-from pathlib import Path
-from typing import Dict, Any, List
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock
 from datetime import datetime
 
 # Add the server directory to path
@@ -689,7 +686,6 @@ class TestFunctionGemmaParser:
     def mock_retriever(self):
         """Create a mock retriever with parser methods for testing."""
         import re
-        import json
 
         class MockRetriever:
             """Mock retriever with just the parser methods."""

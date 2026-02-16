@@ -5,7 +5,7 @@ Tests for AudioHandler.
 import pytest
 import sys
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 # Add the server directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))

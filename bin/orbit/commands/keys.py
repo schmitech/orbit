@@ -5,9 +5,7 @@ Handles create, list, test, status, rename, deactivate, delete, and list-adapter
 """
 
 import argparse
-import json
 from datetime import datetime
-from typing import Any
 from rich.console import Console
 from rich.prompt import Confirm
 
@@ -320,7 +318,6 @@ class KeyListAdaptersCommand(BaseCommand):
         # Note: This should read from server config via API, but for now we'll read local config
         # In a full implementation, this would call a server endpoint
         import yaml
-        import os
         from pathlib import Path
         
         # Try to find config file

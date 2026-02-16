@@ -53,7 +53,7 @@ def test_config_with_disabled_provider():
         if not is_enabled:
             print(f"✓ Correctly identified that '{configured_provider}' is disabled")
         else:
-            print(f"✗ Failed to identify disabled provider")
+            print("✗ Failed to identify disabled provider")
             sys.exit(1)
     else:
         print(f"✗ Provider '{configured_provider}' not found in inference config")
@@ -83,7 +83,7 @@ def test_adapter_with_disabled_provider():
                 print(f"✓ Correctly identified that adapter's provider '{provider}' is disabled")
                 print(f"  Adapter '{adapter_config['name']}' should be skipped")
             else:
-                print(f"✗ Failed to identify disabled provider for adapter")
+                print("✗ Failed to identify disabled provider for adapter")
                 sys.exit(1)
         else:
             print(f"  Warning: Provider '{provider}' not in config, might not be available")

@@ -443,7 +443,6 @@ class FileMetadataStore:
         try:
             # Only SQLite needs vacuum
             if hasattr(self._db_service, 'connection'):
-                from concurrent.futures import ThreadPoolExecutor
                 import asyncio
 
                 def _vacuum():

@@ -14,12 +14,10 @@ import base64
 import asyncio
 import re
 import wave
-import struct
 
 from openai import AsyncOpenAI
 import httpx
 
-from ...base import ServiceType
 from ...services import AudioService
 from ...connection import ConnectionManager, RetryHandler
 

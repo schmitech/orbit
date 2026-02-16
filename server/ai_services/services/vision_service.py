@@ -6,8 +6,7 @@ providing a unified API for image understanding regardless of the underlying pro
 """
 
 from abc import abstractmethod
-from typing import Dict, Any, List, Optional, Union, AsyncGenerator
-import logging
+from typing import Dict, Any, List, Optional, Union
 from PIL import Image
 import base64
 from io import BytesIO

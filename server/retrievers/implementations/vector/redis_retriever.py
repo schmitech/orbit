@@ -58,8 +58,8 @@ class RedisRetriever(AbstractVectorRetriever):
         """Initialize the Redis client."""
         try:
             import redis
-            from redis.commands.search.field import VectorField
-            from redis.commands.search.query import Query
+            from redis.commands.search.field import VectorField  # noqa: F401
+            from redis.commands.search.query import Query  # noqa: F401
             
             # Create Redis connection
             connection_params = {
@@ -110,11 +110,10 @@ class RedisRetriever(AbstractVectorRetriever):
             raise ValueError("Index name cannot be empty")
             
         try:
-            from redis.commands.search.indexdefinition import IndexDefinition
             
             # Check if index exists
             try:
-                index_info = self.redis_client.ft(collection_name).info()
+                self.redis_client.ft(collection_name).info()
                 self.index_name = collection_name
                 
                 logger.debug(f"Switched to index: {collection_name}")
@@ -179,7 +178,7 @@ class RedisRetriever(AbstractVectorRetriever):
                             value = getattr(doc, field_name)
                             if not callable(value):
                                 metadata[field_name] = value
-                        except:
+                        except Exception:
                             pass
                 
                 # Get score (Redis returns distance, lower is better for L2 and COSINE)

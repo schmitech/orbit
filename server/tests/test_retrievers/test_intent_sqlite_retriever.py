@@ -6,12 +6,9 @@ including connection handling, query execution, and parameter binding.
 """
 
 import pytest
-import asyncio
 import sys
 import os
-from pathlib import Path
-from typing import Dict, Any
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from unittest.mock import Mock, AsyncMock
 
 # Add the server directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -248,11 +245,11 @@ async def test_intent_retriever_close_all_resources(test_config, test_database):
         # We can verify that embedding/inference clients are closed, but connection remains open
         # The connection will be closed by the datasource registry when reference count reaches 0
         
-    except Exception as e:
+    except Exception:
         # Clean up on error
         try:
             await retriever.close()
-        except:
+        except Exception:
             pass
         raise
 
@@ -307,11 +304,11 @@ async def test_intent_retriever_close_handles_client_errors(test_config, test_da
         mock_embedding.aclose.assert_called_once()
         mock_inference.aclose.assert_called_once()
         
-    except Exception as e:
+    except Exception:
         # Clean up on error
         try:
             await retriever.close()
-        except:
+        except Exception:
             pass
         raise
 
@@ -357,11 +354,11 @@ async def test_intent_retriever_close_handles_sync_and_async_close(test_config, 
         assert hasattr(mock_async_client, 'aclose')
         assert callable(mock_async_client.aclose)
         
-    except Exception as e:
+    except Exception:
         # Clean up on error
         try:
             await retriever.close()
-        except:
+        except Exception:
             pass
         raise
 
@@ -388,11 +385,11 @@ async def test_intent_retriever_close_idempotent(test_config, test_database):
         # Note: Database connection is NOT closed by close() anymore - it's managed by datasource registry
         # The connection will remain open and be managed by the registry
         
-    except Exception as e:
+    except Exception:
         # Clean up on error
         try:
             await retriever.close()
-        except:
+        except Exception:
             pass
         raise
 
@@ -431,11 +428,11 @@ async def test_intent_retriever_close_with_template_store(test_config, test_data
             # We can't easily verify async calls, but if we get here without error, it worked
             pass
         
-    except Exception as e:
+    except Exception:
         # Clean up on error
         try:
             await retriever.close()
-        except:
+        except Exception:
             pass
         raise
 

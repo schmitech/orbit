@@ -8,10 +8,8 @@ to ensure feature parity with the MongoDB implementation.
 
 import pytest
 import pytest_asyncio
-import asyncio
 import sys
 import os
-from datetime import datetime, UTC
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import logging
@@ -37,7 +35,6 @@ logger = logging.getLogger(__name__)
 from services.api_key_service import ApiKeyService
 from services.prompt_service import PromptService
 from services.sqlite_service import SQLiteService
-from utils.id_utils import generate_id
 
 # Create temporary directory for test databases
 TEMP_DIR = None

@@ -1,4 +1,3 @@
-import asyncio
 import sys
 from pathlib import Path
 
@@ -232,7 +231,7 @@ async def test_duckdb_store_csv_append(tmp_path):
 @pytest.mark.asyncio
 async def test_duckdb_store_parquet_import_export(tmp_path):
     """Test Parquet import and export functionality."""
-    parquet = pytest.importorskip("pyarrow", reason="pyarrow required for parquet tests")
+    pytest.importorskip("pyarrow", reason="pyarrow required for parquet tests")
 
     db_path = tmp_path / "test_parquet.duckdb"
     config = StoreConfig(

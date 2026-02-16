@@ -10,7 +10,6 @@ import logging
 from typing import Dict, Any, AsyncGenerator
 import json
 
-from ...base import ServiceType
 from ...providers import OllamaBaseService
 from ...services import InferenceService
 

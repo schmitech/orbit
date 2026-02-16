@@ -17,8 +17,7 @@ import yaml
 import os
 import sys
 from typing import Dict, Any
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-import asyncio
+from unittest.mock import Mock, patch, AsyncMock
 
 # Skip all tests in this module if sentence-transformers is not installed
 sentence_transformers = pytest.importorskip(

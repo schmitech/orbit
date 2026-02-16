@@ -200,7 +200,7 @@ def test_template(
     # Find database
     db_path = find_database(yaml_path, template, db_path)
     if not db_path or not Path(db_path).exists():
-        print(f"Error: Could not find DuckDB file. Use --db to specify.")
+        print("Error: Could not find DuckDB file. Use --db to specify.")
         return False
 
     print(f"Template: {template_id}")
@@ -210,7 +210,7 @@ def test_template(
     # Show parameters
     params = template.get('parameters', [])
     if params:
-        print(f"Parameters:")
+        print("Parameters:")
         for p in params:
             default = p.get('default', 'N/A')
             override = param_overrides.get(p['name'])
@@ -227,11 +227,11 @@ def test_template(
         return False
 
     if verbose:
-        print(f"\nSQL:")
+        print("\nSQL:")
         print(f"  {final_sql.strip()}")
 
     # Execute query
-    print(f"\nExecuting...")
+    print("\nExecuting...")
     try:
         columns, rows, total = run_query(db_path, final_sql, limit)
         print(f"Results ({total} total, showing {len(rows)}):\n")

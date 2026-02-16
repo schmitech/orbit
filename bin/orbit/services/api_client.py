@@ -51,7 +51,7 @@ def handle_api_errors(operation_name: str = None, custom_errors: Dict[int, str] 
                 elif status_code == 400:
                     try:
                         error_detail = e.response.json().get('detail', 'Bad request')
-                    except:
+                    except Exception:
                         error_detail = 'Bad request'
                     raise OrbitError(f"Bad request: {error_detail}")
                 else:

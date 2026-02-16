@@ -128,14 +128,12 @@ import argparse
 import os
 import asyncio
 import re
-import time
 import sys
 from pathlib import Path
 import yaml
 import aiohttp
 import requests
-from typing import List, Dict, Tuple, Optional, Set
-from collections import defaultdict
+from typing import List, Dict, Tuple
 import hashlib
 
 # Load Ollama configuration from config.yaml
@@ -1244,7 +1242,7 @@ async def process_files(files, output_filepath, verbose=True, no_cache=False):
         if PARALLEL_PARAPHRASES and GROUP_QUESTIONS:
             print(f"  → Parallel paraphrase generation: ENABLED (batch size: {PARAPHRASE_BATCH_SIZE})")
         if VALIDATE_PARAPHRASES:
-            print(f"  → Semantic validation: ENABLED")
+            print("  → Semantic validation: ENABLED")
     
     tasks = []
     for file_path, text, frontmatter in files:
@@ -1363,7 +1361,7 @@ async def run_extraction(args):
             if PARALLEL_PARAPHRASES:
                 print(f"  → Parallel processing: ON (batch size: {PARAPHRASE_BATCH_SIZE})")
             if VALIDATE_PARAPHRASES:
-                print(f"  → Semantic validation: ON")
+                print("  → Semantic validation: ON")
         if batch_size > 0:
             print(f"Processing in batches of {batch_size} files")
     

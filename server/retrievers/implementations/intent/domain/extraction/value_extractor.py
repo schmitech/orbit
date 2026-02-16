@@ -4,9 +4,9 @@ Value extractor for applying patterns and parsing user input
 
 import re
 import logging
-from typing import Dict, Any, Optional, List, Tuple, Pattern
-from datetime import datetime, date
-from ...domain import DomainConfig, FieldConfig
+from typing import Dict, Any, Optional, Pattern
+from datetime import datetime
+from ...domain import DomainConfig
 
 logger = logging.getLogger(__name__)
 

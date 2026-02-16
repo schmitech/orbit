@@ -20,7 +20,6 @@ sys.path.append(server_dir)
 
 from ai_services.registry import register_inference_services
 from ai_services.factory import AIServiceFactory
-from ai_services.base import ServiceType
 
 
 class TestInferenceProviderRegistration:

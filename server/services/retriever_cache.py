@@ -8,7 +8,7 @@ Caches retrievers based on configuration to ensure proper reuse across requests.
 import logging
 import hashlib
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from retrievers.implementations.file.file_retriever import FileVectorRetriever
 
 logger = logging.getLogger(__name__)

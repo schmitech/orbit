@@ -13,12 +13,11 @@ import pytest
 import sys
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
-import json
 
 # Add the server directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from ai_services.services.moderation_service import ModerationResult, ModerationService
+from ai_services.services.moderation_service import ModerationResult
 from ai_services.implementations.moderation.ollama_moderation_service import (
     OllamaModerationService,
     LLAMA_GUARD_CATEGORIES

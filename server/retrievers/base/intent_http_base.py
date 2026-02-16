@@ -499,7 +499,7 @@ class IntentHTTPRetriever(BaseRetriever):
                 if existing_dim and existing_dim != expected_dim:
                     dimension_changed = True
                     logger.info(f"Dimension changed from {existing_dim} to {expected_dim}, forcing reload")
-            except:
+            except Exception:
                 pass
 
             if not force_reload and not reload_on_start and not dimension_changed:
@@ -509,7 +509,7 @@ class IntentHTTPRetriever(BaseRetriever):
                     if existing_count > 0:
                         logger.info(f"Found {existing_count} existing templates, skipping reload")
                         return
-                except:
+                except Exception:
                     pass
 
             # Prepare templates for batch embedding

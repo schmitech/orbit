@@ -25,10 +25,8 @@ else:
             pass  # Use default locale
 
 from base_rag_system import RAGSystem
-from domain_configuration import DomainConfiguration
 from template_library import TemplateLibrary
 from domain_plugin import DomainSpecificPlugin, DomainAnalyticsPlugin
-from template_generator import DomainTemplateGenerator
 from plugin_system import PluginManager
 from shared_domain_config import create_customer_order_domain
 from shared_template_loader import load_or_generate_templates
@@ -63,10 +61,8 @@ except ImportError:
     EXAMPLE_PLUGINS_AVAILABLE = False
 
 import readline  # For better input handling
-from typing import List, Dict, Optional
-import json
+from typing import List, Dict
 from datetime import datetime
-import yaml
 
 
 # Domain creation function moved to shared_domain_config.py for consistency
@@ -135,7 +131,7 @@ class ConversationalDemo:
         """Save command history"""
         try:
             readline.write_history_file('.rag_history')
-        except:
+        except Exception:
             pass
     
     def print_header(self):
@@ -162,7 +158,7 @@ class ConversationalDemo:
         print(f"- Ollama ({os.getenv('OLLAMA_INFERENCE_MODEL', 'gemma3:1b')}) for natural language generation")
         print("- PostgreSQL for data storage")
         print("- Plugin system for functionality")
-        print(f"\nConfiguration:")
+        print("\nConfiguration:")
         print(f"- Ollama Server: {os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')}")
         print("="*80)
     
@@ -286,7 +282,7 @@ class ConversationalDemo:
             # Show fields
             fields = self.domain.fields.get(entity_name, {})
             if fields:
-                print(f"    Fields:")
+                print("    Fields:")
                 for field_name, field in fields.items():
                     print(f"      - {field_name} ({field.data_type.value})")
         
@@ -300,7 +296,7 @@ class ConversationalDemo:
             print("❌ No templates loaded")
             return
         
-        print(f"\n📋 Template Library")
+        print("\n📋 Template Library")
         print(f"Total templates: {len(self.template_library.templates)}")
         
         # Group by category
@@ -342,7 +338,7 @@ class ConversationalDemo:
                         plugin_usage[plugin] = plugin_usage.get(plugin, 0) + 1
             
             if plugin_usage:
-                print(f"\n🔌 Plugin Usage:")
+                print("\n🔌 Plugin Usage:")
                 for plugin, count in sorted(plugin_usage.items(), key=lambda x: x[1], reverse=True):
                     print(f"   {plugin}: {count} times")
             
@@ -354,7 +350,7 @@ class ConversationalDemo:
                     template_counts[template_id] = template_counts.get(template_id, 0) + 1
             
             if template_counts:
-                print(f"\n📋 Most used query types:")
+                print("\n📋 Most used query types:")
                 for template, count in sorted(template_counts.items(), 
                                             key=lambda x: x[1], reverse=True)[:5]:
                     print(f"  • {template}: {count} times")
@@ -362,7 +358,7 @@ class ConversationalDemo:
     def format_response(self, result: Dict) -> None:
         """Format and print query response"""
         if result['success']:
-            print(f"\n✅ Query processed successfully!")
+            print("\n✅ Query processed successfully!")
             print(f"📋 Query type: {result['template_id']}")
             print(f"🎯 Confidence: {result['similarity']:.1%}")
             
@@ -373,14 +369,14 @@ class ConversationalDemo:
             
             # Show parameters in a nice format
             if result['parameters']:
-                print(f"🔍 Extracted parameters:")
+                print("🔍 Extracted parameters:")
                 for key, value in result['parameters'].items():
                     print(f"   • {key}: {value}")
             
             print(f"📊 Found {result['result_count']} results")
             
             # Show the response with proper Unicode handling
-            print(f"\n💬 Response:")
+            print("\n💬 Response:")
             print("-" * 60)
             # Ensure proper Unicode output
             response_text = result['response']
@@ -391,16 +387,16 @@ class ConversationalDemo:
             print("-" * 60)
             
         else:
-            print(f"\n❌ Query failed")
+            print("\n❌ Query failed")
             print(f"Reason: {result.get('error', 'Unknown error')}")
             
             if 'validation_errors' in result:
-                print(f"\n⚠️ Missing information:")
+                print("\n⚠️ Missing information:")
                 for error in result['validation_errors']:
                     print(f"   • {error}")
             
             if 'response' in result:
-                print(f"\n💡 Suggestion:")
+                print("\n💡 Suggestion:")
                 # Ensure proper Unicode output
                 response_text = result['response']
                 if isinstance(response_text, str):
@@ -612,7 +608,7 @@ class ConversationalDemo:
                     continue
                 elif user_input.lower() == 'plugins':
                     plugins = plugin_manager.get_enabled_plugins()
-                    print(f"\n🔌 Plugin Status:")
+                    print("\n🔌 Plugin Status:")
                     for plugin in plugins:
                         print(f"   ✅ {plugin.get_name()} v{plugin.get_version()} ({plugin.get_priority().name})")
                     continue

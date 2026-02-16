@@ -74,8 +74,8 @@ async def test_multiple_sessions_tracked(session_tracking_setup):
 async def test_session_cleanup(session_tracking_setup):
     """Test that tracked sessions are properly cleaned up."""
     # Create some test sessions
-    session1 = aiohttp.ClientSession()
-    session2 = aiohttp.ClientSession()
+    aiohttp.ClientSession()
+    aiohttp.ClientSession()
     
     # Verify sessions are tracked
     assert len(_aiohttp_sessions) == 2, "Both sessions should be tracked"

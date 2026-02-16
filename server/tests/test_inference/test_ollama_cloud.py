@@ -14,7 +14,6 @@ import yaml
 import os
 import sys
 from typing import Dict, Any
-import asyncio
 
 # Get the absolute path to the server directory (parent of tests)
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -244,7 +243,7 @@ async def test_ollama_cloud_error_handling(ollama_client: AsyncClient):
         # Verify that an error was raised
         assert exc_info.value is not None, "Should raise an exception for invalid model"
 
-    except Exception as e:
+    except Exception:
         # This is expected behavior
         pass
 
@@ -268,7 +267,7 @@ async def test_ollama_cloud_invalid_api_key(base_url: str):
         # Verify that an authentication error was raised
         assert exc_info.value is not None, "Should raise an exception for invalid API key"
 
-    except Exception as e:
+    except Exception:
         # This is expected behavior
         pass
 

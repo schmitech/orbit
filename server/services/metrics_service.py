@@ -8,14 +8,13 @@ import time
 import os
 import psutil
 import asyncio
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
-from collections import deque, defaultdict
+from typing import Dict, Any, List
+from datetime import datetime
+from collections import deque
 from prometheus_client import (
     Counter,
     Histogram,
     Gauge,
-    Summary,
     generate_latest,
     CollectorRegistry,
 )

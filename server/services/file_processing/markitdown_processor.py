@@ -157,7 +157,7 @@ class MarkItDownProcessor(FileProcessor):
                 temp_path = temp_file.name
 
             try:
-                logger.debug(f"[MarkItDown] Converting document to markdown...")
+                logger.debug("[MarkItDown] Converting document to markdown...")
                 # Convert document to markdown
                 result = self._converter.convert(temp_path)
 

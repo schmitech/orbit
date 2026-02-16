@@ -184,11 +184,11 @@ async def test_adapter_initialization(adapter: Dict, config: Dict) -> bool:
 
         # Create instance
         retriever = retriever_class(config=retriever_config)
-        print(f"✓ Created retriever instance")
+        print("✓ Created retriever instance")
 
         # Initialize
         await retriever.initialize()
-        print(f"✓ Retriever initialized successfully")
+        print("✓ Retriever initialized successfully")
 
         # Clean up
         await retriever.close()
@@ -249,7 +249,7 @@ async def test_query_execution(adapter: Dict, config: Dict, query: str, execute:
             # Actually execute the query
             results = await retriever.get_relevant_context(query)
 
-            print(f"\n📊 Results:")
+            print("\n📊 Results:")
             for i, result in enumerate(results, 1):
                 print(f"\nResult {i}:")
                 print(f"  Confidence: {result.get('confidence', 0):.2%}")

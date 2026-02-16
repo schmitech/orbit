@@ -40,7 +40,6 @@ Notes:
       * delete_chroma_collection.py - Deletes collections
 """
 
-import sys
 import yaml
 import chromadb
 import argparse

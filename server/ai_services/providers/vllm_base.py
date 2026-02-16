@@ -5,8 +5,7 @@ This module provides a base class for vLLM services that supports:
 2. API mode: Connect to a running vLLM server via OpenAI-compatible API
 """
 
-from typing import Dict, Any, Optional
-import os
+from typing import Dict, Any
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from ..base import ProviderAIService, ServiceType

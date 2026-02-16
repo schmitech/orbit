@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Any, Dict, Optional, Union
 
-from jinja2 import Environment, BaseLoader, DebugUndefined, StrictUndefined, UndefinedError
+from jinja2 import Environment, BaseLoader, DebugUndefined, UndefinedError
 
 from .domain import DomainConfig
 

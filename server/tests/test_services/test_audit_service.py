@@ -8,11 +8,9 @@ and strategy selection logic.
 
 import os
 import sys
-import tempfile
-import shutil
 from pathlib import Path
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
+from unittest.mock import AsyncMock
 
 import pytest
 from pytest_asyncio import fixture
@@ -24,9 +22,7 @@ sys.path.insert(0, str(SERVER_DIR))
 
 from services.audit import (
     AuditService,
-    AuditStorageStrategy,
     AuditRecord,
-    SQLiteAuditStrategy,
     MongoDBDAuditStrategy,
 )
 from services.sqlite_service import SQLiteService
@@ -676,7 +672,7 @@ class TestAuditServiceIntegration:
         )
 
         # Service should handle gracefully
-        results = await audit.query_audit_logs({})
+        await audit.query_audit_logs({})
         # Results may be empty due to closed strategy, but no exception
 
 

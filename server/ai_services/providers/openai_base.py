@@ -6,14 +6,14 @@ This module provides a unified base class for all OpenAI-based services
 like API key management, client initialization, and error handling.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import asyncio
 from openai import AsyncOpenAI
 import httpx
 import logging
 
 from ..base import ProviderAIService, ServiceType
-from ..connection import ConnectionManager, RetryHandler, ConnectionVerifier
+from ..connection import ConnectionManager, RetryHandler
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,6 @@ with the unified AI services architecture.
 """
 
 import pytest
-import asyncio
 import os
 import sys
 from unittest.mock import Mock, AsyncMock, patch
@@ -18,7 +17,6 @@ server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 sys.path.append(server_dir)
 
 from ai_services.implementations.inference.zai_inference_service import ZaiInferenceService
-from ai_services.base import ServiceType
 
 
 class TestZaiInferenceService:

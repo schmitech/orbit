@@ -3,7 +3,6 @@ import pytest_asyncio
 import asyncio
 import sys
 import os
-from datetime import datetime, UTC
 from bson import ObjectId
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -37,7 +36,7 @@ try:
     from services.api_key_service import ApiKeyService
     from services.prompt_service import PromptService
     from services.mongodb_service import MongoDBService
-    from models.schema import ApiKeyCreate, SystemPromptCreate, SystemPromptUpdate, ApiKeyPromptAssociate
+    from models.schema import ApiKeyCreate, SystemPromptCreate, SystemPromptUpdate, ApiKeyPromptAssociate  # noqa: F401
 except ImportError as e:
     logger.error(f"Import error: {e}")
     raise
@@ -113,7 +112,7 @@ async def check_mongodb_connection(config):
         service = MongoDBService(config)
         await service.initialize()
         # Try a simple command to verify connection
-        result = await service.client.admin.command('ping')
+        await service.client.admin.command('ping')
         logger.info("MongoDB connection successful")
         await service.client.close()
         return True

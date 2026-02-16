@@ -8,18 +8,16 @@ json_transform) and HTTP calls.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import time
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from .tool_definitions import (
     ExecutionType,
     ToolDefinition,
     ToolResult,
-    ToolResultStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -510,7 +508,7 @@ class ToolExecutor:
             # This handles cases where LLM uses different parameter names
             param_values = list(parameters.values())
             if len(param_values) >= len(required_params):
-                logger.info(f"Parameter names don't match, attempting positional mapping")
+                logger.info("Parameter names don't match, attempting positional mapping")
                 for i, name in enumerate(param_names):
                     if name not in kwargs and i < len(param_values):
                         kwargs[name] = param_values[i]

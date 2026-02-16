@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from pptx import Presentation
-    from pptx.util import Inches, Pt
+    from pptx.util import Inches, Pt  # noqa: F401
     from io import BytesIO
     PPTX_AVAILABLE = True
 except ImportError:

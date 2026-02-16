@@ -361,9 +361,9 @@ class AdvancedFirecrawlScraper:
             if 'markdown' in response:
                 with open(output_path, 'w', encoding='utf-8') as f:
                     # Add metadata header
-                    f.write(f"---\n")
+                    f.write("---\n")
                     f.write(f"source: {url}\n")
-                    f.write(f"scraped_with: firecrawl-scraper\n")
+                    f.write("scraped_with: firecrawl-scraper\n")
                     f.write(f"scraped_at: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
                     
                     # Add metadata if present
@@ -376,7 +376,7 @@ class AdvancedFirecrawlScraper:
                         if metadata.get('author'):
                             f.write(f"author: {metadata['author']}\n")
                     
-                    f.write(f"---\n\n")
+                    f.write("---\n\n")
                     f.write(response['markdown'])
                 
                 print(f"✓ Saved markdown: {output_path}")
@@ -453,7 +453,7 @@ class AdvancedFirecrawlScraper:
             print(f"Structured data extracted: {self.stats['structured_data']}")
         
         if self.stats['errors']:
-            print(f"\nErrors encountered:")
+            print("\nErrors encountered:")
             for error in self.stats['errors'][:5]:
                 print(f"  - {error['url']}: {error['error'][:100]}")
             if len(self.stats['errors']) > 5:
@@ -563,7 +563,7 @@ async def main(input_source: str, output_dir: str, args):
             print(f"✓ Filtered out {original_count - len(urls)} image URLs.")
     
     print(f"Found {len(urls)} URL(s) to process")
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  - Formats: {config['formats']}")
     print(f"  - Output storage: {config['output_format']}")
     if config.get('output_format') == 'jsonl' and args.output_format == 'jsonl':

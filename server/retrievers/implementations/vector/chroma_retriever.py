@@ -4,12 +4,9 @@ Uses the datasource registry pattern for connection management.
 """
 
 import logging
-import os
 from typing import Dict, Any, List, Optional
-from chromadb import HttpClient, PersistentClient
 from chromadb.errors import InvalidArgumentError
 from fastapi import HTTPException
-from pathlib import Path
 
 from ...base.abstract_vector_retriever import AbstractVectorRetriever
 from ...base.base_retriever import RetrieverFactory

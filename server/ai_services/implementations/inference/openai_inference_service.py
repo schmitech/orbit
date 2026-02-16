@@ -151,7 +151,7 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
 
             stream = await self.client.chat.completions.create(**params)
 
-            logger.debug(f"Stream object created, starting iteration...")
+            logger.debug("Stream object created, starting iteration...")
 
             chunk_count = 0
             debug_enabled = self.logger.isEnabledFor(logging.DEBUG)

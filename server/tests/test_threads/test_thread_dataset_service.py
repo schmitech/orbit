@@ -10,13 +10,11 @@ Prerequisites:
 2. Test creates temporary database files
 """
 
-import asyncio
 import os
 import sys
 import pytest
 from pathlib import Path
 from pytest_asyncio import fixture
-from datetime import datetime, timedelta, UTC
 import tempfile
 import shutil
 import json

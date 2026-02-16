@@ -9,7 +9,6 @@ import logging
 import asyncio
 from typing import Dict, Any, AsyncGenerator, List
 
-from ...base import ServiceType
 from ...providers.tensorrt_base import TensorRTBaseService
 from ...services import InferenceService
 
