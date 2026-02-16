@@ -63,7 +63,7 @@ dependencies = [
     "keyrings.alt>=5.0.2",
     "Levenshtein>=0.27.3",
     "jarowinkler==2.0.1",
-    "firecrawl>=4.12.0",
+    "firecrawl-py>=4.14.1",
     "langdetect>=1.0.9",
     "langid>=1.1.6",
     "pycld2>=0.42",
@@ -110,6 +110,7 @@ dependencies = [
     "pymssql>=2.3.11",
     "cassandra-driver>=3.29.3",
     "duckdb>=1.4.3",
+    "pyathena>=3.27.2",
 ]
 
 # ============================================================================

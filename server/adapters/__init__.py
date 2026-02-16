@@ -38,7 +38,7 @@ def register_adapters():
         logger.warning(f"Failed to import some adapter modules: {e}")
 
     # Register adapters for all supported datasources
-    for datasource in ['sqlite', 'chroma', 'qdrant', 'postgres', 'pinecone', 'elasticsearch', 'opensearch', 'http', 'mysql', 'mssql']:
+    for datasource in ['sqlite', 'chroma', 'qdrant', 'postgres', 'pinecone', 'elasticsearch', 'opensearch', 'http', 'mysql', 'mssql', 'athena']:
         # Register QA document adapter with default config
         ADAPTER_REGISTRY.register(
             adapter_type="retriever",

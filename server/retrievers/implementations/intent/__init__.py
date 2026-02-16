@@ -42,6 +42,15 @@ except ImportError:  # pragma: no cover - optional import guard
     _duckdb_available = False
     logger.debug("duckdb not installed; IntentDuckDBRetriever unavailable")
 
+# Import Athena retriever (requires pyathena package)
+try:
+    from .intent_athena_retriever import IntentAthenaRetriever
+    _athena_available = True
+except ImportError:  # pragma: no cover - optional import guard
+    IntentAthenaRetriever = None
+    _athena_available = False
+    logger.debug("pyathena not installed; IntentAthenaRetriever unavailable")
+
 # Import Elasticsearch retriever (requires elasticsearch package)
 try:
     from .intent_elasticsearch_retriever import IntentElasticsearchRetriever
@@ -105,6 +114,9 @@ if _sqlite_available and IntentSQLiteRetriever is not None:
 
 if _duckdb_available and IntentDuckDBRetriever is not None:
     __all__.append('IntentDuckDBRetriever')
+
+if _athena_available and IntentAthenaRetriever is not None:
+    __all__.append('IntentAthenaRetriever')
 
 if _elasticsearch_available and IntentElasticsearchRetriever is not None:
     __all__.append('IntentElasticsearchRetriever')

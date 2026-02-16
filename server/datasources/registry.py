@@ -224,6 +224,14 @@ class DatasourceRegistry:
             database = datasource_config.get('database', 'default')
             return f"{datasource_name}:{host}:{port}:{database}"
 
+        elif datasource_name in ['athena']:
+            # Athena: cache key includes region, catalog, schema and workgroup
+            region_name = datasource_config.get('region_name', 'us-east-1')
+            catalog_name = datasource_config.get('catalog_name', 'AwsDataCatalog')
+            schema_name = datasource_config.get('schema_name', 'default')
+            work_group = datasource_config.get('work_group', 'primary')
+            return f"{datasource_name}:{region_name}:{catalog_name}:{schema_name}:{work_group}"
+
         elif datasource_name in ['elasticsearch']:
             # Elasticsearch: cache key includes node URL and username
             node = datasource_config.get('node', 'http://localhost:9200')
