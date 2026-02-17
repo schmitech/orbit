@@ -29,7 +29,7 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
     Your browser does not support the video tag.
   </video>
   <br/>
-  <i>Using the ORBIT mobile app to chat with your data.</i>
+  <i>Using the <a href="clients/orbit-mobile/" target="_blank" rel="noopener noreferrer">ORBIT mobile app</a> to chat with your data.</i>
 </div>
 
 **Ship faster. Stay portable. Keep your data private.**
