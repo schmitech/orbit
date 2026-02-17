@@ -8,6 +8,7 @@ This document describes the architecture of the retriever system, which is respo
 The factory pattern implementation that creates retriever instances based on configuration. Currently supports:
 - ChromaRetriever
 - SQLiteRetriever
+- IntentAthenaRetriever (via intent adapter)
 
 ### 2. BaseRetriever
 Abstract base class that defines the retriever interface:
@@ -143,5 +144,6 @@ Common issues and solutions:
 
 1. **Adapter not found**: Ensure your adapter is properly registered in the factory.
 2. **Configuration errors**: Check your config.yaml for correct settings.
-3. **Connection issues**: Verify that your data source (ChromaDB, SQLite, etc.) is running and accessible.
-4. **Performance issues**: Consider implementing caching or optimizing your retrieval logic.
+3. **Connection issues**: Verify that your data source (ChromaDB, SQLite, Athena, etc.) is accessible and correctly configured.
+4. **Athena auth/config issues**: Ensure `s3_staging_dir`, AWS credentials, and `region_name` are set in `config/datasources.yaml` (from `env.example` values).
+5. **Performance issues**: Consider implementing caching or optimizing your retrieval logic.
