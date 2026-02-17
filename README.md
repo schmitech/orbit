@@ -25,7 +25,7 @@
 Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI providers** with your databases, vector stores, and APIs—all through one self-hosted gateway.
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/d499aca9-1475-404f-865e-3a405ac71669" controls>
+  <video src="https://github.com/user-attachments/assets/58c71ec5-b14b-4ebf-838f-3ebe9473bce6" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
