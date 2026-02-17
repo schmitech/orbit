@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { Ionicons } from '@expo/vector-icons';
 import { Message } from '../types';
 import { ThemeColors } from '../theme/colors';
 import { MarkdownContent } from './MarkdownContent';
@@ -9,10 +10,18 @@ import { StreamingCursor } from './StreamingCursor';
 interface Props {
   message: Message;
   theme: ThemeColors;
+  onReplyInThread?: (message: Message) => void;
+  showThreadActions?: boolean;
 }
 
-export function ChatBubble({ message, theme }: Props) {
+export function ChatBubble({
+  message,
+  theme,
+  onReplyInThread,
+  showThreadActions = true,
+}: Props) {
   const isUser = message.role === 'user';
+  const canCopyAssistantMessage = !isUser && !!message.content;
 
   const handleLongPress = useCallback(() => {
     if (!isUser && message.content) {
@@ -22,37 +31,36 @@ export function ChatBubble({ message, theme }: Props) {
   }, [isUser, message.content]);
 
   return (
-    <Pressable onLongPress={handleLongPress} delayLongPress={500}>
+    <View
+      style={[
+        styles.container,
+        isUser ? styles.userContainer : styles.assistantContainer,
+      ]}
+    >
       <View
         style={[
-          styles.container,
-          isUser ? styles.userContainer : styles.assistantContainer,
+          styles.bubbleBase,
+          isUser
+            ? [styles.bubbleConstrained, styles.userBubble, { backgroundColor: theme.userBubble }]
+            : styles.assistantBubble,
         ]}
       >
-        <View
-          style={[
-            styles.bubbleBase,
-            isUser
-              ? [styles.bubbleConstrained, styles.userBubble, { backgroundColor: theme.userBubble }]
-              : styles.assistantBubble,
-          ]}
-        >
-          {isUser ? (
-            <Text style={[styles.userText, { color: theme.userBubbleText }]}>
-              {message.content}
-            </Text>
-          ) : (
-            <View style={styles.assistantContent}>
+        {isUser ? (
+          <Text style={[styles.userText, { color: theme.userBubbleText }]}>
+            {message.content}
+          </Text>
+        ) : (
+          <>
+            <Pressable
+              onLongPress={handleLongPress}
+              delayLongPress={500}
+              disabled={!canCopyAssistantMessage}
+            >
+              <View style={styles.assistantContent}>
               {message.content
-                ? message.isStreaming
-                  ? (
-                    <Text style={[styles.assistantStreamingText, { color: theme.assistantBubbleText }]}>
-                      {message.content}
-                    </Text>
-                  )
-                  : (
-                    <MarkdownContent content={message.content} theme={theme} />
-                  )
+                ? (
+                  <MarkdownContent content={message.content} theme={theme} />
+                )
                 : null}
               {message.isStreaming && !message.content && (
                 <StreamingCursor color={theme.textTertiary} />
@@ -62,11 +70,35 @@ export function ChatBubble({ message, theme }: Props) {
                   <StreamingCursor color={theme.primary} />
                 </View>
               ) : null}
-            </View>
-          )}
-        </View>
+              </View>
+            </Pressable>
+            {!message.isStreaming && showThreadActions && message.supportsThreading && onReplyInThread ? (
+              <View style={styles.actionsRow}>
+                <Pressable
+                  onPress={() => onReplyInThread(message)}
+                  style={({ pressed }) => [
+                    styles.replyButton,
+                    {
+                      borderColor: theme.primary + '33',
+                      backgroundColor: pressed ? theme.primary + '1F' : theme.primary + '14',
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={message.threadInfo ? 'chatbubbles-outline' : 'chatbubble-ellipses-outline'}
+                    size={15}
+                    color={theme.primary}
+                  />
+                  <Text style={[styles.replyButtonText, { color: theme.primary }]}>
+                    {message.threadInfo ? 'Open replies' : 'Reply in thread'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </>
+        )}
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -79,7 +111,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   assistantContainer: {
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
   },
   bubbleBase: {},
   bubbleConstrained: {
@@ -107,11 +139,25 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'stretch',
   },
-  assistantStreamingText: {
-    fontSize: 16,
-    lineHeight: 22,
-  },
   streamingCursorWithText: {
     marginTop: 8,
+  },
+  actionsRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+  },
+  replyButton: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  replyButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

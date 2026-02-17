@@ -19,7 +19,11 @@ export default function ConversationsScreen() {
   const setConversationAdapterInfo = useChatStore((s) => s.setConversationAdapterInfo);
   const { theme } = useTheme();
 
-  const sortedConversations = [...conversations].sort(
+  const conversationsWithHistory = conversations.filter((conversation) => {
+    return conversation.messages.length > 0;
+  });
+
+  const sortedConversations = [...conversationsWithHistory].sort(
     (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
   );
 
@@ -74,23 +78,21 @@ export default function ConversationsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {sortedConversations.length === 0 ? (
-        <EmptyState theme={theme} variant="conversations" onPress={handleNewChat} />
+        <EmptyState theme={theme} variant="conversations" />
       ) : (
-        <>
-          <FlashList
-            data={sortedConversations}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContent}
-          />
-          <Pressable
-            onPress={handleNewChat}
-            style={[styles.fab, { backgroundColor: theme.primary }]}
-          >
-            <Ionicons name="add" size={28} color="#FFFFFF" />
-          </Pressable>
-        </>
+        <FlashList
+          data={sortedConversations}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+        />
       )}
+      <Pressable
+        onPress={handleNewChat}
+        style={[styles.fab, { backgroundColor: theme.primary }]}
+      >
+        <Ionicons name="add" size={28} color="#FFFFFF" />
+      </Pressable>
     </View>
   );
 }

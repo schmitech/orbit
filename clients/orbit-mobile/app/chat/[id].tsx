@@ -8,7 +8,7 @@ import {
   Pressable,
 } from 'react-native';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useChatStore } from '../../src/stores/chatStore';
 import { useTheme } from '../../src/hooks/useTheme';
@@ -20,6 +20,7 @@ import { getConfig } from '../../src/config/env';
 
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const conversations = useChatStore((s) => s.conversations);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const stopGeneration = useChatStore((s) => s.stopGeneration);
@@ -34,6 +35,10 @@ export default function ChatScreen() {
   const listRef = useRef<FlashListRef<Message>>(null);
 
   const conversation = conversations.find((c) => c.id === id);
+  const topLevelMessages = useMemo(
+    () => conversation?.messages.filter((msg) => !msg.isThreadMessage) ?? [],
+    [conversation?.messages]
+  );
 
   useEffect(() => {
     if (id) {
@@ -64,12 +69,12 @@ export default function ChatScreen() {
 
   // Auto-scroll on new messages
   useEffect(() => {
-    if (conversation?.messages.length) {
+    if (topLevelMessages.length) {
       setTimeout(() => {
         listRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [conversation?.messages.length, conversation?.messages[conversation?.messages.length - 1]?.content.length]);
+  }, [topLevelMessages.length, topLevelMessages[topLevelMessages.length - 1]?.content.length]);
 
   const handleSend = useCallback(
     (content: string) => {
@@ -92,11 +97,26 @@ export default function ChatScreen() {
     setThemeMode(isDark ? 'light' : 'dark');
   }, [isDark, setThemeMode]);
 
+  const handleReplyInThread = useCallback(
+    (message: Message) => {
+      if (!conversation) return;
+      router.push({
+        pathname: '/chat/[id]/thread/[parentId]',
+        params: {
+          id: conversation.id,
+          parentId: message.id,
+          ...(message.threadInfo?.thread_id ? { threadId: message.threadInfo.thread_id } : {}),
+        },
+      });
+    },
+    [conversation, router]
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: Message }) => (
-      <ChatBubble message={item} theme={theme} />
+      <ChatBubble message={item} theme={theme} onReplyInThread={handleReplyInThread} />
     ),
-    [theme]
+    [theme, handleReplyInThread]
   );
 
   const title = conversation?.adapterInfo?.adapter_name || conversation?.title || 'Chat';
@@ -156,7 +176,7 @@ export default function ChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {conversation.messages.length === 0 ? (
+        {topLevelMessages.length === 0 ? (
           <EmptyState
             theme={theme}
             variant="chat"
@@ -165,9 +185,10 @@ export default function ChatScreen() {
         ) : (
           <FlashList
             ref={listRef}
-            data={conversation.messages}
+            data={topLevelMessages}
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.messageList}
           />
         )}

@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Conversation } from '../types';
 import { ThemeColors } from '../theme/colors';
-import { MarkdownContent } from './MarkdownContent';
 
 interface Props {
   conversation: Conversation;
@@ -25,13 +24,14 @@ function formatTimestamp(date: Date): string {
 }
 
 export function ConversationCard({ conversation, onPress, theme }: Props) {
-  const lastMessage = conversation.messages[conversation.messages.length - 1];
+  const topLevelUserMessages = conversation.messages.filter(
+    (msg) => msg.role === 'user' && !msg.isThreadMessage
+  );
+  const lastTopLevelUserMessage = topLevelUserMessages[topLevelUserMessages.length - 1];
   const title = conversation.adapterInfo?.adapter_name || conversation.title;
-  const model = conversation.adapterInfo?.model;
-  const preview = lastMessage
-    ? lastMessage.content.slice(0, 140) + (lastMessage.content.length > 140 ? '...' : '')
+  const preview = lastTopLevelUserMessage
+    ? lastTopLevelUserMessage.content.slice(0, 140) + (lastTopLevelUserMessage.content.length > 140 ? '...' : '')
     : 'No messages yet';
-  const isAssistantPreview = lastMessage?.role === 'assistant';
 
   return (
     <Pressable
@@ -53,33 +53,17 @@ export function ConversationCard({ conversation, onPress, theme }: Props) {
             >
               {title}
             </Text>
-            {isAssistantPreview ? (
-              <View style={styles.previewMarkdownContainer}>
-                <MarkdownContent
-                  content={preview}
-                  theme={theme}
-                  variant="preview"
-                  textColor={theme.textSecondary}
-                />
-              </View>
-            ) : (
-              <Text
-                style={[styles.preview, { color: theme.textSecondary }]}
-                numberOfLines={2}
-              >
-                {preview}
-              </Text>
-            )}
+            <Text
+              style={[styles.preview, { color: theme.textSecondary }]}
+              numberOfLines={2}
+            >
+              {preview}
+            </Text>
           </View>
           <View style={styles.rightColumn}>
             <Text style={[styles.timestamp, { color: theme.textTertiary }]} numberOfLines={1}>
               {formatTimestamp(conversation.updatedAt)}
             </Text>
-            {model ? (
-              <Text style={[styles.model, { color: theme.textTertiary }]} numberOfLines={1}>
-                {model}
-              </Text>
-            ) : null}
           </View>
         </View>
       </View>
@@ -125,15 +109,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     marginTop: 8,
-  },
-  previewMarkdownContainer: {
-    marginTop: 8,
-    maxHeight: 36,
-    overflow: 'hidden',
-  },
-  model: {
-    fontSize: 12,
-    marginTop: 8,
-    maxWidth: 112,
   },
 });

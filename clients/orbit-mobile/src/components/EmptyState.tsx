@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { ThemeColors } from '../theme/colors';
 import { MarkdownContent } from './MarkdownContent';
 import { getConfig } from '../config/env';
@@ -8,11 +7,10 @@ import { getConfig } from '../config/env';
 interface Props {
   theme: ThemeColors;
   variant: 'chat' | 'conversations';
-  onPress?: () => void;
   adapterNotes?: string | null;
 }
 
-export function EmptyState({ theme, variant, onPress, adapterNotes }: Props) {
+export function EmptyState({ theme, variant, adapterNotes }: Props) {
   if (variant === 'chat') {
     return (
       <View style={styles.chatContainer}>
@@ -42,17 +40,9 @@ export function EmptyState({ theme, variant, onPress, adapterNotes }: Props) {
       <Text style={[styles.appTitle, { color: theme.text }]}>
         {appTitle}
       </Text>
-      <Pressable
-        style={({ pressed }) => [
-          styles.newChatButton,
-          { backgroundColor: theme.primary },
-          pressed && styles.pressed,
-        ]}
-        onPress={onPress}
-      >
-        <Ionicons name="add" size={22} color="#FFFFFF" />
-        <Text style={styles.newChatButtonText}>New Chat</Text>
-      </Pressable>
+      <Text style={[styles.helperText, { color: theme.textSecondary }]}>
+        Tap + to start a new chat.
+      </Text>
     </View>
   );
 }
@@ -76,28 +66,15 @@ const styles = StyleSheet.create({
   notesScrollContent: {
     paddingBottom: 12,
   },
-  pressed: {
-    opacity: 0.8,
-  },
   appTitle: {
     fontSize: 26,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
-  newChatButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 14,
-    gap: 8,
-  },
-  newChatButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+  helperText: {
+    fontSize: 14,
+    textAlign: 'center',
   },
   notesContainer: {
     width: '100%',

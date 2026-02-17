@@ -20,6 +20,8 @@ interface Props {
   onStop: () => void;
   isLoading: boolean;
   theme: ThemeColors;
+  autoFocus?: boolean;
+  placeholder?: string;
   audioEnabled?: boolean;
   audioOutputSupported?: boolean;
   onToggleAudio?: () => void;
@@ -30,6 +32,8 @@ export function ChatInput({
   onStop,
   isLoading,
   theme,
+  autoFocus = false,
+  placeholder = 'Ask me anything...',
   audioEnabled = false,
   audioOutputSupported = false,
   onToggleAudio,
@@ -138,7 +142,7 @@ export function ChatInput({
             { color: theme.text },
             audioOutputSupported && styles.inputWithLeftButton,
           ]}
-          placeholder="Ask me anything..."
+          placeholder={placeholder}
           placeholderTextColor={theme.textTertiary}
           value={text}
           onChangeText={(t) => setText(t.slice(0, MAX_MESSAGE_LENGTH))}
@@ -149,6 +153,7 @@ export function ChatInput({
           onSubmitEditing={handleSend}
           onKeyPress={handleKeyPress}
           onContentSizeChange={handleContentSizeChange}
+          autoFocus={autoFocus}
         />
 
         {/* Mic button - keep visible for consistent UX, disable when unsupported */}

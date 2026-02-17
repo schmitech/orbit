@@ -36,6 +36,13 @@ export default function RootLayout() {
             headerBackTitle: 'Back',
           }}
         />
+        <Stack.Screen
+          name="chat/[id]/thread/[parentId]"
+          options={{
+            title: 'Replies',
+            headerBackTitle: 'Chat',
+          }}
+        />
       </Stack>
     </GestureHandlerRootView>
   );

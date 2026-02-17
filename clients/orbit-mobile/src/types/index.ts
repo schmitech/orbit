@@ -4,6 +4,22 @@ export interface Message {
   role: 'user' | 'assistant';
   timestamp: Date;
   isStreaming?: boolean;
+  threadInfo?: ThreadInfo;
+  supportsThreading?: boolean;
+  databaseMessageId?: string;
+  threadId?: string;
+  parentMessageId?: string;
+  isThreadMessage?: boolean;
+}
+
+export interface ThreadInfo {
+  thread_id: string;
+  thread_session_id: string;
+  parent_message_id: string;
+  parent_session_id: string;
+  adapter_name: string;
+  created_at: string;
+  expires_at: string;
 }
 
 export interface AdapterInfo {
@@ -22,6 +38,8 @@ export interface Conversation {
   updatedAt: Date;
   adapterInfo?: AdapterInfo;
   audioSettings?: AudioSettings;
+  currentThreadId?: string;
+  currentThreadSessionId?: string;
 }
 
 export interface AudioSettings {

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ChatState, Conversation, Message, AdapterInfo, AudioSettings } from '../types';
+import { ChatState, Conversation, Message, AdapterInfo, AudioSettings, ThreadInfo } from '../types';
 import { getApiClient } from '../api/client';
 import type { StreamResponse } from '../api/client';
 import { generateSessionId, generateMessageId } from '../utils/session';
@@ -73,7 +73,9 @@ interface ChatActions {
   updateAudioSettings: (conversationId: string, settings: Partial<AudioSettings>) => void;
 
   // Messaging
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, threadId?: string, parentMessageId?: string) => Promise<void>;
+  createThread: (messageId: string, sessionId: string) => Promise<ThreadInfo>;
+  sendThreadMessage: (threadId: string, parentMessageId: string, content: string) => Promise<void>;
   stopGeneration: () => Promise<void>;
   appendToLastMessage: (content: string, conversationId: string) => void;
 
@@ -275,7 +277,7 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     buffer.timeoutId = setTimeout(flushBuffer, STREAMING_BATCH_DELAY);
   },
 
-  sendMessage: async (content: string) => {
+  sendMessage: async (content: string, threadId?: string, parentMessageId?: string) => {
     if (get().isLoading) return;
 
     let conversationId = get().currentConversationId;
@@ -303,6 +305,28 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     const ttsVoice = conversation.audioSettings?.ttsVoice;
     const language = conversation.audioSettings?.language || 'en-US';
 
+    const activeThreadId = threadId || null;
+    let threadParentMessage: Message | undefined;
+    let threadSessionId: string | null = null;
+
+    if (activeThreadId) {
+      threadParentMessage = conversation.messages.find((msg) => {
+        if (parentMessageId && msg.id !== parentMessageId) {
+          return false;
+        }
+        return msg.threadInfo?.thread_id === activeThreadId;
+      });
+
+      if (!threadParentMessage) {
+        throw new Error('Thread metadata not found. Please recreate the thread from this message.');
+      }
+
+      threadSessionId = threadParentMessage.threadInfo?.thread_session_id || null;
+      if (!threadSessionId) {
+        throw new Error('Thread session is missing. Please recreate the thread from this message.');
+      }
+    }
+
     // Create user and assistant placeholder messages
     const userMessage: Message = {
       id: generateMessageId('user'),
@@ -318,6 +342,16 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       timestamp: new Date(),
       isStreaming: true,
     };
+
+    if (activeThreadId && threadParentMessage) {
+      userMessage.isThreadMessage = true;
+      userMessage.threadId = activeThreadId;
+      userMessage.parentMessageId = threadParentMessage.id;
+
+      assistantMessage.isThreadMessage = true;
+      assistantMessage.threadId = activeThreadId;
+      assistantMessage.parentMessageId = threadParentMessage.id;
+    }
 
     // Atomic update: add messages, set title, mark loading
     set((state) => ({
@@ -353,11 +387,12 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
 
     try {
       const api = getApiClient();
-      api.setSessionId(conversation.sessionId);
+      const requestSessionId = threadSessionId || conversation.sessionId;
+      api.setSessionId(requestSessionId);
 
       const abortController = new AbortController();
       activeAbortController = abortController;
-      activeStreamSessionId = conversation.sessionId;
+      activeStreamSessionId = requestSessionId;
       activeRequestId = null;
 
       let receivedAnyText = false;
@@ -366,7 +401,7 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
         content,
         true, // stream
         undefined, // fileIds
-        undefined, // threadId
+        activeThreadId || undefined, // threadId
         undefined, // audioInput
         undefined, // audioFormat
         audioEnabled ? language : undefined, // language
@@ -394,6 +429,28 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
             audioFormat: response.audioFormat || 'opus',
             chunkIndex: response.chunk_index ?? 0,
           });
+        }
+
+        if (response.done && response.threading?.supports_threading) {
+          const threadingInfo = response.threading;
+          set((state) => ({
+            conversations: state.conversations.map((conv) => {
+              if (conv.id !== streamingConversationId) return conv;
+              return {
+                ...conv,
+                messages: conv.messages.map((msg) =>
+                  msg.id === assistantMessage.id
+                    ? {
+                        ...msg,
+                        supportsThreading: true,
+                        databaseMessageId: threadingInfo.message_id,
+                      }
+                    : msg
+                ),
+                updatedAt: new Date(),
+              };
+            }),
+          }));
         }
 
         if (response.done) {
@@ -456,6 +513,50 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       activeRequestId = null;
       activeStreamSessionId = null;
     }
+  },
+
+  createThread: async (messageId: string, sessionId: string) => {
+    const conversation = get().conversations.find((conv) => conv.sessionId === sessionId);
+    if (!conversation) {
+      throw new Error('Conversation not found for session');
+    }
+
+    const message = conversation.messages.find((msg) => msg.id === messageId);
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
+    const dbMessageId = message.databaseMessageId || messageId;
+    const api = getApiClient();
+    const threadInfo: ThreadInfo = await api.createThread(dbMessageId, sessionId);
+
+    set((state) => ({
+      conversations: state.conversations.map((conv) => {
+        if (conv.sessionId !== sessionId) return conv;
+        return {
+          ...conv,
+          messages: conv.messages.map((msg) =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  threadInfo,
+                  supportsThreading: true,
+                }
+              : msg
+          ),
+          currentThreadId: undefined,
+          currentThreadSessionId: undefined,
+          updatedAt: new Date(),
+        };
+      }),
+    }));
+
+    saveConversations(get().conversations);
+    return threadInfo;
+  },
+
+  sendThreadMessage: async (threadId: string, parentMessageId: string, content: string) => {
+    await get().sendMessage(content, threadId, parentMessageId);
   },
 
   stopGeneration: async () => {
