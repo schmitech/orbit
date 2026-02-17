@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { cloneElement, isValidElement, useCallback, useRef, useState } from 'react';
 import { StyleSheet, View, Text, Modal, Pressable } from 'react-native';
 import { RectButton } from 'react-native-gesture-handler';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
@@ -13,7 +13,29 @@ interface Props {
 export function SwipeableRow({ children, onDelete }: Props) {
   const swipeableRef = useRef<any>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const swipeGestureActiveRef = useRef(false);
+  const lastSwipeInteractionTsRef = useRef(0);
   const { theme } = useTheme();
+
+  const markSwipeInteraction = useCallback(() => {
+    swipeGestureActiveRef.current = true;
+    lastSwipeInteractionTsRef.current = Date.now();
+  }, []);
+
+  const clearSwipeInteraction = useCallback(() => {
+    lastSwipeInteractionTsRef.current = Date.now();
+    // Small cooldown prevents the swipe-end tap from opening the row.
+    setTimeout(() => {
+      swipeGestureActiveRef.current = false;
+    }, 180);
+  }, []);
+
+  const shouldBlockChildPress = useCallback((): boolean => {
+    if (swipeGestureActiveRef.current) {
+      return true;
+    }
+    return Date.now() - lastSwipeInteractionTsRef.current < 260;
+  }, []);
 
   const handleDelete = useCallback(() => {
     setShowConfirm(true);
@@ -37,6 +59,20 @@ export function SwipeableRow({ children, onDelete }: Props) {
     </RectButton>
   );
 
+  const content = isValidElement(children)
+    ? cloneElement(children as React.ReactElement<any>, {
+        onPress: (...args: any[]) => {
+          if (shouldBlockChildPress()) {
+            return;
+          }
+          const originalOnPress = (children as React.ReactElement<any>).props?.onPress;
+          if (typeof originalOnPress === 'function') {
+            originalOnPress(...args);
+          }
+        },
+      })
+    : children;
+
   return (
     <>
       <Swipeable
@@ -44,8 +80,13 @@ export function SwipeableRow({ children, onDelete }: Props) {
         renderRightActions={renderRightActions}
         overshootRight={false}
         friction={2}
+        onSwipeableOpenStartDrag={markSwipeInteraction}
+        onSwipeableCloseStartDrag={markSwipeInteraction}
+        onSwipeableWillOpen={markSwipeInteraction}
+        onSwipeableWillClose={clearSwipeInteraction}
+        onSwipeableClose={clearSwipeInteraction}
       >
-        {children}
+        {content}
       </Swipeable>
       <Modal
         visible={showConfirm}
