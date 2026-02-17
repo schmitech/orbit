@@ -3,10 +3,10 @@ import {
   ArrowUp,
   Bot,
   ChevronDown,
-  ChevronRight,
   ChevronUp,
   Copy,
   File,
+  HelpCircle,
   Loader2,
   MessageSquare,
   RotateCcw,
@@ -34,11 +34,6 @@ interface MessageProps {
 }
 
 const EMPTY_THREAD_REPLIES: MessageType[] = [];
-const THREAD_PLACEHOLDER_HINTS = [
-  'Try: "Break down the key takeaways"',
-  'Try: "Make a pie chart from this data"',
-  'Try: "Summarize it in a quick table"'
-];
 
 export function Message({
   message,
@@ -54,21 +49,14 @@ export function Message({
   const [threadInput, setThreadInput] = useState('');
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
-  const [threadHintIndex, setThreadHintIndex] = useState(() =>
-    THREAD_PLACEHOLDER_HINTS.length > 1
-      ? Math.floor(Math.random() * THREAD_PLACEHOLDER_HINTS.length)
-      : 0
-  );
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
   const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
   const threadRepliesRef = useRef<HTMLDivElement>(null);
   const prevThreadContentRef = useRef<string>('');
-  const prevThreadOpenRef = useRef(false);
 
   const isAssistant = message.role === 'assistant';
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
-  // Count only assistant responses, not user questions
-  const threadReplyCount = threadReplies.filter(msg => msg.role === 'assistant').length;
+  const threadReplyCount = threadReplies.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length;
   const threadMessageCount = threadReplies.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length;
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
   const locale = import.meta.env.VITE_LOCALE || 'en-US';
@@ -81,12 +69,7 @@ export function Message({
       ? `This thread reached the ${threadLimit} message limit. Start a new conversation for more follow-ups.`
       : null;
   const { theme, isDark } = useTheme();
-  const threadPlaceholder =
-    threadReplyCount > 0
-      ? 'Reply in thread...'
-      : THREAD_PLACEHOLDER_HINTS.length > 0
-        ? THREAD_PLACEHOLDER_HINTS[threadHintIndex % THREAD_PLACEHOLDER_HINTS.length]
-        : 'Ask a follow-up...';
+  const threadPlaceholder = 'Reply in thread...';
 
   const forcedThemeClass =
     theme.mode === 'dark' ? 'dark' : theme.mode === 'light' ? 'light' : '';
@@ -283,40 +266,6 @@ export function Message({
     }
   }, [threadInput]);
 
-  useEffect(() => {
-    if (threadReplyCount > 0) {
-      setThreadHintIndex(0);
-    }
-  }, [threadReplyCount]);
-
-  useEffect(() => {
-    const wasOpen = prevThreadOpenRef.current;
-    const canRotate = !threadComposerDisabled && threadReplyCount === 0 && THREAD_PLACEHOLDER_HINTS.length > 1;
-
-    if (!wasOpen && isThreadOpen && canRotate) {
-      setThreadHintIndex(prev => (prev + 1) % THREAD_PLACEHOLDER_HINTS.length);
-    }
-
-    prevThreadOpenRef.current = isThreadOpen;
-  }, [isThreadOpen, threadComposerDisabled, threadReplyCount]);
-
-  useEffect(() => {
-    if (
-      !isThreadOpen ||
-      threadComposerDisabled ||
-      threadReplyCount > 0 ||
-      THREAD_PLACEHOLDER_HINTS.length <= 1
-    ) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setThreadHintIndex(prev => (prev + 1) % THREAD_PLACEHOLDER_HINTS.length);
-    }, 6000);
-
-    return () => clearInterval(interval);
-  }, [isThreadOpen, threadComposerDisabled, threadReplyCount]);
-
   const renderedMessageContent = useMemo(() => {
     if (message.isStreaming && (!message.content || message.content === '…')) {
       return (
@@ -456,6 +405,27 @@ export function Message({
                 </button>
               )}
 
+              {threadsEnabled && onStartThread && message.supportsThreading && !message.threadInfo && sessionId && (
+                <div className="inline-flex items-center gap-1">
+                  <button
+                    onClick={() => onStartThread(message.id, sessionId)}
+                    className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
+                    title="Reply in thread"
+                    aria-label="Reply in thread"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    <span className="hidden sm:inline">Reply in thread</span>
+                  </button>
+                  <span
+                    className="inline-flex items-center rounded p-1 text-gray-500 dark:text-[#bfc2cd]"
+                    title="Use this when your question is about this specific answer. Use the main input for unrelated topics."
+                    aria-label="Thread help"
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                  </span>
+                </div>
+              )}
+
               {getEnableFeedbackButtons() && (
                 <div className="flex items-center gap-1">
                   <button
@@ -479,34 +449,6 @@ export function Message({
 
               {copied && <span>Copied</span>}
             </div>
-
-            {threadsEnabled && onStartThread && message.supportsThreading && !message.threadInfo && sessionId && (
-              <div className="mt-3 w-full rounded-2xl border border-blue-200/80 bg-gradient-to-br from-blue-50/80 via-blue-50/60 to-white/90 p-4 text-xs shadow-sm ring-1 ring-blue-100/60 transition hover:border-blue-300 hover:ring-blue-200 dark:border-white/10 dark:from-[#0e1724]/90 dark:via-[#101b2a]/80 dark:to-[#0f1821]/85 dark:text-[#e1e8ff] dark:ring-white/5 sm:mt-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-1 items-start gap-3">
-                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-blue-600 shadow-none dark:text-[#8fb7ff]">
-                      <MessageSquare className="h-5 w-5" />
-                    </div>
-                    <div className="space-y-2">
-                      <div>
-                        <p className="text-sm font-semibold text-blue-900 dark:text-[#f1f5ff]">Continue in a focused follow-up thread</p>
-                        <p className="mt-1 text-[13px] text-blue-900/80 dark:text-[#b4c7ff]">
-                          Deep dive into this response to extract more details, ask targeted follow-ups, and refine the output.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => onStartThread(message.id, sessionId)}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0f8f6f] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d765b] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#0f8f6f] dark:focus-visible:ring-offset-[#0f1821] sm:w-auto"
-                    title="Start a follow-up thread"
-                  >
-                    Start follow-up thread
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            )}
           </>
         )}
 
@@ -516,7 +458,7 @@ export function Message({
               <div className="inline-flex items-center gap-2 uppercase tracking-wide text-xs sm:text-sm">
                 <MessageSquare className="h-3.5 w-3.5" />
                 <span>
-                  Thread{threadReplyCount > 0 ? ` (${threadReplyCount})` : ''}
+                  Replies{threadReplyCount > 0 ? ` (${threadReplyCount})` : ''}
                 </span>
               </div>
               <button
@@ -525,12 +467,12 @@ export function Message({
               >
                 {isThreadOpen ? (
                   <>
-                    <span className="hidden sm:inline">Hide</span>
+                    <span className="hidden sm:inline">Hide replies</span>
                     <ChevronUp className="h-4 w-4 sm:h-3 sm:w-3" />
                   </>
                 ) : (
                   <>
-                    <span className="hidden sm:inline">Show</span>
+                    <span className="hidden sm:inline">Show replies</span>
                     <ChevronDown className="h-4 w-4 sm:h-3 sm:w-3" />
                   </>
                 )}
@@ -544,7 +486,13 @@ export function Message({
                   className="mt-3 space-y-3 max-h-96 overflow-y-auto scroll-smooth"
                   style={{ scrollBehavior: 'auto' }}
                 >
-                  {renderedThreadReplies}
+                  {threadReplyCount === 0 ? (
+                    <div className="rounded-lg border border-dashed border-blue-200/80 bg-white/60 px-3 py-2 text-xs text-blue-900/70 dark:border-white/10 dark:bg-white/[0.04] dark:text-[#b4c7ff]">
+                      No replies yet. Ask a clarifying question here.
+                    </div>
+                  ) : (
+                    renderedThreadReplies
+                  )}
                 </div>
 
                 {threadLimitMessage && (
@@ -554,6 +502,11 @@ export function Message({
                 )}
 
                 <div className="mt-3 rounded-xl border border-white/80 bg-white/95 p-3 shadow-sm dark:border-white/10 dark:bg-white/10">
+                  {threadReplyCount === 0 && (
+                    <p className="mb-2 text-xs font-medium text-blue-900/80 dark:text-[#b4c7ff]">
+                      Replying in thread keeps this discussion linked to this message.
+                    </p>
+                  )}
                   {/* Mobile: stacked layout, Desktop: inline */}
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                     <textarea

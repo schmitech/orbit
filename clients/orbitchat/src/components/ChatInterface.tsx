@@ -86,12 +86,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const [adapterNotesError, setAdapterNotesError] = useState<string | null>(null);
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
+  const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
   const isMiddlewareEnabled = getEnableApiMiddleware();
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
   const applicationName = getApplicationName();
   const applicationDescription = getApplicationDescription().trim();
   const hasIntroDescription = applicationDescription.length > 0;
-  const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
   const initialPathSlugRef = useRef<string | null>(
     typeof window !== 'undefined' ? getAgentSlugFromPath(window.location.pathname) : null
   );
@@ -892,7 +892,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       (isMiddlewareEnabled && isAgentSelectionVisible) ||
                       hasAdapterConfigurationError
                     }
-                    placeholder={defaultInputPlaceholder}
+                    placeholder="Ask another question..."
                   />
                 </div>
               </div>
