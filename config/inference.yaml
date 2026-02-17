@@ -457,12 +457,12 @@ inference:
   cohere:
     enabled: true
     api_key: ${COHERE_API_KEY}
-    api_base: "https://api.cohere.ai/v2"
-    model: "command-r7b-12-2024"
-    context_window: 128000  # Command R supports 128K context
+    api_base: "https://api.cohere.ai/compatibility/v1"
+    model: "command-a-03-2025"
+    context_window: 288000  # Command A API limit (input + output); reserve space for max_tokens
     temperature: 0.1
     top_p: 0.8
-    max_tokens: 1024
+    max_tokens: 8000       # Max output tokens (on-demand may cap at 4K; dedicated has no cap)
     stream: true
   watson:
     enabled: false

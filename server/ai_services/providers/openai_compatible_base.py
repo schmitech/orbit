@@ -56,6 +56,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "together": "https://api.together.xyz/v1",
         "openrouter": "https://openrouter.ai/api/v1",
         "xai": "https://api.x.ai/v1",
+        "cohere": "https://api.cohere.ai/compatibility/v1",
     }
 
     # Default API key environment variable names
@@ -68,6 +69,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "together": "TOGETHER_API_KEY",
         "openrouter": "OPENROUTER_API_KEY",
         "xai": "XAI_API_KEY",
+        "cohere": "COHERE_API_KEY",
     }
 
     def __init__(

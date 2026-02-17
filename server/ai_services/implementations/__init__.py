@@ -73,7 +73,7 @@ _required_packages = {
     'AnthropicInferenceService': 'anthropic',
     'AnthropicModerationService': 'anthropic',
     'CohereEmbeddingService': 'cohere',
-    'CohereInferenceService': 'cohere',
+    'CohereInferenceService': 'openai',
     'MistralEmbeddingService': 'mistralai',
     'MistralInferenceService': 'mistralai',
     'GroqInferenceService': 'groq',
