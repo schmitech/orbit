@@ -1135,6 +1135,7 @@ export function MessageInput({
             )}
             <textarea
               ref={textareaRef}
+              aria-label="Message input"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -1200,6 +1201,7 @@ export function MessageInput({
                       ? `${attachedFiles.length} file(s) attached`
                       : 'Attach files'
                   }
+                  aria-label="Attach files"
                 >
                   {isFileUploadDisabled && isHoveringUpload ? (
                     <X className="h-5 w-5 md:h-4 md:w-4" />
@@ -1236,6 +1238,7 @@ export function MessageInput({
                         ? 'Voice responses enabled - Click to disable'
                         : 'Enable voice responses (text-to-speech)'
                     }
+                    aria-label={settings.voiceEnabled ? 'Disable voice responses' : 'Enable voice responses'}
                   >
                     {settings.voiceEnabled ? (
                       <Volume2 className="h-5 w-5" />
@@ -1264,6 +1267,7 @@ export function MessageInput({
                           ? 'Stop recording'
                           : 'Start voice input'
                       }
+                      aria-label={isListening ? 'Stop recording' : 'Start voice input'}
                     >
                       {isListening || (isInputDisabled && isHoveringMic) ? (
                         <MicOff className="h-5 w-5" />
@@ -1290,6 +1294,7 @@ export function MessageInput({
                   }}
                   className="flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
                   title="Stop generating"
+                  aria-label="Stop generating"
                 >
                   <Square className="h-4 w-4 md:h-3 md:w-3 fill-current" />
                 </button>
@@ -1303,6 +1308,7 @@ export function MessageInput({
                       : 'bg-gray-300 text-gray-500 dark:bg-[#565869] dark:text-[#6b6f7a]'
                   }`}
                   title="Send message"
+                  aria-label="Send message"
                 >
                   <ArrowUp className="h-5 w-5 md:h-4 md:w-4" />
                 </button>

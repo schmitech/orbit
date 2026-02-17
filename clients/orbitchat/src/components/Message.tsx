@@ -438,6 +438,7 @@ export function Message({
                 onClick={copyToClipboard}
                 className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
                 title="Copy message"
+                aria-label="Copy message"
               >
                 <Copy className="h-4 w-4" />
                 <span className="hidden sm:inline">Copy</span>
@@ -448,6 +449,7 @@ export function Message({
                   onClick={() => onRegenerate(message.id)}
                   className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
                   title="Regenerate response"
+                  aria-label="Regenerate response"
                 >
                   <RotateCcw className="h-4 w-4" />
                   <span className="hidden sm:inline">Retry</span>
@@ -460,6 +462,7 @@ export function Message({
                     onClick={() => handleFeedback('up')}
                     className={`rounded p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'up' ? 'text-[#353740] dark:text-[#ececf1]' : ''}`}
                     title="Good response"
+                    aria-label="Good response"
                   >
                     <ThumbsUp className="h-4 w-4" />
                   </button>
@@ -467,6 +470,7 @@ export function Message({
                     onClick={() => handleFeedback('down')}
                     className={`rounded p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'down' ? 'text-[#353740] dark:text-[#ececf1]' : ''}`}
                     title="Poor response"
+                    aria-label="Poor response"
                   >
                     <ThumbsDown className="h-4 w-4" />
                   </button>

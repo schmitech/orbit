@@ -204,6 +204,7 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
         disabled={isLoading}
         className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-50 dark:bg-[#4a4b54] dark:hover:bg-[#565869]"
         title={isPlaying ? 'Pause' : 'Play'}
+        aria-label={isPlaying ? 'Pause audio' : 'Play audio'}
       >
         {isLoading ? (
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />

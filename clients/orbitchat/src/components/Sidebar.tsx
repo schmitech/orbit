@@ -476,6 +476,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
               <Search className="pointer-events-none absolute left-3 h-4 w-4 text-gray-400" />
               <input
                 type="text"
+                aria-label="Search conversations"
                 placeholder="Search Conversations"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -500,12 +501,21 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                 return (
                   <div
                     key={conversation.id}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSelectConversation(conversation.id);
+                      }
+                    }}
                     onClick={() => handleSelectConversation(conversation.id)}
-                    className={`group flex cursor-pointer items-start rounded-xl border text-left transition shadow-sm ${sizeStyles.cardGap} ${sizeStyles.cardPadding} ${sizeStyles.cardText} dark:shadow-none ${
+                    className={`group flex w-full cursor-pointer items-start rounded-xl border text-left transition shadow-sm ${sizeStyles.cardGap} ${sizeStyles.cardPadding} ${sizeStyles.cardText} dark:shadow-none ${
                       currentConversationId === conversation.id
                         ? 'border-[#343541] bg-white dark:border-[#6b6f7a] dark:bg-[#2c2f36]'
                         : 'border-gray-100 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-transparent dark:bg-[#252830] dark:hover:border-[#4a4b54] dark:hover:bg-[#2f323c]'
                     }`}
+                    aria-current={currentConversationId === conversation.id ? 'true' : undefined}
                   >
                     {editingId === conversation.id ? (
                       <input
@@ -536,6 +546,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                               onClick={(e) => handleEditStart(e, conversation)}
                               className={`rounded-full text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a] ${sizeStyles.actionButton}`}
                               title="Rename conversation"
+                              aria-label={`Rename conversation: ${conversation.title}`}
                             >
                               <Edit2 className={sizeStyles.actionIcon} />
                             </button>
@@ -543,6 +554,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                               onClick={(e) => handleDeleteConversation(e, conversation)}
                               className={`rounded-full text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30 ${sizeStyles.actionButton}`}
                               title="Delete conversation"
+                              aria-label={`Delete conversation: ${conversation.title}`}
                             >
                               <Trash2 className={sizeStyles.actionIcon} />
                             </button>

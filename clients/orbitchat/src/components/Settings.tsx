@@ -77,6 +77,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            aria-label="Close settings"
           >
             <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
           </button>

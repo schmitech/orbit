@@ -53,14 +53,22 @@ export function isBase64AudioData(text: string): boolean {
   return false;
 }
 
+// Unicode space characters that KaTeX's Main-Regular font doesn't support (causes "No character metrics" console errors)
+// Normalize these to regular space (U+0020) before passing to MarkdownRenderer/KaTeX
+const KATEX_UNSAFE_SPACES = /[\u202F\u2009\u200A\u200B\u200C\u200D\uFEFF]/g;
+
 /**
- * Sanitizes message content by removing base64 audio data
+ * Sanitizes message content by removing base64 audio data and normalizing
+ * Unicode spaces that break KaTeX rendering.
  */
 export function sanitizeMessageContent(content: string): string {
   if (!content) return content;
 
+  // Normalize Unicode spaces that cause "No character metrics" in KaTeX to regular space
+  let sanitized = content.replace(KATEX_UNSAFE_SPACES, ' ');
+
   // Check if the entire content is base64 audio
-  if (isBase64AudioData(content)) {
+  if (isBase64AudioData(sanitized)) {
     return ''; // Remove it entirely
   }
 
@@ -68,7 +76,7 @@ export function sanitizeMessageContent(content: string): string {
   // Only look for very long base64-like strings (>10KB encoded)
   // This threshold is high enough to avoid false positives with legitimate base64 in code
   const base64BlockPattern = /([A-Za-z0-9+/=]{10000,})/g;
-  const sanitized = content.replace(base64BlockPattern, (match) => {
+  sanitized = sanitized.replace(base64BlockPattern, (match) => {
     // Remove whitespace to check the actual base64 content
     const cleaned = match.replace(/\s+/g, '');
 
