@@ -33,7 +33,7 @@ export VITE_ADAPTERS='[
   { "name": "HR System", "apiKey": "hr", "apiUrl": "http://localhost:3000", "description": "Conversational assistant for HR records, people search, and analytics." },
   { "name": "Movies DB", "apiKey": "mflix", "apiUrl": "http://localhost:3000", "description": "Explores and queries a MongoDB-powered movies database (MFlix sample set)." },
   { "name": "Business Analytics", "apiKey": "analytical", "apiUrl": "http://localhost:3000", "description": "Analyze datasets and generate business intelligence reports." },
-  { "name": "Electric Vehicle Population", "apiKey": "ev, "apiUrl": "http://localhost:3000", "description": "Accesses statistics and insights about electric vehicle registrations." },
+  { "name": "Electric Vehicle Population", "apiKey": "ev", "apiUrl": "http://localhost:3000", "description": "Accesses statistics and insights about electric vehicle registrations." },
   { "name": "Paris Open Data", "apiKey": "paris", "apiUrl": "http://localhost:3000", "description": "Interact with Paris city open data for events, venues, and more." },
   { "name": "REST API", "apiKey": "rest", "apiUrl": "http://localhost:3000", "description": "Enables generic REST API exploration and data extraction." }
 ]'
