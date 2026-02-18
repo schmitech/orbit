@@ -53,7 +53,7 @@ start_app() {
         --max-total-files 20 \
         --max-message-length 500 \
         --application-name "Welcome to ORBIT Local" \
-        --application-description "ORBIT provides a specialized AI interface that allows anyone to ask plain-language questions and receive summarized, citation-backed answers drawn directly from official Canadian open data sources. Please read our [Terms and Conditions](https://schmitech.ai/en/civicchat) before using the service." \
+        --application-description "ORBIT provides a specialized AI interface that allows anyone to ask plain-language questions and receive summarized, citation-backed answers drawn directly from data sources." \
         --default-input-placeholder "Ask ORBIT Local Anything..." \
         > "$LOGFILE" 2>&1 &
 
