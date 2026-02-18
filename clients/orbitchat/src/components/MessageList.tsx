@@ -147,16 +147,20 @@ export function MessageList({
     >
       <div className="space-y-6 px-3 sm:px-4">
         {topLevelMessages.map((message) => (
-          <Message
+          <div
             key={message.id}
-            message={message}
-            onRegenerate={onRegenerate}
-            onStartThread={onStartThread}
-            onSendThreadMessage={onSendThreadMessage}
-            threadMessages={threadLookup.get(message.id)}
-            sessionId={sessionId}
-            isThreadSendDisabled={isLoading}
-          />
+            style={{ contentVisibility: 'auto', containIntrinsicSize: '420px' }}
+          >
+            <Message
+              message={message}
+              onRegenerate={onRegenerate}
+              onStartThread={onStartThread}
+              onSendThreadMessage={onSendThreadMessage}
+              threadMessages={threadLookup.get(message.id)}
+              sessionId={sessionId}
+              isThreadSendDisabled={isLoading}
+            />
+          </div>
         ))}
 
         <div ref={messagesEndRef} className="h-8" />

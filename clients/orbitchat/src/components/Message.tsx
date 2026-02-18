@@ -72,6 +72,7 @@ export function Message({
       : null;
   const { theme, isDark } = useTheme();
   const threadPlaceholder = 'Reply in thread...';
+  const threadInputId = `thread-input-${message.id}`;
 
   const forcedThemeClass =
     theme.mode === 'dark' ? 'dark' : theme.mode === 'light' ? 'light' : '';
@@ -546,10 +547,15 @@ export function Message({
                   )}
                   {/* Mobile: stacked layout, Desktop: inline */}
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                    <label htmlFor={threadInputId} className="sr-only">
+                      Reply in thread
+                    </label>
                     <textarea
+                      id={threadInputId}
                       ref={threadTextareaRef}
                       className="flex-1 w-full sm:w-auto min-w-0 resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base sm:text-sm text-[#1f2937] placeholder-slate-500 shadow-inner outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-200/70 disabled:opacity-60 dark:border-[#4d5368] dark:bg-[#171a22] dark:text-[#ececf1] dark:placeholder-[#8e8ea0] dark:focus:border-blue-400 dark:focus:ring-blue-500/30"
                       placeholder={threadPlaceholder}
+                      aria-label="Reply in thread"
                       value={threadInput}
                       onChange={e => setThreadInput(e.target.value)}
                       onKeyDown={handleThreadKeyDown}

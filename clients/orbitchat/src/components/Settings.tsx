@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { X, Monitor, Sun, Moon, Palette, Type, Volume2, Package, Trash2, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { getVersionInfo } from '../utils/version';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -18,8 +19,8 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmationText, setResetConfirmationText] = useState('');
   const [resetAcknowledged, setResetAcknowledged] = useState(false);
-
-  if (!isOpen) return null;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const resetDialogRef = useRef<HTMLDivElement>(null);
 
   const handleThemeChange = (mode: 'light' | 'dark' | 'system') => {
     updateTheme({ mode });
@@ -58,12 +59,24 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
   const canResetApplication =
     resetAcknowledged && resetConfirmationText.trim().toLowerCase() === 'reset';
 
+  useFocusTrap(dialogRef, { enabled: isOpen && !showResetConfirm, onEscape: onClose });
+  useFocusTrap(resetDialogRef, { enabled: showResetConfirm, onEscape: closeResetDialog });
+
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden relative">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        tabIndex={-1}
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden relative"
+      >
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+          <h2 id="settings-title" className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             Settings
           </h2>
           <button
@@ -123,6 +136,9 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
               </div>
               <button
                 onClick={handleHighContrastToggle}
+                role="switch"
+                aria-checked={theme.highContrast}
+                aria-label="Toggle high contrast mode"
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   theme.highContrast ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'
                 }`}
@@ -189,6 +205,9 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
               </div>
               <button 
                 onClick={handleSoundEffectsToggle}
+                role="switch"
+                aria-checked={settings.soundEnabled}
+                aria-label="Toggle sound effects"
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   settings.soundEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'
                 }`}
@@ -237,13 +256,20 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
         </div>
         {showResetConfirm && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 border border-red-100 dark:border-red-800 shadow-2xl p-6 space-y-4">
+            <div
+              ref={resetDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="reset-dialog-title"
+              tabIndex={-1}
+              className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 border border-red-100 dark:border-red-800 shadow-2xl p-6 space-y-4"
+            >
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
                   <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
                 </div>
                 <div>
-                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                  <p id="reset-dialog-title" className="text-base font-semibold text-gray-900 dark:text-gray-100">
                     Reset application data?
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">

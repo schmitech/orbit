@@ -1018,23 +1018,23 @@ export function MessageInput({
     <div className={`bg-white px-3 py-3 md:px-0 md:py-4 dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
       <div className={`mx-auto w-full ${contentMaxWidth}`}>
         {voiceError && audioInputEnabled && (
-          <div className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
+          <div role="alert" aria-live="assertive" className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
             {voiceError}
           </div>
         )}
         {pasteError && (
-          <div className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
+          <div role="alert" aria-live="assertive" className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
             {pasteError}
           </div>
         )}
         {uploadSuccessMessage && (
-          <div className="mb-3 w-full flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200">
+          <div role="status" aria-live="polite" className="mb-3 w-full flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200">
             <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
             <span>{uploadSuccessMessage}</span>
           </div>
         )}
         {limitWarnings.length > 0 && (
-          <div className="mb-3 w-full rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-[#2f2410] dark:text-amber-100">
+          <div role="status" aria-live="polite" className="mb-3 w-full rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-[#2f2410] dark:text-amber-100">
             <ul className="list-disc space-y-1 pl-4">
               {limitWarnings.map((warning, index) => (
                 <li key={`${warning}-${index}`}>{warning}</li>

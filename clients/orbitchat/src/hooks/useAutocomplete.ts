@@ -62,6 +62,14 @@ export function useAutocomplete(
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const suppressedQueryRef = useRef<string | null>(null);
+  const latestRequestIdRef = useRef(0);
+  const suggestionsRef = useRef<AutocompleteSuggestion[]>([]);
+  const lastNonEmptySuggestionsRef = useRef<AutocompleteSuggestion[]>([]);
+
+  useEffect(() => {
+    suggestionsRef.current = suggestions;
+  }, [suggestions]);
+
   const sanitizeSuggestionText = useCallback((text: unknown): AutocompleteSuggestion | null => {
     if (typeof text !== 'string') {
       return null;
@@ -78,14 +86,39 @@ export function useAutocomplete(
     return { text: normalized };
   }, []);
 
+  const getFallbackSuggestions = useCallback((searchQuery: string): AutocompleteSuggestion[] => {
+    const normalizedQuery = searchQuery.toLowerCase().trim();
+    const source = lastNonEmptySuggestionsRef.current.length > 0
+      ? lastNonEmptySuggestionsRef.current
+      : suggestionsRef.current;
+
+    if (!normalizedQuery) {
+      return source.slice(0, MAX_SUGGESTIONS);
+    }
+
+    const matching = source.filter((suggestion) =>
+      suggestion.text.toLowerCase().includes(normalizedQuery)
+    );
+
+    if (matching.length > 0) {
+      return matching.slice(0, MAX_SUGGESTIONS);
+    }
+
+    // Keep the previous visible suggestions to avoid flash-hide during
+    // transient empty server responses while the user is still typing.
+    return source.slice(0, MAX_SUGGESTIONS);
+  }, []);
+
   const fetchSuggestions = useCallback(async (searchQuery: string) => {
     if (!enabled || searchQuery.length < MIN_QUERY_LENGTH) {
       setSuggestions([]);
+      lastNonEmptySuggestionsRef.current = [];
       return;
     }
 
     if (!adapterName) {
       setSuggestions([]);
+      lastNonEmptySuggestionsRef.current = [];
       return;
     }
 
@@ -94,6 +127,8 @@ export function useAutocomplete(
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
+    const requestId = latestRequestIdRef.current + 1;
+    latestRequestIdRef.current = requestId;
 
     setIsLoading(true);
 
@@ -115,7 +150,7 @@ export function useAutocomplete(
 
       if (!response.ok) {
         debugWarn('[useAutocomplete] Request failed:', response.status);
-        setSuggestions([]);
+        setSuggestions(getFallbackSuggestions(searchQuery));
         return;
       }
 
@@ -134,7 +169,19 @@ export function useAutocomplete(
             )
         : [];
 
-      setSuggestions(normalized);
+      // Ignore stale responses that return out of order.
+      if (requestId !== latestRequestIdRef.current) {
+        return;
+      }
+
+      // Prevent transient flicker when backend returns no results for a fast-follow query:
+      // keep previous relevant suggestions if they still match the current prefix.
+      if (normalized.length === 0) {
+        setSuggestions(getFallbackSuggestions(searchQuery));
+      } else {
+        setSuggestions(normalized);
+        lastNonEmptySuggestionsRef.current = normalized;
+      }
       setSelectedIndex(-1);
 
       debugLog('[useAutocomplete] Received', normalized.length, 'suggestions');
@@ -145,11 +192,13 @@ export function useAutocomplete(
       }
       // Autocomplete failures should not block the user
       debugWarn('[useAutocomplete] Error:', error instanceof Error ? error.message : String(error));
-      setSuggestions([]);
+      setSuggestions(getFallbackSuggestions(searchQuery));
     } finally {
-      setIsLoading(false);
+      if (requestId === latestRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [enabled, adapterName, sanitizeSuggestionText]);
+  }, [enabled, adapterName, sanitizeSuggestionText, getFallbackSuggestions]);
 
   // Debounced effect
   useEffect(() => {
@@ -204,6 +253,7 @@ export function useAutocomplete(
 
   const clearSuggestions = useCallback(() => {
     setSuggestions([]);
+    lastNonEmptySuggestionsRef.current = [];
     setSelectedIndex(-1);
   }, []);
 

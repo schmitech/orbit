@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -23,6 +25,9 @@ export function ConfirmationModal({
   type = 'danger',
   isLoading = false
 }: ConfirmationModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, { enabled: isOpen, onEscape: onClose });
+
   if (!isOpen) return null;
 
   const handleConfirm = () => {
@@ -61,14 +66,21 @@ export function ConfirmationModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md transform animate-fadeIn">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        tabIndex={-1}
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md transform animate-fadeIn"
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-full ${styles.iconBg} flex items-center justify-center`}>
               <AlertTriangle className={`w-5 h-5 ${styles.icon}`} />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <h2 id="confirm-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {title}
             </h2>
           </div>

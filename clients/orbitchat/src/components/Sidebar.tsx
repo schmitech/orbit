@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Search, MessageSquare, Trash2, Edit2, Trash, Paperclip, Settings } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
@@ -8,6 +8,7 @@ import { getApiUrl } from '../utils/runtimeConfig';
 import { useTheme } from '../contexts/ThemeContext';
 import { AdapterSelector } from './AdapterSelector';
 import { PACKAGE_VERSION } from '../utils/version';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface SidebarProps {
   /**
@@ -117,6 +118,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   const [selectedAdapter, setSelectedAdapter] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const configDialogRef = useRef<HTMLDivElement>(null);
 
   const canConfigureApi = !currentConversation || currentConversation.messages.length === 0;
   const { theme } = useTheme();
@@ -282,13 +284,22 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     return null;
   };
 
+  useFocusTrap(configDialogRef, { enabled: showConfig, onEscape: () => setShowConfig(false) });
+
   return (
     <>
       {/* API Configuration Modal */}
       {showConfig && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]">
-            <h2 className="mb-4 text-lg font-medium text-[#353740] dark:text-[#ececf1]">
+          <div
+            ref={configDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="select-agent-title"
+            tabIndex={-1}
+            className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]"
+          >
+            <h2 id="select-agent-title" className="mb-4 text-lg font-medium text-[#353740] dark:text-[#ececf1]">
               Select an Agent
             </h2>
             <div className="space-y-5">
@@ -397,8 +408,9 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                       currentConversationId === conversation.id
                         ? 'border-[#343541] bg-white dark:border-[#6b6f7a] dark:bg-[#2c2f36]'
                         : 'border-gray-100 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-transparent dark:bg-[#252830] dark:hover:border-[#4a4b54] dark:hover:bg-[#2f323c]'
-                    }`}
+                    } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 dark:focus-visible:ring-blue-400/70`}
                     aria-current={currentConversationId === conversation.id ? 'true' : undefined}
+                    aria-label={`Open conversation: ${conversation.title}`}
                   >
                     {editingId === conversation.id ? (
                       <input
@@ -424,7 +436,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                           >
                             {conversation.title}
                           </h3>
-                          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                             <button
                               onClick={(e) => handleEditStart(e, conversation)}
                               className={`rounded-full text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a] ${sizeStyles.actionButton}`}
