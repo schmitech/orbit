@@ -617,12 +617,19 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
                                  collection_name: Optional[str] = None, **kwargs) -> List[Dict[str, Any]]:
         """Process a natural language query using intent-based SQL translation."""
+        cancel_event = kwargs.pop('cancel_event', None)
+
         try:
             logger.debug(f"Processing intent query: {query}")
-            
+
+            # Check cancellation before starting
+            if cancel_event and cancel_event.is_set():
+                logger.debug("Intent query cancelled before template search")
+                return []
+
             # Find best matching template
             templates = await self._find_best_templates(query)
-            
+
             if not templates:
                 logger.warning("No matching templates found")
                 return [{
@@ -630,21 +637,27 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                     "metadata": {"source": "intent", "error": "no_matching_template"},
                     "confidence": 0.0
                 }]
-            
+
             # Rerank templates using domain-specific rules
             if self.template_reranker:
                 templates = self.template_reranker.rerank_templates(templates, query)
-            
+
             # Try templates in order of relevance
+            datasource_unavailable = False
             for template_info in templates:
+                # Check cancellation between template attempts
+                if cancel_event and cancel_event.is_set():
+                    logger.debug("Intent query cancelled during template iteration")
+                    return []
+
                 template = template_info['template']
                 similarity = template_info['similarity']
-                
+
                 if similarity < self.confidence_threshold:
                     continue
-                
+
                 logger.debug(f"Trying template: {template.get('id')} (similarity: {similarity:.2%})")
-                
+
                 # Extract parameters
                 if self.parameter_extractor:
                     parameters = await self.parameter_extractor.extract_parameters(query, template)
@@ -654,12 +667,17 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         continue
                 else:
                     parameters = await self._extract_parameters(query, template)
-                
+
                 # Execute template
                 results, error = await self._execute_template(template, parameters)
 
                 if error:
                     logger.debug(f"Template {template.get('id')} execution failed: {error}")
+                    # If the datasource itself is unavailable, stop trying more templates
+                    if 'not initialized' in error.lower() or 'connection' in error.lower():
+                        logger.warning(f"Datasource unavailable ({error}), skipping remaining templates")
+                        datasource_unavailable = True
+                        break
                     continue
 
                 # Track original count before any truncation
@@ -745,6 +763,13 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                     if formatted_results:
                         return formatted_results
             
+            if datasource_unavailable:
+                return [{
+                    "content": "The data source is temporarily unavailable. Please try again.",
+                    "metadata": {"source": "intent", "error": "datasource_unavailable"},
+                    "confidence": 0.0
+                }]
+
             return [{
                 "content": "I found potential matches but couldn't extract the required information.",
                 "metadata": {"source": "intent", "error": "parameter_extraction_failed"},

@@ -204,6 +204,10 @@ class ContextRetrievalStep(PipelineStep):
         if context.is_blocked:
             return context
 
+        if context.is_cancelled():
+            logger.debug(f"Context retrieval cancelled before starting for adapter: {context.adapter_name}")
+            return context
+
         logger.debug(f"Retrieving context for adapter: {context.adapter_name}")
 
         # Check if this is a thread follow-up (use stored dataset instead of retrieval)
@@ -272,12 +276,21 @@ class ContextRetrievalStep(PipelineStep):
             # Build retriever kwargs based on capabilities
             retriever_kwargs = self._build_retriever_kwargs(context, capabilities)
 
+            # Pass cancel_event so retrievers can check for cancellation
+            if context.cancel_event:
+                retriever_kwargs['cancel_event'] = context.cancel_event
+
             # Get relevant documents
             docs = await retriever.get_relevant_context(
                 query=context.message,
                 collection_name=None,
                 **retriever_kwargs
             )
+
+            # Check cancellation after retrieval completes
+            if context.is_cancelled():
+                logger.debug(f"Context retrieval cancelled after completing for adapter: {context.adapter_name}")
+                return context
 
             # Apply language-aware boosting/filtering if language detection is available
             detected_language = getattr(context, 'detected_language', None)
