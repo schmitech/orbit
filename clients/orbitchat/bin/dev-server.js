@@ -20,12 +20,10 @@ console.log('Starting Express middleware server on port', expressPort);
 const expressServer = spawn('node', [
   path.join(__dirname, 'orbitchat.js'),
   '--port', expressPort.toString(),
-  '--enable-api-middleware'
 ], {
   stdio: 'inherit',
   env: {
     ...process.env,
-    VITE_ENABLE_API_MIDDLEWARE: 'true',
   }
 });
 
@@ -35,7 +33,6 @@ const viteServer = spawn('npm', ['run', 'dev'], {
   stdio: 'inherit',
   env: {
     ...process.env,
-    VITE_ENABLE_API_MIDDLEWARE: 'true',
     VITE_MIDDLEWARE_SERVER_URL: `http://localhost:${expressPort}`,
   }
 });

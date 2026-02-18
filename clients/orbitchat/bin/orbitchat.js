@@ -5,8 +5,8 @@
  * Serves the chat-app as a standalone application with runtime configuration.
  * Configuration can be provided via CLI arguments, config file, or environment variables.
  * 
- * When VITE_ENABLE_API_MIDDLEWARE is enabled, the server acts as a proxy to hide
- * API keys from the client by mapping adapter names to actual API keys.
+ * The server acts as a proxy to hide API keys from the client by mapping
+ * adapter names to actual API keys.
  */
 
 import express from 'express';
@@ -36,7 +36,6 @@ const DEFAULT_CONFIG = {
   enableAudioOutput: false,
   enableFeedbackButtons: false,
   enableAutocomplete: false,
-  enableApiMiddleware: false,
   outOfServiceMessage: null,
   maxFilesPerConversation: 5,
   maxFileSizeMB: 50,
@@ -124,6 +123,7 @@ function parseArgs() {
     host: 'localhost',
     open: false,
     configFile: null,
+    apiOnly: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -174,7 +174,7 @@ function parseArgs() {
         config.enableAutocomplete = true;
         break;
       case '--enable-api-middleware':
-        config.enableApiMiddleware = true;
+        // Ignored — middleware mode is now always enabled
         break;
       case '--out-of-service-message':
         config.outOfServiceMessage = args[++i];
@@ -211,6 +211,12 @@ function parseArgs() {
         break;
       case '--open':
         serverConfig.open = true;
+        break;
+      case '--api-only':
+        serverConfig.apiOnly = true;
+        break;
+      case '--cors-origin':
+        serverConfig.corsOrigin = args[++i];
         break;
       case '--config':
         serverConfig.configFile = args[++i];
@@ -270,7 +276,6 @@ function loadConfigFromEnv() {
     VITE_ENABLE_AUDIO_OUTPUT: 'enableAudioOutput',
     VITE_ENABLE_FEEDBACK: 'enableFeedbackButtons',
     VITE_ENABLE_AUTOCOMPLETE: 'enableAutocomplete',
-    VITE_ENABLE_API_MIDDLEWARE: 'enableApiMiddleware',
     VITE_OUT_OF_SERVICE_MESSAGE: 'outOfServiceMessage',
     VITE_MAX_FILES_PER_CONVERSATION: 'maxFilesPerConversation',
     VITE_MAX_FILE_SIZE_MB: 'maxFileSizeMB',
@@ -287,8 +292,7 @@ function loadConfigFromEnv() {
     if (value !== undefined) {
       if (configKey === 'useLocalApi' || configKey === 'consoleDebug' || 
           configKey === 'enableUploadButton' || configKey === 'enableAudioOutput' ||
-          configKey === 'enableFeedbackButtons' || configKey === 'enableAutocomplete' ||
-          configKey === 'enableApiMiddleware') {
+          configKey === 'enableFeedbackButtons' || configKey === 'enableAutocomplete') {
         envConfig[configKey] = value === 'true';
       } else if (configKey.includes('max') && configKey !== 'maxFileSizeMB') {
         const parsed = parseInt(value, 10);
@@ -372,14 +376,34 @@ function injectConfig(html, config) {
 }
 
 /**
- * Create Express server to serve the built app
+ * Create Express server
+ *
+ * @param {string|null} distPath - Path to built UI assets (null in api-only mode)
+ * @param {object} config - Merged application config
+ * @param {object} serverConfig - Server config (port, host, apiOnly, etc.)
  */
-function createServer(distPath, config) {
+function createServer(distPath, config, serverConfig = {}) {
   const app = express();
-  const adapters = config.enableApiMiddleware ? loadAdaptersConfig() : null;
+  const adapters = loadAdaptersConfig();
+  const apiOnly = serverConfig.apiOnly || false;
 
-  // API endpoints for middleware mode - MUST be before body parsers
-  if (config.enableApiMiddleware && adapters) {
+  // In api-only mode, add CORS middleware so external UIs on other origins can call the API
+  if (apiOnly) {
+    const allowedOrigin = serverConfig.corsOrigin || '*';
+    app.use((req, res, next) => {
+      res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, X-Session-ID, X-Thread-ID, X-Adapter-Name, Accept');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Type');
+      if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+      }
+      next();
+    });
+  }
+
+  // API proxy endpoints - MUST be before body parsers
+  if (adapters) {
     // Pre-create proxy instances for each adapter to avoid memory leaks
     // Creating proxies on every request adds event listeners that accumulate
     const proxyInstances = {};
@@ -494,50 +518,53 @@ function createServer(distPath, config) {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
-  // IMPORTANT: Handle index.html BEFORE express.static to inject runtime config
-  // express.static would serve the file without config injection otherwise
-  app.get(['/', '/index.html'], (req, res) => {
-    try {
-      const indexPath = path.join(distPath, 'index.html');
-      let content = fs.readFileSync(indexPath, 'utf8');
-      content = injectConfig(content, config);
-      res.setHeader('Content-Type', 'text/html');
-      res.send(content);
-    } catch (error) {
-      console.error('Error serving index.html:', error);
-      res.status(500).send('Internal Server Error');
-    }
-  });
+  // --- UI serving (skipped in api-only mode) ---
+  if (!apiOnly && distPath) {
+    // IMPORTANT: Handle index.html BEFORE express.static to inject runtime config
+    // express.static would serve the file without config injection otherwise
+    app.get(['/', '/index.html'], (req, res) => {
+      try {
+        const indexPath = path.join(distPath, 'index.html');
+        let content = fs.readFileSync(indexPath, 'utf8');
+        content = injectConfig(content, config);
+        res.setHeader('Content-Type', 'text/html');
+        res.send(content);
+      } catch (error) {
+        console.error('Error serving index.html:', error);
+        res.status(500).send('Internal Server Error');
+      }
+    });
 
-  // Serve static files (JS, CSS, images, etc.) - index.html is handled above
-  app.use(express.static(distPath, {
-    index: false, // Don't serve index.html automatically - we handle it above
-  }));
+    // Serve static files (JS, CSS, images, etc.) - index.html is handled above
+    app.use(express.static(distPath, {
+      index: false, // Don't serve index.html automatically - we handle it above
+    }));
 
-  // SPA fallback - serve index.html for all non-file routes (client-side routing)
-  app.get('/{*splat}', (req, res, next) => {
-    // Skip API routes
-    if (req.path.startsWith('/api/')) {
-      return next();
-    }
+    // SPA fallback - serve index.html for all non-file routes (client-side routing)
+    app.get('/{*splat}', (req, res, next) => {
+      // Skip API routes
+      if (req.path.startsWith('/api/')) {
+        return next();
+      }
 
-    // Skip requests for files with extensions (let them 404)
-    if (path.extname(req.path)) {
-      return res.status(404).send('Not Found');
-    }
+      // Skip requests for files with extensions (let them 404)
+      if (path.extname(req.path)) {
+        return res.status(404).send('Not Found');
+      }
 
-    // Serve index.html for SPA routes
-    try {
-      const indexPath = path.join(distPath, 'index.html');
-      let content = fs.readFileSync(indexPath, 'utf8');
-      content = injectConfig(content, config);
-      res.setHeader('Content-Type', 'text/html');
-      res.send(content);
-    } catch (error) {
-      console.error('Error serving index.html:', error);
-      res.status(500).send('Internal Server Error');
-    }
-  });
+      // Serve index.html for SPA routes
+      try {
+        const indexPath = path.join(distPath, 'index.html');
+        let content = fs.readFileSync(indexPath, 'utf8');
+        content = injectConfig(content, config);
+        res.setHeader('Content-Type', 'text/html');
+        res.send(content);
+      } catch (error) {
+        console.error('Error serving index.html:', error);
+        res.status(500).send('Internal Server Error');
+      }
+    });
+  }
 
   return app;
 }
@@ -635,7 +662,7 @@ Options:
   --enable-audio                   Enable audio button (default: false)
   --enable-feedback                Enable feedback buttons (default: false)
   --enable-autocomplete            Enable autocomplete suggestions (default: false)
-  --enable-api-middleware          Enable API middleware mode (default: false)
+  --enable-api-middleware          Ignored (middleware mode is always enabled)
   --out-of-service-message TEXT    Show maintenance screen blocking access
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
@@ -648,6 +675,8 @@ Options:
   --port PORT                      Server port (default: 5173)
   --host HOST                      Server host (default: localhost)
   --open                           Open browser automatically
+  --api-only                       Run API proxy only (no UI serving, no build required)
+  --cors-origin ORIGIN             Allowed CORS origin in api-only mode (default: *)
   --config PATH                    Path to config file (default: ~/.orbit-chat-app/config.json)
   --help, -h                       Show this help message
   --version, -v                    Show version number
@@ -667,7 +696,9 @@ Examples:
   orbitchat --api-key my-key --open
   orbitchat --enable-audio --enable-upload --console-debug
   orbitchat --config /path/to/config.json
-  ORBIT_ADAPTERS='[{"name":"Chat","apiKey":"mykey","apiUrl":"https://api.example.com"}]' orbitchat --enable-api-middleware
+  ORBIT_ADAPTERS='[{"name":"Chat","apiKey":"mykey","apiUrl":"https://api.example.com"}]' orbitchat
+  orbitchat --api-only --port 5174
+  orbitchat --api-only --cors-origin http://localhost:3001
 `);
 
 }
@@ -691,45 +722,48 @@ function main() {
   const { config: cliConfig, serverConfig } = parseArgs();
   const config = mergeConfig(cliConfig, serverConfig);
 
-  if (config.enableApiMiddleware) {
-    const trimmedDefaultKey = (config.defaultKey || '').trim();
-    if (!trimmedDefaultKey || trimmedDefaultKey === DEFAULT_CONFIG.defaultKey) {
-      const fallbackAdapter = getDefaultAdapterFromEnv();
-      if (fallbackAdapter) {
-        config.defaultKey = fallbackAdapter;
-        console.debug(`ℹ️ Using '${fallbackAdapter}' as the default adapter (first entry from VITE_ADAPTERS).`);
-      }
+  const trimmedDefaultKey = (config.defaultKey || '').trim();
+  if (!trimmedDefaultKey || trimmedDefaultKey === DEFAULT_CONFIG.defaultKey) {
+    const fallbackAdapter = getDefaultAdapterFromEnv();
+    if (fallbackAdapter) {
+      config.defaultKey = fallbackAdapter;
+      console.debug(`ℹ️ Using '${fallbackAdapter}' as the default adapter (first entry from VITE_ADAPTERS).`);
     }
   }
 
-  // Find dist directory
-  // Use __dirname which we defined at the top of the file
+  // Find dist directory (not required in api-only mode)
   const distPath = path.join(__dirname, '..', 'dist');
-  
-  if (!fs.existsSync(distPath)) {
+
+  if (!serverConfig.apiOnly && !fs.existsSync(distPath)) {
     console.error('Error: dist directory not found. Please run "npm run build" first.');
     process.exit(1);
   }
 
   // Create and start server
-  const app = createServer(distPath, config);
+  const app = createServer(
+    serverConfig.apiOnly ? null : distPath,
+    config,
+    serverConfig
+  );
 
   app.listen(serverConfig.port, serverConfig.host, () => {
     const url = `http://${serverConfig.host}:${serverConfig.port}`;
-    console.debug(`\n🚀 ORBIT Chat App is running at ${url}\n`);
+    if (serverConfig.apiOnly) {
+      console.debug(`\n🚀 ORBIT API Proxy is running at ${url}\n`);
+    } else {
+      console.debug(`\n🚀 ORBIT Chat App is running at ${url}\n`);
+    }
     console.debug('Configuration:');
+    console.debug(`  Mode: ${serverConfig.apiOnly ? 'API-only (no UI)' : 'Full (API + UI)'}`);
     console.debug(`  API URL: ${config.apiUrl}`);
     console.debug(`  Default Key/Adapter: ${config.defaultKey || '(not set)'}`);
     console.debug(`  Port: ${serverConfig.port}`);
     console.debug(`  Host: ${serverConfig.host}`);
-    if (config.enableApiMiddleware) {
-      console.debug(`  API Middleware: Enabled`);
-      const adapters = loadAdaptersConfig();
-      if (adapters) {
-        console.debug(`  Available Adapters: ${Object.keys(adapters).join(', ')}`);
-      } else {
-        console.debug(`  Warning: No adapters configured. Set ORBIT_ADAPTERS or VITE_ADAPTERS environment variable.`);
-      }
+    const startupAdapters = loadAdaptersConfig();
+    if (startupAdapters) {
+      console.debug(`  Available Adapters: ${Object.keys(startupAdapters).join(', ')}`);
+    } else {
+      console.debug(`  Warning: No adapters configured. Set ORBIT_ADAPTERS or VITE_ADAPTERS environment variable.`);
     }
     console.debug('');
     
@@ -750,11 +784,12 @@ function main() {
 const isMainModule = process.argv[1] && (
   import.meta.url === `file://${process.argv[1]}` ||
   import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/')) ||
-  process.argv[1].includes('orbitchat')
+  path.basename(process.argv[1]) === 'orbitchat' ||
+  path.basename(process.argv[1]) === 'orbitchat.js'
 );
 
 if (isMainModule) {
   main();
 }
 
-export { main, parseArgs, mergeConfig };
+export { main, parseArgs, mergeConfig, createServer, loadAdaptersConfig };

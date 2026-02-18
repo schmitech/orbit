@@ -5,11 +5,7 @@ import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugWarn, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { getDefaultKey, resolveApiUrl, getEnableApiMiddleware } from '../utils/runtimeConfig';
-
-// Default API key from runtime configuration
-const DEFAULT_API_KEY = getDefaultKey();
-const isDefaultKeyPlaceholder = DEFAULT_API_KEY === 'default-key';
+import { resolveApiUrl } from '../utils/runtimeConfig';
 
 // Persist upload state across component re-mounts and conversation switches
 const uploadingFilesStore = new Map<string, Map<string, FileUploadProgress>>();
@@ -225,8 +221,7 @@ export function FileUpload({
             if (conversationId) {
               await removeFileFromConversation(conversationId, fileId);
             } else {
-              const isMiddlewareEnabled = getEnableApiMiddleware();
-              const adapterName = isMiddlewareEnabled ? getStoredAdapterName() : null;
+              const adapterName = getStoredAdapterName();
               await FileUploadService.deleteFile(fileId, undefined, undefined, adapterName ?? undefined);
             }
           } catch (error) {
@@ -286,30 +281,9 @@ export function FileUpload({
       }
     }
 
-    const isMiddlewareEnabled = getEnableApiMiddleware();
-    let conversationApiKey: string | undefined;
-
-    if (isMiddlewareEnabled) {
-      if (!conversation.adapterName) {
-        onUploadError?.('Adapter not configured for this conversation. Please select an adapter first.');
-        return;
-      }
-    } else {
-      const normalizedConversationKey =
-        typeof conversation.apiKey === 'string' ? conversation.apiKey.trim() : '';
-      const runtimeDefaultKey = DEFAULT_API_KEY?.trim() || '';
-      const canUseRuntimeDefaultKey = !isDefaultKeyPlaceholder && runtimeDefaultKey.length > 0;
-      const effectiveApiKey =
-        normalizedConversationKey || (canUseRuntimeDefaultKey ? runtimeDefaultKey : '');
-      const usingPlaceholderDefaultKey =
-        isDefaultKeyPlaceholder && effectiveApiKey === DEFAULT_API_KEY;
-
-      if (!effectiveApiKey || usingPlaceholderDefaultKey) {
-        onUploadError?.('API key not configured for this conversation. Please configure API settings first.');
-        return;
-      }
-
-      conversationApiKey = effectiveApiKey;
+    if (!conversation.adapterName) {
+      onUploadError?.('Adapter not configured for this conversation. Please select an adapter first.');
+      return;
     }
 
     const conversationAdapterName = conversation.adapterName;
@@ -351,9 +325,9 @@ export function FileUpload({
               addFileToConversation(activeConversationId, fileAttachment);
             }
           },
-          conversationApiKey,
+          undefined,
           conversationApiUrl,
-          isMiddlewareEnabled ? conversationAdapterName : undefined
+          conversationAdapterName
         ).catch(error => {
           if (error.message && error.message.includes('was deleted')) {
             if (uploadedFileId) {

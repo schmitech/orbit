@@ -1,11 +1,8 @@
 /**
- * Dynamic API loader that can load either the npm package or local dist build
- * based on runtime configuration for testing before publishing
+ * API loader — all requests go through the Express proxy with X-Adapter-Name headers.
  */
 
-import { getApiPackageVersion } from '../utils/version';
-import { debugLog, debugError } from '../utils/debug';
-import { getUseLocalApi, getLocalApiPath, getEnableApiMiddleware } from '../utils/runtimeConfig';
+import { debugLog } from '../utils/debug';
 
 // Type definitions for the API
 export interface StreamResponse {
@@ -39,8 +36,8 @@ export interface ConversationHistoryResponse {
 
 export interface ApiClient {
   streamChat(
-    message: string, 
-    stream?: boolean, 
+    message: string,
+    stream?: boolean,
     fileIds?: string[],
     threadId?: string,
     audioInput?: string,
@@ -154,7 +151,7 @@ export interface ApiClient {
 }
 
 export interface ApiFunctions {
-  configureApi: (apiUrl: string, apiKey?: string | null, sessionId?: string | null, adapterName?: string | null) => void;
+  configureApi: (apiUrl: string, sessionId?: string | null, adapterName?: string | null) => void;
   streamChat: (
     message: string,
     stream?: boolean,
@@ -168,37 +165,28 @@ export interface ApiFunctions {
     sourceLanguage?: string,
     targetLanguage?: string
   ) => AsyncGenerator<StreamResponse>;
-  ApiClient: new (config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null; adapterName?: string | null }) => ApiClient;
+  ApiClient: new (config: { apiUrl: string; sessionId?: string | null; adapterName?: string | null }) => ApiClient;
   stopChat?: (sessionId: string, requestId: string) => Promise<boolean>;
 }
-
-type LocalApiModule = {
-  configureApi: ApiFunctions['configureApi'];
-  streamChat: ApiFunctions['streamChat'];
-  ApiClient: ApiFunctions['ApiClient'];
-};
 
 // Cache for loaded API
 let apiCache: ApiFunctions | null = null;
 
-// Middleware state
 /**
- * Create middleware-aware API functions that route through proxy
+ * Create API functions that route through the Express proxy
  */
-function createMiddlewareApi(): ApiFunctions {
+function createProxyApi(): ApiFunctions {
   let sessionId: string | null = null;
   let adapterName: string | null = null;
 
-  const configureApi = (_apiUrl: string, _apiKey?: string | null, sessId?: string | null, adapter?: string | null) => {
+  const configureApi = (_apiUrl: string, sessId?: string | null, adapter?: string | null) => {
     sessionId = sessId || null;
     adapterName = adapter || null;
-    // In middleware mode, we don't configure the base API with the actual key
-    // The proxy will handle it
   };
 
-  const createMiddlewareClient = (): ApiClient => {
+  const createProxyClient = (): ApiClient => {
     if (!adapterName) {
-      throw new Error('Adapter name is required when middleware is enabled');
+      throw new Error('Adapter name is required');
     }
 
     return {
@@ -215,20 +203,16 @@ function createMiddlewareApi(): ApiFunctions {
         sourceLanguage?: string,
         targetLanguage?: string
       ): AsyncGenerator<StreamResponse> {
-        // Build request body matching node-api behavior
         const requestBody: Record<string, unknown> = {
           messages: [{ role: 'user', content: message }],
           stream: stream !== false,
         };
-        // Only include file_ids if non-empty array (matches node-api behavior)
         if (fileIds && fileIds.length > 0) {
           requestBody.file_ids = fileIds;
         }
-        // Only include thread_id if provided
         if (threadId) {
           requestBody.thread_id = threadId;
         }
-        // Include optional audio parameters only if provided
         if (audioInput) requestBody.audio_input = audioInput;
         if (audioFormat) requestBody.audio_format = audioFormat;
         if (language) requestBody.language = language;
@@ -252,7 +236,6 @@ function createMiddlewareApi(): ApiFunctions {
         }
 
         if (response.headers.get('content-type')?.includes('text/event-stream')) {
-          // Handle SSE streaming
           const reader = response.body?.getReader();
           const decoder = new TextDecoder();
           let buffer = '';
@@ -274,10 +257,7 @@ function createMiddlewareApi(): ApiFunctions {
                 try {
                   const data = JSON.parse(line.substring(6));
 
-                  // Handle request_id from first chunk (for cancellation support)
                   if (data.request_id && !data.response && !data.done) {
-                    // Uncomment to debug or troubleshoot cancel streams
-                    // console.log(`[MiddlewareApi] Received request_id: ${data.request_id}`);
                     yield {
                       text: '',
                       done: false,
@@ -286,7 +266,6 @@ function createMiddlewareApi(): ApiFunctions {
                     continue;
                   }
 
-                  // Handle different response formats - check for text, content, message, or response fields
                   const responseData: StreamResponse = {
                     text: data.text || data.content || data.message || data.response || '',
                     done: data.done || false,
@@ -304,8 +283,8 @@ function createMiddlewareApi(): ApiFunctions {
               }
             }
           }
-          
-          // If we have remaining buffer, try to parse it
+
+          // Parse remaining buffer
           if (buffer.trim()) {
             const lines = buffer.split('\n');
             for (const line of lines) {
@@ -313,7 +292,6 @@ function createMiddlewareApi(): ApiFunctions {
                 try {
                   const data = JSON.parse(line.substring(6));
 
-                  // Handle request_id from first chunk
                   if (data.request_id && !data.response && !data.done) {
                     yield {
                       text: '',
@@ -412,7 +390,6 @@ function createMiddlewareApi(): ApiFunctions {
 
       async deleteConversationWithFiles(sessId?: string, fileIds?: string[]) {
         const targetSession = sessId || sessionId;
-        // Send file_ids as query parameters to match direct API behavior
         const fileIdsParam = fileIds && fileIds.length > 0 ? `?file_ids=${fileIds.join(',')}` : '';
         const response = await fetch(`/api/admin/conversations/${targetSession}${fileIdsParam}`, {
           method: 'DELETE',
@@ -448,7 +425,6 @@ function createMiddlewareApi(): ApiFunctions {
         });
         if (!response.ok) throw new Error(`Failed to list files: ${response.statusText}`);
         const data = await response.json();
-        // Handle both array response and { files: [...] } response format
         return Array.isArray(data) ? data : (data.files || []);
       },
 
@@ -499,16 +475,11 @@ function createMiddlewareApi(): ApiFunctions {
       async getAdapterInfo() {
         const adapterInfoPath = '/api/admin/adapters/info';
 
-        const makeRequest = async (path: string) => {
-          const response = await fetch(path, {
-            headers: {
-              'X-Adapter-Name': adapterName!,
-            },
-          });
-          return response;
-        };
-
-        const response = await makeRequest(adapterInfoPath);
+        const response = await fetch(adapterInfoPath, {
+          headers: {
+            'X-Adapter-Name': adapterName!,
+          },
+        });
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -518,7 +489,7 @@ function createMiddlewareApi(): ApiFunctions {
               ? `Adapter info request was unauthorized for '${adapterName}'. Verify the adapter exists and you have access.`
               : `Failed to load adapter info (${statusLabel}) for '${adapterName}'.`;
 
-          console.warn('[MiddlewareApi] Adapter info request failed', {
+          console.warn('[ProxyApi] Adapter info request failed', {
             adapter: adapterName,
             status: response.status,
             statusText: response.statusText,
@@ -531,8 +502,6 @@ function createMiddlewareApi(): ApiFunctions {
       },
 
       async stopChat(sessId: string, requestId: string): Promise<boolean> {
-        // Uncomment to debug or troubleshoot cancel streams
-        // console.log(`[MiddlewareApi] Calling stopChat: session=${sessId}, request=${requestId}`);
         const response = await fetch('/api/v1/chat/stop', {
           method: 'POST',
           headers: {
@@ -542,12 +511,10 @@ function createMiddlewareApi(): ApiFunctions {
           body: JSON.stringify({ session_id: sessId, request_id: requestId }),
         });
         if (!response.ok) {
-          console.warn(`[MiddlewareApi] stopChat failed: ${response.status} ${response.statusText}`);
+          console.warn(`[ProxyApi] stopChat failed: ${response.status} ${response.statusText}`);
           return false;
         }
         const result = await response.json();
-        // Uncomment to debug or troubleshoot cancel streams
-        // console.log(`[MiddlewareApi] stopChat result:`, result);
         return result.status === 'cancelled';
       },
     };
@@ -568,7 +535,7 @@ function createMiddlewareApi(): ApiFunctions {
       sourceLanguage?: string,
       targetLanguage?: string
     ): AsyncGenerator<StreamResponse> {
-      const client = createMiddlewareClient();
+      const client = createProxyClient();
       yield* client.streamChat(
         message,
         stream,
@@ -584,16 +551,16 @@ function createMiddlewareApi(): ApiFunctions {
       );
     },
     stopChat: async (sessionId: string, requestId: string): Promise<boolean> => {
-      const client = createMiddlewareClient();
+      const client = createProxyClient();
       return client.stopChat!(sessionId, requestId);
     },
-    ApiClient: class MiddlewareApiClient implements ApiClient {
+    ApiClient: class ProxyApiClient implements ApiClient {
       private client: ApiClient;
 
-      constructor(config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null; adapterName?: string | null }) {
+      constructor(config: { apiUrl: string; sessionId?: string | null; adapterName?: string | null }) {
         adapterName = config.adapterName || null;
         sessionId = config.sessionId || null;
-        this.client = createMiddlewareClient();
+        this.client = createProxyClient();
       }
 
       async *streamChat(...args: Parameters<ApiClient['streamChat']>): AsyncGenerator<StreamResponse> {
@@ -620,311 +587,18 @@ function createMiddlewareApi(): ApiFunctions {
 }
 
 /**
- * Import local API module with proper handling for aliases and relative paths
- */
-async function importLocalApiModule(apiPath: string): Promise<LocalApiModule> {
-  // When using alias, don't use @vite-ignore so Vite can resolve it
-  // The alias is configured in vite.config.ts when VITE_USE_LOCAL_API=true
-  if (apiPath === '@local-node-api/api.mjs') {
-    // @ts-expect-error - alias resolved by Vite at build/runtime
-    return import('@local-node-api/api.mjs');
-  }
-  
-  // For relative paths, use @vite-ignore to suppress Vite's static analysis warning
-  return import(/* @vite-ignore */ apiPath);
-}
-
-/**
- * Dynamically loads the API based on environment configuration
+ * Load the API (always uses the Express proxy)
  */
 export async function loadApi(): Promise<ApiFunctions> {
   if (apiCache) {
     return apiCache;
   }
 
-  // Get configuration outside try block so it's accessible in catch block
-  const useLocalApi = getUseLocalApi();
-  const localApiPath = getLocalApiPath();
-  const enableMiddleware = getEnableApiMiddleware();
+  debugLog('Loading API via Express proxy');
+  apiCache = createProxyApi();
+  debugLog('API loaded successfully');
 
-  try {
-    if (useLocalApi) {
-      // Determine the correct path for loading
-      // Default to using Vite alias @local-node-api
-      let apiPath: string;
-      if (localApiPath) {
-        // If a custom path is provided, use it (must be a relative path that Vite can resolve)
-        if (localApiPath.startsWith('/')) {
-          // Absolute path - convert to relative from src
-          const hasAlias = import.meta.env.VITE_USE_LOCAL_API === 'true';
-          apiPath = localApiPath.startsWith('/src/')
-            ? `.${localApiPath.substring(4)}${localApiPath.endsWith('.mjs') ? '' : '/api.mjs'}`
-            : hasAlias ? '@local-node-api/api.mjs' : '../../../node-api/dist/api.mjs';
-        } else if (localApiPath.startsWith('../') || localApiPath.startsWith('./')) {
-          // Relative path - use as-is, appending /api.mjs if needed
-          apiPath = localApiPath.endsWith('.mjs') ? localApiPath : `${localApiPath}/api.mjs`;
-        } else {
-          // Treat as path relative to current file
-          apiPath = `./${localApiPath}${localApiPath.endsWith('.mjs') ? '' : '/api.mjs'}`;
-        }
-      } else {
-        // Default: use Vite alias @local-node-api when VITE_USE_LOCAL_API=true
-        // The alias is configured in vite.config.ts when VITE_USE_LOCAL_API=true
-        // Check if we're in a context where the alias should be available
-        const hasAlias = import.meta.env.VITE_USE_LOCAL_API === 'true';
-        if (hasAlias) {
-          // Use alias - it's configured in vite.config.ts
-          apiPath = '@local-node-api/api.mjs';
-        } else {
-          // Fallback to relative path (shouldn't happen if useLocalApi is true)
-          // This path resolves to clients/node-api/dist/api.mjs from src/api/loader.ts
-          apiPath = '../../../node-api/dist/api.mjs';
-        }
-      }
-      
-      debugLog(`🔧 Loading local API from: ${apiPath}`);
-      // Load from src directory (can be imported by Vite)
-      const localApi = await importLocalApiModule(apiPath);
-      
-      if (enableMiddleware) {
-        debugLog('🔐 API Middleware enabled - routing through proxy');
-        apiCache = createMiddlewareApi();
-      } else {
-        apiCache = {
-          configureApi: localApi.configureApi,
-          streamChat: localApi.streamChat,
-          ApiClient: localApi.ApiClient
-        };
-      }
-      debugLog('✅ Local API loaded successfully');
-    } else {
-      debugLog('📦 Loading npm package API');
-
-      const npmApi = await import('@schmitech/chatbot-api');
-      
-      // Create a wrapper for streamChat to match our interface signature
-      const streamChatWrapper = async function* (
-        message: string,
-        stream?: boolean,
-        fileIds?: string[],
-        threadId?: string,
-        audioInput?: string,
-        audioFormat?: string,
-        language?: string,
-        returnAudio?: boolean,
-        ttsVoice?: string,
-        sourceLanguage?: string,
-        targetLanguage?: string
-      ): AsyncGenerator<StreamResponse> {
-        // Call npm package's streamChat with all parameters (same signature as local API)
-        yield* npmApi.streamChat(
-          message,
-          stream,
-          fileIds,
-          threadId,
-          audioInput,
-          audioFormat,
-          language,
-          returnAudio,
-          ttsVoice,
-          sourceLanguage,
-          targetLanguage
-        );
-      };
-      
-      // Create a wrapper class for ApiClient to fix streamChat signature
-      class ApiClientWrapper implements ApiClient {
-        private client: ApiClient;
-        
-        constructor(config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null; adapterName?: string | null }) {
-          if (enableMiddleware && config.adapterName) {
-            // In middleware mode, create a middleware client instead
-            const middlewareApi = createMiddlewareApi();
-            this.client = new middlewareApi.ApiClient(config);
-          } else {
-            this.client = new npmApi.ApiClient(config);
-          }
-        }
-        
-        async *streamChat(
-          message: string,
-          stream?: boolean,
-          fileIds?: string[],
-          threadId?: string,
-          audioInput?: string,
-          audioFormat?: string,
-          language?: string,
-          returnAudio?: boolean,
-          ttsVoice?: string,
-          sourceLanguage?: string,
-          targetLanguage?: string
-        ): AsyncGenerator<StreamResponse> {
-          // Call npm package's streamChat with all parameters (same signature as local API)
-          yield* this.client.streamChat(
-            message,
-            stream,
-            fileIds,
-            threadId,
-            audioInput,
-            audioFormat,
-            language,
-            returnAudio,
-            ttsVoice,
-            sourceLanguage,
-            targetLanguage
-          );
-        }
-        
-        get createThread() { return this.client.createThread?.bind(this.client); }
-        get getThreadInfo() { return this.client.getThreadInfo?.bind(this.client); }
-        get deleteThread() { return this.client.deleteThread?.bind(this.client); }
-        get clearConversationHistory() { return this.client.clearConversationHistory?.bind(this.client); }
-        get getConversationHistory() { return this.client.getConversationHistory?.bind(this.client); }
-        get deleteConversationWithFiles() { return this.client.deleteConversationWithFiles?.bind(this.client); }
-        get getSessionId() { return this.client.getSessionId?.bind(this.client); }
-        get uploadFile() { return this.client.uploadFile?.bind(this.client); }
-        get listFiles() { return this.client.listFiles?.bind(this.client); }
-        get getFileInfo() { return this.client.getFileInfo?.bind(this.client); }
-        get queryFile() { return this.client.queryFile?.bind(this.client); }
-        get deleteFile() { return this.client.deleteFile?.bind(this.client); }
-        get validateApiKey() { return this.client.validateApiKey?.bind(this.client); }
-        get getAdapterInfo() { return this.client.getAdapterInfo?.bind(this.client); }
-      }
-      
-      if (enableMiddleware) {
-        debugLog('🔐 API Middleware enabled - routing through proxy');
-        apiCache = createMiddlewareApi();
-      } else {
-        apiCache = {
-          configureApi: npmApi.configureApi,
-          streamChat: streamChatWrapper,
-          ApiClient: ApiClientWrapper
-        };
-      }
-      const apiVersion = await getApiPackageVersion();
-      debugLog(`✅ NPM package API loaded successfully (v${apiVersion})`);
-    }
-  } catch (error) {
-    debugError('❌ Failed to load API:', error);
-
-    // Fallback to npm package if local loading fails
-    if (useLocalApi) {
-      debugLog('🔄 Falling back to npm package...');
-      try {
-        
-        const npmApi = await import('@schmitech/chatbot-api');
-        
-        // Create a wrapper for streamChat to match our interface signature
-        const streamChatWrapper = async function* (
-          message: string,
-          stream?: boolean,
-          fileIds?: string[],
-          threadId?: string,
-          audioInput?: string,
-          audioFormat?: string,
-          language?: string,
-          returnAudio?: boolean,
-          ttsVoice?: string,
-          sourceLanguage?: string,
-          targetLanguage?: string
-        ): AsyncGenerator<StreamResponse> {
-          // Call npm package's streamChat with all parameters (same signature as local API)
-          yield* npmApi.streamChat(
-            message,
-            stream,
-            fileIds,
-            threadId,
-            audioInput,
-            audioFormat,
-            language,
-            returnAudio,
-            ttsVoice,
-            sourceLanguage,
-            targetLanguage
-          );
-        };
-        
-        // Create a wrapper class for ApiClient to fix streamChat signature
-        class ApiClientWrapper implements ApiClient {
-          private client: ApiClient;
-          
-          constructor(config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null; adapterName?: string | null }) {
-            if (enableMiddleware && config.adapterName) {
-              // In middleware mode, create a middleware client instead
-              const middlewareApi = createMiddlewareApi();
-              this.client = new middlewareApi.ApiClient(config);
-            } else {
-              this.client = new npmApi.ApiClient(config);
-            }
-          }
-          
-          async *streamChat(
-            message: string,
-            stream?: boolean,
-            fileIds?: string[],
-            threadId?: string,
-            audioInput?: string,
-            audioFormat?: string,
-            language?: string,
-            returnAudio?: boolean,
-            ttsVoice?: string,
-            sourceLanguage?: string,
-            targetLanguage?: string
-          ): AsyncGenerator<StreamResponse> {
-            // Call npm package's streamChat with all parameters (same signature as local API)
-            yield* this.client.streamChat(
-              message,
-              stream,
-              fileIds,
-              threadId,
-              audioInput,
-              audioFormat,
-              language,
-              returnAudio,
-              ttsVoice,
-              sourceLanguage,
-              targetLanguage
-            );
-          }
-          
-          get createThread() { return this.client.createThread?.bind(this.client); }
-          get getThreadInfo() { return this.client.getThreadInfo?.bind(this.client); }
-          get deleteThread() { return this.client.deleteThread?.bind(this.client); }
-          get clearConversationHistory() { return this.client.clearConversationHistory?.bind(this.client); }
-          get getConversationHistory() { return this.client.getConversationHistory?.bind(this.client); }
-          get deleteConversationWithFiles() { return this.client.deleteConversationWithFiles?.bind(this.client); }
-          get getSessionId() { return this.client.getSessionId?.bind(this.client); }
-          get uploadFile() { return this.client.uploadFile?.bind(this.client); }
-          get listFiles() { return this.client.listFiles?.bind(this.client); }
-          get getFileInfo() { return this.client.getFileInfo?.bind(this.client); }
-          get queryFile() { return this.client.queryFile?.bind(this.client); }
-          get deleteFile() { return this.client.deleteFile?.bind(this.client); }
-          get validateApiKey() { return this.client.validateApiKey?.bind(this.client); }
-          get getAdapterInfo() { return this.client.getAdapterInfo?.bind(this.client); }
-        }
-        
-        if (enableMiddleware) {
-          debugLog('🔐 API Middleware enabled - routing through proxy');
-          apiCache = createMiddlewareApi();
-        } else {
-          apiCache = {
-            configureApi: npmApi.configureApi,
-            streamChat: streamChatWrapper,
-            ApiClient: ApiClientWrapper
-          };
-        }
-        const apiVersion = await getApiPackageVersion();
-        debugLog(`✅ Fallback to NPM package successful (v${apiVersion})`);
-      } catch (fallbackError) {
-        debugError('❌ Fallback to NPM package also failed:', fallbackError);
-        throw new Error('Failed to load both local and npm API packages');
-      }
-    } else {
-      throw error;
-    }
-  }
-
-  return apiCache!;
+  return apiCache;
 }
 
 /**

@@ -26,7 +26,6 @@ export interface RuntimeConfig {
   enableAudioOutput: boolean;
   enableFeedbackButtons: boolean;
   enableConversationThreads: boolean;
-  enableApiMiddleware: boolean;
   enableAutocomplete: boolean;
   showGitHubStats: boolean;
   outOfServiceMessage: string | null;
@@ -85,7 +84,6 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
   enableAudioOutput: 'VITE_ENABLE_AUDIO_OUTPUT',
   enableFeedbackButtons: 'VITE_ENABLE_FEEDBACK',
   enableConversationThreads: 'VITE_ENABLE_CONVERSATION_THREADS',
-  enableApiMiddleware: 'VITE_ENABLE_API_MIDDLEWARE',
   enableAutocomplete: 'VITE_ENABLE_AUTOCOMPLETE',
   showGitHubStats: 'VITE_SHOW_GITHUB_STATS',
   outOfServiceMessage: 'VITE_OUT_OF_SERVICE_MESSAGE',
@@ -314,7 +312,6 @@ export const runtimeConfig: RuntimeConfig = {
   enableAudioOutput: getConfigValue('enableAudioOutput', false, 'boolean'),
   enableFeedbackButtons: getConfigValue('enableFeedbackButtons', false, 'boolean'),
   enableConversationThreads: getConfigValue('enableConversationThreads', true, 'boolean'),
-  enableApiMiddleware: getConfigValue('enableApiMiddleware', false, 'boolean'),
   enableAutocomplete: getConfigValue('enableAutocomplete', false, 'boolean'),
   showGitHubStats: getConfigValue('showGitHubStats', true, 'boolean'),
   outOfServiceMessage: (() => {
@@ -438,25 +435,16 @@ export function getEnableConversationThreads(): boolean {
   return getConfigValue('enableConversationThreads', true, 'boolean');
 }
 
-export function getEnableApiMiddleware(): boolean {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('enableApiMiddleware', false, 'boolean');
-}
-
 export function getEnableAutocomplete(): boolean {
   // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
   return getConfigValue('enableAutocomplete', false, 'boolean');
 }
 
 /**
- * Helper to resolve the default adapter name when middleware mode is active.
- * Falls back to null when middleware is disabled or no default adapter is configured.
+ * Helper to resolve the default adapter name.
+ * Falls back to null when no default adapter is configured.
  */
 export function getDefaultAdapterName(): string | null {
-  if (!getEnableApiMiddleware()) {
-    return null;
-  }
-
   const adapterName = getDefaultKey()?.trim();
   if (adapterName && adapterName !== 'default-key') {
     return adapterName;

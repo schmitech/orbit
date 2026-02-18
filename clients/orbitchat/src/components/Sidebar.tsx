@@ -1,10 +1,10 @@
 import React, { FormEvent, MouseEvent, useEffect, useState } from 'react';
-import { Search, MessageSquare, Trash2, Edit2, Trash, Paperclip, Settings, Eye, EyeOff } from 'lucide-react';
+import { Search, MessageSquare, Trash2, Edit2, Trash, Paperclip, Settings } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { debugError } from '../utils/debug';
-import { getApiUrl, getDefaultKey, getEnableApiMiddleware } from '../utils/runtimeConfig';
+import { getApiUrl } from '../utils/runtimeConfig';
 import { useTheme } from '../contexts/ThemeContext';
 import { AdapterSelector } from './AdapterSelector';
 import { PACKAGE_VERSION } from '../utils/version';
@@ -115,27 +115,20 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   });
   const [showConfig, setShowConfig] = useState(false);
   const [apiUrl, setApiUrl] = useState(() => getApiUrl());
-  const [apiKey, setApiKey] = useState(() => getDefaultKey());
   const [selectedAdapter, setSelectedAdapter] = useState<string | null>(null);
-  const [showApiKey, setShowApiKey] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const isMiddlewareEnabled = getEnableApiMiddleware();
   const canConfigureApi = !currentConversation || currentConversation.messages.length === 0;
   const { theme } = useTheme();
   const sizeStyles = conversationSizeStyles[theme.fontSize ?? 'medium'];
   useEffect(() => {
-    if (!isMiddlewareEnabled) {
-      setSelectedAdapter(null);
-      return;
-    }
     if (currentConversation?.adapterName) {
       setSelectedAdapter(currentConversation.adapterName);
     } else {
       setSelectedAdapter(null);
     }
-  }, [isMiddlewareEnabled, currentConversation?.adapterName]);
+  }, [currentConversation?.adapterName]);
   useEffect(() => {
     setValidationError(null);
   }, [currentConversationId]);
@@ -157,17 +150,14 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     const currentApiUrl = conversationApiUrl && conversationApiUrl !== runtimeApiUrl
       ? conversationApiUrl
       : runtimeApiUrl;
-    const currentApiKey = currentConversation?.apiKey || getDefaultKey();
 
     setApiUrl(currentApiUrl);
-    setApiKey(currentApiKey);
     setValidationError(null);
-    setShowApiKey(false);
     setShowConfig(true);
   };
 
   const handleAdapterSelection = async (adapterName: string) => {
-    if (!isMiddlewareEnabled || !canConfigureApi || !adapterName) {
+    if (!canConfigureApi || !adapterName) {
       return;
     }
 
@@ -176,7 +166,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     setIsValidating(true);
     try {
       const runtimeApiUrl = currentConversation?.apiUrl || getApiUrl();
-      await configureApiSettings(runtimeApiUrl, undefined, undefined, adapterName);
+      await configureApiSettings(runtimeApiUrl, undefined, adapterName);
       clearError();
       setShowConfig(false);
     } catch (error) {
@@ -185,30 +175,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
       setValidationError(errorMessage);
     } finally {
       setIsValidating(false);
-    }
-  };
-
-  const handleConfigureApi = async (event?: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement>) => {
-    if (event) {
-      event.preventDefault();
-    }
-
-    if (!isMiddlewareEnabled && apiUrl && apiKey) {
-      setIsValidating(true);
-      setValidationError(null);
-      try {
-        await configureApiSettings(apiUrl, apiKey);
-        clearError();
-        setValidationError(null);
-        setShowApiKey(false);
-        setShowConfig(false);
-      } catch (error) {
-        debugError('Failed to configure API:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to configure API settings';
-        setValidationError(errorMessage);
-      } finally {
-        setIsValidating(false);
-      }
     }
   };
 
@@ -339,61 +305,17 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
             className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]"
           >
             <h2 className="mb-4 text-lg font-medium text-[#353740] dark:text-[#ececf1]">
-              {isMiddlewareEnabled ? 'Select an Agent' : 'Configure API Settings'}
+              Select an Agent
             </h2>
             <div className="space-y-5">
-              {!isMiddlewareEnabled && (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-[#353740] dark:text-[#d1d5db]">
-                    API URL
-                  </label>
-                  <input
-                    type="text"
-                    value={apiUrl}
-                    onChange={(e) => setApiUrl(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
-                    placeholder="https://api.example.com"
-                  />
-                </div>
-              )}
-              {isMiddlewareEnabled ? (
-                <AdapterSelector
-                  selectedAdapter={selectedAdapter || currentConversation?.adapterName || null}
-                  onAdapterChange={handleAdapterSelection}
-                  disabled={isValidating}
-                  variant="prominent"
-                  showDescriptions
-                  showLabel={false}
-                />
-              ) : (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-[#353740] dark:text-[#d1d5db]">
-                    API Key
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showApiKey ? 'text' : 'password'}
-                      value={apiKey}
-                      onChange={(e) => {
-                        setApiKey(e.target.value);
-                        setValidationError(null);
-                      }}
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-10 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
-                      placeholder="your-api-key"
-                      disabled={isValidating}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 hover:text-gray-700 dark:text-[#d1d5db] dark:hover:text-white"
-                      aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-                      disabled={isValidating}
-                    >
-                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-              )}
+              <AdapterSelector
+                selectedAdapter={selectedAdapter || currentConversation?.adapterName || null}
+                onAdapterChange={handleAdapterSelection}
+                disabled={isValidating}
+                variant="prominent"
+                showDescriptions
+                showLabel={false}
+              />
               {validationError && (
                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
                   {validationError}
@@ -404,11 +326,8 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                   type="button"
                   onClick={() => {
                     const currentApiUrl = currentConversation?.apiUrl || getApiUrl();
-                    const currentApiKey = currentConversation?.apiKey || getDefaultKey();
                     setApiUrl(currentApiUrl);
-                    setApiKey(currentApiKey);
                     setValidationError(null);
-                    setShowApiKey(false);
                     setShowConfig(false);
                   }}
                   className="rounded-md border border-transparent px-4 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-[#d1d5db] dark:hover:text-white"
@@ -416,15 +335,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                   >
                     Cancel
                   </button>
-                {!isMiddlewareEnabled && (
-                  <button
-                    type="submit"
-                    disabled={isValidating || (!apiUrl || !apiKey)}
-                    className="rounded-md bg-[#343541] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#282b32] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
-                  >
-                    {isValidating ? 'Validating...' : 'Update'}
-                  </button>
-                )}
               </div>
             </div>
           </form>
@@ -458,14 +368,9 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
             )}
           </div>
           <div className="mt-4 space-y-3">
-            {!isMiddlewareEnabled && (
-              <button
-                onClick={handleOpenConfigureModal}
-                disabled={!canConfigureApi}
-                className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a] dark:hover:border-[#6b6f7a] dark:disabled:hover:bg-transparent dark:disabled:hover:border-[#4a4b54]"
-              >
-                Configure API
-              </button>
+            {/* Agent selection is handled through the modal */}
+            {false && (
+              <span></span>
             )}
             {validationError && !showConfig && (
               <p className="text-xs text-red-600 dark:text-red-400">{validationError}</p>

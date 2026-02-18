@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, RefObject } from 'react';
-import { getEnableAutocomplete, getEnableApiMiddleware, resolveApiUrl } from '../utils/runtimeConfig';
+import { getEnableAutocomplete } from '../utils/runtimeConfig';
 import { debugLog, debugWarn } from '../utils/debug';
 
 const DEBOUNCE_DELAY = 300;  // 300ms debounce
@@ -12,10 +12,8 @@ export interface AutocompleteSuggestion {
 
 export interface UseAutocompleteOptions {
   enabled?: boolean;
-  apiKey?: string | null;
   apiUrl?: string | null;
   adapterName?: string | null;
-  useMiddleware?: boolean;
   /**
    * Optional ref to refocus after accepting a suggestion (helps on mobile/touch).
    */
@@ -53,10 +51,7 @@ export function useAutocomplete(
 ): UseAutocompleteResult {
   const {
     enabled = getEnableAutocomplete(),
-    apiKey,
-    apiUrl,
     adapterName,
-    useMiddleware = getEnableApiMiddleware(),
     inputRef
   } = options;
 
@@ -89,16 +84,7 @@ export function useAutocomplete(
       return;
     }
 
-    const middlewareEnabled = Boolean(useMiddleware);
-    const requiresApiKey = !middlewareEnabled;
-    const requiresAdapter = middlewareEnabled;
-
-    if (requiresApiKey && !apiKey) {
-      setSuggestions([]);
-      return;
-    }
-
-    if (requiresAdapter && !adapterName) {
+    if (!adapterName) {
       setSuggestions([]);
       return;
     }
@@ -112,23 +98,14 @@ export function useAutocomplete(
     setIsLoading(true);
 
     try {
-      const headers: Record<string, string> = {};
-      let requestUrl: string;
+      const headers: Record<string, string> = {
+        'X-Adapter-Name': adapterName
+      };
 
-      if (middlewareEnabled) {
-        const params = new URLSearchParams();
-        params.set('q', searchQuery);
-        params.set('limit', String(MAX_SUGGESTIONS));
-        requestUrl = `/api/v1/autocomplete?${params.toString()}`;
-        headers['X-Adapter-Name'] = adapterName as string;
-      } else {
-        const resolvedUrl = resolveApiUrl(apiUrl);
-        const url = new URL(`${resolvedUrl}/v1/autocomplete`);
-        url.searchParams.set('q', searchQuery);
-        url.searchParams.set('limit', String(MAX_SUGGESTIONS));
-        requestUrl = url.toString();
-        headers['X-API-Key'] = apiKey as string;
-      }
+      const params = new URLSearchParams();
+      params.set('q', searchQuery);
+      params.set('limit', String(MAX_SUGGESTIONS));
+      const requestUrl = `/api/v1/autocomplete?${params.toString()}`;
 
       const response = await fetch(requestUrl, {
         method: 'GET',
@@ -172,7 +149,7 @@ export function useAutocomplete(
     } finally {
       setIsLoading(false);
     }
-  }, [enabled, apiKey, apiUrl, adapterName, useMiddleware, sanitizeSuggestionText]);
+  }, [enabled, adapterName, sanitizeSuggestionText]);
 
   // Debounced effect
   useEffect(() => {

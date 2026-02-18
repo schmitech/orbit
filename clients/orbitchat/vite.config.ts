@@ -19,25 +19,18 @@ const fixMaxListenersPlugin = () => ({
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const useLocalApi = env.VITE_USE_LOCAL_API === 'true';
-  const enableMiddleware = env.VITE_ENABLE_API_MIDDLEWARE === 'true';
 
   const localApiDir = useLocalApi
     ? path.resolve(__dirname, '../node-api/dist')
     : path.resolve(__dirname, 'src/api/local-stub');
 
-  const plugins: PluginOption[] = [react(), fixMaxListenersPlugin()];
-  
-  // Add adapters plugin when middleware is enabled
-  if (enableMiddleware) {
-    plugins.push(adaptersPlugin());
-  }
+  const plugins: PluginOption[] = [react(), fixMaxListenersPlugin(), adaptersPlugin()];
 
   return {
     plugins,
     optimizeDeps: {
       exclude: [
         'lucide-react',
-        '@schmitech/chatbot-api',
         '@schmitech/markdown-renderer',
       ],
     },
@@ -56,7 +49,7 @@ export default defineConfig(({ mode }) => {
           path.resolve(__dirname, '..'),
         ],
       },
-      proxy: enableMiddleware && env.VITE_MIDDLEWARE_SERVER_URL ? {
+      proxy: env.VITE_MIDDLEWARE_SERVER_URL ? {
         // Proxy API requests to Express server when middleware is enabled
         '/api': {
           target: env.VITE_MIDDLEWARE_SERVER_URL,

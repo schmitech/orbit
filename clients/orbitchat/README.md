@@ -1,6 +1,6 @@
 # ORBIT Chat App
 
-A standalone chat application for ORBIT that can be installed as an npm package and run as a CLI tool. Integrates with the `@schmitech/chatbot-api` package for real-time streaming chat responses and uses the open-source [`@schmitech/markdown-renderer`](https://github.com/schmitech/markdown-renderer) for rich content display including math and charts.
+A standalone chat application for ORBIT that can be installed as an npm package and run as a CLI tool. All API communication is routed through a built-in Express proxy that maps adapter names to backend API keys, so **no secrets ever reach the browser**. Uses the open-source [`@schmitech/markdown-renderer`](https://github.com/schmitech/markdown-renderer) for rich content display including math and charts.
 
 ## Installation
 
@@ -16,57 +16,213 @@ Or install locally:
 npm install orbitchat
 ```
 
-## Usage
+## Quick Start
 
-### CLI Tool
+1. Define your adapters (agents) via the `ORBIT_ADAPTERS` or `VITE_ADAPTERS` environment variable:
+   ```bash
+   export ORBIT_ADAPTERS='[
+     {"name":"Simple Chat","apiKey":"my-key","apiUrl":"http://localhost:3000","description":"Default conversational agent."}
+   ]'
+   ```
 
-After installing globally, run:
-```bash
-orbitchat
+2. Run the CLI:
+   ```bash
+   orbitchat --enable-upload --port 5173
+   ```
+
+3. Open `http://localhost:5173` — select an agent and start chatting.
+
+## Architecture
+
+```
+Browser  ──X-Adapter-Name──▶  Express proxy  ──X-API-Key──▶  ORBIT backend
+                              (bin/orbitchat.js)
 ```
 
-The app will start a server at `http://localhost:5173` by default.
+The frontend never handles API keys. Instead:
+- The browser sends an `X-Adapter-Name` header with every API request.
+- The Express proxy looks up the adapter, injects the real `X-API-Key`, and forwards the request to the configured backend URL.
+- `GET /api/adapters` returns only adapter names and descriptions — never keys or URLs.
 
-#### CLI Options
+## CLI Options
 
 ```bash
 orbitchat [options]
 
 Options:
-  --api-url URL                    API URL (default: http://localhost:3000)
-  --default-adapter NAME           Default adapter to preselect when middleware is enabled
-  --api-key KEY                    Default API key (default: default-key)
-  --use-local-api BOOLEAN          Use local API build (default: false)
-  --local-api-path PATH            Path to local API
-  --console-debug BOOLEAN          Enable console debug (default: false)
-  --enable-upload BOOLEAN          Enable upload button (default: false)
-  --enable-feedback BOOLEAN        Enable feedback buttons (default: false)
+  --api-url URL                    Default backend URL (default: http://localhost:3000)
+  --default-adapter NAME           Adapter to preselect for new conversations
+  --application-name NAME          Name shown in browser tab (default: ORBIT Chat)
+  --application-description TEXT   Subtitle shown under the welcome heading
+  --default-input-placeholder TEXT Message input placeholder (default: Message ORBIT...)
+  --console-debug                  Enable console debug logging (default: false)
+  --enable-upload                  Enable file upload button (default: false)
+  --enable-audio                   Enable audio output button (default: false)
+  --enable-feedback                Enable feedback buttons (default: false)
+  --enable-autocomplete            Enable autocomplete suggestions (default: false)
+  --out-of-service-message TEXT    Show maintenance screen blocking access
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
   --max-total-files N              Max total files (default: 100, 0 = unlimited)
   --max-conversations N            Max conversations (default: 10, 0 = unlimited)
   --max-messages-per-conversation N Max messages per conversation (default: 1000, 0 = unlimited)
+  --max-messages-per-thread N      Max messages per thread (default: 1000, 0 = unlimited)
   --max-total-messages N           Max total messages (default: 10000, 0 = unlimited)
   --max-message-length N           Max message length (default: 1000)
   --port PORT                      Server port (default: 5173)
   --host HOST                      Server host (default: localhost)
   --open                           Open browser automatically
+  --api-only                       Run API proxy only (no UI serving, no build required)
+  --cors-origin ORIGIN             Allowed CORS origin in api-only mode (default: *)
   --config PATH                    Path to config file (default: ~/.orbit-chat-app/config.json)
   --help, -h                       Show help message
+  --version, -v                    Show version number
 ```
 
-#### Examples
+### Examples
 
 ```bash
 # Start with custom API URL and port
 orbitchat --api-url http://localhost:3000 --port 8080
 
-# Start with API key and open browser
-orbitchat --api-key my-key --open
+# Start with upload, audio and autocomplete enabled
+orbitchat --enable-upload --enable-audio --enable-autocomplete --open
 
-# Start with custom config file
+# Start with a custom config file
 orbitchat --config /path/to/config.json
+
+# Start with adapters defined inline
+ORBIT_ADAPTERS='[{"name":"Chat","apiKey":"mykey","apiUrl":"https://api.example.com"}]' orbitchat
+
+# API proxy only — no UI, no build required
+orbitchat --api-only --port 5174
+
+# API proxy with restricted CORS origin
+orbitchat --api-only --port 5174 --cors-origin http://localhost:3001
 ```
+
+## API-Only Mode
+
+Use `--api-only` to run the Express proxy **without** serving the built-in chat UI. This is useful when you are building your own frontend and only need the proxy layer to keep API keys off the browser.
+
+```bash
+orbitchat --api-only --port 5174
+```
+
+In this mode:
+- No `dist/` directory or `npm run build` is required.
+- CORS headers are added automatically (default `Access-Control-Allow-Origin: *`). Use `--cors-origin` to restrict to a specific origin.
+- All `/api/*` proxy routes and `GET /api/adapters` work exactly the same as in full mode.
+
+### API contract for custom UIs
+
+Your frontend needs to do two things:
+
+1. **Discover adapters** — `GET /api/adapters` returns:
+   ```json
+   {
+     "adapters": [
+       { "name": "Simple Chat", "description": "...", "notes": "..." }
+     ]
+   }
+   ```
+
+2. **Send requests with `X-Adapter-Name`** — every call to `/api/*` must include the header:
+   ```
+   X-Adapter-Name: Simple Chat
+   ```
+   The proxy resolves the adapter, injects the real `X-API-Key`, and forwards the request to the backend URL configured for that adapter.
+
+### Endpoint reference
+
+| Method | Path | Headers | Description |
+|--------|------|---------|-------------|
+| GET | `/api/adapters` | — | List available adapter names and descriptions |
+| POST | `/api/v1/chat` | `X-Adapter-Name`, `X-Session-ID` | Send a chat message (SSE streaming response) |
+| POST | `/api/files/upload` | `X-Adapter-Name` | Upload a file (multipart/form-data) |
+| GET | `/api/files` | `X-Adapter-Name` | List uploaded files |
+| GET | `/api/files/:id` | `X-Adapter-Name` | Get file info |
+| DELETE | `/api/files/:id` | `X-Adapter-Name` | Delete a file |
+| GET | `/api/v1/autocomplete?q=...&limit=5` | `X-Adapter-Name` | Autocomplete suggestions |
+
+### Example: calling from a custom React app
+
+```js
+// Discover adapters
+const res = await fetch('http://localhost:5174/api/adapters');
+const { adapters } = await res.json();
+
+// Send a chat message (SSE stream)
+const response = await fetch('http://localhost:5174/api/v1/chat', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Adapter-Name': adapters[0].name,
+    'X-Session-ID': crypto.randomUUID(),
+  },
+  body: JSON.stringify({ message: 'Hello!' }),
+});
+
+// Read the SSE stream
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  console.log(decoder.decode(value));
+}
+```
+
+## Configuring Adapters
+
+Adapters map a user-visible name to a backend API key and URL. Configure them via the `ORBIT_ADAPTERS` (or `VITE_ADAPTERS`) environment variable as a JSON array:
+
+```bash
+export ORBIT_ADAPTERS='[
+  {
+    "name": "Simple Chat",
+    "apiKey": "default-key",
+    "apiUrl": "http://localhost:3000",
+    "description": "Basic chat interface using the default conversational agent."
+  },
+  {
+    "name": "Document QA",
+    "apiKey": "doc-qa-key",
+    "apiUrl": "http://localhost:3000",
+    "description": "Chat with uploaded documents.",
+    "notes": "Supports PDF, DOCX, and plain text uploads."
+  }
+]'
+```
+
+Each adapter object supports:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Display name shown in the agent selector |
+| `apiKey` | Yes | Backend API key (never exposed to the browser) |
+| `apiUrl` | No | Backend URL (defaults to `--api-url` value) |
+| `description` | No | Short summary shown in dropdowns |
+| `notes` | No | Markdown content shown in the chat empty state |
+
+If `--default-adapter` is not specified, the first adapter in the list is preselected for new conversations.
+
+### Agent Selector UX
+
+- When a conversation has no messages, the chat canvas shows a centered agent selector with the adapter's notes rendered beneath it.
+- Once an adapter is selected, the input field unlocks.
+- Sidebar cards display the agent assigned to each conversation.
+- To change the adapter after messages exist, use the "Change agent" action in the sidebar.
+
+## Configuration
+
+### Configuration Priority
+
+Configuration is loaded in the following priority order:
+1. CLI arguments (highest priority)
+2. Config file (`~/.orbit-chat-app/config.json`)
+3. Environment variables (`VITE_*`)
+4. Default values (lowest priority)
 
 ### Configuration File
 
@@ -75,7 +231,7 @@ Create a config file at `~/.orbit-chat-app/config.json`:
 ```json
 {
   "apiUrl": "http://localhost:3000",
-  "defaultKey": "default-key",
+  "defaultKey": "Simple Chat",
   "port": 5173,
   "host": "localhost",
   "enableUploadButton": false,
@@ -90,189 +246,102 @@ Create a config file at `~/.orbit-chat-app/config.json`:
 }
 ```
 
-### Configuration Priority
-
-Configuration is loaded in the following priority order:
-1. CLI arguments (highest priority)
-2. Config file (`~/.orbit-chat-app/config.json`)
-3. Environment variables (`VITE_*`)
-4. Default values (lowest priority)
-
-**Note:** GitHub stats and GitHub owner/repo are always shown and default to "schmitech/orbit". These are only configurable via build-time environment variables (`VITE_SHOW_GITHUB_STATS`, `VITE_GITHUB_OWNER`, `VITE_GITHUB_REPO`) for developers who fork the repository and build their own version.
-
-### Protect API Keys with the Middleware Proxy
-
-You can prevent API keys from ever reaching the browser by enabling the built-in middleware layer:
-
-1. Create an `adapters.yaml` file (next to `bin/orbitchat.js`, in your working directory, or in `~/.orbit-chat-app/`). Example:
-   ```yaml
-   adapters:
-     local-dev:
-       apiKey: orbit_dev_key
-       apiUrl: http://localhost:3000
-       description: Local development agent
-       notes: >
-         Use this agent for local testing against http://localhost:3000.
-         Markdown is supported in notes and will appear inside the chat UI.
-     production:
-       apiKey: orbit_prod_key
-       apiUrl: https://api.example.com
-       description: Production agent
-       notes: |
-         ### Production adapter
-         - Connects to https://api.example.com
-         - Requires valid credentials
-   ```
-   - `description` is a short, single-line summary that shows inside dropdowns.
-   - `notes` is optional markdown surfaced in the chat empty state so end users immediately understand the agent’s capabilities.
-   - If you only have `notes`, the first non-empty line is automatically reused as a fallback `description`.
-2. Start the CLI with `--enable-api-middleware` (or export `VITE_ENABLE_API_MIDDLEWARE=true`). The Express server now:
-   - Serves `GET /api/adapters` so the React app can list safe adapter names.
-   - Proxies all chat/file/thread/admin calls through `/api/...`, injecting the adapter's real `X-API-Key`.
-3. The UI automatically swaps the API-key modal for an Adapter Selector and stores adapter names per conversation.
-
-Keep `adapters.yaml` out of source control and run the CLI behind HTTPS (or another reverse proxy) when deploying.
+> **Note:** `defaultKey` should be set to an adapter name (e.g. `"Simple Chat"`). If left as `"default-key"` or empty, the app falls back to the first adapter in `ORBIT_ADAPTERS`.
 
 ### Environment Variables
 
-You can also set configuration via environment variables (for development):
+For development, set configuration via environment variables:
 
 ```bash
 VITE_API_URL=http://localhost:3000
-VITE_DEFAULT_KEY=default-key
+VITE_DEFAULT_KEY=Simple Chat          # Adapter name to preselect
 VITE_ENABLE_UPLOAD=false
+VITE_ENABLE_AUDIO_OUTPUT=false
+VITE_ENABLE_FEEDBACK=false
+VITE_ENABLE_AUTOCOMPLETE=false
 VITE_CONSOLE_DEBUG=false
-# ... etc
-
-`VITE_DEFAULT_KEY` is dual-purpose:
-- When **middleware is disabled**, it should contain the literal API key that the frontend will send to the backend (same as before).
-- When **middleware is enabled**, set it to the adapter name you want preselected (or pass `--default-adapter`). If you leave it as `default-key` or empty, the app automatically falls back to the first adapter defined in `VITE_ADAPTERS`/`ORBIT_ADAPTERS`.
 ```
 
-### Understanding the Agent Selector UX
-
-- When middleware mode is enabled and a conversation has no messages, the main chat canvas now shows a centered agent selector with the adapter’s notes rendered directly beneath it. This is the primary place users choose or review agents.
-- Once an adapter is selected, the input field unlocks and aligns with the selector/notes card to keep the first-time experience focused.
-- Sidebar cards display the agent assigned to each conversation under the timestamp/badges so it is easy to scan which assistant was used.
-- To change the adapter after messages exist, open the “Change agent” action in the sidebar (or configure API modal) and select a new adapter. This ensures there is a single, predictable entry point instead of multiple dropdowns.
+> **Note:** GitHub stats and owner/repo are hardcoded and only configurable via build-time environment variables (`VITE_SHOW_GITHUB_STATS`, `VITE_GITHUB_OWNER`, `VITE_GITHUB_REPO`) for developers who fork the repository.
 
 ## Development
 
 ### Local Development Setup
 
-For local development, clone the repository and install dependencies:
+Clone the repository and install dependencies:
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Configuration
+### Development with Express Proxy
 
-The application supports multiple ways to configure the API:
-
-### 1. Environment Variables (Vite)
-Create a `.env.local` file in the root directory:
+To run both the Express proxy and Vite dev server together:
 
 ```bash
-VITE_API_URL=https://your-api-endpoint.com
-VITE_DEFAULT_KEY=default-key      # API key in direct mode, or adapter name in middleware mode
-VITE_USE_LOCAL_API=true          # Set to 'true' to use local API build
-VITE_LOCAL_API_PATH=/api.mjs      # Path to local API (defaults to /api.mjs from public directory)
-VITE_CONSOLE_DEBUG=false          # Enable debug logging
+node bin/dev-server.js
 ```
 
-### 2. Window Variables
-Set global variables in your HTML or before the app loads:
+This starts:
+- Express proxy on port 5174 (handles `/api/*` routes)
+- Vite dev server on port 5173 (proxies API requests to Express)
 
-```javascript
-window.CHATBOT_API_URL = 'https://your-api-endpoint.com';
-window.CHATBOT_API_KEY = 'your-api-key-here';
-```
+### Building for Production
 
-### 3. Runtime Configuration
-Use the "Configure API" button in the chat interface to set the API URL and key at runtime.
-
-## Local Development Setup
-
-### Using Local API Build
-
-For local development, you can use the local API build instead of the npm package:
-
-**Option 1: Use the convenience script** (recommended):
 ```bash
-npm run dev:with-api
+npm run build
 ```
-This script automatically:
-1. Builds the API from `../node-api`
-2. Copies the built files to `public/api.mjs`
-3. Starts the dev server with local API enabled
 
-**Option 2: Manual setup**:
+The output is written to `dist/`. Serve it with:
+
 ```bash
-# Build and copy API files
-npm run build:api
-
-# Start dev server with local API
-npm run dev:local
+orbitchat --port 8080
 ```
 
-**Option 3: Build API separately**:
+### Running as a Daemon
+
+Use the included `run-chat-app.sh` script:
+
 ```bash
-# From node-api directory
-cd ../node-api
-npm run build:chat-app
-
-# Then start chat-app
-cd ../chat-app
-npm run dev:local
+./run-chat-app.sh --start        # Start in background
+./run-chat-app.sh --start 8080   # Start on custom port
+./run-chat-app.sh --stop          # Stop
+./run-chat-app.sh --status        # Check status
 ```
 
-The local API files will be copied to `src/api/local/` directory. When `VITE_USE_LOCAL_API=true` is set, the app will load `./local/api.mjs` from the src directory instead of the npm package.
+## Available Scripts
+
+- `npm run dev` — Start Vite dev server
+- `npm run build` — Build for production
+- `npm run preview` — Preview production build
+- `npm run dev:local` — Start dev server with local API build
+- `npm run dev:with-api` — Build API from `../node-api` and start dev server
+- `npm run build:local` — Build for production with local API
+- `npm run build:api` — Build and copy API from `../node-api`
 
 ## Features
 
-- **Streaming Responses**: Real-time streaming of AI responses
+- **Streaming Responses**: Real-time streaming of AI responses via SSE
+- **Agent Selection**: Choose from configured adapters per conversation
 - **File Upload**: Upload and attach files (PDF, DOCX, TXT, CSV, JSON, HTML, images, audio) to conversations
-- **File Context**: Query uploaded files and include them in chat context
+- **File Context**: Query uploaded files — they are chunked, embedded, and included in chat context
+- **Autocomplete**: Optional type-ahead suggestions via `/api/v1/autocomplete`
+- **Conversation Threads**: Branch conversations into focused sub-threads
 - **Session Management**: Automatic session ID generation and persistence
-- **Error Handling**: Comprehensive error handling with user-friendly messages
-- **Conversation Persistence**: Chat history is saved to localStorage
-- **API Configuration**: Flexible API configuration options
+- **Conversation Persistence**: Chat history saved to localStorage
+- **Audio Output**: Optional text-to-speech for AI responses
+- **Feedback Buttons**: Optional thumbs-up/down per message
 
 ## Security
 
-- When **API middleware** is enabled, the browser never sees your real API keys. The CLI proxy serves `/api/adapters` with adapter names only and injects the real `X-API-Key` on the server before calling the backend. Keep `ORBIT_ADAPTERS` / `VITE_ADAPTERS` on the server (out of git) and run the proxy behind HTTPS so users cannot intercept traffic.
-- Even though the app falls back to the first adapter in `VITE_ADAPTERS`, the adapters list itself is still server-side; clients only learn the names you expose. Someone would need filesystem or shell access to the machine running `bin/orbitchat.js` to read the adapters config and extract the real keys.
-- In direct mode (middleware disabled), the browser stores API keys locally to send them with requests—treat that mode as developer-only unless you’re comfortable distributing the key to end users.
-- Regardless of mode, secure the host running the CLI and restrict who can reach it; a compromised host or misconfigured reverse proxy can leak the adapters file or intercept proxied traffic.
+- The browser **never** sees real API keys. The Express proxy maps adapter names to keys server-side.
+- `GET /api/adapters` only exposes names and descriptions — never keys or backend URLs.
+- Keep `ORBIT_ADAPTERS` / `VITE_ADAPTERS` out of source control.
+- Run the proxy behind HTTPS (or another reverse proxy) in production so users cannot intercept traffic.
+- Secure the host running the CLI — a compromised host can leak the adapters config or intercept proxied traffic.
 
-## Usage
-
-### Basic Chat
-
-1. Configure your API settings using one of the methods above
-2. Start a conversation by typing a message
-3. The AI will respond with streaming text
-4. Use the regenerate button (↻) to regenerate responses
-5. Use the copy button to copy AI responses to clipboard
-
-### File Upload
-
-1. Click the paperclip icon (📎) in the message input
-2. Upload files using drag-and-drop or file picker
-3. Supported formats: PDF, DOCX, TXT, CSV, JSON, HTML, Markdown, images (PNG, JPEG, TIFF), audio (WAV, MP3, MP4, OGG, FLAC, WebM, M4A, AAC)
-4. Files are automatically processed and indexed
-5. Attach files to messages - they will be included in the chat context
-6. Files are chunked and stored in the vector store for semantic search
-
-**File Upload Flow**:
-- Upload files using the file upload UI
-- Files are processed on the server (extraction, chunking, embedding)
-- File IDs are automatically included with your messages
-- The AI can query and reference uploaded files in responses
-
-## File Upload Details
+## File Upload
 
 ### Supported File Types
 
@@ -280,88 +349,65 @@ The local API files will be copied to `src/api/local/` directory. When `VITE_USE
 |------|---------|------------|
 | Documents | PDF, DOCX, PPTX, XLSX | Text extraction, chunking, vector indexing |
 | Text | TXT, MD, HTML | Direct chunking and indexing |
-| Data | CSV, Parquet | DuckDB integration or vector store |
+| Data | CSV, JSON | Chunking and indexing |
+| Code | PY, JS, TS, Java, Go, Rust, C/C++, and more | Direct indexing |
 | Images | PNG, JPEG, TIFF | OCR via vision service |
-| Audio | WAV, MP3, MP4, OGG, FLAC, WebM, M4A, AAC | ASR (Automatic Speech Recognition) via audio transcription |
+| Audio | WAV, MP3, MP4, OGG, FLAC, WebM, M4A, AAC | ASR (Automatic Speech Recognition) |
+| Subtitles | VTT | Direct indexing |
 
-### File Size Limits
+### Limits
 
-- Maximum file size: 50MB
-- Maximum files per conversation: 5 (configurable)
+- Maximum file size: 50 MB (configurable via `--max-file-size-mb`)
+- Maximum files per conversation: 5 (configurable via `--max-files-per-conversation`)
 
-### File Processing
+### Processing Pipeline
 
-Files are processed through the following pipeline:
-1. **Upload**: File uploaded via `/api/files/upload`
-2. **Validation**: File type and size validation
-3. **Storage**: File saved to filesystem (or S3 in production)
-4. **Extraction**: Text and metadata extracted using format-specific processors
-5. **Chunking**: Content chunked using configured strategy (fixed or semantic)
-6. **Indexing**: Chunks indexed in vector store for semantic search
-7. **Metadata**: Processing status tracked in SQLite
-
-## Available Scripts
-
-- `npm run dev` - Start dev server (uses npm package)
-- `npm run dev:local` - Start dev server with local API enabled
-- `npm run dev:with-api` - Build API and start dev server with local API
-- `npm run build` - Build for production (uses npm package)
-- `npm run build:local` - Build for production with local API
-- `npm run build:api` - Build API and copy to public directory
-- `npm run preview` - Preview production build
-- `npm run preview:local` - Preview production build with local API
+1. **Upload** — File uploaded via the Express proxy to `/api/files/upload`
+2. **Validation** — File type and size validated client-side and server-side
+3. **Storage** — File saved to filesystem (or S3 in production)
+4. **Extraction** — Text and metadata extracted using format-specific processors
+5. **Chunking** — Content chunked using configured strategy (fixed or semantic)
+6. **Indexing** — Chunks indexed in vector store for semantic search
+7. **Status Polling** — Client polls until processing completes
 
 ## Integration Details
 
-The integration uses:
-- **Zustand** for state management (replacing React Context)
-- **@schmitech/chatbot-api** for streaming chat functionality and file operations
+The application uses:
+- **Zustand** for state management
+- **Express** + `http-proxy-middleware` for the API proxy layer
 - **@schmitech/markdown-renderer** ([GitHub](https://github.com/schmitech/markdown-renderer) | [NPM](https://www.npmjs.com/package/@schmitech/markdown-renderer)) for rich markdown rendering
 - **localStorage** for persistent session and conversation storage
-- **TypeScript** for type safety throughout the integration
-- **File Upload Service** for handling file uploads with progress tracking
-- **Vector Store** for semantic search over uploaded file content
+- **TypeScript** for type safety throughout
 
 ## Troubleshooting
 
-### Local API Not Loading
+### No Adapters Available
 
-If you see a 404 error for `api.mjs`:
-
-1. **Ensure API is built**:
-   ```bash
-   cd ../node-api
-   npm run build
-   ```
-
-2. **Copy files to src/api/local directory**:
-   ```bash
-   mkdir -p ../chat-app/src/api/local
-   cp dist/api.mjs ../chat-app/src/api/local/api.mjs
-   cp dist/api.d.ts ../chat-app/src/api/local/api.d.ts
-   ```
-
-3. **Restart dev server with local API enabled**:
-   ```bash
-   npm run dev:local
-   ```
-
-4. **Check environment variable**:
-   - Ensure `VITE_USE_LOCAL_API=true` is set (or use `npm run dev:local`)
-   - The default path `./local/api.mjs` should work if files are in `src/api/local/`
+If the agent selector shows no adapters:
+1. Ensure `ORBIT_ADAPTERS` or `VITE_ADAPTERS` is set and valid JSON
+2. Check the CLI startup logs for "Available Adapters: ..."
+3. Verify each adapter has a `name` and `apiKey` field
 
 ### File Upload Issues
 
-- **File size exceeded**: Check file size (max 50MB)
-- **Unsupported format**: Verify file type is in supported list
-- **Upload fails**: Check server logs and API key configuration
-- **Processing fails**: Ensure file processing service is initialized on server
+- **File size exceeded** — Check file size against the configured limit
+- **Unsupported format** — Verify file type is in the supported list above
+- **Upload fails** — Check server logs and adapter configuration
+- **Processing fails** — Ensure the file processing service is initialized on the backend
 
 ### Debug Mode
 
-Enable debug logging by setting:
+Enable debug logging:
 ```bash
-VITE_CONSOLE_DEBUG=true
+orbitchat --console-debug
 ```
+Or set `VITE_CONSOLE_DEBUG=true` during development. This shows detailed API and file upload information in the browser console.
 
-This will show detailed API loading and file upload information in the console.
+## Deployment Checklist
+
+1. **Build the app**: `npm run build`
+2. **Set `ORBIT_ADAPTERS`** with your production adapter configs (keep out of git)
+3. **Run behind HTTPS** — use a reverse proxy like nginx or Caddy in front of `orbitchat`
+4. **Bind to the right interface**: use `--host 0.0.0.0` to allow external access, or keep the default `localhost` for local-only
+5. **Tune limits** — set `--max-conversations`, `--max-message-length`, etc. appropriate for your deployment
+6. **Monitor logs** — use `run-chat-app.sh --start` for daemon mode with log file, or run directly and pipe to your log aggregator

@@ -8,7 +8,7 @@ import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
-import { getDefaultInputPlaceholder, getDefaultKey, getEnableApiMiddleware, getEnableAudioOutput, getEnableAutocomplete, getEnableUploadButton, resolveApiUrl } from '../utils/runtimeConfig';
+import { getDefaultInputPlaceholder, getEnableAudioOutput, getEnableAutocomplete, getEnableUploadButton, resolveApiUrl } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
 
@@ -43,8 +43,6 @@ const DEFAULT_TEXTAREA_VERTICAL_PADDING = 4;
 const VERTICAL_ALIGNMENT_OFFSET = 2;
 const PLACEHOLDER_VERTICAL_OFFSET = 0;
 const INLINE_SUGGESTION_VERTICAL_OFFSET = 0;
-const DEFAULT_API_KEY = getDefaultKey();
-const isDefaultKeyPlaceholder = DEFAULT_API_KEY === 'default-key';
 
 function getExtensionFromMimeType(mimeType: string | undefined): string {
   if (!mimeType) {
@@ -175,8 +173,6 @@ export function MessageInput({
   const voiceRecordingAvailable = audioFeatureEnabled && voiceSupported;
   const uploadFeatureEnabled = getEnableUploadButton();
   const autocompleteEnabled = getEnableAutocomplete();
-  const middlewareEnabled = getEnableApiMiddleware();
-
   // Autocomplete suggestions based on nl_examples from intent templates
   const {
     suggestions,
@@ -189,10 +185,8 @@ export function MessageInput({
     suppressUntilQueryChange
   } = useAutocomplete(message, {
     enabled: autocompleteEnabled,
-    apiKey: currentConversation?.apiKey,
     apiUrl: currentConversation?.apiUrl,
     adapterName: currentConversation?.adapterName,
-    useMiddleware: middlewareEnabled,
     inputRef: textareaRef
   });
   const hasSuggestions = suggestions.length > 0;
@@ -524,14 +518,11 @@ export function MessageInput({
 
   // Sync and poll file status when switching to a conversation
   useEffect(() => {
-    const middlewareMode = getEnableApiMiddleware();
-    
     if (!currentConversationId || !currentConversation) {
       return;
     }
-    
-    // Check for API key or adapter name depending on mode
-    if (middlewareMode ? !currentConversation.adapterName : !currentConversation.apiKey) {
+
+    if (!currentConversation.adapterName) {
       return;
     }
 
@@ -805,8 +796,6 @@ export function MessageInput({
     setUploadSuccessMessage(null);
 
     let pasteConversationId: string | null = null;
-    const middlewareMode = getEnableApiMiddleware();
-    let conversationApiKey: string | undefined;
 
     try {
       const pasteStore = useChatStore.getState();
@@ -832,24 +821,8 @@ export function MessageInput({
         throw new Error('Conversation not found. Please select a conversation first.');
       }
 
-      if (middlewareMode) {
-        if (!currentConv.adapterName) {
-          throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
-        }
-      } else {
-        const normalizedConversationKey =
-          typeof currentConv.apiKey === 'string' ? currentConv.apiKey.trim() : '';
-        const runtimeDefaultKey = DEFAULT_API_KEY?.trim() || '';
-        const canUseRuntimeDefaultKey = !isDefaultKeyPlaceholder && runtimeDefaultKey.length > 0;
-        const effectiveApiKey =
-          normalizedConversationKey || (canUseRuntimeDefaultKey ? runtimeDefaultKey : '');
-        const usingPlaceholderDefaultKey =
-          isDefaultKeyPlaceholder && effectiveApiKey === DEFAULT_API_KEY;
-        if (!effectiveApiKey || usingPlaceholderDefaultKey) {
-          throw new Error('API key not configured for this conversation. Please configure API settings first.');
-        }
-
-        conversationApiKey = effectiveApiKey;
+      if (!currentConv.adapterName) {
+        throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
       }
 
       const conversationApiUrl = resolveApiUrl(currentConv.apiUrl);
@@ -925,9 +898,9 @@ export function MessageInput({
             debugLog(`[MessageInput] Paste upload progress for ${file.name}: ${progress.progress}% - ${progress.status}`);
             updateEntry(progress);
           },
-          conversationApiKey,
+          undefined,
           conversationApiUrl,
-          middlewareMode ? conversationAdapterName : undefined
+          conversationAdapterName
         );
         uploadedAttachments.push(uploadedAttachment);
         completionPromises.push(markEntryComplete());

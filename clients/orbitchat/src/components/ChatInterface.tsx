@@ -10,7 +10,6 @@ import {
   getApplicationName,
   getApplicationDescription,
   getDefaultInputPlaceholder,
-  getEnableApiMiddleware
 } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
@@ -87,7 +86,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
   const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
-  const isMiddlewareEnabled = getEnableApiMiddleware();
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
   const applicationName = getApplicationName();
   const applicationDescription = getApplicationDescription().trim();
@@ -95,13 +93,13 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const initialPathSlugRef = useRef<string | null>(
     typeof window !== 'undefined' ? getAgentSlugFromPath(window.location.pathname) : null
   );
-  const initialAgentSelectionVisible = isMiddlewareEnabled && showEmptyState && !initialPathSlugRef.current;
+  const initialAgentSelectionVisible = showEmptyState && !initialPathSlugRef.current;
   const [isAgentSelectionVisible, setIsAgentSelectionVisible] = useState(initialAgentSelectionVisible);
   const agentSelectionConversationRef = useRef<string | null>(null);
   const shouldShowAgentSelectionList =
-    isMiddlewareEnabled && showEmptyState && isAgentSelectionVisible;
+    showEmptyState && isAgentSelectionVisible;
   const shouldShowAdapterNotesPanel =
-    isMiddlewareEnabled && showEmptyState && !isAgentSelectionVisible && !!currentConversation?.adapterName;
+    showEmptyState && !isAgentSelectionVisible && !!currentConversation?.adapterName;
   const prominentWidthClass = 'mx-auto w-full max-w-5xl';
   const messageInputWidthClass = shouldShowAdapterNotesPanel ? prominentWidthClass : 'w-full';
   const canStartNewConversation = canCreateNewConversation();
@@ -233,8 +231,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     }
 
     const adapterName = conversation.adapterName;
-    const apiKey = conversation.apiKey;
-    if (!adapterName && !apiKey) {
+    if (!adapterName) {
       return { ok: false };
     }
 
@@ -242,9 +239,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       const api = await getApi();
       const adapterClient = new api.ApiClient({
         apiUrl: conversation.apiUrl || getApiUrl(),
-        apiKey: adapterName ? null : apiKey || null,
         sessionId: null,
-        adapterName: adapterName || null
+        adapterName: adapterName
       });
 
       if (typeof adapterClient.getAdapterInfo !== 'function') {
@@ -283,7 +279,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
   // Reset agent selection visibility when conversations change
   useEffect(() => {
-    if (!isMiddlewareEnabled || !showEmptyState) {
+    if (!showEmptyState) {
       if (isAgentSelectionVisible) {
         setIsAgentSelectionVisible(false);
       }
@@ -301,15 +297,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       agentSelectionConversationRef.current = conversationId;
       setIsAgentSelectionVisible(true);
     }
-  }, [isMiddlewareEnabled, showEmptyState, currentConversation?.id, isAgentSelectionVisible]);
+  }, [showEmptyState, currentConversation?.id, isAgentSelectionVisible]);
+
 
   useEffect(() => {
-    if (!isMiddlewareEnabled) {
-      replaceAgentSlug(null);
-      initialPathSlugRef.current = null;
-      return;
-    }
-
     if (initialPathSlugRef.current) {
       return;
     }
@@ -319,12 +310,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       return;
     }
     replaceAgentSlug(slugifyAdapterName(currentConversation.adapterName));
-  }, [isMiddlewareEnabled, shouldShowAgentSelectionList, currentConversation?.adapterName]);
+  }, [shouldShowAgentSelectionList, currentConversation?.adapterName]);
 
   useEffect(() => {
-    if (!isMiddlewareEnabled) {
-      return;
-    }
     let cancelled = false;
 
     const synchronizeFromLocation = async () => {
@@ -368,20 +356,18 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       cancelled = true;
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [isMiddlewareEnabled, ensureConversationReadyForAgent, clearCurrentConversationAdapter]);
+  }, [ensureConversationReadyForAgent, clearCurrentConversationAdapter]);
 
-  // Debug: Log current conversation state for middleware mode debugging
+  // Debug: Log current conversation state
   useEffect(() => {
-    if (isMiddlewareEnabled) {
-      debugLog('[ChatInterface] Middleware mode state:', {
-        hasConversation: !!currentConversation,
-        adapterName: currentConversation?.adapterName,
-        hasAdapterInfo: !!currentConversation?.adapterInfo,
-        hasNotes: !!currentConversation?.adapterInfo?.notes,
-        notes: currentConversation?.adapterInfo?.notes?.substring(0, 50) + '...'
-      });
-    }
-  }, [isMiddlewareEnabled, currentConversation]);
+    debugLog('[ChatInterface] Conversation state:', {
+      hasConversation: !!currentConversation,
+      adapterName: currentConversation?.adapterName,
+      hasAdapterInfo: !!currentConversation?.adapterInfo,
+      hasNotes: !!currentConversation?.adapterInfo?.notes,
+      notes: currentConversation?.adapterInfo?.notes?.substring(0, 50) + '...'
+    });
+  }, [currentConversation]);
 
   // Load adapter info if in middleware mode and adapter is selected but info is missing or incomplete
   // This handles: 1) race conditions, 2) stale localStorage without notes field
@@ -396,7 +382,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       const needsRefresh = !currentConversation?.adapterInfo ||
                           (currentConversation?.adapterInfo && currentConversation.adapterInfo.notes === undefined);
 
-      if (isMiddlewareEnabled && adapterName && needsRefresh) {
+      if (adapterName && needsRefresh) {
         adapterInfoLoadedRef.current = adapterName;
         debugLog('[ChatInterface] Loading adapter info - adapterName:', adapterName, 'reason:', !currentConversation?.adapterInfo ? 'missing' : 'notes undefined');
         try {
@@ -405,7 +391,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           }
           const apiUrl = currentConversation?.apiUrl || getApiUrl();
           debugLog('[ChatInterface] Calling configureApiSettings for:', adapterName);
-          await configureApiSettings(apiUrl, undefined, undefined, adapterName);
+          await configureApiSettings(apiUrl, undefined, adapterName);
           debugLog('[ChatInterface] Adapter info loaded successfully');
           const latestState = useChatStore.getState();
           const latestConversation = latestState.conversations.find(conv => conv.id === latestState.currentConversationId);
@@ -427,7 +413,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
         }
       } else {
         debugLog('[ChatInterface] Skipping adapter info load:', {
-          isMiddlewareEnabled,
           adapterName,
           hasAdapterInfo: !!currentConversation?.adapterInfo,
           hasNotes: currentConversation?.adapterInfo?.notes !== undefined,
@@ -437,7 +422,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     };
     loadMissingAdapterInfo();
   }, [
-    isMiddlewareEnabled,
     currentConversation?.adapterName,
     currentConversation?.adapterInfo,
     currentConversation?.apiUrl,
@@ -526,7 +510,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   };
 
   const handleEmptyStateAdapterChange = useCallback(async (adapterName: string) => {
-    if (!isMiddlewareEnabled || !adapterName) {
+    if (!adapterName) {
       return;
     }
     const state = useChatStore.getState();
@@ -541,7 +525,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     clearConversationAdapterError(activeConversation.id);
     try {
       const runtimeApiUrl = activeConversation.apiUrl || getApiUrl();
-      await configureApiSettings(runtimeApiUrl, undefined, undefined, adapterName);
+      await configureApiSettings(runtimeApiUrl, undefined, adapterName);
       clearError();
       const latestState = useChatStore.getState();
       const latestConversation = latestState.conversations.find(conv => conv.id === latestState.currentConversationId);
@@ -560,7 +544,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       setIsConfiguringAdapter(false);
     }
   }, [
-    isMiddlewareEnabled,
     configureApiSettings,
     clearError,
     fetchAdapterInfoForConversation,
@@ -570,9 +553,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   ]);
 
   const handleAgentCardSelection = (adapterName: string) => {
-    if (!isMiddlewareEnabled) {
-      return;
-    }
     ensureConversationReadyForAgent();
     setIsAgentSelectionVisible(false);
     replaceAgentSlug(slugifyAdapterName(adapterName));
@@ -589,8 +569,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     const activeConversation = activeConversationId
       ? state.conversations.find(conv => conv.id === activeConversationId)
       : null;
-    if (!activeConversation || (!activeConversation.apiKey && !activeConversation.adapterName)) {
-      debugWarn('Cannot refresh adapter info: no conversation or API key/adapter');
+    if (!activeConversation || !activeConversation.adapterName) {
+      debugWarn('Cannot refresh adapter info: no conversation or adapter');
       return;
     }
 
@@ -693,7 +673,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       </div>
                       <button
                         onClick={handleRefreshAdapterInfo}
-                        disabled={isRefreshingAdapterInfo || (!currentConversation?.apiKey && !currentConversation?.adapterName)}
+                        disabled={isRefreshingAdapterInfo || !currentConversation?.adapterName}
                         className="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 dark:border-[#4a4b54] dark:text-[#bfc2cd] dark:hover:bg-[#4a4b54] dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Refresh adapter info"
                       >
@@ -854,7 +834,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         disabled={
                           isLoading ||
                           !currentConversation ||
-                          (isMiddlewareEnabled ? !currentConversation?.adapterName : !currentConversation?.apiKey) ||
+                          !currentConversation?.adapterName ||
                           hasAdapterConfigurationError
                         }
                         placeholder={defaultInputPlaceholder}
@@ -888,8 +868,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     disabled={
                       isLoading ||
                       !currentConversation ||
-                      (isMiddlewareEnabled ? !currentConversation.adapterName : !currentConversation.apiKey) ||
-                      (isMiddlewareEnabled && isAgentSelectionVisible) ||
+                      !currentConversation.adapterName ||
+                      isAgentSelectionVisible ||
                       hasAdapterConfigurationError
                     }
                     placeholder="Ask another question..."

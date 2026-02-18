@@ -10,12 +10,9 @@ import { getApplicationName } from './utils/runtimeConfig.ts';
 document.title = getApplicationName();
 
 // Log version information on startup
-getVersionInfo().then(versionInfo => {
-  debugLog('🚀 AI Chat Application started');
-  debugLog(`📱 App Version: v${versionInfo.appVersion}`);
-  debugLog(`📦 API Package: @schmitech/chatbot-api v${versionInfo.apiVersion}`);
-  debugLog(`🔧 API Mode: ${versionInfo.isLocalApi ? 'Local' : 'NPM Package'}`);
-});
+const versionInfo = getVersionInfo();
+debugLog('🚀 AI Chat Application started');
+debugLog(`📱 App Version: v${versionInfo.appVersion}`);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

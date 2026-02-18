@@ -59,8 +59,7 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   attachedFiles?: FileAttachment[];  // Files attached to this conversation
-  apiKey?: string; // API key associated with this conversation (when middleware is disabled)
-  adapterName?: string; // Adapter name associated with this conversation (when middleware is enabled)
+  adapterName?: string; // Adapter name associated with this conversation
   apiUrl?: string; // API URL associated with this conversation
   adapterInfo?: AdapterInfo; // Adapter information (client_name, model)
   adapterLoadError?: string | null; // Adapter configuration error for middleware mode

@@ -17,7 +17,6 @@ interface ImportMetaEnv {
   readonly VITE_MAX_TOTAL_MESSAGES?: string
   readonly VITE_MAX_MESSAGE_LENGTH?: string
   readonly VITE_ENABLE_CONVERSATION_THREADS?: string
-  readonly VITE_ENABLE_API_MIDDLEWARE?: string
   readonly VITE_SHOW_GITHUB_STATS?: string
   readonly VITE_GITHUB_OWNER?: string
   readonly VITE_GITHUB_REPO?: string

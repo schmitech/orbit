@@ -1,50 +1,25 @@
 /**
  * File Upload Service
- * 
+ *
  * Handles file uploads to the ORBIT server and manages file metadata.
+ * All requests go through the Express proxy with X-Adapter-Name headers.
  */
 
 import { getApi } from '../api/loader';
 import { FileAttachment } from '../types';
 import { debugLog, debugWarn, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { getDefaultKey, getApiUrl, DEFAULT_API_URL, getEnableApiMiddleware } from '../utils/runtimeConfig';
+import { getApiUrl } from '../utils/runtimeConfig';
 
-// Default API key from runtime configuration
-const DEFAULT_API_KEY = getDefaultKey();
-const getStoredApiUrl = (): string | null => {
-  try {
-    if (typeof window === 'undefined' || !window.localStorage) {
-      return null;
-    }
-    const stored = window.localStorage.getItem('chat-api-url');
-    if (stored && stored === DEFAULT_API_URL) {
-      window.localStorage.removeItem('chat-api-url');
-      return null;
-    }
-    return stored;
-  } catch {
-    return null;
-  }
-};
-
-const determineApiUrl = (explicit?: string | null): string => {
+const resolveAdapterName = (explicit?: string | null): string | null => {
   const trimmed = explicit?.trim();
   if (trimmed) {
     return trimmed;
   }
-  const stored = getStoredApiUrl();
-  if (stored && stored !== DEFAULT_API_URL) {
-    return stored;
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return localStorage.getItem('chat-adapter-name');
   }
-  return getApiUrl();
-};
-
-const getLegacyApiKey = (): string | null => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  return window.CHATBOT_API_KEY || null;
+  return null;
 };
 
 export interface FileUploadProgress {
@@ -58,19 +33,19 @@ export interface FileUploadProgress {
 export class FileUploadService {
   /**
    * Upload a file to the server
-   * 
+   *
    * @param file - The file to upload
    * @param onProgress - Optional progress callback
-   * @param apiKey - Optional API key (falls back to localStorage if not provided, ignored in middleware mode)
-   * @param apiUrl - Optional API URL (falls back to localStorage if not provided)
-   * @param adapterName - Optional adapter name (required in middleware mode)
+   * @param _reserved - Unused (previously apiKey)
+   * @param apiUrl - Optional API URL
+   * @param adapterName - Optional adapter name
    * @returns Promise resolving to file attachment metadata
    * @throws Error if upload fails
    */
   static async uploadFile(
     file: File,
     onProgress?: (progress: FileUploadProgress) => void,
-    apiKey?: string,
+    _reserved?: string,
     apiUrl?: string,
     adapterName?: string
   ): Promise<FileAttachment> {
@@ -144,7 +119,7 @@ export class FileUploadService {
       const isValidType = allowedTypes.includes(file.type) ||
         /\.(pdf|txt|md|csv|json|html|docx|pptx|xlsx|py|java|sql|js|mjs|ts|tsx|cpp|cxx|cc|c|h|hpp|go|rs|rb|php|sh|bash|zsh|yaml|yml|xml|css|scss|sass|less|png|jpe?g|tiff?|wav|mp3|mp4|ogg|flac|webm|m4a|aac|vtt)$/i.test(file.name) ||
         // Handle cases where Excel files are detected as ZIP
-        (file.type === 'application/x-zip-compressed' || file.type === 'application/zip') && 
+        (file.type === 'application/x-zip-compressed' || file.type === 'application/zip') &&
         /\.xlsx$/i.test(file.name);
 
       if (!isValidType) {
@@ -161,62 +136,27 @@ export class FileUploadService {
       }
 
       // Get API client
-      // Use provided API key/adapter/URL if available, otherwise fall back to localStorage
       const api = await getApi();
-      const resolvedApiUrl = determineApiUrl(apiUrl);
-      const isMiddlewareEnabled = getEnableApiMiddleware();
-      
-      let resolvedApiKey: string | null = null;
-      let resolvedAdapterName: string | null = null;
-      
-      if (isMiddlewareEnabled) {
-        // In middleware mode, use adapter name
-        resolvedAdapterName = adapterName || 
-          (typeof window !== 'undefined' ? localStorage.getItem('chat-adapter-name') : null);
-        
-        if (!resolvedAdapterName) {
-          throw new Error(
-            'Adapter not configured. Please select an adapter from the dropdown.'
-          );
-        }
-        
-        debugLog(`🔑 Using adapter: ${resolvedAdapterName}`);
-      } else {
-        // Normal mode: use API key
-        resolvedApiKey = apiKey || 
-          localStorage.getItem('chat-api-key') || 
-          getLegacyApiKey() ||
-          DEFAULT_API_KEY;
-        
-        // Validate API key is configured
-        if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here') {
-          throw new Error(
-            'API key not configured or invalid. Please:\n' +
-            '1. Open Settings (⚙️ icon) in the top-right corner\n' +
-            '2. Enter a valid API key\n' +
-            '3. To create an API key: POST to /admin/api-keys with admin credentials\n' +
-            '   Or use the admin interface to generate one'
-          );
-        }
-        
-        // Log masked API key for debugging (only first 8 and last 4 characters)
-        const maskedKey = resolvedApiKey.length > 12 
-          ? `${resolvedApiKey.substring(0, 8)}...${resolvedApiKey.substring(resolvedApiKey.length - 4)}`
-          : `${resolvedApiKey.substring(0, Math.min(4, resolvedApiKey.length))}...`;
-        
-        debugLog(`🔑 Using API key: ${maskedKey} (masked for security)`);
+      const resolvedApiUrl = apiUrl?.trim() || getApiUrl();
+      const resolvedAdapterName = resolveAdapterName(adapterName);
+
+      if (!resolvedAdapterName) {
+        throw new Error(
+          'Adapter not configured. Please select an adapter from the dropdown.'
+        );
       }
-      
-      const client = new api.ApiClient({ 
-        apiUrl: resolvedApiUrl, 
-        apiKey: resolvedApiKey, 
+
+      debugLog(`Using adapter: ${resolvedAdapterName}`);
+
+      const client = new api.ApiClient({
+        apiUrl: resolvedApiUrl,
         sessionId: null,
         adapterName: resolvedAdapterName
       });
 
-      // Check if uploadFile method exists (for npm package compatibility)
+      // Check if uploadFile method exists
       if (!client.uploadFile) {
-        throw new Error('File upload is not available. Please use the local API build or update the npm package.');
+        throw new Error('File upload is not available.');
       }
 
       // Upload file
@@ -235,27 +175,19 @@ export class FileUploadService {
       // Poll file status until processing is complete
       let fileInfo: FileAttachment;
       try {
-        // Poll every 2 seconds for up to 60 seconds (30 attempts)
-        // Note: checkMounted parameter not available in this context, but errors will be caught
-        // Pass API credentials for middleware mode support
         fileInfo = await this.pollFileStatus(
           response.file_id,
           30,
           2000,
           undefined, // checkMounted
-          resolvedApiKey ?? undefined,
           resolvedApiUrl,
-          resolvedAdapterName ?? undefined
+          resolvedAdapterName
         );
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        // If polling fails, times out, or file was deleted, return the initial response
-        // This allows the UI to handle the state appropriately
         if (errorMessage.includes('was deleted')) {
-          // File was deleted during upload - re-throw to handle cleanup
           throw new Error(`File ${response.file_id} was deleted during upload`);
         }
-        // For other errors, log and return initial response
         debugWarn(`File status polling failed for ${response.file_id}:`, error);
         fileInfo = {
           file_id: response.file_id,
@@ -277,33 +209,15 @@ export class FileUploadService {
         });
       }
 
-      // Return file attachment metadata with updated status
       return fileInfo;
 
     } catch (error: unknown) {
       let errorMessage = error instanceof Error ? error.message : 'Upload failed';
-      
-      // Provide more helpful error messages
-      if (errorMessage.includes('401') || errorMessage.includes('Invalid API key')) {
-        const currentApiKey = localStorage.getItem('chat-api-key');
-        const maskedKey = currentApiKey && currentApiKey.length > 12 
-          ? `${currentApiKey.substring(0, 8)}...${currentApiKey.substring(currentApiKey.length - 4)}`
-          : currentApiKey || 'not set';
-        
-        const adminApiUrl = determineApiUrl(apiUrl);
-        errorMessage = `Invalid API key (using: ${maskedKey}). Please:\n` +
-                      '1. Open Settings (⚙️ icon) in the top-right corner\n' +
-                      '2. Enter a valid API key\n' +
-                      '3. To create an API key: Use the admin interface or POST to /admin/api-keys\n' +
-                      `   Example: curl -X POST ${adminApiUrl}/admin/api-keys \\\n` +
-                      '     -H "Authorization: Bearer <admin-token>" \\\n' +
-                      '     -H "Content-Type: application/json" \\\n' +
-                      '     -d \'{"client_name": "chat-app", "adapter_name": "file-document-qa"}\'';
-      } else if (errorMessage.includes('API key not configured')) {
-        // Keep the detailed message we added above
-        errorMessage = error instanceof Error ? error.message : errorMessage;
+
+      if (errorMessage.includes('401')) {
+        errorMessage = 'Authentication failed. Please check your adapter configuration.';
       }
-      
+
       if (onProgress) {
         onProgress({
           filename: file.name,
@@ -318,7 +232,7 @@ export class FileUploadService {
 
   /**
    * Upload multiple files
-   * 
+   *
    * @param files - Array of files to upload
    * @param onProgress - Optional progress callback for each file
    * @returns Promise resolving to array of file attachments
@@ -335,7 +249,6 @@ export class FileUploadService {
           }
         });
       } catch (error: unknown) {
-        // Continue with other files even if one fails
         logError(`Failed to upload file ${file.name}:`, error);
         throw error;
       }
@@ -345,50 +258,32 @@ export class FileUploadService {
   }
 
   /**
-   * List all files for the current API key/adapter
-   * 
-   * @param apiKey - Optional API key (falls back to localStorage if not provided, ignored in middleware mode)
-   * @param apiUrl - Optional API URL (falls back to localStorage if not provided)
-   * @param adapterName - Optional adapter name (required in middleware mode)
+   * List all files for the current adapter
+   *
+   * @param _reserved - Unused (previously apiKey)
+   * @param apiUrl - Optional API URL
+   * @param adapterName - Optional adapter name
    * @returns Promise resolving to array of file attachments
    * @throws Error if request fails
    */
-  static async listFiles(apiKey?: string, apiUrl?: string, adapterName?: string): Promise<FileAttachment[]> {
+  static async listFiles(_reserved?: string, apiUrl?: string, adapterName?: string): Promise<FileAttachment[]> {
     try {
       const api = await getApi();
-      const resolvedApiUrl = determineApiUrl(apiUrl);
-      const isMiddlewareEnabled = getEnableApiMiddleware();
+      const resolvedApiUrl = apiUrl?.trim() || getApiUrl();
+      const resolvedAdapterName = resolveAdapterName(adapterName);
 
-      let resolvedApiKey: string | null = null;
-      let resolvedAdapterName: string | null = null;
-
-      if (isMiddlewareEnabled) {
-        resolvedAdapterName = adapterName ||
-          (typeof window !== 'undefined' ? localStorage.getItem('chat-adapter-name') : null);
-
-        if (!resolvedAdapterName) {
-          throw new Error('Adapter not configured');
-        }
-      } else {
-        resolvedApiKey = apiKey ||
-          localStorage.getItem('chat-api-key') ||
-          getLegacyApiKey() ||
-          DEFAULT_API_KEY;
-
-        if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
-          throw new Error('API key not configured');
-        }
+      if (!resolvedAdapterName) {
+        throw new Error('Adapter not configured');
       }
 
       const client = new api.ApiClient({
         apiUrl: resolvedApiUrl,
-        apiKey: resolvedApiKey,
         sessionId: null,
         adapterName: resolvedAdapterName
       });
 
       if (!client.listFiles) {
-        throw new Error('File listing is not available. Please use the local API build or update the npm package.');
+        throw new Error('File listing is not available.');
       }
 
       const filesResponse = await client.listFiles();
@@ -397,8 +292,7 @@ export class FileUploadService {
         : Array.isArray((filesResponse as { files?: FileAttachment[] }).files)
           ? (filesResponse as { files: FileAttachment[] }).files
           : [];
-      
-      // Convert server response to FileAttachment format
+
       return files.map((file: {
         file_id: string;
         filename: string;
@@ -425,54 +319,36 @@ export class FileUploadService {
 
   /**
    * Get file information from the server
-   * 
+   *
    * @param fileId - The file ID to get info for
-   * @param apiKey - Optional API key (falls back to localStorage if not provided)
-   * @param apiUrl - Optional API URL (falls back to localStorage if not provided)
+   * @param _reserved - Unused (previously apiKey)
+   * @param apiUrl - Optional API URL
+   * @param adapterName - Optional adapter name
    * @returns Promise resolving to file attachment metadata
    * @throws Error if request fails
    */
-  static async getFileInfo(fileId: string, apiKey?: string, apiUrl?: string, adapterName?: string): Promise<FileAttachment> {
+  static async getFileInfo(fileId: string, _reserved?: string, apiUrl?: string, adapterName?: string): Promise<FileAttachment> {
     try {
       const api = await getApi();
-      const resolvedApiUrl = determineApiUrl(apiUrl);
-      const isMiddlewareEnabled = getEnableApiMiddleware();
+      const resolvedApiUrl = apiUrl?.trim() || getApiUrl();
+      const resolvedAdapterName = resolveAdapterName(adapterName);
 
-      let resolvedApiKey: string | null = null;
-      let resolvedAdapterName: string | null = null;
-
-      if (isMiddlewareEnabled) {
-        resolvedAdapterName = adapterName ||
-          (typeof window !== 'undefined' ? localStorage.getItem('chat-adapter-name') : null);
-
-        if (!resolvedAdapterName) {
-          throw new Error('Adapter not configured');
-        }
-      } else {
-        resolvedApiKey = apiKey ||
-          localStorage.getItem('chat-api-key') ||
-          getLegacyApiKey() ||
-          DEFAULT_API_KEY;
-
-        if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
-          throw new Error('API key not configured');
-        }
+      if (!resolvedAdapterName) {
+        throw new Error('Adapter not configured');
       }
 
-      const client = new api.ApiClient({ 
-        apiUrl: resolvedApiUrl, 
-        apiKey: resolvedApiKey, 
+      const client = new api.ApiClient({
+        apiUrl: resolvedApiUrl,
         sessionId: null,
         adapterName: resolvedAdapterName
       });
 
       if (!client.getFileInfo) {
-        throw new Error('File info retrieval is not available. Please use the local API build or update the npm package.');
+        throw new Error('File info retrieval is not available.');
       }
 
       const fileInfo = await client.getFileInfo(fileId);
-      
-      // Convert server response to FileAttachment format
+
       return {
         file_id: fileInfo.file_id,
         filename: fileInfo.filename,
@@ -483,7 +359,6 @@ export class FileUploadService {
         chunk_count: fileInfo.chunk_count
       };
     } catch (error: unknown) {
-      // Handle 404 specifically - file was deleted
       if (
         error instanceof Error &&
         (error.message.includes('404') || error.message.includes('File not found'))
@@ -503,9 +378,8 @@ export class FileUploadService {
    * @param maxAttempts - Maximum number of polling attempts (default: 30)
    * @param pollInterval - Interval between polls in milliseconds (default: 2000)
    * @param checkMounted - Optional function to check if component is still mounted
-   * @param apiKey - Optional API key for authentication
    * @param apiUrl - Optional API URL
-   * @param adapterName - Optional adapter name for middleware mode
+   * @param adapterName - Optional adapter name
    * @returns Promise resolving to file attachment metadata when processing is complete
    * @throws Error if polling times out or fails
    */
@@ -514,50 +388,42 @@ export class FileUploadService {
     maxAttempts: number = 30,
     pollInterval: number = 2000,
     checkMounted?: () => boolean,
-    apiKey?: string,
     apiUrl?: string,
     adapterName?: string
   ): Promise<FileAttachment> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        // Check if component is still mounted before polling
         if (checkMounted && !checkMounted()) {
           throw new Error(`Polling cancelled - component unmounted`);
         }
 
-        const fileInfo = await this.getFileInfo(fileId, apiKey, apiUrl, adapterName);
-        
-        // If processing is complete, return the file info
+        const fileInfo = await this.getFileInfo(fileId, undefined, apiUrl, adapterName);
+
         if (fileInfo.processing_status === 'completed') {
           return fileInfo;
         }
-        
-        // If there's an error status, throw
+
         if (fileInfo.processing_status === 'error' || fileInfo.processing_status === 'failed') {
           throw new Error(`File processing failed for ${fileId}`);
         }
-        
-        // Wait before next poll
+
         if (attempt < maxAttempts - 1) {
           await new Promise(resolve => setTimeout(resolve, pollInterval));
         }
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        // If file not found (404) or was deleted, stop polling immediately
         if (
-          errorMessage.includes('404') || 
+          errorMessage.includes('404') ||
           errorMessage.includes('File not found') ||
           errorMessage.includes('was deleted')
         ) {
           throw new Error(`File ${fileId} was deleted during upload`);
         }
-        
-        // If component unmounted, stop polling
+
         if (errorMessage.includes('component unmounted')) {
           throw error;
         }
-        
-        // If it's not the last attempt, continue polling
+
         if (attempt < maxAttempts - 1) {
           await new Promise(resolve => setTimeout(resolve, pollInterval));
           continue;
@@ -565,60 +431,42 @@ export class FileUploadService {
         throw error;
       }
     }
-    
+
     throw new Error(`File processing timeout: ${fileId} did not complete within ${maxAttempts * pollInterval / 1000} seconds`);
   }
 
   /**
    * Delete a file from the server
-   * 
+   *
    * @param fileId - The file ID to delete
-   * @param apiKey - Optional API key (falls back to localStorage if not provided)
-   * @param apiUrl - Optional API URL (falls back to localStorage if not provided)
+   * @param _reserved - Unused (previously apiKey)
+   * @param apiUrl - Optional API URL
+   * @param adapterName - Optional adapter name
    * @returns Promise resolving to deletion result
    * @throws Error if deletion fails
    */
-  static async deleteFile(fileId: string, apiKey?: string, apiUrl?: string, adapterName?: string): Promise<{ message: string; file_id: string }> {
+  static async deleteFile(fileId: string, _reserved?: string, apiUrl?: string, adapterName?: string): Promise<{ message: string; file_id: string }> {
     try {
       const api = await getApi();
-      const resolvedApiUrl = determineApiUrl(apiUrl);
-      const isMiddlewareEnabled = getEnableApiMiddleware();
+      const resolvedApiUrl = apiUrl?.trim() || getApiUrl();
+      const resolvedAdapterName = resolveAdapterName(adapterName);
 
-      let resolvedApiKey: string | null = null;
-      let resolvedAdapterName: string | null = null;
-
-      if (isMiddlewareEnabled) {
-        resolvedAdapterName = adapterName ||
-          (typeof window !== 'undefined' ? localStorage.getItem('chat-adapter-name') : null);
-
-        if (!resolvedAdapterName) {
-          throw new Error('Adapter not configured');
-        }
-      } else {
-        resolvedApiKey = apiKey ||
-          localStorage.getItem('chat-api-key') ||
-          getLegacyApiKey() ||
-          DEFAULT_API_KEY;
-
-        if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
-          throw new Error('API key not configured');
-        }
+      if (!resolvedAdapterName) {
+        throw new Error('Adapter not configured');
       }
 
-      const client = new api.ApiClient({ 
-        apiUrl: resolvedApiUrl, 
-        apiKey: resolvedApiKey, 
+      const client = new api.ApiClient({
+        apiUrl: resolvedApiUrl,
         sessionId: null,
         adapterName: resolvedAdapterName
       });
 
       if (!client.deleteFile) {
-        throw new Error('File deletion is not available. Please use the local API build or update the npm package.');
+        throw new Error('File deletion is not available.');
       }
 
       return await client.deleteFile(fileId);
     } catch (error: unknown) {
-      // If file was already deleted (404), that's fine - return a success response
       if (
         error instanceof Error &&
         (error.message.includes('404') || error.message.includes('File not found') || error.message.includes('Not Found'))
@@ -626,7 +474,7 @@ export class FileUploadService {
         debugLog(`File ${fileId} was already deleted from server`);
         return { message: 'File already deleted', file_id: fileId };
       }
-      
+
       logError(`Failed to delete file ${fileId}:`, error);
       const message = error instanceof Error ? error.message : `Failed to delete file: ${fileId}`;
       throw new Error(message);

@@ -14,8 +14,6 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
   const { settings, updateSettings } = useSettings();
   const [versionInfo, setVersionInfo] = useState<{
     appVersion: string;
-    apiVersion: string;
-    isLocalApi: boolean;
   } | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmationText, setResetConfirmationText] = useState('');
@@ -23,7 +21,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
 
   useEffect(() => {
     if (isOpen) {
-      getVersionInfo().then(setVersionInfo);
+      setVersionInfo(getVersionInfo());
     }
   }, [isOpen]);
 
@@ -239,14 +237,6 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
             <div className="space-y-1">
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 AI Chat Application v{versionInfo?.appVersion || '1.0.0'}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                API Package: @schmitech/chatbot-api v{versionInfo?.apiVersion || '^0.5.3'}
-                {versionInfo?.isLocalApi && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
-                    Local
-                  </span>
-                )}
               </p>
             </div>
           </div>

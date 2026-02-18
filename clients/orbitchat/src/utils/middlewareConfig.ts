@@ -1,8 +1,7 @@
 /**
- * Middleware Configuration Utility
+ * Adapter Configuration Utility
  *
- * Provides utilities for working with API middleware mode.
- * When middleware is enabled, adapters are used instead of direct API keys.
+ * Provides utilities for working with adapters via the Express proxy.
  *
  * Adapters are loaded from VITE_ADAPTERS environment variable:
  * - For orbitchat CLI: The server reads VITE_ADAPTERS and exposes /api/adapters endpoint
@@ -10,12 +9,11 @@
  * - Runtime injection via window.ORBIT_CHAT_CONFIG.adapters is also supported
  */
 
-import { getEnableApiMiddleware } from './runtimeConfig';
 import { debugLog, debugError } from './debug';
 
 export interface Adapter {
   name: string;
-  apiUrl?: string; // Only used for non-middleware mode; not exposed by server in middleware mode
+  apiUrl?: string;
   description?: string; // Short description for dropdown previews
   notes?: string; // Longer markdown notes/description when available
 }
@@ -85,13 +83,6 @@ const normalizeAdapterList = (list: unknown): Adapter[] => {
 };
 
 let adaptersCache: Adapter[] | null = null;
-
-/**
- * Check if API middleware is enabled
- */
-export function isMiddlewareEnabled(): boolean {
-  return getEnableApiMiddleware();
-}
 
 /**
  * Load adapters from environment variable or runtime config

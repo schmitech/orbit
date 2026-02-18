@@ -21,23 +21,18 @@ PIDFILE="$SCRIPT_DIR/orbitchat.pid"
 LOGFILE="$SCRIPT_DIR/orbitchat.log"
 PORT="${ORBITCHAT_PORT:-5173}"
 
-# Set the VITE_ADAPTERS environment variable (required for --enable-api-middleware)
+# Set the VITE_ADAPTERS environment variable (adapter configs for the Express proxy)
 export VITE_ADAPTERS='[
-  { "name": "Simple Chat", "apiKey": "default-key", "apiUrl": "http://localhost:3001", "description": "Basic chat interface using the default conversational agent." },
-  { "name": "City QA Chat (SQLite)", "apiKey": "orbit_md9B2sI60Igwq3k4Xm1zxhCypPXKrRcf", "apiUrl": "http://localhost:3001", "description": "Simple QA interface for a city database (SQLite)." },
-  { "name": "City QA Chat (Chroma Vector)", "apiKey": "orbit_8qiDW2WfsCiQrFCcRDaoNwLkudx9XysX", "apiUrl": "http://localhost:3001", "description": "Simple QA interface for a city vector DB (Chroma)." },
-  { "name": "Files Chat", "apiKey": "multimodal", "apiUrl": "http://localhost:3001", "description": "Supports chatting with document uploads and multimodal queries." },
-  { "name": "HR System", "apiKey": "hr", "apiUrl": "http://localhost:3001", "description": "Conversational assistant for HR records, people search, and analytics." },
-  { "name": "Movies DB", "apiKey": "mflix", "apiUrl": "http://localhost:3001", "description": "Explores and queries a MongoDB-powered movies database (MFlix sample set)." },
-  { "name": "Business Analytics", "apiKey": "analytical", "apiUrl": "http://localhost:3001", "description": "Analyze datasets and generate business intelligence reports." },
-  { "name": "Electric Vehicle Population", "apiKey": "orbit_7KyFOuHIpD7EAQRJHRBwmJxxoKYJ2nkn", "apiUrl": "http://localhost:3001", "description": "Accesses statistics and insights about electric vehicle registrations." },
-  { "name": "Paris Open Data", "apiKey": "orbit_xpckctsinXzXakpIvvCPplnzpqaQ6ikj", "apiUrl": "http://localhost:3001", "description": "Interact with Paris city open data for events, venues, and more." },
-  { "name": "REST API", "apiKey": "rest", "apiUrl": "http://localhost:3001", "description": "Enables generic REST API exploration and data extraction." },
-  { "name": "Composite Explorer", "apiKey": "orbit_zvjZUVCXkOAmCa1grVgL6G2xK1W1JXLP", "apiUrl": "http://localhost:3001", "description": "Routes queries across HR, EV Population and DuckDB Analytics databases." },
-  { "name": "Composite Explorer (Full)", "apiKey": "orbit_gYrmXa9cyQnUi4mneapKkjO9B4rpi6zl", "apiUrl": "http://localhost:3001", "description": "Routes across SQL, DuckDB, MongoDB, and HTTP APIs for comprehensive search." }
+  { "name": "Simple Chat", "apiKey": "default-key", "apiUrl": "http://localhost:3000", "description": "Basic chat interface using the default conversational agent." },
+  { "name": "City QA Chat (Chroma Vector)", "apiKey": "chroma-key", "apiUrl": "http://localhost:3000", "description": "Simple QA interface for a city vector DB (Chroma)." },
+  { "name": "Files Chat", "apiKey": "multimodal", "apiUrl": "http://localhost:3000", "description": "Supports chatting with document uploads and multimodal queries." },
+  { "name": "HR System", "apiKey": "hr", "apiUrl": "http://localhost:3000", "description": "Conversational assistant for HR records, people search, and analytics." },
+  { "name": "Movies DB", "apiKey": "mflix", "apiUrl": "http://localhost:3000", "description": "Explores and queries a MongoDB-powered movies database (MFlix sample set)." },
+  { "name": "Business Analytics", "apiKey": "analytical", "apiUrl": "http://localhost:3000", "description": "Analyze datasets and generate business intelligence reports." },
+  { "name": "Electric Vehicle Population", "apiKey": "ev, "apiUrl": "http://localhost:3000", "description": "Accesses statistics and insights about electric vehicle registrations." },
+  { "name": "Paris Open Data", "apiKey": "paris", "apiUrl": "http://localhost:3000", "description": "Interact with Paris city open data for events, venues, and more." },
+  { "name": "REST API", "apiKey": "rest", "apiUrl": "http://localhost:3000", "description": "Enables generic REST API exploration and data extraction." }
 ]'
-
-# { "name": "Composite Explorer (Full)", "apiKey": "orbit_gYrmXa9cyQnUi4mneapKkjO9B4rpi6zl", "apiUrl": "http://localhost:3001", "description": "Routes across SQL, DuckDB, MongoDB, and HTTP APIs for comprehensive search." }
 
 start_app() {
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
@@ -46,10 +41,7 @@ start_app() {
     fi
 
     echo "Starting orbitchat on port $PORT..."
-    # Note: Add '--host 0.0.0.0' below to listen on all network interfaces (allow access from other devices)
-    # --out-of-service-message "Please check back later." \
-    # --application-name "My Custom App" \
-    nohup orbitchat --api-url http://localhost:3001 --enable-api-middleware --enable-upload --enable-audio --enable-autocomplete \
+    nohup orbitchat --api-url http://localhost:3000 --enable-upload --enable-audio --enable-autocomplete \
         --port "$PORT" \
         --host 0.0.0.0 \
         --max-conversations 5 \
@@ -61,7 +53,7 @@ start_app() {
         --max-total-files 20 \
         --max-message-length 500 \
         --application-name "Welcome to ORBIT Local" \
-        --application-description "ORBIT provides a specialized AI interface that allows anyone to ask plain-language questions and receive summarized, citation-backed answers drawn directly from official Canadian open data sources." \
+        --application-description "ORBIT provides a specialized AI interface that allows anyone to ask plain-language questions and receive summarized, citation-backed answers drawn directly from official Canadian open data sources. Please read our [Terms and Conditions](https://schmitech.ai/en/civicchat) before using the service." \
         --default-input-placeholder "Ask ORBIT Local Anything..." \
         > "$LOGFILE" 2>&1 &
 
@@ -120,10 +112,6 @@ show_help() {
     echo "  $0 --start                      # Start on default port 5173"
     echo "  $0 --start 8080                 # Start on port 8080"
     echo "  ORBITCHAT_PORT=8080 $0 --start  # Start on port 8080 (env var)"
-    echo ""
-    echo "Note:"
-    echo "  To allow access from other devices on the network, add '--host 0.0.0.0'"
-    echo "  to the orbitchat command in this script."
     echo ""
     echo "Files (stored in script directory):"
     echo "  PID file: $PIDFILE"

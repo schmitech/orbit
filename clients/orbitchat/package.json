@@ -22,10 +22,10 @@
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "preview:local": "VITE_USE_LOCAL_API=true vite preview",
+    "test": "node --test 'tests/**/*.test.js'",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@schmitech/chatbot-api": "^2.2.0",
     "@schmitech/markdown-renderer": "^0.8.0",
     "express": "^5.0.1",
     "http-proxy-middleware": "^3.0.5",

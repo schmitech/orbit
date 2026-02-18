@@ -4,12 +4,12 @@ import { Message, Conversation, ChatState, FileAttachment, AdapterInfo } from '.
 import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { getDefaultKey, getApiUrl, resolveApiUrl, DEFAULT_API_URL, getEnableApiMiddleware } from '../utils/runtimeConfig';
+import { getDefaultKey, getApiUrl, resolveApiUrl, DEFAULT_API_URL } from '../utils/runtimeConfig';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { audioStreamManager } from '../utils/audioStreamManager';
 
-// Default API key from runtime configuration
-const DEFAULT_API_KEY = getDefaultKey();
+// Default adapter name from runtime configuration
+const DEFAULT_ADAPTER = getDefaultKey();
 
 // Streaming content buffer for batching rapid updates
 // This prevents "Maximum update depth exceeded" errors when rendering complex content like mermaid
@@ -23,8 +23,6 @@ let activeStreamSessionId: string | null = null;
 
 
 const buildDefaultConversation = (conversationId: string, sessionId: string, apiUrl: string): Conversation => {
-  const middlewareEnabled = getEnableApiMiddleware();
-
   return {
     id: conversationId,
     sessionId,
@@ -32,7 +30,6 @@ const buildDefaultConversation = (conversationId: string, sessionId: string, api
     messages: [],
     createdAt: new Date(),
     updatedAt: new Date(),
-    apiKey: middlewareEnabled ? undefined : DEFAULT_API_KEY,
     apiUrl,
     adapterName: undefined,
     adapterLoadError: null
@@ -243,7 +240,7 @@ interface ExtendedChatState extends ChatState {
   regenerateResponse: (messageId: string) => Promise<void>;
   updateConversationTitle: (id: string, title: string) => void;
   clearError: () => void;
-  configureApiSettings: (apiUrl: string, apiKey?: string, sessionId?: string, adapterName?: string) => Promise<void>;
+  configureApiSettings: (apiUrl: string, sessionId?: string, adapterName?: string) => Promise<void>;
   getSessionId: () => string;
   cleanupStreamingMessages: () => void;
   canCreateNewConversation: () => boolean;
@@ -279,9 +276,9 @@ async function ensureApiConfigured(): Promise<boolean> {
       ? storedApiUrl
       : getApiUrl();
 
-    const apiKey = localStorage.getItem('chat-api-key') || DEFAULT_API_KEY;
     const sessionId = getOrCreateSessionId();
-    api.configureApi(apiUrl, apiKey, sessionId);
+    const adapterName = localStorage.getItem('chat-adapter-name') || DEFAULT_ADAPTER;
+    api.configureApi(apiUrl, sessionId, adapterName);
     currentApiUrl = apiUrl;
     apiConfigured = true;
     return true;
@@ -300,254 +297,100 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   getSessionId: () => get().sessionId,
 
-  configureApiSettings: async (apiUrl: string, apiKey?: string, sessionId?: string, adapterName?: string) => {
+  configureApiSettings: async (apiUrl: string, sessionId?: string, adapterName?: string) => {
     const state = get();
     const currentConversation = state.conversations.find(conv => conv.id === state.currentConversationId);
-    const isMiddlewareEnabled = getEnableApiMiddleware();
-    
+
     // Use the conversation's session ID if available, otherwise use the provided sessionId or generate one
     const actualSessionId = currentConversation?.sessionId || sessionId || getOrCreateSessionId();
-    
+
     if (sessionId) {
       setSessionId(sessionId);
     }
     set({ sessionId: actualSessionId });
-    
-    try {
-      // Load the API
-      const api = await getApi();
-      
-      // In middleware mode, use adapter name; otherwise use API key
-      if (isMiddlewareEnabled) {
-        if (!adapterName || !adapterName.trim()) {
-          throw new Error('Adapter name is required when API middleware is enabled');
-        }
-        
-        // Configure API with adapter name instead of API key
-        api.configureApi(apiUrl, null, actualSessionId, adapterName);
-        currentApiUrl = apiUrl;
-        apiConfigured = true;
-        
-        // Validate adapter by trying to get adapter info
-        let adapterInfo: AdapterInfo | undefined;
-        try {
-          const validationClient = new api.ApiClient({
-            apiUrl,
-            apiKey: null,
-            sessionId: null,
-            adapterName
-          });
-          
-          if (typeof validationClient.getAdapterInfo === 'function') {
-            adapterInfo = await validationClient.getAdapterInfo();
-            debugLog('Adapter info loaded:', adapterInfo);
-          }
-        } catch (error) {
-          debugWarn('Failed to load adapter info:', error);
-          // Don't fail configuration if adapter info fails to load
-        }
-        
-        // Store adapter name in conversation
-        if (currentConversation) {
-          set(state => ({
-            conversations: state.conversations.map(conv =>
-              conv.id === currentConversation.id
-                ? {
-                    ...conv,
-                    adapterName: adapterName,
-                    apiUrl: apiUrl,
-                    adapterInfo: adapterInfo,
-                    adapterLoadError: null,
-                    // Clear apiKey when using middleware
-                    apiKey: undefined,
-                    updatedAt: new Date()
-                  }
-                : conv
-            )
-          }));
-        } else if (adapterName && adapterName.trim()) {
-          // No conversation exists, create one with the configured adapter
-          const newId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          const newSessionId = generateUniqueSessionId();
-          set(state => ({
-            conversations: [
-              ...state.conversations,
-              {
-                id: newId,
-                sessionId: newSessionId,
-                title: 'New Conversation',
-                messages: [],
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                adapterName: adapterName,
-                apiUrl: apiUrl,
-                adapterInfo: adapterInfo,
-                adapterLoadError: null
-              }
-            ],
-            currentConversationId: newId
-          }));
-        }
-      } else {
-        // Normal mode: use API key
-        // Validate API key and fetch adapter info if provided
-        let adapterInfo: AdapterInfo | undefined;
-        if (apiKey && apiKey.trim()) {
-          try {
-            // Create a temporary client to validate the API key
-            const validationClient = new api.ApiClient({
-              apiUrl,
-              apiKey,
-              sessionId: null
-            });
-            
-            // Check if validateApiKey method exists (for backward compatibility)
-            if (typeof validationClient.validateApiKey === 'function') {
-              debugLog('Validating API key before configuration...');
-              const status = await validationClient.validateApiKey();
-              debugLog('API key validation successful:', {
-                exists: status.exists,
-                active: status.active,
-                adapter_name: status.adapter_name,
-                client_name: status.client_name
-              });
-            } else {
-              debugWarn('API key validation not available (validateApiKey method not found)');
-              // Continue without validation if method doesn't exist (backward compatibility)
-            }
-            
-            // Fetch adapter info right after validation using the same client
-            // Include 'default-key' since it's a valid key in the backend
-            if (typeof validationClient.getAdapterInfo === 'function') {
-              try {
-                adapterInfo = await validationClient.getAdapterInfo();
-                debugLog('Adapter info loaded:', adapterInfo);
-              } catch (error) {
-                debugWarn('Failed to load adapter info:', error);
-                // Don't fail configuration if adapter info fails to load
-              }
-            }
-          } catch (validationError: unknown) {
-            // api.ts already throws user-friendly error messages, so we can just re-throw them
-            // This avoids duplicating error message logic and keeps the code DRY
-            if (validationError instanceof Error) {
-              throw validationError;
-            }
-            // Fallback for non-Error objects
-            throw new Error(`API key validation failed: ${String(validationError)}`);
-          }
-        }
-        
-        // If validation passed (or no API key provided), proceed with configuration
-        api.configureApi(apiUrl, apiKey || '', actualSessionId);
-        currentApiUrl = apiUrl;
-        apiConfigured = true;
-        
-        // Store API key and URL in the current conversation
-        // If no conversation exists, create one
-        // Include 'default-key' since it's a valid key
-        if (currentConversation && apiKey && apiKey.trim()) {
-          // Update existing conversation with API key and adapter info
-          set(state => ({
-            conversations: state.conversations.map(conv =>
-              conv.id === currentConversation.id
-                ? {
-                    ...conv,
-                    apiKey: apiKey, // Always use the provided API key if it was validated
-                    apiUrl: apiUrl,
-                    adapterInfo: adapterInfo,
-                    adapterLoadError: null,
-                    // Clear adapterName when not using middleware
-                    adapterName: undefined,
-                    updatedAt: new Date()
-                  }
-                : conv
-            )
-          }));
-          
-          // Save to localStorage immediately
-          setTimeout(() => {
-            const currentState = get();
-            localStorage.setItem('chat-state', JSON.stringify({
-              conversations: currentState.conversations,
-              currentConversationId: currentState.currentConversationId
-            }));
-          }, 0);
-        } else if (apiKey && apiKey.trim()) {
-          // No conversation exists, create one with the configured API key
-          const newId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          const newSessionId = generateUniqueSessionId();
-          const newConversation: Conversation = {
-            id: newId,
-            sessionId: newSessionId,
-            title: 'New Chat',
-            messages: [],
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            apiKey: apiKey,
-            apiUrl: apiUrl,
-            adapterInfo: adapterInfo,
-            adapterLoadError: null
-          };
-          
-          set(state => {
-            const maxConversations = AppConfig.maxConversations;
-            if (maxConversations !== null && state.conversations.length >= maxConversations) {
-              const limitMessage = `Maximum of ${maxConversations} conversations reached. Please delete an existing conversation before starting a new one.`;
-              debugWarn(limitMessage);
-              return state;
-            }
 
-            return {
-              conversations: [newConversation, ...state.conversations],
-              currentConversationId: newId,
-              sessionId: newSessionId
-            };
-          });
-          
-          // Save to localStorage
-          setTimeout(() => {
-            const currentState = get();
-            localStorage.setItem('chat-state', JSON.stringify({
-              conversations: currentState.conversations,
-              currentConversationId: currentState.currentConversationId
-            }));
-          }, 0);
+    try {
+      const api = await getApi();
+
+      if (!adapterName || !adapterName.trim()) {
+        throw new Error('Adapter name is required');
+      }
+
+      api.configureApi(apiUrl, actualSessionId, adapterName);
+      currentApiUrl = apiUrl;
+      apiConfigured = true;
+
+      // Load adapter info
+      let adapterInfo: AdapterInfo | undefined;
+      try {
+        const validationClient = new api.ApiClient({
+          apiUrl,
+          sessionId: null,
+          adapterName
+        });
+
+        if (typeof validationClient.getAdapterInfo === 'function') {
+          adapterInfo = await validationClient.getAdapterInfo();
+          debugLog('Adapter info loaded:', adapterInfo);
         }
+      } catch (error) {
+        debugWarn('Failed to load adapter info:', error);
+      }
+
+      // Store adapter name in conversation
+      if (currentConversation) {
+        set(state => ({
+          conversations: state.conversations.map(conv =>
+            conv.id === currentConversation.id
+              ? {
+                  ...conv,
+                  adapterName: adapterName,
+                  apiUrl: apiUrl,
+                  adapterInfo: adapterInfo,
+                  adapterLoadError: null,
+                  updatedAt: new Date()
+                }
+              : conv
+          )
+        }));
+      } else if (adapterName && adapterName.trim()) {
+        const newId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newSessionId = generateUniqueSessionId();
+        set(state => ({
+          conversations: [
+            ...state.conversations,
+            {
+              id: newId,
+              sessionId: newSessionId,
+              title: 'New Conversation',
+              messages: [],
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              adapterName: adapterName,
+              apiUrl: apiUrl,
+              adapterInfo: adapterInfo,
+              adapterLoadError: null
+            }
+          ],
+          currentConversationId: newId
+        }));
       }
     } catch (error) {
       debugError('Failed to configure API:', error);
-      // Ensure isLoading is not stuck when validation fails
-      // Don't set global loading state - this is just configuration, not message sending
       set({ isLoading: false });
-      // Re-throw the error so it can be displayed to the user
       if (error instanceof Error) {
         throw error;
       }
       throw new Error('Failed to configure API settings');
     }
 
-    // Save settings to localStorage only if configuration was successful
-    if (isMiddlewareEnabled) {
-      // In middleware mode, save adapter name instead of API key
-      if (adapterName) {
-        localStorage.setItem('chat-adapter-name', adapterName);
-      } else {
-        localStorage.removeItem('chat-adapter-name');
-      }
+    // Save adapter name to localStorage
+    if (adapterName) {
+      localStorage.setItem('chat-adapter-name', adapterName);
     } else {
-      // Normal mode: save API key
-      if (apiUrl && apiUrl !== DEFAULT_API_URL) {
-        localStorage.setItem('chat-api-url', apiUrl);
-      } else {
-        localStorage.removeItem('chat-api-url');
-      }
-      if (apiKey) {
-        localStorage.setItem('chat-api-key', apiKey);
-      }
+      localStorage.removeItem('chat-adapter-name');
     }
-    
-    // Ensure isLoading is false after successful configuration
+
     set({ isLoading: false });
   },
 
@@ -572,14 +415,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }
 
     const id = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const newSessionId = generateUniqueSessionId(); // Create unique session for this conversation
-    // New conversations default to the configured default key and API URL from runtime config
-    const defaultApiUrl = getApiUrl(); // Use runtime config (from CLI args or env vars)
-    const defaultApiKey = DEFAULT_API_KEY;
-
-    // Check if middleware mode is enabled
-    const isMiddlewareEnabled = getEnableApiMiddleware();
-    const adapterNameForNewConversation = undefined;
+    const newSessionId = generateUniqueSessionId();
+    const defaultApiUrl = getApiUrl();
 
     const newConversation: Conversation = {
       id,
@@ -588,10 +425,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
-      // In middleware mode, use adapter name instead of API key
-      apiKey: isMiddlewareEnabled ? undefined : defaultApiKey,
       apiUrl: defaultApiUrl,
-      adapterName: adapterNameForNewConversation,
+      adapterName: undefined,
       adapterLoadError: null
     };
 
@@ -602,55 +437,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       sessionId: newSessionId
     }));
 
-    // Reconfigure API with the new session ID and the default API key/adapter
-    ensureApiConfigured().then(isConfigured => {
-      if (isConfigured) {
-        getApi().then(api => {
-          // Configure API based on mode
-          if (isMiddlewareEnabled) {
-            if (adapterNameForNewConversation) {
-              api.configureApi(defaultApiUrl, null, newSessionId, adapterNameForNewConversation);
-            } else {
-              debugLog('API middleware enabled; waiting for the user to select an adapter for the new conversation.');
-            }
-          } else {
-            api.configureApi(defaultApiUrl, defaultApiKey, newSessionId);
-          }
-
-          // Load adapter info for the new conversation
-          try {
-            if (isMiddlewareEnabled && !adapterNameForNewConversation) {
-              return;
-            }
-
-            const validationClient = new api.ApiClient({
-              apiUrl: defaultApiUrl,
-              apiKey: isMiddlewareEnabled ? null : defaultApiKey,
-              sessionId: null,
-              adapterName: isMiddlewareEnabled ? adapterNameForNewConversation : null
-            });
-
-            if (typeof validationClient.getAdapterInfo === 'function') {
-              validationClient.getAdapterInfo().then(adapterInfo => {
-                debugLog('✅ Adapter info loaded for new conversation:', adapterInfo);
-                const currentState = useChatStore.getState();
-                useChatStore.setState({
-                  conversations: currentState.conversations.map(conv =>
-                    conv.id === id
-                      ? { ...conv, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
-                      : conv
-                  )
-                });
-              }).catch((error) => {
-                debugWarn('Failed to load adapter info for new conversation:', error);
-              });
-            }
-          } catch (error) {
-            debugWarn('Failed to load adapter info:', error);
-          }
-        });
-      }
-    });
+    // Wait for adapter selection before configuring API
+    debugLog('Waiting for the user to select an adapter for the new conversation.');
 
     // Save to localStorage
     setTimeout(() => {
@@ -680,31 +468,29 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         isLoading: hasStreamingMessages
       });
       
-      // Use conversation's stored API key and URL (use default key if not configured, don't fall back to localStorage)
+      // Use conversation's stored adapter and URL
       const conversationApiUrl = conversation.apiUrl || getApiUrl();
-      const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
-      
-      // Reconfigure API with the conversation's session ID and API key
+      const conversationAdapterName = conversation.adapterName;
+
+      // Reconfigure API with the conversation's session ID and adapter
       const isConfigured = await ensureApiConfigured();
-      if (isConfigured) {
+      if (isConfigured && conversationAdapterName) {
         const api = await getApi();
-        api.configureApi(conversationApiUrl, conversationApiKey, conversation.sessionId);
-        
+        api.configureApi(conversationApiUrl, conversation.sessionId, conversationAdapterName);
+
         // Load adapter info if not already loaded
-        // Include 'default-key' since it's a valid key
         if (!conversation.adapterInfo) {
           try {
             const adapterClient = new api.ApiClient({
               apiUrl: conversationApiUrl,
-              apiKey: conversationApiKey,
-              sessionId: null
+              sessionId: null,
+              adapterName: conversationAdapterName
             });
-            
+
             if (typeof adapterClient.getAdapterInfo === 'function') {
               const adapterInfo = await adapterClient.getAdapterInfo();
               debugLog('Adapter info loaded for conversation:', adapterInfo);
-              
-              // Update conversation with adapter info
+
               set(state => ({
                 conversations: state.conversations.map(conv =>
                   conv.id === id
@@ -712,8 +498,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     : conv
                 )
               }));
-              
-              // Save to localStorage
+
               setTimeout(() => {
                 const currentState = get();
                 localStorage.setItem('chat-state', JSON.stringify({
@@ -724,7 +509,6 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             }
           } catch (error) {
             debugWarn('Failed to load adapter info for conversation:', error);
-            // Don't fail conversation selection if adapter info fails to load
           }
         }
       }
@@ -771,31 +555,21 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           logError('Failed to configure API for conversation deletion');
           // Continue with local deletion even if API configuration fails
         } else {
-          const isMiddlewareEnabled = getEnableApiMiddleware();
-          
-          // Use conversation's stored API key/adapter and URL (don't fall back to localStorage)
-          // This ensures each conversation uses its own API key/adapter for deletion
           const conversationApiUrl = conversation.apiUrl || getApiUrl();
-          const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
           const conversationAdapterName = conversation.adapterName;
-          
-          if (isMiddlewareEnabled) {
-            if (!conversationAdapterName) {
-              debugWarn(`Skipping server deletion for conversation ${id}: adapter not configured`);
-            } else {
-              debugLog(`🔑 Using conversation's adapter for deletion: ${conversationAdapterName} (conversation: ${id})`);
-            }
+
+          if (!conversationAdapterName) {
+            debugWarn(`Skipping server deletion for conversation ${id}: adapter not configured`);
           } else {
-            debugLog(`🔑 Using conversation's API key for deletion: ${conversationApiKey.substring(0, 8)}... (conversation: ${id})`);
+            debugLog(`Using conversation's adapter for deletion: ${conversationAdapterName} (conversation: ${id})`);
           }
-          
-          // Create API client with the conversation's session ID and API key/adapter
+
+          // Create API client with the conversation's session ID and adapter
           const api = await getApi();
           const apiClient: ApiClient = new api.ApiClient({
             apiUrl: conversationApiUrl,
-            apiKey: isMiddlewareEnabled ? null : conversationApiKey,
             sessionId: conversation.sessionId,
-            adapterName: isMiddlewareEnabled ? conversationAdapterName : null
+            adapterName: conversationAdapterName
           });
 
           // Extract file IDs from attached files
@@ -836,7 +610,6 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const defaultSessionId = generateUniqueSessionId();
         const defaultApiUrl = getApiUrl();
-        const isMiddlewareEnabled = getEnableApiMiddleware();
         const defaultConversation: Conversation = {
           id: defaultConversationId,
           sessionId: defaultSessionId,
@@ -844,59 +617,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           messages: [],
           createdAt: new Date(),
           updatedAt: new Date(),
-          apiKey: isMiddlewareEnabled ? undefined : DEFAULT_API_KEY,
           apiUrl: defaultApiUrl,
           adapterName: undefined,
           adapterLoadError: null
         };
 
-        // Configure API with default key and validate it
-        ensureApiConfigured().then(isConfigured => {
-          if (!isConfigured) {
-            return;
-          }
-          getApi().then(async api => {
-            if (isMiddlewareEnabled) {
-              debugLog('Middleware enabled; waiting for user to select an adapter after deleting all conversations.');
-            } else {
-              api.configureApi(defaultApiUrl, DEFAULT_API_KEY, defaultSessionId);
-
-              try {
-                const validationClient = new api.ApiClient({
-                  apiUrl: defaultApiUrl,
-                  apiKey: DEFAULT_API_KEY,
-                  sessionId: null
-                });
-
-                if (typeof validationClient.validateApiKey === 'function') {
-                  validationClient.validateApiKey().then(() => {
-                    debugLog('✅ Default API key validated after creating new conversation');
-                  }).catch(() => {
-                    debugWarn('Failed to validate default API key');
-                  });
-                }
-
-                if (typeof validationClient.getAdapterInfo === 'function') {
-                  validationClient.getAdapterInfo().then(adapterInfo => {
-                    debugLog('✅ Adapter info loaded for default key:', adapterInfo);
-                    const currentState = useChatStore.getState();
-                    useChatStore.setState({
-                      conversations: currentState.conversations.map(conv =>
-                        conv.id === defaultConversationId
-                          ? { ...conv, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
-                          : conv
-                      )
-                    });
-                  }).catch(() => {
-                    debugWarn('Failed to load adapter info for default key');
-                  });
-                }
-              } catch (error) {
-                debugWarn('Failed to validate default API key:', error);
-              }
-            }
-          });
-        });
+        debugLog('Waiting for user to select an adapter after deleting all conversations.');
 
         // Save to localStorage
         setTimeout(() => {
@@ -949,13 +675,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           return;
         }
 
-        const isMiddlewareEnabled = getEnableApiMiddleware();
         const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
-        const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
         const conversationAdapterName = conversation.adapterName;
 
-        // In middleware mode, skip server deletion if adapter is not configured
-        if (isMiddlewareEnabled && !conversationAdapterName) {
+        if (!conversationAdapterName) {
           debugLog(`Skipping server deletion for conversation ${conversation.id}: adapter not configured`);
           return;
         }
@@ -963,9 +686,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         const api = await getApi();
         const apiClient: ApiClient = new api.ApiClient({
           apiUrl: conversationApiUrl,
-          apiKey: isMiddlewareEnabled ? null : conversationApiKey,
           sessionId: conversation.sessionId,
-          adapterName: isMiddlewareEnabled ? conversationAdapterName : null
+          adapterName: conversationAdapterName
         });
 
         const fileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
@@ -992,7 +714,6 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const defaultSessionId = generateUniqueSessionId();
     const defaultApiUrl = getApiUrl();
-    const isMiddlewareEnabled = getEnableApiMiddleware();
     const defaultConversation: Conversation = {
       id: defaultConversationId,
       sessionId: defaultSessionId,
@@ -1000,59 +721,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
-      apiKey: isMiddlewareEnabled ? undefined : DEFAULT_API_KEY,
       apiUrl: defaultApiUrl,
       adapterLoadError: null
     };
 
-    // Configure API and validate/load adapter info
-    ensureApiConfigured().then(isConfigured => {
-      if (isConfigured) {
-        getApi().then(async api => {
-          if (isMiddlewareEnabled) {
-            debugLog('Middleware enabled; default conversation will wait for adapter selection.');
-          } else {
-            // Non-middleware mode: use default API key
-            api.configureApi(defaultApiUrl, DEFAULT_API_KEY, defaultSessionId);
-
-            // Validate and load adapter info for default key
-            try {
-              const validationClient = new api.ApiClient({
-                apiUrl: defaultApiUrl,
-                apiKey: DEFAULT_API_KEY,
-                sessionId: null
-              });
-
-              if (typeof validationClient.validateApiKey === 'function') {
-                validationClient.validateApiKey().then(() => {
-                  debugLog('✅ Default API key validated after clearing all conversations');
-                }).catch(() => {
-                  debugWarn('Failed to validate default API key');
-                });
-              }
-
-              if (typeof validationClient.getAdapterInfo === 'function') {
-                validationClient.getAdapterInfo().then(adapterInfo => {
-                  debugLog('✅ Adapter info loaded for default key:', adapterInfo);
-                const currentState = useChatStore.getState();
-                useChatStore.setState({
-                  conversations: currentState.conversations.map(conv =>
-                    conv.id === defaultConversationId
-                      ? { ...conv, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
-                      : conv
-                  )
-                });
-                }).catch(() => {
-                  debugWarn('Failed to load adapter info for default key');
-                });
-              }
-            } catch (error) {
-              debugWarn('Failed to validate default API key:', error);
-            }
-          }
-        });
-      }
-    });
+    debugLog('Default conversation will wait for adapter selection.');
 
     // Update state with empty conversations array and new default conversation
     set({
@@ -1262,48 +935,27 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         throw new Error('Conversation not found');
       }
       
-      const isMiddlewareEnabled = getEnableApiMiddleware();
-      
-      // Check if conversation has API key or adapter name configured
-      if (isMiddlewareEnabled) {
-        if (!currentConversation.adapterName) {
-          debugWarn(`[sendMessage] Conversation ${streamingConversationId} has no adapter name`);
-          throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
-        }
-        debugLog(`[sendMessage] Using adapter for conversation ${streamingConversationId}: ${currentConversation.adapterName}`);
-      } else {
-        if (!currentConversation.apiKey) {
-          debugWarn(`[sendMessage] Conversation ${streamingConversationId} has no API key`);
-          throw new Error('API key not configured for this conversation. Please configure API settings first.');
-        }
-        debugLog(`[sendMessage] Using API key for conversation ${streamingConversationId}: ${currentConversation.apiKey.substring(0, 8)}...`);
+      // Check if conversation has adapter configured
+      if (!currentConversation.adapterName) {
+        debugWarn(`[sendMessage] Conversation ${streamingConversationId} has no adapter name`);
+        throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
       }
-      
-      // Use conversation's stored API key/adapter and URL
+      debugLog(`[sendMessage] Using adapter for conversation ${streamingConversationId}: ${currentConversation.adapterName}`);
+
+      // Use conversation's stored adapter and URL
       const conversationApiUrl = resolveApiUrl(currentConversation.apiUrl);
-      const conversationApiKey = currentConversation.apiKey;
       const conversationAdapterName = currentConversation.adapterName;
-      
+
       // Determine if we're in thread mode and use appropriate session ID
       const activeThreadId = threadId || null;
       const activeSessionId = threadSessionId || currentConversation.sessionId;
-      
+
       const api = await getApi();
-      // Reconfigure API with the active session ID (thread session if in thread mode)
-      if (isMiddlewareEnabled) {
-        api.configureApi(
-          conversationApiUrl,
-          null,
-          activeSessionId,
-          conversationAdapterName
-        );
-      } else {
-        api.configureApi(
-          conversationApiUrl,
-          conversationApiKey,
-          activeSessionId
-        );
-      }
+      api.configureApi(
+        conversationApiUrl,
+        activeSessionId,
+        conversationAdapterName
+      );
       
       if (activeThreadId && activeSessionId !== currentConversation.sessionId) {
         debugLog(`[chatStore] Thread mode: using thread session ${activeSessionId} (original: ${currentConversation.sessionId})`);
@@ -1591,33 +1243,27 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         throw new Error('Conversation not found for session');
       }
       
-      const isMiddlewareEnabled = getEnableApiMiddleware();
-      if (isMiddlewareEnabled && !conversation.adapterName) {
+      if (!conversation.adapterName) {
         throw new Error('Adapter not configured for this conversation');
       }
-      if (!isMiddlewareEnabled && !conversation.apiKey) {
-        throw new Error('API key not configured for this conversation');
-      }
-      
+
       // Find the message to get its database message ID
       const message = conversation.messages.find(msg => msg.id === messageId);
       if (!message) {
         throw new Error('Message not found');
       }
-      
+
       // Use database message ID if available, otherwise fall back to client message ID
       const dbMessageId = message.databaseMessageId || messageId;
-      
+
       const conversationApiUrl = resolveApiUrl(conversation.apiUrl || getApiUrl());
-      const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
       const conversationAdapterName = conversation.adapterName;
-      
+
       const api = await getApi();
       const apiClient = new api.ApiClient({
         apiUrl: conversationApiUrl,
-        apiKey: isMiddlewareEnabled ? null : conversationApiKey,
         sessionId: sessionId,
-        adapterName: isMiddlewareEnabled ? conversationAdapterName : null
+        adapterName: conversationAdapterName
       });
 
       const threadService = new (await import('../services/threadService')).ThreadService(apiClient);
@@ -1792,41 +1438,20 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           throw new Error('Conversation not found');
         }
         
-        const isMiddlewareEnabled = getEnableApiMiddleware();
-        
-        // Check if conversation has API key or adapter configured
-        if (isMiddlewareEnabled) {
-          if (!currentConversation.adapterName) {
-            throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
-          }
-        } else {
-          if (!currentConversation.apiKey) {
-            throw new Error('API key not configured for this conversation. Please configure API settings first.');
-          }
+        if (!currentConversation.adapterName) {
+          throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
         }
-        
+
         if (currentConversation.sessionId) {
-          // Use conversation's stored API key/adapter and URL
           const conversationApiUrl = resolveApiUrl(currentConversation.apiUrl);
-          const conversationApiKey = currentConversation.apiKey;
           const conversationAdapterName = currentConversation.adapterName;
-          
+
           const api = await getApi();
-          // Reconfigure API with the current conversation's session ID and API key/adapter to ensure consistency
-          if (isMiddlewareEnabled) {
-            api.configureApi(
-              conversationApiUrl,
-              null,
-              currentConversation.sessionId,
-              conversationAdapterName
-            );
-          } else {
-            api.configureApi(
-              conversationApiUrl,
-              conversationApiKey,
-              currentConversation.sessionId
-            );
-          }
+          api.configureApi(
+            conversationApiUrl,
+            currentConversation.sessionId,
+            conversationAdapterName
+          );
         }
         
         const api = await getApi();
@@ -2095,27 +1720,16 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         throw new Error('Conversation not found');
       }
       
-      const isMiddlewareEnabled = getEnableApiMiddleware();
-      
-      // Check if conversation has API key or adapter configured
-      if (isMiddlewareEnabled) {
-        if (!conversation.adapterName) {
-          throw new Error('Adapter not configured for this conversation. Cannot delete file.');
-        }
-      } else {
-        if (!conversation.apiKey) {
-          throw new Error('API key not configured for this conversation. Cannot delete file.');
-        }
+      if (!conversation.adapterName) {
+        throw new Error('Adapter not configured for this conversation. Cannot delete file.');
       }
-      
-      // Use conversation's stored API key/adapter and URL
-      const conversationApiKey = conversation.apiKey;
+
       const conversationAdapterName = conversation.adapterName;
       const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
-      
+
       // Delete from server
       debugLog(`[chatStore] Calling FileUploadService.deleteFile for ${fileId}`);
-      await FileUploadService.deleteFile(fileId, conversationApiKey, conversationApiUrl, conversationAdapterName);
+      await FileUploadService.deleteFile(fileId, undefined, conversationApiUrl, conversationAdapterName);
       debugLog(`[chatStore] Successfully deleted file ${fileId} from server`);
     } catch (error: unknown) {
       // If file was already deleted (404), that's fine - just log and continue
@@ -2162,23 +1776,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         return;
       }
       
-      const isMiddlewareEnabled = getEnableApiMiddleware();
-      
-      // Check if conversation has API key or adapter configured
-      if (isMiddlewareEnabled) {
-        if (!conversation.adapterName) {
-          debugLog(`Skipping file load for conversation ${conversationId}: adapter not configured`);
-          return;
-        }
-      } else {
-        if (!conversation.apiKey) {
-          debugLog(`Skipping file load for conversation ${conversationId}: API key not configured`);
-          return;
-        }
+      if (!conversation.adapterName) {
+        debugLog(`Skipping file load for conversation ${conversationId}: adapter not configured`);
+        return;
       }
-      
-      // Use conversation's stored API key/adapter and URL
-      const conversationApiKey = conversation.apiKey;
+
       const conversationAdapterName = conversation.adapterName;
       const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
       
@@ -2194,8 +1796,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         return;
       }
       
-      // Get all files from server for this API key/adapter
-      const allFiles = await FileUploadService.listFiles(conversationApiKey, conversationApiUrl, conversationAdapterName);
+      // Get all files from server for this adapter
+      const allFiles = await FileUploadService.listFiles(undefined, conversationApiUrl, conversationAdapterName);
       
       // Convert to FileAttachment format
       const fileAttachments: FileAttachment[] = allFiles.map(file => ({
@@ -2273,7 +1875,6 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       }
 
       const api = await getApi();
-      const isMiddlewareEnabled = getEnableApiMiddleware();
       const limit = AppConfig.maxMessagesPerConversation !== null
         ? AppConfig.maxMessagesPerConversation || undefined
         : undefined;
@@ -2286,7 +1887,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             return null;
           }
 
-          if (isMiddlewareEnabled && !conversation.adapterName) {
+          if (!conversation.adapterName) {
             debugWarn(`[chatStore] Skipping backend sync for conversation ${conversation.id} - adapter not configured`);
             return null;
           }
@@ -2294,9 +1895,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           try {
             const apiClient = new api.ApiClient({
               apiUrl: resolveApiUrl(conversation.apiUrl),
-              apiKey: isMiddlewareEnabled ? null : (conversation.apiKey || DEFAULT_API_KEY),
               sessionId: conversation.sessionId,
-              adapterName: isMiddlewareEnabled ? conversation.adapterName : null
+              adapterName: conversation.adapterName
             });
 
             if (typeof apiClient.getConversationHistory !== 'function') {
@@ -2464,9 +2064,6 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   },
 
   clearCurrentConversationAdapter: () => {
-    if (!getEnableApiMiddleware()) {
-      return;
-    }
     const currentConversationId = get().currentConversationId;
     if (!currentConversationId) {
       return;
@@ -2531,8 +2128,7 @@ const initializeStore = async () => {
         const parsedDate = value ? new Date(value) : new Date();
         return Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
       };
-      // Restore Date objects and clean up any streaming messages
-      // For backward compatibility: initialize conversations without apiKey/apiUrl with 'default-key'
+      // Restore Date objects, clean up streaming messages, strip legacy apiKey field
       const storedConversations = Array.isArray(parsedState.conversations) ? parsedState.conversations : [];
       const normalizedConversations: Conversation[] = storedConversations.map((storedConversation) => {
         const storedMessages = Array.isArray(storedConversation.messages) ? storedConversation.messages : [];
@@ -2552,7 +2148,6 @@ const initializeStore = async () => {
           createdAt: toDate(storedConversation.createdAt),
           updatedAt: toDate(storedConversation.updatedAt),
           attachedFiles: storedConversation.attachedFiles || [],
-          apiKey: storedConversation.apiKey || DEFAULT_API_KEY,
           adapterName: storedConversation.adapterName,
           apiUrl: storedConversation.apiUrl,
           adapterInfo: storedConversation.adapterInfo,
@@ -2566,7 +2161,7 @@ const initializeStore = async () => {
         // conversations always follow the runtime config that the CLI injected.
         const isPlaceholderConversation =
           normalizedConversation.messages.length === 0 &&
-          (!normalizedConversation.apiKey || normalizedConversation.apiKey === DEFAULT_API_KEY);
+          !normalizedConversation.adapterName;
 
         const apiUrl = isPlaceholderConversation && !hasStoredApiOverride
           ? runtimeApiUrl
@@ -2591,7 +2186,7 @@ const initializeStore = async () => {
         }
       }
       
-      // If conversations array is empty, create a default conversation with DEFAULT_API_KEY
+      // If conversations array is empty, create a default conversation with DEFAULT_ADAPTER
       // Always use default-key when there are no conversations, regardless of localStorage
       if (normalizedConversations.length === 0) {
         const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -2660,7 +2255,7 @@ const initializeStore = async () => {
       sessionId = defaultSessionId;
     }
   } else {
-    // No saved state - create a default conversation with DEFAULT_API_KEY
+    // No saved state - create a default conversation with DEFAULT_ADAPTER
     // Always use default-key when there are no conversations, regardless of localStorage
     const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const defaultSessionId = generateUniqueSessionId();
@@ -2679,123 +2274,65 @@ const initializeStore = async () => {
     sessionId = defaultSessionId;
   }
   
-  // Determine which API key/URL to use for API configuration
-  // If there are no existing conversations, always use DEFAULT_API_KEY
-  // If there are existing conversations, use the current conversation's API key or default
+  // One-time cleanup of legacy localStorage keys
+  localStorage.removeItem('chat-api-key');
+
+  // Determine which adapter/URL to use for API configuration
   const currentState = useChatStore.getState();
   const currentConversation = currentState.currentConversationId
     ? currentState.conversations.find(conv => conv.id === currentState.currentConversationId)
     : null;
 
-  // Check if middleware mode is enabled
-  const isMiddlewareEnabled = getEnableApiMiddleware();
-
-  // Use current conversation's API key if available and we have existing conversations
-  // But if there are no conversations at all, always use default-key
-  // This ensures new installations always start with default-key
-  const apiKeyToUse = (hasExistingConversations && currentConversation?.apiKey)
-    ? currentConversation.apiKey
-    : DEFAULT_API_KEY;
   const apiUrlToUse = (hasExistingConversations && currentConversation?.apiUrl)
     ? currentConversation.apiUrl
     : getApiUrl();
 
-  // Auto-configure API with the determined key and validate it
   try {
     const api = await getApi();
 
-    if (isMiddlewareEnabled) {
-      const existingAdapterName = currentConversation?.adapterName;
-      if (!existingAdapterName) {
-        debugLog('API middleware enabled but no adapter selected yet. Waiting for user selection before configuring API.');
-      } else {
-        api.configureApi(apiUrlToUse, null, sessionId, existingAdapterName);
-        currentApiUrl = apiUrlToUse;
-        apiConfigured = true;
-        debugLog('✅ Using existing adapter from conversation:', existingAdapterName);
-
-        // Load adapter info if not already loaded
-        if (!currentConversation?.adapterInfo) {
-          try {
-            const validationClient = new api.ApiClient({
-              apiUrl: apiUrlToUse,
-              apiKey: null,
-              sessionId: null,
-              adapterName: existingAdapterName
-            });
-
-            if (typeof validationClient.getAdapterInfo === 'function') {
-              const adapterInfo = await validationClient.getAdapterInfo();
-              debugLog('✅ Adapter info loaded for existing adapter:', adapterInfo);
-
-              // Update the current conversation with adapter info
-              const stateAfterLoad = useChatStore.getState();
-              if (stateAfterLoad.currentConversationId) {
-                useChatStore.setState({
-                  conversations: stateAfterLoad.conversations.map(conv =>
-                    conv.id === stateAfterLoad.currentConversationId
-                      ? { ...conv, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
-                      : conv
-                  )
-                });
-
-                // Save to localStorage
-                setTimeout(() => {
-                  const updatedState = useChatStore.getState();
-                  localStorage.setItem('chat-state', JSON.stringify({
-                    conversations: updatedState.conversations,
-                    currentConversationId: updatedState.currentConversationId
-                  }));
-                }, 0);
-              }
-            }
-          } catch (error) {
-            debugWarn('Failed to load adapter info for existing adapter:', error);
-          }
-        }
-      }
+    const existingAdapterName = currentConversation?.adapterName;
+    if (!existingAdapterName) {
+      debugLog('No adapter selected yet. Waiting for user selection before configuring API.');
     } else {
-      // Non-middleware mode: use API key
-      api.configureApi(apiUrlToUse, apiKeyToUse, sessionId);
+      api.configureApi(apiUrlToUse, sessionId, existingAdapterName);
       currentApiUrl = apiUrlToUse;
       apiConfigured = true;
+      debugLog('Using existing adapter from conversation:', existingAdapterName);
 
-      // Validate and load adapter info for the default key on startup
-      // Only validate default key if we're using it (no existing conversations or no conversation key)
-      if (apiKeyToUse === DEFAULT_API_KEY) {
+      // Load adapter info if not already loaded
+      if (!currentConversation?.adapterInfo) {
         try {
           const validationClient = new api.ApiClient({
             apiUrl: apiUrlToUse,
-            apiKey: apiKeyToUse,
-            sessionId: null
+            sessionId: null,
+            adapterName: existingAdapterName
           });
 
-          // Validate the API key
-          if (typeof validationClient.validateApiKey === 'function') {
-            await validationClient.validateApiKey();
-            debugLog('✅ Default API key validated on startup');
-          }
-
-          // Load adapter info
           if (typeof validationClient.getAdapterInfo === 'function') {
             const adapterInfo = await validationClient.getAdapterInfo();
-            debugLog('✅ Adapter info loaded for default key:', adapterInfo);
+            debugLog('Adapter info loaded for existing adapter:', adapterInfo);
 
-            // Update the current conversation with adapter info
-            const currentState = useChatStore.getState();
-            if (currentState.currentConversationId) {
+            const stateAfterLoad = useChatStore.getState();
+            if (stateAfterLoad.currentConversationId) {
               useChatStore.setState({
-                conversations: currentState.conversations.map(conv =>
-                  conv.id === currentState.currentConversationId
+                conversations: stateAfterLoad.conversations.map(conv =>
+                  conv.id === stateAfterLoad.currentConversationId
                     ? { ...conv, adapterInfo: adapterInfo, adapterLoadError: null, updatedAt: new Date() }
                     : conv
-              )
+                )
               });
+
+              setTimeout(() => {
+                const updatedState = useChatStore.getState();
+                localStorage.setItem('chat-state', JSON.stringify({
+                  conversations: updatedState.conversations,
+                  currentConversationId: updatedState.currentConversationId
+                }));
+              }, 0);
             }
           }
         } catch (error) {
-          debugWarn('Failed to validate default API key on startup:', error);
-          // Don't fail initialization if validation fails
+          debugWarn('Failed to load adapter info for existing adapter:', error);
         }
       }
     }
