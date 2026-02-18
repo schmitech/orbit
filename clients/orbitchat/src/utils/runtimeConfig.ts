@@ -24,9 +24,12 @@ export interface RuntimeConfig {
   // Feature Flags
   enableUploadButton: boolean;
   enableAudioOutput: boolean;
+  enableAudioInput: boolean;
   enableFeedbackButtons: boolean;
   enableConversationThreads: boolean;
   enableAutocomplete: boolean;
+  voiceSilenceTimeoutMs: number;
+  voiceRecognitionLanguage: string;
   showGitHubStats: boolean;
   outOfServiceMessage: string | null;
 
@@ -82,9 +85,12 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
   consoleDebug: 'VITE_CONSOLE_DEBUG',
   enableUploadButton: 'VITE_ENABLE_UPLOAD',
   enableAudioOutput: 'VITE_ENABLE_AUDIO_OUTPUT',
+  enableAudioInput: 'VITE_ENABLE_AUDIO_INPUT',
   enableFeedbackButtons: 'VITE_ENABLE_FEEDBACK',
   enableConversationThreads: 'VITE_ENABLE_CONVERSATION_THREADS',
   enableAutocomplete: 'VITE_ENABLE_AUTOCOMPLETE',
+  voiceSilenceTimeoutMs: 'VITE_VOICE_SILENCE_TIMEOUT_MS',
+  voiceRecognitionLanguage: 'VITE_VOICE_RECOGNITION_LANG',
   showGitHubStats: 'VITE_SHOW_GITHUB_STATS',
   outOfServiceMessage: 'VITE_OUT_OF_SERVICE_MESSAGE',
   githubOwner: 'VITE_GITHUB_OWNER',
@@ -310,9 +316,12 @@ export const runtimeConfig: RuntimeConfig = {
   // Feature Flags
   enableUploadButton: getConfigValue('enableUploadButton', false, 'boolean'),
   enableAudioOutput: getConfigValue('enableAudioOutput', false, 'boolean'),
+  enableAudioInput: getConfigValue('enableAudioInput', false, 'boolean'),
   enableFeedbackButtons: getConfigValue('enableFeedbackButtons', false, 'boolean'),
   enableConversationThreads: getConfigValue('enableConversationThreads', true, 'boolean'),
   enableAutocomplete: getConfigValue('enableAutocomplete', false, 'boolean'),
+  voiceSilenceTimeoutMs: getConfigValue('voiceSilenceTimeoutMs', 4000, 'number'),
+  voiceRecognitionLanguage: getConfigValue('voiceRecognitionLanguage', '', 'string'),
   showGitHubStats: getConfigValue('showGitHubStats', true, 'boolean'),
   outOfServiceMessage: (() => {
     const val = getConfigValue('outOfServiceMessage', '', 'string') as string;
@@ -425,6 +434,11 @@ export function getEnableAudioOutput(): boolean {
   return getConfigValue('enableAudioOutput', false, 'boolean');
 }
 
+export function getEnableAudioInput(): boolean {
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  return getConfigValue('enableAudioInput', false, 'boolean');
+}
+
 export function getEnableFeedbackButtons(): boolean {
   // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
   return getConfigValue('enableFeedbackButtons', false, 'boolean');
@@ -438,6 +452,15 @@ export function getEnableConversationThreads(): boolean {
 export function getEnableAutocomplete(): boolean {
   // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
   return getConfigValue('enableAutocomplete', false, 'boolean');
+}
+
+export function getVoiceSilenceTimeoutMs(): number {
+  const value = getConfigValue('voiceSilenceTimeoutMs', 4000, 'number');
+  return Math.max(1000, value);
+}
+
+export function getVoiceRecognitionLanguage(): string {
+  return getConfigValue('voiceRecognitionLanguage', '', 'string');
 }
 
 /**

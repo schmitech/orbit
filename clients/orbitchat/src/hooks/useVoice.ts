@@ -9,6 +9,11 @@ interface UseVoiceReturn {
   error: string | null;
 }
 
+interface UseVoiceOptions {
+  silenceTimeoutMs?: number;
+  language?: string;
+}
+
 // Speech Recognition API types
 interface SpeechRecognition extends EventTarget {
   continuous: boolean;
@@ -52,7 +57,7 @@ interface SpeechRecognitionAlternative {
   confidence: number;
 }
 
-const SILENCE_TIMEOUT_MS = 2000;
+const DEFAULT_SILENCE_TIMEOUT_MS = 4000;
 
 declare global {
   interface Window {
@@ -69,14 +74,37 @@ declare global {
 
 export function useVoice(
   onResult: (text: string) => void,
-  onComplete?: () => void
+  onComplete?: () => void,
+  options: UseVoiceOptions = {}
 ): UseVoiceReturn {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const pendingTranscriptRef = useRef<string>('');
+  const lastEmittedTranscriptRef = useRef<string>('');
   const completionNotifiedRef = useRef(false);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const browserLanguage = typeof navigator !== 'undefined' ? navigator.language : 'en-US';
+  const silenceTimeoutMs = Number.isFinite(options.silenceTimeoutMs)
+    ? Math.max(Math.floor(options.silenceTimeoutMs as number), 1000)
+    : DEFAULT_SILENCE_TIMEOUT_MS;
+  const recognitionLanguage = options.language?.trim() || browserLanguage || 'en-US';
+
+  const normalizeTranscript = useCallback((text: string) => {
+    return text.replace(/\s+/g, ' ').trim();
+  }, []);
+
+  const emitTranscript = useCallback((text: string) => {
+    const normalized = normalizeTranscript(text);
+    if (!normalized) {
+      return;
+    }
+    if (normalized === lastEmittedTranscriptRef.current) {
+      return;
+    }
+    lastEmittedTranscriptRef.current = normalized;
+    onResult(' ' + normalized);
+  }, [normalizeTranscript, onResult]);
 
   const flushPendingTranscript = useCallback(() => {
     if (!pendingTranscriptRef.current) {
@@ -84,8 +112,8 @@ export function useVoice(
     }
     const pending = pendingTranscriptRef.current;
     pendingTranscriptRef.current = '';
-    onResult(' ' + pending);
-  }, [onResult]);
+    emitTranscript(pending);
+  }, [emitTranscript]);
 
   const isSupported = typeof window !== 'undefined' && 
     ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
@@ -114,8 +142,8 @@ export function useVoice(
       } else {
         notifyCompletion();
       }
-    }, SILENCE_TIMEOUT_MS);
-  }, [clearSilenceTimer, notifyCompletion]);
+    }, silenceTimeoutMs);
+  }, [clearSilenceTimer, notifyCompletion, silenceTimeoutMs]);
 
   const startListening = useCallback(() => {
     if (!isSupported) {
@@ -134,12 +162,14 @@ export function useVoice(
 
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = navigator.language || 'en-US';
+      recognition.lang = recognitionLanguage;
       recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
         setIsListening(true);
         setError(null);
+        pendingTranscriptRef.current = '';
+        lastEmittedTranscriptRef.current = '';
         debugLog('Speech recognition started');
         scheduleSilenceTimer();
       };
@@ -158,12 +188,12 @@ export function useVoice(
         }
         
         if (interimTranscript) {
-          pendingTranscriptRef.current = interimTranscript;
+          pendingTranscriptRef.current = normalizeTranscript(interimTranscript);
         }
         
         if (finalTranscript) {
           pendingTranscriptRef.current = '';
-          onResult(' ' + finalTranscript);
+          emitTranscript(finalTranscript);
         }
         scheduleSilenceTimer();
       };
@@ -210,7 +240,7 @@ export function useVoice(
       setError('Failed to start speech recognition. Please try again.');
       setIsListening(false);
     }
-  }, [isSupported, onResult, isListening, flushPendingTranscript, notifyCompletion, scheduleSilenceTimer, clearSilenceTimer]);
+  }, [isSupported, isListening, flushPendingTranscript, notifyCompletion, scheduleSilenceTimer, clearSilenceTimer, recognitionLanguage, normalizeTranscript, emitTranscript]);
 
   const stopListening = useCallback(() => {
     debugLog('Stopping speech recognition...');

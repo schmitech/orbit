@@ -79,7 +79,7 @@ start_app() {
         --max-message-length 500 \
         --application-name "Welcome to ORBIT Local" \
         --application-description "ORBIT provides a specialized AI interface that allows anyone to ask plain-language questions and receive summarized, citation-backed answers drawn directly from data sources." \
-        --default-input-placeholder "Ask Anything..." \
+        --default-input-placeholder "Ask ORBIT Local Anything..." \
         > "$LOGFILE" 2>&1 &
 
     echo $! > "$PIDFILE"

@@ -58,8 +58,11 @@ Options:
   --console-debug                  Enable console debug logging (default: false)
   --enable-upload                  Enable file upload button (default: false)
   --enable-audio                   Enable audio output button (default: false)
+  --enable-audio-input             Enable microphone input button (default: false)
   --enable-feedback                Enable feedback buttons (default: false)
   --enable-autocomplete            Enable autocomplete suggestions (default: false)
+  --voice-silence-timeout-ms N     Auto-stop voice capture after N ms of silence (default: 4000)
+  --voice-recognition-lang LANG    Speech recognition language code (default: browser locale)
   --out-of-service-message TEXT    Show maintenance screen blocking access
   --max-files-per-conversation N   Max files per conversation (default: 5)
   --max-file-size-mb N             Max file size in MB (default: 50)
@@ -85,8 +88,8 @@ Options:
 # Start with custom API URL and port
 orbitchat --api-url http://localhost:3000 --port 8080
 
-# Start with upload, audio and autocomplete enabled
-orbitchat --enable-upload --enable-audio --enable-autocomplete --open
+# Start with upload, audio output, mic input, and autocomplete enabled
+orbitchat --enable-upload --enable-audio --enable-audio-input --enable-autocomplete --open
 
 # Start with a custom config file
 orbitchat --config /path/to/config.json
@@ -257,6 +260,9 @@ VITE_API_URL=http://localhost:3000
 VITE_DEFAULT_KEY=Simple Chat          # Adapter name to preselect
 VITE_ENABLE_UPLOAD=false
 VITE_ENABLE_AUDIO_OUTPUT=false
+VITE_ENABLE_AUDIO_INPUT=false
+VITE_VOICE_SILENCE_TIMEOUT_MS=4000
+VITE_VOICE_RECOGNITION_LANG=
 VITE_ENABLE_FEEDBACK=false
 VITE_ENABLE_AUTOCOMPLETE=false
 VITE_CONSOLE_DEBUG=false

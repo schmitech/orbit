@@ -8,7 +8,7 @@ import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
-import { getDefaultInputPlaceholder, getEnableAudioOutput, getEnableAutocomplete, getEnableUploadButton, resolveApiUrl } from '../utils/runtimeConfig';
+import { getDefaultInputPlaceholder, getEnableAudioInput, getEnableAudioOutput, getEnableAutocomplete, getEnableUploadButton, getVoiceRecognitionLanguage, getVoiceSilenceTimeoutMs, resolveApiUrl } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
 
@@ -154,6 +154,8 @@ export function MessageInput({
   const handleVoiceCompletion = useCallback(() => {
     setVoiceCompletionCount((count) => count + 1);
   }, []);
+  const voiceSilenceTimeoutMs = getVoiceSilenceTimeoutMs();
+  const voiceRecognitionLanguage = getVoiceRecognitionLanguage();
 
   const {
     isListening,
@@ -167,15 +169,20 @@ export function MessageInput({
       voiceMessageRef.current = updated;
       return updated;
     });
-  }, handleVoiceCompletion);
+  }, handleVoiceCompletion, {
+    silenceTimeoutMs: voiceSilenceTimeoutMs,
+    language: voiceRecognitionLanguage || undefined
+  });
 
-  const audioFeatureEnabled = getEnableAudioOutput();
-  const voiceRecordingAvailable = audioFeatureEnabled && voiceSupported;
+  const audioOutputEnabled = getEnableAudioOutput();
+  const audioInputEnabled = getEnableAudioInput();
+  const voiceRecordingAvailable = audioInputEnabled && voiceSupported;
   const uploadFeatureEnabled = getEnableUploadButton();
   const autocompleteEnabled = getEnableAutocomplete();
   // Autocomplete suggestions based on nl_examples from intent templates
   const {
     suggestions,
+    isLoading: autocompleteLoading,
     selectedIndex,
     setSelectedIndex,
     selectNext,
@@ -184,12 +191,15 @@ export function MessageInput({
     focusInputAfterSelection,
     suppressUntilQueryChange
   } = useAutocomplete(message, {
-    enabled: autocompleteEnabled,
+    enabled: autocompleteEnabled && !isListening,
     apiUrl: currentConversation?.apiUrl,
     adapterName: currentConversation?.adapterName,
     inputRef: textareaRef
   });
   const hasSuggestions = suggestions.length > 0;
+  const autocompleteVisible = !isListening;
+  const showAutocompletePanel = autocompleteVisible && (hasSuggestions || autocompleteLoading);
+  const showAutocompleteHints = autocompleteVisible && hasSuggestions;
   const activeSuggestionIndex = selectedIndex >= 0 ? selectedIndex : 0;
   const activeSuggestion = hasSuggestions ? suggestions[activeSuggestionIndex] : null;
   const inlineSuggestion = useMemo(() => {
@@ -207,6 +217,25 @@ export function MessageInput({
     return null;
   }, [activeSuggestion, message]);
   const showCustomPlaceholder = message.trim().length === 0 && !inlineSuggestion;
+  const renderSuggestionText = useCallback((suggestionText: string) => {
+    if (!message) {
+      return <span className="line-clamp-2 text-current">{suggestionText}</span>;
+    }
+
+    if (!suggestionText.toLowerCase().startsWith(message.toLowerCase())) {
+      return <span className="line-clamp-2 text-current">{suggestionText}</span>;
+    }
+
+    const typedPart = suggestionText.slice(0, message.length);
+    const completionPart = suggestionText.slice(message.length);
+
+    return (
+      <span className="line-clamp-2">
+        <span className="opacity-65">{typedPart}</span>
+        <span className="font-medium text-current">{completionPart}</span>
+      </span>
+    );
+  }, [message]);
   const adjustTextareaVerticalAlignment = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea || typeof window === 'undefined') {
@@ -381,46 +410,42 @@ export function MessageInput({
       return;
     }
 
-    debugLog('[MessageInput] Voice recording completed, scheduling auto-send');
-    const timeoutId = setTimeout(() => {
-      const voiceMessage = voiceMessageRef.current.trim();
-      const currentState = useChatStore.getState();
+    const voiceMessage = voiceMessageRef.current.trim();
+    const currentState = useChatStore.getState();
 
-      debugLog('[MessageInput] Auto-send check after voice completion:', {
-        hasMessage: !!voiceMessage,
-        isInputDisabled,
-        isComposing,
-        isLoading: currentState.isLoading
-      });
+    debugLog('[MessageInput] Auto-send check after voice completion:', {
+      hasMessage: !!voiceMessage,
+      isInputDisabled,
+      isComposing,
+      isLoading: currentState.isLoading
+    });
 
-      if (!voiceMessage) {
-        pendingVoiceAutoSendRef.current = false;
-        return;
-      }
+    pendingVoiceAutoSendRef.current = false;
+    if (!voiceMessage) {
+      return;
+    }
 
-      if (!isInputDisabled && !isComposing && !currentState.isLoading) {
-        const currentConv = currentState.conversations.find(conv => conv.id === currentState.currentConversationId);
-        const conversationFiles = currentConv?.attachedFiles || [];
-        const allFileIds = conversationFiles.map(f => f.file_id);
+    if (isInputDisabled || isComposing) {
+      debugLog('[MessageInput] Auto-send skipped because input is currently disabled or composing');
+      return;
+    }
 
-        debugLog('[MessageInput] Auto-sending voice message:', voiceMessage);
-        onSend(voiceMessage, allFileIds.length > 0 ? allFileIds : undefined);
+    const currentConv = currentState.conversations.find(conv => conv.id === currentState.currentConversationId);
+    const conversationFiles = currentConv?.attachedFiles || [];
+    const allFileIds = conversationFiles.map(f => f.file_id);
 
-        pendingVoiceAutoSendRef.current = false;
-        setMessage('');
-        voiceMessageRef.current = '';
-        if (textareaRef.current) {
-          textareaRef.current.style.height = 'auto';
-          textareaRef.current.style.overflowY = 'hidden';
-          adjustTextareaVerticalAlignment();
-        }
-      } else {
-        debugLog('[MessageInput] Auto-send paused, waiting for input to become available');
-      }
-    }, 400);
+    debugLog('[MessageInput] Auto-sending voice message immediately:', voiceMessage);
+    onSend(voiceMessage, allFileIds.length > 0 ? allFileIds : undefined);
 
-    return () => clearTimeout(timeoutId);
-  }, [voiceRecordingAvailable, voiceCompletionCount, isInputDisabled, isComposing, onSend, adjustTextareaVerticalAlignment]);
+    clearSuggestions();
+    setMessage('');
+    voiceMessageRef.current = '';
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.overflowY = 'hidden';
+      adjustTextareaVerticalAlignment();
+    }
+  }, [voiceRecordingAvailable, voiceCompletionCount, isInputDisabled, isComposing, onSend, adjustTextareaVerticalAlignment, clearSuggestions]);
 
   // Close upload area when upload starts (hide upload widget, show only progress)
   useEffect(() => {
@@ -702,7 +727,7 @@ export function MessageInput({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Handle autocomplete navigation when suggestions are visible
-    if (hasSuggestions) {
+    if (hasSuggestions && autocompleteVisible) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         selectNext();
@@ -754,6 +779,7 @@ export function MessageInput({
     if (isListening) {
       stopListening();
     } else {
+      clearSuggestions();
       startListening();
     }
   };
@@ -971,11 +997,11 @@ export function MessageInput({
 
   // Play sound when voice error appears
   useEffect(() => {
-    if (!audioFeatureEnabled || !voiceError) {
+    if (!audioInputEnabled || !voiceError) {
       return;
     }
     playSoundEffect('error', settings.soundEnabled);
-  }, [audioFeatureEnabled, settings.soundEnabled, voiceError]);
+  }, [audioInputEnabled, settings.soundEnabled, voiceError]);
 
   useEffect(() => {
     if (!uploadError) {
@@ -991,7 +1017,7 @@ export function MessageInput({
   return (
     <div className={`bg-white px-3 py-3 md:px-0 md:py-4 dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
       <div className={`mx-auto w-full ${contentMaxWidth}`}>
-        {voiceError && audioFeatureEnabled && (
+        {voiceError && audioInputEnabled && (
           <div className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
             {voiceError}
           </div>
@@ -1019,46 +1045,60 @@ export function MessageInput({
 
         <div className="relative w-full">
           {/* Autocomplete suggestions dropdown */}
-          {hasSuggestions && (
-            <div className="w-full mb-2 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-[#40414f] dark:bg-[#2d2f39] z-50 md:absolute md:bottom-full md:left-0 md:right-0">
-              {suggestions.map((suggestion, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
-                    index === selectedIndex
-                      ? 'bg-gray-100 dark:bg-[#3c3f4a]'
-                      : 'hover:bg-gray-50 dark:hover:bg-[#353740]'
-                  } ${index !== suggestions.length - 1 ? 'border-b border-gray-100 dark:border-[#40414f]' : ''} text-[#353740] dark:text-[#ececf1]`}
-                  onClick={() => handleSelectSuggestion(suggestion.text)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  {suggestion.text}
-                </button>
-              ))}
+          {showAutocompletePanel && (
+            <div className="mb-2 w-full overflow-hidden rounded-xl border border-gray-200/90 bg-white/95 shadow-[0_14px_38px_rgba(15,23,42,0.14)] ring-1 ring-black/5 backdrop-blur-sm dark:border-[#4a4b54] dark:bg-[#1f2027]/95 dark:shadow-[0_16px_38px_rgba(0,0,0,0.45)] dark:ring-white/10 z-50 md:absolute md:bottom-full md:left-0 md:w-[32rem] md:max-w-full">
+              <div className="border-b border-blue-100/90 bg-blue-50/80 px-3 py-2 text-xs font-semibold tracking-wide text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+                <span>Suggestions</span>
+              </div>
+              <div role="listbox" aria-label="Autocomplete suggestions" className="max-h-64 overflow-y-auto p-1.5">
+                {autocompleteLoading && !hasSuggestions && (
+                  <div className="px-3 py-3 text-sm text-gray-500 dark:text-[#bfc2cd]">Loading suggestions...</div>
+                )}
+                {suggestions.map((suggestion, index) => {
+                  const isSelected = index === selectedIndex;
+
+                  return (
+                    <button
+                      key={index}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      className={`group relative mb-1 flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors last:mb-0 ${
+                        isSelected
+                          ? 'bg-blue-100 text-blue-800 shadow-sm dark:bg-blue-900/45 dark:text-blue-100'
+                          : 'text-[#353740] hover:bg-blue-50 hover:text-blue-700 dark:text-[#ececf1] dark:hover:bg-blue-900/30 dark:hover:text-blue-200'
+                      }`}
+                      onClick={() => handleSelectSuggestion(suggestion.text)}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                    >
+                      {renderSuggestionText(suggestion.text)}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
-          {hasSuggestions && (
-            <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-[#bfc2cd]">
-              <span className="inline-flex items-center gap-1">
+          {showAutocompleteHints && (
+            <div className="mb-2 flex flex-wrap items-center gap-2.5 text-xs text-gray-500 dark:text-[#bfc2cd]">
+              <span className="inline-flex items-center gap-1.5">
                 <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
                   Tab
                 </span>
                 Accept
               </span>
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1.5">
                 <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
                   →
                 </span>
                 Inline fill
               </span>
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1.5">
                 <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
                   ↑/↓
                 </span>
                 Navigate
               </span>
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1.5">
                 <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
                   Esc
                 </span>
@@ -1196,8 +1236,9 @@ export function MessageInput({
 
             {/* Right side buttons */}
             <div className="flex items-center gap-1 md:gap-2">
-              {audioFeatureEnabled && (
+              {(audioOutputEnabled || audioInputEnabled) && (
                 <>
+                  {audioOutputEnabled && (
                   <button
                     type="button"
                     onClick={handleVoiceResponseToggle}
@@ -1219,6 +1260,7 @@ export function MessageInput({
                       <VolumeX className="h-5 w-5" />
                     )}
                   </button>
+                  )}
                   {voiceRecordingAvailable && (
                     <button
                       type="button"

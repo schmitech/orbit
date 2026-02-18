@@ -32,7 +32,7 @@ export function isBase64AudioData(text: string): boolean {
     // Include programming keywords, markdown syntax, URLs, etc.
     const hasTextPatterns = /\b(the|and|for|are|but|not|you|all|can|function|const|let|var|class|return|import|export|async|await|if|else|while|true|false|null|undefined|http|https|www|error|data|response|request|api|json|xml|html|css|js|py|java|cpp|def|print|console|log)\b/i.test(text);
     const hasMarkdown = containsMarkdownSyntax(text);
-    const hasPunctuation = /[.,;:!?'"()-]/.test(text);
+    const hasPunctuation = /[-.,;:!?'"()]/.test(text);
 
     // If no text patterns, no markdown, and no punctuation - it's likely audio
     if (!hasTextPatterns && !hasMarkdown && !hasPunctuation) {
@@ -55,7 +55,7 @@ export function isBase64AudioData(text: string): boolean {
 
 // Unicode space characters that KaTeX's Main-Regular font doesn't support (causes "No character metrics" console errors)
 // Normalize these to regular space (U+0020) before passing to MarkdownRenderer/KaTeX
-const KATEX_UNSAFE_SPACES = /[\u202F\u2009\u200A\u200B\u200C\u200D\uFEFF]/g;
+const KATEX_UNSAFE_SPACES = /(?:\u202F|\u2009|\u200A|\u200B|\u200C|\u200D|\uFEFF)/g;
 
 /**
  * Sanitizes message content by removing base64 audio data and normalizing
@@ -85,7 +85,7 @@ export function sanitizeMessageContent(content: string): string {
       // Check for text patterns that would indicate legitimate content
       const hasTextPatterns = /\b(function|const|let|var|class|return|import|export|if|else|while|for|true|false|null|def|print)\b/i.test(match);
       const hasMarkdown = containsMarkdownSyntax(match);
-      const hasPunctuation = /[.,;:!?'"()-]/.test(match);
+      const hasPunctuation = /[-.,;:!?'"()]/.test(match);
 
       // If pure base64 with no text patterns, remove it
       if (!hasTextPatterns && !hasMarkdown && !hasPunctuation) {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp,
-  Bot,
+  CircleUserRound,
   ChevronDown,
   ChevronUp,
   Copy,
@@ -10,9 +10,9 @@ import {
   Loader2,
   MessageSquare,
   RotateCcw,
+  Sparkles,
   ThumbsDown,
-  ThumbsUp,
-  User2
+  ThumbsUp
 } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
@@ -154,13 +154,13 @@ export function Message({
   }, [message.timestamp, locale]);
 
   const avatarClasses = isAssistant
-    ? 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-900 dark:from-[#1f2a36] dark:to-[#1a2230] dark:text-[#c5d7ff]'
-    : 'bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-900 dark:from-[#0f1f17] dark:to-[#0b1712] dark:text-[#c7f5df]';
+    ? 'text-blue-700 dark:text-[#c5d7ff]'
+    : 'text-emerald-700 dark:text-[#9ef0d5]';
 
   const bubbleClasses = `message-bubble min-w-0 break-words leading-relaxed ${
     isAssistant
       ? 'border border-blue-100/80 bg-transparent text-[#0f172a] shadow-[0_15px_35px_-20px_rgba(15,23,42,0.25)] dark:border-[#1f2a36] dark:bg-transparent dark:text-[#e5edff]'
-      : 'border border-emerald-100 bg-transparent text-[#1c3226] shadow-[0_12px_30px_-18px_rgba(15,52,33,0.25)] dark:border-[#1a2b21] dark:bg-transparent dark:text-[#dffbea]'
+      : 'border border-slate-200 bg-transparent text-[#1c3226] shadow-[0_12px_30px_-18px_rgba(15,52,33,0.25)] dark:border-[#1a2b21] dark:bg-transparent dark:text-[#dffbea]'
   } rounded-2xl px-4 py-3`;
 
   const attachmentClasses = isAssistant
@@ -320,13 +320,13 @@ export function Message({
       return (
         <div key={reply.id} className="flex items-start gap-3">
           <div
-            className={`mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full ${
+            className={`mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center ${
               replyIsAssistant
-                ? 'bg-blue-100 text-blue-700 dark:bg-[#1f2a36] dark:text-[#c5d7ff]'
-                : 'bg-emerald-100 text-emerald-700 dark:bg-[#1f2a36] dark:text-[#9ef0d5]'
+                ? 'text-blue-700 dark:text-[#c5d7ff]'
+                : 'text-emerald-700 dark:text-[#9ef0d5]'
             }`}
           >
-            {replyIsAssistant ? <Bot className="h-3.5 w-3.5" /> : <User2 className="h-3.5 w-3.5" />}
+            {replyIsAssistant ? <Sparkles className="h-3.5 w-3.5" /> : <CircleUserRound className="h-3.5 w-3.5" />}
           </div>
           <div className="flex-1 min-w-0 rounded-2xl border border-white/70 bg-white/90 px-4 py-3 text-sm shadow-sm dark:border-white/5 dark:bg-white/5 backdrop-blur overflow-hidden">
             <div className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-blue-900/70 dark:text-[#c5d7ff]">
@@ -345,9 +345,9 @@ export function Message({
   return (
     <div className="group flex items-start gap-3 px-1 animate-fadeIn min-w-0 sm:px-0">
       <div
-        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full self-start -mt-2 ml-1 shadow-sm ring-2 ring-white/50 dark:ring-white/10 sm:-mt-3 sm:ml-2 ${avatarClasses}`}
+        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center self-start -mt-2 ml-1 sm:-mt-3 sm:ml-2 ${avatarClasses}`}
       >
-        {isAssistant ? <Bot className="h-5 w-5" /> : <User2 className="h-5 w-5" />}
+        {isAssistant ? <Sparkles className="h-5 w-5" /> : <CircleUserRound className="h-5 w-5" />}
       </div>
 
       <div className="flex-1 min-w-0 space-y-2">

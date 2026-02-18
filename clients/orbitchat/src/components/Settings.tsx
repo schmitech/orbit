@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Monitor, Sun, Moon, Palette, Type, Volume2, Package, Trash2, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
@@ -12,18 +12,12 @@ interface SettingsProps {
 export function Settings({ isOpen, onClose }: SettingsProps) {
   const { theme, updateTheme } = useTheme();
   const { settings, updateSettings } = useSettings();
-  const [versionInfo, setVersionInfo] = useState<{
+  const [versionInfo] = useState<{
     appVersion: string;
-  } | null>(null);
+  } | null>(() => getVersionInfo());
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmationText, setResetConfirmationText] = useState('');
   const [resetAcknowledged, setResetAcknowledged] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      setVersionInfo(getVersionInfo());
-    }
-  }, [isOpen]);
 
   if (!isOpen) return null;
 

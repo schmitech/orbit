@@ -1,4 +1,4 @@
-import React, { FormEvent, MouseEvent, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, MessageSquare, Trash2, Edit2, Trash, Paperclip, Settings } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
@@ -114,7 +114,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     isDeleting: false
   });
   const [showConfig, setShowConfig] = useState(false);
-  const [apiUrl, setApiUrl] = useState(() => getApiUrl());
   const [selectedAdapter, setSelectedAdapter] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -143,18 +142,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   const visibleConversations = conversationsWithHistory.length > 0 ? filteredConversations : [];
   const totalConversations = getConversationCount();
   const conversationLabel = totalConversations === 1 ? 'conversation' : 'conversations';
-
-  const handleOpenConfigureModal = () => {
-    const runtimeApiUrl = getApiUrl();
-    const conversationApiUrl = currentConversation?.apiUrl;
-    const currentApiUrl = conversationApiUrl && conversationApiUrl !== runtimeApiUrl
-      ? conversationApiUrl
-      : runtimeApiUrl;
-
-    setApiUrl(currentApiUrl);
-    setValidationError(null);
-    setShowConfig(true);
-  };
 
   const handleAdapterSelection = async (adapterName: string) => {
     if (!canConfigureApi || !adapterName) {
@@ -300,10 +287,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
       {/* API Configuration Modal */}
       {showConfig && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <form
-            onSubmit={handleConfigureApi}
-            className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]"
-          >
+          <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]">
             <h2 className="mb-4 text-lg font-medium text-[#353740] dark:text-[#ececf1]">
               Select an Agent
             </h2>
@@ -325,8 +309,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    const currentApiUrl = currentConversation?.apiUrl || getApiUrl();
-                    setApiUrl(currentApiUrl);
                     setValidationError(null);
                     setShowConfig(false);
                   }}
@@ -337,7 +319,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                   </button>
               </div>
             </div>
-          </form>
+          </div>
         </div>
       )}
 
@@ -368,10 +350,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
             )}
           </div>
           <div className="mt-4 space-y-3">
-            {/* Agent selection is handled through the modal */}
-            {false && (
-              <span></span>
-            )}
             {validationError && !showConfig && (
               <p className="text-xs text-red-600 dark:text-red-400">{validationError}</p>
             )}

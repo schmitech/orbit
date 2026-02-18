@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
-import { Settings, RefreshCw, Menu, Plus } from 'lucide-react';
+import { Settings, Menu, Plus } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
 import {
@@ -80,7 +80,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     .filter(Boolean)
     .join(' ');
 
-  const [isRefreshingAdapterInfo, setIsRefreshingAdapterInfo] = useState(false);
   const [isConfiguringAdapter, setIsConfiguringAdapter] = useState(false);
   const [adapterNotesError, setAdapterNotesError] = useState<string | null>(null);
 
@@ -563,29 +562,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     adapterSelectionRef.current = handleEmptyStateAdapterChange;
   }, [handleEmptyStateAdapterChange]);
 
-  const handleRefreshAdapterInfo = async () => {
-    const state = useChatStore.getState();
-    const activeConversationId = state.currentConversationId;
-    const activeConversation = activeConversationId
-      ? state.conversations.find(conv => conv.id === activeConversationId)
-      : null;
-    if (!activeConversation || !activeConversation.adapterName) {
-      debugWarn('Cannot refresh adapter info: no conversation or adapter');
-      return;
-    }
-
-    setAdapterNotesError(null);
-    setIsRefreshingAdapterInfo(true);
-    try {
-      const result = await fetchAdapterInfoForConversation(activeConversation);
-      if (!result.ok && result.error) {
-        debugError('Failed to refresh adapter info:', result.error);
-      }
-    } finally {
-      setIsRefreshingAdapterInfo(false);
-    }
-  };
-
   return (
     <div className="flex-1 flex flex-col bg-gray-50 dark:bg-[#202123] overflow-hidden">
       <div className="flex h-full w-full flex-col px-3 sm:px-6 overflow-hidden">
@@ -671,15 +647,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                             'Configured Agent'}
                         </span>
                       </div>
-                      <button
-                        onClick={handleRefreshAdapterInfo}
-                        disabled={isRefreshingAdapterInfo || !currentConversation?.adapterName}
-                        className="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 dark:border-[#4a4b54] dark:text-[#bfc2cd] dark:hover:bg-[#4a4b54] dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Refresh adapter info"
-                      >
-                        <RefreshCw className={`h-4 w-4 ${isRefreshingAdapterInfo ? 'animate-spin' : ''}`} />
-                        <span className="hidden sm:inline">Refresh</span>
-                      </button>
                     </div>
                     <div className="space-y-1">
                       <h1 className="text-2xl font-semibold text-[#353740] dark:text-[#ececf1]">

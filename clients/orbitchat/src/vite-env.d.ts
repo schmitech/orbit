@@ -9,7 +9,10 @@ interface ImportMetaEnv {
   readonly VITE_MAX_FILE_SIZE_MB?: string
   readonly VITE_ENABLE_UPLOAD?: string
   readonly VITE_ENABLE_AUDIO_OUTPUT?: string
+  readonly VITE_ENABLE_AUDIO_INPUT?: string
   readonly VITE_ENABLE_FEEDBACK?: string
+  readonly VITE_VOICE_SILENCE_TIMEOUT_MS?: string
+  readonly VITE_VOICE_RECOGNITION_LANG?: string
   readonly VITE_MAX_TOTAL_FILES?: string
   readonly VITE_MAX_CONVERSATIONS?: string
   readonly VITE_MAX_MESSAGES_PER_CONVERSATION?: string

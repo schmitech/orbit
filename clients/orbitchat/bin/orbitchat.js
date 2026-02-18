@@ -34,8 +34,11 @@ const DEFAULT_CONFIG = {
   consoleDebug: false,
   enableUploadButton: false,
   enableAudioOutput: false,
+  enableAudioInput: false,
   enableFeedbackButtons: false,
   enableAutocomplete: false,
+  voiceSilenceTimeoutMs: 4000,
+  voiceRecognitionLanguage: '',
   outOfServiceMessage: null,
   maxFilesPerConversation: 5,
   maxFileSizeMB: 50,
@@ -167,11 +170,20 @@ function parseArgs() {
       case '--enable-audio':
         config.enableAudioOutput = true;
         break;
+      case '--enable-audio-input':
+        config.enableAudioInput = true;
+        break;
       case '--enable-feedback':
         config.enableFeedbackButtons = true;
         break;
       case '--enable-autocomplete':
         config.enableAutocomplete = true;
+        break;
+      case '--voice-silence-timeout-ms':
+        config.voiceSilenceTimeoutMs = parseInt(args[++i], 10);
+        break;
+      case '--voice-recognition-lang':
+        config.voiceRecognitionLanguage = args[++i];
         break;
       case '--enable-api-middleware':
         // Ignored — middleware mode is now always enabled
@@ -274,8 +286,11 @@ function loadConfigFromEnv() {
     VITE_CONSOLE_DEBUG: 'consoleDebug',
     VITE_ENABLE_UPLOAD: 'enableUploadButton',
     VITE_ENABLE_AUDIO_OUTPUT: 'enableAudioOutput',
+    VITE_ENABLE_AUDIO_INPUT: 'enableAudioInput',
     VITE_ENABLE_FEEDBACK: 'enableFeedbackButtons',
     VITE_ENABLE_AUTOCOMPLETE: 'enableAutocomplete',
+    VITE_VOICE_SILENCE_TIMEOUT_MS: 'voiceSilenceTimeoutMs',
+    VITE_VOICE_RECOGNITION_LANG: 'voiceRecognitionLanguage',
     VITE_OUT_OF_SERVICE_MESSAGE: 'outOfServiceMessage',
     VITE_MAX_FILES_PER_CONVERSATION: 'maxFilesPerConversation',
     VITE_MAX_FILE_SIZE_MB: 'maxFileSizeMB',
@@ -289,11 +304,16 @@ function loadConfigFromEnv() {
 
   for (const [envKey, configKey] of Object.entries(envMap)) {
     const value = process.env[envKey];
-    if (value !== undefined) {
-      if (configKey === 'useLocalApi' || configKey === 'consoleDebug' || 
+      if (value !== undefined) {
+        if (configKey === 'useLocalApi' || configKey === 'consoleDebug' || 
           configKey === 'enableUploadButton' || configKey === 'enableAudioOutput' ||
-          configKey === 'enableFeedbackButtons' || configKey === 'enableAutocomplete') {
+          configKey === 'enableAudioInput' || configKey === 'enableFeedbackButtons' || configKey === 'enableAutocomplete') {
         envConfig[configKey] = value === 'true';
+      } else if (configKey === 'voiceSilenceTimeoutMs') {
+        const parsed = parseInt(value, 10);
+        if (!isNaN(parsed)) {
+          envConfig[configKey] = parsed;
+        }
       } else if (configKey.includes('max') && configKey !== 'maxFileSizeMB') {
         const parsed = parseInt(value, 10);
         if (!isNaN(parsed)) {
@@ -659,9 +679,12 @@ Options:
   --local-api-path PATH            Path to local API
   --console-debug                  Enable console debug (default: false)
   --enable-upload                  Enable upload button (default: false)
-  --enable-audio                   Enable audio button (default: false)
+  --enable-audio                   Enable audio output button (default: false)
+  --enable-audio-input             Enable microphone input button (default: false)
   --enable-feedback                Enable feedback buttons (default: false)
   --enable-autocomplete            Enable autocomplete suggestions (default: false)
+  --voice-silence-timeout-ms N     Auto-stop voice capture after N ms of silence (default: 4000)
+  --voice-recognition-lang LANG    BCP-47 language code for speech recognition (default: browser locale)
   --enable-api-middleware          Ignored (middleware mode is always enabled)
   --out-of-service-message TEXT    Show maintenance screen blocking access
   --max-files-per-conversation N   Max files per conversation (default: 5)
@@ -694,7 +717,7 @@ Environment Variables for Middleware Mode:
 Examples:
   orbitchat --api-url http://localhost:3000 --port 8080
   orbitchat --api-key my-key --open
-  orbitchat --enable-audio --enable-upload --console-debug
+  orbitchat --enable-audio --enable-audio-input --enable-upload --console-debug
   orbitchat --config /path/to/config.json
   ORBIT_ADAPTERS='[{"name":"Chat","apiKey":"mykey","apiUrl":"https://api.example.com"}]' orbitchat
   orbitchat --api-only --port 5174
