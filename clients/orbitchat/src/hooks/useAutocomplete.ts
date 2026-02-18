@@ -60,6 +60,7 @@ export function useAutocomplete(
   const [selectedIndex, setSelectedIndex] = useState(-1);
 
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const suppressedQueryRef = useRef<string | null>(null);
   const latestRequestIdRef = useRef(0);
@@ -113,12 +114,20 @@ export function useAutocomplete(
     if (!enabled || searchQuery.length < MIN_QUERY_LENGTH) {
       setSuggestions([]);
       lastNonEmptySuggestionsRef.current = [];
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+      setIsLoading(false);
       return;
     }
 
     if (!adapterName) {
       setSuggestions([]);
       lastNonEmptySuggestionsRef.current = [];
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+      setIsLoading(false);
       return;
     }
 
@@ -130,7 +139,17 @@ export function useAutocomplete(
     const requestId = latestRequestIdRef.current + 1;
     latestRequestIdRef.current = requestId;
 
-    setIsLoading(true);
+    // Clear any existing loading timeout
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+
+    // Delay setting isLoading(true) to avoid flicker for fast responses
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (requestId === latestRequestIdRef.current) {
+        setIsLoading(true);
+      }
+    }, 150);
 
     try {
       const headers: Record<string, string> = {
@@ -192,9 +211,15 @@ export function useAutocomplete(
       }
       // Autocomplete failures should not block the user
       debugWarn('[useAutocomplete] Error:', error instanceof Error ? error.message : String(error));
-      setSuggestions(getFallbackSuggestions(searchQuery));
+      if (requestId === latestRequestIdRef.current) {
+        setSuggestions(getFallbackSuggestions(searchQuery));
+      }
     } finally {
       if (requestId === latestRequestIdRef.current) {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+          loadingTimeoutRef.current = null;
+        }
         setIsLoading(false);
       }
     }
@@ -206,14 +231,26 @@ export function useAutocomplete(
       clearTimeout(debounceTimeoutRef.current);
     }
 
+    const cleanupActiveRequests = () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+      setIsLoading(false);
+    };
+
     if (!enabled || query.length < MIN_QUERY_LENGTH) {
       setSuggestions([]);
+      cleanupActiveRequests();
       return;
     }
 
     if (suppressedQueryRef.current) {
       if (query === suppressedQueryRef.current) {
         setSuggestions([]);
+        cleanupActiveRequests();
         return;
       }
       suppressedQueryRef.current = null;
@@ -236,6 +273,9 @@ export function useAutocomplete(
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -255,6 +295,13 @@ export function useAutocomplete(
     setSuggestions([]);
     lastNonEmptySuggestionsRef.current = [];
     setSelectedIndex(-1);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+    setIsLoading(false);
   }, []);
 
   const focusInputAfterSelection = useCallback((appliedText?: string) => {
