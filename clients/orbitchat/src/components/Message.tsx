@@ -52,7 +52,9 @@ export function Message({
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
   const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
   const threadRepliesRef = useRef<HTMLDivElement>(null);
+  const prevThreadReplyCountRef = useRef(0);
   const prevThreadContentRef = useRef<string>('');
+  const shouldAutoScrollThreadRef = useRef(true);
 
   const isAssistant = message.role === 'assistant';
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
@@ -116,26 +118,60 @@ export function Message({
     }
   }, [threadReplyCount]);
 
-  // Auto-scroll thread replies when new messages arrive or content is streaming
-  useEffect(() => {
-    if (!isThreadOpen || threadReplies.length === 0) return;
+  const handleThreadRepliesScroll = useCallback(() => {
+    if (!threadRepliesRef.current) {
+      return;
+    }
+    const { scrollTop, scrollHeight, clientHeight } = threadRepliesRef.current;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    shouldAutoScrollThreadRef.current = distanceFromBottom < 120;
+  }, []);
 
+  const scrollThreadRepliesToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (!threadRepliesRef.current) {
+        return;
+      }
+      threadRepliesRef.current.scrollTop = threadRepliesRef.current.scrollHeight;
+    });
+  }, []);
+
+  // Auto-scroll thread replies with the same strategy as the main conversation:
+  // new message -> scroll; streaming updates -> scroll; otherwise only when near bottom.
+  useEffect(() => {
+    if (!isThreadOpen) {
+      return;
+    }
+
+    const replyCount = threadReplies.length;
+    const hasNewReply = replyCount > prevThreadReplyCountRef.current;
     const lastReply = threadReplies[threadReplies.length - 1];
     const currentContent = lastReply?.content || '';
     const contentChanged = currentContent !== prevThreadContentRef.current;
-    const isStreaming = lastReply?.isStreaming;
+    const isStreaming = lastReply?.isStreaming ?? false;
 
-    // Scroll when streaming or when new content arrives
-    if (isStreaming || contentChanged) {
-      requestAnimationFrame(() => {
-        if (threadRepliesRef.current) {
-          threadRepliesRef.current.scrollTop = threadRepliesRef.current.scrollHeight;
-        }
-      });
+    if (hasNewReply) {
+      scrollThreadRepliesToBottom();
+      shouldAutoScrollThreadRef.current = true;
+    } else if (isStreaming && contentChanged) {
+      scrollThreadRepliesToBottom();
+      shouldAutoScrollThreadRef.current = true;
+    } else if (shouldAutoScrollThreadRef.current && contentChanged) {
+      scrollThreadRepliesToBottom();
     }
 
+    prevThreadReplyCountRef.current = replyCount;
     prevThreadContentRef.current = currentContent;
-  }, [isThreadOpen, threadReplies]);
+  }, [isThreadOpen, threadReplies, scrollThreadRepliesToBottom]);
+
+  // Ensure a thread opens at its latest reply.
+  useEffect(() => {
+    if (!isThreadOpen) {
+      return;
+    }
+    scrollThreadRepliesToBottom();
+    shouldAutoScrollThreadRef.current = true;
+  }, [isThreadOpen, scrollThreadRepliesToBottom]);
 
   const timestamp = useMemo(() => {
     const value = message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp);
@@ -246,7 +282,7 @@ export function Message({
 
     // Wait for the textarea to be visible before focusing.
     const frame = requestAnimationFrame(() => {
-      textarea.focus();
+      textarea.focus({ preventScroll: true });
       // Place the caret at the end so users can start typing immediately.
       const caretPos = textarea.value.length;
       textarea.setSelectionRange(caretPos, caretPos);
@@ -483,8 +519,9 @@ export function Message({
               <>
                 <div
                   ref={threadRepliesRef}
-                  className="mt-3 space-y-3 max-h-96 overflow-y-auto scroll-smooth"
-                  style={{ scrollBehavior: 'auto' }}
+                  className="mt-3 space-y-3 max-h-96 overflow-y-auto"
+                  style={{ scrollBehavior: 'auto', overflowAnchor: 'none' }}
+                  onScroll={handleThreadRepliesScroll}
                 >
                   {threadReplyCount === 0 ? (
                     <div className="rounded-lg border border-dashed border-blue-200/80 bg-white/60 px-3 py-2 text-xs text-blue-900/70 dark:border-white/10 dark:bg-white/[0.04] dark:text-[#b4c7ff]">
@@ -501,7 +538,7 @@ export function Message({
                   </div>
                 )}
 
-                <div className="mt-3 rounded-xl border border-white/80 bg-white/95 p-3 shadow-sm dark:border-white/10 dark:bg-white/10">
+                <div className="mt-3 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/80 p-3 shadow-[0_12px_28px_-22px_rgba(15,23,42,0.5)] dark:border-[#3f4354] dark:bg-gradient-to-b dark:from-[#252937]/90 dark:to-[#1d202b]/90">
                   {threadReplyCount === 0 && (
                     <p className="mb-2 text-xs font-medium text-blue-900/80 dark:text-[#b4c7ff]">
                       Replying in thread keeps this discussion linked to this message.
@@ -511,7 +548,7 @@ export function Message({
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                     <textarea
                       ref={threadTextareaRef}
-                      className="flex-1 w-full sm:w-auto min-w-0 resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-base sm:text-sm text-[#353740] placeholder-gray-500 outline-none transition focus:border-gray-400 focus:ring-1 focus:ring-gray-300 disabled:opacity-60 dark:border-[#3c3f4a] dark:bg-[#2d2f39] dark:text-[#ececf1] dark:placeholder-[#8e8ea0] dark:focus:border-[#8e8ea0] dark:focus:ring-[#8e8ea0]"
+                      className="flex-1 w-full sm:w-auto min-w-0 resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base sm:text-sm text-[#1f2937] placeholder-slate-500 shadow-inner outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-200/70 disabled:opacity-60 dark:border-[#4d5368] dark:bg-[#171a22] dark:text-[#ececf1] dark:placeholder-[#8e8ea0] dark:focus:border-blue-400 dark:focus:ring-blue-500/30"
                       placeholder={threadPlaceholder}
                       value={threadInput}
                       onChange={e => setThreadInput(e.target.value)}
@@ -543,8 +580,8 @@ export function Message({
                         disabled={threadComposerDisabled || threadInput.trim().length === 0}
                         className={`flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full transition active:scale-95 ${
                           threadInput.trim().length > 0 && !threadComposerDisabled
-                            ? 'bg-[#10a37f] text-white hover:bg-[#0f8f6f]'
-                            : 'bg-gray-200 text-gray-400 dark:bg-[#2f313a] dark:text-[#6b6f7a]'
+                            ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400'
+                            : 'bg-slate-200 text-slate-400 dark:bg-[#2f313a] dark:text-[#6b6f7a]'
                         } disabled:cursor-not-allowed`}
                         title="Send thread message"
                       >

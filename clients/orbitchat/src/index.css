@@ -151,10 +151,10 @@
 
   /* Table styling for markdown content */
   .prose table {
-    @apply w-full border-collapse my-4 text-sm;
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    @apply border-collapse my-4 text-sm;
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
   }
 
   .prose thead {
@@ -163,11 +163,14 @@
 
   .prose th {
     @apply px-4 py-2 text-left font-semibold text-[#353740] dark:text-[#ececf1] border border-gray-200 dark:border-[#3c3f4a];
+    min-width: 12rem;
     white-space: nowrap;
   }
 
   .prose td {
     @apply px-4 py-2 text-[#353740] dark:text-[#ececf1] border border-gray-200 dark:border-[#3c3f4a];
+    min-width: 12rem;
+    vertical-align: top;
   }
 
   .prose tbody tr:nth-child(even) {

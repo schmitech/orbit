@@ -181,10 +181,15 @@
 
 /* Ensure tables in threads have proper styling */
 .thread-markdown-wrapper table {
-  display: block;
-  overflow-x: auto;
-  white-space: nowrap;
-  -webkit-overflow-scrolling: touch;
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.thread-markdown-wrapper th,
+.thread-markdown-wrapper td {
+  min-width: 12rem;
+  vertical-align: top;
 }
 
 .thread-markdown-wrapper .prose {
