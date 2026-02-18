@@ -56,6 +56,9 @@ export interface RuntimeConfig {
 
   // Message Limits
   maxMessageLength: number;
+
+  // Settings Page
+  settingsAboutMsg: string;
 }
 
 declare global {
@@ -104,6 +107,7 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
   maxMessagesPerThread: 'VITE_MAX_MESSAGES_PER_THREAD',
   maxTotalMessages: 'VITE_MAX_TOTAL_MESSAGES',
   maxMessageLength: 'VITE_MAX_MESSAGE_LENGTH',
+  settingsAboutMsg: 'VITE_SETTINGS_ABOUT_MSG',
 };
 
 function getFirstConfiguredAdapterName(): string | null {
@@ -369,6 +373,7 @@ export const runtimeConfig: RuntimeConfig = {
     const val = getConfigValue('maxMessageLength', '1000', 'string') as string;
     return parseRequiredLimit(val, 1000);
   })(),
+  settingsAboutMsg: getConfigValue('settingsAboutMsg', 'ORBIT Chat', 'string'),
 };
 
 /**
@@ -496,4 +501,8 @@ export function getGitHubRepo(): string {
 export function getOutOfServiceMessage(): string | null {
   const value = getConfigValue('outOfServiceMessage', '', 'string') as string;
   return normalizeOutOfServiceMessage(value);
+}
+
+export function getSettingsAboutMsg(): string {
+  return getConfigValue('settingsAboutMsg', 'ORBIT Chat', 'string');
 }

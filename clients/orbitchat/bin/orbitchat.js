@@ -48,6 +48,7 @@ const DEFAULT_CONFIG = {
   maxMessagesPerThread: 1000,
   maxTotalMessages: 10000,
   maxMessageLength: 1000,
+  settingsAboutMsg: 'ORBIT Chat',
 };
 
 function parseAdaptersListFromEnv() {
@@ -215,6 +216,9 @@ function parseArgs() {
       case '--max-message-length':
         config.maxMessageLength = parseInt(args[++i], 10);
         break;
+      case '--settings-about-msg':
+        config.settingsAboutMsg = args[++i];
+        break;
       case '--port':
         serverConfig.port = parseInt(args[++i], 10);
         break;
@@ -300,6 +304,7 @@ function loadConfigFromEnv() {
     VITE_MAX_MESSAGES_PER_THREAD: 'maxMessagesPerThread',
     VITE_MAX_TOTAL_MESSAGES: 'maxTotalMessages',
     VITE_MAX_MESSAGE_LENGTH: 'maxMessageLength',
+    VITE_SETTINGS_ABOUT_MSG: 'settingsAboutMsg',
   };
 
   for (const [envKey, configKey] of Object.entries(envMap)) {
@@ -695,6 +700,7 @@ Options:
   --max-messages-per-thread N      Max messages per thread (default: 1000, 0 = unlimited)
   --max-total-messages N           Max total messages (default: 10000, 0 = unlimited)
   --max-message-length N           Max message length (default: 1000)
+  --settings-about-msg TEXT        About message in settings page (default: ORBIT Chat)
   --port PORT                      Server port (default: 5173)
   --host HOST                      Server host (default: localhost)
   --open                           Open browser automatically

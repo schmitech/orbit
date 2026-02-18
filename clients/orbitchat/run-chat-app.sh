@@ -24,8 +24,11 @@ ENABLE_AUDIO_OUTPUT="${ORBITCHAT_ENABLE_AUDIO_OUTPUT:-true}"
 ENABLE_AUDIO_INPUT="${ORBITCHAT_ENABLE_AUDIO_INPUT:-true}"
 VOICE_SILENCE_TIMEOUT_MS="${ORBITCHAT_VOICE_SILENCE_TIMEOUT_MS:-}"
 VOICE_RECOGNITION_LANG="${ORBITCHAT_VOICE_RECOGNITION_LANG:-}"
+SETTINGS_ABOUT_MSG="${ORBITCHAT_SETTINGS_ABOUT_MSG:-ORBIT Local}"
 
 # Set the VITE_ADAPTERS environment variable (adapter configs for the Express proxy)
+# export VITE_ADAPTERS='[{ "name": "Simple Chat", "apiKey": "default-key", "apiUrl": "http://localhost:3000", "description": "Basic chat interface using the default conversational agent." }]'
+
 export VITE_ADAPTERS='[
   { "name": "Simple Chat", "apiKey": "default-key", "apiUrl": "http://localhost:3000", "description": "Basic chat interface using the default conversational agent." },
   { "name": "City QA Chat (Chroma Vector)", "apiKey": "chroma-key", "apiUrl": "http://localhost:3000", "description": "Simple QA interface for a city vector DB (Chroma)." },
@@ -33,10 +36,17 @@ export VITE_ADAPTERS='[
   { "name": "HR System", "apiKey": "hr", "apiUrl": "http://localhost:3000", "description": "Conversational assistant for HR records, people search, and analytics." },
   { "name": "Movies DB", "apiKey": "mflix", "apiUrl": "http://localhost:3000", "description": "Explores and queries a MongoDB-powered movies database (MFlix sample set)." },
   { "name": "Business Analytics", "apiKey": "analytical", "apiUrl": "http://localhost:3000", "description": "Analyze datasets and generate business intelligence reports." },
-  { "name": "Electric Vehicle Population", "apiKey": "ev", "apiUrl": "http://localhost:3000", "description": "Accesses statistics and insights about electric vehicle registrations." },
+  { "name": "Electric Vehicle Population", "apiKey": "orbit_7KyFOuHIpD7EAQRJHRBwmJxxoKYJ2nkn", "apiUrl": "http://localhost:3000", "description": "Accesses statistics and insights about electric vehicle registrations." },
   { "name": "Paris Open Data", "apiKey": "paris", "apiUrl": "http://localhost:3000", "description": "Interact with Paris city open data for events, venues, and more." },
   { "name": "REST API", "apiKey": "rest", "apiUrl": "http://localhost:3000", "description": "Enables generic REST API exploration and data extraction." }
 ]'
+
+# export VITE_ADAPTERS='[
+#   { "name": "Tender Notices Agent", "apiKey": "tender-notices", "apiUrl": "http://localhost:3000", "description": "CanadaBuys tender notices intelligence: open pipeline, competition posture, trends, and watchlists." },
+#   { "name": "Award Notices Agent", "apiKey": "award-notices", "apiUrl": "http://localhost:3000", "description": "CanadaBuys award notices intelligence: contract awards, supplier spend, and procurement analytics." },
+#   { "name": "Contract History Agent", "apiKey": "contract-history", "apiUrl": "http://localhost:3000", "description": "CanadaBuys contract history intelligence: historical spend, supplier performance, amendments, and compliance." },
+#   { "name": "Standing Offers Agent", "apiKey": "standing-offers", "apiUrl": "http://localhost:3000", "description": "CanadaBuys standing offers intelligence: active agreements, supplier coverage, expiry monitoring, and commodity analysis." }
+# ]'
 
 start_app() {
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
@@ -80,6 +90,7 @@ start_app() {
         --application-name "Welcome to ORBIT Local" \
         --application-description "ORBIT provides a specialized AI interface that allows anyone to ask plain-language questions and receive summarized, citation-backed answers drawn directly from data sources." \
         --default-input-placeholder "Ask Anything..." \
+        --settings-about-msg "$SETTINGS_ABOUT_MSG" \
         > "$LOGFILE" 2>&1 &
 
     echo $! > "$PIDFILE"
@@ -136,6 +147,7 @@ show_help() {
     echo "  ORBITCHAT_ENABLE_AUDIO_INPUT   Enable microphone input button (default: true)"
     echo "  ORBITCHAT_VOICE_SILENCE_TIMEOUT_MS  Silence timeout before auto-send (optional)"
     echo "  ORBITCHAT_VOICE_RECOGNITION_LANG    Speech recognition locale, e.g. en-US (optional)"
+    echo "  ORBITCHAT_SETTINGS_ABOUT_MSG        About message in settings page (default: ORBIT Local)"
     echo ""
     echo "Examples:"
     echo "  $0 --start                      # Start on default port 5173"

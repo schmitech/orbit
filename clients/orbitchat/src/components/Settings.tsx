@@ -3,6 +3,7 @@ import { X, Monitor, Sun, Moon, Palette, Type, Volume2, Package, Trash2, AlertTr
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { getVersionInfo } from '../utils/version';
+import { getSettingsAboutMsg } from '../utils/runtimeConfig';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface SettingsProps {
@@ -249,7 +250,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
             </h3>
             <div className="space-y-1">
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                AI Chat Application v{versionInfo?.appVersion || '1.0.0'}
+                {getSettingsAboutMsg()} v{versionInfo?.appVersion || '1.0.0'}
               </p>
             </div>
           </div>
