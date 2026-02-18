@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp,
+  Check,
   CircleUserRound,
   ChevronDown,
   ChevronUp,
@@ -423,8 +424,8 @@ export function Message({
               <button
                 onClick={copyToClipboard}
                 className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
-                title="Copy message"
-                aria-label="Copy message"
+                title="Copy to clipboard"
+                aria-label="Copy to clipboard"
               >
                 <Copy className="h-4 w-4" />
                 <span className="hidden sm:inline">Copy</span>
@@ -484,7 +485,12 @@ export function Message({
                 </div>
               )}
 
-              {copied && <span>Copied</span>}
+              {copied && (
+                <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Copied</span>
+                </div>
+              )}
             </div>
           </>
         )}
