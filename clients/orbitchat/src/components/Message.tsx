@@ -383,7 +383,7 @@ export function Message({
   return (
     <div className="group flex items-start gap-3 px-1 animate-fadeIn min-w-0 sm:px-0">
       <div
-        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center self-start -mt-2 ml-1 sm:-mt-3 sm:ml-2 ${avatarClasses}`}
+        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center self-start ml-1 sm:ml-2 ${avatarClasses}`}
       >
         {isAssistant ? <Sparkles className="h-5 w-5" /> : <CircleUserRound className="h-5 w-5" />}
       </div>
