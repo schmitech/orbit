@@ -13,7 +13,6 @@
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white" alt="Docker"></a>
   <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/github/v/release/schmitech/orbit" alt="Release"></a>
   <a href="https://pypi.org/project/schmitech-orbit-client/"><img src="https://img.shields.io/pypi/v/schmitech-orbit-client?label=PyPI%20client" alt="PyPI"></a>
-  <a href="https://www.npmjs.com/package/@schmitech/chatbot-widget"><img src="https://img.shields.io/npm/v/@schmitech/chatbot-widget.svg?logo=npm&label=Widget%20NPM" alt="NPM"></a>
   <a href="https://github.com/schmitech/orbit" target="_blank">
     <img src="https://img.shields.io/github/stars/schmitech/orbit?style=social&label=Star" alt="GitHub stars">
   </a>
@@ -42,7 +41,6 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 **The Problem:** Building AI apps means choosing between vendor lock-in, complex integrations, and privacy concerns.
 
-- **Vendor lock-in:** Switching from OpenAI to Anthropic means rewriting your code
 - **Complex RAG:** Connecting databases, vector stores, and APIs requires custom glue code
 - **Privacy concerns:** Sending sensitive data to third-party APIs
 - **Fragmented tools:** Different SDKs, auth methods, and APIs for each provider
@@ -58,10 +56,8 @@ Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI provi
 
 **Who it's for:** Developers building AI applications who want flexibility, privacy, and control without the complexity of managing multiple integrations.
 
-- **New here?** Start with practical guides in [OrbitInfra Articles](https://orbitinfra.ai/articles)
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
 - **Updates:** Check the [changelog](CHANGELOG.md)
-- **Commercial Support:** [OrbitInfra.ai](https://orbitinfra.ai/)
 - **Maintained by:** [Schmitech.ai](https://schmitech.ai/en/)
 
 ## At a Glance
@@ -158,12 +154,7 @@ curl -X POST https://orbit.schmitech.ai/v1/chat \
 
 The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer"><strong>ORBIT Sandbox</strong></a> offers interactive examples for adapters, prompts, and capabilities.
 
-<!-- Use the <a href="https://chatwidget-plum.vercel.app/" target="_blank" rel="noopener noreferrer"><strong>Chat Widget Theming Platform</strong></a> to theme and embed AI chat on any site (see <a href="clients/chat-widget/README.md" target="_blank" rel="noopener noreferrer">widget theming guide</a> to run locally or customize). -->
-
 See the <a href="https://orbit.schmitech.ai/redoc" target="_blank" rel="noopener noreferrer"><strong>ORBIT API Reference (ReDoc)</strong></a> for full API docs.
-
-
-If you're new to ORBIT, read practical implementation guides in the <a href="https://orbitinfra.ai/articles" target="_blank" rel="noopener noreferrer"><strong>OrbitInfra Articles Library</strong></a>.
 
 ### 2. Run the Docker demo
 
@@ -215,7 +206,6 @@ cd orbit && cp env.example .env
 - **`orbit-chat` CLI:** `pip install schmitech-orbit-client && orbit-chat --api-key <KEY>`
 - **React web app:** `npm install -g orbitchat && orbitchat --api-url http://localhost:3000 --api-key <KEY> --open`
 - **Mobile app (iOS):** Native-feeling chat via [orbit-mobile](clients/orbit-mobile/README.md) (React Native/Expo)—conversation list, streaming, markdown, light/dark theme.
-- **Embeddable widget:** Drop [@schmitech/chatbot-widget](clients/chat-widget/README.md) into any site for floating or inline chat.
 - **Node SDK:** `npm install @schmitech/chatbot-api` and stream responses in TypeScript/JavaScript apps.
 - **OpenAI-compatible API:** Point the official `openai` Python client at `base_url="http://localhost:3000/v1"` to reuse existing code.
 
@@ -236,16 +226,12 @@ cd orbit && cp env.example .env
 - [Authentication & API keys](docs/authentication.md)
 - [RAG adapters](docs/adapters/adapters.md)
 - [Voice & audio adapters](docs/audio/)
-- [PersonaPlex speech-to-speech](docs/personaplex-integration.md)
-- [OrbitInfra Articles Library](https://orbitinfra.ai/articles)
 - [Roadmap](docs/roadmap/README.md)
 - [Contributing](CONTRIBUTING.md) & [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ## 🧠 Need help?
 
 - Open an [issue](https://github.com/schmitech/orbit/issues) or [discussion](https://github.com/schmitech/orbit/discussions).
-- Commercial support + managed hosting: [OrbitInfra.ai](https://orbitinfra.ai/).
-- Implementation guides and tutorials: [OrbitInfra Articles](https://orbitinfra.ai/articles).
 - Say hi on [Schmitech.ai](https://schmitech.ai/en/contact).
 
 ## 📄 License
