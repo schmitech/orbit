@@ -18,6 +18,9 @@
 | `skip_when_no_files` | bool | `false` | Skip retrieval when file_ids is empty (for conditional retrieval) |
 | `required_parameters` | list | `[]` | Parameters that MUST be provided to the retriever |
 | `optional_parameters` | list | `[]` | Parameters that CAN be provided to the retriever |
+| `context_format` | string | `null` | Table format for intent data: `"markdown_table"`, `"toon"`, `"csv"`, or `null` (default pipe-separated) |
+| `context_max_tokens` | int | `null` | Token budget for context trimming. Drops lowest-confidence documents when exceeded |
+| `numeric_precision` | object | `{}` | Numeric formatting options, e.g. `{decimal_places: 2}` for rounding unformatted floats |
 
 ---
 
@@ -244,6 +247,34 @@ capabilities:
 
 **Use case:** Boost or filter search results based on the detected language of the user's query.
 
+### Change Table Format (Intent Adapters)
+
+```yaml
+capabilities:
+  context_format: "markdown_table"  # Options: markdown_table, toon, csv (default: pipe-separated)
+```
+
+**Use case:** Change how intent query results are rendered in the LLM context. Markdown tables are easier for LLMs to parse. TOON format (via `py_toon_format`) is the most compact. Default (null/omitted) preserves the original pipe-separated format.
+
+### Limit Context Token Usage
+
+```yaml
+capabilities:
+  context_max_tokens: 8000  # Drop lowest-confidence documents to stay under budget
+```
+
+**Use case:** Prevent context from consuming too much of the LLM's context window. Estimates tokens as `len(text) // 4` and drops documents from the end (lowest confidence) until within budget.
+
+### Control Numeric Precision
+
+```yaml
+capabilities:
+  numeric_precision:
+    decimal_places: 2  # Round unformatted floats to 2 decimal places
+```
+
+**Use case:** Reduce noisy float values (e.g. `3.141592653589793` becomes `3.14`) in intent query results. Only applies to floats without an explicit `display_format` in the domain config.
+
 ---
 
 ## Decision Tree
@@ -303,6 +334,10 @@ A: `supports_threading` enables conversation threading - caching retrieved datas
 
 A: `required_parameters` are mandatory - retrieval will fail without them. `optional_parameters` are passed to the retriever if provided but aren't required. Common optional parameters: `api_key`, `file_ids`, `session_id`.
 
+**Q: What table format should I use for `context_format`?**
+
+A: The default (omit or set to `null`) uses the original pipe-separated format. `"markdown_table"` produces standard markdown tables that most LLMs parse well. `"toon"` uses `py_toon_format` for the most compact output. `"csv"` uses CSV format. All formats are backward-compatible -- the default preserves existing behavior.
+
 ---
 
 ## Quick Copy-Paste
@@ -325,6 +360,10 @@ capabilities:
   formatting_style: "standard"
   supports_file_ids: false
   supports_threading: true
+  # context_format: "markdown_table"  # Optional: markdown_table, toon, csv
+  # context_max_tokens: 8000          # Optional: token budget for context
+  # numeric_precision:                # Optional: round unformatted floats
+  #   decimal_places: 2
 ```
 
 ### File/Multimodal Adapter (Clean Formatting)

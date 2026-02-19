@@ -1,0 +1,63 @@
+# Intent Retriever Adapters
+# These adapters use intent classification to generate queries from natural language
+# Supports SQL, DuckDB, PostgreSQL, Elasticsearch, MongoDB, HTTP APIs, and Firecrawl
+
+adapters:
+  - name: "intent-sql-sqlite-hr"
+    enabled: true
+    type: "retriever"
+    datasource: "sqlite"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
+    database: "examples/intent-templates/sql-intent-template/examples/sqlite/hr/hr.db"
+    # Provider overrides - intent adapters benefit from powerful models
+    inference_provider: "ollama_cloud"    # Cloud LLM for complex intent classification
+    model: "gpt-oss:120b"           # Large model for better intent understanding
+    embedding_provider: "ollama"          # Local embeddings for template matching
+    embedding_model: "nomic-embed-text:latest"
+    # reranker_provider: "ollama"           # Optional: Jina AI reranker for template relevance
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      requires_api_key_validation: true
+      supports_autocomplete: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+    config:
+      # SQLite database path is configured in datasources.yaml
+      check_same_thread: false  # Allow multi-threaded access
+
+      # Path to the domain definition file
+      domain_config_path: "examples/intent-templates/sql-intent-template/examples/sqlite/hr/hr-domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/sql-intent-template/examples/sqlite/hr/hr-templates.yaml"
+
+      # Name for the vector store collection for templates
+      template_collection_name: "hr_intent_templates"
+      # Store configuration - references stores.yaml
+      store_name: "chroma"
+      confidence_threshold: 0.4
+
+      # Maximum templates to consider
+      max_templates: 5
+
+      # Return top N results
+      return_results: 10
+
+      # Template loading settings
+      reload_templates_on_start: true  # Whether to reload templates on startup
+      force_reload_templates: true  # Force reload even if templates exist in storage
+
+      # Unified retriever features
+      use_connection_pool: false  # SQLite doesn't support traditional pooling (file-based)
+      pool_size: 1  # Not applicable for SQLite
+      connection_timeout: 30  # Connection timeout in seconds
+
+      # Query monitoring (automatically provided by unified base)
+      enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds

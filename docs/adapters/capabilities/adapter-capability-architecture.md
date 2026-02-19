@@ -33,6 +33,9 @@
                     │  • formatting_style      │
                     │  • supports_file_ids     │
                     │  • skip_when_no_files    │
+                    │  • context_format        │
+                    │  • context_max_tokens    │
+                    │  • numeric_precision     │
                     │  • ...                   │
                     └──────────────┬───────────┘
                                    │
@@ -254,7 +257,31 @@ Default (retriever adapters)
       - "custom_param2"
 ```
 
-**No code changes needed in `context_retrieval.py`!** ✨
+**No code changes needed in `context_retrieval.py`!**
+
+### Context Efficiency Options
+
+Control how context is formatted and sized via capabilities:
+
+```yaml
+# adapters.yaml
+- name: "intent-sql-analytics"
+  type: "retriever"
+  adapter: "intent"
+
+  capabilities:
+    retrieval_behavior: "always"
+    formatting_style: "standard"
+    context_format: "markdown_table"  # markdown_table, toon, csv, or null (pipe-separated)
+    context_max_tokens: 8000          # Drop low-confidence docs to fit budget
+    numeric_precision:
+      decimal_places: 2              # Round unformatted floats
+```
+
+**How it works:**
+- `context_format` is read by intent retrievers (SQL, HTTP, GraphQL) and passed to `TableRenderer`
+- `context_max_tokens` is applied after formatting in `ContextRetrievalStep._format_context()`
+- `numeric_precision` is applied by `ResponseFormatter._format_single_result()` for floats without a `display_format`
 
 ### Custom Behavior Hooks (Advanced)
 

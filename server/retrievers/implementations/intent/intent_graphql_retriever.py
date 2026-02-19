@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional, Tuple
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
 from retrievers.base.base_retriever import RetrieverFactory
+from retrievers.implementations.intent.domain.response.table_renderer import TableRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -509,19 +510,18 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
                 display_fields = list(results[0].keys())
 
             if display_fields:
-                # Table header
-                lines.append(" | ".join(str(f) for f in display_fields))
-                lines.append("-" * (len(" | ".join(str(f) for f in display_fields))))
-
-                # Table rows - include ALL results for complete LLM context
+                # Build rows for TableRenderer
+                table_rows = []
                 for result in results:
                     row = []
                     for field in display_fields:
                         value = result.get(field, '')
-                        # Truncate long values for readability
                         value_str = str(value)[:100] if value is not None else ''
                         row.append(value_str)
-                    lines.append(" | ".join(row))
+                    table_rows.append(row)
+
+                columns = [str(f) for f in display_fields]
+                lines.append(TableRenderer.render(columns, table_rows, format=self.context_format).rstrip())
         else:
             # Format as list
             lines.append(f"Found {total} result(s):")

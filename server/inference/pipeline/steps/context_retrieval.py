@@ -528,9 +528,18 @@ class ContextRetrievalStep(PipelineStep):
         )
 
         if formatting_style == FormattingStyle.CLEAN:
-            return self._format_clean(documents, truncation_info)
+            formatted = self._format_clean(documents, truncation_info)
         else:
-            return self._format_standard(documents, truncation_info)
+            formatted = self._format_standard(documents, truncation_info)
+
+        # Apply token cap if configured
+        max_tokens = capabilities.context_max_tokens if capabilities else None
+        if max_tokens and documents:
+            formatted = self._trim_to_token_budget(
+                formatted, documents, max_tokens, formatting_style, truncation_info
+            )
+
+        return formatted
 
     def _format_clean(
         self,
@@ -635,8 +644,53 @@ class ContextRetrievalStep(PipelineStep):
             confidence = doc.get('confidence', doc.get('relevance', 0.0))
 
             context += (
-                f"[{i+1}] {source} (confidence: {confidence:.2f})\n"
+                f"## [{i+1}] {source} (confidence: {confidence:.2f})\n\n"
                 f"{content}\n\n"
             )
 
         return context.strip()
+
+    def _trim_to_token_budget(
+        self,
+        formatted: str,
+        documents: list,
+        max_tokens: int,
+        formatting_style: FormattingStyle,
+        truncation_info: Optional[Dict[str, int]] = None
+    ) -> str:
+        """
+        Trim formatted context to fit within a token budget.
+
+        Drops lowest-confidence documents from the end until the
+        estimated token count is within budget, then reformats.
+
+        Args:
+            formatted: Already-formatted context string
+            documents: Original document list (sorted by confidence)
+            max_tokens: Token budget
+            formatting_style: Which format to use when reformatting
+            truncation_info: Truncation info to pass through
+
+        Returns:
+            Trimmed formatted context string
+        """
+        estimated_tokens = len(formatted) // 4
+        if estimated_tokens <= max_tokens:
+            return formatted
+
+        # Drop lowest-confidence docs from the end until under budget
+        trimmed_docs = list(documents)
+        while len(trimmed_docs) > 1 and len(formatted) // 4 > max_tokens:
+            trimmed_docs.pop()
+            if formatting_style == FormattingStyle.CLEAN:
+                formatted = self._format_clean(trimmed_docs, truncation_info)
+            else:
+                formatted = self._format_standard(trimmed_docs, truncation_info)
+
+        if len(trimmed_docs) < len(documents):
+            logger.info(
+                "Trimmed context from %d to %d documents to fit token budget of %d",
+                len(documents), len(trimmed_docs), max_tokens
+            )
+
+        return formatted

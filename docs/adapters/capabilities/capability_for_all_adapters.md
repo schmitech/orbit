@@ -20,6 +20,9 @@ All available capabilities that can be configured for any adapter:
 | `skip_when_no_files` | bool | `false` | For conditional retrieval: skip when file_ids is empty |
 | `required_parameters` | list | `[]` | Parameters that MUST be provided to the retriever |
 | `optional_parameters` | list | `[]` | Parameters that CAN be provided (e.g., `api_key`, `file_ids`, `session_id`) |
+| `context_format` | string | `null` | Table format for intent data: `"markdown_table"`, `"toon"`, `"csv"`, or `null` (default pipe-separated) |
+| `context_max_tokens` | int | `null` | Token budget for context trimming. Drops lowest-confidence documents when exceeded |
+| `numeric_precision` | object | `{}` | Numeric formatting options, e.g. `{decimal_places: 2}` for rounding unformatted floats |
 
 ### Conversation Threading (`supports_threading`)
 
@@ -37,6 +40,32 @@ capabilities:
 # QA adapter - disable threading for simple Q&A
 capabilities:
   supports_threading: false
+```
+
+### Context Efficiency (`context_format`, `context_max_tokens`, `numeric_precision`)
+
+These capabilities control how context is formatted and sized before being sent to the LLM, reducing token usage and improving parsing reliability.
+
+**`context_format`** -- Controls the table format used by intent retrievers when rendering query results:
+
+| Value | Description |
+|-------|-------------|
+| `null` (default) | Pipe-separated format: `col1 \| col2 \| col3` |
+| `"markdown_table"` | Standard markdown: `\| col1 \| col2 \|` with `---` separator |
+| `"toon"` | Compact format via `py_toon_format` (falls back to pipe-separated if not installed) |
+| `"csv"` | CSV format output |
+
+**`context_max_tokens`** -- Sets a token budget for the formatted context. After formatting, if the estimated token count (`len(text) // 4`) exceeds the budget, lowest-confidence documents are dropped from the end until the context fits. Useful for adapters that may return large result sets.
+
+**`numeric_precision`** -- Controls rounding of unformatted float values in intent query results. Only applies to floats that don't already have a `display_format` in the domain config (currency, percentage, etc. are unaffected).
+
+```yaml
+# Intent adapter with context efficiency options
+capabilities:
+  context_format: "markdown_table"   # LLM-friendly table format
+  context_max_tokens: 8000           # Trim context to ~8k tokens
+  numeric_precision:
+    decimal_places: 2                # Round 3.141592... to 3.14
 ```
 
 ## Universal Applicability
@@ -347,6 +376,29 @@ Want a QA adapter that can filter by specific documents?
     optional_parameters:
       - "file_ids"  # Can now pass document IDs
 ```
+
+### Pattern 4: Context Efficiency for Intent Adapters
+
+Reduce token usage and improve LLM parsing for intent adapters that return large datasets:
+
+```yaml
+- name: "intent-sql-postgres"
+  type: "retriever"
+  adapter: "intent"
+
+  capabilities:
+    retrieval_behavior: "always"
+    formatting_style: "standard"
+    supports_threading: true
+    context_format: "markdown_table"  # Better LLM parsing than pipe-separated
+    context_max_tokens: 8000          # Trim large result sets
+    numeric_precision:
+      decimal_places: 2              # Clean up noisy floats
+```
+
+**Works for:**
+- All intent adapters (SQL, HTTP, GraphQL, MongoDB, Elasticsearch)
+- Any adapter that returns tabular data
 
 ## Migration Path for All Adapters
 

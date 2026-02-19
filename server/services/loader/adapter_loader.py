@@ -387,6 +387,11 @@ class AdapterLoader:
         config_with_adapter = copy.deepcopy(self.config)
         config_with_adapter['adapter_config'] = adapter_config_params
 
+        # Include capabilities from the adapter configuration (deep copy to prevent mutation)
+        if 'capabilities' in adapter_config:
+            config_with_adapter['capabilities'] = copy.deepcopy(adapter_config['capabilities'])
+            logger.debug("AdapterLoader: capabilities for %s: %s", adapter_name, config_with_adapter['capabilities'])
+
         # For intent adapters, include stores configuration
         if domain_adapter_name == 'intent' and 'stores' in self.config:
             config_with_adapter['stores'] = self.config['stores']
@@ -515,6 +520,7 @@ class AdapterLoader:
             logger.debug(f"Composite adapter '{adapter_name}': passing adapter_manager={self.adapter_manager is not None}")
 
         # Create retriever instance
+        logger.debug("AdapterLoader: pre-constructor capabilities for %s: %s", adapter_name, config_with_adapter.get('capabilities', 'NOT SET'))
         retriever = retriever_class(**retriever_kwargs)
 
         # Store metadata for cleanup

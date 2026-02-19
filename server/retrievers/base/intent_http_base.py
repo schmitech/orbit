@@ -18,6 +18,7 @@ from pathlib import Path
 from .base_retriever import BaseRetriever
 from retrievers.implementations.intent.domain.extraction import DomainParameterExtractor
 from retrievers.implementations.intent.domain.response import DomainResponseGenerator
+from retrievers.implementations.intent.domain.response.table_renderer import TableRenderer
 from retrievers.implementations.intent.template_reranker import TemplateReranker
 from retrievers.implementations.intent.template_processor import TemplateProcessor
 
@@ -56,6 +57,9 @@ class IntentHTTPRetriever(BaseRetriever):
 
         # Get intent-specific configuration from standardized key
         self.intent_config = config.get('adapter_config', {})
+
+        # Context table format from capabilities section (None = default pipe-separated)
+        self.context_format = config.get('capabilities', {}).get('context_format')
 
         # Override return_results from intent_config if specified (fixes default of 3 in parent class)
         if 'return_results' in self.intent_config:
@@ -757,10 +761,7 @@ class IntentHTTPRetriever(BaseRetriever):
                         columns = table_data["columns"]
                         rows = table_data["rows"]  # Include ALL rows for complete LLM context
 
-                        table_text = " | ".join(columns) + "\n"
-                        table_text += "-" * len(table_text) + "\n"
-                        for row in rows:
-                            table_text += " | ".join(str(v) for v in row) + "\n"
+                        table_text = TableRenderer.render(columns, rows, format=self.context_format)
 
                         content_parts.append(f"Found {formatted_data['result_count']} results:\n{table_text}")
 

@@ -39,10 +39,21 @@ class ResponseFormatter:
             if field_config and field_config.display_format:
                 formatted_value = self._apply_format(value, field_config.display_format)
                 formatted_result[key] = formatted_value
+            elif isinstance(value, float) and field_config:
+                # Round unformatted floats using extraction_hints.decimal_places
+                decimal_places = self._get_decimal_places(field_config)
+                formatted_result[key] = round(value, decimal_places)
             else:
                 formatted_result[key] = value
 
         return formatted_result
+
+    @staticmethod
+    def _get_decimal_places(field_config) -> int:
+        """Get decimal places from field extraction_hints, defaulting to 2."""
+        if field_config and field_config.extraction_hints:
+            return field_config.extraction_hints.get('decimal_places', 2)
+        return 2
 
     def _find_field_config(self, field_name: str) -> Optional[FieldConfig]:
         """Find field configuration across all entities"""

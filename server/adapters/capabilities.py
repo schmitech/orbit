@@ -55,6 +55,11 @@ class AdapterCapabilities:
     # Execution conditions
     skip_when_no_files: bool = False  # Skip retrieval when file_ids is empty
 
+    # Context formatting options
+    context_format: Optional[str] = None  # "markdown_table", "toon", "csv", or None (pipe-separated default)
+    context_max_tokens: Optional[int] = None  # Token budget for context trimming
+    numeric_precision: Dict[str, Any] = field(default_factory=dict)  # e.g. {"decimal_places": 2}
+
     # Custom behavior hooks (for advanced use cases)
     custom_should_execute: Optional[Callable[[Any], bool]] = None
     custom_format_context: Optional[Callable[[list, Optional[Dict]], str]] = None
@@ -93,6 +98,9 @@ class AdapterCapabilities:
             required_parameters=capabilities_config.get('required_parameters', []),
             optional_parameters=capabilities_config.get('optional_parameters', []),
             skip_when_no_files=capabilities_config.get('skip_when_no_files', False),
+            context_format=capabilities_config.get('context_format'),
+            context_max_tokens=capabilities_config.get('context_max_tokens'),
+            numeric_precision=capabilities_config.get('numeric_precision', {}),
         )
 
     @classmethod

@@ -256,22 +256,19 @@ class LLMInferenceStep(PipelineStep):
         if chart_instruction:
             parts.append(chart_instruction)
 
-        # Add file/document content for file-based adapters (CRITICAL FIX)
-        # For message format, the file content MUST be in the system message
+        # Add context content wrapped in <context> tags
         if context.formatted_context:
-            # Check if this is a file/multimodal adapter
             is_file_or_multimodal = context.adapter_name and ('file' in context.adapter_name.lower() or 'multimodal' in context.adapter_name.lower())
 
             if is_file_or_multimodal:
-                # Add file content to system message for file adapters
-                parts.append(f"\n## UPLOADED FILE CONTENT\n\nThe user has uploaded a file. Here is the content:\n\n{context.formatted_context}\n\n## END OF FILE CONTENT\n")
-                parts.append("\n<IMPORTANT>\nThe content above is from the user's uploaded file. When they ask questions, answer based on this file content. The file content is provided in the system message above.\n</IMPORTANT>")
+                parts.append(f"\n<context>\n## UPLOADED FILE CONTENT\n\n{context.formatted_context}\n</context>")
+                parts.append("\nAnswer using the uploaded file content in <context>. If the answer is not there, say so.")
             else:
-                # For non-file adapters, add regular context instructions
-                parts.append("\n<IMPORTANT>\nWhen answering, prioritize information from the 'Context' section. Use the provided context to answer accurately while maintaining your conversational style. If the context contains the answer, provide it clearly. If the answer is not in the context or system prompt, acknowledge that you don't have that specific information.\n</IMPORTANT>")
+                # Fix: non-file adapters with formatted_context now get it injected
+                parts.append(f"\n<context>\n{context.formatted_context}\n</context>")
+                parts.append("\nPrioritize the <context> section when answering. If the answer is not there, say so.")
         else:
-            # For passthrough adapters without context, include conversation-specific instructions
-            parts.append("\n<IMPORTANT>\nAnswer based on the information in the system prompt. Maintain your persona and conversational style. If the user's input doesn't seem to be a question, provide a brief acknowledgement.\n</IMPORTANT>")
+            parts.append("\nAnswer based on the system prompt. Maintain your persona.")
 
         return "\n".join(parts)
 
@@ -291,15 +288,14 @@ class LLMInferenceStep(PipelineStep):
         # Build conversation history
         history_text = self._format_conversation_history(context.context_messages)
 
-        # Build context section
+        # Build context section wrapped in <context> tags
         context_section = ""
         if context.formatted_context:
-            # Add clearer label for file/multimodal adapters
             is_file_or_multimodal = context.adapter_name and ('file' in context.adapter_name.lower() or 'multimodal' in context.adapter_name.lower())
             if is_file_or_multimodal:
-                context_section = f"\n**FILE CONTENT (The user has uploaded this file and is asking about it):**\n\n{context.formatted_context}\n\n**END OF FILE CONTENT**\n\nREMEMBER: The content above IS the file the user is asking about. Answer questions about what's in this file based on the content shown above."
+                context_section = f"\n<context>\n## UPLOADED FILE CONTENT\n\n{context.formatted_context}\n</context>"
             else:
-                context_section = f"\nContext:\n{context.formatted_context}"
+                context_section = f"\n<context>\n{context.formatted_context}\n</context>"
 
         # Build the complete prompt
         parts = [system_prompt]
@@ -325,15 +321,15 @@ class LLMInferenceStep(PipelineStep):
         if history_text:
             parts.append(f"\nConversation History:\n{history_text}")
 
-        # Add explicit instruction right before the question
+        # Add concise instruction right before the question
         if context.formatted_context:
             is_file_or_multimodal = context.adapter_name and ('file' in context.adapter_name.lower() or 'multimodal' in context.adapter_name.lower())
             if is_file_or_multimodal:
-                parts.append("\n<CRITICAL INSTRUCTION>\nThe user has uploaded a file and is asking about it. The FILE CONTENT is shown above between 'FILE CONTENT' and 'END OF FILE CONTENT'. You MUST answer their question using the file content shown above. Do NOT say you don't see a file - the file content is RIGHT ABOVE in the 'FILE CONTENT' section. Answer based on what's in the file content.\n</CRITICAL INSTRUCTION>")
+                parts.append("\nAnswer using the uploaded file content in <context>. If the answer is not there, say so.")
             else:
-                parts.append("\n<IMPORTANT>\nWhen answering, prioritize information from the 'Context' section above. Use the provided context to answer accurately while maintaining your conversational style. If the context contains the answer, provide it clearly. If the answer is not in the context or system prompt, acknowledge that you don't have that specific information.\n</IMPORTANT>")
+                parts.append("\nPrioritize the <context> section when answering. If the answer is not there, say so.")
         else:
-            parts.append("\n<IMPORTANT>\nAnswer based on the information in the system prompt. Maintain your persona and conversational style. If the user's input doesn't seem to be a question, provide a brief acknowledgement.\n</IMPORTANT>")
+            parts.append("\nAnswer based on the system prompt. Maintain your persona.")
 
         parts.append(f"\nUser: {context.message}")
         parts.append("Assistant:")
@@ -514,43 +510,19 @@ class LLMInferenceStep(PipelineStep):
         
         return instruction
     
-    """
-    Chart formatting instruction for LLM prompts.
-    This function can be integrated into your LLM system prompt or instructions.
-    """
     def _build_chart_instruction(self) -> str:
         """
-        Build chart formatting instruction for LLM.
-        
+        Build compact chart formatting instruction for LLM.
+
         Returns:
-            Chart instruction string that teaches the LLM how to format charts
-            for the markdown renderer with recharts support, while clearly
-            distinguishing tables from charts.
+            Chart instruction string for the markdown renderer with recharts support.
         """
         return (
             "<CHART_FORMATTING>\n"
-            "## IMPORTANT: Tables vs Charts\n"
+            "Tables vs Charts: Use standard markdown tables for 'table' requests. "
+            "Use ```chart blocks only for 'chart'/'graph'/'visualization' requests.\n"
             "\n"
-            "**TABLES**: When the user requests a 'table', 'data table', 'formatted table', or 'markdown table', "
-            "ALWAYS use standard markdown table syntax. DO NOT use chart code blocks for tables.\n"
-            "\n"
-            "Example for table request:\n"
-            "```\n"
-            "| Column 1 | Column 2 | Column 3 |\n"
-            "|----------|----------|----------|\n"
-            "| Value 1  | Value 2  | Value 3  |\n"
-            "| Value 4  | Value 5  | Value 6  |\n"
-            "```\n"
-            "\n"
-            "**CHARTS**: Only use chart code blocks when the user explicitly requests:\n"
-            "- A 'chart', 'graph', 'bar chart', 'line chart', 'pie chart', etc.\n"
-            "- A 'visualization' or 'data visualization'\n"
-            "- A 'plot' or 'diagram'\n"
-            "- NOT when they ask for a 'table'\n"
-            "\n"
-            "## Chart Format Options:\n"
-            "\n"
-            "### 1. Simple Format (for basic charts):\n"
+            "Chart format — simple:\n"
             "```chart\n"
             "type: bar\n"
             "title: Sales by Quarter\n"
@@ -559,121 +531,20 @@ class LLMInferenceStep(PipelineStep):
             "colors: [#3b82f6, #8b5cf6, #ec4899, #f59e0b]\n"
             "```\n"
             "\n"
-            "### 2. Table Format (recommended for multi-series data):\n"
+            "Chart format — table (for multi-series):\n"
             "```chart\n"
             "type: line\n"
             "title: Revenue vs Expenses\n"
             "| Month | Revenue | Expenses |\n"
             "|-------|---------|----------|\n"
             "| Jan   | 100000  | 80000    |\n"
-            "| Feb   | 150000  | 90000    |\n"
-            "| Mar   | 200000  | 110000   |\n"
             "```\n"
             "\n"
-            "## Supported Chart Types:\n"
-            "- **bar**: For comparing values across categories\n"
-            "- **line**: For showing trends over time\n"
-            "- **pie**: For showing proportions/percentages\n"
-            "- **area**: For showing cumulative trends\n"
-            "- **scatter**: For showing relationships between variables\n"
-            "\n"
-            "## Guidelines:\n"
-            "- **Use markdown tables** when user asks for a 'table' or 'data table'\n"
-            "- **Use chart code blocks** only when user explicitly asks for a chart/graph/visualization\n"
-            "- Use table format for multiple data series in charts (easier to read)\n"
-            "- Include descriptive titles\n"
-            "- Labels can contain spaces (e.g., \"Product A\", \"Direct Sales\")\n"
-            "- Colors support hex codes (e.g., #3b82f6, #10b981)\n"
-            "- Always specify the chart type\n"
-            "- Use appropriate chart types for the data context\n"
-            "\n"
-            "## CRITICAL: Avoid Orphan Labels and Legend Entries\n"
-            "\n"
-            "### X-Axis Labels:\n"
-            "- **NEVER include labels without corresponding data points**\n"
-            "- **Every label MUST have a matching data value**\n"
-            "- If a category has no data (zero, null, or missing), either:\n"
-            "  * Exclude that category from the chart entirely, OR\n"
-            "  * Include it with an explicit zero value (only if the user specifically wants to show empty categories)\n"
-            "- **The number of labels MUST equal the number of data points**\n"
-            "- For table format charts, ensure every row has complete data - do not include rows with missing or null values unless explicitly needed\n"
-            "- When using the simple format with 'data' and 'labels' arrays, they must have the same length\n"
-            "\n"
-            "### Legend Entries (Data Series):\n"
-            "- **NEVER include legend entries for data series that don't exist in the chart**\n"
-            "- **Every legend entry MUST have corresponding data points plotted on the chart**\n"
-            "- If you only have data for one series, either:\n"
-            "  * Don't include a legend at all (for single-series charts), OR\n"
-            "  * Only include that one series in the legend\n"
-            "- For multi-series charts using table format:\n"
-            "  * Every column in the table (except the label/category column) MUST be represented in the chart\n"
-            "  * If a column exists in the table, it must appear in the legend AND have visible data points\n"
-            "  * If a column has no data (all zeros/null), exclude it from both the table and legend\n"
-            "- **The legend should only list series that are actually visible on the chart**\n"
-            "\n"
-            "### Examples:\n"
-            "\n"
-            "CORRECT - Single series, no legend needed:\n"
-            "```chart\n"
-            "type: bar\n"
-            "title: Sales by Day\n"
-            "data: [5000, 6000, 5500, 4000, 5000, 6000]\n"
-            "labels: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday]\n"
-            "```\n"
-            "\n"
-            "CORRECT - Multi-series with matching legend:\n"
-            "```chart\n"
-            "type: bar\n"
-            "title: Orders and Revenue by Day\n"
-            "| Day      | Orders | Revenue |\n"
-            "|----------|--------|---------|\n"
-            "| Monday   | 11     | 55000   |\n"
-            "| Tuesday  | 9      | 45000   |\n"
-            "| Wednesday| 8      | 40000   |\n"
-            "```\n"
-            "(Both Orders and Revenue columns have data, so both appear in legend)\n"
-            "\n"
-            "INCORRECT - Orphan x-axis label (Sunday with no data):\n"
-            "```chart\n"
-            "type: bar\n"
-            "title: Sales by Day\n"
-            "data: [5000, 6000, 5500, 4000, 5000, 6000]\n"
-            "labels: [Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday]\n"
-            "```\n"
-            "This creates an orphan label (Sunday) with no bar - this is WRONG\n"
-            "\n"
-            "INCORRECT - Orphan legend entry (Total Revenue in legend but no data):\n"
-            "```chart\n"
-            "type: bar\n"
-            "title: Orders and Revenue by Day\n"
-            "| Day      | Orders |\n"
-            "|----------|--------|\n"
-            "| Monday   | 11     |\n"
-            "| Tuesday  | 9      |\n"
-            "```\n"
-            "If the legend shows 'Total Revenue' but the table has no Revenue column, this is WRONG.\n"
-            "Only include legend entries for series that actually have data in the chart.\n"
-            "\n"
-            "## Example Usage:\n"
-            "\n"
-            "**When user asks: \"Show me a table of quarterly sales\"**\n"
-            "Output:\n"
-            "```\n"
-            "| Quarter | Sales |\n"
-            "|---------|-------|\n"
-            "| Q1      | 45000 |\n"
-            "| Q2      | 52000 |\n"
-            "| Q3      | 48000 |\n"
-            "| Q4      | 60000 |\n"
-            "```\n"
-            "\n"
-            "**When user asks: \"Show me a chart of quarterly sales\"**\n"
-            "Output:\n"
-            "```chart\n"
-            "type: bar\n"
-            "title: Quarterly Sales Performance\n"
-            "data: [45000, 52000, 48000, 60000]\n"
-            "labels: [Q1, Q2, Q3, Q4]\n"
-            "```\n"
+            "Types: bar, line, pie, area, scatter.\n"
+            "Rules:\n"
+            "- Every label must have a matching data value (no orphan labels).\n"
+            "- Every legend entry must have data in the chart (no orphan series).\n"
+            "- labels[] and data[] arrays must be the same length.\n"
+            "- Labels can contain spaces. Colors use hex codes.\n"
             "</CHART_FORMATTING>\n"
         )

@@ -8,6 +8,10 @@ Runs after context retrieval and before LLM inference.
 import logging
 from typing import Dict, Any, List, Optional
 from ..base import PipelineStep, ProcessingContext
+from adapters.capabilities import (
+    get_capability_registry,
+    FormattingStyle
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +31,7 @@ class DocumentRerankingStep(PipelineStep):
     def __init__(self, container):
         """Initialize the reranking step."""
         super().__init__(container)
+        self._capability_registry = get_capability_registry()
         logger.debug("DocumentRerankingStep initialized and added to pipeline")
 
     def should_execute(self, context: ProcessingContext) -> bool:
@@ -180,8 +185,9 @@ class DocumentRerankingStep(PipelineStep):
                 reranked_results
             )
 
-            # Update formatted context (pass adapter_name for formatting decision)
-            context.formatted_context = self._format_context(context.retrieved_docs, context.adapter_name)
+            # Update formatted context using capabilities system
+            capabilities = self._capability_registry.get(context.adapter_name) if context.adapter_name else None
+            context.formatted_context = self._format_context(context.retrieved_docs, capabilities=capabilities)
 
             # Store reranking metadata
             if not hasattr(context, 'metadata'):
@@ -333,13 +339,16 @@ class DocumentRerankingStep(PipelineStep):
 
         return reranked_docs
 
-    def _format_context(self, documents: List[Dict[str, Any]], adapter_name: str = None) -> str:
+    def _format_context(self, documents: List[Dict[str, Any]], capabilities=None) -> str:
         """
         Format reranked documents into a context string.
 
+        Uses capabilities to determine formatting style instead of
+        hardcoded adapter name checks.
+
         Args:
             documents: List of reranked documents
-            adapter_name: Name of the adapter (used to determine formatting style)
+            capabilities: AdapterCapabilities instance (used to determine formatting style)
 
         Returns:
             Formatted context string
@@ -347,22 +356,21 @@ class DocumentRerankingStep(PipelineStep):
         if not documents:
             return "No relevant information found."
 
-        # For file adapter, use clean formatting without citations to prevent
-        # LLMs (especially Gemini) from adding citation markers like 【Document 1】
-        is_file_adapter = adapter_name and 'file' in adapter_name.lower()
+        # Use capabilities to determine formatting style
+        use_clean = capabilities and capabilities.formatting_style == FormattingStyle.CLEAN
 
         context = ""
         for i, doc in enumerate(documents):
             content = doc.get('content', '')
 
-            if is_file_adapter:
+            if use_clean:
                 # Clean format without source labels or relevance scores
                 context += f"{content}\n\n"
             else:
-                # Standard format with document references for other adapters
+                # Standard format with markdown headers for other adapters
                 metadata = doc.get('metadata', {})
                 source = metadata.get('source', f"Document {i+1}")
                 relevance = doc.get('relevance', doc.get('confidence', 0.0))
-                context += f"[{i+1}] {source} (relevance: {relevance:.2f})\n{content}\n\n"
+                context += f"## [{i+1}] {source} (relevance: {relevance:.2f})\n\n{content}\n\n"
 
         return context.strip()
