@@ -158,7 +158,7 @@ curl -X POST https://orbit.schmitech.ai/v1/chat \
 
 The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer"><strong>ORBIT Sandbox</strong></a> offers interactive examples for adapters, prompts, and capabilities.
 
-Use the <a href="https://chatwidget-plum.vercel.app/" target="_blank" rel="noopener noreferrer"><strong>Chat Widget Theming Platform</strong></a> to theme and embed AI chat on any site (see <a href="clients/chat-widget/README.md" target="_blank" rel="noopener noreferrer">widget theming guide</a> to run locally or customize).
+<!-- Use the <a href="https://chatwidget-plum.vercel.app/" target="_blank" rel="noopener noreferrer"><strong>Chat Widget Theming Platform</strong></a> to theme and embed AI chat on any site (see <a href="clients/chat-widget/README.md" target="_blank" rel="noopener noreferrer">widget theming guide</a> to run locally or customize). -->
 
 See the <a href="https://orbit.schmitech.ai/redoc" target="_blank" rel="noopener noreferrer"><strong>ORBIT API Reference (ReDoc)</strong></a> for full API docs.
 
