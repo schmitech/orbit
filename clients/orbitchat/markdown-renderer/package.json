@@ -1,0 +1,78 @@
+{
+  "name": "@schmitech/markdown-renderer",
+  "version": "0.8.0",
+  "description": "Shared markdown renderer component with math and chemistry support",
+  "type": "module",
+  "main": "./dist/markdown-renderer.umd.js",
+  "module": "./dist/markdown-renderer.es.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/markdown-renderer.es.js",
+      "require": "./dist/markdown-renderer.umd.js"
+    },
+    "./styles": {
+      "import": "./dist/MarkdownStyles.css",
+      "require": "./dist/MarkdownStyles.css"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:types": "tsc --emitDeclarationOnly",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "vite --port 3333",
+    "test:build": "npm run build && vite preview --port 3334"
+  },
+  "dependencies": {
+    "abcjs": "^6.5.2",
+    "ajv": "^8.17.1",
+    "dompurify": "^3.0.8",
+    "katex": "^0.16.27",
+    "mermaid": "^11.12.2",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^15.5.0",
+    "recharts": "^3.7.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@types/node": "^22.13.11",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^9.15.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vite-plugin-dts": "^4.3.0"
+  },
+  "keywords": [
+    "markdown",
+    "react",
+    "katex",
+    "math",
+    "chemistry",
+    "renderer"
+  ],
+  "author": "",
+  "license": "MIT"
+}

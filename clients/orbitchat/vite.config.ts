@@ -31,13 +31,14 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: {
       exclude: [
         'lucide-react',
-        '@schmitech/markdown-renderer',
       ],
     },
     resolve: {
       alias: {
         // Alias for local node-api package during development
         '@local-node-api': localApiDir,
+        '@schmitech/markdown-renderer': path.resolve(__dirname, 'markdown-renderer/src/index.ts'),
+        '@schmitech/markdown-renderer/styles': path.resolve(__dirname, 'markdown-renderer/src/MarkdownStyles.css'),
       },
     },
     server: {

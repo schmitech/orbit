@@ -530,13 +530,7 @@ export function Message({
                   style={{ scrollBehavior: 'auto', overflowAnchor: 'none' }}
                   onScroll={handleThreadRepliesScroll}
                 >
-                  {threadReplyCount === 0 ? (
-                    <div className="rounded-lg border border-dashed border-blue-200/80 bg-white/60 px-3 py-2 text-xs text-blue-900/70 dark:border-white/10 dark:bg-white/[0.04] dark:text-[#b4c7ff]">
-                      No replies yet. Ask a clarifying question here.
-                    </div>
-                  ) : (
-                    renderedThreadReplies
-                  )}
+                  {threadReplyCount > 0 ? renderedThreadReplies : null}
                 </div>
 
                 {threadLimitMessage && (

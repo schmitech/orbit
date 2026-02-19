@@ -83,12 +83,36 @@
 
 .message-list .message-bubble {
   width: 100%;
-  max-width: 960px;
+  max-width: 1000px;
+}
+
+html.text-sm .message-list .message-bubble {
+  max-width: 1120px;
+}
+
+html.text-base .message-list .message-bubble {
+  max-width: 1000px;
+}
+
+html.text-lg .message-list .message-bubble {
+  max-width: 900px;
 }
 
 @media (min-width: 1280px) {
   .message-list .message-bubble {
-    max-width: 900px;
+    max-width: 1040px;
+  }
+
+  html.text-sm .message-list .message-bubble {
+    max-width: 1160px;
+  }
+
+  html.text-base .message-list .message-bubble {
+    max-width: 1040px;
+  }
+
+  html.text-lg .message-list .message-bubble {
+    max-width: 920px;
   }
 }
 
@@ -140,13 +164,37 @@
 
 @media (min-width: 768px) {
   .message-list .message-markdown {
-    max-width: 840px;
+    max-width: 940px;
     overflow-x: visible;
+  }
+
+  html.text-sm .message-list .message-markdown {
+    max-width: 1040px;
+  }
+
+  html.text-base .message-list .message-markdown {
+    max-width: 940px;
+  }
+
+  html.text-lg .message-list .message-markdown {
+    max-width: 840px;
   }
 }
 
 @media (min-width: 1280px) {
   .message-list .message-markdown {
+    max-width: 980px;
+  }
+
+  html.text-sm .message-list .message-markdown {
+    max-width: 1100px;
+  }
+
+  html.text-base .message-list .message-markdown {
+    max-width: 980px;
+  }
+
+  html.text-lg .message-list .message-markdown {
     max-width: 880px;
   }
 }

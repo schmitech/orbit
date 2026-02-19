@@ -7,7 +7,6 @@ import { debugError } from '../utils/debug';
 import { getApiUrl } from '../utils/runtimeConfig';
 import { useTheme } from '../contexts/ThemeContext';
 import { AdapterSelector } from './AdapterSelector';
-import { PACKAGE_VERSION } from '../utils/version';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface SidebarProps {
@@ -334,13 +333,9 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
         </div>
       )}
 
-      <div className="flex h-full w-full md:w-72 flex-col border-r border-b border-gray-200 bg-gradient-to-b from-white via-gray-50 to-gray-100 dark:border-[#4a4b54] dark:bg-[#202123] dark:bg-none">
+      <div className="flex h-full w-full md:w-72 md:pt-16 flex-col border-r border-b border-gray-200 bg-gradient-to-b from-white via-gray-50 to-gray-100 dark:border-[#4a4b54] dark:bg-[#202123] dark:bg-none">
         <div className="bg-white/95 p-4 shadow-sm dark:border-[#4a4b54] dark:bg-[#202123] dark:shadow-none">
           <div className="space-y-3 pb-3">
-            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-[#bfc2cd]">
-              <span>Version</span>
-              <span className="text-gray-900 dark:text-white">v{PACKAGE_VERSION}</span>
-            </div>
             <button
               onClick={onOpenSettings}
               disabled={!onOpenSettings}

@@ -4,10 +4,11 @@
 # ================================
 #
 # Usage:
-#   ./run-chat-app.sh --start [port]  Start orbitchat in background
-#   ./run-chat-app.sh --stop          Stop orbitchat
-#   ./run-chat-app.sh --status        Check if orbitchat is running
-#   ./run-chat-app.sh --help          Show this help message
+#   ./run-chat-app.sh --start [port]    Start orbitchat in background
+#   ./run-chat-app.sh --stop            Stop orbitchat
+#   ./run-chat-app.sh --restart [port]  Restart orbitchat
+#   ./run-chat-app.sh --status          Check if orbitchat is running
+#   ./run-chat-app.sh --help            Show this help message
 #
 # Files:
 #   PID file: <script_dir>/orbitchat.pid
@@ -26,8 +27,9 @@ VOICE_SILENCE_TIMEOUT_MS="${ORBITCHAT_VOICE_SILENCE_TIMEOUT_MS:-}"
 VOICE_RECOGNITION_LANG="${ORBITCHAT_VOICE_RECOGNITION_LANG:-}"
 SETTINGS_ABOUT_MSG="${ORBITCHAT_SETTINGS_ABOUT_MSG:-ORBIT Local}"
 
+export NODE_OPTIONS="--no-deprecation"
+
 # Set the VITE_ADAPTERS environment variable (adapter configs for the Express proxy)
-# export VITE_ADAPTERS='[{ "name": "Simple Chat", "apiKey": "default-key", "apiUrl": "http://localhost:3000", "description": "Basic chat interface using the default conversational agent." }]'
 
 export VITE_ADAPTERS='[
   { "name": "Simple Chat", "apiKey": "default-key", "apiUrl": "http://localhost:3000", "description": "Basic chat interface using the default conversational agent." },
@@ -36,17 +38,10 @@ export VITE_ADAPTERS='[
   { "name": "HR System", "apiKey": "hr", "apiUrl": "http://localhost:3000", "description": "Conversational assistant for HR records, people search, and analytics." },
   { "name": "Movies DB", "apiKey": "mflix", "apiUrl": "http://localhost:3000", "description": "Explores and queries a MongoDB-powered movies database (MFlix sample set)." },
   { "name": "Business Analytics", "apiKey": "analytical", "apiUrl": "http://localhost:3000", "description": "Analyze datasets and generate business intelligence reports." },
-  { "name": "Electric Vehicle Population", "apiKey": "orbit_7KyFOuHIpD7EAQRJHRBwmJxxoKYJ2nkn", "apiUrl": "http://localhost:3000", "description": "Accesses statistics and insights about electric vehicle registrations." },
+  { "name": "Electric Vehicle Population", "apiKey": "ev", "apiUrl": "http://localhost:3000", "description": "Accesses statistics and insights about electric vehicle registrations." },
   { "name": "Paris Open Data", "apiKey": "paris", "apiUrl": "http://localhost:3000", "description": "Interact with Paris city open data for events, venues, and more." },
   { "name": "REST API", "apiKey": "rest", "apiUrl": "http://localhost:3000", "description": "Enables generic REST API exploration and data extraction." }
 ]'
-
-# export VITE_ADAPTERS='[
-#   { "name": "Tender Notices Agent", "apiKey": "tender-notices", "apiUrl": "http://localhost:3000", "description": "CanadaBuys tender notices intelligence: open pipeline, competition posture, trends, and watchlists." },
-#   { "name": "Award Notices Agent", "apiKey": "award-notices", "apiUrl": "http://localhost:3000", "description": "CanadaBuys award notices intelligence: contract awards, supplier spend, and procurement analytics." },
-#   { "name": "Contract History Agent", "apiKey": "contract-history", "apiUrl": "http://localhost:3000", "description": "CanadaBuys contract history intelligence: historical spend, supplier performance, amendments, and compliance." },
-#   { "name": "Standing Offers Agent", "apiKey": "standing-offers", "apiUrl": "http://localhost:3000", "description": "CanadaBuys standing offers intelligence: active agreements, supplier coverage, expiry monitoring, and commodity analysis." }
-# ]'
 
 start_app() {
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
@@ -129,17 +124,31 @@ status_app() {
     fi
 }
 
+restart_app() {
+    if [ -f "$PIDFILE" ]; then
+        PID=$(cat "$PIDFILE")
+        if kill -0 "$PID" 2>/dev/null; then
+            echo "Stopping orbitchat (PID: $PID)..."
+            kill "$PID"
+            sleep 1
+        fi
+        rm -f "$PIDFILE"
+    fi
+    start_app
+}
+
 show_help() {
     echo "OrbitChat Daemon Control Script"
     echo "================================"
     echo ""
-    echo "Usage: $0 {--start [port]|--stop|--status|--help}"
+    echo "Usage: $0 {--start [port]|--stop|--restart [port]|--status|--help}"
     echo ""
     echo "Options:"
-    echo "  --start [port]  Start orbitchat in background (optionally specify port)"
-    echo "  --stop    Stop orbitchat"
-    echo "  --status  Check if orbitchat is running"
-    echo "  --help    Show this help message"
+    echo "  --start [port]    Start orbitchat in background (optionally specify port)"
+    echo "  --stop            Stop orbitchat"
+    echo "  --restart [port]  Restart orbitchat (optionally specify port)"
+    echo "  --status          Check if orbitchat is running"
+    echo "  --help            Show this help message"
     echo ""
     echo "Environment variables:"
     echo "  ORBITCHAT_PORT  Port to run on (default: 5173)"
@@ -169,6 +178,13 @@ case "$1" in
         ;;
     --stop)
         stop_app
+        ;;
+    --restart)
+        # Optional port argument: --restart [port]
+        if [ -n "$2" ]; then
+            PORT="$2"
+        fi
+        restart_app
         ;;
     --status)
         status_app

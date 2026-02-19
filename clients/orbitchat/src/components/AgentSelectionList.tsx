@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Search } from 'lucide-react';
 import { AgentCard } from './AgentCard';
 import { fetchAdapters, type Adapter } from '../utils/middlewareConfig';
@@ -27,6 +27,27 @@ export function AgentSelectionList({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollHint, setShowScrollHint] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const focusFirstAgentCard = () => {
+    const cardButtons = scrollContainerRef.current?.querySelectorAll<HTMLButtonElement>('button[data-agent-card="true"]');
+    const firstCard = cardButtons?.[0] ?? null;
+    if (!firstCard) {
+      return;
+    }
+    firstCard.focus();
+    firstCard.scrollIntoView({ block: 'nearest' });
+  };
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const canFocusCards = !isLoading && !error && filteredAdapters.length > 0;
+    if (!canFocusCards) {
+      return;
+    }
+    if (event.key === 'Tab' && !event.shiftKey) {
+      event.preventDefault();
+      focusFirstAgentCard();
+    }
+  };
 
   const filteredAdapters = useMemo(() => {
     const trimmedQuery = searchQuery.trim().toLowerCase();
@@ -187,6 +208,7 @@ export function AgentSelectionList({
           value={searchQuery}
           disabled={isLoading || !!error || adapters.length === 0}
           onChange={event => setSearchQuery(event.target.value)}
+          onKeyDown={handleSearchKeyDown}
           className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 shadow-inner focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#3b3c49] dark:bg-[#1f2027] dark:text-white dark:shadow-none"
         />
       </div>

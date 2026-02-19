@@ -1,0 +1,668 @@
+/* MarkdownStyles.css */
+
+/* CSS Custom Properties for theming */
+:root,
+.markdown-content {
+  /* Light mode colors (default) */
+  --md-bg-primary: #ffffff;
+  --md-bg-secondary: #f8f9fa;
+  --md-bg-tertiary: rgba(0, 0, 0, 0.06);
+  --md-text-primary: #1a1a1a;
+  --md-text-secondary: #4b5563;
+  --md-text-muted: #6b7280;
+  --md-border-color: rgba(0, 0, 0, 0.1);
+  --md-border-color-strong: rgba(0, 0, 0, 0.2);
+  --md-link-color: #2563eb;
+  --md-link-hover: #1d4ed8;
+  --md-code-bg: rgba(0, 0, 0, 0.06);
+  --md-code-border: rgba(0, 0, 0, 0.1);
+  --md-table-header-bg: rgba(0, 0, 0, 0.05);
+  --md-error-bg: rgba(255, 0, 0, 0.05);
+  --md-error-border: rgba(255, 0, 0, 0.2);
+  --md-error-text: #cc0000;
+
+  /* Chart-specific colors */
+  --md-chart-bg: #ffffff;
+  --md-chart-text: #1a1a1a;
+  --md-chart-grid: #e5e7eb;
+  --md-chart-axis: #374151;
+  --md-chart-tooltip-bg: #ffffff;
+  --md-chart-tooltip-border: #ccc;
+  --md-chart-tooltip-text: #000000;
+}
+
+/* Dark mode via class */
+.markdown-content.dark,
+.dark .markdown-content,
+[data-theme="dark"] .markdown-content {
+  --md-bg-primary: #1a1a2e;
+  --md-bg-secondary: #16213e;
+  --md-bg-tertiary: rgba(255, 255, 255, 0.1);
+  --md-text-primary: #e4e4e7;
+  --md-text-secondary: #a1a1aa;
+  --md-text-muted: #71717a;
+  --md-border-color: rgba(255, 255, 255, 0.1);
+  --md-border-color-strong: rgba(255, 255, 255, 0.2);
+  --md-link-color: #60a5fa;
+  --md-link-hover: #93c5fd;
+  --md-code-bg: rgba(255, 255, 255, 0.1);
+  --md-code-border: rgba(255, 255, 255, 0.15);
+  --md-table-header-bg: rgba(255, 255, 255, 0.08);
+  --md-error-bg: rgba(255, 100, 100, 0.1);
+  --md-error-border: rgba(255, 100, 100, 0.3);
+  --md-error-text: #ff6b6b;
+
+  /* Chart-specific colors for dark mode */
+  --md-chart-bg: #1e293b;
+  --md-chart-text: #e4e4e7;
+  --md-chart-grid: #374151;
+  --md-chart-axis: #9ca3af;
+  --md-chart-tooltip-bg: #1e293b;
+  --md-chart-tooltip-border: #475569;
+  --md-chart-tooltip-text: #e4e4e7;
+}
+
+/* System preference dark mode */
+@media (prefers-color-scheme: dark) {
+  .markdown-content:not(.light):not([data-theme="light"]) {
+    --md-bg-primary: #1a1a2e;
+    --md-bg-secondary: #16213e;
+    --md-bg-tertiary: rgba(255, 255, 255, 0.1);
+    --md-text-primary: #e4e4e7;
+    --md-text-secondary: #a1a1aa;
+    --md-text-muted: #71717a;
+    --md-border-color: rgba(255, 255, 255, 0.1);
+    --md-border-color-strong: rgba(255, 255, 255, 0.2);
+    --md-link-color: #60a5fa;
+    --md-link-hover: #93c5fd;
+    --md-code-bg: rgba(255, 255, 255, 0.1);
+    --md-code-border: rgba(255, 255, 255, 0.15);
+    --md-table-header-bg: rgba(255, 255, 255, 0.08);
+    --md-error-bg: rgba(255, 100, 100, 0.1);
+    --md-error-border: rgba(255, 100, 100, 0.3);
+    --md-error-text: #ff6b6b;
+
+    /* Chart-specific colors for dark mode */
+    --md-chart-bg: #1e293b;
+    --md-chart-text: #e4e4e7;
+    --md-chart-grid: #374151;
+    --md-chart-axis: #9ca3af;
+    --md-chart-tooltip-bg: #1e293b;
+    --md-chart-tooltip-border: #475569;
+    --md-chart-tooltip-text: #e4e4e7;
+  }
+}
+
+/* Use a parent class to scope all your markdown styles */
+.markdown-content {
+  color: var(--md-text-primary);
+  font-size: inherit;
+  line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+/* Headers with consistent spacing */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  color: var(--md-text-primary);
+  font-weight: 600;
+  line-height: 1.4;
+  margin-block-start: 1.5em; /* Use logical properties */
+  margin-block-end: 0.8em;
+}
+
+.markdown-content h1 { font-size: 1.5em; }
+.markdown-content h2 { font-size: 1.3em; }
+.markdown-content h3 { font-size: 1.2em; }
+.markdown-content h4 { font-size: 1.1em; }
+.markdown-content h5 { font-size: 1.05em; }
+.markdown-content h6 { font-size: 1em; }
+
+/* Paragraphs */
+.markdown-content p {
+  margin-block-end: 12px;
+}
+
+/* Paragraph-like divs (used to avoid nesting violations with block elements) */
+.markdown-content .markdown-paragraph-block {
+  margin-block-end: 12px;
+}
+
+/* Links */
+.markdown-content a {
+  color: var(--md-link-color);
+  text-decoration: none;
+  transition: color 0.2s;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.markdown-content a:hover,
+.markdown-content a:focus-visible {
+  color: var(--md-link-hover);
+  text-decoration: none;
+  outline: none;
+}
+
+.markdown-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 2px;
+  font-weight: 500;
+}
+
+.markdown-link--inline {
+  border-bottom: none;
+}
+
+.markdown-link--card {
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--md-border-color);
+  border-radius: 10px;
+  background-color: var(--md-bg-secondary);
+  padding: 14px 16px;
+  margin: 12px 0;
+  gap: 12px;
+  color: var(--md-text-primary);
+  border-bottom: none;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.markdown-link--card:hover,
+.markdown-link--card:focus-visible {
+  border-color: var(--md-link-color);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  transform: translateY(-2px);
+  color: var(--md-text-primary);
+}
+
+.markdown-link__content {
+  display: inline-flex;
+  gap: 0.3em;
+  align-items: center;
+}
+
+.markdown-link--card .markdown-link__content {
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.markdown-link__hostname {
+  font-weight: 600;
+  color: var(--md-text-primary);
+}
+
+.markdown-link__path {
+  font-size: 0.85em;
+  color: var(--md-text-secondary);
+  word-break: break-all;
+}
+
+.markdown-link__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--md-link-color);
+  flex-shrink: 0;
+}
+
+.markdown-link--card .markdown-link__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background-color: var(--md-bg-primary);
+  border: 1px solid var(--md-border-color);
+}
+
+.markdown-link--card .markdown-link__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Lists */
+.markdown-content ul, .markdown-content ol {
+  margin: 12px 0;
+  padding-left: 20px;
+}
+.markdown-content ul { list-style-type: disc; }
+.markdown-content ol { list-style-type: decimal; }
+.markdown-content li { margin-bottom: 4px; }
+
+/* Code */
+.markdown-content pre {
+  overflow: auto;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: 6px;
+  background-color: var(--md-code-bg);
+  border: 1px solid var(--md-code-border);
+  font-size: 0.9em;
+  font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  max-height: 500px; /* Set a reasonable max height with scrolling */
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+/* Code block wrapper to avoid paragraph nesting issues */
+.markdown-content .markdown-code-block {
+  overflow: auto;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: 6px;
+  background-color: var(--md-code-bg);
+  border: 1px solid var(--md-code-border);
+  font-size: 0.9em;
+  font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 500px; /* Set a reasonable max height with scrolling */
+}
+
+/* Code block container with copy button */
+.markdown-content .code-block-container {
+  position: relative;
+}
+
+/* Copy button for code blocks */
+.markdown-content .code-copy-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85em;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #333;
+  transition: all 0.2s ease;
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.markdown-content .code-block-container:hover .code-copy-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.markdown-content .code-copy-button:hover {
+  background-color: rgba(255, 255, 255, 1);
+  border-color: rgba(0, 0, 0, 0.25);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.markdown-content .code-copy-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.markdown-content .code-copy-button svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.markdown-content .code-copy-button-text {
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* Dark theme support for copy button */
+@media (prefers-color-scheme: dark) {
+  .markdown-content .code-copy-button {
+    background-color: rgba(30, 30, 30, 0.9);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+  }
+
+  .markdown-content .code-copy-button:hover {
+    background-color: rgba(40, 40, 40, 1);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+}
+
+.markdown-content .markdown-code-block pre {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-size: inherit;
+  font-family: inherit;
+}
+
+/* Syntax-highlighted code blocks (from react-syntax-highlighter) should use pre instead of pre-wrap
+   to preserve formatting and allow horizontal scrolling for long lines */
+.markdown-content .syntax-highlighted-wrapper {
+  position: relative;
+}
+
+.markdown-content .syntax-highlighted-wrapper pre {
+  white-space: pre !important;
+  word-wrap: normal !important;
+  overflow-x: auto;
+  max-height: none; /* Remove height cap for syntax-highlighted blocks */
+}
+
+/* Inline code specifically */
+/* General rule for inline code - style all code, then override for block code */
+.markdown-content code {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--md-code-bg);
+  border: 1px solid var(--md-code-border);
+  font-size: 0.9em;
+  font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Override for code inside pre or code blocks (block-level code) */
+.markdown-content pre code,
+.markdown-content .markdown-code-block code,
+.markdown-content .syntax-highlighted-wrapper code {
+  padding: 0;
+  border-radius: 0;
+  background-color: transparent;
+  border: none;
+  font-size: inherit;
+}
+
+/* Specific selectors for inline code in various contexts */
+.markdown-content p > code,
+.markdown-content li > code,
+.markdown-content th > code,
+.markdown-content td > code {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--md-code-bg);
+  border: 1px solid var(--md-code-border);
+  font-size: 0.9em;
+  font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Blockquotes */
+.markdown-content blockquote {
+  margin: 12px 0;
+  padding-left: 16px;
+  border-left: 4px solid var(--md-border-color-strong);
+  font-style: italic;
+  color: var(--md-text-secondary);
+}
+
+/* Table wrapper for horizontal scrolling */
+.markdown-content {
+  position: relative;
+  overflow: auto;
+}
+
+/* Tables - with horizontal scroll wrapper */
+.markdown-content table {
+  border-collapse: collapse;
+  font-size: 0.75em;
+  margin: 12px 0;
+  table-layout: auto; /* Changed from fixed to auto for better column sizing */
+  width: max-content; /* Allow table to expand beyond container width */
+  min-width: 100%; /* But at least fill the container */
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Table body structure */
+.markdown-content tbody,
+.markdown-content thead {
+  width: auto; /* Let it size based on content */
+}
+
+.markdown-content thead {
+  background-color: var(--md-table-header-bg);
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 6px 10px;
+  border: 1px solid var(--md-border-color-strong);
+  line-height: 1.4;
+  vertical-align: top;
+}
+
+/* Header cells - allow expansion with constraints */
+.markdown-content th {
+  font-weight: 600;
+  text-align: left;
+  background-color: var(--md-table-header-bg);
+  white-space: normal; /* Allow wrapping for long header text */
+  min-width: 120px; /* Minimum width for headers */
+  max-width: 250px; /* Maximum width before wrapping */
+  word-break: break-word; /* Break long words if needed */
+  hyphens: auto; /* Enable hyphenation for better text breaking */
+}
+
+/* Data cells - more flexible */
+.markdown-content td {
+  white-space: normal; /* Allow wrapping for long cell text */
+  min-width: 80px; /* Minimum width for data cells */
+  max-width: 200px; /* Maximum width before wrapping */
+  word-break: break-word; /* Break long words if needed */
+  hyphens: auto; /* Enable hyphenation for better text breaking */
+}
+
+/* Special handling for URLs/emails - more aggressive breaking */
+.markdown-content td a,
+.markdown-content td:has(a) {
+  word-break: break-all;
+  display: inline-block;
+  max-width: 180px; /* Adjusted for new cell sizing */
+}
+
+/* Make tables more compact on smaller chat areas */
+@media (max-width: 480px) {
+  .markdown-content table {
+    font-size: 0.7em;
+  }
+  .markdown-content th, .markdown-content td {
+    padding: 4px 6px;
+    min-width: 60px;
+  }
+}
+
+/* Horizontal rules */
+.markdown-content hr {
+  margin: 20px 0;
+  border: none;
+  border-top: 1px solid var(--md-border-color-strong);
+}
+
+/* Ensure KaTeX styles are not overridden */
+.markdown-content .katex {
+  font-size: 1.1em; /* Slightly larger for better readability */
+}
+
+.markdown-content .katex .katex-mathml {
+  /* Keep MathML accessible to assistive tech without showing duplicate glyphs */
+  position: absolute !important;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.markdown-content .katex .katex-html {
+  position: relative !important;
+  z-index: 1;
+}
+
+.markdown-content .katex-display {
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Graph containers */
+.markdown-content .graph-container {
+  margin: 16px 0;
+  padding: 12px;
+  border-radius: 6px;
+  background-color: var(--md-chart-bg);
+  border: 1px solid var(--md-border-color);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Chart titles - theme-aware */
+.markdown-content .chart-container h4 {
+  color: var(--md-chart-text) !important;
+  font-weight: 600;
+}
+
+/* Chart description - theme-aware */
+.markdown-content .chart-container p {
+  color: var(--md-text-secondary) !important;
+}
+
+.markdown-content .graph-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-content .graph-container img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Graph error states */
+.markdown-content .graph-error {
+  padding: 12px 16px;
+  margin: 16px 0;
+  border-radius: 6px;
+  background-color: var(--md-error-bg);
+  border: 1px solid var(--md-error-border);
+  color: var(--md-error-text);
+  font-size: 0.9em;
+  font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.markdown-content .graph-error-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.markdown-content .graph-error-message {
+  opacity: 0.8;
+  font-size: 0.85em;
+}
+
+.markdown-content .graph-error-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.markdown-content .graph-error-icon {
+  font-size: 1.5em;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.markdown-content .graph-error-content {
+  flex: 1;
+}
+
+.markdown-content .graph-error-toggle {
+  background: transparent;
+  border: 1px solid var(--md-error-border);
+  color: var(--md-error-text);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85em;
+  transition: all 0.2s;
+  margin-top: 8px;
+  font-family: inherit;
+}
+
+.markdown-content .graph-error-toggle:hover {
+  background-color: var(--md-error-bg);
+}
+
+.markdown-content .graph-error-details {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--md-error-border);
+}
+
+.markdown-content .graph-error-details pre {
+  font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  overflow: auto;
+  max-height: 300px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+/* Mermaid specific styles */
+.markdown-content .mermaid-container {
+  text-align: center;
+  min-height: 100px;
+  overflow: auto;
+  max-height: 600px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.markdown-content .mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Allow horizontal scroll only for complex diagrams that exceed container */
+.markdown-content .mermaid-svg-container {
+  min-height: 80px;
+}
+
+.markdown-content .mermaid-svg-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* SVG specific styles */
+.markdown-content .svg-container {
+  text-align: center;
+}
+
+.markdown-content .svg-container svg {
+  display: block;
+  margin: 0 auto;
+}

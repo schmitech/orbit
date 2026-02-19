@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KaTeX Debug</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5X/9gKaTlGhG8BBmWZLQOgjP3vdYkrN2X4qEfm1QRBT3WLK6OG6+uPLlXB5yB0F1" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js" integrity="sha384-Z3PSyC9WdwAP5FAIkdvKdcxgJa/7aWo4gqhTJGDRm7QPjGvTOhNgjX0VHTLV1+tW" crossorigin="anonymous"></script>
+</head>
+<body>
+    <h1>KaTeX Test</h1>
+    <div id="math-test"></div>
+    
+    <script>
+        // Test if KaTeX is working
+        try {
+            katex.render("A = \\pi r^2", document.getElementById("math-test"));
+            console.log("KaTeX is working!");
+        } catch (error) {
+            console.error("KaTeX error:", error);
+            document.getElementById("math-test").textContent = "KaTeX failed: " + error.message;
+        }
+    </script>
+</body>
+</html>

@@ -26,7 +26,7 @@ import {
 } from '../utils/agentRouting';
 
 const MOBILE_FRAME_CLASSES =
-  'rounded-t-[32px] border border-white/40 bg-white/95 px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-[0_25px_60px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-[#2f303d] dark:bg-[#1c1d23]/95 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
+  'rounded-t-[32px] border border-white/40 bg-white/95 px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-[0_25px_60px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-[#2f303d] dark:bg-[#1c1d23]/95 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
 
 const MOBILE_INPUT_WRAPPER_CLASSES =
   '-mx-4 mt-auto overflow-hidden rounded-t-[28px] border-t border-x border-white/40 bg-white/98 pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-[0_-12px_45px_rgba(15,23,42,0.2)] backdrop-blur-xl transition-all duration-200 dark:border-[#2f303d] dark:bg-[#1c1d23]/98 md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:rounded-t-[28px] md:[&>div]:rounded-none [&>div]:bg-transparent md:[&>div]:px-0';
@@ -99,7 +99,13 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     showEmptyState && isAgentSelectionVisible;
   const shouldShowAdapterNotesPanel =
     showEmptyState && !isAgentSelectionVisible && !!currentConversation?.adapterName;
-  const prominentWidthClass = 'mx-auto w-full max-w-5xl';
+  const chatMaxWidthClass =
+    theme.fontSize === 'small'
+      ? 'max-w-7xl'
+      : theme.fontSize === 'medium'
+        ? 'max-w-6xl'
+        : 'max-w-5xl';
+  const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const messageInputWidthClass = shouldShowAdapterNotesPanel ? prominentWidthClass : 'w-full';
   const canStartNewConversation = canCreateNewConversation();
   const newConversationTooltip = canStartNewConversation
@@ -565,7 +571,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   return (
     <div className="flex-1 flex flex-col bg-gray-50 dark:bg-[#202123] overflow-hidden">
       <div className="flex h-full w-full flex-col px-3 sm:px-6 overflow-hidden">
-        <div className={`mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden ${MOBILE_FRAME_CLASSES}`}>
+        <div className={`mx-auto flex h-full w-full ${chatMaxWidthClass} flex-col overflow-hidden ${MOBILE_FRAME_CLASSES}`}>
 
           {/* Error Banner */}
           {error && (
@@ -670,9 +676,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   <button
                     onClick={handleStartNewConversation}
                     disabled={!canStartNewConversation}
-                    className={`order-2 sm:order-1 inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2.5 text-sm font-semibold uppercase tracking-wide transition-all ${
+                    className={`order-2 sm:order-1 inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2.5 text-[13px] font-medium tracking-[0.01em] ${
                       canStartNewConversation
-                        ? 'border-[#343541] text-[#1f1f21] bg-white/80 shadow-[0_2px_8px_rgba(15,23,42,0.06)] hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_8px_20px_rgba(15,23,42,0.12)] dark:border-[#565869] dark:text-[#ececf1] dark:bg-[#2c2f36] dark:hover:bg-[#353947]'
+                        ? 'border-[#1f2937] bg-[#1f2937] text-white shadow-[0_2px_8px_rgba(15,23,42,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f2937]/40 dark:border-[#4b5568] dark:bg-[#2f3747] dark:text-[#e9edf8] dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)] dark:focus-visible:ring-[#6f809f]/35'
                         : 'cursor-not-allowed border-gray-200 text-gray-400 bg-white/40 dark:border-[#3c3f4a] dark:text-[#6b6f7a] dark:bg-transparent'
                     }`}
                     title={newConversationTooltip}
@@ -732,7 +738,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       />
                     </div>
                   ) : shouldShowAdapterNotesPanel ? (
-                    <div className={`${prominentWidthClass} rounded-3xl border border-gray-300 bg-white/95 p-6 shadow-sm dark:border-[#565869] dark:bg-[#1c1d23]/90`}>
+                    <div className={`${prominentWidthClass} p-6`}>
                       <div className="flex items-center justify-between gap-3 mb-4">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                           {currentConversation?.adapterName ||
@@ -805,6 +811,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                           hasAdapterConfigurationError
                         }
                         placeholder={defaultInputPlaceholder}
+                        maxWidthClass={chatMaxWidthClass}
                       />
                     </div>
                   </div>
@@ -840,6 +847,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       hasAdapterConfigurationError
                     }
                     placeholder="Ask another question..."
+                    maxWidthClass={chatMaxWidthClass}
                   />
                 </div>
               </div>

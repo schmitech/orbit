@@ -21,6 +21,10 @@ interface MessageInputProps {
    * Used for the empty state layout so the field and title feel aligned.
    */
   isCentered?: boolean;
+  /**
+   * Optional max width utility class for non-centered layouts.
+   */
+  maxWidthClass?: string;
 }
 
 const MIME_EXTENSION_MAP: Record<string, string> = {
@@ -40,7 +44,7 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
 };
 
 const DEFAULT_TEXTAREA_VERTICAL_PADDING = 4;
-const VERTICAL_ALIGNMENT_OFFSET = 2;
+const VERTICAL_ALIGNMENT_OFFSET = 3;
 const PLACEHOLDER_VERTICAL_OFFSET = 0;
 const INLINE_SUGGESTION_VERTICAL_OFFSET = 0;
 
@@ -90,7 +94,8 @@ export function MessageInput({
   onSend, 
   disabled = false, 
   placeholder = getDefaultInputPlaceholder(),
-  isCentered = false
+  isCentered = false,
+  maxWidthClass = 'max-w-5xl'
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [isComposing, setIsComposing] = useState(false);
@@ -1011,7 +1016,7 @@ export function MessageInput({
     return () => clearTimeout(timeout);
   }, [uploadError]);
 
-  const contentMaxWidth = isCentered ? 'max-w-3xl' : 'max-w-5xl';
+  const contentMaxWidth = isCentered ? 'max-w-3xl' : maxWidthClass;
   const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
 
   return (
