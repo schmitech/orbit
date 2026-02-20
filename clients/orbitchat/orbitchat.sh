@@ -4,12 +4,12 @@
 # ================================
 #
 # Usage:
-#   ./run-chat-app.sh --start [port]    Start orbitchat in background
-#   ./run-chat-app.sh --stop            Stop orbitchat
-#   ./run-chat-app.sh --restart [port]  Restart orbitchat
-#   ./run-chat-app.sh --force-restart [port]  Force-kill port listeners and restart
-#   ./run-chat-app.sh --status          Check if orbitchat is running
-#   ./run-chat-app.sh --help            Show this help message
+#   ./orbitchat.sh --start [port]    Start orbitchat in background
+#   ./orbitchat.sh --stop            Stop orbitchat
+#   ./orbitchat.sh --restart [port]  Restart orbitchat
+#   ./orbitchat.sh --force-restart [port]  Force-kill port listeners and restart
+#   ./orbitchat.sh --status          Check if orbitchat is running
+#   ./orbitchat.sh --help            Show this help message
 #
 # All application settings are in orbitchat.yaml (next to this script).
 # Only adapter secrets (API keys) are set here via VITE_ADAPTERS.
@@ -28,6 +28,11 @@ PORT="${ORBITCHAT_PORT:-5173}"
 CONFIG_FILE="$SCRIPT_DIR/orbitchat.yaml"
 ACTION=""
 FORCE_RESTART=false
+
+# When installed as an npm package, default config often lives in current directory.
+if [ ! -f "$CONFIG_FILE" ] && [ -f "$(pwd)/orbitchat.yaml" ]; then
+    CONFIG_FILE="$(pwd)/orbitchat.yaml"
+fi
 
 export NODE_OPTIONS="--no-deprecation"
 

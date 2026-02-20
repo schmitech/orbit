@@ -16,6 +16,10 @@ Or install locally:
 npm install orbitchat
 ```
 
+Installed CLI commands:
+- `orbitchat` — starts the ORBIT Chat server directly
+- `orbitchat-daemon` — shell wrapper with `--start/--stop/--restart/--force-restart/--status`
+
 ## Quick Start
 
 1. Define your adapters (agents) via the `ORBIT_ADAPTERS` or `VITE_ADAPTERS` environment variable:
@@ -27,7 +31,7 @@ npm install orbitchat
 
 2. Run the CLI:
    ```bash
-   orbitchat --enable-upload --port 5173
+   orbitchat --config ./orbitchat.yaml --port 5173
    ```
 
 3. Open `http://localhost:5173` — select an agent and start chatting.
@@ -50,49 +54,21 @@ The frontend never handles API keys. Instead:
 orbitchat [options]
 
 Options:
-  --api-url URL                    Default backend URL (default: http://localhost:3000)
-  --default-adapter NAME           Adapter to preselect for new conversations
-  --application-name NAME          Name shown in browser tab (default: ORBIT Chat)
-  --application-description TEXT   Subtitle shown under the welcome heading
-  --default-input-placeholder TEXT Message input placeholder (default: Message ORBIT...)
-  --console-debug                  Enable console debug logging (default: false)
-  --enable-upload                  Enable file upload button (default: false)
-  --enable-audio                   Enable audio output button (default: false)
-  --enable-audio-input             Enable microphone input button (default: false)
-  --enable-feedback                Enable feedback buttons (default: false)
-  --enable-autocomplete            Enable autocomplete suggestions (default: false)
-  --voice-silence-timeout-ms N     Auto-stop voice capture after N ms of silence (default: 4000)
-  --voice-recognition-lang LANG    Speech recognition language code (default: browser locale)
-  --out-of-service-message TEXT    Show maintenance screen blocking access
-  --max-files-per-conversation N   Max files per conversation (default: 5)
-  --max-file-size-mb N             Max file size in MB (default: 50)
-  --max-total-files N              Max total files (default: 100, 0 = unlimited)
-  --max-conversations N            Max conversations (default: 10, 0 = unlimited)
-  --max-messages-per-conversation N Max messages per conversation (default: 1000, 0 = unlimited)
-  --max-messages-per-thread N      Max messages per thread (default: 1000, 0 = unlimited)
-  --max-total-messages N           Max total messages (default: 10000, 0 = unlimited)
-  --max-message-length N           Max message length (default: 1000)
-  --port PORT                      Server port (default: 5173)
-  --host HOST                      Server host (default: localhost)
-  --open                           Open browser automatically
-  --api-only                       Run API proxy only (no UI serving, no build required)
-  --cors-origin ORIGIN             Allowed CORS origin in api-only mode (default: *)
-  --config PATH                    Path to config file (default: ~/.orbit-chat-app/config.json)
-  --help, -h                       Show help message
-  --version, -v                    Show version number
+  --port PORT        Server port (default: 5173)
+  --host HOST        Server host (default: localhost)
+  --open             Open browser automatically
+  --config PATH      Path to orbitchat.yaml (default: ./orbitchat.yaml)
+  --api-only         Run API proxy only (no UI serving)
+  --cors-origin URL  Allowed CORS origin in api-only mode (default: *)
+  --help, -h         Show help message
+  --version, -v      Show version number
 ```
 
 ### Examples
 
 ```bash
-# Start with custom API URL and port
-orbitchat --api-url http://localhost:3000 --port 8080
-
-# Start with upload, audio output, mic input, and autocomplete enabled
-orbitchat --enable-upload --enable-audio --enable-audio-input --enable-autocomplete --open
-
 # Start with a custom config file
-orbitchat --config /path/to/config.json
+orbitchat --config /path/to/orbitchat.yaml
 
 # Start with adapters defined inline
 ORBIT_ADAPTERS='[{"name":"Chat","apiKey":"mykey","apiUrl":"https://api.example.com"}]' orbitchat
@@ -204,11 +180,11 @@ Each adapter object supports:
 |-------|----------|-------------|
 | `name` | Yes | Display name shown in the agent selector |
 | `apiKey` | Yes | Backend API key (never exposed to the browser) |
-| `apiUrl` | No | Backend URL (defaults to `--api-url` value) |
+| `apiUrl` | No | Backend URL (defaults to `api.url` in `orbitchat.yaml`, then `http://localhost:3000`) |
 | `description` | No | Short summary shown in dropdowns |
 | `notes` | No | Markdown content shown in the chat empty state |
 
-If `--default-adapter` is not specified, the first adapter in the list is preselected for new conversations.
+If `api.defaultAdapter` is not set (or left as `default-key`), the first adapter in the list is used.
 
 ### Agent Selector UX
 
@@ -219,56 +195,32 @@ If `--default-adapter` is not specified, the first adapter in the list is presel
 
 ## Configuration
 
-### Configuration Priority
+### Runtime Config File
 
-Configuration is loaded in the following priority order:
-1. CLI arguments (highest priority)
-2. Config file (`~/.orbit-chat-app/config.json`)
-3. Environment variables (`VITE_*`)
-4. Default values (lowest priority)
+Runtime settings are loaded from `orbitchat.yaml` (see `orbitchat.yaml.example`).
 
-### Configuration File
-
-Create a config file at `~/.orbit-chat-app/config.json`:
-
-```json
-{
-  "apiUrl": "http://localhost:3000",
-  "defaultKey": "Simple Chat",
-  "port": 5173,
-  "host": "localhost",
-  "enableUploadButton": false,
-  "enableFeedbackButtons": false,
-  "maxFilesPerConversation": 5,
-  "maxFileSizeMB": 50,
-  "maxTotalFiles": 100,
-  "maxConversations": 10,
-  "maxMessagesPerConversation": 1000,
-  "maxTotalMessages": 10000,
-  "maxMessageLength": 1000
-}
-```
-
-> **Note:** `defaultKey` should be set to an adapter name (e.g. `"Simple Chat"`). If left as `"default-key"` or empty, the app falls back to the first adapter in `ORBIT_ADAPTERS`.
+Config lookup:
+1. `--config /path/to/orbitchat.yaml` if provided
+2. `./orbitchat.yaml` (current working directory)
 
 ### Environment Variables
 
-For development, set configuration via environment variables:
+Adapter secrets are provided via environment variables:
 
 ```bash
-VITE_API_URL=http://localhost:3000
-VITE_DEFAULT_KEY=Simple Chat          # Adapter name to preselect
-VITE_ENABLE_UPLOAD=false
-VITE_ENABLE_AUDIO_OUTPUT=false
-VITE_ENABLE_AUDIO_INPUT=false
-VITE_VOICE_SILENCE_TIMEOUT_MS=4000
-VITE_VOICE_RECOGNITION_LANG=
-VITE_ENABLE_FEEDBACK=false
-VITE_ENABLE_AUTOCOMPLETE=false
-VITE_CONSOLE_DEBUG=false
+ORBIT_ADAPTERS='[{"name":"Simple Chat","apiKey":"default-key","apiUrl":"http://localhost:3000"}]'
 ```
 
-> **Note:** GitHub stats and owner/repo are hardcoded and only configurable via build-time environment variables (`VITE_SHOW_GITHUB_STATS`, `VITE_GITHUB_OWNER`, `VITE_GITHUB_REPO`) for developers who fork the repository.
+- `ORBIT_ADAPTERS` is preferred.
+- `VITE_ADAPTERS` is also supported for compatibility.
+- If both are set, `ORBIT_ADAPTERS` takes precedence.
+
+Auth secrets are read from:
+- `VITE_AUTH_DOMAIN`
+- `VITE_AUTH_CLIENT_ID`
+- `VITE_AUTH_AUDIENCE`
+
+The CLI also loads `.env` and `.env.local` from the current working directory on startup.
 
 ## Development
 
@@ -307,13 +259,19 @@ orbitchat --port 8080
 
 ### Running as a Daemon
 
-Use the included `run-chat-app.sh` script:
+For npm package installs, use:
 
 ```bash
-./run-chat-app.sh --start        # Start in background
-./run-chat-app.sh --start 8080   # Start on custom port
-./run-chat-app.sh --stop          # Stop
-./run-chat-app.sh --status        # Check status
+orbitchat-daemon --start        # Start in background
+orbitchat-daemon --start 8080   # Start on custom port
+orbitchat-daemon --stop         # Stop
+orbitchat-daemon --status       # Check status
+```
+
+From a source checkout, you can also run:
+
+```bash
+./orbitchat.sh --start
 ```
 
 ## Available Scripts
@@ -399,7 +357,7 @@ If adapters load but descriptions/notes are missing in packaged installs (`npm p
 2. Ensure `orbitchat.yaml` contains adapter metadata and adapter `name` values exactly match `ORBIT_ADAPTERS`
 3. Rebuild and repack from the updated source: `npm run build && npm pack`
 4. Reinstall the newly generated tarball
-5. Restart with a clean process/port: `./run-chat-app.sh --force-restart`
+5. Restart with a clean process/port: `orbitchat-daemon --force-restart` (or `./orbitchat.sh --force-restart` in source checkout)
 6. Verify runtime output:
    - Startup log shows `Available Adapters: ...`
    - `GET /api/adapters` returns `description`/`notes` for each adapter
@@ -415,9 +373,11 @@ If adapters load but descriptions/notes are missing in packaged installs (`npm p
 
 Enable debug logging:
 ```bash
-orbitchat --console-debug
+# in orbitchat.yaml
+debug:
+  consoleDebug: true
 ```
-Or set `VITE_CONSOLE_DEBUG=true` during development. This shows detailed API and file upload information in the browser console.
+This enables detailed runtime logging from the CLI server.
 
 ## Deployment Checklist
 
@@ -426,4 +386,4 @@ Or set `VITE_CONSOLE_DEBUG=true` during development. This shows detailed API and
 3. **Run behind HTTPS** — use a reverse proxy like nginx or Caddy in front of `orbitchat`
 4. **Bind to the right interface**: use `--host 0.0.0.0` to allow external access, or keep the default `localhost` for local-only
 5. **Tune limits** — set `--max-conversations`, `--max-message-length`, etc. appropriate for your deployment
-6. **Monitor logs** — use `run-chat-app.sh --start` for daemon mode with log file, or run directly and pipe to your log aggregator
+6. **Monitor logs** — use `orbitchat-daemon --start` for daemon mode with log file, or run directly and pipe to your log aggregator

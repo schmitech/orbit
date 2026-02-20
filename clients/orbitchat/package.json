@@ -4,11 +4,13 @@
   "version": "3.0.0",
   "type": "module",
   "bin": {
-    "orbitchat": "./bin/orbitchat.js"
+    "orbitchat": "./bin/orbitchat.js",
+    "orbitchat-daemon": "./orbitchat.sh"
   },
   "files": [
     "bin",
     "dist",
+    "orbitchat.sh",
     "markdown-renderer/src",
     "!markdown-renderer/src/demo",
     "!markdown-renderer/src/demo/**",
