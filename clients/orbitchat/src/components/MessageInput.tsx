@@ -157,6 +157,7 @@ export function MessageInput({
 
   const isAuthenticated = useIsAuthenticated();
   const isGuest = getIsAuthConfigured() && !isAuthenticated;
+  const showLoginPrompt = useLoginPromptStore(state => state.showLoginPrompt);
   const { createConversation, currentConversationId, conversations, isLoading, syncConversationFiles, stopStreaming, removeFileFromConversation } = useChatStore();
   const currentConversation = conversations.find(c => c.id === currentConversationId);
   const conversationMessagesCount = currentConversation
@@ -1070,18 +1071,22 @@ export function MessageInput({
 
   const limitWarnings: string[] = [];
   if (workspaceMessageLimitReached && AppConfig.maxTotalMessages !== null) {
-    limitWarnings.push(
-      isGuest
-        ? `Guest limit of ${AppConfig.maxTotalMessages} total messages reached. Sign in for higher limits.`
-        : `Workspace limit of ${AppConfig.maxTotalMessages} total messages reached. Delete or export older conversations to continue.`
-    );
+    if (isGuest) {
+      if (showLoginPrompt) {
+        limitWarnings.push(`Guest limit of ${AppConfig.maxTotalMessages} total messages reached. Sign in for higher limits, or delete conversations to start over.`);
+      }
+    } else {
+      limitWarnings.push(`Workspace limit of ${AppConfig.maxTotalMessages} total messages reached. Delete or export older conversations to continue.`);
+    }
   }
   if (conversationMessageLimitReached && AppConfig.maxMessagesPerConversation !== null) {
-    limitWarnings.push(
-      isGuest
-        ? `Guest limit of ${AppConfig.maxMessagesPerConversation} messages per conversation reached. Sign in for higher limits.`
-        : `This conversation reached the ${AppConfig.maxMessagesPerConversation} message limit. Start a new conversation to keep chatting.`
-    );
+    if (isGuest) {
+      if (showLoginPrompt) {
+        limitWarnings.push(`Guest limit of ${AppConfig.maxMessagesPerConversation} messages per conversation reached. Sign in for higher limits, or delete conversations to start over.`);
+      }
+    } else {
+      limitWarnings.push(`This conversation reached the ${AppConfig.maxMessagesPerConversation} message limit. Start a new conversation to keep chatting.`);
+    }
   }
   if (uploadError) {
     limitWarnings.push(uploadError);
@@ -1142,7 +1147,7 @@ export function MessageInput({
                 <li key={`${warning}-${index}`}>{warning}</li>
               ))}
             </ul>
-            {isGuest && (messageLimitActive || fileLimitActive) && (
+            {isGuest && (messageLimitActive || fileLimitActive) && showLoginPrompt && (
               <button
                 type="button"
                 onClick={() => useLoginPromptStore.getState().openLoginPrompt('Sign in to unlock higher message limits and more conversations.')}

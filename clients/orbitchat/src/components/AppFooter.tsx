@@ -25,10 +25,10 @@ export function AppFooter() {
   const paddingClass = topPadding === 'normal' ? 'pt-3 pb-3' : 'pt-5 pb-3';
   const containerClass =
     layout === 'inline'
-      ? `flex w-full flex-col gap-2 sm:flex-row sm:items-center ${align === 'center' ? 'items-center justify-center text-center' : 'items-start justify-between text-left'}`
+      ? `flex w-full flex-col gap-1 sm:flex-row sm:items-center ${align === 'center' ? 'items-center justify-center text-center' : 'items-start justify-between text-left'}`
       : align === 'center'
-      ? 'flex w-full flex-col items-center justify-center gap-2 text-center'
-      : 'flex w-full flex-col items-start justify-center gap-2 text-left';
+      ? 'flex w-full flex-col items-center justify-center gap-1 text-center'
+      : 'flex w-full flex-col items-start justify-center gap-1 text-left';
   const linksJustifyClass = align === 'center' ? 'justify-center' : 'justify-start';
   const linkBaseClass =
     'inline-flex min-h-10 items-center rounded-md px-2.5 text-xs font-medium transition-colors hover:bg-slate-100 hover:text-blue-700 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-[#2b2d39] dark:hover:text-blue-300 sm:text-sm';

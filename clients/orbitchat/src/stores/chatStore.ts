@@ -407,8 +407,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     
     if (maxConversations !== null && conversationCount >= maxConversations) {
       if (getIsAuthConfigured() && !getIsAuthenticated()) {
+        const guestLimitMessage = `You've reached the guest limit of ${maxConversations} conversation${maxConversations === 1 ? '' : 's'}. Sign in to unlock more conversations, or delete conversations to start over.`;
+        set({ error: guestLimitMessage });
         useLoginPromptStore.getState().openLoginPrompt(
-          `You've reached the guest limit of ${maxConversations} conversation${maxConversations === 1 ? '' : 's'}. Sign in to unlock more conversations.`
+          guestLimitMessage
         );
         throw new Error('Guest conversation limit reached');
       }
@@ -845,7 +847,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       if (maxMessagesPerConversation !== null && nonStreamingMessages >= maxMessagesPerConversation) {
         if (getIsAuthConfigured() && !getIsAuthenticated()) {
           useLoginPromptStore.getState().openLoginPrompt(
-            `You've reached the guest limit of ${maxMessagesPerConversation} messages per conversation. Sign in to send more messages.`
+            `You've reached the guest limit of ${maxMessagesPerConversation} messages per conversation. Sign in to send more messages, or delete conversations to start over.`
           );
         }
         debugWarn(`[chatStore] Conversation ${conversationId} reached the message limit (${maxMessagesPerConversation}).`);
@@ -862,7 +864,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         if (totalMessages >= maxTotalMessages) {
           if (getIsAuthConfigured() && !getIsAuthenticated()) {
             useLoginPromptStore.getState().openLoginPrompt(
-              `You've reached the guest limit of ${maxTotalMessages} total messages. Sign in to continue chatting.`
+              `You've reached the guest limit of ${maxTotalMessages} total messages. Sign in to continue chatting, or delete conversations to start over.`
             );
           }
           debugWarn(`[chatStore] Workspace reached the total message limit (${maxTotalMessages}).`);
@@ -911,7 +913,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           if (existingThreadMessages.length >= maxMessagesPerThread) {
             if (getIsAuthConfigured() && !getIsAuthenticated()) {
               useLoginPromptStore.getState().openLoginPrompt(
-                `You've reached the guest limit of ${maxMessagesPerThread} messages per thread. Sign in to continue this thread.`
+                `You've reached the guest limit of ${maxMessagesPerThread} messages per thread. Sign in to continue this thread, or delete conversations to start over.`
               );
             }
             debugWarn(`[chatStore] Thread ${activeThreadId} reached the message limit (${maxMessagesPerThread}).`);
