@@ -35,7 +35,7 @@ export function AppFooter() {
 
   return (
     <footer
-      className={`shrink-0 px-4 text-sm ${paddingClass} ${borderClass}`.trim()}
+      className={`shrink-0 bg-transparent px-4 text-sm ${paddingClass} ${borderClass}`.trim()}
       style={{
         backgroundColor: bgColor || undefined,
         color: textColor || undefined,

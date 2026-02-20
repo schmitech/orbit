@@ -98,7 +98,7 @@ export function AgentSelectionList({
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
-              className={`${SKELETON_CARD_HEIGHT} animate-pulse rounded-2xl border border-gray-200 bg-white dark:border-[#3b3c49] dark:bg-[#22232b]`}
+              className={`${SKELETON_CARD_HEIGHT} animate-pulse rounded-2xl border border-gray-200 bg-transparent dark:border-[#3b3c49]`}
             />
           ))}
         </div>
@@ -107,7 +107,7 @@ export function AgentSelectionList({
 
     if (error) {
       return (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+        <div className="rounded-2xl border border-red-200 bg-transparent px-4 py-6 text-sm text-red-700 dark:border-red-900 dark:text-red-200">
           {error}
         </div>
       );
@@ -115,7 +115,7 @@ export function AgentSelectionList({
 
     if (adapters.length === 0) {
       return (
-        <div className="rounded-2xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-600 dark:border-[#3b3c49] dark:bg-[#22232b] dark:text-gray-300">
+        <div className="rounded-2xl border border-gray-200 bg-transparent px-4 py-6 text-sm text-gray-600 dark:border-[#3b3c49] dark:text-gray-300">
           No agents are available yet. Configure adapters in your middleware settings to continue.
         </div>
       );
@@ -123,7 +123,7 @@ export function AgentSelectionList({
 
     if (filteredAdapters.length === 0) {
       return (
-        <div className="rounded-2xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-600 dark:border-[#3b3c49] dark:bg-[#22232b] dark:text-gray-300">
+        <div className="rounded-2xl border border-gray-200 bg-transparent px-4 py-6 text-sm text-gray-600 dark:border-[#3b3c49] dark:text-gray-300">
           No agents match your search.
         </div>
       );
@@ -175,7 +175,7 @@ export function AgentSelectionList({
           disabled={isLoading || !!error || adapters.length === 0}
           onChange={event => setSearchQuery(event.target.value)}
           onKeyDown={handleSearchKeyDown}
-          className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 shadow-inner focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#3b3c49] dark:bg-[#1f2027] dark:text-white dark:shadow-none"
+          className="w-full rounded-md border border-gray-300 bg-transparent py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 shadow-inner focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#3b3c49] dark:text-white dark:shadow-none"
         />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">

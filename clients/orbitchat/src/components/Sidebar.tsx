@@ -332,8 +332,8 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
         </div>
       )}
 
-      <div className="flex h-full md:h-[calc(100%-2rem)] md:mt-4 w-full md:w-72 flex-col border-r border-b border-gray-200 md:border-l md:border-t md:rounded-2xl md:overflow-hidden bg-gradient-to-b from-white via-gray-50 to-gray-100 dark:border-[#595a66] dark:bg-[#202123] dark:bg-none">
-        <div className="bg-white/95 px-4 pb-4 pt-4 shadow-sm dark:border-[#4a4b54] dark:bg-[#202123] dark:shadow-none">
+      <div className="flex h-full md:h-[calc(100%-2rem)] md:mt-4 w-full md:w-72 flex-col border-r border-b border-gray-200 md:border-l md:border-t md:rounded-2xl md:overflow-hidden bg-transparent dark:border-[#595a66]">
+        <div className="bg-transparent px-4 pb-4 pt-4 shadow-none dark:border-[#4a4b54]">
           <div className="flex w-full justify-center">
             <GitHubStatsBanner className="w-full max-w-[220px] items-center text-center" />
           </div>
@@ -377,7 +377,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-3 dark:bg-[#202123] dark:bg-none">
+        <div className="flex-1 overflow-y-auto bg-transparent px-3 py-3">
           {visibleConversations.length === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-300 bg-white/90 p-6 text-center text-sm text-gray-500 shadow-sm dark:border-[#4a4b54] dark:bg-[#252830] dark:text-[#bfc2cd] dark:shadow-none">
               <MessageSquare className="mx-auto mb-3 h-6 w-6 text-gray-400 dark:text-[#6b6f7a]" />
