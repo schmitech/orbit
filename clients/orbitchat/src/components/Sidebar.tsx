@@ -5,9 +5,9 @@ import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { debugError } from '../utils/debug';
 import { getApiUrl } from '../utils/runtimeConfig';
-import { useTheme } from '../contexts/ThemeContext';
 import { AdapterSelector } from './AdapterSelector';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { GitHubStatsBanner } from './GitHubStatsBanner';
 
 interface SidebarProps {
   /**
@@ -120,8 +120,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   const configDialogRef = useRef<HTMLDivElement>(null);
 
   const canConfigureApi = !currentConversation || currentConversation.messages.length === 0;
-  const { theme } = useTheme();
-  const sizeStyles = conversationSizeStyles[theme.fontSize ?? 'medium'];
+  const sizeStyles = conversationSizeStyles.medium;
   useEffect(() => {
     if (currentConversation?.adapterName) {
       setSelectedAdapter(currentConversation.adapterName);
@@ -333,9 +332,12 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
         </div>
       )}
 
-      <div className="flex h-full w-full md:w-72 md:pt-16 flex-col border-r border-b border-gray-200 bg-gradient-to-b from-white via-gray-50 to-gray-100 dark:border-[#4a4b54] dark:bg-[#202123] dark:bg-none">
-        <div className="bg-white/95 p-4 shadow-sm dark:border-[#4a4b54] dark:bg-[#202123] dark:shadow-none">
-          <div className="space-y-3 pb-3">
+      <div className="flex h-full md:h-[calc(100%-2rem)] md:mt-4 w-full md:w-72 flex-col border-r border-b border-gray-200 md:border-l md:border-t md:rounded-2xl md:overflow-hidden bg-gradient-to-b from-white via-gray-50 to-gray-100 dark:border-[#595a66] dark:bg-[#202123] dark:bg-none">
+        <div className="bg-white/95 px-4 pb-4 pt-4 shadow-sm dark:border-[#4a4b54] dark:bg-[#202123] dark:shadow-none">
+          <div className="flex w-full justify-center">
+            <GitHubStatsBanner className="w-full max-w-[220px] items-center text-center" />
+          </div>
+          <div className="mt-8 space-y-3 pb-3">
             <button
               onClick={onOpenSettings}
               disabled={!onOpenSettings}

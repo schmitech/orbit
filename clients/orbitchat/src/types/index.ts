@@ -78,7 +78,6 @@ export interface ChatState {
 export interface ThemeConfig {
   mode: 'light' | 'dark' | 'system';
   highContrast: boolean;
-  fontSize: 'small' | 'medium' | 'large';
 }
 
 export interface Settings {

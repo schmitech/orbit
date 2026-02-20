@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, X } from 'lucide-react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -64,15 +65,15 @@ export function ConfirmationModal({
 
   const styles = getTypeStyles();
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+  const modalContent = (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm animate-fadeIn">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-title"
         tabIndex={-1}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md transform animate-fadeIn"
+        className="w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl bg-white shadow-2xl transform animate-fadeIn dark:bg-gray-800"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
@@ -85,6 +86,7 @@ export function ConfirmationModal({
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             aria-label="Close"
@@ -103,6 +105,7 @@ export function ConfirmationModal({
         {/* Actions */}
         <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
           <button
+            type="button"
             onClick={onClose}
             disabled={isLoading}
             className="px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
@@ -110,6 +113,7 @@ export function ConfirmationModal({
             {cancelText}
           </button>
           <button
+            type="button"
             onClick={handleConfirm}
             disabled={isLoading}
             className={`px-4 py-2.5 text-white rounded-lg transition-all font-medium shadow-sm hover:shadow-md transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${styles.confirmButton}`}
@@ -127,4 +131,10 @@ export function ConfirmationModal({
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') {
+    return modalContent;
+  }
+
+  return createPortal(modalContent, document.body);
 }

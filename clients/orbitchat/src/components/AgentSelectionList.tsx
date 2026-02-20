@@ -18,14 +18,13 @@ export function AgentSelectionList({
   onAdapterSelect,
   className = '',
   title = '',
-  subtitle = 'Each AI agent is tuned for a specific expertise. Pick one to start a focused conversation.',
-  eyebrow = 'Pick an AI Agent'
+  subtitle = '',
+  eyebrow = ''
 }: AgentSelectionListProps) {
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const [showScrollHint, setShowScrollHint] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const focusFirstAgentCard = () => {
@@ -92,25 +91,6 @@ export function AgentSelectionList({
     };
   }, []);
 
-  useEffect(() => {
-    const updateScrollHint = () => {
-      const el = scrollContainerRef.current;
-      if (!el) {
-        setShowScrollHint(false);
-        return;
-      }
-      const shouldShow = el.scrollHeight - el.clientHeight > 4;
-      setShowScrollHint(shouldShow);
-    };
-
-    updateScrollHint();
-    window.addEventListener('resize', updateScrollHint);
-
-    return () => {
-      window.removeEventListener('resize', updateScrollHint);
-    };
-  }, [filteredAdapters, isLoading, error]);
-
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -154,12 +134,6 @@ export function AgentSelectionList({
         <div
           ref={scrollContainerRef}
           className="flex-1 min-h-0 overflow-y-auto pr-1 pb-6"
-          onScroll={() => {
-            const el = scrollContainerRef.current;
-            if (!el) return;
-            const shouldShow = el.scrollHeight - el.scrollTop - el.clientHeight > 4;
-            setShowScrollHint(shouldShow);
-          }}
         >
           <div className="grid gap-3">
             {filteredAdapters.map(adapter => (
@@ -167,14 +141,6 @@ export function AgentSelectionList({
             ))}
           </div>
         </div>
-        {showScrollHint && (
-          <>
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-b from-transparent to-white dark:to-[#1c1d23]" />
-            <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-gray-600 shadow-sm dark:bg-[#1c1d23]/95 dark:text-gray-200">
-              Scroll for more
-            </div>
-          </>
-        )}
       </div>
     );
   };

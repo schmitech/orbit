@@ -3,6 +3,7 @@
  */
 
 import { debugLog } from '../utils/debug';
+import { getAccessToken } from '../auth/tokenStore';
 
 // Type definitions for the API
 export interface StreamResponse {
@@ -169,6 +170,15 @@ export interface ApiFunctions {
   stopChat?: (sessionId: string, requestId: string) => Promise<boolean>;
 }
 
+async function buildHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
+  const headers = { ...extra };
+  const token = await getAccessToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 // Cache for loaded API
 let apiCache: ApiFunctions | null = null;
 
@@ -223,11 +233,11 @@ function createProxyApi(): ApiFunctions {
 
         const response = await fetch('/api/v1/chat', {
           method: 'POST',
-          headers: {
+          headers: await buildHeaders({
             'Content-Type': 'application/json',
             'X-Adapter-Name': adapterName!,
             ...(sessionId ? { 'X-Session-ID': sessionId } : {}),
-          },
+          }),
           body: JSON.stringify(requestBody),
         });
 
@@ -327,11 +337,11 @@ function createProxyApi(): ApiFunctions {
       async createThread(messageId: string, sessId: string) {
         const response = await fetch('/api/threads', {
           method: 'POST',
-          headers: {
+          headers: await buildHeaders({
             'Content-Type': 'application/json',
             'X-Adapter-Name': adapterName!,
             'X-Session-ID': sessId,
-          },
+          }),
           body: JSON.stringify({ message_id: messageId, session_id: sessId }),
         });
         if (!response.ok) throw new Error(`Failed to create thread: ${response.statusText}`);
@@ -340,9 +350,9 @@ function createProxyApi(): ApiFunctions {
 
       async getThreadInfo(threadId: string) {
         const response = await fetch(`/api/threads/${threadId}`, {
-          headers: {
+          headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
-          },
+          }),
         });
         if (!response.ok) throw new Error(`Failed to get thread info: ${response.statusText}`);
         return response.json();
@@ -351,9 +361,9 @@ function createProxyApi(): ApiFunctions {
       async deleteThread(threadId: string) {
         const response = await fetch(`/api/threads/${threadId}`, {
           method: 'DELETE',
-          headers: {
+          headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
-          },
+          }),
         });
         if (!response.ok) throw new Error(`Failed to delete thread: ${response.statusText}`);
         return response.json();
@@ -362,9 +372,9 @@ function createProxyApi(): ApiFunctions {
       async clearConversationHistory(sessId?: string) {
         const response = await fetch(`/api/admin/chat-history/${sessId || sessionId}`, {
           method: 'DELETE',
-          headers: {
+          headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
-          },
+          }),
         });
         if (!response.ok) throw new Error(`Failed to clear history: ${response.statusText}`);
         return response.json();
@@ -380,9 +390,9 @@ function createProxyApi(): ApiFunctions {
             ? `?limit=${Math.floor(limit)}`
             : '';
         const response = await fetch(`/api/admin/chat-history/${targetSession}${limitParam}`, {
-          headers: {
+          headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
-          },
+          }),
         });
         if (!response.ok) throw new Error(`Failed to load history: ${response.statusText}`);
         return response.json();
@@ -393,9 +403,9 @@ function createProxyApi(): ApiFunctions {
         const fileIdsParam = fileIds && fileIds.length > 0 ? `?file_ids=${fileIds.join(',')}` : '';
         const response = await fetch(`/api/admin/conversations/${targetSession}${fileIdsParam}`, {
           method: 'DELETE',
-          headers: {
+          headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
-          },
+          }),
         });
         if (!response.ok) throw new Error(`Failed to delete conversation: ${response.statusText}`);
         return response.json();
@@ -408,9 +418,9 @@ function createProxyApi(): ApiFunctions {
         formData.append('file', file);
         const response = await fetch('/api/files/upload', {
           method: 'POST',
-          headers: {
+          headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
-          },
+          }),
           body: formData,
         });
         if (!response.ok) throw new Error(`Failed to upload file: ${response.statusText}`);
@@ -419,9 +429,9 @@ function createProxyApi(): ApiFunctions {
 
       async listFiles() {
         const response = await fetch('/api/files', {
-          headers: {
+          headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
-          },
+          }),
         });
         if (!response.ok) throw new Error(`Failed to list files: ${response.statusText}`);
         const data = await response.json();
@@ -430,9 +440,9 @@ function createProxyApi(): ApiFunctions {
 
       async getFileInfo(fileId: string) {
         const response = await fetch(`/api/files/${fileId}`, {
-          headers: {
+          headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
-          },
+          }),
         });
         if (!response.ok) throw new Error(`Failed to get file info: ${response.statusText}`);
         return response.json();
@@ -441,10 +451,10 @@ function createProxyApi(): ApiFunctions {
       async queryFile(fileId: string, query: string, maxResults?: number) {
         const response = await fetch(`/api/files/${fileId}/query`, {
           method: 'POST',
-          headers: {
+          headers: await buildHeaders({
             'Content-Type': 'application/json',
             'X-Adapter-Name': adapterName!,
-          },
+          }),
           body: JSON.stringify({ query, max_results: maxResults }),
         });
         if (!response.ok) throw new Error(`Failed to query file: ${response.statusText}`);
@@ -454,9 +464,9 @@ function createProxyApi(): ApiFunctions {
       async deleteFile(fileId: string) {
         const response = await fetch(`/api/files/${fileId}`, {
           method: 'DELETE',
-          headers: {
+          headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
-          },
+          }),
         });
         if (!response.ok) throw new Error(`Failed to delete file: ${response.statusText}`);
         return response.json();
@@ -464,9 +474,9 @@ function createProxyApi(): ApiFunctions {
 
       async validateApiKey() {
         const response = await fetch(`/api/admin/api-keys/${adapterName}/status`, {
-          headers: {
+          headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
-          },
+          }),
         });
         if (!response.ok) throw new Error(`Failed to validate API key: ${response.statusText}`);
         return response.json();
@@ -476,9 +486,9 @@ function createProxyApi(): ApiFunctions {
         const adapterInfoPath = '/api/admin/adapters/info';
 
         const response = await fetch(adapterInfoPath, {
-          headers: {
+          headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
-          },
+          }),
         });
 
         if (!response.ok) {
@@ -504,10 +514,10 @@ function createProxyApi(): ApiFunctions {
       async stopChat(sessId: string, requestId: string): Promise<boolean> {
         const response = await fetch('/api/v1/chat/stop', {
           method: 'POST',
-          headers: {
+          headers: await buildHeaders({
             'Content-Type': 'application/json',
             'X-Adapter-Name': adapterName!,
-          },
+          }),
           body: JSON.stringify({ session_id: sessId, request_id: requestId }),
         });
         if (!response.ok) {

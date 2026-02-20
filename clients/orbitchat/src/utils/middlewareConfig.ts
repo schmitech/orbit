@@ -3,10 +3,9 @@
  *
  * Provides utilities for working with adapters via the Express proxy.
  *
- * Adapters are loaded from VITE_ADAPTERS environment variable:
- * - For orbitchat CLI: The server reads VITE_ADAPTERS and exposes /api/adapters endpoint
- * - For static deployments (AWS Amplify): Build-time env var is baked into the bundle
- * - Runtime injection via window.ORBIT_CHAT_CONFIG.adapters is also supported
+ * Adapters are loaded from:
+ * - /api/adapters endpoint (CLI or Vite dev server proxy)
+ * - window.ORBIT_CHAT_CONFIG.adapters (runtime injection)
  */
 
 import { debugLog, debugError } from './debug';
@@ -103,23 +102,7 @@ function loadAdaptersFromConfig(): Adapter[] | null {
     }
   }
 
-  // Then check VITE_ADAPTERS build-time env var
-  const envValue = import.meta.env.VITE_ADAPTERS;
-  if (envValue) {
-    try {
-      const parsed = JSON.parse(envValue);
-      if (Array.isArray(parsed)) {
-        debugLog('Loading adapters from VITE_ADAPTERS environment variable');
-        const parsedAdapters = normalizeAdapterList(parsed);
-        if (parsedAdapters.length > 0) {
-          return parsedAdapters;
-        }
-      }
-    } catch (error) {
-      debugError('Failed to parse VITE_ADAPTERS:', error);
-    }
-  }
-
+  // VITE_ADAPTERS is now handled by the Vite plugin / CLI — no env fallback needed here.
   return null;
 }
 

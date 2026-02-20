@@ -5,6 +5,7 @@ import './index.css';
 import { getVersionInfo } from './utils/version.ts';
 import { debugLog } from './utils/debug.ts';
 import { getApplicationName } from './utils/runtimeConfig.ts';
+import { AuthProviderWrapper } from './auth/AuthProvider.tsx';
 
 // Set document title from runtime config
 document.title = getApplicationName();
@@ -16,6 +17,8 @@ debugLog(`📱 App Version: v${versionInfo.appVersion}`);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <AuthProviderWrapper>
+      <App />
+    </AuthProviderWrapper>
   </StrictMode>
 );

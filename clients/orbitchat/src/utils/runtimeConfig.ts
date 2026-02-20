@@ -1,14 +1,18 @@
 /**
  * Runtime Configuration Utility
- * 
- * Reads configuration from multiple sources in priority order:
- * 1. window.ORBIT_CHAT_CONFIG (injected by CLI)
- * 2. window.CHATBOT_* (legacy window variables)
- * 3. import.meta.env.VITE_* (build-time env vars, for development)
- * 4. Default values
+ *
+ * Reads configuration from a single merged object built at startup:
+ *  - Vite plugin injects defaults + orbitchat.yaml via import.meta.env.__ORBITCHAT_CONFIG (dev/build)
+ *  - CLI injects window.ORBIT_CHAT_CONFIG (production server)
+ *  - Secrets come from VITE_AUTH_* env vars
  */
 
 export const DEFAULT_API_URL = 'http://localhost:3000';
+
+export interface NavLink {
+  label: string;
+  url: string;
+}
 
 export interface RuntimeConfig {
   // API Configuration
@@ -17,9 +21,8 @@ export interface RuntimeConfig {
   applicationName: string;
   applicationDescription: string;
   defaultInputPlaceholder: string;
-  useLocalApi: boolean;
-  localApiPath?: string;
   consoleDebug: boolean;
+  locale: string;
 
   // Feature Flags
   enableUploadButton: boolean;
@@ -37,353 +40,193 @@ export interface RuntimeConfig {
   githubOwner: string;
   githubRepo: string;
 
-  // Adapters (for middleware mode, fallback when adapters.yaml is not available)
+  // Adapters (for middleware mode)
   adapters?: Array<{
     name: string;
-    apiUrl: string;
+    apiUrl?: string;
+    description?: string;
+    notes?: string;
   }>;
 
   // File Upload Limits
   maxFilesPerConversation: number;
   maxFileSizeMB: number;
-  maxTotalFiles: number | null; // null = unlimited
+  maxTotalFiles: number | null;
 
   // Conversation Limits
-  maxConversations: number | null; // null = unlimited
-  maxMessagesPerConversation: number | null; // null = unlimited
-  maxMessagesPerThread: number | null; // null = unlimited
-  maxTotalMessages: number | null; // null = unlimited
+  maxConversations: number | null;
+  maxMessagesPerConversation: number | null;
+  maxMessagesPerThread: number | null;
+  maxTotalMessages: number | null;
 
   // Message Limits
   maxMessageLength: number;
 
+  // Guest Limits (used when enableAuth=true and user is not authenticated)
+  guestMaxConversations: number | null;
+  guestMaxMessagesPerConversation: number | null;
+  guestMaxTotalMessages: number | null;
+  guestMaxMessagesPerThread: number | null;
+  guestMaxFilesPerConversation: number;
+  guestMaxTotalFiles: number | null;
+  guestMaxMessageLength: number;
+  guestMaxFileSizeMB: number;
+
   // Settings Page
   settingsAboutMsg: string;
+
+  // Auth Configuration
+  enableAuth: boolean;
+  authDomain: string;
+  authClientId: string;
+  authAudience: string;
+
+  // Header Configuration
+  enableHeader: boolean;
+  headerLogoUrl: string;
+  headerBrandName: string;
+  headerBgColor: string;
+  headerTextColor: string;
+  headerShowBorder: boolean;
+  headerNavLinks: NavLink[];
+
+  // Footer Configuration
+  enableFooter: boolean;
+  footerText: string;
+  footerBgColor: string;
+  footerTextColor: string;
+  footerShowBorder: boolean;
+  footerLayout: 'stacked' | 'inline';
+  footerAlign: 'left' | 'center';
+  footerTopPadding: 'normal' | 'large';
+  footerNavLinks: NavLink[];
 }
 
 declare global {
   interface Window {
     ORBIT_CHAT_CONFIG?: Partial<RuntimeConfig>;
-    CHATBOT_API_URL?: string;
-    CHATBOT_API_KEY?: string;
   }
 }
 
-// Type guard for window.ORBIT_CHAT_CONFIG
-function isRuntimeConfig(obj: unknown): obj is Partial<RuntimeConfig> {
-  return typeof obj === 'object' && obj !== null;
-}
+/** Default values — single source of truth for the entire app */
+export const DEFAULTS: RuntimeConfig = {
+  apiUrl: 'http://localhost:3000',
+  defaultKey: 'default-key',
+  applicationName: 'ORBIT Chat',
+  applicationDescription: "Explore ideas with ORBIT's AI copilots, share context, and build together.",
+  defaultInputPlaceholder: 'Message ORBIT...',
+  consoleDebug: false,
+  locale: 'en-US',
 
-/**
- * Map config keys to VITE_* environment variable names
- */
-const envKeyMap: Record<keyof RuntimeConfig, string> = {
-  apiUrl: 'VITE_API_URL',
-  defaultKey: 'VITE_DEFAULT_KEY',
-  applicationName: 'VITE_APPLICATION_NAME',
-  applicationDescription: 'VITE_APPLICATION_DESCRIPTION',
-  defaultInputPlaceholder: 'VITE_DEFAULT_INPUT_PLACEHOLDER',
-  useLocalApi: 'VITE_USE_LOCAL_API',
-  localApiPath: 'VITE_LOCAL_API_PATH',
-  consoleDebug: 'VITE_CONSOLE_DEBUG',
-  enableUploadButton: 'VITE_ENABLE_UPLOAD',
-  enableAudioOutput: 'VITE_ENABLE_AUDIO_OUTPUT',
-  enableAudioInput: 'VITE_ENABLE_AUDIO_INPUT',
-  enableFeedbackButtons: 'VITE_ENABLE_FEEDBACK',
-  enableConversationThreads: 'VITE_ENABLE_CONVERSATION_THREADS',
-  enableAutocomplete: 'VITE_ENABLE_AUTOCOMPLETE',
-  voiceSilenceTimeoutMs: 'VITE_VOICE_SILENCE_TIMEOUT_MS',
-  voiceRecognitionLanguage: 'VITE_VOICE_RECOGNITION_LANG',
-  showGitHubStats: 'VITE_SHOW_GITHUB_STATS',
-  outOfServiceMessage: 'VITE_OUT_OF_SERVICE_MESSAGE',
-  githubOwner: 'VITE_GITHUB_OWNER',
-  githubRepo: 'VITE_GITHUB_REPO',
-  adapters: 'VITE_ADAPTERS',
-  maxFilesPerConversation: 'VITE_MAX_FILES_PER_CONVERSATION',
-  maxFileSizeMB: 'VITE_MAX_FILE_SIZE_MB',
-  maxTotalFiles: 'VITE_MAX_TOTAL_FILES',
-  maxConversations: 'VITE_MAX_CONVERSATIONS',
-  maxMessagesPerConversation: 'VITE_MAX_MESSAGES_PER_CONVERSATION',
-  maxMessagesPerThread: 'VITE_MAX_MESSAGES_PER_THREAD',
-  maxTotalMessages: 'VITE_MAX_TOTAL_MESSAGES',
-  maxMessageLength: 'VITE_MAX_MESSAGE_LENGTH',
-  settingsAboutMsg: 'VITE_SETTINGS_ABOUT_MSG',
+  enableUploadButton: false,
+  enableAudioOutput: false,
+  enableAudioInput: false,
+  enableFeedbackButtons: false,
+  enableConversationThreads: true,
+  enableAutocomplete: false,
+  voiceSilenceTimeoutMs: 4000,
+  voiceRecognitionLanguage: '',
+  showGitHubStats: true,
+  outOfServiceMessage: null,
+
+  githubOwner: 'schmitech',
+  githubRepo: 'orbit',
+
+  maxFilesPerConversation: 5,
+  maxFileSizeMB: 50,
+  maxTotalFiles: 100,
+  maxConversations: 10,
+  maxMessagesPerConversation: 1000,
+  maxMessagesPerThread: 1000,
+  maxTotalMessages: 10000,
+  maxMessageLength: 1000,
+
+  guestMaxConversations: 1,
+  guestMaxMessagesPerConversation: 10,
+  guestMaxTotalMessages: 10,
+  guestMaxMessagesPerThread: 10,
+  guestMaxFilesPerConversation: 1,
+  guestMaxTotalFiles: 2,
+  guestMaxMessageLength: 500,
+  guestMaxFileSizeMB: 10,
+
+  settingsAboutMsg: 'ORBIT Chat',
+
+  enableAuth: false,
+  authDomain: '',
+  authClientId: '',
+  authAudience: '',
+
+  enableHeader: false,
+  headerLogoUrl: '',
+  headerBrandName: '',
+  headerBgColor: '',
+  headerTextColor: '',
+  headerShowBorder: true,
+  headerNavLinks: [],
+
+  enableFooter: false,
+  footerText: '',
+  footerBgColor: '',
+  footerTextColor: '',
+  footerShowBorder: false,
+  footerLayout: 'stacked',
+  footerAlign: 'center',
+  footerTopPadding: 'large',
+  footerNavLinks: [],
 };
 
-function getFirstConfiguredAdapterName(): string | null {
-  const normalizeAdapterName = (candidate: unknown): string | null => {
-    if (!candidate || typeof candidate !== 'object') {
-      return null;
-    }
-    const adapter = candidate as { name?: unknown };
-    if (typeof adapter.name !== 'string') {
-      return null;
-    }
-    const trimmed = adapter.name.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  };
-
-  if (typeof window !== 'undefined') {
-    const runtimeAdapters = window.ORBIT_CHAT_CONFIG?.adapters;
-    if (Array.isArray(runtimeAdapters)) {
-      for (const adapter of runtimeAdapters) {
-        const normalized = normalizeAdapterName(adapter);
-        if (normalized) {
-          return normalized;
-        }
-      }
-    }
-  }
-
-  const envAdapters = import.meta.env.VITE_ADAPTERS;
-  if (envAdapters) {
-    try {
-      const parsed = JSON.parse(envAdapters);
-      if (Array.isArray(parsed)) {
-        for (const adapter of parsed) {
-          const normalized = normalizeAdapterName(adapter);
-          if (normalized) {
-            return normalized;
-          }
-        }
-      }
-    } catch {
-      // Ignore parse errors - fallback remains null
-    }
-  }
-
-  return null;
-}
-
-/**
- * Check if window.ORBIT_CHAT_CONFIG has been injected by CLI
- * This is set by the orbitchat CLI when serving the app
- */
-function hasCliConfig(): boolean {
-  return typeof window !== 'undefined' && isRuntimeConfig(window.ORBIT_CHAT_CONFIG);
-}
-
-/**
- * Get a configuration value from multiple sources
- *
- * Priority order:
- * 1. window.ORBIT_CHAT_CONFIG (injected by CLI at runtime - HIGHEST priority)
- * 2. window.CHATBOT_* (legacy window variables)
- * 3. import.meta.env.VITE_* (build-time env vars - ONLY used if no CLI config exists)
- * 4. Default values
- *
- * Note: GitHub-related config (showGitHubStats, githubOwner, githubRepo) is only
- * configurable via build-time env vars for developers who fork the repo.
- *
- * IMPORTANT: When CLI config is present, we ONLY use CLI values and defaults.
- * Build-time env vars are ignored to ensure CLI arguments always take precedence.
- */
-function getConfigValue<T>(
-  key: keyof RuntimeConfig,
-  defaultValue: T,
-  type: 'string' | 'boolean' | 'number' | 'numberOrNull' = 'string'
-): T {
-  // GitHub config is only configurable via build-time env vars (for forkers)
-  const isGitHubConfig = key === 'showGitHubStats' || key === 'githubOwner' || key === 'githubRepo';
-
-  // Check if CLI config exists - if so, we prioritize it completely over env vars
-  const cliConfigExists = hasCliConfig();
-
-  if (!isGitHubConfig) {
-    // Check window.ORBIT_CHAT_CONFIG first (injected by CLI)
-    if (cliConfigExists) {
-      const value = window.ORBIT_CHAT_CONFIG?.[key];
-      if (value !== undefined && value !== null) {
-        return value as T;
-      }
-      // If CLI config exists but this key is not set, fall through to defaults
-      // Do NOT check env vars - CLI config takes complete precedence
-      return defaultValue;
-    }
-
-    // Check legacy window.CHATBOT_* variables
-    if (typeof window !== 'undefined') {
-      switch (key) {
-        case 'apiUrl':
-          if (window.CHATBOT_API_URL) {
-            return window.CHATBOT_API_URL as T;
-          }
-          break;
-        case 'defaultKey':
-          if (window.CHATBOT_API_KEY) {
-            return window.CHATBOT_API_KEY as T;
-          }
-          break;
-      }
-    }
-  }
-
-  // Check import.meta.env.VITE_* (build-time, for development and forkers)
-  // ONLY used when no CLI config is present
-  const envKey = envKeyMap[key];
-  const envRecord = import.meta.env as Record<string, string | undefined>;
-  const envValue = envKey ? envRecord[envKey] : undefined;
-
-  if (envValue !== undefined && envValue !== null && envValue !== '') {
-    if (type === 'boolean') {
-      return (envValue === 'true') as T;
-    } else if (type === 'number' || type === 'numberOrNull') {
-      const parsed = parseInt(envValue, 10);
-      if (!isNaN(parsed)) {
-        if (type === 'numberOrNull' && parsed === 0) {
-          return null as T;
-        }
-        return parsed as T;
-      }
-    } else {
-      return envValue as T;
-    }
-  }
-
-  // Return default value
-  return defaultValue;
-}
-
-/**
- * Parse a number or null (0 = unlimited)
- */
-function parseLimit(envValue: string | undefined, defaultValue: number): number | null {
-  if (envValue === undefined || envValue === '') {
-    return defaultValue === 0 ? null : defaultValue;
-  }
-  
-  const parsed = parseInt(envValue, 10);
-  if (isNaN(parsed) || parsed < 0) {
-    return defaultValue === 0 ? null : defaultValue;
-  }
-  
-  if (parsed === 0) {
-    return null; // 0 means unlimited
-  }
-  
-  return parsed;
-}
-
-/**
- * Parse a required number (cannot be unlimited)
- */
-function parseRequiredLimit(envValue: string | undefined, defaultValue: number): number {
-  if (envValue === undefined || envValue === '') {
-    return defaultValue;
-  }
-  
-  const parsed = parseInt(envValue, 10);
-  if (isNaN(parsed) || parsed < 0) {
-    return defaultValue;
-  }
-  
-  return parsed;
-}
-
 function normalizeOutOfServiceMessage(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
+  if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
+  if (!trimmed) return null;
   const lowered = trimmed.toLowerCase();
-  if (lowered === 'false' || lowered === '0' || lowered === 'off' || lowered === 'disabled') {
-    return null;
-  }
-
+  if (lowered === 'false' || lowered === '0' || lowered === 'off' || lowered === 'disabled') return null;
   return trimmed;
 }
 
 /**
- * Runtime configuration object
- * All values are resolved at runtime from the sources above
+ * Build the runtime config by merging sources.
+ *
+ * Priority (highest wins):
+ *  1. window.ORBIT_CHAT_CONFIG  (injected by orbitchat CLI at runtime)
+ *  2. import.meta.env.__ORBITCHAT_CONFIG  (injected by Vite plugin at build/dev time)
+ *  3. DEFAULTS
+ *
+ * Auth secrets always overlay from VITE_AUTH_* env vars.
  */
-export const runtimeConfig: RuntimeConfig = {
-  // API Configuration
-  apiUrl: getConfigValue('apiUrl', DEFAULT_API_URL, 'string'),
-  defaultKey: getConfigValue('defaultKey', 'default-key', 'string'),
-  applicationName: getConfigValue('applicationName', 'ORBIT Chat', 'string'),
-  applicationDescription: getConfigValue(
-    'applicationDescription',
-    "Explore ideas with ORBIT's AI copilots, share context, and build together.",
-    'string'
-  ),
-  defaultInputPlaceholder: getConfigValue('defaultInputPlaceholder', 'Message ORBIT...', 'string'),
-  useLocalApi: getConfigValue('useLocalApi', false, 'boolean'),
-  localApiPath: getConfigValue('localApiPath', undefined, 'string'),
-  consoleDebug: getConfigValue('consoleDebug', false, 'boolean'),
-  
-  // Feature Flags
-  enableUploadButton: getConfigValue('enableUploadButton', false, 'boolean'),
-  enableAudioOutput: getConfigValue('enableAudioOutput', false, 'boolean'),
-  enableAudioInput: getConfigValue('enableAudioInput', false, 'boolean'),
-  enableFeedbackButtons: getConfigValue('enableFeedbackButtons', false, 'boolean'),
-  enableConversationThreads: getConfigValue('enableConversationThreads', true, 'boolean'),
-  enableAutocomplete: getConfigValue('enableAutocomplete', false, 'boolean'),
-  voiceSilenceTimeoutMs: getConfigValue('voiceSilenceTimeoutMs', 4000, 'number'),
-  voiceRecognitionLanguage: getConfigValue('voiceRecognitionLanguage', '', 'string'),
-  showGitHubStats: getConfigValue('showGitHubStats', true, 'boolean'),
-  outOfServiceMessage: (() => {
-    const val = getConfigValue('outOfServiceMessage', '', 'string') as string;
-    return normalizeOutOfServiceMessage(val);
-  })(),
-  
-  // GitHub Configuration
-  githubOwner: getConfigValue('githubOwner', 'schmitech', 'string'),
-  githubRepo: getConfigValue('githubRepo', 'orbit', 'string'),
-  
-  // File Upload Limits
-  maxFilesPerConversation: (() => {
-    const val = getConfigValue('maxFilesPerConversation', '5', 'string') as string;
-    return parseRequiredLimit(val, 5);
-  })(),
-  maxFileSizeMB: (() => {
-    const val = getConfigValue('maxFileSizeMB', '50', 'string') as string;
-    return parseRequiredLimit(val, 50);
-  })(),
-  maxTotalFiles: (() => {
-    const val = getConfigValue('maxTotalFiles', '100', 'string') as string;
-    return parseLimit(val, 100);
-  })(),
-  
-  // Conversation Limits
-  maxConversations: (() => {
-    const val = getConfigValue('maxConversations', '10', 'string') as string;
-    return parseLimit(val, 10);
-  })(),
-  maxMessagesPerConversation: (() => {
-    const val = getConfigValue('maxMessagesPerConversation', '1000', 'string') as string;
-    return parseLimit(val, 1000);
-  })(),
-  maxMessagesPerThread: (() => {
-    const val = getConfigValue('maxMessagesPerThread', '1000', 'string') as string;
-    return parseLimit(val, 1000);
-  })(),
-  maxTotalMessages: (() => {
-    const val = getConfigValue('maxTotalMessages', '10000', 'string') as string;
-    return parseLimit(val, 10000);
-  })(),
-  
-  // Message Limits
-  maxMessageLength: (() => {
-    const val = getConfigValue('maxMessageLength', '1000', 'string') as string;
-    return parseRequiredLimit(val, 1000);
-  })(),
-  settingsAboutMsg: getConfigValue('settingsAboutMsg', 'ORBIT Chat', 'string'),
-};
+function buildRuntimeConfig(): RuntimeConfig {
+  // Config injected by the Vite plugin (dev + build)
+  const viteConfig: Partial<RuntimeConfig> =
+    (import.meta.env as Record<string, unknown>).__ORBITCHAT_CONFIG as Partial<RuntimeConfig> ?? {};
 
-/**
- * Helper functions to get specific config values
- * These read dynamically to ensure they always get the latest runtime config
- */
+  // Config injected by the CLI server at runtime
+  const injected: Partial<RuntimeConfig> =
+    (typeof window !== 'undefined' && window.ORBIT_CHAT_CONFIG) || {};
+
+  // Auth secrets from VITE_AUTH_* env vars (always available from .env)
+  const secrets: Partial<RuntimeConfig> = {};
+  const authDomain = import.meta.env.VITE_AUTH_DOMAIN;
+  const authClientId = import.meta.env.VITE_AUTH_CLIENT_ID;
+  const authAudience = import.meta.env.VITE_AUTH_AUDIENCE;
+  if (authDomain) secrets.authDomain = authDomain;
+  if (authClientId) secrets.authClientId = authClientId;
+  if (authAudience) secrets.authAudience = authAudience;
+
+  const merged = { ...DEFAULTS, ...viteConfig, ...injected, ...secrets };
+
+  // Normalize outOfServiceMessage
+  merged.outOfServiceMessage = normalizeOutOfServiceMessage(merged.outOfServiceMessage);
+
+  return merged;
+}
+
+export const runtimeConfig: RuntimeConfig = buildRuntimeConfig();
+
+// --- Getter functions (thin pass-throughs) ---
+
 export function getApiUrl(): string {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  const value = getConfigValue('apiUrl', DEFAULT_API_URL, 'string');  
-  return value;
+  return runtimeConfig.apiUrl;
 }
 
 export function resolveApiUrl(url?: string | null): string {
@@ -392,95 +235,78 @@ export function resolveApiUrl(url?: string | null): string {
 }
 
 export function getDefaultKey(): string {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('defaultKey', 'default-key', 'string');
+  return runtimeConfig.defaultKey;
 }
 
 export function getApplicationName(): string {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('applicationName', 'ORBIT Chat', 'string');
+  return runtimeConfig.applicationName;
 }
 
 export function getApplicationDescription(): string {
-  return getConfigValue(
-    'applicationDescription',
-    "Explore ideas with ORBIT's AI copilots, share context, and build together.",
-    'string'
-  );
+  return runtimeConfig.applicationDescription;
 }
 
 export function getDefaultInputPlaceholder(): string {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('defaultInputPlaceholder', 'Message ORBIT...', 'string');
-}
-
-export function getUseLocalApi(): boolean {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('useLocalApi', false, 'boolean');
-}
-
-export function getLocalApiPath(): string | undefined {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('localApiPath', undefined, 'string');
+  return runtimeConfig.defaultInputPlaceholder;
 }
 
 export function getConsoleDebug(): boolean {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('consoleDebug', false, 'boolean');
+  return runtimeConfig.consoleDebug;
+}
+
+export function getLocale(): string {
+  return runtimeConfig.locale;
 }
 
 export function getEnableUploadButton(): boolean {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('enableUploadButton', false, 'boolean');
+  return runtimeConfig.enableUploadButton;
 }
 
 export function getEnableAudioOutput(): boolean {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('enableAudioOutput', false, 'boolean');
+  return runtimeConfig.enableAudioOutput;
 }
 
 export function getEnableAudioInput(): boolean {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('enableAudioInput', false, 'boolean');
+  return runtimeConfig.enableAudioInput;
 }
 
 export function getEnableFeedbackButtons(): boolean {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('enableFeedbackButtons', false, 'boolean');
+  return runtimeConfig.enableFeedbackButtons;
 }
 
 export function getEnableConversationThreads(): boolean {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('enableConversationThreads', true, 'boolean');
+  return runtimeConfig.enableConversationThreads;
 }
 
 export function getEnableAutocomplete(): boolean {
-  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  return getConfigValue('enableAutocomplete', false, 'boolean');
+  return runtimeConfig.enableAutocomplete;
 }
 
 export function getVoiceSilenceTimeoutMs(): number {
-  const value = getConfigValue('voiceSilenceTimeoutMs', 4000, 'number');
-  return Math.max(1000, value);
+  return Math.max(1000, runtimeConfig.voiceSilenceTimeoutMs);
 }
 
 export function getVoiceRecognitionLanguage(): string {
-  return getConfigValue('voiceRecognitionLanguage', '', 'string');
+  return runtimeConfig.voiceRecognitionLanguage;
 }
 
 /**
- * Helper to resolve the default adapter name.
- * Falls back to null when no default adapter is configured.
+ * Resolve the default adapter name.
+ * Falls back to the first adapter in the adapters list when the key is the placeholder.
  */
 export function getDefaultAdapterName(): string | null {
-  const adapterName = getDefaultKey()?.trim();
+  const adapterName = runtimeConfig.defaultKey?.trim();
   if (adapterName && adapterName !== 'default-key') {
     return adapterName;
   }
 
-  const fallbackAdapter = getFirstConfiguredAdapterName();
-  if (fallbackAdapter) {
-    return fallbackAdapter;
+  // Try first configured adapter
+  const adapters = runtimeConfig.adapters;
+  if (Array.isArray(adapters)) {
+    for (const adapter of adapters) {
+      const name = typeof adapter?.name === 'string' ? adapter.name.trim() : '';
+      if (name) return name;
+    }
   }
 
   return adapterName && adapterName.length > 0 ? adapterName : null;
@@ -499,10 +325,114 @@ export function getGitHubRepo(): string {
 }
 
 export function getOutOfServiceMessage(): string | null {
-  const value = getConfigValue('outOfServiceMessage', '', 'string') as string;
-  return normalizeOutOfServiceMessage(value);
+  return runtimeConfig.outOfServiceMessage;
 }
 
 export function getSettingsAboutMsg(): string {
-  return getConfigValue('settingsAboutMsg', 'ORBIT Chat', 'string');
+  return runtimeConfig.settingsAboutMsg;
+}
+
+export function getEnableAuth(): boolean {
+  return runtimeConfig.enableAuth;
+}
+
+export function getIsAuthConfigured(): boolean {
+  return Boolean(runtimeConfig.enableAuth && runtimeConfig.authDomain && runtimeConfig.authClientId);
+}
+
+export function getAuthDomain(): string {
+  return runtimeConfig.authDomain;
+}
+
+export function getAuthClientId(): string {
+  return runtimeConfig.authClientId;
+}
+
+export function getAuthAudience(): string {
+  return runtimeConfig.authAudience;
+}
+
+export function getEnableHeader(): boolean {
+  return runtimeConfig.enableHeader;
+}
+
+export function getHeaderLogoUrl(): string {
+  return runtimeConfig.headerLogoUrl;
+}
+
+export function getHeaderBrandName(): string {
+  return runtimeConfig.headerBrandName;
+}
+
+export function getHeaderBgColor(): string {
+  return runtimeConfig.headerBgColor;
+}
+
+export function getHeaderTextColor(): string {
+  return runtimeConfig.headerTextColor;
+}
+
+export function getHeaderShowBorder(): boolean {
+  return runtimeConfig.headerShowBorder;
+}
+
+export function getHeaderNavLinks(): NavLink[] {
+  const raw = runtimeConfig.headerNavLinks;
+  if (Array.isArray(raw)) return raw;
+  // Fallback: parse if a JSON string was injected (legacy compat)
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+export function getEnableFooter(): boolean {
+  return runtimeConfig.enableFooter;
+}
+
+export function getFooterText(): string {
+  return runtimeConfig.footerText;
+}
+
+export function getFooterBgColor(): string {
+  return runtimeConfig.footerBgColor;
+}
+
+export function getFooterTextColor(): string {
+  return runtimeConfig.footerTextColor;
+}
+
+export function getFooterShowBorder(): boolean {
+  return runtimeConfig.footerShowBorder;
+}
+
+export function getFooterLayout(): 'stacked' | 'inline' {
+  return runtimeConfig.footerLayout === 'inline' ? 'inline' : 'stacked';
+}
+
+export function getFooterAlign(): 'left' | 'center' {
+  return runtimeConfig.footerAlign === 'left' ? 'left' : 'center';
+}
+
+export function getFooterTopPadding(): 'normal' | 'large' {
+  return runtimeConfig.footerTopPadding === 'normal' ? 'normal' : 'large';
+}
+
+export function getFooterNavLinks(): NavLink[] {
+  const raw = runtimeConfig.footerNavLinks;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }

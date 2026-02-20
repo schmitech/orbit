@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp,
   Check,
-  CircleUserRound,
+  Bot,
+  User,
   ChevronDown,
   ChevronUp,
   Copy,
@@ -11,18 +12,19 @@ import {
   Loader2,
   MessageSquare,
   RotateCcw,
-  Sparkles,
   ThumbsDown,
   ThumbsUp
 } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 import { debugError } from '../utils/debug';
-import { getEnableFeedbackButtons, getEnableConversationThreads } from '../utils/runtimeConfig';
+import { getEnableFeedbackButtons, getEnableConversationThreads, getIsAuthConfigured, getLocale } from '../utils/runtimeConfig';
 import { AudioPlayer } from './AudioPlayer';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { AppConfig } from '../utils/config';
 import { useTheme } from '../contexts/ThemeContext';
+import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
+import { useLoginPromptStore } from '../stores/loginPromptStore';
 
 interface MessageProps {
   message: MessageType;
@@ -62,14 +64,18 @@ export function Message({
   const threadReplyCount = threadReplies.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length;
   const threadMessageCount = threadReplies.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length;
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
-  const locale = import.meta.env.VITE_LOCALE || 'en-US';
+  const isAuthenticated = useIsAuthenticated();
+  const isGuest = getIsAuthConfigured() && !isAuthenticated;
+  const locale = getLocale();
   const threadsEnabled = getEnableConversationThreads();
   const threadCharLimit = AppConfig.maxMessageLength;
   const threadLimit = AppConfig.maxMessagesPerThread;
   const threadLimitReached = threadLimit !== null && threadMessageCount >= threadLimit;
   const threadLimitMessage =
     threadLimitReached && threadLimit !== null
-      ? `This thread reached the ${threadLimit} message limit. Start a new conversation for more follow-ups.`
+      ? (isGuest
+          ? `You've reached the guest limit of ${threadLimit} messages per thread. Sign in to continue this thread.`
+          : `This thread reached the ${threadLimit} message limit. Start a new conversation for more follow-ups.`)
       : null;
   const { theme, isDark } = useTheme();
   const threadPlaceholder = 'Reply in thread...';
@@ -364,7 +370,7 @@ export function Message({
                 : 'text-emerald-700 dark:text-[#9ef0d5]'
             }`}
           >
-            {replyIsAssistant ? <Sparkles className="h-3.5 w-3.5" /> : <CircleUserRound className="h-3.5 w-3.5" />}
+            {replyIsAssistant ? <Bot className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
           </div>
           <div className="flex-1 min-w-0 rounded-2xl border border-white/70 bg-white/90 px-4 py-3 text-sm shadow-sm dark:border-white/5 dark:bg-white/5 backdrop-blur overflow-hidden">
             <div className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-blue-900/70 dark:text-[#c5d7ff]">
@@ -385,7 +391,7 @@ export function Message({
       <div
         className={`flex h-10 w-10 flex-shrink-0 items-center justify-center self-start ml-1 sm:ml-2 ${avatarClasses}`}
       >
-        {isAssistant ? <Sparkles className="h-5 w-5" /> : <CircleUserRound className="h-5 w-5" />}
+        {isAssistant ? <Bot className="h-5 w-5" /> : <User className="h-5 w-5" />}
       </div>
 
       <div className="flex-1 min-w-0 space-y-2">
@@ -536,6 +542,17 @@ export function Message({
                 {threadLimitMessage && (
                   <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-[#2f2410] dark:text-amber-100">
                     {threadLimitMessage}
+                    {isGuest && (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => useLoginPromptStore.getState().openLoginPrompt('Sign in to unlock higher message limits and continue this thread.')}
+                          className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                        >
+                          Sign in for higher limits
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 

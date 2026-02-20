@@ -35,10 +35,12 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@auth0/auth0-react": "^2.15.0",
     "abcjs": "^6.5.2",
     "ajv": "^8.17.1",
     "dompurify": "^3.0.8",
     "express": "^5.0.1",
+    "express-rate-limit": "^8.2.1",
     "http-proxy-middleware": "^3.0.5",
     "js-yaml": "^4.1.1",
     "katex": "^0.16.27",

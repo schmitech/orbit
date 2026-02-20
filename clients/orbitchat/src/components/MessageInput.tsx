@@ -3,14 +3,17 @@ import { ArrowUp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, Vol
 import { useVoice } from '../hooks/useVoice';
 import { useAutocomplete } from '../hooks/useAutocomplete';
 import { FileUpload } from './FileUpload';
+import { ConfirmationModal } from './ConfirmationModal';
 import { FileAttachment } from '../types';
 import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
-import { getDefaultInputPlaceholder, getEnableAudioInput, getEnableAudioOutput, getEnableAutocomplete, getEnableUploadButton, getVoiceRecognitionLanguage, getVoiceSilenceTimeoutMs, resolveApiUrl } from '../utils/runtimeConfig';
+import { getDefaultInputPlaceholder, getEnableAudioInput, getEnableAudioOutput, getEnableAutocomplete, getEnableUploadButton, getIsAuthConfigured, getVoiceRecognitionLanguage, getVoiceSilenceTimeoutMs, resolveApiUrl } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
+import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
+import { useLoginPromptStore } from '../stores/loginPromptStore';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[], threadId?: string) => void;
@@ -109,7 +112,19 @@ export function MessageInput({
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [fileDeleteConfirmation, setFileDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    fileId: string;
+    filename: string;
+    isDeleting: boolean;
+  }>({
+    isOpen: false,
+    fileId: '',
+    filename: '',
+    isDeleting: false
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const uploadPanelRef = useRef<HTMLDivElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
   const voiceMessageRef = useRef('');
   const pendingVoiceAutoSendRef = useRef(false);
@@ -140,7 +155,9 @@ export function MessageInput({
   }));
   const [textareaLineHeight, setTextareaLineHeight] = useState<number | null>(null);
 
-  const { createConversation, currentConversationId, conversations, isLoading, syncConversationFiles, stopStreaming } = useChatStore();
+  const isAuthenticated = useIsAuthenticated();
+  const isGuest = getIsAuthConfigured() && !isAuthenticated;
+  const { createConversation, currentConversationId, conversations, isLoading, syncConversationFiles, stopStreaming, removeFileFromConversation } = useChatStore();
   const currentConversation = conversations.find(c => c.id === currentConversationId);
   const conversationMessagesCount = currentConversation
     ? currentConversation.messages.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length
@@ -708,6 +725,58 @@ export function MessageInput({
     showUploadSuccessToast(newFiles);
   }, [currentConversationId, showUploadSuccessToast]);
 
+  const openFileDeleteConfirmation = useCallback((file: FileAttachment) => {
+    setFileDeleteConfirmation({
+      isOpen: true,
+      fileId: file.file_id,
+      filename: file.filename,
+      isDeleting: false
+    });
+  }, []);
+
+  const closeFileDeleteConfirmation = useCallback(() => {
+    setFileDeleteConfirmation(prev => {
+      if (prev.isDeleting) {
+        return prev;
+      }
+      return {
+        isOpen: false,
+        fileId: '',
+        filename: '',
+        isDeleting: false
+      };
+    });
+  }, []);
+
+  const confirmFileDelete = useCallback(async () => {
+    if (!currentConversationId || !fileDeleteConfirmation.fileId) {
+      return;
+    }
+
+    setFileDeleteConfirmation(prev => ({ ...prev, isDeleting: true }));
+
+    try {
+      await removeFileFromConversation(currentConversationId, fileDeleteConfirmation.fileId);
+      setAttachedFiles(prev => prev.filter(file => file.file_id !== fileDeleteConfirmation.fileId));
+      setFileDeleteConfirmation({
+        isOpen: false,
+        fileId: '',
+        filename: '',
+        isDeleting: false
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to remove file';
+      debugError('[MessageInput] Failed to remove file:', error);
+      setUploadError(errorMessage);
+      setFileDeleteConfirmation({
+        isOpen: false,
+        fileId: '',
+        filename: '',
+        isDeleting: false
+      });
+    }
+  }, [currentConversationId, fileDeleteConfirmation.fileId, removeFileFromConversation]);
+
   const normalizeSuggestionText = useCallback((text: string) => {
     return text.replace(/\s+/g, ' ').trim();
   }, []);
@@ -835,6 +904,11 @@ export function MessageInput({
       const projectedConversationFileCount = currentFiles.length + filesFromClipboard.length;
 
       if (projectedConversationFileCount > AppConfig.maxFilesPerConversation) {
+        if (isGuest) {
+          useLoginPromptStore.getState().openLoginPrompt(
+            `You've reached the guest limit of ${AppConfig.maxFilesPerConversation} files per conversation. Sign in to upload more files.`
+          );
+        }
         throw new Error(`Maximum ${AppConfig.maxFilesPerConversation} files allowed per conversation. Please remove some files first.`);
       }
 
@@ -844,6 +918,11 @@ export function MessageInput({
           0
         );
         if (totalFilesAcrossConversations + filesFromClipboard.length > AppConfig.maxTotalFiles) {
+          if (isGuest) {
+            useLoginPromptStore.getState().openLoginPrompt(
+              `You've reached the guest limit of ${AppConfig.maxTotalFiles} total files. Sign in to upload more files.`
+            );
+          }
           throw new Error(`Maximum ${AppConfig.maxTotalFiles} total files allowed across all conversations. Please remove some files from other conversations first.`);
         }
       }
@@ -972,7 +1051,7 @@ export function MessageInput({
     } finally {
       setConversationUploading(pasteConversationId, false);
     }
-  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled]);
+  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isGuest, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled]);
 
   const basePlaceholder = (hasProcessingFiles || isUploading)
     ? 'Files are uploading/processing, please wait...'
@@ -980,20 +1059,28 @@ export function MessageInput({
     ? 'Message ORBIT or drop files here'
     : placeholder;
   const effectivePlaceholder = workspaceMessageLimitReached
-    ? `Workspace limit of ${AppConfig.maxTotalMessages} messages reached. Delete or archive old conversations to continue.`
+    ? (isGuest
+      ? `Guest limit of ${AppConfig.maxTotalMessages} messages reached. Sign in for higher limits.`
+      : `Workspace limit of ${AppConfig.maxTotalMessages} messages reached. Delete or archive old conversations to continue.`)
     : conversationMessageLimitReached
-    ? `This chat hit the ${AppConfig.maxMessagesPerConversation} message limit. Start a new conversation to continue.`
+    ? (isGuest
+      ? `Guest limit of ${AppConfig.maxMessagesPerConversation} messages reached. Sign in for higher limits.`
+      : `This chat hit the ${AppConfig.maxMessagesPerConversation} message limit. Start a new conversation to continue.`)
     : basePlaceholder;
 
   const limitWarnings: string[] = [];
   if (workspaceMessageLimitReached && AppConfig.maxTotalMessages !== null) {
     limitWarnings.push(
-      `Workspace limit of ${AppConfig.maxTotalMessages} total messages reached. Delete or export older conversations to continue.`
+      isGuest
+        ? `Guest limit of ${AppConfig.maxTotalMessages} total messages reached. Sign in for higher limits.`
+        : `Workspace limit of ${AppConfig.maxTotalMessages} total messages reached. Delete or export older conversations to continue.`
     );
   }
   if (conversationMessageLimitReached && AppConfig.maxMessagesPerConversation !== null) {
     limitWarnings.push(
-      `This conversation reached the ${AppConfig.maxMessagesPerConversation} message limit. Start a new conversation to keep chatting.`
+      isGuest
+        ? `Guest limit of ${AppConfig.maxMessagesPerConversation} messages per conversation reached. Sign in for higher limits.`
+        : `This conversation reached the ${AppConfig.maxMessagesPerConversation} message limit. Start a new conversation to keep chatting.`
     );
   }
   if (uploadError) {
@@ -1016,11 +1103,21 @@ export function MessageInput({
     return () => clearTimeout(timeout);
   }, [uploadError]);
 
+  useEffect(() => {
+    if (!(showFileUpload || isUploading || pasteUploadingFiles.size > 0 || hasAnyUploadingConversations)) {
+      return;
+    }
+    uploadPanelRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest'
+    });
+  }, [showFileUpload, isUploading, pasteUploadingFiles.size, hasAnyUploadingConversations]);
+
   const contentMaxWidth = isCentered ? 'max-w-3xl' : maxWidthClass;
   const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
 
   return (
-    <div className={`bg-white px-3 py-3 md:px-0 md:py-4 dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
+    <div className={`bg-white px-3 py-3 md:px-0 md:pt-4 md:pb-2 dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
       <div className={`mx-auto w-full ${contentMaxWidth}`}>
         {voiceError && audioInputEnabled && (
           <div role="alert" aria-live="assertive" className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
@@ -1040,11 +1137,20 @@ export function MessageInput({
         )}
         {limitWarnings.length > 0 && (
           <div role="status" aria-live="polite" className="mb-3 w-full rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-[#2f2410] dark:text-amber-100">
-            <ul className="list-disc space-y-1 pl-4">
+            <ul className="list-none space-y-1">
               {limitWarnings.map((warning, index) => (
                 <li key={`${warning}-${index}`}>{warning}</li>
               ))}
             </ul>
+            {isGuest && (messageLimitActive || fileLimitActive) && (
+              <button
+                type="button"
+                onClick={() => useLoginPromptStore.getState().openLoginPrompt('Sign in to unlock higher message limits and more conversations.')}
+                className="mt-2 inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                Sign in for higher limits
+              </button>
+            )}
           </div>
         )}
 
@@ -1360,9 +1466,10 @@ export function MessageInput({
                     </span>
                   )}
                   <button
-                    disabled
-                    className="text-gray-300 dark:text-[#4a4b54] cursor-not-allowed"
-                    title="File removal disabled; use Clear All in sidebar"
+                    type="button"
+                    onClick={() => openFileDeleteConfirmation(file)}
+                    className="rounded p-0.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-[#bfc2cd] dark:hover:bg-red-900/30 dark:hover:text-red-300"
+                    title="Remove file"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -1374,6 +1481,7 @@ export function MessageInput({
 
         {uploadFeatureEnabled && (isFileSupported || hasAnyUploadingConversations) && (
           <div
+            ref={uploadPanelRef}
             className={`rounded-md border border-gray-200 bg-white p-3 dark:border-[#4a4b54] dark:bg-[#2d2f39] ${
               !showFileUpload && !isUploading && pasteUploadingFiles.size === 0 && !hasAnyUploadingConversations
                 ? 'hidden'
@@ -1384,6 +1492,7 @@ export function MessageInput({
               <div className="mb-2 flex items-center justify-between text-sm text-[#353740] dark:text-[#ececf1]">
                 <span>Upload files</span>
                 <button
+                  type="button"
                   onClick={() => setShowFileUpload(false)}
                   className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
                   title="Close"
@@ -1433,7 +1542,7 @@ export function MessageInput({
               Keep FileUpload mounted while uploads are in progress so progress bars stay visible
               even if the widget was auto-hidden after selecting files.
             */}
-            <div className={showFileUpload || isUploading ? 'block' : 'hidden'} aria-hidden={!(showFileUpload || isUploading)}>
+            <div className={`pr-1 ${showFileUpload || isUploading ? 'block max-h-[40vh] overflow-y-auto' : 'hidden'}`} aria-hidden={!(showFileUpload || isUploading)}>
               <FileUpload
                 conversationId={currentConversationId}
                 onFilesSelected={handleFilesSelected}
@@ -1450,7 +1559,7 @@ export function MessageInput({
           </div>
         )}
 
-        <div className="h-5 md:h-4">
+        <div className="h-5 md:h-1">
           {voiceRecordingAvailable && isListening && (
             <span className="flex items-center gap-2 text-sm md:text-xs text-gray-500 dark:text-[#bfc2cd]">
               <span className="h-2.5 w-2.5 md:h-2 md:w-2 animate-pulse rounded-full bg-red-500" />
@@ -1459,6 +1568,18 @@ export function MessageInput({
           )}
         </div>
         </form>
+
+        <ConfirmationModal
+          isOpen={fileDeleteConfirmation.isOpen}
+          onClose={closeFileDeleteConfirmation}
+          onConfirm={confirmFileDelete}
+          title="Remove File"
+          message={`Are you sure you want to remove "${fileDeleteConfirmation.filename}"? This will delete the file from both the server and this conversation. This action cannot be undone.`}
+          confirmText="Remove"
+          cancelText="Cancel"
+          type="danger"
+          isLoading={fileDeleteConfirmation.isDeleting}
+        />
         </div>
       </div>
     </div>

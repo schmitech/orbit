@@ -1,8 +1,10 @@
 /**
- * Debug utility to conditionally log based on VITE_CONSOLE_DEBUG environment variable
+ * Debug utility to conditionally log based on consoleDebug config
  */
 
-const isDebugEnabled = (): boolean => import.meta.env.VITE_CONSOLE_DEBUG === 'true';
+import { runtimeConfig } from './runtimeConfig';
+
+const isDebugEnabled = (): boolean => runtimeConfig.consoleDebug;
 
 /**
  * Conditionally log to console.log if debug is enabled

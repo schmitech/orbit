@@ -1,0 +1,121 @@
+# OrbitChat Configuration
+# All non-secret settings. Secrets (auth credentials, adapter API keys) go in .env
+
+# ---- Application ----
+application:
+  name: "ORBIT Chat"
+  description: "Explore ideas with ORBIT's AI copilots, share context, and build together."
+  inputPlaceholder: "Message ORBIT..."
+  settingsAboutMsg: "ORBIT Chat"
+  locale: "en-US"
+
+# ---- API ----
+api:
+  url: "http://localhost:3000"
+  defaultAdapter: "default-key"
+
+# ---- Debug ----
+debug:
+  consoleDebug: false
+
+# ---- Features ----
+features:
+  enableUpload: false
+  enableAudioOutput: false
+  enableAudioInput: false
+  enableFeedbackButtons: false
+  enableConversationThreads: true
+  enableAutocomplete: false
+
+# ---- Voice ----
+voice:
+  silenceTimeoutMs: 4000
+  recognitionLanguage: ""
+
+# ---- GitHub Stats ----
+github:
+  showStats: true
+  owner: "schmitech"
+  repo: "orbit"
+
+# ---- Out of Service ----
+# Set to a message string to show maintenance screen; null to disable
+outOfServiceMessage: null
+
+# ---- Usage Limits ----
+limits:
+  files:
+    perConversation: 5
+    maxSizeMB: 50
+    totalFiles: 100
+  conversations:
+    maxConversations: 10
+    messagesPerConversation: 1000
+    messagesPerThread: 1000
+    totalMessages: 10000
+  messages:
+    maxLength: 1000
+
+# ---- Guest Limits (when auth is enabled and user is not signed in) ----
+guestLimits:
+  files:
+    perConversation: 1
+    maxSizeMB: 10
+    totalFiles: 2
+  conversations:
+    maxConversations: 1
+    messagesPerConversation: 10
+    messagesPerThread: 10
+    totalMessages: 10
+  messages:
+    maxLength: 500
+  # Server-side rate limiting for unauthenticated /api/* requests (per IP).
+  # Authenticated users are NOT rate-limited here (ORBIT server handles that).
+  # When this section is absent, guest rate limiting is disabled (backward compatible).
+  # rateLimit:
+  #   enabled: true
+  #   windowMs: 60000        # 1 minute window
+  #   maxRequests: 20         # max requests per window per IP
+  #   # Stricter limit for chat/streaming endpoints (POST to /chat or /stream)
+  #   chat:
+  #     windowMs: 60000
+  #     maxRequests: 5
+
+# ---- Authentication ----
+# Credentials (domain, clientId, audience) go in .env as VITE_AUTH_* vars
+auth:
+  enabled: false
+
+# ---- Header ----
+header:
+  enabled: false
+  logoUrl: ""
+  brandName: ""
+  bgColor: ""
+  textColor: ""
+  showBorder: true
+  navLinks: []
+  # navLinks:
+  #   - label: "Home"
+  #     url: "/"
+  #   - label: "About"
+  #     url: "/about"
+
+# ---- Footer ----
+footer:
+  enabled: false
+  text: ""
+  bgColor: ""
+  textColor: ""
+  showBorder: false
+  layout: "stacked" # "stacked" | "inline"
+  align: "center" # "center" | "left"
+  topPadding: "large" # "large" | "normal"
+  navLinks: []
+
+# ---- Adapters (metadata only — API keys go in VITE_ADAPTERS env var) ----
+# adapters:
+#   - name: "Simple Chat"
+#     description: "Basic chat interface using the default conversational agent."
+#   - name: "Chat With Files"
+#     description: "Supports chatting with document uploads and multimodal queries."

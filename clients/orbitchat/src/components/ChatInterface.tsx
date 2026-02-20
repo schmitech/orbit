@@ -10,13 +10,16 @@ import {
   getApplicationName,
   getApplicationDescription,
   getDefaultInputPlaceholder,
+  getIsAuthConfigured,
+  getEnableHeader,
 } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 import { useTheme } from '../contexts/ThemeContext';
 import { AgentSelectionList } from './AgentSelectionList';
-import { GitHubStatsBanner } from './GitHubStatsBanner';
+import { AuthStatus } from './AuthStatus';
+import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import type { Conversation } from '../types';
 import {
   getAgentSlugFromPath,
@@ -29,7 +32,7 @@ const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-white/95 px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-[0_25px_60px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-[#2f303d] dark:bg-[#1c1d23]/95 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
 
 const MOBILE_INPUT_WRAPPER_CLASSES =
-  '-mx-4 mt-auto overflow-hidden rounded-t-[28px] border-t border-x border-white/40 bg-white/98 pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-[0_-12px_45px_rgba(15,23,42,0.2)] backdrop-blur-xl transition-all duration-200 dark:border-[#2f303d] dark:bg-[#1c1d23]/98 md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:rounded-t-[28px] md:[&>div]:rounded-none [&>div]:bg-transparent md:[&>div]:px-0';
+  'shrink-0 sticky bottom-[var(--app-footer-height,0px)] z-10 -mx-4 mt-auto overflow-visible rounded-t-[28px] border-t border-x border-white/40 bg-white/98 pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-[0_-12px_45px_rgba(15,23,42,0.2)] backdrop-blur-xl transition-all duration-200 dark:border-[#2f303d] dark:bg-[#1c1d23]/98 md:bottom-[var(--app-footer-height,0px)] md:z-10 md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:rounded-t-[28px] md:[&>div]:rounded-none [&>div]:bg-transparent md:[&>div]:px-0';
 
 // Mobile header classes for native-like sticky behavior
 const MOBILE_HEADER_CLASSES =
@@ -60,6 +63,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   } = useChatStore();
 
   const { settings } = useSettings();
+  const isAuthenticated = useIsAuthenticated();
+  const isGuest = getIsAuthConfigured() && !isAuthenticated;
   const { theme, isDark } = useTheme();
   const forcedThemeClass =
     theme.mode === 'dark' ? 'dark' : theme.mode === 'light' ? 'light' : '';
@@ -99,17 +104,14 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     showEmptyState && isAgentSelectionVisible;
   const shouldShowAdapterNotesPanel =
     showEmptyState && !isAgentSelectionVisible && !!currentConversation?.adapterName;
-  const chatMaxWidthClass =
-    theme.fontSize === 'small'
-      ? 'max-w-7xl'
-      : theme.fontSize === 'medium'
-        ? 'max-w-6xl'
-        : 'max-w-5xl';
+  const chatMaxWidthClass = 'max-w-7xl';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const messageInputWidthClass = shouldShowAdapterNotesPanel ? prominentWidthClass : 'w-full';
   const canStartNewConversation = canCreateNewConversation();
   const newConversationTooltip = canStartNewConversation
     ? 'Start a new conversation'
+    : isGuest
+    ? 'Guest conversation limit reached. Sign in for more conversations.'
     : 'Finish your current conversation before starting a new one.';
   const showHeaderMetadata = !!(currentConversation?.adapterInfo && !shouldShowAgentSelectionList);
   const showBodyHeading = showEmptyState && !shouldShowAgentSelectionList;
@@ -122,7 +124,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const headerBorderClass = shouldShowAgentSelectionList
     ? 'border-transparent dark:border-transparent md:border-transparent md:dark:border-transparent'
     : '';
-  const headerClasses = `${MOBILE_HEADER_CLASSES} ${headerBorderClass}`.trim();
+  const compactSelectionHeaderSpacingClass =
+    !getEnableHeader() && shouldShowAgentSelectionList
+      ? 'pt-0 pb-2 md:pt-2 md:pb-3'
+      : '';
+  const headerClasses = `${MOBILE_HEADER_CLASSES} ${headerBorderClass} ${compactSelectionHeaderSpacingClass}`.trim();
   const hasAdapterConfigurationError = !!adapterNotesError;
   const ensureConversationReadyForAgent = useCallback((): string | null => {
     const state = useChatStore.getState();
@@ -569,7 +575,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   }, [handleEmptyStateAdapterChange]);
 
   return (
-    <div className="flex-1 flex flex-col bg-gray-50 dark:bg-[#202123] overflow-hidden">
+    <main className="flex-1 flex flex-col bg-gray-50 dark:bg-[#202123] overflow-hidden" aria-label="Chat workspace">
       <div className="flex h-full w-full flex-col px-3 sm:px-6 overflow-hidden">
         <div className={`mx-auto flex h-full w-full ${chatMaxWidthClass} flex-col overflow-hidden ${MOBILE_FRAME_CLASSES}`}>
 
@@ -669,8 +675,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 )}
               </div>
               <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
-                {!shouldShowAgentSelectionList && (
-                  <GitHubStatsBanner className="order-1 sm:order-2 sm:min-w-[220px]" />
+                {!shouldShowAgentSelectionList && !getEnableHeader() && (
+                  <AuthStatus />
                 )}
                 {!shouldShowAgentSelectionList && (
                   <button
@@ -694,9 +700,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           {/* Messages and Input - Conditional Layout */}
           {showEmptyState ? (
             // Empty state: Flex layout that pushes input to bottom on mobile, left-aligned on desktop
-            <div className={`flex flex-1 flex-col min-h-0 pt-4 md:pt-6 ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
-              <div className={`flex-1 flex flex-col justify-between md:justify-start ${shouldShowAgentSelectionList ? 'min-h-0 overflow-hidden' : 'md:flex-none'}`}>
-                <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : 'space-y-6'}`}>
+            <div className={`flex flex-1 flex-col min-h-0 pt-4 md:pt-6 ${(shouldShowAgentSelectionList || shouldShowAdapterNotesPanel) ? 'overflow-hidden' : ''}`}>
+              <div className={`flex-1 flex flex-col justify-between md:justify-start ${(shouldShowAgentSelectionList || shouldShowAdapterNotesPanel) ? 'min-h-0 overflow-hidden' : 'md:flex-none'}`}>
+                <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex-1 min-h-0 flex flex-col' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
                     <div className={`${prominentWidthClass}`}>
                       <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
@@ -730,7 +736,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                             </div>
                           )}
                         </div>
-                        <GitHubStatsBanner className="sm:min-w-[220px]" />
+                        <div className="flex flex-col items-end gap-2">
+                          {!getEnableHeader() && <AuthStatus />}
+                        </div>
                       </div>
                       <AgentSelectionList
                         onAdapterSelect={handleAgentCardSelection}
@@ -738,8 +746,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       />
                     </div>
                   ) : shouldShowAdapterNotesPanel ? (
-                    <div className={`${prominentWidthClass} p-6`}>
-                      <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className={`${prominentWidthClass} py-6 flex-1 min-h-0 flex flex-col`}>
+                      <div className="flex items-center justify-between gap-3 mb-4 flex-shrink-0">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                           {currentConversation?.adapterName ||
                             currentConversation?.adapterInfo?.adapter_name ||
@@ -757,7 +765,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                           Change Agent
                         </button>
                       </div>
-                      <div className="rounded-2xl border border-gray-300 bg-white/70 px-4 pb-4 pt-3 dark:border-[#565869] dark:bg-[#232430]/80">
+                      <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-gray-300 bg-white/70 px-4 pb-4 pt-3 dark:border-[#565869] dark:bg-[#232430]/80">
                         {currentConversation?.adapterInfo?.notes ? (
                           <MarkdownRenderer
                             content={currentConversation.adapterInfo.notes}
@@ -820,7 +828,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
             </div>
           ) : (
             // Has messages: Normal layout with messages at top and input at bottom
-            <div className="flex flex-1 flex-col">
+            <div className="flex flex-1 flex-col min-h-0">
               <MessageList
                 messages={currentConversation.messages}
                 onRegenerate={regenerateResponse}
@@ -855,6 +863,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           )}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

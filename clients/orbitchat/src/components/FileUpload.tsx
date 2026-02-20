@@ -3,9 +3,11 @@ import { Upload, Loader2 } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { useChatStore } from '../stores/chatStore';
+import { getIsAuthenticated } from '../auth/authState';
+import { useLoginPromptStore } from '../stores/loginPromptStore';
 import { debugLog, debugWarn, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { resolveApiUrl } from '../utils/runtimeConfig';
+import { getIsAuthConfigured, resolveApiUrl } from '../utils/runtimeConfig';
 
 // Persist upload state across component re-mounts and conversation switches
 const uploadingFilesStore = new Map<string, Map<string, FileUploadProgress>>();
@@ -264,6 +266,11 @@ export function FileUpload({
     const existingUploads = uploadedFilesStoreRef.current.get(activeConversationId) || [];
     if (existingUploads.length + fileArray.length > maxFiles) {
       const error = `Maximum ${maxFiles} files allowed per conversation. Please remove some files first.`;
+      if (getIsAuthConfigured() && !getIsAuthenticated()) {
+        useLoginPromptStore.getState().openLoginPrompt(
+          `You've reached the guest limit of ${maxFiles} files per conversation. Sign in to upload more files.`
+        );
+      }
       onUploadError?.(error);
       return;
     }
@@ -276,6 +283,11 @@ export function FileUpload({
       const projectedTotal = totalFilesAcrossConversations + fileArray.length;
       if (projectedTotal > AppConfig.maxTotalFiles) {
         const error = `Maximum ${AppConfig.maxTotalFiles} total files allowed across all conversations. Please remove some files from other conversations first.`;
+        if (getIsAuthConfigured() && !getIsAuthenticated()) {
+          useLoginPromptStore.getState().openLoginPrompt(
+            `You've reached the guest limit of ${AppConfig.maxTotalFiles} total files. Sign in to upload more files.`
+          );
+        }
         onUploadError?.(error);
         return;
       }
@@ -468,7 +480,15 @@ export function FileUpload({
     }
   }, [disabled]);
 
-  // Hide upload area only while files are actively uploading; keep it visible afterwards
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  }, [disabled, handleClick]);
+
+  // While uploads are active, show only progress and hide the upload dropzone.
   const isUploading = uploadingFiles.size > 0;
   const conversationNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -493,9 +513,9 @@ export function FileUpload({
   }, [conversationId, globalUploadRevision]);
 
   const progressContent = (
-    <div className="w-full max-w-full overflow-hidden space-y-2">
+    <div className="w-full max-w-full overflow-hidden space-y-2" role="status" aria-live="polite">
       {Array.from(uploadingFiles.values()).map((progress) => (
-        <div key={progress.filename} className="w-full max-w-full flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg overflow-hidden">
+        <div key={progress.fileId || progress.filename} className="w-full max-w-full flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg overflow-hidden">
           <Loader2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin flex-shrink-0" />
           <div className="flex-1 min-w-0 overflow-hidden">
             <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
@@ -518,31 +538,29 @@ export function FileUpload({
     </div>
   );
 
-  if (isUploading) {
-    return (
-      <div className="w-full max-w-full overflow-hidden space-y-3">
-        {progressContent}
-      </div>
-    );
-  }
-
   return (
     <div className="w-full max-w-full overflow-hidden space-y-3">
-      {/* Upload area */}
-      <div
+      {isUploading && progressContent}
+
+      {!isUploading && (
+        <button
+          type="button"
           onClick={handleClick}
+          onKeyDown={handleKeyDown}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          disabled={disabled}
           className={`
-            relative w-full max-w-full border-2 border-dashed rounded-xl p-3 sm:p-4 transition-all cursor-pointer
-            ${isDragging 
-              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-400' 
+            relative w-full max-w-full border-2 border-dashed rounded-xl p-3 sm:p-4 transition-all text-left
+            ${isDragging
+              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-400'
               : disabled
               ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-not-allowed opacity-50'
-              : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 hover:border-emerald-400 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10'
+              : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 hover:border-emerald-400 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60'
             }
           `}
+          aria-label={disabled ? 'File upload disabled' : 'Upload files'}
         >
           <input
             ref={fileInputRef}
@@ -553,7 +571,7 @@ export function FileUpload({
             disabled={disabled}
             accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.html,.pptx,.xlsx,.py,.java,.sql,.js,.mjs,.ts,.tsx,.cpp,.cxx,.cc,.c,.h,.hpp,.go,.rs,.rb,.php,.sh,.bash,.zsh,.yaml,.yml,.xml,.css,.scss,.sass,.less,.png,.jpg,.jpeg,.tiff,.wav,.mp3,.mp4,.ogg,.flac,.webm,.m4a,.aac,.vtt"
           />
-          
+
           <div className="flex flex-col items-center justify-center gap-2 text-center">
             <Upload className={`w-6 h-6 ${isDragging ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`} />
             <div className="px-2">
@@ -565,7 +583,8 @@ export function FileUpload({
               </p>
             </div>
           </div>
-      </div>
+        </button>
+      )}
 
       {otherUploadingConversations.length > 0 && (
         <div className="w-full max-w-full space-y-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/40">

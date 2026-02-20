@@ -1,9 +1,7 @@
 import { useRef, useState } from 'react';
-import { X, Monitor, Sun, Moon, Palette, Type, Volume2, Package, Trash2, AlertTriangle } from 'lucide-react';
+import { X, Monitor, Sun, Moon, Palette, Volume2, Trash2, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
-import { getVersionInfo } from '../utils/version';
-import { getSettingsAboutMsg } from '../utils/runtimeConfig';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface SettingsProps {
@@ -14,9 +12,6 @@ interface SettingsProps {
 export function Settings({ isOpen, onClose }: SettingsProps) {
   const { theme, updateTheme } = useTheme();
   const { settings, updateSettings } = useSettings();
-  const [versionInfo] = useState<{
-    appVersion: string;
-  } | null>(() => getVersionInfo());
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmationText, setResetConfirmationText] = useState('');
   const [resetAcknowledged, setResetAcknowledged] = useState(false);
@@ -25,14 +20,6 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
 
   const handleThemeChange = (mode: 'light' | 'dark' | 'system') => {
     updateTheme({ mode });
-  };
-
-  const handleFontSizeChange = (fontSize: 'small' | 'medium' | 'large') => {
-    updateTheme({ fontSize });
-  };
-
-  const handleHighContrastToggle = () => {
-    updateTheme({ highContrast: !theme.highContrast });
   };
 
   const handleSoundEffectsToggle = () => {
@@ -125,64 +112,8 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
               </div>
             </div>
 
-            {/* High Contrast */}
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  High Contrast
-                </label>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Improve readability with enhanced contrast
-                </p>
-              </div>
-              <button
-                onClick={handleHighContrastToggle}
-                role="switch"
-                aria-checked={theme.highContrast}
-                aria-label="Toggle high contrast mode"
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  theme.highContrast ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    theme.highContrast ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
 
-            {/* Font Size */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                <Type className="w-4 h-4" />
-                Font Size
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { value: 'small', label: 'Small' },
-                  { value: 'medium', label: 'Medium' },
-                  { value: 'large', label: 'Large' }
-                ].map(({ value, label }) => (
-                  <button
-                    key={value}
-                    onClick={() => handleFontSizeChange(value as 'small' | 'medium' | 'large')}
-                    className={`p-2 rounded-lg border-2 transition-colors text-center ${
-                      theme.fontSize === value
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
-                    }`}
-                  >
-                    <span className={`font-medium ${
-                      value === 'small' ? 'text-sm' : 
-                      value === 'large' ? 'text-lg' : 'text-base'
-                    }`}>
-                      {label}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
+
           </div>
 
           {/* Chat Settings */}
@@ -242,18 +173,6 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
             </div>
           </div>
 
-          {/* About */}
-          <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-600">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-              <Package className="w-4 h-4" />
-              About
-            </h3>
-            <div className="space-y-1">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {getSettingsAboutMsg()} v{versionInfo?.appVersion || '1.0.0'}
-              </p>
-            </div>
-          </div>
         </div>
         {showResetConfirm && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 z-50">

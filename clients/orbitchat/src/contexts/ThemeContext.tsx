@@ -12,10 +12,16 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<ThemeConfig>(() => {
     const saved = localStorage.getItem('chat-theme');
-    return saved ? JSON.parse(saved) : {
+    if (saved) {
+      const parsed = JSON.parse(saved) as Partial<ThemeConfig>;
+      return {
+        mode: parsed.mode || 'system',
+        highContrast: !!parsed.highContrast
+      };
+    }
+    return {
       mode: 'system',
-      highContrast: false,
-      fontSize: 'medium'
+      highContrast: false
     };
   });
 
@@ -53,18 +59,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         root.classList.remove('high-contrast');
       }
       
-      // Apply font size
-      root.classList.remove('text-sm', 'text-base', 'text-lg');
-      switch (theme.fontSize) {
-        case 'small':
-          root.classList.add('text-sm');
-          break;
-        case 'large':
-          root.classList.add('text-lg');
-          break;
-        default:
-          root.classList.add('text-base');
-      }
+      // Keep a single consistent app font scale; users can use browser zoom if needed.
+      root.classList.remove('text-sm', 'text-lg');
+      root.classList.add('text-base');
     };
 
     applyTheme();

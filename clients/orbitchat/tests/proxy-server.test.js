@@ -31,7 +31,7 @@ const TEST_ADAPTERS = [
 
 process.env.ORBIT_ADAPTERS = JSON.stringify(TEST_ADAPTERS);
 
-const { createServer, parseArgs, mergeConfig } = await import('../bin/orbitchat.js');
+const { createServer } = await import('../bin/orbitchat.js');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -71,69 +71,8 @@ function jsonBody(res) {
 // Test suites
 // ---------------------------------------------------------------------------
 
-describe('parseArgs', () => {
-  it('returns default values when no args given', () => {
-    const original = process.argv;
-    process.argv = ['node', 'orbitchat.js'];
-    try {
-      const { config, serverConfig } = parseArgs();
-      assert.equal(serverConfig.port, 5173);
-      assert.equal(serverConfig.host, 'localhost');
-      assert.equal(serverConfig.apiOnly, false);
-      assert.equal(serverConfig.open, false);
-      assert.equal(config.apiUrl, 'http://localhost:3000');
-    } finally {
-      process.argv = original;
-    }
-  });
-
-  it('parses --api-only flag', () => {
-    const original = process.argv;
-    process.argv = ['node', 'orbitchat.js', '--api-only'];
-    try {
-      const { serverConfig } = parseArgs();
-      assert.equal(serverConfig.apiOnly, true);
-    } finally {
-      process.argv = original;
-    }
-  });
-
-  it('parses --cors-origin value', () => {
-    const original = process.argv;
-    process.argv = ['node', 'orbitchat.js', '--api-only', '--cors-origin', 'http://myapp.test'];
-    try {
-      const { serverConfig } = parseArgs();
-      assert.equal(serverConfig.apiOnly, true);
-      assert.equal(serverConfig.corsOrigin, 'http://myapp.test');
-    } finally {
-      process.argv = original;
-    }
-  });
-
-  it('parses --port and --host', () => {
-    const original = process.argv;
-    process.argv = ['node', 'orbitchat.js', '--port', '9999', '--host', '0.0.0.0'];
-    try {
-      const { serverConfig } = parseArgs();
-      assert.equal(serverConfig.port, 9999);
-      assert.equal(serverConfig.host, '0.0.0.0');
-    } finally {
-      process.argv = original;
-    }
-  });
-
-  it('ignores --enable-api-middleware without error', () => {
-    const original = process.argv;
-    process.argv = ['node', 'orbitchat.js', '--enable-api-middleware'];
-    try {
-      // Should not throw
-      const { config } = parseArgs();
-      assert.ok(config);
-    } finally {
-      process.argv = original;
-    }
-  });
-});
+// parseArgs is now an internal function (only server flags: --port, --host, --open, etc.)
+// CLI arg parsing tests removed — all app config comes from orbitchat.yaml
 
 // ---------------------------------------------------------------------------
 // API-only server tests

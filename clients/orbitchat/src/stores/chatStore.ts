@@ -4,12 +4,15 @@ import { Message, Conversation, ChatState, FileAttachment, AdapterInfo } from '.
 import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { getDefaultKey, getApiUrl, resolveApiUrl, DEFAULT_API_URL } from '../utils/runtimeConfig';
+import { getDefaultKey, getDefaultAdapterName, getApiUrl, resolveApiUrl, DEFAULT_API_URL, getIsAuthConfigured } from '../utils/runtimeConfig';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { audioStreamManager } from '../utils/audioStreamManager';
+import { getIsAuthenticated } from '../auth/authState';
+import { useLoginPromptStore } from './loginPromptStore';
 
 // Default adapter name from runtime configuration
-const DEFAULT_ADAPTER = getDefaultKey();
+// getDefaultAdapterName() resolves "default-key" to the first real adapter name from config
+const DEFAULT_ADAPTER = getDefaultAdapterName() || getDefaultKey();
 
 // Streaming content buffer for batching rapid updates
 // This prevents "Maximum update depth exceeded" errors when rendering complex content like mermaid
@@ -403,6 +406,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       : null;
     
     if (maxConversations !== null && conversationCount >= maxConversations) {
+      if (getIsAuthConfigured() && !getIsAuthenticated()) {
+        useLoginPromptStore.getState().openLoginPrompt(
+          `You've reached the guest limit of ${maxConversations} conversation${maxConversations === 1 ? '' : 's'}. Sign in to unlock more conversations.`
+        );
+        throw new Error('Guest conversation limit reached');
+      }
       const limitMessage = `Maximum of ${maxConversations} conversations reached. Please delete an existing conversation before starting a new one.`;
       set({ error: limitMessage });
       throw new Error(limitMessage);
@@ -768,6 +777,22 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       if (!conversation) {
         throw new Error('Conversation not found');
       }
+
+      // Enforce guest conversation-count gate even for restored/local persisted state.
+      const maxConversations = AppConfig.maxConversations;
+      if (
+        getIsAuthConfigured() &&
+        !getIsAuthenticated() &&
+        maxConversations !== null &&
+        get().conversations.length > maxConversations
+      ) {
+        useLoginPromptStore.getState().openLoginPrompt(
+          `You've reached the guest limit of ${maxConversations} conversation${maxConversations === 1 ? '' : 's'}. Sign in to continue chatting.`
+        );
+        set({ isLoading: false });
+        return;
+      }
+
       const fileAttachments: FileAttachment[] = fileIds
         ? fileIds
             .map(fileId => {
@@ -818,6 +843,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       const nonStreamingMessages = countNonStreamingMessages(conversation.messages);
       const maxMessagesPerConversation = AppConfig.maxMessagesPerConversation;
       if (maxMessagesPerConversation !== null && nonStreamingMessages >= maxMessagesPerConversation) {
+        if (getIsAuthConfigured() && !getIsAuthenticated()) {
+          useLoginPromptStore.getState().openLoginPrompt(
+            `You've reached the guest limit of ${maxMessagesPerConversation} messages per conversation. Sign in to send more messages.`
+          );
+        }
         debugWarn(`[chatStore] Conversation ${conversationId} reached the message limit (${maxMessagesPerConversation}).`);
         set({ isLoading: false });
         return;
@@ -830,6 +860,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           0
         );
         if (totalMessages >= maxTotalMessages) {
+          if (getIsAuthConfigured() && !getIsAuthenticated()) {
+            useLoginPromptStore.getState().openLoginPrompt(
+              `You've reached the guest limit of ${maxTotalMessages} total messages. Sign in to continue chatting.`
+            );
+          }
           debugWarn(`[chatStore] Workspace reached the total message limit (${maxTotalMessages}).`);
           set({ isLoading: false });
           return;
@@ -874,6 +909,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             return matchesThread && !(msg.role === 'assistant' && msg.isStreaming);
           });
           if (existingThreadMessages.length >= maxMessagesPerThread) {
+            if (getIsAuthConfigured() && !getIsAuthenticated()) {
+              useLoginPromptStore.getState().openLoginPrompt(
+                `You've reached the guest limit of ${maxMessagesPerThread} messages per thread. Sign in to continue this thread.`
+              );
+            }
             debugWarn(`[chatStore] Thread ${activeThreadId} reached the message limit (${maxMessagesPerThread}).`);
             set({ isLoading: false });
             return;

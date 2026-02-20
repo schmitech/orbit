@@ -1,32 +1,16 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_API_URL?: string
-  readonly VITE_DEFAULT_KEY?: string
-  readonly VITE_SESSION_ID?: string
-  readonly VITE_LOCAL_API_PATH?: string
-  readonly VITE_MAX_FILES_PER_CONVERSATION?: string
-  readonly VITE_MAX_FILE_SIZE_MB?: string
-  readonly VITE_ENABLE_UPLOAD?: string
-  readonly VITE_ENABLE_AUDIO_OUTPUT?: string
-  readonly VITE_ENABLE_AUDIO_INPUT?: string
-  readonly VITE_ENABLE_FEEDBACK?: string
-  readonly VITE_VOICE_SILENCE_TIMEOUT_MS?: string
-  readonly VITE_VOICE_RECOGNITION_LANG?: string
-  readonly VITE_MAX_TOTAL_FILES?: string
-  readonly VITE_MAX_CONVERSATIONS?: string
-  readonly VITE_MAX_MESSAGES_PER_CONVERSATION?: string
-  readonly VITE_MAX_MESSAGES_PER_THREAD?: string
-  readonly VITE_MAX_TOTAL_MESSAGES?: string
-  readonly VITE_MAX_MESSAGE_LENGTH?: string
-  readonly VITE_ENABLE_CONVERSATION_THREADS?: string
-  readonly VITE_SHOW_GITHUB_STATS?: string
-  readonly VITE_GITHUB_OWNER?: string
-  readonly VITE_GITHUB_REPO?: string
-  readonly VITE_USE_LOCAL_API?: string
-  readonly VITE_CONSOLE_DEBUG?: string
+  // Injected by vite-plugin-orbitchat-config from orbitchat.yaml
+  readonly __ORBITCHAT_CONFIG?: Record<string, unknown>
+
+  // Auth secrets (from .env)
+  readonly VITE_AUTH_DOMAIN?: string
+  readonly VITE_AUTH_CLIENT_ID?: string
+  readonly VITE_AUTH_AUDIENCE?: string
+
+  // Adapter secrets (from .env)
   readonly VITE_ADAPTERS?: string
-  readonly VITE_LOCALE?: string
 }
 
 interface ImportMeta {

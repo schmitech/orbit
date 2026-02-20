@@ -30,3 +30,4 @@ public/api/
 package-lock.json
 state.json
 *.tgz
+orbitchat.yaml
