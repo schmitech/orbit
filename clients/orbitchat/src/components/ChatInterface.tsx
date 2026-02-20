@@ -32,7 +32,7 @@ const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-transparent px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-none backdrop-blur-0 dark:border-[#2f303d] dark:bg-transparent md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
 
 const MOBILE_INPUT_WRAPPER_CLASSES =
-  'shrink-0 sticky bottom-[var(--app-footer-height,0px)] z-10 -mx-4 mt-auto overflow-visible rounded-t-[28px] border-t border-x border-white/40 bg-transparent pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:border-[#2f303d] dark:bg-transparent md:bottom-[var(--app-footer-height,0px)] md:z-10 md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:rounded-t-[28px] md:[&>div]:rounded-none [&>div]:bg-transparent md:[&>div]:px-0';
+  'shrink-0 sticky bottom-[calc(var(--app-footer-height,0px)+0.5rem)] z-10 -mx-4 mt-auto overflow-visible rounded-t-[28px] border-t border-x border-white/40 bg-transparent pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:border-[#2f303d] dark:bg-transparent md:bottom-[calc(var(--app-footer-height,0px)+0.5rem)] md:z-10 md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:rounded-t-[28px] md:[&>div]:rounded-none [&>div]:bg-transparent md:[&>div]:px-0';
 
 // Mobile header classes for native-like sticky behavior
 const MOBILE_HEADER_CLASSES =
@@ -108,6 +108,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const messageInputWidthClass = shouldShowAdapterNotesPanel ? prominentWidthClass : 'w-full';
   const canStartNewConversation = canCreateNewConversation();
+  const canChangeAgent = !!currentConversation?.adapterName && (currentConversation?.messages.length || 0) === 0;
   const newConversationTooltip = canStartNewConversation
     ? 'Start a new conversation'
     : isGuest
@@ -682,12 +683,20 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   <button
                     type="button"
                     onClick={() => {
+                      if (!canChangeAgent) {
+                        return;
+                      }
                       clearCurrentConversationAdapter();
                       replaceAgentSlug(null);
                       setIsAgentSelectionVisible(true);
                     }}
-                    className="order-2 sm:order-1 inline-flex items-center justify-center gap-2 rounded-full border border-blue-300 px-3.5 py-2.5 text-[13px] font-medium tracking-[0.01em] text-blue-700 transition-colors hover:bg-blue-50 hover:border-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-500/40 dark:text-blue-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-400/60 dark:focus-visible:ring-blue-400/60"
-                    title="Switch to a different agent"
+                    disabled={!canChangeAgent}
+                    className={`order-2 sm:order-1 inline-flex h-[42px] w-full sm:w-[190px] items-center justify-center gap-2 rounded-full border px-3.5 py-2.5 text-[13px] font-medium tracking-[0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 ${
+                      canChangeAgent
+                        ? 'border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400 focus-visible:ring-blue-500 dark:border-blue-500/40 dark:text-blue-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-400/60 dark:focus-visible:ring-blue-400/60'
+                        : 'cursor-not-allowed border-gray-200 text-gray-400 bg-transparent dark:border-[#3c3f4a] dark:text-[#6b6f7a]'
+                    }`}
+                    title={canChangeAgent ? 'Switch to a different agent before starting this conversation' : 'Agent cannot be changed after the conversation has started'}
                   >
                     Change Agent
                   </button>
@@ -696,7 +705,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   <button
                     onClick={handleStartNewConversation}
                     disabled={!canStartNewConversation}
-                    className={`order-3 sm:order-2 inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2.5 text-[13px] font-medium tracking-[0.01em] ${
+                    className={`order-3 sm:order-2 inline-flex h-[42px] w-full sm:w-[190px] items-center justify-center gap-2 rounded-full border px-3.5 py-2.5 text-[13px] font-medium tracking-[0.01em] ${
                       canStartNewConversation
                         ? 'border-[#1f2937] bg-[#1f2937] text-white shadow-[0_2px_8px_rgba(15,23,42,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f2937]/40 dark:border-[#4b5568] dark:bg-[#2f3747] dark:text-[#e9edf8] dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)] dark:focus-visible:ring-[#6f809f]/35'
                         : 'cursor-not-allowed border-gray-200 text-gray-400 bg-white/40 dark:border-[#3c3f4a] dark:text-[#6b6f7a] dark:bg-transparent'

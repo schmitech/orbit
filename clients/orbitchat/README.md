@@ -394,6 +394,16 @@ If the agent selector shows no adapters:
 2. Check the CLI startup logs for "Available Adapters: ..."
 3. Verify each adapter has a `name` and `apiKey` field
 
+If adapters load but descriptions/notes are missing in packaged installs (`npm pack` + install), while `npm run dev` works:
+1. Prefer `ORBIT_ADAPTERS` (it takes precedence over `VITE_ADAPTERS` when both are set)
+2. Ensure `orbitchat.yaml` contains adapter metadata and adapter `name` values exactly match `ORBIT_ADAPTERS`
+3. Rebuild and repack from the updated source: `npm run build && npm pack`
+4. Reinstall the newly generated tarball
+5. Restart with a clean process/port: `./run-chat-app.sh --force-restart`
+6. Verify runtime output:
+   - Startup log shows `Available Adapters: ...`
+   - `GET /api/adapters` returns `description`/`notes` for each adapter
+
 ### File Upload Issues
 
 - **File size exceeded** — Check file size against the configured limit

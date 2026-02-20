@@ -23,6 +23,69 @@ import rateLimit from 'express-rate-limit';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// ---- Minimal .env loader (CLI mode) ----
+
+function parseDotEnvValue(raw) {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+
+  return trimmed;
+}
+
+function loadDotEnvFromFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const content = fs.readFileSync(filePath, 'utf8');
+  const lines = content.split(/\r?\n/);
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const equalsIndex = trimmed.indexOf('=');
+    if (equalsIndex <= 0) continue;
+
+    const key = trimmed.slice(0, equalsIndex).trim();
+    if (!key) continue;
+
+    if (process.env[key] !== undefined) continue;
+
+    let valueRaw = trimmed.slice(equalsIndex + 1);
+    const startsWithDouble = valueRaw.startsWith('"');
+    const startsWithSingle = valueRaw.startsWith("'");
+
+    // Support simple multiline quoted values, useful for formatted JSON values.
+    if (
+      (startsWithDouble && !valueRaw.endsWith('"')) ||
+      (startsWithSingle && !valueRaw.endsWith("'"))
+    ) {
+      const quote = startsWithDouble ? '"' : "'";
+      while (i + 1 < lines.length) {
+        i += 1;
+        valueRaw += `\n${lines[i]}`;
+        if (lines[i].trim().endsWith(quote)) {
+          break;
+        }
+      }
+    }
+
+    const value = parseDotEnvValue(valueRaw);
+    process.env[key] = value;
+  }
+}
+
+function loadDotEnv(baseDir) {
+  // Same precedence idea as Vite: .env then .env.local; do not override exported vars.
+  loadDotEnvFromFile(path.join(baseDir, '.env'));
+  loadDotEnvFromFile(path.join(baseDir, '.env.local'));
+}
+
 // ---- Defaults (must match DEFAULTS in src/utils/runtimeConfig.ts) ----
 
 const DEFAULTS = {
@@ -388,6 +451,11 @@ function createServer(distPath, config, serverConfig = {}) {
   const app = express();
   const adapters = loadAdaptersConfig();
   const apiOnly = serverConfig.apiOnly || false;
+  const yamlAdapterMetadata = new Map(
+    Array.isArray(config.adapters)
+      ? config.adapters.filter(a => a && a.name).map(a => [a.name, a])
+      : []
+  );
 
   if (apiOnly) {
     const allowedOrigin = serverConfig.corsOrigin || '*';
@@ -421,6 +489,21 @@ function createServer(distPath, config, serverConfig = {}) {
 
   // API proxy endpoints - MUST be before body parsers
   if (adapters) {
+    // Merge adapter metadata from YAML so UI labels/notes are consistent with dev mode.
+    for (const [adapterName, adapter] of Object.entries(adapters)) {
+      const metadata = yamlAdapterMetadata.get(adapterName);
+      if (!metadata) continue;
+      if (!adapter.description && metadata.description) {
+        adapter.description = metadata.description;
+      }
+      if (!adapter.notes && metadata.notes) {
+        adapter.notes = metadata.notes;
+      }
+      if (!adapter.apiUrl && metadata.apiUrl) {
+        adapter.apiUrl = metadata.apiUrl;
+      }
+    }
+
     const proxyInstances = {};
     for (const [adapterName, adapter] of Object.entries(adapters)) {
       if (!adapter.apiKey || !adapter.apiUrl) {
@@ -620,6 +703,7 @@ function main() {
   }
 
   const serverConfig = parseArgs();
+  loadDotEnv(process.cwd());
 
   // Load YAML config
   const yamlPath = serverConfig.configFile || path.join(process.cwd(), 'orbitchat.yaml');
