@@ -88,6 +88,7 @@ return current
 
         # Registered Lua script (initialized lazily when Redis is available)
         self._incr_script = None
+        self._script_registered_client = None
 
         logger.info(
             f"Rate limiting middleware initialized: enabled={self.enabled}, "
@@ -228,13 +229,16 @@ return current
             return
 
         try:
-            self._incr_script = redis_service.client.register_script(
+            client = redis_service.client
+            self._incr_script = client.register_script(
                 self._INCR_WITH_EXPIRE_SCRIPT
             )
+            self._script_registered_client = client
             logger.debug("Registered rate limit Lua script with Redis")
         except Exception as e:
             logger.warning(f"Failed to register Lua script: {e}")
             self._incr_script = None
+            self._script_registered_client = None
     
     async def _check_rate_limit(
         self,
@@ -266,8 +270,9 @@ return current
         hour_key = f"ratelimit:{prefix}:hr:{current_hour}:{identifier}"
 
         try:
-            # Register script if not already done
-            if self._incr_script is None:
+            # Re-register script if client has changed (e.g. after reconnection)
+            current_client = redis_service.client if redis_service else None
+            if self._incr_script is None or self._script_registered_client is not current_client:
                 self._register_lua_script(redis_service)
 
             if self._incr_script is None:
@@ -297,18 +302,21 @@ return current
                 reset_time = (current_hour + 1) * 3600
                 remaining = 0
                 return False, remaining, limit_per_hour, reset_time
-            
+
             # Calculate remaining (use the more restrictive limit)
             minute_remaining = limit_per_minute - minute_count
             limit_per_hour - hour_count
-            
+
             # Use minute window for headers (more relevant for clients)
             remaining = max(0, minute_remaining)
             reset_time = (current_minute + 1) * 60
-            
+
             return True, remaining, limit_per_minute, reset_time
-            
+
         except Exception as e:
+            # Invalidate script so it's re-registered on next call
+            self._incr_script = None
+            self._script_registered_client = None
             logger.warning(f"Rate limit check failed, allowing request: {e}")
             # On Redis error, allow the request (fail-open)
             return True, limit_per_minute, limit_per_minute, current_time + 60

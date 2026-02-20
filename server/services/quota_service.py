@@ -162,6 +162,7 @@ class QuotaService:
         # Registered Lua scripts (initialized lazily when Redis is available)
         self._increment_script = None
         self._get_script = None
+        self._scripts_registered_client = None
 
         # Mark as initialized
         self._singleton_initialized = True
@@ -202,17 +203,20 @@ class QuotaService:
             return
 
         try:
-            self._increment_script = self.redis_service.client.register_script(
+            client = self.redis_service.client
+            self._increment_script = client.register_script(
                 self._QUOTA_INCREMENT_SCRIPT
             )
-            self._get_script = self.redis_service.client.register_script(
+            self._get_script = client.register_script(
                 self._QUOTA_GET_SCRIPT
             )
+            self._scripts_registered_client = client
             logger.debug("Registered quota Lua scripts with Redis")
         except Exception as e:
             logger.warning(f"Failed to register Lua scripts: {e}")
             self._increment_script = None
             self._get_script = None
+            self._scripts_registered_client = None
 
     def _get_daily_key(self, api_key: str) -> str:
         """Get Redis key for daily usage counter"""
@@ -333,12 +337,11 @@ class QuotaService:
             return (0, 0, 86400, 2592000)
 
         try:
-            # Register scripts if not already done
-            if self._increment_script is None:
+            # Re-register scripts if client has changed (e.g. after reconnection)
+            current_client = self.redis_service.client
+            if self._increment_script is None or self._scripts_registered_client is not current_client:
                 self._register_lua_scripts()
 
-            # Store reference locally to avoid race condition where another
-            # coroutine's failed _register_lua_scripts() sets it to None
             increment_script = self._increment_script
             if increment_script is None:
                 logger.warning("Lua scripts not registered, skipping quota increment")
@@ -365,6 +368,10 @@ class QuotaService:
             return (daily_count, monthly_count, daily_ttl_remaining, monthly_ttl_remaining)
 
         except Exception as e:
+            # Invalidate scripts so they're re-registered on next call
+            self._increment_script = None
+            self._get_script = None
+            self._scripts_registered_client = None
             logger.warning(f"Failed to increment quota usage: {e}")
             return (0, 0, 86400, 2592000)
 
@@ -398,12 +405,11 @@ class QuotaService:
             }
 
         try:
-            # Register scripts if not already done
-            if self._get_script is None:
+            # Re-register scripts if client has changed (e.g. after reconnection)
+            current_client = self.redis_service.client
+            if self._get_script is None or self._scripts_registered_client is not current_client:
                 self._register_lua_scripts()
 
-            # Store reference locally to avoid race condition where another
-            # coroutine's failed _register_lua_scripts() sets it to None
             get_script = self._get_script
             if get_script is None:
                 logger.warning("Lua scripts not registered, returning empty usage")
@@ -437,6 +443,10 @@ class QuotaService:
             }
 
         except Exception as e:
+            # Invalidate scripts so they're re-registered on next call
+            self._increment_script = None
+            self._get_script = None
+            self._scripts_registered_client = None
             logger.warning(f"Failed to get quota usage: {e}")
             return {
                 'daily_used': 0,
