@@ -11,6 +11,7 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 | `code-review-agent.md` | Evaluates code quality, design principles (SOLID, DRY, KISS), clean code practices, performance, and maintainability |
 | `security-audit-agent.md` | Identifies security vulnerabilities, assesses severity, and provides concrete mitigations |
 | `ux-review-agent.md` | Evaluates UX quality — accessibility, responsive design, interaction patterns, performance UX, and design consistency (React / Vite / Node) |
+| `responsive-design-agent.md` | Makes an existing React webapp fully responsive across mobile devices (iOS, Android) without breaking the desktop version |
 
 ---
 
@@ -21,7 +22,8 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 - **Code needs optimization, refactoring, or cleanup?** → Use `code-review-agent.md`
 - **Need to find security risks and vulnerabilities?** → Use `security-audit-agent.md`
 - **UI feels off, inaccessible, or inconsistent?** → Use `ux-review-agent.md`
-- **Want the full picture?** → Combine all three in a single session (see below)
+- **Need to make a desktop app work on mobile?** → Use `responsive-design-agent.md`
+- **Want the full picture?** → Combine agents in a single session (see below)
 
 ### 2. Start a new conversation with your AI assistant
 
@@ -71,6 +73,16 @@ Apply the following assessment framework to the attached codebase:
 [Paste or attach your code]
 ```
 
+### Single Agent — Responsive Adaptation
+
+```
+Apply the following assessment framework to the attached codebase:
+
+[Paste contents of responsive-design-agent.md here]
+
+[Paste or attach your code]
+```
+
 ### Combined — Full Review
 
 ```
@@ -107,6 +119,7 @@ This is deployed on [AWS/GCP/Azure/self-hosted].
 Focus especially on [performance / readability / testability / security].
 Focus especially on [API security / auth flows / data protection / third-party integrations].
 Focus especially on [accessibility / responsive design / interaction feedback / performance UX / design consistency].
+Focus especially on [navigation / forms / touch interactions / iOS Safari quirks / Android Chrome quirks].
 ```
 
 ### Scope Modifiers
@@ -116,6 +129,8 @@ Only refactor — don't change external APIs or behavior.
 This is exposed to the public internet / internal only.
 This handles [payment data / health records / PII].
 The design system uses [Tailwind / MUI / Chakra / shadcn/ui / custom tokens].
+Target devices: [iPhone SE through iPhone 15 Pro Max / specific Android devices / tablets].
+The app currently uses [CSS Modules / styled-components / Tailwind / plain CSS].
 ```
 
 ### Compliance Modifiers
@@ -188,6 +203,22 @@ Summary includes:
 - Overall UX quality score (1–10)
 - Design system, tooling, and workflow recommendations
 
+### Responsive Design Agent
+
+For each adaptation:
+- **Location** — file and line/section
+- **Issue** — what doesn't work on mobile and why
+- **Affected Viewports** — which breakpoints or devices are impacted
+- **Desktop Safety** — confirmation the change doesn't affect desktop (or flagged risk)
+- **Fix** — refactored code with responsive changes marked via comments
+
+Summary includes:
+- Changes by category (Layout, Navigation, Typography, Touch, Forms, Media, Platform-Specific)
+- Top 3 highest-impact adaptations
+- Devices/viewports flagged for manual testing
+- Overall mobile readiness score (1–10)
+- Recommended testing tools and workflow
+
 ---
 
 ## Compatibility
@@ -198,9 +229,3 @@ These prompts are designed to work with any capable AI coding assistant, includi
 - **Claude Code** — CLI tool
 - **OpenAI Codex / ChatGPT** — chat or API
 - **Cursor, Windsurf, Copilot Chat** — IDE-integrated assistants
-
----
-
-## License
-
-Free to use, modify, and distribute. No attribution required.
