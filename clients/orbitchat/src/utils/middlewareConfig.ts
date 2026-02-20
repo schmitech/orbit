@@ -15,6 +15,7 @@ export interface Adapter {
   apiUrl?: string;
   description?: string; // Short description for dropdown previews
   notes?: string; // Longer markdown notes/description when available
+  model?: string; // Optional model label from /api/adapters
 }
 
 export interface AdaptersResponse {
@@ -40,6 +41,7 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
     description?: unknown;
     summary?: unknown;
     notes?: unknown;
+    model?: unknown;
   };
 
   const name = toTrimmedString(candidate.name);
@@ -48,6 +50,7 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
   }
 
   const apiUrl = toTrimmedString(candidate.apiUrl);
+  const model = toTrimmedString(candidate.model);
   const notes = typeof candidate.notes === 'string' ? candidate.notes.trim() : undefined;
   let description =
     toTrimmedString(candidate.description) ||
@@ -68,6 +71,9 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
   if (notes) {
     normalized.notes = notes;
   }
+  if (model) {
+    normalized.model = model;
+  }
 
   return normalized;
 };
@@ -82,6 +88,8 @@ const normalizeAdapterList = (list: unknown): Adapter[] => {
 };
 
 let adaptersCache: Adapter[] | null = null;
+let adaptersCacheAt = 0;
+const ADAPTERS_CACHE_TTL_MS = 30000;
 
 /**
  * Load adapters from environment variable or runtime config
@@ -113,18 +121,24 @@ function loadAdaptersFromConfig(): Adapter[] | null {
  * 2. VITE_ADAPTERS env var / window.ORBIT_CHAT_CONFIG.adapters (for static deployments)
  */
 export async function fetchAdapters(): Promise<Adapter[]> {
-  if (adaptersCache) {
+  if (adaptersCache && (Date.now() - adaptersCacheAt) < ADAPTERS_CACHE_TTL_MS) {
     return adaptersCache;
   }
 
   // Try fetching from /api/adapters endpoint first
   try {
-    const response = await fetch('/api/adapters');
+    const response = await fetch('/api/adapters?refresh=1', {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
+    });
     if (response.ok) {
       const data: AdaptersResponse = await response.json();
       const normalized = normalizeAdapterList(data.adapters);
       if (normalized.length > 0) {
         adaptersCache = normalized;
+        adaptersCacheAt = Date.now();
         debugLog('Fetched adapters from /api/adapters:', adaptersCache);
         return adaptersCache;
       }
@@ -139,6 +153,7 @@ export async function fetchAdapters(): Promise<Adapter[]> {
   const configAdapters = loadAdaptersFromConfig();
   if (configAdapters && configAdapters.length > 0) {
     adaptersCache = configAdapters;
+    adaptersCacheAt = Date.now();
     debugLog('Loaded adapters from config:', adaptersCache);
     return adaptersCache;
   }
@@ -152,6 +167,7 @@ export async function fetchAdapters(): Promise<Adapter[]> {
  */
 export function clearAdaptersCache(): void {
   adaptersCache = null;
+  adaptersCacheAt = 0;
 }
 
 /**

@@ -262,6 +262,39 @@ function loadYamlConfig(configPath) {
   return null;
 }
 
+// ---- Local asset handling (e.g. header logo file paths) ----
+
+function isUrlLike(value) {
+  return /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value) || value.startsWith('//');
+}
+
+function resolveLocalAssetPath(rawValue, yamlPath) {
+  if (!rawValue || typeof rawValue !== 'string') return null;
+  const value = rawValue.trim();
+  if (!value || isUrlLike(value)) return null;
+
+  const expandedValue = value.startsWith('~/')
+    ? path.join(process.env.HOME || '', value.slice(2))
+    : value;
+
+  const yamlDir = path.dirname(yamlPath);
+  const candidates = path.isAbsolute(expandedValue)
+    ? [expandedValue]
+    : [path.resolve(yamlDir, expandedValue), path.resolve(process.cwd(), expandedValue)];
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+        return fs.realpathSync(candidate);
+      }
+    } catch {
+      // ignore invalid candidate and continue
+    }
+  }
+
+  return null;
+}
+
 // ---- Adapter loading (env secrets + YAML metadata) ----
 
 function parseAdaptersFromEnv() {
@@ -451,6 +484,7 @@ function createServer(distPath, config, serverConfig = {}) {
   const app = express();
   const adapters = loadAdaptersConfig();
   const apiOnly = serverConfig.apiOnly || false;
+  const localAssets = serverConfig.localAssets || {};
   const yamlAdapterMetadata = new Map(
     Array.isArray(config.adapters)
       ? config.adapters.filter(a => a && a.name).map(a => [a.name, a])
@@ -468,6 +502,24 @@ function createServer(distPath, config, serverConfig = {}) {
         return res.sendStatus(204);
       }
       next();
+    });
+  }
+
+  if (Object.keys(localAssets).length > 0) {
+    app.get('/__orbitchat_assets/:assetId', (req, res) => {
+      const assetPath = localAssets[req.params.assetId];
+      if (!assetPath) {
+        return res.status(404).send('Asset not found');
+      }
+      if (!fs.existsSync(assetPath)) {
+        return res.status(404).send('Asset not found');
+      }
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.sendFile(assetPath, (error) => {
+        if (error && !res.headersSent) {
+          res.status(500).send('Failed to serve asset');
+        }
+      });
     });
   }
 
@@ -568,12 +620,53 @@ function createServer(distPath, config, serverConfig = {}) {
       });
     }
 
-    app.get('/api/adapters', (req, res) => {
+    // Fetch model info from ORBIT backend for each adapter (lazy, short-lived cache).
+    let modelsLastFetchedAt = 0;
+    let modelsFetchInFlight = null;
+    const MODELS_CACHE_TTL_MS = 30000;
+    async function fetchAdapterModels(force = false) {
+      const now = Date.now();
+      if (!force && (now - modelsLastFetchedAt) < MODELS_CACHE_TTL_MS) return;
+      if (modelsFetchInFlight) return modelsFetchInFlight;
+
+      modelsFetchInFlight = (async () => {
+        const fetches = Object.entries(adapters).map(async ([, adapter]) => {
+        if (!adapter.apiUrl || !adapter.apiKey) return;
+        try {
+          const url = `${adapter.apiUrl.replace(/\/+$/, '')}/admin/adapters/info`;
+          const resp = await fetch(url, {
+            headers: { 'X-API-Key': adapter.apiKey },
+            signal: AbortSignal.timeout(5000),
+          });
+          if (resp.ok) {
+            const info = await resp.json();
+            const model = typeof info?.model === 'string' ? info.model.trim() : '';
+            adapter.model = model || null;
+          }
+        } catch {
+          // Silently ignore — model will be omitted
+        }
+        });
+        await Promise.all(fetches);
+        modelsLastFetchedAt = Date.now();
+      })().finally(() => {
+        modelsFetchInFlight = null;
+      });
+
+      return modelsFetchInFlight;
+    }
+
+    app.get('/api/adapters', async (req, res) => {
+      const cacheControl = typeof req.headers['cache-control'] === 'string' ? req.headers['cache-control'] : '';
+      const forceRefresh = req.query?.refresh === '1' || cacheControl.includes('no-cache');
+      await fetchAdapterModels(forceRefresh);
       const adapterList = Object.keys(adapters).map(name => ({
         name,
         description: adapters[name]?.description,
         notes: adapters[name]?.notes,
+        model: adapters[name]?.model || null,
       }));
+      res.setHeader('Cache-Control', 'no-store');
       res.json({ adapters: adapterList });
     });
 
@@ -716,6 +809,15 @@ function main() {
 
   // Merge: DEFAULTS < YAML config < auth secrets from env
   const config = { ...DEFAULTS, ...yamlFlat };
+  const localAssets = {};
+
+  // Support local filesystem paths for header logo URL.
+  const resolvedHeaderLogoPath = resolveLocalAssetPath(config.headerLogoUrl, yamlPath);
+  if (resolvedHeaderLogoPath) {
+    const mtimeMs = fs.statSync(resolvedHeaderLogoPath).mtimeMs || Date.now();
+    localAssets.header_logo = resolvedHeaderLogoPath;
+    config.headerLogoUrl = `/__orbitchat_assets/header_logo?v=${Math.floor(mtimeMs)}`;
+  }
 
   // Auth secrets from env
   if (process.env.VITE_AUTH_DOMAIN) config.authDomain = process.env.VITE_AUTH_DOMAIN;
@@ -734,6 +836,9 @@ function main() {
   // Guest rate limiting (server-only, never sent to browser)
   if (yamlObj && yamlObj.guestLimits?.rateLimit) {
     serverConfig.rateLimit = yamlObj.guestLimits.rateLimit;
+  }
+  if (Object.keys(localAssets).length > 0) {
+    serverConfig.localAssets = localAssets;
   }
 
   // Find dist directory
@@ -765,6 +870,9 @@ function main() {
     console.debug(`  Host: ${serverConfig.host}`);
     if (yamlObj) {
       console.debug(`  Config: ${yamlPath}`);
+    }
+    if (resolvedHeaderLogoPath) {
+      console.debug(`  Header logo file: ${resolvedHeaderLogoPath}`);
     }
     if (serverConfig.rateLimit && serverConfig.rateLimit.enabled !== false) {
       console.debug(`  Guest Rate Limiting: enabled (${serverConfig.rateLimit.maxRequests || 30} req/${(serverConfig.rateLimit.windowMs || 60000) / 1000}s, chat: ${serverConfig.rateLimit.chat?.maxRequests || 10} req/${(serverConfig.rateLimit.chat?.windowMs || 60000) / 1000}s)`);

@@ -1,10 +1,10 @@
 import { useAuth0 } from '@auth0/auth0-react';
 import { LogIn, LogOut } from 'lucide-react';
-import { getEnableAuth } from '../utils/runtimeConfig';
+import { getEnableAuth, getEnableHeader } from '../utils/runtimeConfig';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 
 export function AuthStatus() {
-  if (!getEnableAuth()) return null;
+  if (!getEnableAuth() || !getEnableHeader()) return null;
   return <AuthStatusInner />;
 }
 

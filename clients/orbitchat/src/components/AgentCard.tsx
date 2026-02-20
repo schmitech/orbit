@@ -8,6 +8,7 @@ interface AgentCardProps {
 
 export function AgentCard({ adapter, onSelect }: AgentCardProps) {
   const description = adapter.description?.trim();
+  const model = adapter.model?.trim();
   return (
     <button
       type="button"
@@ -21,7 +22,16 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
             {adapter.name}
           </p>
         </div>
-        <div className="ml-auto flex h-10 w-10 items-center justify-center rounded-full border border-transparent bg-gray-50 text-gray-400 transition-colors group-hover:border-blue-100 group-hover:bg-white group-hover:text-blue-500 dark:bg-[#2a2b34] dark:text-gray-400 dark:group-hover:border-blue-500/40 dark:group-hover:bg-transparent dark:group-hover:text-blue-300">
+        {model && (
+          <span
+            className="max-w-[40%] truncate rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:border-blue-400/30 dark:bg-blue-900/20 dark:text-blue-200"
+            title={model}
+            aria-label={`Model: ${model}`}
+          >
+            {model}
+          </span>
+        )}
+        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-transparent bg-gray-50 text-gray-400 transition-colors group-hover:border-blue-100 group-hover:bg-white group-hover:text-blue-500 dark:bg-[#2a2b34] dark:text-gray-400 dark:group-hover:border-blue-500/40 dark:group-hover:bg-transparent dark:group-hover:text-blue-300">
           <ChevronRight className="h-5 w-5" />
         </div>
       </div>

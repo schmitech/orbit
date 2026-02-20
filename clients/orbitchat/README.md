@@ -203,6 +203,12 @@ Config lookup:
 1. `--config /path/to/orbitchat.yaml` if provided
 2. `./orbitchat.yaml` (current working directory)
 
+Header logo (`header.logoUrl`) supports:
+- Remote URLs, for example `https://example.com/logo.png`
+- Local file paths (absolute or relative to `orbitchat.yaml`), for example `./public/logo.png`
+
+When a local file path is used, the CLI serves it on an internal route (`/__orbitchat_assets/...`) at runtime.
+
 ### Environment Variables
 
 Adapter secrets are provided via environment variables:
@@ -272,6 +278,27 @@ From a source checkout, you can also run:
 
 ```bash
 ./orbitchat.sh --start
+```
+
+Daemon state files:
+- Default PID/log directory: `$XDG_STATE_HOME/orbitchat` or `~/.local/state/orbitchat`
+- Override with: `ORBITCHAT_STATE_DIR=/path/to/state`
+
+Daemon examples with config:
+```bash
+orbitchat-daemon --config /home/ubuntu/orbitchat/orbitchat.yaml --start
+orbitchat-daemon --config /home/ubuntu/orbitchat/orbitchat.yaml --force-restart
+```
+
+Using `sudo`:
+- `sudo` may drop environment variables (including `ORBIT_ADAPTERS`).
+- Preserve adapter env explicitly:
+```bash
+sudo --preserve-env=ORBIT_ADAPTERS orbitchat-daemon --config /home/ubuntu/orbitchat/orbitchat.yaml --start
+```
+- If needed, set writable daemon state dir explicitly:
+```bash
+sudo ORBITCHAT_STATE_DIR=/var/tmp/orbitchat orbitchat-daemon --config /home/ubuntu/orbitchat/orbitchat.yaml --start
 ```
 
 ## Available Scripts
@@ -361,6 +388,12 @@ If adapters load but descriptions/notes are missing in packaged installs (`npm p
 6. Verify runtime output:
    - Startup log shows `Available Adapters: ...`
    - `GET /api/adapters` returns `description`/`notes` for each adapter
+
+If logs show an adapter not in your current config (for example `Cross Domain`):
+1. Check startup log `Available Adapters: ...` to confirm what the server actually loaded
+2. Clear browser site data/localStorage for the app origin or open an incognito window
+3. Start a new conversation and reselect the agent
+4. Confirm requests no longer send stale `X-Adapter-Name` values
 
 ### File Upload Issues
 

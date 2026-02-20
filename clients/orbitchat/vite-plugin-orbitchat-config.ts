@@ -38,6 +38,7 @@ interface AdapterConfig {
   apiUrl: string;
   description?: string;
   notes?: string;
+  model?: string;
 }
 
 // Minimal YAML shape (mirrors OrbitChatYamlConfig in src/utils/yamlConfig.ts)
@@ -342,6 +343,41 @@ export function orbitchatConfigPlugin(): Plugin {
         console.log(`[orbitchat-config] Guest rate limiting enabled (${maxRequests} req/${windowMs / 1000}s, chat: ${chatMaxRequests} req/${chatWindowMs / 1000}s)`);
       }
 
+      // Fetch model info from ORBIT backend for each adapter (lazy, short-lived cache).
+      let modelsLastFetchedAt = 0;
+      let modelsFetchInFlight: Promise<void> | null = null;
+      const MODELS_CACHE_TTL_MS = 30000;
+      async function fetchAdapterModels(adapterMap: Record<string, AdapterConfig>, force = false) {
+        const now = Date.now();
+        if (!force && (now - modelsLastFetchedAt) < MODELS_CACHE_TTL_MS) return;
+        if (modelsFetchInFlight) return modelsFetchInFlight;
+
+        modelsFetchInFlight = (async () => {
+          const fetches = Object.entries(adapterMap).map(async ([, adapter]) => {
+          if (!adapter.apiUrl || !adapter.apiKey) return;
+          try {
+            const url = `${adapter.apiUrl.replace(/\/+$/, '')}/admin/adapters/info`;
+            const resp = await fetch(url, {
+              headers: { 'X-API-Key': adapter.apiKey },
+              signal: AbortSignal.timeout(5000),
+            });
+            if (resp.ok) {
+              const info = await resp.json() as { model?: string };
+              adapter.model = typeof info.model === 'string' ? info.model.trim() || undefined : undefined;
+            }
+          } catch {
+            // Silently ignore — model will be omitted
+          }
+          });
+          await Promise.all(fetches);
+          modelsLastFetchedAt = Date.now();
+        })().finally(() => {
+          modelsFetchInFlight = null;
+        });
+
+        return modelsFetchInFlight;
+      }
+
       // Serve /api/adapters endpoint
       server.middlewares.use('/api/adapters', (req, res, next) => {
         if (req.method !== 'GET') return next();
@@ -353,14 +389,29 @@ export function orbitchatConfigPlugin(): Plugin {
           return;
         }
 
-        const adapterList = Object.keys(currentAdapters).map(name => ({
-          name,
-          description: currentAdapters[name]?.description,
-          notes: currentAdapters[name]?.notes,
-        }));
+        const cacheControlHeader = typeof req.headers['cache-control'] === 'string' ? req.headers['cache-control'] : '';
+        const forceRefresh = req.url?.includes('refresh=1') || cacheControlHeader.includes('no-cache');
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ adapters: adapterList }));
+        fetchAdapterModels(currentAdapters, forceRefresh).then(() => {
+          const adapterList = Object.keys(currentAdapters).map(name => ({
+            name,
+            description: currentAdapters[name]?.description,
+            notes: currentAdapters[name]?.notes,
+            model: currentAdapters[name]?.model || null,
+          }));
+
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ adapters: adapterList }));
+        }).catch(() => {
+          const adapterList = Object.keys(currentAdapters).map(name => ({
+            name,
+            description: currentAdapters[name]?.description,
+            notes: currentAdapters[name]?.notes,
+            model: currentAdapters[name]?.model || null,
+          }));
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ adapters: adapterList }));
+        });
       });
 
       // Proxy /api/* requests

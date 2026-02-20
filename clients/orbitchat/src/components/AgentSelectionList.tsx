@@ -56,7 +56,8 @@ export function AgentSelectionList({
     return adapters.filter(adapter => {
       const nameMatches = adapter.name.toLowerCase().includes(trimmedQuery);
       const descriptionMatches = adapter.description?.toLowerCase().includes(trimmedQuery) ?? false;
-      return nameMatches || descriptionMatches;
+      const modelMatches = adapter.model?.toLowerCase().includes(trimmedQuery) ?? false;
+      return nameMatches || descriptionMatches || modelMatches;
     });
   }, [adapters, searchQuery]);
 

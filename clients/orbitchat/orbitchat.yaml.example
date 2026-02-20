@@ -89,6 +89,9 @@ auth:
 # ---- Header ----
 header:
   enabled: false
+  # Supports HTTPS URL or local file path.
+  # Local file paths can be absolute or relative to orbitchat.yaml.
+  # Example: "./public/logo.png" or "/home/ubuntu/assets/logo.png"
   logoUrl: ""
   brandName: ""
   bgColor: ""

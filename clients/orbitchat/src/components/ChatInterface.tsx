@@ -127,9 +127,14 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     : '';
   const compactSelectionHeaderSpacingClass =
     !getEnableHeader() && shouldShowAgentSelectionList
-      ? 'pt-0 pb-2 md:pt-2 md:pb-3'
+      ? 'pt-0 pb-0 md:pt-0 md:pb-1'
       : '';
   const headerClasses = `${MOBILE_HEADER_CLASSES} ${headerBorderClass} ${compactSelectionHeaderSpacingClass}`.trim();
+  const emptyStateTopSpacingClass = shouldShowAgentSelectionList
+    ? 'pt-0 md:pt-0'
+    : shouldShowAdapterNotesPanel
+      ? 'pt-0 md:pt-0'
+      : 'pt-4 md:pt-6';
   const hasAdapterConfigurationError = !!adapterNotesError;
   const ensureConversationReadyForAgent = useCallback((): string | null => {
     const state = useChatStore.getState();
@@ -723,9 +728,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           {/* Messages and Input - Conditional Layout */}
           {showEmptyState ? (
             // Empty state: Flex layout that pushes input to bottom on mobile, left-aligned on desktop
-            <div className={`flex flex-1 flex-col min-h-0 ${
-              shouldShowAdapterNotesPanel ? 'pt-0 md:pt-0' : 'pt-4 md:pt-6'
-            } ${(shouldShowAgentSelectionList || shouldShowAdapterNotesPanel) ? 'overflow-hidden' : ''}`}>
+            <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${(shouldShowAgentSelectionList || shouldShowAdapterNotesPanel) ? 'overflow-hidden' : ''}`}>
               <div className={`flex-1 flex flex-col justify-between md:justify-start ${(shouldShowAgentSelectionList || shouldShowAdapterNotesPanel) ? 'min-h-0 overflow-hidden' : 'md:flex-none'}`}>
                 <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex-1 min-h-0 flex flex-col' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (

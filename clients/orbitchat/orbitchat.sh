@@ -12,18 +12,35 @@
 #   ./orbitchat.sh --help            Show this help message
 #
 # All application settings are in orbitchat.yaml (next to this script).
-# Only adapter secrets (API keys) are set here via VITE_ADAPTERS.
+# Only adapter secrets (API keys) are set here via ORBIT_ADAPTERS.
 #
 # Files:
-#   PID file: <script_dir>/orbitchat.pid
-#   Log file: <script_dir>/orbitchat.log
+#   PID file: <state_dir>/orbitchat.pid
+#   Log file: <state_dir>/orbitchat.log
 #
 
 # Get the directory where this script is located (works on Mac and Linux)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-PIDFILE="$SCRIPT_DIR/orbitchat.pid"
-LOGFILE="$SCRIPT_DIR/orbitchat.log"
+# Runtime state directory (log + pid), overridable via ORBITCHAT_STATE_DIR.
+if [ -n "${ORBITCHAT_STATE_DIR:-}" ]; then
+    STATE_DIR="$ORBITCHAT_STATE_DIR"
+elif [ -n "${XDG_STATE_HOME:-}" ]; then
+    STATE_DIR="$XDG_STATE_HOME/orbitchat"
+else
+    STATE_DIR="$HOME/.local/state/orbitchat"
+fi
+
+if ! mkdir -p "$STATE_DIR" 2>/dev/null; then
+    STATE_DIR="/tmp/orbitchat-${USER:-$(id -u)}"
+    mkdir -p "$STATE_DIR" || {
+        echo "Error: could not create state directory for PID/log files."
+        exit 1
+    }
+fi
+
+PIDFILE="$STATE_DIR/orbitchat.pid"
+LOGFILE="$STATE_DIR/orbitchat.log"
 PORT="${ORBITCHAT_PORT:-5173}"
 CONFIG_FILE="$SCRIPT_DIR/orbitchat.yaml"
 ACTION=""
@@ -177,10 +194,11 @@ show_help() {
     echo "  --help            Show this help message"
     echo ""
     echo "Environment variables:"
-    echo "  ORBITCHAT_PORT    Port to run on (default: 5173)"
+    echo "  ORBITCHAT_PORT       Port to run on (default: 5173)"
+    echo "  ORBITCHAT_STATE_DIR  Directory for PID/log files"
     echo ""
     echo "All application settings are in orbitchat.yaml by default."
-    echo "Adapter secrets (API keys) are set via VITE_ADAPTERS env var in this script."
+    echo "Adapter secrets (API keys) are set via ORBIT_ADAPTERS env var in this script."
     echo ""
     echo "Examples:"
     echo "  $0 --start                      # Start on default port 5173"
@@ -191,7 +209,7 @@ show_help() {
     echo "  $0 --force-restart --start      # Also works as a flag before --start"
     echo "  ORBITCHAT_PORT=8080 $0 --start  # Start on port 8080 (env var)"
     echo ""
-    echo "Files (stored in script directory):"
+    echo "Files (stored in state directory):"
     echo "  PID file: $PIDFILE"
     echo "  Log file: $LOGFILE"
 }
