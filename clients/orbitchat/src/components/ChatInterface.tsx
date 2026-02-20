@@ -678,11 +678,25 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 {!shouldShowAgentSelectionList && !getEnableHeader() && (
                   <AuthStatus />
                 )}
+                {!shouldShowAgentSelectionList && !!currentConversation?.adapterName && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearCurrentConversationAdapter();
+                      replaceAgentSlug(null);
+                      setIsAgentSelectionVisible(true);
+                    }}
+                    className="order-2 sm:order-1 inline-flex items-center justify-center gap-2 rounded-full border border-blue-300 px-3.5 py-2.5 text-[13px] font-medium tracking-[0.01em] text-blue-700 transition-colors hover:bg-blue-50 hover:border-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-500/40 dark:text-blue-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-400/60 dark:focus-visible:ring-blue-400/60"
+                    title="Switch to a different agent"
+                  >
+                    Change Agent
+                  </button>
+                )}
                 {!shouldShowAgentSelectionList && (
                   <button
                     onClick={handleStartNewConversation}
                     disabled={!canStartNewConversation}
-                    className={`order-2 sm:order-1 inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2.5 text-[13px] font-medium tracking-[0.01em] ${
+                    className={`order-3 sm:order-2 inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2.5 text-[13px] font-medium tracking-[0.01em] ${
                       canStartNewConversation
                         ? 'border-[#1f2937] bg-[#1f2937] text-white shadow-[0_2px_8px_rgba(15,23,42,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f2937]/40 dark:border-[#4b5568] dark:bg-[#2f3747] dark:text-[#e9edf8] dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)] dark:focus-visible:ring-[#6f809f]/35'
                         : 'cursor-not-allowed border-gray-200 text-gray-400 bg-white/40 dark:border-[#3c3f4a] dark:text-[#6b6f7a] dark:bg-transparent'
@@ -700,7 +714,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           {/* Messages and Input - Conditional Layout */}
           {showEmptyState ? (
             // Empty state: Flex layout that pushes input to bottom on mobile, left-aligned on desktop
-            <div className={`flex flex-1 flex-col min-h-0 pt-4 md:pt-6 ${(shouldShowAgentSelectionList || shouldShowAdapterNotesPanel) ? 'overflow-hidden' : ''}`}>
+            <div className={`flex flex-1 flex-col min-h-0 ${
+              shouldShowAdapterNotesPanel ? 'pt-0 md:pt-0' : 'pt-4 md:pt-6'
+            } ${(shouldShowAgentSelectionList || shouldShowAdapterNotesPanel) ? 'overflow-hidden' : ''}`}>
               <div className={`flex-1 flex flex-col justify-between md:justify-start ${(shouldShowAgentSelectionList || shouldShowAdapterNotesPanel) ? 'min-h-0 overflow-hidden' : 'md:flex-none'}`}>
                 <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex-1 min-h-0 flex flex-col' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
@@ -746,26 +762,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       />
                     </div>
                   ) : shouldShowAdapterNotesPanel ? (
-                    <div className={`${prominentWidthClass} py-6 flex-1 min-h-0 flex flex-col`}>
-                      <div className="flex items-center justify-between gap-3 mb-4 flex-shrink-0">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {currentConversation?.adapterName ||
-                            currentConversation?.adapterInfo?.adapter_name ||
-                            'Configured Agent'}
-                        </h3>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            clearCurrentConversationAdapter();
-                            replaceAgentSlug(null);
-                            setIsAgentSelectionVisible(true);
-                          }}
-                          className="text-sm font-semibold text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300 dark:hover:text-blue-200"
-                        >
-                          Change Agent
-                        </button>
-                      </div>
-                      <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-gray-300 bg-white/70 px-4 pb-4 pt-3 dark:border-[#565869] dark:bg-[#232430]/80">
+                    <div className={`${prominentWidthClass} py-0 flex-1 min-h-0 flex flex-col`}>
+                      <div className="flex-1 min-h-0 overflow-y-auto px-1 pb-2 pt-0">
                         {currentConversation?.adapterInfo?.notes ? (
                           <MarkdownRenderer
                             content={currentConversation.adapterInfo.notes}
