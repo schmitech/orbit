@@ -23,13 +23,13 @@
 
 Stop rewriting your app every time you switch LLMs. ORBIT unifies **20+ AI providers** with your databases, vector stores, and APIs—all through one self-hosted gateway.
 
-<div align="center">
+<!-- <div align="center">
   <video src="https://github.com/user-attachments/assets/63bfb1d3-b80a-4022-855a-4325b8fcfe44" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
   <i>Using the <a href="clients/orbit-mobile/" target="_blank" rel="noopener noreferrer">ORBIT mobile app</a> to chat with your data.</i>
-</div>
+</div> -->
 
 **Ship faster. Stay portable. Keep your data private.**
 
