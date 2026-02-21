@@ -17,35 +17,36 @@ import { runtimeConfig } from './runtimeConfig';
 import { getIsAuthConfigured } from './runtimeConfig';
 import { getIsAuthenticated } from '../auth/authState';
 
-/**
- * Maps each normal limit key to its guest-limit counterpart in runtimeConfig.
- */
-const GUEST_LIMIT_MAP: Record<string, keyof typeof runtimeConfig> = {
-  maxConversations: 'guestMaxConversations',
-  maxMessagesPerConversation: 'guestMaxMessagesPerConversation',
-  maxTotalMessages: 'guestMaxTotalMessages',
-  maxMessagesPerThread: 'guestMaxMessagesPerThread',
-  maxFilesPerConversation: 'guestMaxFilesPerConversation',
-  maxTotalFiles: 'guestMaxTotalFiles',
-  maxMessageLength: 'guestMaxMessageLength',
-  maxFileSizeMB: 'guestMaxFileSizeMB',
-};
-
 const baseConfig = {
   // File Upload Limits
-  maxFilesPerConversation: runtimeConfig.maxFilesPerConversation,
-  maxFileSizeMB: runtimeConfig.maxFileSizeMB,
-  maxTotalFiles: runtimeConfig.maxTotalFiles,
+  maxFilesPerConversation: runtimeConfig.limits.files.perConversation,
+  maxFileSizeMB: runtimeConfig.limits.files.maxSizeMB,
+  maxTotalFiles: runtimeConfig.limits.files.totalFiles,
 
   // Conversation Limits
-  maxConversations: runtimeConfig.maxConversations,
-  maxMessagesPerConversation: runtimeConfig.maxMessagesPerConversation,
-  maxMessagesPerThread: runtimeConfig.maxMessagesPerThread,
-  maxTotalMessages: runtimeConfig.maxTotalMessages,
+  maxConversations: runtimeConfig.limits.conversations.maxConversations,
+  maxMessagesPerConversation: runtimeConfig.limits.conversations.maxMessagesPerConversation,
+  maxMessagesPerThread: runtimeConfig.limits.conversations.maxMessagesPerThread,
+  maxTotalMessages: runtimeConfig.limits.conversations.totalMessages,
 
   // Message Limits
-  maxMessageLength: runtimeConfig.maxMessageLength,
+  maxMessageLength: runtimeConfig.limits.messages.maxLength,
 };
+
+function getGuestLimit(prop: string) {
+  const g = runtimeConfig.guestLimits;
+  switch (prop) {
+    case 'maxConversations': return g.conversations.maxConversations;
+    case 'maxMessagesPerConversation': return g.conversations.messagesPerConversation;
+    case 'maxMessagesPerThread': return g.conversations.messagesPerThread;
+    case 'maxTotalMessages': return g.conversations.totalMessages;
+    case 'maxFilesPerConversation': return g.files.perConversation;
+    case 'maxTotalFiles': return g.files.totalFiles;
+    case 'maxMessageLength': return g.messages.maxLength;
+    case 'maxFileSizeMB': return g.files.maxSizeMB;
+    default: return undefined;
+  }
+}
 
 /**
  * Application configuration with all limits.
@@ -54,8 +55,9 @@ const baseConfig = {
  */
 export const AppConfig = new Proxy(baseConfig, {
   get(target, prop: string) {
-    if (prop in GUEST_LIMIT_MAP && getIsAuthConfigured() && !getIsAuthenticated()) {
-      return runtimeConfig[GUEST_LIMIT_MAP[prop]];
+    if (getIsAuthConfigured() && !getIsAuthenticated()) {
+      const guestValue = getGuestLimit(prop);
+      if (guestValue !== undefined) return guestValue;
     }
     return target[prop as keyof typeof target];
   },

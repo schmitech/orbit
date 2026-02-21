@@ -13,6 +13,7 @@ import { getIsAuthConfigured, resolveApiUrl } from '../utils/runtimeConfig';
 const uploadingFilesStore = new Map<string, Map<string, FileUploadProgress>>();
 const uploadedFilesStore = new Map<string, FileAttachment[]>();
 const uploadedFileIdsStore = new Map<string, string>();
+const seenConversationFileIdsStore = new Set<string>();
 
 const getStoredAdapterName = (): string | null => {
   if (typeof window === 'undefined') {
@@ -61,6 +62,7 @@ export function FileUpload({
   const [globalUploadRevision, setGlobalUploadRevision] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadedFileIdsRef = useRef<Map<string, string>>(uploadedFileIdsStore);
+  const seenConversationFileIdsRef = useRef<Set<string>>(seenConversationFileIdsStore);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const isMountedRef = useRef<boolean>(true);
   const uploadingFilesStoreRef = useRef<Map<string, Map<string, FileUploadProgress>>>(uploadingFilesStore);
@@ -209,9 +211,16 @@ export function FileUpload({
             conversation?.attachedFiles?.map(f => f.file_id) || []
           );
           if (filesInConversation.has(fileId)) {
+            seenConversationFileIdsRef.current.add(fileId);
             uploadedFileIdsRef.current.delete(fileId);
             return;
           }
+        }
+        if (seenConversationFileIdsRef.current.has(fileId)) {
+          debugLog(`[FileUpload] Skipping cleanup delete for ${fileId}; file was previously attached and already handled`);
+          uploadedFileIdsRef.current.delete(fileId);
+          seenConversationFileIdsRef.current.delete(fileId);
+          return;
         }
         fileIdsToDelete.push({ fileId, conversationId: convId || null });
       });
@@ -320,6 +329,7 @@ export function FileUpload({
             if (progress.fileId && !uploadedFileId) {
               uploadedFileId = progress.fileId;
               uploadedFileIdsRef.current.set(progress.fileId, activeConversationId);
+              seenConversationFileIdsRef.current.add(progress.fileId);
 
               // Add file to conversation immediately when we get the fileId
               // This ensures the file persists even if user switches conversations
@@ -357,6 +367,7 @@ export function FileUpload({
 
         if (uploadedAttachment) {
           uploadedFileIdsRef.current.set(uploadedAttachment.file_id, activeConversationId);
+          seenConversationFileIdsRef.current.add(uploadedAttachment.file_id);
           
           // Update the file in the conversation with final status
           // The file was already added during upload progress, now update it with complete info

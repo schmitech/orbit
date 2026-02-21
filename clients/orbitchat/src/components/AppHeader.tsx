@@ -1,6 +1,8 @@
 import {
   getEnableHeader,
   getHeaderLogoUrl,
+  getHeaderLogoUrlLight,
+  getHeaderLogoUrlDark,
   getHeaderBrandName,
   getHeaderBgColor,
   getHeaderTextColor,
@@ -8,11 +10,19 @@ import {
   getHeaderNavLinks,
 } from '../utils/runtimeConfig';
 import { AuthStatus } from './AuthStatus';
+import { useTheme } from '../contexts/ThemeContext';
+import { useEffect, useRef } from 'react';
 
 export function AppHeader() {
-  if (!getEnableHeader()) return null;
+  const { isDark } = useTheme();
+  const warnedMissingLogoRef = useRef(false);
 
-  const logoUrl = getHeaderLogoUrl();
+  const logoUrlDefault = getHeaderLogoUrl();
+  const logoUrlLight = getHeaderLogoUrlLight();
+  const logoUrlDark = getHeaderLogoUrlDark();
+  const logoUrl = isDark
+    ? (logoUrlDark || logoUrlDefault || logoUrlLight)
+    : (logoUrlLight || logoUrlDefault || logoUrlDark);
   const brandName = getHeaderBrandName();
   const bgColor = getHeaderBgColor();
   const textColor = getHeaderTextColor();
@@ -21,6 +31,15 @@ export function AppHeader() {
   const headerBorderClass = showBorder ? 'border-b border-slate-200/80 dark:border-[#333645]' : '';
   const navLinkBaseClass =
     'inline-flex min-h-10 items-center rounded-md px-2.5 text-sm font-medium transition-colors hover:bg-slate-100 hover:text-blue-700 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-[#2b2d39] dark:hover:text-blue-300';
+
+  useEffect(() => {
+    if (warnedMissingLogoRef.current) return;
+    if (logoUrlDefault || logoUrlLight || logoUrlDark) return;
+    warnedMissingLogoRef.current = true;
+    console.warn('[AppHeader] Header is enabled but no logo is configured. Set header.logoUrl, header.logoUrlLight, or header.logoUrlDark in orbitchat.yaml.');
+  }, [logoUrlDark, logoUrlDefault, logoUrlLight]);
+
+  if (!getEnableHeader()) return null;
 
   return (
     <header

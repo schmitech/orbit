@@ -3,6 +3,9 @@ import { X, Monitor, Sun, Moon, Palette, Volume2, Trash2, AlertTriangle } from '
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { clearTokenGetter } from '../auth/tokenStore';
+import { setIsAuthenticated } from '../auth/authState';
+import { useLoginPromptStore } from '../stores/loginPromptStore';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -40,7 +43,46 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
 
   const handleResetApplication = () => {
     closeResetDialog();
+
+    // Reset in-memory auth/login state first so UI doesn't retain stale auth state.
+    clearTokenGetter();
+    setIsAuthenticated(false);
+    useLoginPromptStore.getState().closeLoginPrompt();
+
+    // Clear all persisted app data and auth/session artifacts.
     localStorage.clear();
+    sessionStorage.clear();
+
+    // Remove known Auth0/Auth SPA keys explicitly in case clear() is constrained.
+    const clearAuthStorageKeys = (storage: Storage) => {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (!key) continue;
+        if (
+          key.startsWith('@@auth0spajs@@') ||
+          key.startsWith('a0.spajs') ||
+          key.includes('auth0')
+        ) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => storage.removeItem(key));
+    };
+
+    clearAuthStorageKeys(localStorage);
+    clearAuthStorageKeys(sessionStorage);
+
+    // Best-effort cleanup of same-origin cookies (Auth0 SDK may set helper cookies).
+    if (typeof document !== 'undefined' && document.cookie) {
+      document.cookie.split(';').forEach((cookie) => {
+        const eqPos = cookie.indexOf('=');
+        const cookieName = (eqPos > -1 ? cookie.slice(0, eqPos) : cookie).trim();
+        if (!cookieName) return;
+        document.cookie = `${cookieName}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+      });
+    }
+
     window.location.reload();
   };
 

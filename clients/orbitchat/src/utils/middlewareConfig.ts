@@ -93,8 +93,7 @@ const ADAPTERS_CACHE_TTL_MS = 30000;
 
 /**
  * Load adapters from environment variable or runtime config
- * Format: JSON array of adapter objects
- * Example: VITE_ADAPTERS='[{"name":"Simple Chat","apiUrl":"https://api.example.com"}]'
+ * Uses VITE_ADAPTER_KEYS (JSON object: {"Name": "Key"}) for secrets.
  */
 function loadAdaptersFromConfig(): Adapter[] | null {
   // First check window.ORBIT_CHAT_CONFIG.adapters (injected at runtime)
@@ -110,7 +109,7 @@ function loadAdaptersFromConfig(): Adapter[] | null {
     }
   }
 
-  // VITE_ADAPTERS is now handled by the Vite plugin / CLI — no env fallback needed here.
+  // VITE_ADAPTER_KEYS is now handled by the Vite plugin / CLI — no env fallback needed here.
   return null;
 }
 
@@ -118,7 +117,7 @@ function loadAdaptersFromConfig(): Adapter[] | null {
  * Fetch available adapters from the server or fallback to config
  * Priority:
  * 1. /api/adapters endpoint (for orbitchat CLI middleware mode)
- * 2. VITE_ADAPTERS env var / window.ORBIT_CHAT_CONFIG.adapters (for static deployments)
+ * 2. VITE_ADAPTER_KEYS env var / window.ORBIT_CHAT_CONFIG.adapters (for static deployments)
  */
 export async function fetchAdapters(): Promise<Adapter[]> {
   if (adaptersCache && (Date.now() - adaptersCacheAt) < ADAPTERS_CACHE_TTL_MS) {
@@ -159,7 +158,7 @@ export async function fetchAdapters(): Promise<Adapter[]> {
   }
 
   debugError('No adapters available from API or config');
-  throw new Error('No adapters available. Configure VITE_ADAPTERS environment variable.');
+  throw new Error('No adapters available. Configure VITE_ADAPTER_KEYS environment variable.');
 }
 
 /**

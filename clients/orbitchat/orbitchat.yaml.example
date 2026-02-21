@@ -10,9 +10,6 @@ application:
   locale: "en-US"
 
 # ---- API ----
-api:
-  url: "http://localhost:3000"
-  defaultAdapter: "default-key"
 
 # ---- Debug ----
 debug:
@@ -92,7 +89,11 @@ header:
   # Supports HTTPS URL or local file path.
   # Local file paths can be absolute or relative to orbitchat.yaml.
   # Example: "./public/logo.png" or "/home/ubuntu/assets/logo.png"
+  # Legacy/fallback logo (used when theme-specific logo is not set)
   logoUrl: ""
+  # Theme-specific logos (optional)
+  logoUrlLight: ""
+  logoUrlDark: ""
   brandName: ""
   bgColor: ""
   textColor: ""
@@ -116,9 +117,11 @@ footer:
   topPadding: "large" # "large" | "normal"
   navLinks: []
 
-# ---- Adapters (metadata only — API keys go in VITE_ADAPTERS env var) ----
-# adapters:
-#   - name: "Simple Chat"
-#     description: "Basic chat interface using the default conversational agent."
-#   - name: "Chat With Files"
-#     description: "Supports chatting with document uploads and multimodal queries."
+# ---- Adapters (metadata + URLs — API keys go in VITE_ADAPTER_KEYS env var) ----
+adapters:
+  - name: "Simple Chat"
+    apiUrl: "http://localhost:3000"
+    description: "Basic chat interface using the default conversational agent."
+  - name: "Chat With Files"
+    apiUrl: "http://localhost:3000"
+    description: "Supports chatting with document uploads and multimodal queries."

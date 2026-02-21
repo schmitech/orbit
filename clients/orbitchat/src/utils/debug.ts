@@ -4,7 +4,7 @@
 
 import { runtimeConfig } from './runtimeConfig';
 
-const isDebugEnabled = (): boolean => runtimeConfig.consoleDebug;
+const isDebugEnabled = (): boolean => runtimeConfig.debug.consoleDebug;
 
 /**
  * Conditionally log to console.log if debug is enabled

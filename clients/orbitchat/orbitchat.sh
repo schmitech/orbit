@@ -12,7 +12,7 @@
 #   ./orbitchat.sh --help            Show this help message
 #
 # All application settings are in orbitchat.yaml (next to this script).
-# Only adapter secrets (API keys) are set here via ORBIT_ADAPTERS.
+# Only adapter secrets (API keys) are set here via ORBIT_ADAPTER_KEYS.
 #
 # Files:
 #   PID file: <state_dir>/orbitchat.pid
@@ -46,6 +46,8 @@ CONFIG_FILE="$SCRIPT_DIR/orbitchat.yaml"
 ACTION=""
 FORCE_RESTART=false
 
+# ... (parsing logic happens below, we will update PIDFILE/LOGFILE after parsing)
+
 # When installed as an npm package, default config often lives in current directory.
 if [ ! -f "$CONFIG_FILE" ] && [ -f "$(pwd)/orbitchat.yaml" ]; then
     CONFIG_FILE="$(pwd)/orbitchat.yaml"
@@ -53,18 +55,25 @@ fi
 
 export NODE_OPTIONS="--no-deprecation"
 
-# Adapter secrets (API keys) — the only env var needed.
-# All other settings live in orbitchat.yaml.
-
-export ORBIT_ADAPTERS='[
-  { "name": "Simple Chat","apiKey":"default-key","apiUrl":"http://localhost:3000"},
-  { "name": "Chat With Files","apiKey":"multimodal","apiUrl":"http://localhost:3000"}
-]'
+# All application settings are in orbitchat.yaml.
+# Secrets (API keys) should be set in .env or exported in your terminal
+# as ORBIT_ADAPTER_KEYS or VITE_ADAPTER_KEYS.
 
 start_app() {
+    # Update PID and Log files based on the actual port
+    PIDFILE="$STATE_DIR/orbitchat-${PORT}.pid"
+    LOGFILE="$STATE_DIR/orbitchat-${PORT}.log"
+    LEGACY_LOGFILE="$STATE_DIR/orbitchat.log"
+
     if [ ! -f "$CONFIG_FILE" ]; then
         echo "Error: config file not found: $CONFIG_FILE"
         exit 1
+    fi
+
+    # Determine the executable to use
+    local orbitchat_cmd="orbitchat"
+    if [ -x "$SCRIPT_DIR/bin/orbitchat.js" ]; then
+        orbitchat_cmd="$SCRIPT_DIR/bin/orbitchat.js"
     fi
 
     if command -v lsof >/dev/null 2>&1; then
@@ -102,9 +111,14 @@ start_app() {
         exit 1
     fi
 
+    # Always start with a fresh per-port log and keep a legacy pointer updated.
+    : > "$LOGFILE"
+    rm -f "$LEGACY_LOGFILE"
+    ln -s "$(basename "$LOGFILE")" "$LEGACY_LOGFILE" 2>/dev/null || cp "$LOGFILE" "$LEGACY_LOGFILE"
+
     echo "Starting orbitchat on port $PORT with config $CONFIG_FILE..."
 
-    nohup orbitchat --port "$PORT" --host 0.0.0.0 --config "$CONFIG_FILE" \
+    nohup "$orbitchat_cmd" --port "$PORT" --host 0.0.0.0 --config "$CONFIG_FILE" \
         > "$LOGFILE" 2>&1 &
 
     local started_pid=$!
@@ -128,24 +142,77 @@ start_app() {
 }
 
 stop_app() {
-    if [ ! -f "$PIDFILE" ]; then
-        echo "orbitchat is not running (no PID file)"
-        exit 1
+    PIDFILE="$STATE_DIR/orbitchat-${PORT}.pid"
+    LOGFILE="$STATE_DIR/orbitchat-${PORT}.log"
+    local pids=""
+    if [ -f "$PIDFILE" ]; then
+        pids=$(cat "$PIDFILE")
     fi
 
-    PID=$(cat "$PIDFILE")
-    if kill -0 "$PID" 2>/dev/null; then
-        echo "Stopping orbitchat (PID: $PID)..."
-        kill "$PID"
-        rm -f "$PIDFILE"
-        echo "orbitchat stopped"
-    else
-        echo "orbitchat is not running (stale PID file)"
-        rm -f "$PIDFILE"
+    # Supplement or fallback to lsof if PID file is missing or doesn't match a running process
+    if command -v lsof >/dev/null 2>&1; then
+        local port_pids
+        port_pids=$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null | xargs)
+        pids="$pids $port_pids"
     fi
+
+    # Filter for unique running PIDs
+    local running_pids=""
+    if [ -n "$pids" ]; then
+        local unique_pids
+        unique_pids=$(echo "$pids" | tr ' ' '\n' | sort -u | xargs)
+        local filtered_pids=""
+        for p in $unique_pids; do
+            if kill -0 "$p" 2>/dev/null; then
+                filtered_pids="$filtered_pids $p"
+            fi
+        done
+        running_pids=$(echo "$filtered_pids" | xargs)
+    fi
+
+    if [ -z "$running_pids" ]; then
+        echo "orbitchat is not running"
+        rm -f "$PIDFILE"
+        if [ "$ACTION" = "stop" ]; then
+            exit 1
+        fi
+        return 0
+    fi
+
+    echo "Stopping orbitchat (PID(s): $running_pids)..."
+    kill $running_pids 2>/dev/null || true
+
+    # Wait for up to 5 seconds for the processes to exit
+    local timeout=5
+    while [ $timeout -gt 0 ]; do
+        local still_running=false
+        for p in $running_pids; do
+            if kill -0 "$p" 2>/dev/null; then
+                still_running=true
+                break
+            fi
+        done
+        if [ "$still_running" = false ]; then
+            break
+        fi
+        sleep 1
+        ((timeout--))
+    done
+
+    # If still running, force kill
+    for p in $running_pids; do
+        if kill -0 "$p" 2>/dev/null; then
+            echo "Process $p did not stop gracefully. Sending SIGKILL..."
+            kill -9 "$p" 2>/dev/null || true
+        fi
+    done
+
+    rm -f "$PIDFILE"
+    echo "orbitchat stopped"
 }
 
 status_app() {
+    PIDFILE="$STATE_DIR/orbitchat-${PORT}.pid"
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
         echo "orbitchat is running (PID: $(cat "$PIDFILE"))"
         echo "  URL: http://localhost:$PORT"
@@ -166,15 +233,7 @@ status_app() {
 }
 
 restart_app() {
-    if [ -f "$PIDFILE" ]; then
-        PID=$(cat "$PIDFILE")
-        if kill -0 "$PID" 2>/dev/null; then
-            echo "Stopping orbitchat (PID: $PID)..."
-            kill "$PID"
-            sleep 1
-        fi
-        rm -f "$PIDFILE"
-    fi
+    stop_app
     start_app
 }
 
@@ -188,7 +247,7 @@ show_help() {
     echo "  --config [file]   Use specific YAML configuration file (default: orbitchat.yaml)"
     echo "  --force-restart [port]  Kill any process using the target port, then restart"
     echo "  --start [port]    Start orbitchat in background (optionally specify port)"
-    echo "  --stop            Stop orbitchat"
+    echo "  --stop [port]     Stop orbitchat (optionally specify port)"
     echo "  --restart [port]  Restart orbitchat (optionally specify port)"
     echo "  --status          Check if orbitchat is running"
     echo "  --help            Show this help message"
@@ -198,7 +257,7 @@ show_help() {
     echo "  ORBITCHAT_STATE_DIR  Directory for PID/log files"
     echo ""
     echo "All application settings are in orbitchat.yaml by default."
-    echo "Adapter secrets (API keys) are set via ORBIT_ADAPTERS env var in this script."
+    echo "Adapter secrets (API keys) are set via ORBIT_ADAPTER_KEYS env var in this script."
     echo ""
     echo "Examples:"
     echo "  $0 --start                      # Start on default port 5173"
@@ -228,6 +287,10 @@ while [[ $# -gt 0 ]]; do
         --stop)
             ACTION="stop"
             shift
+            if [[ -n "$1" && "$1" != --* ]]; then
+                PORT="$1"
+                shift
+            fi
             ;;
         --restart)
             ACTION="restart"

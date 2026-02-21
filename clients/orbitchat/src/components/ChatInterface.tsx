@@ -389,6 +389,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   // Load adapter info if in middleware mode and adapter is selected but info is missing or incomplete
   // This handles: 1) race conditions, 2) stale localStorage without notes field
   const adapterInfoLoadedRef = useRef<string | null>(null);
+  const adapterInfoRetryTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const adapterInfoRateLimitCooldownMs = 30000;
   useEffect(() => {
     const loadMissingAdapterInfo = async () => {
       const adapterName = currentConversation?.adapterName;
@@ -403,25 +405,33 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
         adapterInfoLoadedRef.current = adapterName;
         debugLog('[ChatInterface] Loading adapter info - adapterName:', adapterName, 'reason:', !currentConversation?.adapterInfo ? 'missing' : 'notes undefined');
         try {
-          if (currentConversation?.adapterLoadError) {
-            clearConversationAdapterError(currentConversation.id);
-          }
           const apiUrl = currentConversation?.apiUrl || getApiUrl();
           debugLog('[ChatInterface] Calling configureApiSettings for:', adapterName);
           await configureApiSettings(apiUrl, undefined, adapterName);
           debugLog('[ChatInterface] Adapter info loaded successfully');
-          const latestState = useChatStore.getState();
-          const latestConversation = latestState.conversations.find(conv => conv.id === latestState.currentConversationId);
-          if (latestConversation?.adapterName === adapterName && (!latestConversation.adapterInfo || latestConversation.adapterInfo.notes === undefined)) {
-            const result = await fetchAdapterInfoForConversation(latestConversation);
-            if (!result.ok && result.error) {
-              debugError('[ChatInterface] Failed to fetch adapter info after configuring adapter:', result.error);
-            }
-          }
         } catch (error) {
           debugError('[ChatInterface] Failed to load adapter info:', error);
-          // Reset flag on error so it can retry
-          adapterInfoLoadedRef.current = null;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const isRateLimited = errorMessage.includes('429') || errorMessage.includes('Too Many Requests');
+
+          if (isRateLimited && adapterName) {
+            const existingTimer = adapterInfoRetryTimersRef.current.get(adapterName);
+            if (existingTimer) {
+              clearTimeout(existingTimer);
+            }
+            const retryTimer = setTimeout(() => {
+              if (adapterInfoLoadedRef.current === adapterName) {
+                adapterInfoLoadedRef.current = null;
+              }
+              adapterInfoRetryTimersRef.current.delete(adapterName);
+            }, adapterInfoRateLimitCooldownMs);
+            adapterInfoRetryTimersRef.current.set(adapterName, retryTimer);
+            debugWarn(`[ChatInterface] Adapter info request rate-limited; retrying in ${adapterInfoRateLimitCooldownMs / 1000}s`);
+          } else {
+            // Reset flag on non-rate-limit errors so it can retry
+            adapterInfoLoadedRef.current = null;
+          }
+
           if (currentConversation?.adapterName === adapterName) {
             const friendlyMessage = getAdapterInfoErrorMessage(error);
             setAdapterNotesError(friendlyMessage);
@@ -445,11 +455,17 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     currentConversation?.adapterLoadError,
     currentConversation?.id,
     configureApiSettings,
-    clearConversationAdapterError,
-    fetchAdapterInfoForConversation,
     getAdapterInfoErrorMessage,
     markConversationAdapterError
   ]);
+
+  useEffect(() => {
+    const retryTimers = adapterInfoRetryTimersRef.current;
+    return () => {
+      retryTimers.forEach(timer => clearTimeout(timer));
+      retryTimers.clear();
+    };
+  }, []);
 
   // Clean up any orphaned streaming messages on mount (only once, not on every render)
   // Removed automatic cleanup to preserve streaming state when switching conversations
@@ -583,7 +599,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   return (
     <main className="flex-1 flex flex-col bg-transparent overflow-hidden" aria-label="Chat workspace">
       <div className="flex h-full w-full flex-col px-3 sm:px-6 overflow-hidden">
-        <div className={`mx-auto flex h-full w-full ${chatMaxWidthClass} flex-col overflow-hidden ${MOBILE_FRAME_CLASSES}`}>
+        <div className={`mx-auto flex h-full w-full ${chatMaxWidthClass} flex-col overflow-hidden md:pb-4 ${MOBILE_FRAME_CLASSES}`}>
 
           {/* Error Banner */}
           {error && (

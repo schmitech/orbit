@@ -54,6 +54,7 @@ export function Message({
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
   const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const threadComposerRef = useRef<HTMLDivElement>(null);
   const threadRepliesRef = useRef<HTMLDivElement>(null);
   const prevThreadReplyCountRef = useRef(0);
   const prevThreadContentRef = useRef<string>('');
@@ -290,7 +291,12 @@ export function Message({
 
     // Wait for the textarea to be visible before focusing.
     const frame = requestAnimationFrame(() => {
-      textarea.focus({ preventScroll: true });
+      threadComposerRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest'
+      });
+      textarea.focus();
       // Place the caret at the end so users can start typing immediately.
       const caretPos = textarea.value.length;
       textarea.setSelectionRange(caretPos, caretPos);
@@ -556,7 +562,10 @@ export function Message({
                   </div>
                 )}
 
-                <div className="mt-3 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/80 p-3 shadow-[0_12px_28px_-22px_rgba(15,23,42,0.5)] dark:border-[#3f4354] dark:bg-gradient-to-b dark:from-[#252937]/90 dark:to-[#1d202b]/90">
+                <div
+                  ref={threadComposerRef}
+                  className="mt-3 rounded-2xl border border-gray-300 bg-gray-50 p-3 shadow-sm dark:border-[#40414f] dark:bg-[#2d2f39]"
+                >
                   {threadReplyCount === 0 && (
                     <p className="mb-2 text-xs font-medium text-blue-900/80 dark:text-[#b4c7ff]">
                       Replying in thread keeps this discussion linked to this message.
@@ -570,7 +579,7 @@ export function Message({
                     <textarea
                       id={threadInputId}
                       ref={threadTextareaRef}
-                      className="flex-1 w-full sm:w-auto min-w-0 resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base sm:text-sm text-[#1f2937] placeholder-slate-500 shadow-inner outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-200/70 disabled:opacity-60 dark:border-[#4d5368] dark:bg-[#171a22] dark:text-[#ececf1] dark:placeholder-[#8e8ea0] dark:focus:border-blue-400 dark:focus:ring-blue-500/30"
+                      className="flex-1 w-full sm:w-auto min-w-0 resize-none bg-transparent px-0 py-2.5 text-base sm:text-sm text-[#353740] placeholder-slate-500 outline-none transition focus:outline-none disabled:opacity-60 dark:text-[#ececf1] dark:placeholder-[#8e8ea0]"
                       placeholder={threadPlaceholder}
                       aria-label="Reply in thread"
                       value={threadInput}

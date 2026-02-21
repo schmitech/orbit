@@ -1435,6 +1435,15 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       const messageIndex = currentConv.messages.findIndex(m => m.id === messageId);
       if (messageIndex === -1) return;
 
+      const previousAssistantMessage = currentConv.messages[messageIndex];
+      if (!previousAssistantMessage || previousAssistantMessage.role !== 'assistant') return;
+      debugLog('[chatStore] Preserving threading metadata for regenerated assistant message', {
+        messageId,
+        supportsThreading: !!previousAssistantMessage.supportsThreading,
+        hasThreadInfo: !!previousAssistantMessage.threadInfo,
+        databaseMessageId: previousAssistantMessage.databaseMessageId
+      });
+
       const userMessage = currentConv.messages[messageIndex - 1];
       if (!userMessage || userMessage.role !== 'user') return;
       const attachmentIds = (userMessage.attachments || [])
@@ -1455,7 +1464,13 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     content: '',
                     role: 'assistant' as const,
                     timestamp: new Date(),
-                    isStreaming: true
+                    isStreaming: true,
+                    supportsThreading: previousAssistantMessage.supportsThreading,
+                    databaseMessageId: previousAssistantMessage.databaseMessageId,
+                    threadInfo: previousAssistantMessage.threadInfo,
+                    threadId: previousAssistantMessage.threadId,
+                    parentMessageId: previousAssistantMessage.parentMessageId,
+                    isThreadMessage: previousAssistantMessage.isThreadMessage
                   }
                 ],
                 updatedAt: new Date()
@@ -1577,6 +1592,31 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           }
 
           if (response.done) {
+            const threadingInfo = response.threading;
+            if (threadingInfo?.supports_threading) {
+              debugLog('[chatStore] Applying threading metadata from regenerate stream response', {
+                messageId: newAssistantMessageId,
+                databaseMessageId: threadingInfo.message_id
+              });
+              set(state => ({
+                conversations: state.conversations.map(conv => {
+                  if (conv.id !== regeneratingConversationId) return conv;
+                  return {
+                    ...conv,
+                    messages: conv.messages.map(msg =>
+                      msg.id === newAssistantMessageId
+                        ? {
+                            ...msg,
+                            supportsThreading: true,
+                            databaseMessageId: threadingInfo.message_id
+                          }
+                        : msg
+                    ),
+                    updatedAt: new Date()
+                  };
+                })
+              }));
+            }
             break;
           }
         }

@@ -484,12 +484,39 @@ function createProxyApi(): ApiFunctions {
 
       async getAdapterInfo() {
         const adapterInfoPath = '/api/admin/adapters/info';
+        const parseRetryAfterMs = (retryAfterHeader: string | null): number => {
+          if (!retryAfterHeader) return 0;
 
-        const response = await fetch(adapterInfoPath, {
+          const asSeconds = Number(retryAfterHeader);
+          if (Number.isFinite(asSeconds) && asSeconds > 0) {
+            return Math.min(asSeconds * 1000, 30000);
+          }
+
+          const asDateMs = Date.parse(retryAfterHeader);
+          if (!Number.isNaN(asDateMs)) {
+            const delayMs = asDateMs - Date.now();
+            if (delayMs > 0) {
+              return Math.min(delayMs, 30000);
+            }
+          }
+
+          return 0;
+        };
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        const requestInfo = async () => fetch(adapterInfoPath, {
           headers: await buildHeaders({
             'X-Adapter-Name': adapterName!,
           }),
         });
+
+        let response = await requestInfo();
+        if (response.status === 429) {
+          const retryAfterMs = parseRetryAfterMs(response.headers.get('Retry-After'));
+          if (retryAfterMs > 0) {
+            await sleep(retryAfterMs);
+            response = await requestInfo();
+          }
+        }
 
         if (!response.ok) {
           const errorText = await response.text();

@@ -134,7 +134,7 @@ export function AgentSelectionList({
       <div className="relative flex flex-col h-full min-h-0">
         <div
           ref={scrollContainerRef}
-          className="flex-1 min-h-0 overflow-y-auto pr-1 pb-6"
+          className="flex-1 min-h-0 overflow-y-auto pr-1 pb-2"
         >
           <div className="grid gap-3">
             {filteredAdapters.map(adapter => (

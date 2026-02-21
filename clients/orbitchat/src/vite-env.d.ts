@@ -10,7 +10,7 @@ interface ImportMetaEnv {
   readonly VITE_AUTH_AUDIENCE?: string
 
   // Adapter secrets (from .env)
-  readonly VITE_ADAPTERS?: string
+  readonly VITE_ADAPTER_KEYS?: string
 }
 
 interface ImportMeta {

@@ -1,5 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 import type { Adapter } from '../utils/middlewareConfig';
+import { MarkdownRenderer } from '@schmitech/markdown-renderer';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface AgentCardProps {
   adapter: Adapter;
@@ -9,6 +11,8 @@ interface AgentCardProps {
 export function AgentCard({ adapter, onSelect }: AgentCardProps) {
   const description = adapter.description?.trim();
   const model = adapter.model?.trim();
+  const { isDark } = useTheme();
+  const syntaxTheme: 'dark' | 'light' = isDark ? 'dark' : 'light';
   return (
     <button
       type="button"
@@ -18,13 +22,13 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
     >
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold text-gray-900 dark:text-white">
+          <p className="truncate text-lg font-semibold text-gray-900 dark:text-white">
             {adapter.name}
           </p>
         </div>
         {model && (
           <span
-            className="max-w-[40%] truncate rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:border-blue-400/30 dark:bg-blue-900/20 dark:text-blue-200"
+            className="max-w-[40%] truncate rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700 dark:border-blue-400/30 dark:bg-blue-900/20 dark:text-blue-200"
             title={model}
             aria-label={`Model: ${model}`}
           >
@@ -36,11 +40,15 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
         </div>
       </div>
       {description ? (
-        <p className="line-clamp-3 text-sm leading-relaxed text-gray-600 dark:text-gray-200">
-          {description}
-        </p>
+        <div className="text-base leading-relaxed text-gray-600 dark:text-gray-200">
+          <MarkdownRenderer
+            content={description}
+            className="prose prose-slate dark:prose-invert max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0"
+            syntaxTheme={syntaxTheme}
+          />
+        </div>
       ) : (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+        <p className="text-base text-gray-500 dark:text-gray-400">
           Configure this agent to see its capabilities.
         </p>
       )}

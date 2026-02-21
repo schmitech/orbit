@@ -15,91 +15,100 @@ export interface NavLink {
 }
 
 export interface RuntimeConfig {
-  // API Configuration
-  apiUrl: string;
-  defaultKey: string;
-  applicationName: string;
-  applicationDescription: string;
-  defaultInputPlaceholder: string;
-  consoleDebug: boolean;
-  locale: string;
-
-  // Feature Flags
-  enableUploadButton: boolean;
-  enableAudioOutput: boolean;
-  enableAudioInput: boolean;
-  enableFeedbackButtons: boolean;
-  enableConversationThreads: boolean;
-  enableAutocomplete: boolean;
-  voiceSilenceTimeoutMs: number;
-  voiceRecognitionLanguage: string;
-  showGitHubStats: boolean;
+  application: {
+    name: string;
+    description: string;
+    inputPlaceholder: string;
+    settingsAboutMsg: string;
+    locale: string;
+  };
+  debug: {
+    consoleDebug: boolean;
+  };
+  features: {
+    enableUpload: boolean;
+    enableAudioOutput: boolean;
+    enableAudioInput: boolean;
+    enableFeedbackButtons: boolean;
+    enableConversationThreads: boolean;
+    enableAutocomplete: boolean;
+  };
+  voice: {
+    silenceTimeoutMs: number;
+    recognitionLanguage: string;
+  };
+  github: {
+    showStats: boolean;
+    owner: string;
+    repo: string;
+  };
   outOfServiceMessage: string | null;
-
-  // GitHub Configuration
-  githubOwner: string;
-  githubRepo: string;
-
-  // Adapters (for middleware mode)
-  adapters?: Array<{
+  limits: {
+    files: {
+      perConversation: number;
+      maxSizeMB: number;
+      totalFiles: number | null;
+    };
+    conversations: {
+      maxConversations: number | null;
+      messagesPerConversation: number | null;
+      messagesPerThread: number | null;
+      totalMessages: number | null;
+    };
+    messages: {
+      maxLength: number;
+    };
+  };
+  guestLimits: {
+    files: {
+      perConversation: number;
+      maxSizeMB: number;
+      totalFiles: number | null;
+    };
+    conversations: {
+      maxConversations: number | null;
+      messagesPerConversation: number | null;
+      messagesPerThread: number | null;
+      totalMessages: number | null;
+    };
+    messages: {
+      maxLength: number;
+    };
+  };
+  auth: {
+    enabled: boolean;
+    domain: string;
+    clientId: string;
+    audience: string;
+  };
+  header: {
+    enabled: boolean;
+    logoUrl: string;
+    logoUrlLight: string;
+    logoUrlDark: string;
+    brandName: string;
+    bgColor: string;
+    textColor: string;
+    showBorder: boolean;
+    navLinks: NavLink[];
+  };
+  footer: {
+    enabled: boolean;
+    text: string;
+    bgColor: string;
+    textColor: string;
+    showBorder: boolean;
+    layout: 'stacked' | 'inline';
+    align: 'left' | 'center';
+    topPadding: 'normal' | 'large';
+    navLinks: NavLink[];
+  };
+  adapters: Array<{
     name: string;
     apiUrl?: string;
     description?: string;
     notes?: string;
   }>;
-
-  // File Upload Limits
-  maxFilesPerConversation: number;
-  maxFileSizeMB: number;
-  maxTotalFiles: number | null;
-
-  // Conversation Limits
-  maxConversations: number | null;
-  maxMessagesPerConversation: number | null;
-  maxMessagesPerThread: number | null;
-  maxTotalMessages: number | null;
-
-  // Message Limits
-  maxMessageLength: number;
-
-  // Guest Limits (used when enableAuth=true and user is not authenticated)
-  guestMaxConversations: number | null;
-  guestMaxMessagesPerConversation: number | null;
-  guestMaxTotalMessages: number | null;
-  guestMaxMessagesPerThread: number | null;
-  guestMaxFilesPerConversation: number;
-  guestMaxTotalFiles: number | null;
-  guestMaxMessageLength: number;
-  guestMaxFileSizeMB: number;
-
-  // Settings Page
-  settingsAboutMsg: string;
-
-  // Auth Configuration
-  enableAuth: boolean;
-  authDomain: string;
-  authClientId: string;
-  authAudience: string;
-
-  // Header Configuration
-  enableHeader: boolean;
-  headerLogoUrl: string;
-  headerBrandName: string;
-  headerBgColor: string;
-  headerTextColor: string;
-  headerShowBorder: boolean;
-  headerNavLinks: NavLink[];
-
-  // Footer Configuration
-  enableFooter: boolean;
-  footerText: string;
-  footerBgColor: string;
-  footerTextColor: string;
-  footerShowBorder: boolean;
-  footerLayout: 'stacked' | 'inline';
-  footerAlign: 'left' | 'center';
-  footerTopPadding: 'normal' | 'large';
-  footerNavLinks: NavLink[];
 }
 
 declare global {
@@ -110,71 +119,121 @@ declare global {
 
 /** Default values — single source of truth for the entire app */
 export const DEFAULTS: RuntimeConfig = {
-  apiUrl: 'http://localhost:3000',
-  defaultKey: 'default-key',
-  applicationName: 'ORBIT Chat',
-  applicationDescription: "Explore ideas with ORBIT's AI copilots, share context, and build together.",
-  defaultInputPlaceholder: 'Message ORBIT...',
-  consoleDebug: false,
-  locale: 'en-US',
-
-  enableUploadButton: false,
-  enableAudioOutput: false,
-  enableAudioInput: false,
-  enableFeedbackButtons: false,
-  enableConversationThreads: true,
-  enableAutocomplete: false,
-  voiceSilenceTimeoutMs: 4000,
-  voiceRecognitionLanguage: '',
-  showGitHubStats: true,
+  application: {
+    name: 'ORBIT Chat',
+    description: "Explore ideas with ORBIT's AI copilots, share context, and build together.",
+    inputPlaceholder: 'Message ORBIT...',
+    settingsAboutMsg: 'ORBIT Chat',
+    locale: 'en-US',
+  },
+  debug: {
+    consoleDebug: false,
+  },
+  features: {
+    enableUpload: false,
+    enableAudioOutput: false,
+    enableAudioInput: false,
+    enableFeedbackButtons: false,
+    enableConversationThreads: true,
+    enableAutocomplete: false,
+  },
+  voice: {
+    silenceTimeoutMs: 4000,
+    recognitionLanguage: '',
+  },
+  github: {
+    showStats: true,
+    owner: 'schmitech',
+    repo: 'orbit',
+  },
   outOfServiceMessage: null,
-
-  githubOwner: 'schmitech',
-  githubRepo: 'orbit',
-
-  maxFilesPerConversation: 5,
-  maxFileSizeMB: 50,
-  maxTotalFiles: 100,
-  maxConversations: 10,
-  maxMessagesPerConversation: 1000,
-  maxMessagesPerThread: 1000,
-  maxTotalMessages: 10000,
-  maxMessageLength: 1000,
-
-  guestMaxConversations: 1,
-  guestMaxMessagesPerConversation: 10,
-  guestMaxTotalMessages: 10,
-  guestMaxMessagesPerThread: 10,
-  guestMaxFilesPerConversation: 1,
-  guestMaxTotalFiles: 2,
-  guestMaxMessageLength: 500,
-  guestMaxFileSizeMB: 10,
-
-  settingsAboutMsg: 'ORBIT Chat',
-
-  enableAuth: false,
-  authDomain: '',
-  authClientId: '',
-  authAudience: '',
-
-  enableHeader: false,
-  headerLogoUrl: '',
-  headerBrandName: '',
-  headerBgColor: '',
-  headerTextColor: '',
-  headerShowBorder: true,
-  headerNavLinks: [],
-
-  enableFooter: false,
-  footerText: '',
-  footerBgColor: '',
-  footerTextColor: '',
-  footerShowBorder: false,
-  footerLayout: 'stacked',
-  footerAlign: 'center',
-  footerTopPadding: 'large',
-  footerNavLinks: [],
+  limits: {
+    files: {
+      perConversation: 5,
+      maxSizeMB: 50,
+      totalFiles: 100,
+    },
+    conversations: {
+      maxConversations: 10,
+      messagesPerConversation: 1000,
+      messagesPerThread: 1000,
+      totalMessages: 10000,
+    },
+    messages: {
+      maxLength: 1000,
+    },
+  },
+  guestLimits: {
+    files: {
+      perConversation: 1,
+      maxSizeMB: 10,
+      totalFiles: 2,
+    },
+    conversations: {
+      maxConversations: 1,
+      messagesPerConversation: 10,
+      messagesPerThread: 10,
+      totalMessages: 10,
+    },
+    messages: {
+      maxLength: 500,
+    },
+  },
+  auth: {
+    enabled: false,
+    domain: '',
+    clientId: '',
+    audience: '',
+  },
+  header: {
+    enabled: false,
+    logoUrl: '',
+    logoUrlLight: '',
+    logoUrlDark: '',
+    brandName: '',
+    bgColor: '',
+    textColor: '',
+    showBorder: true,
+    navLinks: [],
+  },
+  footer: {
+    enabled: false,
+    text: '',
+    bgColor: '',
+    textColor: '',
+    showBorder: false,
+    layout: 'stacked',
+    align: 'center',
+    topPadding: 'large',
+    navLinks: [],
+  },
+  adapters: [],
 };
+
+function isObject(item: unknown): item is Record<string, unknown> {
+  return typeof item === 'object' && item !== null && !Array.isArray(item);
+}
+
+/** Recursive deep merge of source into target */
+function deepMerge<T extends Record<string, unknown>>(target: T, source: Record<string, unknown>): T {
+  if (!isObject(target) || !isObject(source)) {
+    return source as T;
+  }
+
+  const output = { ...target } as Record<string, unknown>;
+  Object.keys(source).forEach(key => {
+    const targetValue = output[key];
+    const sourceValue = source[key];
+
+    if (isObject(targetValue) && isObject(sourceValue)) {
+      output[key] = deepMerge(targetValue as Record<string, unknown>, sourceValue);
+    } else if (sourceValue !== undefined) {
+      output[key] = sourceValue;
+    }
+  });
+
+  return output as T;
+}
 
 function normalizeOutOfServiceMessage(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -197,26 +256,26 @@ function normalizeOutOfServiceMessage(value: unknown): string | null {
  */
 function buildRuntimeConfig(): RuntimeConfig {
   // Config injected by the Vite plugin (dev + build)
-  const viteConfig: Partial<RuntimeConfig> =
-    (import.meta.env as Record<string, unknown>).__ORBITCHAT_CONFIG as Partial<RuntimeConfig> ?? {};
+  const viteConfig = (import.meta.env as Record<string, unknown>).__ORBITCHAT_CONFIG || {};
 
   // Config injected by the CLI server at runtime
-  const injected: Partial<RuntimeConfig> =
-    (typeof window !== 'undefined' && window.ORBIT_CHAT_CONFIG) || {};
+  const injected = (typeof window !== 'undefined' && window.ORBIT_CHAT_CONFIG) || {};
 
-  // Auth secrets from VITE_AUTH_* env vars (always available from .env)
-  const secrets: Partial<RuntimeConfig> = {};
-  const authDomain = import.meta.env.VITE_AUTH_DOMAIN;
-  const authClientId = import.meta.env.VITE_AUTH_CLIENT_ID;
-  const authAudience = import.meta.env.VITE_AUTH_AUDIENCE;
-  if (authDomain) secrets.authDomain = authDomain;
-  if (authClientId) secrets.authClientId = authClientId;
-  if (authAudience) secrets.authAudience = authAudience;
+  // Merge: DEFAULTS < viteConfig < injected
+  let merged = deepMerge(DEFAULTS, viteConfig);
+  merged = deepMerge(merged, injected);
 
-  const merged = { ...DEFAULTS, ...viteConfig, ...injected, ...secrets };
+  // Overlay auth secrets from VITE_AUTH_* env vars (always available from .env)
+  if (import.meta.env.VITE_AUTH_DOMAIN) merged.auth.domain = import.meta.env.VITE_AUTH_DOMAIN;
+  if (import.meta.env.VITE_AUTH_CLIENT_ID) merged.auth.clientId = import.meta.env.VITE_AUTH_CLIENT_ID;
+  if (import.meta.env.VITE_AUTH_AUDIENCE) merged.auth.audience = import.meta.env.VITE_AUTH_AUDIENCE;
 
   // Normalize outOfServiceMessage
   merged.outOfServiceMessage = normalizeOutOfServiceMessage(merged.outOfServiceMessage);
+
+  if (merged.auth.enabled && !merged.header.enabled) {
+    console.warn('[runtimeConfig] Auth is enabled but header is disabled. Auth UI is expected to be shown from the header, so enable header.enabled to expose sign-in controls.');
+  }
 
   return merged;
 }
@@ -225,8 +284,17 @@ export const runtimeConfig: RuntimeConfig = buildRuntimeConfig();
 
 // --- Getter functions (thin pass-throughs) ---
 
+/**
+ * Get the global API URL fallback.
+ * Priority: first adapter's URL, then DEFAULT_API_URL.
+ */
 export function getApiUrl(): string {
-  return runtimeConfig.apiUrl;
+  const adapters = runtimeConfig.adapters;
+  if (Array.isArray(adapters) && adapters.length > 0) {
+    const firstUrl = adapters[0].apiUrl?.trim();
+    if (firstUrl) return firstUrl;
+  }
+  return DEFAULT_API_URL;
 }
 
 export function resolveApiUrl(url?: string | null): string {
@@ -234,94 +302,94 @@ export function resolveApiUrl(url?: string | null): string {
   return trimmed && trimmed.length > 0 ? trimmed : getApiUrl();
 }
 
+/**
+ * Get the global default adapter key fallback.
+ */
 export function getDefaultKey(): string {
-  return runtimeConfig.defaultKey;
+  const adapters = runtimeConfig.adapters;
+  if (Array.isArray(adapters) && adapters.length > 0) {
+    return adapters[0].name;
+  }
+  return 'default-key';
 }
 
 export function getApplicationName(): string {
-  return runtimeConfig.applicationName;
+  return runtimeConfig.application.name;
 }
 
 export function getApplicationDescription(): string {
-  return runtimeConfig.applicationDescription;
+  return runtimeConfig.application.description;
 }
 
 export function getDefaultInputPlaceholder(): string {
-  return runtimeConfig.defaultInputPlaceholder;
+  return runtimeConfig.application.inputPlaceholder;
 }
 
 export function getConsoleDebug(): boolean {
-  return runtimeConfig.consoleDebug;
+  return runtimeConfig.debug.consoleDebug;
 }
 
 export function getLocale(): string {
-  return runtimeConfig.locale;
+  return runtimeConfig.application.locale;
 }
 
 export function getEnableUploadButton(): boolean {
-  return runtimeConfig.enableUploadButton;
+  return runtimeConfig.features.enableUpload;
 }
 
 export function getEnableAudioOutput(): boolean {
-  return runtimeConfig.enableAudioOutput;
+  return runtimeConfig.features.enableAudioOutput;
 }
 
 export function getEnableAudioInput(): boolean {
-  return runtimeConfig.enableAudioInput;
+  return runtimeConfig.features.enableAudioInput;
 }
 
 export function getEnableFeedbackButtons(): boolean {
-  return runtimeConfig.enableFeedbackButtons;
+  return runtimeConfig.features.enableFeedbackButtons;
 }
 
 export function getEnableConversationThreads(): boolean {
-  return runtimeConfig.enableConversationThreads;
+  return runtimeConfig.features.enableConversationThreads;
 }
 
 export function getEnableAutocomplete(): boolean {
-  return runtimeConfig.enableAutocomplete;
+  return runtimeConfig.features.enableAutocomplete;
 }
 
 export function getVoiceSilenceTimeoutMs(): number {
-  return Math.max(1000, runtimeConfig.voiceSilenceTimeoutMs);
+  return Math.max(1000, runtimeConfig.voice.silenceTimeoutMs);
 }
 
 export function getVoiceRecognitionLanguage(): string {
-  return runtimeConfig.voiceRecognitionLanguage;
+  return runtimeConfig.voice.recognitionLanguage;
 }
 
 /**
  * Resolve the default adapter name.
- * Falls back to the first adapter in the adapters list when the key is the placeholder.
+ * Picks the first adapter in the configured adapters list.
  */
 export function getDefaultAdapterName(): string | null {
-  const adapterName = runtimeConfig.defaultKey?.trim();
-  if (adapterName && adapterName !== 'default-key') {
-    return adapterName;
-  }
-
-  // Try first configured adapter
   const adapters = runtimeConfig.adapters;
-  if (Array.isArray(adapters)) {
+  if (Array.isArray(adapters) && adapters.length > 0) {
     for (const adapter of adapters) {
       const name = typeof adapter?.name === 'string' ? adapter.name.trim() : '';
       if (name) return name;
     }
   }
-
-  return adapterName && adapterName.length > 0 ? adapterName : null;
+  return null;
 }
 
 export function getShowGitHubStats(): boolean {
-  return runtimeConfig.showGitHubStats;
+  return runtimeConfig.github.showStats;
 }
 
 export function getGitHubOwner(): string {
-  return runtimeConfig.githubOwner;
+  return runtimeConfig.github.owner;
 }
 
 export function getGitHubRepo(): string {
-  return runtimeConfig.githubRepo;
+  return runtimeConfig.github.repo;
 }
 
 export function getOutOfServiceMessage(): string | null {
@@ -329,55 +397,63 @@ export function getOutOfServiceMessage(): string | null {
 }
 
 export function getSettingsAboutMsg(): string {
-  return runtimeConfig.settingsAboutMsg;
+  return runtimeConfig.application.settingsAboutMsg;
 }
 
 export function getEnableAuth(): boolean {
-  return runtimeConfig.enableAuth;
+  return runtimeConfig.auth.enabled;
 }
 
 export function getIsAuthConfigured(): boolean {
-  return Boolean(runtimeConfig.enableAuth && runtimeConfig.authDomain && runtimeConfig.authClientId);
+  return Boolean(runtimeConfig.auth.enabled && runtimeConfig.auth.domain && runtimeConfig.auth.clientId);
 }
 
 export function getAuthDomain(): string {
-  return runtimeConfig.authDomain;
+  return runtimeConfig.auth.domain;
 }
 
 export function getAuthClientId(): string {
-  return runtimeConfig.authClientId;
+  return runtimeConfig.auth.clientId;
 }
 
 export function getAuthAudience(): string {
-  return runtimeConfig.authAudience;
+  return runtimeConfig.auth.audience;
 }
 
 export function getEnableHeader(): boolean {
-  return runtimeConfig.enableHeader;
+  return runtimeConfig.header.enabled;
 }
 
 export function getHeaderLogoUrl(): string {
-  return runtimeConfig.headerLogoUrl;
+  return runtimeConfig.header.logoUrl;
+}
+
+export function getHeaderLogoUrlLight(): string {
+  return runtimeConfig.header.logoUrlLight;
+}
+
+export function getHeaderLogoUrlDark(): string {
+  return runtimeConfig.header.logoUrlDark;
 }
 
 export function getHeaderBrandName(): string {
-  return runtimeConfig.headerBrandName;
+  return runtimeConfig.header.brandName;
 }
 
 export function getHeaderBgColor(): string {
-  return runtimeConfig.headerBgColor;
+  return runtimeConfig.header.bgColor;
 }
 
 export function getHeaderTextColor(): string {
-  return runtimeConfig.headerTextColor;
+  return runtimeConfig.header.textColor;
 }
 
 export function getHeaderShowBorder(): boolean {
-  return runtimeConfig.headerShowBorder;
+  return runtimeConfig.header.showBorder;
 }
 
 export function getHeaderNavLinks(): NavLink[] {
-  const raw = runtimeConfig.headerNavLinks;
+  const raw = runtimeConfig.header.navLinks;
   if (Array.isArray(raw)) return raw;
   // Fallback: parse if a JSON string was injected (legacy compat)
   if (typeof raw === 'string') {
@@ -392,39 +468,39 @@ export function getHeaderNavLinks(): NavLink[] {
 }
 
 export function getEnableFooter(): boolean {
-  return runtimeConfig.enableFooter;
+  return runtimeConfig.footer.enabled;
 }
 
 export function getFooterText(): string {
-  return runtimeConfig.footerText;
+  return runtimeConfig.footer.text;
 }
 
 export function getFooterBgColor(): string {
-  return runtimeConfig.footerBgColor;
+  return runtimeConfig.footer.bgColor;
 }
 
 export function getFooterTextColor(): string {
-  return runtimeConfig.footerTextColor;
+  return runtimeConfig.footer.textColor;
 }
 
 export function getFooterShowBorder(): boolean {
-  return runtimeConfig.footerShowBorder;
+  return runtimeConfig.footer.showBorder;
 }
 
 export function getFooterLayout(): 'stacked' | 'inline' {
-  return runtimeConfig.footerLayout === 'inline' ? 'inline' : 'stacked';
+  return runtimeConfig.footer.layout === 'inline' ? 'inline' : 'stacked';
 }
 
 export function getFooterAlign(): 'left' | 'center' {
-  return runtimeConfig.footerAlign === 'left' ? 'left' : 'center';
+  return runtimeConfig.footer.align === 'left' ? 'left' : 'center';
 }
 
 export function getFooterTopPadding(): 'normal' | 'large' {
-  return runtimeConfig.footerTopPadding === 'normal' ? 'normal' : 'large';
+  return runtimeConfig.footer.topPadding === 'normal' ? 'normal' : 'large';
 }
 
 export function getFooterNavLinks(): NavLink[] {
-  const raw = runtimeConfig.footerNavLinks;
+  const raw = runtimeConfig.footer.navLinks;
   if (Array.isArray(raw)) return raw;
   if (typeof raw === 'string') {
     try {

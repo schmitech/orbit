@@ -8,6 +8,7 @@ import { getApiUrl } from '../utils/runtimeConfig';
 import { AdapterSelector } from './AdapterSelector';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { GitHubStatsBanner } from './GitHubStatsBanner';
+import { AppFooter } from './AppFooter';
 
 interface SidebarProps {
   /**
@@ -484,6 +485,9 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
               })}
             </div>
           )}
+        </div>
+        <div className="shrink-0 border-t border-gray-200/80 dark:border-[#333645]">
+          <AppFooter placement="sidebar" compact />
         </div>
 
       </div>
