@@ -96,6 +96,17 @@ datasources:
     read_only: true  # Allow concurrent reads from multiple processes
     access_mode: "READ_ONLY"  # Multiple processes can read simultaneously
     threads: null
+  athena:
+    # Athena requires an S3 output location for query results.
+    # Prefer dedicated Athena vars; if omitted, pyathena/boto3 default credential chain applies.
+    aws_access_key_id: ${DATASOURCE_ATHENA_ACCESS_KEY_ID:-}
+    aws_secret_access_key: ${DATASOURCE_ATHENA_SECRET_ACCESS_KEY:-}
+    aws_session_token: ${DATASOURCE_ATHENA_SESSION_TOKEN:-}
+    region_name: ${DATASOURCE_ATHENA_REGION:-us-east-1}
+    s3_staging_dir: ${DATASOURCE_ATHENA_S3_STAGING_DIR}
+    schema_name: ${DATASOURCE_ATHENA_SCHEMA:-default}
+    catalog_name: ${DATASOURCE_ATHENA_CATALOG:-AwsDataCatalog}
+    work_group: ${DATASOURCE_ATHENA_WORKGROUP:-primary}
   mongodb:
     # Option 1: MongoDB Atlas connection (recommended for sample_mflix)
     connection_string: ${DATASOURCE_MONGODB_URI}

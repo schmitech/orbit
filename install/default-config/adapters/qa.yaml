@@ -1,0 +1,84 @@
+adapters:
+- name: qa-sql
+  enabled: false
+  type: retriever
+  datasource: sqlite
+  adapter: qa
+  implementation: retrievers.implementations.qa.QASSQLRetriever
+  inference_provider: "ollama"
+  model: "granite-cpu"
+  # reranker_provider: cohere
+  # reranker_model: rerank-english-v3.0
+  capabilities:
+    retrieval_behavior: always
+    formatting_style: standard
+    supports_file_ids: false
+    supports_session_tracking: false
+    supports_threading: false
+    requires_api_key_validation: false
+    optional_parameters:
+    - api_key
+  config:
+    confidence_threshold: 0.3
+    max_results: 5
+    return_results: 3
+    # reranker_top_n: 5
+    use_connection_pool: false
+    pool_size: 1
+    connection_timeout: 30
+    enable_query_monitoring: true
+    query_timeout: 5000
+    table: city
+    allowed_columns:
+    - id
+    - question
+    - answer
+    - category
+    - confidence
+    security_filter: active = 1
+    cache_ttl: 1800
+    test_timestamp: '1765467550.5618649'
+  fault_tolerance:
+    operation_timeout: 15.0
+    failure_threshold: 10
+    recovery_timeout: 30.0
+    success_threshold: 5
+    max_recovery_timeout: 120.0
+    enable_exponential_backoff: true
+    enable_thread_isolation: false
+    enable_process_isolation: false
+    max_retries: 3
+    retry_delay: 0.5
+    cleanup_interval: 3600.0
+    retention_period: 86400.0
+    event_handler:
+      type: default
+
+- name: qa-vector-chroma
+  enabled: false
+  type: retriever
+  datasource: chroma
+  adapter: qa
+  implementation: retrievers.implementations.qa.QAChromaRetriever
+  inference_provider: "ollama"
+  model: "granite-cpu"
+  embedding_provider: ollama
+  embedding_model: nomic-embed-text
+  capabilities:
+    retrieval_behavior: always
+    formatting_style: standard
+    supports_file_ids: false
+    supports_session_tracking: false
+    supports_threading: false
+    requires_api_key_validation: false
+    context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+    context_max_tokens: 8000
+    numeric_precision:
+      decimal_places: 2
+  config:
+    collection: city
+    confidence_threshold: 0.3
+    distance_scaling_factor: 2.0
+    max_results: 5
+    return_results: 3
+    timezone: America/Toronto

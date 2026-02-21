@@ -11,7 +11,8 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
     inference_provider: "ollama"  # Override default inference provider
-    model: "smollm2-1.7b-cpu"         # Specific model for this adapter
+    model: "granite-cpu"         # Specific model for this adapter
+    # tts_provider: "openai"          # TTS provider for audio output (see tts.yaml)
 
     # Capabilities: Pure passthrough - no retrieval
     capabilities:

@@ -1,7 +1,7 @@
 # Global embedding configuration
 embedding:
   provider: "ollama"  # Default embedding provider: ollama, openai, cohere, mistral, jina, llama_cpp
-  enabled: false       # Whether embeddings are enabled globally
+  enabled: true       # Whether embeddings are enabled globally
 
 # Provider-specific configurations
 embeddings:

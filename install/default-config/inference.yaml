@@ -288,12 +288,12 @@ inference:
   gemini:
     enabled: true
     api_key: ${GOOGLE_API_KEY}
-    model: "gemini-2.5-flash"
+    model: "gemini-3-pro-image-preview"
     context_window: 1000000  # Gemini supports up to 1M tokens
-    temperature: 0.1
-    top_p: 0.8
-    top_k: 20
-    max_tokens: 1024
+    temperature: 1.0
+    top_p: 0.95
+    top_k: 40
+    max_tokens: 32768
     stream: true
     transport: "rest"
     # Safety settings - set to true to disable all safety filters (useful for reducing false positives)
@@ -400,14 +400,49 @@ inference:
     max_tokens: 16000
     stream: true
     show_thinking: false
+  # Hugging Face Inference API (serverless or dedicated Inference Endpoints).
+  # Use any model ID from https://huggingface.co/models
   huggingface:
     enabled: false
-    model_name: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-    device: "cpu"
-    max_length: 1024
+    model: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+    api_key: ${HUGGINGFACE_API_KEY}
+    endpoint_url: null  # Optional: custom URL for Inference Endpoints
+    # Inference provider routing. Controls which backend runs the model.
+    # Options: hf-inference, cerebras, together, fireworks-ai, replicate,
+    #          sambanova, nebius, novita, scaleway, hyperbolic, auto
+    # Default "hf-inference" uses HF's own serverless API.
+    # Use "auto" to let the client pick the best available provider.
+    provider: "hf-inference"
+    temperature: 0.7
+    max_tokens: 1024
+    stream: true
+    # Retry and timeout (optional)
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 120000
+  transformers:
+    enabled: false
+    model: "RISys-Lab/RedSage-Qwen3-8B-Ins"
+    device: "auto"              # auto, cuda, mps, cpu
+    device_map: "auto"          # auto (accelerate distributes), cuda:0, null
+    dtype: "auto"               # auto, float16, bfloat16, float32
+    trust_remote_code: false
+    max_memory: null            # e.g. {"0": "20GiB", "cpu": "30GiB"}
+    attn_implementation: null   # flash_attention_2, sdpa, or null
     temperature: 0.7
     top_p: 0.9
-    stream: false
+    top_k: -1
+    max_tokens: 2048
+    repetition_penalty: 1.0
+    do_sample: true
+    stream: true
+    stop: []
   openrouter:
     enabled: true
     api_key: ${OPENROUTER_API_KEY}
@@ -422,12 +457,12 @@ inference:
   cohere:
     enabled: true
     api_key: ${COHERE_API_KEY}
-    api_base: "https://api.cohere.ai/v2"
-    model: "command-r7b-12-2024"
-    context_window: 128000  # Command R supports 128K context
+    api_base: "https://api.cohere.ai/compatibility/v1"
+    model: "command-a-03-2025"
+    context_window: 288000  # Command A API limit (input + output); reserve space for max_tokens
     temperature: 0.1
     top_p: 0.8
-    max_tokens: 1024
+    max_tokens: 8000       # Max output tokens (on-demand may cap at 4K; dedicated has no cap)
     stream: true
   watson:
     enabled: false

@@ -1,5 +1,55 @@
 # Changelog
 
+## [2.5.0] - 2026-02-20
+
+### Core System Updates
+- PersonaPlex Adapter: Added NVIDIA PersonaPlex speech-to-speech adapter with full-duplex voice streaming, WebSocket proxy, Opus codec support, and interrupt (barge-in) support
+- Real-Time Voice: Added real-time-voice-chat support with prompt and API-key wiring and orbitchat adapter entry
+- Math Teacher Adapter: Added multimodal adapter for high-school quadratic functions tutoring
+- Athena SQL Intent Retriever: Added semantic SQL intent retriever for AWS Athena with documentation updates
+- Context LLM Efficiency: Optimized inference pipeline with structured context formatting, `<context>` tags, context_max_tokens trimming, TableRenderer (pipe, markdown_table, toon, csv), and capability-driven document_reranking
+- Cohere Inference: Switched to OpenAI-compatible API (api.cohere.ai/compatibility/v1) replacing native SDK
+- Transformers Local Inference: Added HuggingFace local inference provider via AutoModelForCausalLM with token-level streaming, CUDA/MPS/CPU detection, and device_map support
+- Firecrawl Scraper: Updated to support firecrawl-py v4.x SDK (scrape_url → v1.scrape_url, normalized params)
+- Audit Strategies: Fixed abstract close implementation for SQLite and MongoDB audit strategies; Fix #146 conversation thread compression in audit logs
+- Redis: Fixed stale Lua script references after reconnection in QuotaService and RateLimitMiddleware (re-register on client change)
+- Ruff Lint: Resolved ruff lint across server, bin, clients, examples, and utils (E722, F401, F841, E402, etc.)
+- OpenRouter Embedding: Fixed OpenRouter embedding service using AsyncOpenAI client and dimensions parameter
+- HuggingFace: Fixed HuggingFace inference service for unified framework and huggingface_hub 0.36.0; fixed deprecated torch_dtype parameter
+- clear_chat_history: Added -d/--db option and improved docstring for orbit.db path
+- PersonaPlex: Fixed SSL handling for wss://, timeout with large prompts (handshake_timeout), prompt_service integration; disabled unsupported interrupts for remote servers; removed knowledge injection capability
+
+### Chat-app & UI Improvements
+- React 19: Upgraded to React 19 with lucide-react compatibility, useRef types, and flexible peerDependencies (^18 || ^19); chat widget React/UMD compatibility fixes
+- Thread UX: Smooth thread UX with improved scrolling, tables, and composer design; fixed reply scroll jitter, markdown table layout, thread composer visuals and send button styling
+- Chat UX: Polished chat UX and decoupled voice I/O (VITE_ENABLE_AUDIO_OUTPUT vs VITE_ENABLE_AUDIO_INPUT); refined autocomplete suggestion menu, message avatars and bubble styling; configurable silence timeout and auto-send on silence
+- Autocomplete: Stabilized autocomplete (stale-response protection, focus trapping, keyboard UX, live-region announcements); fixed flickering and copy toast design
+- Accessibility: Enhanced accessibility and interaction UX (aria-labels, role="button" sidebar, role="alert" errors, prefers-reduced-motion); fixed nested button hydration in Sidebar
+- Thread Reply: Replaced follow-up CTA with inline Reply-in-thread action; help tooltip and placeholder "Ask another question..." for new topics
+- Dark/Light: Added dark/light theme toggle; externalized settings and about message
+- Message Layout: Fixed user avatar cut off at top; improved table horizontal scrolling and delete conversation styles/dialogs
+- orbitchat: Bundled local markdown-renderer (path aliases, lazy-load Mermaid/Chart/Music/SVG); removed enableApiMiddleware toggle (proxy-only architecture, removed @schmitech/chatbot-api); configurable header, footer, Auth0 integration, guest limitations
+- Mobile: New ORBIT Mobile project with thread UX parity, conversation list polish, dark/light toggling, table horizontal scroll, swipe-to-delete, adapter info hydration; enabled audio; improved delete dialogs and empty-state UX
+- Theming: Removed theming app (moved to own repo); disabled widget section
+
+### Bug Fixes & Technical Improvements
+- Streaming: Fixed cancel streaming signal handling when client sends cancel; fixed spaces and batching in streaming
+- PersonaPlex: Fixed timeout with large text prompts (handshake 60s, "initializing" status); fixed SSL context for wss://
+- API Refactor: Centralized client request/error handling and modernize test/integration tooling (API v2.2.0)
+
+### API & Client Updates
+- orbitchat v3.1.1 / v3.1.0: Published NPM versions with proxy-only architecture, local markdown-renderer, header/footer and Auth0 config, daemon start script (wrap sh in npm package)
+- orbitchat v2.14.1: Earlier release in cycle
+- Node API v2.2.0: Upgraded with centralized error handling and autocomplete/thread fixes
+- Chat Widget: React 19 UMD/theme alignment; web widget project removed
+
+### Documentation & Configuration
+- README and docs: Logo updates, curl example, support URL (orbitinfra), explore-the-sandbox simplification, chunking and retriever (Athena) documentation
+- PersonaPlex: README and adapter documentation; PersonaPlexKnowledgeService removed (static knowledge injection removed)
+- Docker/Setup: New daemon start script for Orbitchat; HF config updates (gemini vision, redis default off)
+- Examples: PersonaPlex grounded agent examples; classified data SQL example fix; removed demo project
+- AWS: Documented AWS GW Orbit Integration and Lambda authorizer
+
 ## [2.4.0] - 2026-01-23
 
 ### Core System Updates
