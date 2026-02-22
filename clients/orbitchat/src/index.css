@@ -194,6 +194,20 @@
   }
 }
 
+/* Agent card description clamping */
+.agent-card-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .agent-card-description {
+    -webkit-line-clamp: 3;
+  }
+}
+
 @layer utilities {
   .line-clamp-2 {
     display: -webkit-box;

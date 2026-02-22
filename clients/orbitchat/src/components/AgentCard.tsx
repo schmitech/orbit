@@ -49,7 +49,7 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
         </div>
       </div>
       {description ? (
-        <div className="text-sm md:text-base leading-relaxed text-gray-600 dark:text-gray-200">
+        <div className="agent-card-description text-sm md:text-base leading-relaxed text-gray-600 dark:text-gray-200">
           <MarkdownRenderer
             content={description}
             className="prose prose-slate dark:prose-invert max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0"
