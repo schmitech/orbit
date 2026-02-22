@@ -91,7 +91,11 @@ header:
   # Example: "./public/logo.png" or "/home/ubuntu/assets/logo.png"
   # Legacy/fallback logo (used when theme-specific logo is not set)
   logoUrl: ""
-  # Theme-specific logos (optional)
+  # Theme-specific logos (optional).
+  # If empty/whitespace, defaults are used from public/:
+  #   logoUrlLight -> /orbit-logo-light.png
+  #   logoUrlDark  -> /orbit-logo-dark.png
+  # (same location as favicon.svg)
   logoUrlLight: ""
   logoUrlDark: ""
   brandName: ""

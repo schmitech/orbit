@@ -142,10 +142,10 @@ export function MessageList({
   return (
     <div
       ref={containerRef}
-      className="message-list flex-1 overflow-y-auto py-6"
+      className="message-list flex-1 overflow-y-auto pb-6 pt-4 sm:pt-6"
       onScroll={handleScroll}
     >
-      <div className="space-y-6 px-1.5 sm:px-4">
+      <div className="space-y-6 px-2 sm:px-4 md:px-0">
         {topLevelMessages.map((message) => (
           <div
             key={message.id}

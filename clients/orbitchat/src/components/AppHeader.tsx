@@ -43,19 +43,30 @@ export function AppHeader() {
 
   return (
     <header
-      className={`sticky top-0 z-30 shrink-0 bg-transparent px-3 pt-4 pb-2 sm:px-6 sm:pt-5 sm:pb-3 ${headerBorderClass}`.trim()}
+      className={`relative z-30 shrink-0 bg-transparent px-3 pt-4 pb-2 sm:px-6 sm:pt-5 sm:pb-3 md:sticky md:top-0 ${headerBorderClass}`.trim()}
       style={{
         backgroundColor: bgColor || undefined,
         color: textColor || undefined,
       }}
     >
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 sm:gap-3">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-4 sm:gap-3 sm:px-0">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {logoUrl && (
-            <img src={logoUrl} alt={brandName || 'Logo'} className="h-8 w-auto flex-shrink-0 sm:h-10" />
+            <img
+              src={logoUrl}
+              alt={brandName || 'Logo'}
+              draggable={false}
+              className="block h-8 w-auto flex-shrink-0 select-none sm:h-10"
+              style={{ WebkitUserDrag: 'none' }}
+            />
           )}
           {brandName && (
-            <span className="truncate text-sm font-semibold tracking-[0.01em] sm:text-lg">{brandName}</span>
+            <span
+              className="inline-flex h-8 select-none items-center truncate text-[32px] font-semibold leading-none tracking-[-0.01em] sm:h-10 sm:text-[40px]"
+              style={{ WebkitTouchCallout: 'none' }}
+            >
+              {brandName}
+            </span>
           )}
         </div>
         <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-4">
@@ -76,7 +87,9 @@ export function AppHeader() {
               </ul>
             </nav>
           )}
-          <AuthStatus />
+          <div className="hidden md:block">
+            <AuthStatus />
+          </div>
         </div>
       </div>
     </header>

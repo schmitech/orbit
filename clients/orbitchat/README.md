@@ -193,6 +193,18 @@ Theme-aware logo selection order:
 - Light theme: `header.logoUrlLight` -> `header.logoUrl` -> `header.logoUrlDark`
 - Dark theme: `header.logoUrlDark` -> `header.logoUrl` -> `header.logoUrlLight`
 
+Default logo fallback behavior:
+- If `header.logoUrlLight` is empty or whitespace, ORBIT Chat uses `/orbit-logo-light.png`.
+- If `header.logoUrlDark` is empty or whitespace, ORBIT Chat uses `/orbit-logo-dark.png`.
+- These paths are resolved from the app root (Vite `public/` directory), alongside `favicon.svg`.
+- Example:
+  ```yaml
+  header:
+    logoUrlLight: ""
+    logoUrlDark: ""
+  ```
+  With this config, light/dark themes automatically use the default files from `public/`.
+
 ### Environment Variables
 
 Adapter secrets are provided via:
@@ -228,6 +240,8 @@ The output is written to `dist/`. Serve it with:
 ```bash
 orbitchat --port 8080
 ```
+
+`public/` assets are copied into `dist/` during build. Because the npm package publishes `dist/`, default logo assets such as `orbit-logo-light.png` and `orbit-logo-dark.png` are included in published builds.
 
 ## Troubleshooting
 

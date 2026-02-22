@@ -34,9 +34,12 @@ const MOBILE_FRAME_CLASSES =
 const MOBILE_INPUT_WRAPPER_CLASSES =
   'shrink-0 sticky bottom-[calc(var(--app-footer-height,0px)+0.25rem)] z-10 -mx-4 mt-auto overflow-visible bg-transparent pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:bg-transparent md:bottom-[calc(var(--app-footer-height,0px)+0.5rem)] md:z-10 md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:bg-transparent md:[&>div]:rounded-none md:[&>div]:px-0';
 
+const MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES =
+  'shrink-0 -mx-4 mt-3 overflow-visible bg-transparent pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:bg-transparent md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:bg-transparent md:[&>div]:rounded-none md:[&>div]:px-0';
+
 // Mobile header classes for native-like sticky behavior
 const MOBILE_HEADER_CLASSES =
-  'sticky top-0 z-10 -mx-4 px-4 pt-2 pb-2 bg-transparent backdrop-blur-0 border-b border-white/50 dark:border-white/10 md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:backdrop-blur-0 md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
+  'sticky top-0 z-10 -mx-4 px-4 pt-2 pb-2 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 border-b border-white/60 dark:border-white/10 dark:bg-[#1e1f29]/95 dark:supports-[backdrop-filter]:bg-[#1e1f29]/80 md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:backdrop-blur-0 md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
 
 // Note: We use getApiUrl() directly when needed
 // to ensure we always read the latest runtime config (including CLI args)
@@ -106,7 +109,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     showEmptyState && !isAgentSelectionVisible && !!currentConversation?.adapterName;
   const chatMaxWidthClass = 'max-w-7xl';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
-  const messageInputWidthClass = shouldShowAdapterNotesPanel ? prominentWidthClass : 'w-full';
+  const messageInputWidthClass = 'w-full';
+  const emptyStateInputWrapperClass = shouldShowAdapterNotesPanel
+    ? MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES
+    : MOBILE_INPUT_WRAPPER_CLASSES;
   const canStartNewConversation = canCreateNewConversation();
   const canChangeAgent = !!currentConversation?.adapterName && (currentConversation?.messages.length || 0) === 0;
   const newConversationTooltip = canStartNewConversation
@@ -114,7 +120,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     : isGuest
     ? 'Guest conversation limit reached. Sign in for more conversations.'
     : 'Finish your current conversation before starting a new one.';
-  const showHeaderMetadata = !!(currentConversation?.adapterInfo && !shouldShowAgentSelectionList);
+  const showHeaderMetadata = !!(currentConversation && !shouldShowAgentSelectionList);
   const showBodyHeading = showEmptyState && !shouldShowAgentSelectionList;
   const bodyHeadingText =
     currentConversation?.adapterName && !shouldShowAgentSelectionList
@@ -130,10 +136,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       ? 'pt-0 pb-0 md:pt-0 md:pb-1'
       : '';
   const headerClasses = `${MOBILE_HEADER_CLASSES} ${headerBorderClass} ${compactSelectionHeaderSpacingClass}`.trim();
+  const effectiveHeaderClasses = headerClasses;
   const emptyStateTopSpacingClass = shouldShowAgentSelectionList
     ? 'pt-0 md:pt-0'
     : shouldShowAdapterNotesPanel
-      ? 'pt-0 md:pt-0'
+      ? 'pt-5 md:pt-0'
       : 'pt-4 md:pt-6';
   const hasAdapterConfigurationError = !!adapterNotesError;
   const ensureConversationReadyForAgent = useCallback((): string | null => {
@@ -621,26 +628,31 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           )}
 
           {/* Chat Header */}
-          <div className={headerClasses}>
+          <div className={effectiveHeaderClasses}>
             {/* Mobile navigation buttons - inside header so they stick with it */}
             {onOpenSidebar && (
-              <div className="mb-2 flex items-center gap-2 md:hidden">
-                <button
-                  onClick={onOpenSidebar}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/50 bg-white/80 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-white dark:border-[#2f303d] dark:bg-[#232430] dark:text-[#ececf1]"
-                  aria-label="Open conversations menu"
-                >
-                  <Menu className="h-4 w-4" />
-                  Chats
-                </button>
-                <button
-                  onClick={onOpenSettings}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/50 bg-[#11121a]/90 px-3 py-2 text-xs font-semibold text-white shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-[#0c0d14] dark:border-[#3b3c49] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
-                  aria-label="Open settings"
-                >
-                  <Settings className="h-4 w-4" />
-                  Settings
-                </button>
+              <div className="mb-2 flex items-center justify-between gap-2 md:hidden">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={onOpenSidebar}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/50 bg-white/80 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-white dark:border-[#2f303d] dark:bg-[#232430] dark:text-[#ececf1]"
+                    aria-label="Open conversations menu"
+                  >
+                    <Menu className="h-4 w-4" />
+                    Chats
+                  </button>
+                  <button
+                    onClick={onOpenSettings}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/50 bg-[#11121a]/90 px-3 py-2 text-xs font-semibold text-white shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-[#0c0d14] dark:border-[#3b3c49] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
+                    aria-label="Open settings"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </button>
+                </div>
+                <div className="ml-auto flex-shrink-0">
+                  <AuthStatus />
+                </div>
               </div>
             )}
             <div className="flex flex-col gap-2 md:gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -703,7 +715,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   </div>
                 )}
               </div>
-              <div className="flex flex-row items-center gap-2 md:justify-end md:gap-3">
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto md:justify-end md:gap-3">
                 {!shouldShowAgentSelectionList && !getEnableHeader() && (
                   <AuthStatus />
                 )}
@@ -719,7 +731,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       setIsAgentSelectionVisible(true);
                     }}
                     disabled={!canChangeAgent}
-                    className={`order-2 sm:order-1 inline-flex h-8 md:h-[42px] w-auto md:w-[190px] items-center justify-center gap-1 md:gap-2 rounded-full border px-2.5 md:px-3.5 py-1.5 md:py-2.5 text-[11px] md:text-[13px] font-medium tracking-[0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 ${
+                    className={`order-2 sm:order-1 inline-flex h-8 md:h-[42px] w-[calc(50%-0.25rem)] min-w-[140px] md:w-[190px] items-center justify-center gap-1 md:gap-2 rounded-full border px-2.5 md:px-3.5 py-1.5 md:py-2.5 text-[11px] md:text-[13px] font-medium tracking-[0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 ${
                       canChangeAgent
                         ? 'border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400 focus-visible:ring-blue-500 dark:border-blue-500/40 dark:text-blue-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-400/60 dark:focus-visible:ring-blue-400/60'
                         : 'cursor-not-allowed border-gray-200 text-gray-400 bg-transparent dark:border-[#3c3f4a] dark:text-[#6b6f7a]'
@@ -733,7 +745,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   <button
                     onClick={handleStartNewConversation}
                     disabled={!canStartNewConversation}
-                    className={`order-3 sm:order-2 inline-flex h-8 md:h-[42px] w-auto md:w-[190px] items-center justify-center gap-1 md:gap-2 rounded-full border px-2.5 md:px-3.5 py-1.5 md:py-2.5 text-[11px] md:text-[13px] font-medium tracking-[0.01em] ${
+                    className={`order-3 sm:order-2 inline-flex h-8 md:h-[42px] w-[calc(50%-0.25rem)] min-w-[140px] md:w-[190px] items-center justify-center gap-1 md:gap-2 rounded-full border px-2.5 md:px-3.5 py-1.5 md:py-2.5 text-[11px] md:text-[13px] font-medium tracking-[0.01em] ${
                       canStartNewConversation
                         ? 'border-[#1f2937] bg-[#1f2937] text-white shadow-[0_2px_8px_rgba(15,23,42,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f2937]/40 dark:border-[#4b5568] dark:bg-[#2f3747] dark:text-[#e9edf8] dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)] dark:focus-visible:ring-[#6f809f]/35'
                         : 'cursor-not-allowed border-gray-200 text-gray-400 bg-white/40 dark:border-[#3c3f4a] dark:text-[#6b6f7a] dark:bg-transparent'
@@ -751,8 +763,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           {/* Messages and Input - Conditional Layout */}
           {showEmptyState ? (
             // Empty state: Flex layout that pushes input to bottom on mobile, left-aligned on desktop
-            <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${(shouldShowAgentSelectionList || shouldShowAdapterNotesPanel) ? 'overflow-hidden' : ''}`}>
-              <div className={`flex-1 flex flex-col justify-between md:justify-start ${(shouldShowAgentSelectionList || shouldShowAdapterNotesPanel) ? 'min-h-0 overflow-hidden' : 'md:flex-none'}`}>
+            <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
+              <div className={`flex-1 flex flex-col justify-between md:justify-start ${shouldShowAgentSelectionList ? 'min-h-0 overflow-hidden' : 'md:flex-none'}`}>
                 <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex-1 min-h-0 flex flex-col' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
                     <div className={`${prominentWidthClass}`}>
@@ -841,7 +853,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   )}
                 </div>
                 {!shouldShowAgentSelectionList && (
-                  <div className={MOBILE_INPUT_WRAPPER_CLASSES}>
+                  <div className={emptyStateInputWrapperClass}>
                     <div className={messageInputWidthClass}>
                       <MessageInput
                         onSend={handleSendMessage}

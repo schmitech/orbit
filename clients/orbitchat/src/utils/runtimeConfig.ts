@@ -8,6 +8,8 @@
  */
 
 export const DEFAULT_API_URL = 'http://localhost:3000';
+const DEFAULT_HEADER_LOGO_LIGHT = '/orbit-logo-light.png';
+const DEFAULT_HEADER_LOGO_DARK = '/orbit-logo-dark.png';
 
 export interface NavLink {
   label: string;
@@ -429,11 +431,13 @@ export function getHeaderLogoUrl(): string {
 }
 
 export function getHeaderLogoUrlLight(): string {
-  return runtimeConfig.header.logoUrlLight;
+  const configured = runtimeConfig.header.logoUrlLight?.trim();
+  return configured || DEFAULT_HEADER_LOGO_LIGHT;
 }
 
 export function getHeaderLogoUrlDark(): string {
-  return runtimeConfig.header.logoUrlDark;
+  const configured = runtimeConfig.header.logoUrlDark?.trim();
+  return configured || DEFAULT_HEADER_LOGO_DARK;
 }
 
 export function getHeaderBrandName(): string {
