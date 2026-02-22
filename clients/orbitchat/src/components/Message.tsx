@@ -55,6 +55,7 @@ export function Message({
   const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
   const threadComposerRef = useRef<HTMLDivElement>(null);
   const threadRepliesRef = useRef<HTMLDivElement>(null);
+  const pendingThreadFocusRef = useRef(false);
   const prevThreadReplyCountRef = useRef(0);
   const prevThreadContentRef = useRef<string>('');
   const shouldAutoScrollThreadRef = useRef(true);
@@ -278,17 +279,19 @@ export function Message({
       return;
     }
 
-    // Wait for the textarea to be visible before focusing.
     const frame = requestAnimationFrame(() => {
-      threadComposerRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'nearest'
-      });
+      // Keep scroll adjustment instant so caret appears right away.
+      if (pendingThreadFocusRef.current) {
+        threadComposerRef.current?.scrollIntoView({
+          behavior: 'auto',
+          block: 'nearest',
+          inline: 'nearest'
+        });
+      }
       textarea.focus();
-      // Place the caret at the end so users can start typing immediately.
       const caretPos = textarea.value.length;
       textarea.setSelectionRange(caretPos, caretPos);
+      pendingThreadFocusRef.current = false;
     });
 
     return () => cancelAnimationFrame(frame);
@@ -429,7 +432,11 @@ export function Message({
                 <>
                 <div className="inline-flex items-center gap-1">
                   <button
-                    onClick={() => onStartThread(message.id, sessionId)}
+                    onClick={() => {
+                      pendingThreadFocusRef.current = true;
+                      setIsThreadOpen(true);
+                      onStartThread(message.id, sessionId);
+                    }}
                     className="inline-flex items-center gap-1 rounded px-3 py-2 md:px-2 md:py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
                     title="Reply in thread"
                     aria-label="Reply in thread"
@@ -488,7 +495,7 @@ export function Message({
         )}
 
         {threadsEnabled && message.threadInfo && (
-          <div className="thread-panel mt-3 border-l-2 border-gray-200 pl-3 sm:pl-4 dark:border-[#3b3c49]">
+          <div className="thread-panel mt-3 md:mt-5 border-l-2 border-gray-200 pl-3 sm:pl-4 dark:border-[#3b3c49]">
             <button
               onClick={() => setIsThreadOpen(prev => !prev)}
               className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition-colors hover:text-gray-700 dark:text-[#bfc2cd] dark:hover:text-white"
@@ -505,9 +512,7 @@ export function Message({
               <>
                 <div
                   ref={threadRepliesRef}
-                  className="mt-2 space-y-2 max-h-[50vh] overflow-y-auto"
-                  style={{ scrollBehavior: 'auto', overflowAnchor: 'none' }}
-                  onScroll={handleThreadRepliesScroll}
+                  className="mt-2 space-y-2"
                 >
                   {threadReplyCount > 0 ? renderedThreadReplies : null}
                 </div>
@@ -583,6 +588,20 @@ export function Message({
                     </div>
                   </div>
                 </div>
+
+                {threadReplyCount > 0 && (
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setIsThreadOpen(false)}
+                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-[#bfc2cd] dark:hover:bg-[#2f313a] dark:hover:text-white"
+                      aria-label="Hide replies"
+                    >
+                      <ChevronUp className="h-3 w-3" />
+                      <span>Hide replies</span>
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
