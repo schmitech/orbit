@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp,
   Check,
-  Bot,
-  User,
   ChevronDown,
   ChevronUp,
   Copy,
@@ -96,7 +94,7 @@ export function Message({
 
   const userMarkdownClass = useMemo(
     () =>
-      ['message-markdown w-full min-w-0', 'prose prose-invert max-w-none', forcedThemeClass]
+      ['message-markdown w-full min-w-0', 'prose prose-slate dark:prose-invert max-w-none', forcedThemeClass]
         .filter(Boolean)
         .join(' '),
     [forcedThemeClass]
@@ -198,19 +196,9 @@ export function Message({
     return `${dayOfWeek}, ${month} ${day}, ${year} ${time}`;
   }, [message.timestamp, locale]);
 
-  const avatarClasses = isAssistant
-    ? 'text-blue-700 dark:text-[#c5d7ff]'
-    : 'text-emerald-700 dark:text-[#9ef0d5]';
+  const bubbleClasses = 'message-bubble min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]';
 
-  const bubbleClasses = `message-bubble min-w-0 break-words leading-relaxed ${
-    isAssistant
-      ? 'border border-blue-100/80 bg-transparent text-[#0f172a] shadow-[0_15px_35px_-20px_rgba(15,23,42,0.25)] dark:border-[#1f2a36] dark:bg-transparent dark:text-[#e5edff]'
-      : 'border border-slate-200 bg-transparent text-[#1c3226] shadow-[0_12px_30px_-18px_rgba(15,52,33,0.25)] dark:border-[#1a2b21] dark:bg-transparent dark:text-[#dffbea]'
-  } rounded-2xl px-4 py-3`;
-
-  const attachmentClasses = isAssistant
-    ? 'border-blue-100 bg-white/80 dark:border-[#1f2a36] dark:bg-white/5'
-    : 'border-emerald-100 bg-white/80 dark:border-[#1a2b21] dark:bg-white/5';
+  const attachmentClasses = 'border-gray-200 bg-white/80 dark:border-[#3b3c49] dark:bg-white/5';
 
   const copyToClipboard = async () => {
     try {
@@ -368,24 +356,14 @@ export function Message({
       );
 
       return (
-        <div key={reply.id} className="flex items-start gap-3">
-          <div
-            className={`mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center ${
-              replyIsAssistant
-                ? 'text-blue-700 dark:text-[#c5d7ff]'
-                : 'text-emerald-700 dark:text-[#9ef0d5]'
-            }`}
-          >
-            {replyIsAssistant ? <Bot className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
-          </div>
-          <div className="flex-1 min-w-0 rounded-2xl border border-white/70 bg-white/90 px-4 py-3 text-sm shadow-sm dark:border-white/5 dark:bg-white/5 backdrop-blur overflow-hidden">
-            <div className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-blue-900/70 dark:text-[#c5d7ff]">
-              <span>{replyIsAssistant ? 'Assistant' : 'You'}</span>
-              <span>{formatThreadTimestamp(reply.timestamp)}</span>
+        <div key={reply.id} className="min-w-0">
+          {!replyIsAssistant && (
+            <div className="mb-0.5">
+              <span className="text-[11px] text-gray-400 dark:text-[#8e8ea0]">{formatThreadTimestamp(reply.timestamp)}</span>
             </div>
-            <div className="thread-markdown-wrapper overflow-x-auto">
-              {replyContent}
-            </div>
+          )}
+          <div className="thread-markdown-wrapper overflow-x-auto text-sm text-[#353740] dark:text-[#ececf1]">
+            {replyContent}
           </div>
         </div>
       );
@@ -393,20 +371,11 @@ export function Message({
   }, [formatThreadTimestamp, syntaxTheme, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
 
   return (
-    <div className="group flex items-start gap-3 px-1 animate-fadeIn min-w-0 sm:px-0">
-      <div
-        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center self-start ml-1 sm:ml-2 ${avatarClasses}`}
-      >
-        {isAssistant ? <Bot className="h-5 w-5" /> : <User className="h-5 w-5" />}
-      </div>
-
-      <div className="flex-1 min-w-0 space-y-2">
-        <div className="flex flex-col gap-1.5 mb-1">
-          <span className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-[#ececf1]">
-            {isAssistant ? 'Assistant' : 'You'}
-          </span>
+    <div className="group animate-fadeIn min-w-0 px-0">
+      <div className="min-w-0 space-y-1">
+        {!isAssistant && (
           <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">{timestamp}</span>
-        </div>
+        )}
 
         <div className={bubbleClasses}>
           {renderedMessageContent}
@@ -508,37 +477,24 @@ export function Message({
         )}
 
         {threadsEnabled && message.threadInfo && (
-          <div className="thread-panel mt-4 rounded-xl border border-blue-100/80 bg-blue-50/70 p-3 sm:p-4 text-sm shadow-sm ring-1 ring-blue-100/60 dark:border-white/10 dark:bg-white/[0.035] dark:ring-white/5">
-            <div className="flex items-center justify-between gap-2 text-sm font-semibold text-blue-900 dark:text-[#e1e8ff]">
-              <div className="inline-flex items-center gap-2 uppercase tracking-wide text-xs sm:text-sm">
-                <MessageSquare className="h-3.5 w-3.5" />
-                <span>
-                  Replies{threadReplyCount > 0 ? ` (${threadReplyCount})` : ''}
-                </span>
-              </div>
-              <button
-                onClick={() => setIsThreadOpen(prev => !prev)}
-                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-blue-200/80 px-3 py-2 sm:py-1.5 text-xs uppercase tracking-wide text-blue-900 transition hover:bg-white/70 dark:border-white/10 dark:text-[#c5d7ff] dark:hover:bg-white/[0.08]"
-              >
-                {isThreadOpen ? (
-                  <>
-                    <span className="hidden sm:inline">Hide replies</span>
-                    <ChevronUp className="h-4 w-4 sm:h-3 sm:w-3" />
-                  </>
-                ) : (
-                  <>
-                    <span className="hidden sm:inline">Show replies</span>
-                    <ChevronDown className="h-4 w-4 sm:h-3 sm:w-3" />
-                  </>
-                )}
-              </button>
-            </div>
+          <div className="thread-panel mt-3 border-l-2 border-gray-200 pl-3 sm:pl-4 dark:border-[#3b3c49]">
+            <button
+              onClick={() => setIsThreadOpen(prev => !prev)}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition-colors hover:text-gray-700 dark:text-[#bfc2cd] dark:hover:text-white"
+            >
+              <MessageSquare className="h-3 w-3" />
+              <span>{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</span>
+              {isThreadOpen
+                ? <ChevronUp className="h-3 w-3" />
+                : <ChevronDown className="h-3 w-3" />
+              }
+            </button>
 
             {isThreadOpen && (
               <>
                 <div
                   ref={threadRepliesRef}
-                  className="mt-3 space-y-3 max-h-96 overflow-y-auto"
+                  className="mt-2 space-y-2 max-h-[50vh] overflow-y-auto"
                   style={{ scrollBehavior: 'auto', overflowAnchor: 'none' }}
                   onScroll={handleThreadRepliesScroll}
                 >
@@ -564,15 +520,9 @@ export function Message({
 
                 <div
                   ref={threadComposerRef}
-                  className="mt-3 rounded-2xl border border-gray-300 bg-gray-50 p-3 shadow-sm dark:border-[#40414f] dark:bg-[#2d2f39]"
+                  className="mt-2 pt-2"
                 >
-                  {threadReplyCount === 0 && (
-                    <p className="mb-2 text-xs font-medium text-blue-900/80 dark:text-[#b4c7ff]">
-                      Replying in thread keeps this discussion linked to this message.
-                    </p>
-                  )}
-                  {/* Mobile: stacked layout, Desktop: inline */}
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2">
                     <label htmlFor={threadInputId} className="sr-only">
                       Reply in thread
                     </label>

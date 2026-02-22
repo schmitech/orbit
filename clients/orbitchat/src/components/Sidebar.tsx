@@ -4,7 +4,7 @@ import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { debugError } from '../utils/debug';
-import { getApiUrl } from '../utils/runtimeConfig';
+import { getApiUrl, getHeaderNavLinks } from '../utils/runtimeConfig';
 import { AdapterSelector } from './AdapterSelector';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { GitHubStatsBanner } from './GitHubStatsBanner';
@@ -486,6 +486,28 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
             </div>
           )}
         </div>
+        {(() => {
+          const navLinks = getHeaderNavLinks();
+          if (navLinks.length === 0) return null;
+          return (
+            <div className="shrink-0 border-t border-gray-200/80 px-4 py-3 md:hidden dark:border-[#333645]">
+              <nav aria-label="Header links">
+                <ul className="flex flex-wrap gap-2">
+                  {navLinks.map((link) => (
+                    <li key={link.url}>
+                      <a
+                        href={link.url}
+                        className="inline-flex items-center rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-[#d1d5db] dark:hover:bg-[#2b2d39]"
+                      >
+                        {link.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            </div>
+          );
+        })()}
         <div className="shrink-0 border-t border-gray-200/80 dark:border-[#333645]">
           <AppFooter placement="sidebar" compact />
         </div>

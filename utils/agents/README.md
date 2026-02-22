@@ -12,6 +12,7 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 | `security-audit-agent.md` | Identifies security vulnerabilities, assesses severity, and provides concrete mitigations |
 | `ux-review-agent.md` | Evaluates UX quality — accessibility, responsive design, interaction patterns, performance UX, and design consistency (React / Vite / Node) |
 | `responsive-design-agent.md` | Makes an existing React webapp fully responsive across mobile devices (iOS, Android) without breaking the desktop version |
+| `bug-detection-agent.md` | Finds existing bugs, latent defects, race conditions, edge cases, and fragile code that will break under real-world conditions |
 
 ---
 
@@ -23,6 +24,7 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 - **Need to find security risks and vulnerabilities?** → Use `security-audit-agent.md`
 - **UI feels off, inaccessible, or inconsistent?** → Use `ux-review-agent.md`
 - **Need to make a desktop app work on mobile?** → Use `responsive-design-agent.md`
+- **Hunting for bugs, edge cases, and things that will break in production?** → Use `bug-detection-agent.md`
 - **Want the full picture?** → Combine agents in a single session (see below)
 
 ### 2. Start a new conversation with your AI assistant
@@ -83,6 +85,16 @@ Apply the following assessment framework to the attached codebase:
 [Paste or attach your code]
 ```
 
+### Single Agent — Bug Detection
+
+```
+Apply the following assessment framework to the attached codebase:
+
+[Paste contents of bug-detection-agent.md here]
+
+[Paste or attach your code]
+```
+
 ### Combined — Full Review
 
 ```
@@ -120,6 +132,7 @@ Focus especially on [performance / readability / testability / security].
 Focus especially on [API security / auth flows / data protection / third-party integrations].
 Focus especially on [accessibility / responsive design / interaction feedback / performance UX / design consistency].
 Focus especially on [navigation / forms / touch interactions / iOS Safari quirks / Android Chrome quirks].
+Focus especially on [async bugs / state management / null safety / edge cases / error handling gaps / race conditions].
 ```
 
 ### Scope Modifiers
@@ -131,6 +144,7 @@ This handles [payment data / health records / PII].
 The design system uses [Tailwind / MUI / Chakra / shadcn/ui / custom tokens].
 Target devices: [iPhone SE through iPhone 15 Pro Max / specific Android devices / tablets].
 The app currently uses [CSS Modules / styled-components / Tailwind / plain CSS].
+Assume [high traffic / concurrent users / unreliable network / hostile user input].
 ```
 
 ### Compliance Modifiers
@@ -219,6 +233,23 @@ Summary includes:
 - Overall mobile readiness score (1–10)
 - Recommended testing tools and workflow
 
+### Bug Detection Agent
+
+For each defect:
+- **Location** — file and line/section
+- **Defect** — clear description of the bug or latent defect
+- **Category** — Logic Error / Null Safety / Async/Timing / State Management / Error Handling / Edge Case / Data Integrity / Dependency Risk / Code Pattern
+- **Severity** — Critical (data loss/crashes) / High (incorrect behavior) / Medium (issues under specific conditions) / Low (minor/cosmetic)
+- **Trigger Scenario** — specific steps or conditions that cause the defect to manifest
+- **Fix** — corrected code
+
+Summary includes:
+- Defects by severity and by category
+- Top 5 most dangerous defects
+- Recurring systemic patterns
+- Overall code reliability score (1–10)
+- Recommended linter rules, TypeScript settings, and testing strategies to prevent recurrence
+
 ---
 
 ## Compatibility
@@ -229,3 +260,9 @@ These prompts are designed to work with any capable AI coding assistant, includi
 - **Claude Code** — CLI tool
 - **OpenAI Codex / ChatGPT** — chat or API
 - **Cursor, Windsurf, Copilot Chat** — IDE-integrated assistants
+
+---
+
+## License
+
+Free to use, modify, and distribute. No attribution required.
