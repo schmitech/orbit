@@ -111,7 +111,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const chatMaxWidthClass = 'max-w-7xl';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const messageInputWidthClass = 'w-full';
-  const emptyStateInputWrapperClass = MOBILE_INPUT_WRAPPER_CLASSES;
+  const emptyStateInputWrapperClass = shouldShowAdapterNotesPanel
+    ? MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES
+    : MOBILE_INPUT_WRAPPER_CLASSES;
   const canStartNewConversation = canCreateNewConversation();
   const canChangeAgent = !!currentConversation?.adapterName && (currentConversation?.messages.length || 0) === 0;
   const newConversationTooltip = canStartNewConversation
@@ -763,8 +765,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           {showEmptyState ? (
             // Empty state: Flex layout that pushes input to bottom on mobile, left-aligned on desktop
             <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
-              <div className={`flex-1 flex flex-col justify-between md:justify-start ${shouldShowAgentSelectionList ? 'min-h-0 overflow-hidden' : 'md:flex-none'}`}>
-                <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex-1 min-h-0 flex flex-col' : 'space-y-6'}`}>
+              <div className={`flex-1 flex flex-col justify-between md:justify-start ${shouldShowAgentSelectionList ? 'min-h-0 overflow-hidden' : shouldShowAdapterNotesPanel ? 'overflow-y-auto' : 'md:flex-none'}`}>
+                <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex flex-col' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
                     <div className={`${prominentWidthClass}`}>
                       <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
@@ -808,8 +810,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       />
                     </div>
                   ) : shouldShowAdapterNotesPanel ? (
-                    <div className={`${prominentWidthClass} py-0 flex-1 min-h-0 flex flex-col`}>
-                      <div className="flex-1 min-h-0 overflow-y-auto px-1 pb-28 pt-2 md:pb-2 md:pt-0">
+                    <div className={`${prominentWidthClass} py-0`}>
+                      <div className="px-1 pb-2 pt-2 md:pb-2 md:pt-0">
                         {currentConversation?.adapterInfo?.notes ? (
                           <MarkdownRenderer
                             content={currentConversation.adapterInfo.notes}
