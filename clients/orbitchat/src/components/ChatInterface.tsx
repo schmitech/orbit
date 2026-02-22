@@ -864,7 +864,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                           !currentConversation?.adapterName ||
                           hasAdapterConfigurationError
                         }
-                        autoFocusEnabled={!shouldShowAdapterNotesPanel}
+                        autoFocusEnabled
+                        suppressMobileAutoFocus={shouldShowAdapterNotesPanel}
                         placeholder={defaultInputPlaceholder}
                         maxWidthClass={chatMaxWidthClass}
                       />

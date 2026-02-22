@@ -20,6 +20,7 @@ interface MessageInputProps {
   disabled?: boolean;
   placeholder?: string;
   autoFocusEnabled?: boolean;
+  suppressMobileAutoFocus?: boolean;
   /**
    * When true, constrains the input to a tighter max width and centers it.
    * Used for the empty state layout so the field and title feel aligned.
@@ -99,6 +100,7 @@ export function MessageInput({
   disabled = false, 
   placeholder = getDefaultInputPlaceholder(),
   autoFocusEnabled = true,
+  suppressMobileAutoFocus = false,
   isCentered = false,
   maxWidthClass = 'max-w-5xl'
 }: MessageInputProps) {
@@ -395,19 +397,33 @@ export function MessageInput({
     return activeElement && activeElement.tagName === 'TEXTAREA';
   };
 
+  const shouldSkipAutoFocus = () => {
+    if (!suppressMobileAutoFocus || typeof window === 'undefined') {
+      return false;
+    }
+    return window.matchMedia('(max-width: 767px)').matches;
+  };
+
   // Auto-focus when not disabled (when AI response is complete)
   useEffect(() => {
     // Only auto-focus if no textarea is currently focused (to avoid stealing focus from thread inputs)
+    if (shouldSkipAutoFocus()) {
+      return;
+    }
     if (autoFocusEnabled && !isInputDisabled && textareaRef.current && !isFocusInTextarea()) {
       textareaRef.current.focus();
     }
-  }, [autoFocusEnabled, isInputDisabled]);
+  }, [autoFocusEnabled, isInputDisabled, suppressMobileAutoFocus]);
 
   // Focus input field when assistant response finishes (isLoading becomes false)
   const prevIsLoadingRef = useRef(isLoading);
   useEffect(() => {
     // If loading just finished (transitioned from true to false), focus the input
     // But only if user is not currently focused on any textarea (including thread inputs)
+    if (shouldSkipAutoFocus()) {
+      prevIsLoadingRef.current = isLoading;
+      return;
+    }
     if (autoFocusEnabled && prevIsLoadingRef.current && !isLoading && !isInputDisabled && textareaRef.current) {
       // Small delay to ensure the UI has updated
       setTimeout(() => {
@@ -418,7 +434,7 @@ export function MessageInput({
       }, 100);
     }
     prevIsLoadingRef.current = isLoading;
-  }, [autoFocusEnabled, isLoading, isInputDisabled]);
+  }, [autoFocusEnabled, isLoading, isInputDisabled, suppressMobileAutoFocus]);
 
   // Auto-send message when voice recording completes
   useEffect(() => {
