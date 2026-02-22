@@ -50,6 +50,7 @@ export function Message({
   const [threadInput, setThreadInput] = useState('');
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
+  const [showThreadHelp, setShowThreadHelp] = useState(false);
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
   const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
   const threadComposerRef = useRef<HTMLDivElement>(null);
@@ -425,6 +426,7 @@ export function Message({
               )}
 
               {threadsEnabled && onStartThread && message.supportsThreading && !message.threadInfo && sessionId && (
+                <>
                 <div className="inline-flex items-center gap-1">
                   <button
                     onClick={() => onStartThread(message.id, sessionId)}
@@ -435,14 +437,23 @@ export function Message({
                     <MessageSquare className="h-4 w-4" />
                     <span className="hidden sm:inline">Reply in thread</span>
                   </button>
-                  <span
-                    className="inline-flex items-center rounded p-2.5 md:p-1 text-gray-500 dark:text-[#bfc2cd]"
+                  <button
+                    type="button"
+                    onClick={() => setShowThreadHelp(prev => !prev)}
+                    className="inline-flex items-center rounded p-2.5 md:p-1 text-gray-500 hover:bg-gray-200 dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
                     title="Use this when your question is about this specific answer. Use the main input for unrelated topics."
                     aria-label="Thread help"
+                    aria-expanded={showThreadHelp}
                   >
                     <HelpCircle className="h-4 w-4" />
-                  </span>
+                  </button>
                 </div>
+                {showThreadHelp && (
+                  <div className="basis-full rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] leading-relaxed text-blue-900 dark:border-blue-500/30 dark:bg-blue-900/20 dark:text-blue-100">
+                    Use this when your question is about this specific answer. Use the main input for unrelated topics.
+                  </div>
+                )}
+                </>
               )}
 
               {getEnableFeedbackButtons() && (

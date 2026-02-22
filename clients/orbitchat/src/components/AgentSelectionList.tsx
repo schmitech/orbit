@@ -171,7 +171,7 @@ export function AgentSelectionList({
   };
 
   return (
-    <div className={`flex w-full flex-col gap-3 md:gap-6 ${className}`}>
+    <div className={`flex w-full flex-col gap-4 md:gap-6 ${className}`}>
       {(eyebrow || title || subtitle) && (
         <div className="flex-shrink-0">
           {eyebrow && (
