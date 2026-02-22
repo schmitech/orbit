@@ -39,7 +39,7 @@ const MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES =
 
 // Mobile header classes for native-like sticky behavior
 const MOBILE_HEADER_CLASSES =
-  'sticky top-0 z-20 -mx-4 px-4 pt-2 pb-2 bg-white border-b border-slate-200 dark:border-[#3b3d49] dark:bg-[#1e1f29] md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
+  'relative z-20 shrink-0 -mx-4 px-4 pt-2 pb-2 bg-white border-b border-slate-200 dark:border-[#3b3d49] dark:bg-[#1e1f29] md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
 
 // Note: We use getApiUrl() directly when needed
 // to ensure we always read the latest runtime config (including CLI args)
@@ -75,6 +75,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const adapterNotesMarkdownClass = [
     'message-markdown w-full min-w-0',
     'prose prose-slate dark:prose-invert max-w-none',
+    '[&>:first-child]:mt-0 [&>:last-child]:mb-0',
     forcedThemeClass
   ]
     .filter(Boolean)
@@ -110,9 +111,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const chatMaxWidthClass = 'max-w-7xl';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const messageInputWidthClass = 'w-full';
-  const emptyStateInputWrapperClass = shouldShowAdapterNotesPanel
-    ? MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES
-    : MOBILE_INPUT_WRAPPER_CLASSES;
+  const emptyStateInputWrapperClass = MOBILE_INPUT_WRAPPER_CLASSES;
   const canStartNewConversation = canCreateNewConversation();
   const canChangeAgent = !!currentConversation?.adapterName && (currentConversation?.messages.length || 0) === 0;
   const newConversationTooltip = canStartNewConversation
@@ -810,7 +809,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     </div>
                   ) : shouldShowAdapterNotesPanel ? (
                     <div className={`${prominentWidthClass} py-0 flex-1 min-h-0 flex flex-col`}>
-                      <div className="flex-1 min-h-0 overflow-y-auto px-1 pb-2 pt-2 md:pt-0">
+                      <div className="flex-1 min-h-0 overflow-y-auto px-1 pb-28 pt-2 md:pb-2 md:pt-0">
                         {currentConversation?.adapterInfo?.notes ? (
                           <MarkdownRenderer
                             content={currentConversation.adapterInfo.notes}
@@ -863,6 +862,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                           !currentConversation?.adapterName ||
                           hasAdapterConfigurationError
                         }
+                        autoFocusEnabled={!shouldShowAdapterNotesPanel}
                         placeholder={defaultInputPlaceholder}
                         maxWidthClass={chatMaxWidthClass}
                       />
@@ -899,6 +899,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       isAgentSelectionVisible ||
                       hasAdapterConfigurationError
                     }
+                    autoFocusEnabled
                     placeholder="Ask another question..."
                     maxWidthClass={chatMaxWidthClass}
                   />

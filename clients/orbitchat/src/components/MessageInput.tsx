@@ -19,6 +19,7 @@ interface MessageInputProps {
   onSend: (message: string, fileIds?: string[], threadId?: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  autoFocusEnabled?: boolean;
   /**
    * When true, constrains the input to a tighter max width and centers it.
    * Used for the empty state layout so the field and title feel aligned.
@@ -97,6 +98,7 @@ export function MessageInput({
   onSend, 
   disabled = false, 
   placeholder = getDefaultInputPlaceholder(),
+  autoFocusEnabled = true,
   isCentered = false,
   maxWidthClass = 'max-w-5xl'
 }: MessageInputProps) {
@@ -396,17 +398,17 @@ export function MessageInput({
   // Auto-focus when not disabled (when AI response is complete)
   useEffect(() => {
     // Only auto-focus if no textarea is currently focused (to avoid stealing focus from thread inputs)
-    if (!isInputDisabled && textareaRef.current && !isFocusInTextarea()) {
+    if (autoFocusEnabled && !isInputDisabled && textareaRef.current && !isFocusInTextarea()) {
       textareaRef.current.focus();
     }
-  }, [isInputDisabled]);
+  }, [autoFocusEnabled, isInputDisabled]);
 
   // Focus input field when assistant response finishes (isLoading becomes false)
   const prevIsLoadingRef = useRef(isLoading);
   useEffect(() => {
     // If loading just finished (transitioned from true to false), focus the input
     // But only if user is not currently focused on any textarea (including thread inputs)
-    if (prevIsLoadingRef.current && !isLoading && !isInputDisabled && textareaRef.current) {
+    if (autoFocusEnabled && prevIsLoadingRef.current && !isLoading && !isInputDisabled && textareaRef.current) {
       // Small delay to ensure the UI has updated
       setTimeout(() => {
         // Only focus main input if user is not already focused on a textarea
@@ -416,7 +418,7 @@ export function MessageInput({
       }, 100);
     }
     prevIsLoadingRef.current = isLoading;
-  }, [isLoading, isInputDisabled]);
+  }, [autoFocusEnabled, isLoading, isInputDisabled]);
 
   // Auto-send message when voice recording completes
   useEffect(() => {
