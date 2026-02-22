@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Search } from 'lucide-react';
 import { AgentCard } from './AgentCard';
 import { fetchAdapters, type Adapter } from '../utils/middlewareConfig';
@@ -26,6 +26,16 @@ export function AgentSelectionList({
   const [error, setError] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [canScrollDown, setCanScrollDown] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) {
+      setCanScrollDown(false);
+      return;
+    }
+    setCanScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 20);
+  }, []);
 
   const focusFirstAgentCard = () => {
     const cardButtons = scrollContainerRef.current?.querySelectorAll<HTMLButtonElement>('button[data-agent-card="true"]');
@@ -60,6 +70,14 @@ export function AgentSelectionList({
       return nameMatches || descriptionMatches || modelMatches;
     });
   }, [adapters, searchQuery]);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener('scroll', checkScroll, { passive: true });
+    return () => el.removeEventListener('scroll', checkScroll);
+  }, [checkScroll, filteredAdapters]);
 
   useEffect(() => {
     let mounted = true;
@@ -136,18 +154,24 @@ export function AgentSelectionList({
           ref={scrollContainerRef}
           className="flex-1 min-h-0 overflow-y-auto pr-1 pb-2"
         >
-          <div className="grid gap-3">
+          <div className="grid gap-3 lg:grid-cols-2">
             {filteredAdapters.map(adapter => (
               <AgentCard key={adapter.name} adapter={adapter} onSelect={selected => onAdapterSelect(selected.name)} />
             ))}
           </div>
         </div>
+        {canScrollDown && (
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 md:hidden bg-gradient-to-t from-white dark:from-[#212121] to-transparent"
+            aria-hidden="true"
+          />
+        )}
       </div>
     );
   };
 
   return (
-    <div className={`flex w-full flex-col gap-6 ${className}`}>
+    <div className={`flex w-full flex-col gap-3 md:gap-6 ${className}`}>
       {(eyebrow || title || subtitle) && (
         <div className="flex-shrink-0">
           {eyebrow && (
