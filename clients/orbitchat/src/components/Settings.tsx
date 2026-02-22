@@ -16,8 +16,6 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
   const { theme, updateTheme } = useTheme();
   const { settings, updateSettings } = useSettings();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [resetConfirmationText, setResetConfirmationText] = useState('');
-  const [resetAcknowledged, setResetAcknowledged] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const resetDialogRef = useRef<HTMLDivElement>(null);
 
@@ -30,15 +28,11 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
   };
 
   const openResetDialog = () => {
-    setResetConfirmationText('');
-    setResetAcknowledged(false);
     setShowResetConfirm(true);
   };
 
   const closeResetDialog = () => {
     setShowResetConfirm(false);
-    setResetConfirmationText('');
-    setResetAcknowledged(false);
   };
 
   const handleResetApplication = () => {
@@ -86,26 +80,30 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
     window.location.reload();
   };
 
-  const canResetApplication =
-    resetAcknowledged && resetConfirmationText.trim().toLowerCase() === 'reset';
-
   useFocusTrap(dialogRef, { enabled: isOpen && !showResetConfirm, onEscape: onClose });
   useFocusTrap(resetDialogRef, { enabled: showResetConfirm, onEscape: closeResetDialog });
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center p-0 md:p-4 z-50">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center overflow-y-auto bg-black/50 p-0 md:p-4">
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close settings overlay"
+        className="absolute inset-0"
+      />
       <div
+        onClick={(event) => event.stopPropagation()}
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
         tabIndex={-1}
-        className="bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-2xl shadow-2xl w-full max-w-none md:max-w-md h-[95vh] md:h-auto md:max-h-[90vh] flex flex-col overflow-hidden relative"
+        className="relative flex h-[100dvh] w-full max-w-none flex-col overflow-hidden bg-white shadow-2xl dark:bg-gray-800 md:h-auto md:max-h-[90vh] md:max-w-md md:rounded-2xl"
       >
         {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
+        <div className="flex-shrink-0 flex items-center justify-between border-b border-gray-200 px-6 pb-4 pt-[max(env(safe-area-inset-top),1rem)] dark:border-gray-600 md:p-6">
           <h2 id="settings-title" className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             Settings
           </h2>
@@ -119,7 +117,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-h-0 p-6 space-y-6 overflow-y-auto">
+        <div className="flex-1 min-h-0 space-y-6 overflow-y-auto px-6 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-6 md:p-6">
           {/* Theme Settings */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
@@ -217,52 +215,30 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
 
         </div>
         {showResetConfirm && (
-          <div className="absolute inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
             <div
               ref={resetDialogRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby="reset-dialog-title"
               tabIndex={-1}
-              className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 border border-red-100 dark:border-red-800 shadow-2xl p-6 space-y-4"
+              className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-red-100 bg-white p-6 shadow-2xl dark:border-red-800 dark:bg-gray-900"
             >
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
+                <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
                   <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
                 </div>
-                <div>
+                <div className="space-y-1.5">
                   <p id="reset-dialog-title" className="text-base font-semibold text-gray-900 dark:text-gray-100">
                     Reset application data?
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    This removes everything stored on this device. Type <span className="font-semibold text-gray-900 dark:text-gray-100">RESET</span> to continue.
+                    This removes everything stored on this device and reloads the app.
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                  Confirmation text
-                </label>
-                <input
-                  value={resetConfirmationText}
-                  onChange={(event) => setResetConfirmationText(event.target.value.toUpperCase())}
-                  placeholder="RESET"
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-red-400 dark:text-gray-100"
-                />
-              </div>
-
-              <label className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
-                <input
-                  type="checkbox"
-                  checked={resetAcknowledged}
-                  onChange={(event) => setResetAcknowledged(event.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-500 text-red-600 focus:ring-red-500"
-                />
-                <span>I understand this action is permanent and will reload the app.</span>
-              </label>
-
-              <div className="flex gap-2 pt-2">
+              <div className="mt-4 flex gap-2 pt-2">
                 <button
                   onClick={closeResetDialog}
                   className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
@@ -271,12 +247,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                 </button>
                 <button
                   onClick={handleResetApplication}
-                  disabled={!canResetApplication}
-                  className={`flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                    canResetApplication
-                      ? 'bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600'
-                      : 'bg-red-200 text-red-600/60 dark:bg-red-900/20 dark:text-red-400/60 cursor-not-allowed'
-                  }`}
+                  className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-colors bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
                 >
                   Reset
                 </button>
