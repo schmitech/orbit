@@ -122,10 +122,14 @@ footer:
   navLinks: []
 
 # ---- Adapters (metadata + URLs — API keys go in VITE_ADAPTER_KEYS env var) ----
+# Each adapter must have a unique `id` to match its API key in VITE_ADAPTER_KEYS.
+# The `name` is a display-only label and can be changed freely without affecting the key mapping.
 adapters:
-  - name: "Simple Chat"
+  - id: "simple-chat"
+    name: "Simple Chat"
     apiUrl: "http://localhost:3000"
     description: "Basic chat interface using the default conversational agent."
-  - name: "Chat With Files"
+  - id: "chat-with-files"
+    name: "Chat With Files"
     apiUrl: "http://localhost:3000"
     description: "Supports chatting with document uploads and multimodal queries."

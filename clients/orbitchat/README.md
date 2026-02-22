@@ -24,14 +24,15 @@ Installed CLI commands:
 
 1. Define your adapter secrets via the `ORBIT_ADAPTER_KEYS` or `VITE_ADAPTER_KEYS` environment variable:
    ```bash
-   # Mapping of Agent Name -> API Key
-   export ORBIT_ADAPTER_KEYS='{"Simple Chat":"my-secret-key"}'
+   # Mapping of Adapter ID -> API Key
+   export ORBIT_ADAPTER_KEYS='{"simple-chat":"my-secret-key"}'
    ```
 
 2. (Optional) Configure adapter URLs and metadata in `orbitchat.yaml`:
    ```yaml
    adapters:
-     - name: "Simple Chat"
+     - id: "simple-chat"
+       name: "Simple Chat"
        apiUrl: "http://localhost:3000"
        description: "Default conversational agent."
    ```
@@ -141,10 +142,12 @@ Define your adapters list in the YAML file:
 
 ```yaml
 adapters:
-  - name: "Simple Chat"
+  - id: "simple-chat"
+    name: "Simple Chat"
     apiUrl: "http://localhost:3000"
     description: "Basic chat interface using the default conversational agent."
-  - name: "Document QA"
+  - id: "document-qa"
+    name: "Document QA"
     apiUrl: "http://localhost:3000"
     description: "Chat with uploaded documents."
     notes: "Supports PDF, DOCX, and plain text uploads."
@@ -152,19 +155,20 @@ adapters:
 
 | Field | Description |
 |-------|-------------|
-| `name` | Display name shown in the agent selector (must match the key in `.env`) |
+| `id` | **Required.** Unique identifier used to match the API key in `.env` |
+| `name` | Display name shown in the agent selector |
 | `apiUrl` | Backend URL (defaults to `api.url`, then `http://localhost:3000`) |
 | `description` | Short summary shown in dropdowns |
 | `notes` | Markdown content shown in the chat empty state |
 
 ### 2. Secrets in `.env`
 
-Provide the API keys via `ORBIT_ADAPTER_KEYS` (or `VITE_ADAPTER_KEYS`) as a JSON object:
+Provide the API keys via `ORBIT_ADAPTER_KEYS` (or `VITE_ADAPTER_KEYS`) as a JSON object keyed by adapter `id`:
 
 ```bash
 VITE_ADAPTER_KEYS='{
-  "Simple Chat": "secret-key-1",
-  "Document QA": "secret-key-2"
+  "simple-chat": "secret-key-1",
+  "document-qa": "secret-key-2"
 }'
 ```
 
@@ -249,7 +253,7 @@ orbitchat --port 8080
 
 If the agent selector shows no adapters:
 1. Ensure `VITE_ADAPTER_KEYS` is set and contains valid JSON.
-2. Verify that the adapter `name` in `orbitchat.yaml` exactly matches the key used in `VITE_ADAPTER_KEYS`.
+2. Verify that the adapter `id` in `orbitchat.yaml` exactly matches the key used in `VITE_ADAPTER_KEYS`.
 3. Check the CLI startup logs for "Available Adapters: ...".
 
 ### Stale Configuration

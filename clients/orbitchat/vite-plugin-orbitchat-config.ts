@@ -19,6 +19,7 @@ import type { IncomingMessage, ServerResponse, ClientRequest } from 'http';
 interface AdapterConfig {
   apiKey: string;
   apiUrl: string;
+  name?: string;
   description?: string;
   notes?: string;
   model?: string;
@@ -26,7 +27,7 @@ interface AdapterConfig {
 
 interface YamlConfig {
   guestLimits?: { rateLimit?: { enabled?: boolean; windowMs?: number; maxRequests?: number; chat?: { windowMs?: number; maxRequests?: number } } };
-  adapters?: Array<{ name: string; apiUrl?: string; description?: string; notes?: string; model?: string }>;
+  adapters?: Array<{ id: string; name: string; apiUrl?: string; description?: string; notes?: string; model?: string }>;
 }
 
 function loadYamlFile(configPath: string): YamlConfig | null {
@@ -45,19 +46,25 @@ function loadYamlFile(configPath: string): YamlConfig | null {
 /**
  * Build adapter map for the proxy: YAML metadata + env secrets.
  *
- * Uses VITE_ADAPTER_KEYS (JSON object: {"Name": "Key"}) for secrets.
+ * Uses VITE_ADAPTER_KEYS (JSON object: {"id": "Key"}) for secrets.
+ * Adapters are keyed by their `id` field. Adapters without an `id` are skipped with a warning.
  */
 function loadAdaptersForProxy(yamlAdapters: YamlConfig['adapters'], env: Record<string, string>): Record<string, AdapterConfig> | null {
   const adapters: Record<string, AdapterConfig> = {};
   const defaultApiUrl = 'http://localhost:3000';
 
-  // 1. Start with metadata from YAML
+  // 1. Start with metadata from YAML, keyed by id
   if (yamlAdapters) {
     for (const ya of yamlAdapters) {
-      if (!ya.name) continue;
-      adapters[ya.name] = {
+      if (!ya.id) {
+        console.warn(`[orbitchat-config] Adapter "${ya.name || '(unnamed)'}" is missing a required 'id' field — skipping.`);
+        continue;
+      }
+      const id = ya.id;
+      adapters[id] = {
         apiKey: '', // placeholder
         apiUrl: ya.apiUrl || defaultApiUrl,
+        name: ya.name,
         description: ya.description,
         notes: ya.notes,
         model: ya.model,
@@ -65,12 +72,12 @@ function loadAdaptersForProxy(yamlAdapters: YamlConfig['adapters'], env: Record<
     }
   }
 
-  // 2. Overlay secrets from VITE_ADAPTER_KEYS
+  // 2. Overlay secrets from VITE_ADAPTER_KEYS (keyed by adapter id)
   const envKeysRaw = env.VITE_ADAPTER_KEYS || process.env.VITE_ADAPTER_KEYS;
   if (envKeysRaw) {
     try {
       const keys = JSON.parse(envKeysRaw);
-      for (const [name, value] of Object.entries(keys)) {
+      for (const [id, value] of Object.entries(keys)) {
         const isObjectValue = typeof value === 'object' && value !== null;
         const apiKey = isObjectValue
           ? String((value as { apiKey?: unknown; key?: unknown }).apiKey || (value as { apiKey?: unknown; key?: unknown }).key || '')
@@ -80,8 +87,8 @@ function loadAdaptersForProxy(yamlAdapters: YamlConfig['adapters'], env: Record<
         const notes = isObjectValue ? (value as { notes?: unknown }).notes : undefined;
         const model = isObjectValue ? (value as { model?: unknown }).model : undefined;
 
-        if (!adapters[name]) {
-          adapters[name] = {
+        if (!adapters[id]) {
+          adapters[id] = {
             apiKey,
             apiUrl: typeof apiUrl === 'string' && apiUrl ? apiUrl : defaultApiUrl,
             description: typeof description === 'string' ? description : undefined,
@@ -89,11 +96,11 @@ function loadAdaptersForProxy(yamlAdapters: YamlConfig['adapters'], env: Record<
             model: typeof model === 'string' ? model : undefined,
           };
         } else {
-          adapters[name].apiKey = apiKey;
-          if (typeof apiUrl === 'string' && apiUrl) adapters[name].apiUrl = apiUrl;
-          if (typeof description === 'string') adapters[name].description = description;
-          if (typeof notes === 'string') adapters[name].notes = notes;
-          if (typeof model === 'string') adapters[name].model = model;
+          adapters[id].apiKey = apiKey;
+          if (typeof apiUrl === 'string' && apiUrl) adapters[id].apiUrl = apiUrl;
+          if (typeof description === 'string') adapters[id].description = description;
+          if (typeof notes === 'string') adapters[id].notes = notes;
+          if (typeof model === 'string') adapters[id].model = model;
         }
       }
     } catch { /* ignore */ }
@@ -101,9 +108,9 @@ function loadAdaptersForProxy(yamlAdapters: YamlConfig['adapters'], env: Record<
 
   // Filter out any adapters that ended up without an API key
   const finalAdapters: Record<string, AdapterConfig> = {};
-  for (const [name, config] of Object.entries(adapters)) {
+  for (const [id, config] of Object.entries(adapters)) {
     if (config.apiKey) {
-      finalAdapters[name] = config;
+      finalAdapters[id] = config;
     }
   }
 
@@ -243,11 +250,12 @@ export function orbitchatConfigPlugin(): Plugin {
       }
 
       const buildAdapterList = (adapterMap: Record<string, AdapterConfig>) =>
-        Object.keys(adapterMap).map(name => ({
-          name,
-          description: adapterMap[name]?.description,
-          notes: adapterMap[name]?.notes,
-          model: adapterMap[name]?.model || null,
+        Object.keys(adapterMap).map(id => ({
+          id,
+          name: adapterMap[id]?.name || id,
+          description: adapterMap[id]?.description,
+          notes: adapterMap[id]?.notes,
+          model: adapterMap[id]?.model || null,
         }));
 
       // Serve /api/adapters

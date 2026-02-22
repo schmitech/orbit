@@ -192,10 +192,15 @@ function loadAdaptersForProxy(yamlAdapters) {
 
   if (Array.isArray(yamlAdapters)) {
     for (const ya of yamlAdapters) {
-      if (!ya.name) continue;
-      adapters[ya.name] = {
+      if (!ya.id) {
+        console.warn(`[orbitchat] Adapter "${ya.name || '(unnamed)'}" is missing a required 'id' field — skipping.`);
+        continue;
+      }
+      const id = ya.id;
+      adapters[id] = {
         apiKey: '',
         apiUrl: ya.apiUrl || fallbackApiUrl,
+        name: ya.name,
         description: ya.description,
         notes: ya.notes,
         model: ya.model
@@ -207,7 +212,7 @@ function loadAdaptersForProxy(yamlAdapters) {
   if (envKeysRaw) {
     try {
       const keys = JSON.parse(envKeysRaw);
-      for (const [name, value] of Object.entries(keys)) {
+      for (const [id, value] of Object.entries(keys)) {
         const isObjectValue = typeof value === 'object' && value !== null;
         const apiKey = isObjectValue
           ? String(value.apiKey || value.key || '')
@@ -217,8 +222,8 @@ function loadAdaptersForProxy(yamlAdapters) {
         const notes = isObjectValue && value.notes ? String(value.notes) : undefined;
         const model = isObjectValue && value.model ? String(value.model) : undefined;
 
-        if (!adapters[name]) {
-          adapters[name] = {
+        if (!adapters[id]) {
+          adapters[id] = {
             apiKey,
             apiUrl: apiUrl || fallbackApiUrl,
             description,
@@ -226,19 +231,19 @@ function loadAdaptersForProxy(yamlAdapters) {
             model
           };
         } else {
-          adapters[name].apiKey = apiKey;
-          if (apiUrl) adapters[name].apiUrl = apiUrl;
-          if (description !== undefined) adapters[name].description = description;
-          if (notes !== undefined) adapters[name].notes = notes;
-          if (model !== undefined) adapters[name].model = model;
+          adapters[id].apiKey = apiKey;
+          if (apiUrl) adapters[id].apiUrl = apiUrl;
+          if (description !== undefined) adapters[id].description = description;
+          if (notes !== undefined) adapters[id].notes = notes;
+          if (model !== undefined) adapters[id].model = model;
         }
       }
     } catch { /* ignore */ }
   }
 
   const finalAdapters = {};
-  for (const [name, config] of Object.entries(adapters)) {
-    if (config.apiKey) finalAdapters[name] = config;
+  for (const [id, config] of Object.entries(adapters)) {
+    if (config.apiKey) finalAdapters[id] = config;
   }
   if (Object.keys(finalAdapters).length > 0) {
     console.debug(`Loaded ${Object.keys(finalAdapters).length} adapters with API keys from environment.`);
@@ -332,11 +337,12 @@ function createServer(distPath, config, serverConfig = {}) {
     }
 
     const buildAdapterList = (adapterMap) =>
-      Object.keys(adapterMap).map(name => ({
-        name,
-        description: adapterMap[name].description,
-        notes: adapterMap[name].notes,
-        model: adapterMap[name].model || null
+      Object.keys(adapterMap).map(id => ({
+        id,
+        name: adapterMap[id].name || id,
+        description: adapterMap[id].description,
+        notes: adapterMap[id].notes,
+        model: adapterMap[id].model || null
       }));
 
     app.get('/api/adapters', (req, res) => {

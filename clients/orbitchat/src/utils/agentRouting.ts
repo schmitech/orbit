@@ -65,9 +65,15 @@ const ensureAdapterSlugMap = async (): Promise<AdapterSlugMap> => {
 
   const map: AdapterSlugMap = new Map();
   adapters.forEach(adapter => {
+    // Map slug (derived from display name) to adapter id
     const slug = slugifyAdapterName(adapter.name);
     if (slug) {
-      map.set(slug, adapter.name);
+      map.set(slug, adapter.id);
+    }
+    // Also map the id itself as a slug for direct URL access
+    const idSlug = slugifyAdapterName(adapter.id);
+    if (idSlug && idSlug !== slug) {
+      map.set(idSlug, adapter.id);
     }
   });
 

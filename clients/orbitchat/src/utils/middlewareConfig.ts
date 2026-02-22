@@ -11,6 +11,7 @@
 import { debugLog, debugError } from './debug';
 
 export interface Adapter {
+  id: string;
   name: string;
   apiUrl?: string;
   description?: string; // Short description for dropdown previews
@@ -36,6 +37,7 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
   }
 
   const candidate = input as {
+    id?: unknown;
     name?: unknown;
     apiUrl?: unknown;
     description?: unknown;
@@ -46,6 +48,12 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
 
   const name = toTrimmedString(candidate.name);
   if (!name) {
+    return null;
+  }
+
+  const id = toTrimmedString(candidate.id);
+  if (!id) {
+    console.warn(`[middlewareConfig] Adapter "${name}" is missing a required 'id' field — skipping.`);
     return null;
   }
 
@@ -61,7 +69,7 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
     description = firstLine ? firstLine.trim() : undefined;
   }
 
-  const normalized: Adapter = { name };
+  const normalized: Adapter = { id, name };
   if (apiUrl) {
     normalized.apiUrl = apiUrl;
   }
@@ -170,11 +178,11 @@ export function clearAdaptersCache(): void {
 }
 
 /**
- * Get adapter by name
+ * Get adapter by id
  */
-export async function getAdapter(name: string): Promise<Adapter | null> {
+export async function getAdapter(id: string): Promise<Adapter | null> {
   const adapters = await fetchAdapters();
-  return adapters.find(a => a.name === name) || null;
+  return adapters.find(a => a.id === id) || null;
 }
 
 /**

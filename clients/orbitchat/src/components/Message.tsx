@@ -127,14 +127,6 @@ export function Message({
     }
   }, [threadReplyCount]);
 
-  const handleThreadRepliesScroll = useCallback(() => {
-    if (!threadRepliesRef.current) {
-      return;
-    }
-    const { scrollTop, scrollHeight, clientHeight } = threadRepliesRef.current;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    shouldAutoScrollThreadRef.current = distanceFromBottom < 120;
-  }, []);
 
   const scrollThreadRepliesToBottom = useCallback(() => {
     requestAnimationFrame(() => {

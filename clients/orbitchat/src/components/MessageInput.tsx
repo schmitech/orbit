@@ -397,12 +397,12 @@ export function MessageInput({
     return activeElement && activeElement.tagName === 'TEXTAREA';
   };
 
-  const shouldSkipAutoFocus = () => {
+  const shouldSkipAutoFocus = useCallback(() => {
     if (!suppressMobileAutoFocus || typeof window === 'undefined') {
       return false;
     }
     return window.matchMedia('(max-width: 767px)').matches;
-  };
+  }, [suppressMobileAutoFocus]);
 
   // Auto-focus when not disabled (when AI response is complete)
   useEffect(() => {
@@ -413,7 +413,7 @@ export function MessageInput({
     if (autoFocusEnabled && !isInputDisabled && textareaRef.current && !isFocusInTextarea()) {
       textareaRef.current.focus();
     }
-  }, [autoFocusEnabled, isInputDisabled, suppressMobileAutoFocus]);
+  }, [autoFocusEnabled, isInputDisabled, suppressMobileAutoFocus, shouldSkipAutoFocus]);
 
   // Focus input field when assistant response finishes (isLoading becomes false)
   const prevIsLoadingRef = useRef(isLoading);
@@ -434,7 +434,7 @@ export function MessageInput({
       }, 100);
     }
     prevIsLoadingRef.current = isLoading;
-  }, [autoFocusEnabled, isLoading, isInputDisabled, suppressMobileAutoFocus]);
+  }, [autoFocusEnabled, isLoading, isInputDisabled, suppressMobileAutoFocus, shouldSkipAutoFocus]);
 
   // Auto-send message when voice recording completes
   useEffect(() => {

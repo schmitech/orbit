@@ -156,7 +156,7 @@ export function AgentSelectionList({
         >
           <div className="grid gap-3 lg:grid-cols-2">
             {filteredAdapters.map(adapter => (
-              <AgentCard key={adapter.name} adapter={adapter} onSelect={selected => onAdapterSelect(selected.name)} />
+              <AgentCard key={adapter.id} adapter={adapter} onSelect={selected => onAdapterSelect(selected.id)} />
             ))}
           </div>
         </div>

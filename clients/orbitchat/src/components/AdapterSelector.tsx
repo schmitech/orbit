@@ -58,7 +58,7 @@ export function AdapterSelector({
   }, []);
 
 
-  const selectedAdapterObj = adapters.find(a => a.name === selectedAdapter);
+  const selectedAdapterObj = adapters.find(a => a.id === selectedAdapter);
 
   const computedShowLabel = typeof showLabel === 'boolean' ? showLabel : variant === 'prominent';
   const labelText = label || (variant === 'prominent' ? 'Select an agent' : 'Adapter');
@@ -138,14 +138,14 @@ export function AdapterSelector({
             <div className={dropdownClasses}>
               <div className="max-h-72 overflow-auto py-2">
                 {adapters.map((adapter) => {
-                  const isActive = adapter.name === selectedAdapter;
+                  const isActive = adapter.id === selectedAdapter;
                   return (
                     <button
-                      key={adapter.name}
+                      key={adapter.id}
                       type="button"
                       onClick={() => {
                         if (!isActive) {
-                          onAdapterChange(adapter.name);
+                          onAdapterChange(adapter.id);
                         }
                         setIsOpen(false);
                       }}

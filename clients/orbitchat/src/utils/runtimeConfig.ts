@@ -106,6 +106,7 @@ export interface RuntimeConfig {
     navLinks: NavLink[];
   };
   adapters: Array<{
+    id: string;
     name: string;
     apiUrl?: string;
     description?: string;
@@ -310,7 +311,7 @@ export function resolveApiUrl(url?: string | null): string {
 export function getDefaultKey(): string {
   const adapters = runtimeConfig.adapters;
   if (Array.isArray(adapters) && adapters.length > 0) {
-    return adapters[0].name;
+    return adapters[0].id;
   }
   return 'default-key';
 }
@@ -368,15 +369,15 @@ export function getVoiceRecognitionLanguage(): string {
 }
 
 /**
- * Resolve the default adapter name.
+ * Resolve the default adapter id.
  * Picks the first adapter in the configured adapters list.
  */
 export function getDefaultAdapterName(): string | null {
   const adapters = runtimeConfig.adapters;
   if (Array.isArray(adapters) && adapters.length > 0) {
     for (const adapter of adapters) {
-      const name = typeof adapter?.name === 'string' ? adapter.name.trim() : '';
-      if (name) return name;
+      const id = typeof adapter?.id === 'string' ? adapter.id.trim() : '';
+      if (id) return id;
     }
   }
   return null;
