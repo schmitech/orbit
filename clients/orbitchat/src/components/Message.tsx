@@ -531,7 +531,7 @@ export function Message({
 
                 <div
                   ref={threadComposerRef}
-                  className="mt-2 pt-2"
+                  className="mt-1 pt-1"
                 >
                   <div className="flex items-center gap-2">
                     <label htmlFor={threadInputId} className="sr-only">
@@ -540,7 +540,7 @@ export function Message({
                     <textarea
                       id={threadInputId}
                       ref={threadTextareaRef}
-                      className="flex-1 w-full sm:w-auto min-w-0 resize-none bg-transparent px-0 py-2.5 text-base sm:text-sm text-[#353740] placeholder-slate-500 outline-none transition focus:outline-none disabled:opacity-60 dark:text-[#ececf1] dark:placeholder-[#8e8ea0]"
+                      className="flex-1 w-full sm:w-auto min-w-0 resize-none bg-transparent px-0 py-1.5 sm:py-1 text-base sm:text-sm text-[#353740] placeholder-slate-500 outline-none transition focus:outline-none disabled:opacity-60 dark:text-[#ececf1] dark:placeholder-[#8e8ea0]"
                       placeholder={threadPlaceholder}
                       aria-label="Reply in thread"
                       value={threadInput}
@@ -550,7 +550,7 @@ export function Message({
                       rows={1}
                       maxLength={threadCharLimit}
                       style={{
-                        minHeight: '44px',
+                        minHeight: '36px',
                         maxHeight: '120px',
                         outline: 'none',
                         boxShadow: 'none',
@@ -571,7 +571,7 @@ export function Message({
                         type="button"
                         onClick={handleThreadSubmit}
                         disabled={threadComposerDisabled || threadInput.trim().length === 0}
-                        className={`flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full transition active:scale-95 ${
+                        className={`flex h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-full transition active:scale-95 ${
                           threadInput.trim().length > 0 && !threadComposerDisabled
                             ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400'
                             : 'bg-slate-200 text-slate-400 dark:bg-[#2f313a] dark:text-[#6b6f7a]'
