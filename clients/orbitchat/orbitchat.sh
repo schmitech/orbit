@@ -59,6 +59,16 @@ export NODE_OPTIONS="--no-deprecation"
 # Secrets (API keys) should be set in .env or exported in your terminal
 # as ORBIT_ADAPTER_KEYS or VITE_ADAPTER_KEYS.
 
+# Backward-compatibility passthrough:
+# Allow invocations such as `orbitchat.sh bin/orbitchat.js --help`.
+if [[ "${1:-}" == "bin/orbitchat.js" || "${1:-}" == "./bin/orbitchat.js" || "${1:-}" == "$SCRIPT_DIR/bin/orbitchat.js" ]]; then
+    shift
+    if [ -x "$SCRIPT_DIR/bin/orbitchat.js" ]; then
+        exec "$SCRIPT_DIR/bin/orbitchat.js" "$@"
+    fi
+    exec node "$SCRIPT_DIR/bin/orbitchat.js" "$@"
+fi
+
 start_app() {
     # Update PID and Log files based on the actual port
     PIDFILE="$STATE_DIR/orbitchat-${PORT}.pid"

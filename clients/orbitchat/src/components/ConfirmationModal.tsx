@@ -108,7 +108,7 @@ export function ConfirmationModal({
             type="button"
             onClick={onClose}
             disabled={isLoading}
-            className="px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-3 md:py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {cancelText}
           </button>
@@ -116,7 +116,7 @@ export function ConfirmationModal({
             type="button"
             onClick={handleConfirm}
             disabled={isLoading}
-            className={`px-4 py-2.5 text-white rounded-lg transition-all font-medium shadow-sm hover:shadow-md transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${styles.confirmButton}`}
+            className={`px-4 py-3 md:py-2.5 text-white rounded-lg transition-all font-medium shadow-sm hover:shadow-md transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${styles.confirmButton}`}
           >
             {isLoading ? (
               <div className="flex items-center gap-2">

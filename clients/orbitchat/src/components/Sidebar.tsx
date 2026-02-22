@@ -434,7 +434,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
                           >
                             {conversation.title}
                           </h3>
-                          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                          <div className="flex items-center gap-1 opacity-100 md:opacity-0 transition-opacity md:group-hover:opacity-100 group-focus-within:opacity-100">
                             <button
                               onClick={(e) => handleEditStart(e, conversation)}
                               className={`rounded-full text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a] ${sizeStyles.actionButton}`}

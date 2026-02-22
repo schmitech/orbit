@@ -435,7 +435,7 @@ export function Message({
             <div className="flex flex-wrap items-center gap-1 md:gap-2 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
               <button
                 onClick={copyToClipboard}
-                className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
+                className="inline-flex items-center gap-1 rounded px-3 py-2 md:px-2 md:py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
                 title="Copy to clipboard"
                 aria-label="Copy to clipboard"
               >
@@ -446,7 +446,7 @@ export function Message({
               {onRegenerate && (
                 <button
                   onClick={() => onRegenerate(message.id)}
-                  className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
+                  className="inline-flex items-center gap-1 rounded px-3 py-2 md:px-2 md:py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
                   title="Regenerate response"
                   aria-label="Regenerate response"
                 >
@@ -459,7 +459,7 @@ export function Message({
                 <div className="inline-flex items-center gap-1">
                   <button
                     onClick={() => onStartThread(message.id, sessionId)}
-                    className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
+                    className="inline-flex items-center gap-1 rounded px-3 py-2 md:px-2 md:py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
                     title="Reply in thread"
                     aria-label="Reply in thread"
                   >
@@ -467,7 +467,7 @@ export function Message({
                     <span className="hidden sm:inline">Reply in thread</span>
                   </button>
                   <span
-                    className="inline-flex items-center rounded p-1 text-gray-500 dark:text-[#bfc2cd]"
+                    className="inline-flex items-center rounded p-2.5 md:p-1 text-gray-500 dark:text-[#bfc2cd]"
                     title="Use this when your question is about this specific answer. Use the main input for unrelated topics."
                     aria-label="Thread help"
                   >
@@ -480,7 +480,7 @@ export function Message({
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => handleFeedback('up')}
-                    className={`rounded p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'up' ? 'text-[#353740] dark:text-[#ececf1]' : ''}`}
+                    className={`rounded p-2.5 md:p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'up' ? 'text-green-600 dark:text-green-400' : ''}`}
                     title="Good response"
                     aria-label="Good response"
                   >
@@ -488,7 +488,7 @@ export function Message({
                   </button>
                   <button
                     onClick={() => handleFeedback('down')}
-                    className={`rounded p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'down' ? 'text-[#353740] dark:text-[#ececf1]' : ''}`}
+                    className={`rounded p-2.5 md:p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'down' ? 'text-red-600 dark:text-red-400' : ''}`}
                     title="Poor response"
                     aria-label="Poor response"
                   >
@@ -518,7 +518,7 @@ export function Message({
               </div>
               <button
                 onClick={() => setIsThreadOpen(prev => !prev)}
-                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-blue-200/80 px-2.5 sm:px-3 py-1.5 text-xs uppercase tracking-wide text-blue-900 transition hover:bg-white/70 dark:border-white/10 dark:text-[#c5d7ff] dark:hover:bg-white/[0.08]"
+                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-blue-200/80 px-3 py-2 sm:py-1.5 text-xs uppercase tracking-wide text-blue-900 transition hover:bg-white/70 dark:border-white/10 dark:text-[#c5d7ff] dark:hover:bg-white/[0.08]"
               >
                 {isThreadOpen ? (
                   <>

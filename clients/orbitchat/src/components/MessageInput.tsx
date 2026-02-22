@@ -1122,7 +1122,7 @@ export function MessageInput({
   const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
 
   return (
-    <div className={`bg-white px-3 py-3 md:px-0 md:pt-4 md:pb-2 dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
+    <div className={`bg-transparent px-2 py-1.5 md:bg-white md:px-0 md:pt-4 md:pb-2 md:dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
       <div className={`mx-auto w-full ${contentMaxWidth}`}>
         {voiceError && audioInputEnabled && (
           <div role="alert" aria-live="assertive" className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
@@ -1195,7 +1195,7 @@ export function MessageInput({
             </div>
           )}
           {showAutocompleteHints && (
-            <div className="mb-2 flex flex-wrap items-center gap-2.5 text-xs text-gray-500 dark:text-[#bfc2cd]">
+            <div className="mb-2 hidden md:flex flex-wrap items-center gap-2.5 text-xs text-gray-500 dark:text-[#bfc2cd]">
               <span className="inline-flex items-center gap-1.5">
                 <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
                   Tab
@@ -1227,7 +1227,7 @@ export function MessageInput({
           {/* Mobile layout: stacked with textarea on top, buttons below */}
           {/* Desktop layout: single row with all elements inline */}
           <div
-            className={`flex flex-col md:flex-row md:items-center gap-3 md:gap-2 rounded-2xl md:rounded-lg border px-4 py-3 md:px-4 md:py-3 shadow-sm transition-all ${
+            className={`flex flex-col md:flex-row md:items-center gap-1.5 md:gap-2 rounded-xl md:rounded-lg border px-3 py-2 md:px-4 md:py-3 shadow-sm transition-all ${
               isFocused
                 ? 'border-gray-400 shadow-md dark:border-[#565869] dark:shadow-lg'
                 : 'border-gray-300 dark:border-[#40414f]'
@@ -1473,10 +1473,10 @@ export function MessageInput({
                   <button
                     type="button"
                     onClick={() => openFileDeleteConfirmation(file)}
-                    className="rounded p-0.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-[#bfc2cd] dark:hover:bg-red-900/30 dark:hover:text-red-300"
+                    className="rounded p-2 md:p-0.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-[#bfc2cd] dark:hover:bg-red-900/30 dark:hover:text-red-300"
                     title="Remove file"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-4 w-4 md:h-3 md:w-3" />
                   </button>
                 </div>
               );
@@ -1564,7 +1564,7 @@ export function MessageInput({
           </div>
         )}
 
-        <div className="h-5 md:h-1">
+        <div className="h-3 md:h-1">
           {voiceRecordingAvailable && isListening && (
             <span className="flex items-center gap-2 text-sm md:text-xs text-gray-500 dark:text-[#bfc2cd]">
               <span className="h-2.5 w-2.5 md:h-2 md:w-2 animate-pulse rounded-full bg-red-500" />

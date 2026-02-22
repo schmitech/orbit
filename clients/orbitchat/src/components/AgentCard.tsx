@@ -18,29 +18,38 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
       type="button"
       data-agent-card="true"
       onClick={() => onSelect(adapter)}
-      className="group flex w-full flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-left transition-all duration-200 hover:border-blue-200 hover:shadow-[0_15px_45px_rgba(15,23,42,0.12)] focus-visible:outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/35 dark:border-[#3b3c49] dark:bg-[#22232b] dark:hover:border-blue-400/50 dark:focus-visible:border-blue-300 dark:focus-visible:ring-blue-300/35"
+      className="group flex w-full flex-col gap-2 md:gap-3 rounded-2xl border border-gray-200 bg-white p-3 md:p-4 text-left transition-all duration-200 hover:border-blue-200 hover:shadow-[0_15px_45px_rgba(15,23,42,0.12)] focus-visible:outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/35 dark:border-[#3b3c49] dark:bg-[#22232b] dark:hover:border-blue-400/50 dark:focus-visible:border-blue-300 dark:focus-visible:ring-blue-300/35"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-start md:items-center gap-2 md:gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-semibold text-gray-900 dark:text-white">
+          <p className="text-base md:text-lg font-semibold text-gray-900 dark:text-white md:truncate">
             {adapter.name}
           </p>
+          {model && (
+            <span
+              className="mt-1.5 inline-block md:hidden max-w-full truncate rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:border-blue-400/30 dark:bg-blue-900/20 dark:text-blue-200"
+              title={model}
+              aria-label={`Model: ${model}`}
+            >
+              {model}
+            </span>
+          )}
         </div>
         {model && (
           <span
-            className="max-w-[40%] truncate rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700 dark:border-blue-400/30 dark:bg-blue-900/20 dark:text-blue-200"
+            className="hidden md:inline max-w-[40%] truncate rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700 dark:border-blue-400/30 dark:bg-blue-900/20 dark:text-blue-200"
             title={model}
             aria-label={`Model: ${model}`}
           >
             {model}
           </span>
         )}
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-transparent bg-gray-50 text-gray-400 transition-colors group-hover:border-blue-100 group-hover:bg-white group-hover:text-blue-500 dark:bg-[#2a2b34] dark:text-gray-400 dark:group-hover:border-blue-500/40 dark:group-hover:bg-transparent dark:group-hover:text-blue-300">
-          <ChevronRight className="h-5 w-5" />
+        <div className="flex h-8 w-8 md:h-10 md:w-10 flex-shrink-0 items-center justify-center rounded-full border border-transparent bg-gray-50 text-gray-400 transition-colors group-hover:border-blue-100 group-hover:bg-white group-hover:text-blue-500 dark:bg-[#2a2b34] dark:text-gray-400 dark:group-hover:border-blue-500/40 dark:group-hover:bg-transparent dark:group-hover:text-blue-300">
+          <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
         </div>
       </div>
       {description ? (
-        <div className="text-base leading-relaxed text-gray-600 dark:text-gray-200">
+        <div className="text-sm md:text-base leading-relaxed text-gray-600 dark:text-gray-200">
           <MarkdownRenderer
             content={description}
             className="prose prose-slate dark:prose-invert max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0"
@@ -48,7 +57,7 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
           />
         </div>
       ) : (
-        <p className="text-base text-gray-500 dark:text-gray-400">
+        <p className="text-sm md:text-base text-gray-500 dark:text-gray-400">
           Configure this agent to see its capabilities.
         </p>
       )}

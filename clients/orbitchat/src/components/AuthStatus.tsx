@@ -16,7 +16,7 @@ function AuthStatusInner() {
     return (
       <button
         onClick={() => loginWithRedirect()}
-        className="inline-flex min-h-10 items-center gap-2 rounded-full border border-blue-200 bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+        className="inline-flex min-h-10 items-center gap-1.5 sm:gap-2 rounded-full border border-blue-200 bg-blue-600 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
       >
         <LogIn className="h-4 w-4" />
         <span>Sign in</span>

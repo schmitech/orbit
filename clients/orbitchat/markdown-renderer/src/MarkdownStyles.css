@@ -305,6 +305,14 @@
   pointer-events: auto;
 }
 
+/* Always show copy button on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .markdown-content .code-copy-button {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 .markdown-content .code-copy-button:hover {
   background-color: rgba(255, 255, 255, 1);
   border-color: rgba(0, 0, 0, 0.25);

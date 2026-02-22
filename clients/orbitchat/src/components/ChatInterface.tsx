@@ -32,11 +32,11 @@ const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-transparent px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-none backdrop-blur-0 dark:border-[#2f303d] dark:bg-transparent md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
 
 const MOBILE_INPUT_WRAPPER_CLASSES =
-  'shrink-0 sticky bottom-[calc(var(--app-footer-height,0px)+0.5rem)] z-10 -mx-4 mt-auto overflow-visible rounded-t-[28px] border-t border-x border-white/40 bg-transparent pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:border-[#2f303d] dark:bg-transparent md:bottom-[calc(var(--app-footer-height,0px)+0.5rem)] md:z-10 md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:rounded-t-[28px] md:[&>div]:rounded-none [&>div]:bg-transparent md:[&>div]:px-0';
+  'shrink-0 sticky bottom-[calc(var(--app-footer-height,0px)+0.25rem)] z-10 -mx-4 mt-auto overflow-visible bg-transparent pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:bg-transparent md:bottom-[calc(var(--app-footer-height,0px)+0.5rem)] md:z-10 md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:bg-transparent md:[&>div]:rounded-none md:[&>div]:px-0';
 
 // Mobile header classes for native-like sticky behavior
 const MOBILE_HEADER_CLASSES =
-  'sticky top-0 z-10 -mx-4 px-4 pt-2 pb-4 bg-transparent backdrop-blur-0 border-b border-white/50 dark:border-white/10 md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:backdrop-blur-0 md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
+  'sticky top-0 z-10 -mx-4 px-4 pt-2 pb-2 bg-transparent backdrop-blur-0 border-b border-white/50 dark:border-white/10 md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:backdrop-blur-0 md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
 
 // Note: We use getApiUrl() directly when needed
 // to ensure we always read the latest runtime config (including CLI args)
@@ -624,31 +624,31 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           <div className={headerClasses}>
             {/* Mobile navigation buttons - inside header so they stick with it */}
             {onOpenSidebar && (
-              <div className="mb-4 grid grid-cols-2 gap-3 md:hidden">
+              <div className="mb-2 flex items-center gap-2 md:hidden">
                 <button
                   onClick={onOpenSidebar}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/50 bg-white/80 px-4 py-3.5 text-sm font-semibold text-gray-800 shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-white dark:border-[#2f303d] dark:bg-[#232430] dark:text-[#ececf1]"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/50 bg-white/80 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-white dark:border-[#2f303d] dark:bg-[#232430] dark:text-[#ececf1]"
                   aria-label="Open conversations menu"
                 >
-                  <Menu className="h-5 w-5" />
+                  <Menu className="h-4 w-4" />
                   Chats
                 </button>
                 <button
                   onClick={onOpenSettings}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/50 bg-[#11121a]/90 px-4 py-3.5 text-sm font-semibold text-white shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-[#0c0d14] dark:border-[#3b3c49] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/50 bg-[#11121a]/90 px-3 py-2 text-xs font-semibold text-white shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-[#0c0d14] dark:border-[#3b3c49] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
                   aria-label="Open settings"
                 >
-                  <Settings className="h-5 w-5" />
+                  <Settings className="h-4 w-4" />
                   Settings
                 </button>
               </div>
             )}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-2 md:gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="min-w-0 flex-1">
                 {/* Adapter Info - show first when available */}
                 {showHeaderMetadata && (
-                  <div className="space-y-3">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2 justify-start md:flex-nowrap">
+                  <div className="space-y-1.5 md:space-y-3">
+                    <div className="hidden md:flex min-w-0 flex-wrap items-center gap-2 justify-start md:flex-nowrap">
                       {currentConversation?.adapterInfo?.model && (
                         <div
                           className="inline-flex max-w-full flex-shrink items-center gap-2 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] min-w-0"
@@ -682,12 +682,19 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         </span>
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <h1 className="text-2xl font-semibold text-[#353740] dark:text-[#ececf1]">
-                        {currentConversation?.title || 'New Chat'}
-                      </h1>
+                    <div className="md:space-y-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <h1 className="min-w-0 truncate text-lg md:text-2xl font-semibold text-[#353740] dark:text-[#ececf1]">
+                          {currentConversation?.title || 'New Chat'}
+                        </h1>
+                        {currentConversation && (
+                          <span className="flex-shrink-0 text-xs md:hidden text-gray-500 dark:text-[#bfc2cd]">
+                            {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
                       {currentConversation && (
-                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-[#bfc2cd]">
+                        <div className="hidden md:flex items-center gap-2 text-sm text-gray-500 dark:text-[#bfc2cd]">
                           <span className="font-medium">{currentConversation.messages.length}</span>
                           <span>Updated {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
@@ -696,7 +703,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   </div>
                 )}
               </div>
-              <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+              <div className="flex flex-row items-center gap-2 md:justify-end md:gap-3">
                 {!shouldShowAgentSelectionList && !getEnableHeader() && (
                   <AuthStatus />
                 )}
@@ -712,7 +719,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       setIsAgentSelectionVisible(true);
                     }}
                     disabled={!canChangeAgent}
-                    className={`order-2 sm:order-1 inline-flex h-[42px] w-full sm:w-[190px] items-center justify-center gap-2 rounded-full border px-3.5 py-2.5 text-[13px] font-medium tracking-[0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 ${
+                    className={`order-2 sm:order-1 inline-flex h-8 md:h-[42px] w-auto md:w-[190px] items-center justify-center gap-1 md:gap-2 rounded-full border px-2.5 md:px-3.5 py-1.5 md:py-2.5 text-[11px] md:text-[13px] font-medium tracking-[0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 ${
                       canChangeAgent
                         ? 'border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400 focus-visible:ring-blue-500 dark:border-blue-500/40 dark:text-blue-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-400/60 dark:focus-visible:ring-blue-400/60'
                         : 'cursor-not-allowed border-gray-200 text-gray-400 bg-transparent dark:border-[#3c3f4a] dark:text-[#6b6f7a]'
@@ -726,7 +733,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   <button
                     onClick={handleStartNewConversation}
                     disabled={!canStartNewConversation}
-                    className={`order-3 sm:order-2 inline-flex h-[42px] w-full sm:w-[190px] items-center justify-center gap-2 rounded-full border px-3.5 py-2.5 text-[13px] font-medium tracking-[0.01em] ${
+                    className={`order-3 sm:order-2 inline-flex h-8 md:h-[42px] w-auto md:w-[190px] items-center justify-center gap-1 md:gap-2 rounded-full border px-2.5 md:px-3.5 py-1.5 md:py-2.5 text-[11px] md:text-[13px] font-medium tracking-[0.01em] ${
                       canStartNewConversation
                         ? 'border-[#1f2937] bg-[#1f2937] text-white shadow-[0_2px_8px_rgba(15,23,42,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f2937]/40 dark:border-[#4b5568] dark:bg-[#2f3747] dark:text-[#e9edf8] dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)] dark:focus-visible:ring-[#6f809f]/35'
                         : 'cursor-not-allowed border-gray-200 text-gray-400 bg-white/40 dark:border-[#3c3f4a] dark:text-[#6b6f7a] dark:bg-transparent'

@@ -20,6 +20,30 @@ import rateLimit from 'express-rate-limit';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+function getCliVersion() {
+  try {
+    const pkgPath = path.join(__dirname, '..', 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    return pkg.version || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+function printHelp() {
+  console.log(`orbitchat [options]
+
+Options:
+  --port PORT        Server port (default: 5173)
+  --host HOST        Server host (default: localhost)
+  --open             Open browser automatically
+  --config PATH      Path to orbitchat.yaml (default: ./orbitchat.yaml)
+  --api-only         Run API proxy only (no UI serving)
+  --cors-origin URL  Allowed CORS origin in api-only mode (default: *)
+  --help, -h         Show help message
+  --version, -v      Show version number`);
+}
+
 // ---- Minimal .env loader ----
 
 function parseDotEnvValue(raw) {
@@ -389,14 +413,16 @@ function createServer(distPath, config, serverConfig = {}) {
 
 function main() {
   const args = process.argv.slice(2);
-  const serverConfig = { port: 5173, host: 'localhost', open: false, configFile: null, apiOnly: false };
+  const serverConfig = { port: 5173, host: 'localhost', open: false, configFile: null, apiOnly: false, corsOrigin: '*' };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--port') serverConfig.port = parseInt(args[++i], 10);
     else if (args[i] === '--host') serverConfig.host = args[++i];
     else if (args[i] === '--open') serverConfig.open = true;
     else if (args[i] === '--config') serverConfig.configFile = args[++i];
     else if (args[i] === '--api-only') serverConfig.apiOnly = true;
-    else if (args[i] === '--help' || args[i] === '-h') { console.log('ORBIT Chat CLI Help...'); return; }
+    else if (args[i] === '--cors-origin') serverConfig.corsOrigin = args[++i];
+    else if (args[i] === '--help' || args[i] === '-h') { printHelp(); return; }
+    else if (args[i] === '--version' || args[i] === '-v') { console.log(getCliVersion()); return; }
   }
 
   loadDotEnv(process.cwd());

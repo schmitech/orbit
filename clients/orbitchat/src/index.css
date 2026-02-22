@@ -180,6 +180,18 @@
   .prose tbody tr:hover {
     @apply bg-gray-100 dark:bg-[#2a2b32];
   }
+
+  @media (max-width: 767px) {
+    .prose th {
+      min-width: 5rem;
+      white-space: normal;
+      @apply px-2 py-1.5 text-xs;
+    }
+    .prose td {
+      min-width: 5rem;
+      @apply px-2 py-1.5 text-xs;
+    }
+  }
 }
 
 @layer utilities {
@@ -371,6 +383,10 @@ textarea:focus-visible {
   /* Conversation item active state */
   .conversation-item:active {
     @apply bg-gray-100 dark:bg-[#3c3f4a];
+  }
+
+  .prose tbody tr:active {
+    @apply bg-gray-100 dark:bg-[#2a2b32];
   }
 }
 
