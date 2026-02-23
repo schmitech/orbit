@@ -149,6 +149,7 @@ export function MessageList({
         {topLevelMessages.map((message) => (
           <div
             key={message.id}
+            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             style={{ contentVisibility: 'auto', containIntrinsicSize: '420px' }}
           >
             <Message

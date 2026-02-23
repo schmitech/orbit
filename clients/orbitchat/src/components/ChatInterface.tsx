@@ -905,7 +905,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     }
                     autoFocusEnabled
                     placeholder="Ask another question..."
-                    maxWidthClass={inputMaxWidthClass}
+                    maxWidthClass="max-w-4xl"
                   />
                 </div>
               </div>

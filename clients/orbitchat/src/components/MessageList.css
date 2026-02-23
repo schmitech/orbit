@@ -23,6 +23,10 @@
   max-width: 1000px;
 }
 
+.message-list .message-bubble.message-bubble-user {
+  max-width: 100%;
+}
+
 html.text-sm .message-list .message-bubble {
   max-width: 1120px;
 }

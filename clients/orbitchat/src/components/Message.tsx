@@ -96,7 +96,7 @@ export function Message({
 
   const userMarkdownClass = useMemo(
     () =>
-      ['message-markdown w-full min-w-0', 'prose prose-slate dark:prose-invert max-w-none', forcedThemeClass]
+      ['message-markdown w-full min-w-0', 'prose dark:prose-invert max-w-none', forcedThemeClass]
         .filter(Boolean)
         .join(' '),
     [forcedThemeClass]
@@ -190,7 +190,9 @@ export function Message({
     return `${dayOfWeek}, ${month} ${day}, ${year} ${time}`;
   }, [message.timestamp, locale]);
 
-  const bubbleClasses = 'message-bubble min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]';
+  const bubbleClasses = isAssistant
+    ? 'message-bubble min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
+    : 'message-bubble message-bubble-user min-w-0 break-words leading-relaxed bg-blue-100 text-blue-900 dark:bg-blue-600 dark:text-white rounded-2xl rounded-tr-sm px-4 py-2.5';
 
   const attachmentClasses = 'border-gray-200 bg-white/80 dark:border-[#3b3c49] dark:bg-white/5';
 
@@ -352,14 +354,14 @@ export function Message({
       );
 
       return (
-        <div key={reply.id} className="min-w-0">
-          {!replyIsAssistant && (
-            <div className="mb-0.5">
-              <span className="text-[11px] text-gray-400 dark:text-[#8e8ea0]">{formatThreadTimestamp(reply.timestamp)}</span>
+        <div key={reply.id} className={`min-w-0 flex ${replyIsAssistant ? 'justify-start' : 'justify-end'}`}>
+          <div className={replyIsAssistant ? 'min-w-0' : 'min-w-0 max-w-[85%]'}>
+            <div className={replyIsAssistant
+              ? 'thread-markdown-wrapper overflow-x-auto text-sm text-[#353740] dark:text-[#ececf1]'
+              : 'thread-markdown-wrapper overflow-x-auto text-sm bg-blue-100 text-blue-900 dark:bg-blue-600 dark:text-white rounded-2xl rounded-tr-sm px-3 py-2'
+            }>
+              {replyContent}
             </div>
-          )}
-          <div className="thread-markdown-wrapper overflow-x-auto text-sm text-[#353740] dark:text-[#ececf1]">
-            {replyContent}
           </div>
         </div>
       );
@@ -367,12 +369,8 @@ export function Message({
   }, [formatThreadTimestamp, syntaxTheme, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
 
   return (
-    <div className="group animate-fadeIn min-w-0 px-0">
+    <div className={`group animate-fadeIn min-w-0 px-0${!isAssistant ? ' max-w-[75%]' : ''}`}>
       <div className="min-w-0 space-y-1">
-        {!isAssistant && (
-          <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">{timestamp}</span>
-        )}
-
         <div className={bubbleClasses}>
           {renderedMessageContent}
 
@@ -570,19 +568,17 @@ export function Message({
                           </span>
                         </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={handleThreadSubmit}
-                        disabled={threadComposerDisabled || threadInput.trim().length === 0}
-                        className={`flex h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-full transition active:scale-95 ${
-                          threadInput.trim().length > 0 && !threadComposerDisabled
-                            ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400'
-                            : 'bg-slate-200 text-slate-400 dark:bg-[#2f313a] dark:text-[#6b6f7a]'
-                        } disabled:cursor-not-allowed`}
-                        title="Send thread message"
-                      >
-                        {isSendingThreadMessage ? <Loader2 className="h-5 w-5 sm:h-4 sm:w-4 animate-spin" /> : <ArrowUp className="h-5 w-5 sm:h-4 sm:w-4" />}
-                      </button>
+                      {(threadInput.trim().length > 0 || isSendingThreadMessage) && (
+                        <button
+                          type="button"
+                          onClick={handleThreadSubmit}
+                          disabled={threadComposerDisabled || threadInput.trim().length === 0}
+                          className="flex h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-full transition active:scale-95 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400 disabled:cursor-not-allowed"
+                          title="Send thread message"
+                        >
+                          {isSendingThreadMessage ? <Loader2 className="h-5 w-5 sm:h-4 sm:w-4 animate-spin" /> : <ArrowUp className="h-5 w-5 sm:h-4 sm:w-4" />}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
