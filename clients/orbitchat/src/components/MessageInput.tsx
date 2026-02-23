@@ -12,6 +12,7 @@ import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { getDefaultInputPlaceholder, getEnableAudioInput, getEnableAudioOutput, getEnableAutocomplete, getEnableUploadButton, getIsAuthConfigured, getVoiceRecognitionLanguage, getVoiceSilenceTimeoutMs, resolveApiUrl } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
+import { audioStreamManager } from '../utils/audioStreamManager';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { useLoginPromptStore } from '../stores/loginPromptStore';
 
@@ -52,6 +53,7 @@ const DEFAULT_TEXTAREA_VERTICAL_PADDING = 4;
 const VERTICAL_ALIGNMENT_OFFSET = 3;
 const PLACEHOLDER_VERTICAL_OFFSET = 0;
 const INLINE_SUGGESTION_VERTICAL_OFFSET = 0;
+const TEXTAREA_HORIZONTAL_PADDING = 2;
 
 function getExtensionFromMimeType(mimeType: string | undefined): string {
   if (!mimeType) {
@@ -878,7 +880,15 @@ export function MessageInput({
   };
 
   const handleVoiceResponseToggle = () => {
-    updateSettings({ voiceEnabled: !settings.voiceEnabled });
+    const enabling = !settings.voiceEnabled;
+    updateSettings({ voiceEnabled: enabling });
+
+    // Unlock AudioContext immediately while still inside the tap gesture.
+    // Mobile browsers require AudioContext creation/resume within a user
+    // gesture handler — deferring to a later event often loses the context.
+    if (enabling) {
+      audioStreamManager.enableAudio();
+    }
   };
 
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -1141,7 +1151,7 @@ export function MessageInput({
 
   return (
     <div className={`bg-transparent px-2 py-1.5 md:bg-white md:px-0 md:pt-4 md:pb-2 md:dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
-      <div className={`mx-auto w-full ${contentMaxWidth}`}>
+      <div className={`mx-auto md:mx-0 w-full ${contentMaxWidth}`}>
         {voiceError && audioInputEnabled && (
           <div role="alert" aria-live="assertive" className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
             {voiceError}
@@ -1255,10 +1265,12 @@ export function MessageInput({
           <div className="relative flex-1 w-full min-w-0">
             {showCustomPlaceholder && effectivePlaceholder && (
               <div
-                className="pointer-events-none absolute inset-0 whitespace-pre-wrap px-0 text-base md:text-sm text-gray-500 dark:text-[#8e8ea0]"
+                className="pointer-events-none absolute inset-0 whitespace-pre-wrap text-base md:text-sm text-gray-500 dark:text-[#8e8ea0]"
                 style={{
                   paddingTop: Math.max(textareaVerticalPadding.top - PLACEHOLDER_VERTICAL_OFFSET, 0),
                   paddingBottom: textareaVerticalPadding.bottom,
+                  paddingLeft: `${TEXTAREA_HORIZONTAL_PADDING}px`,
+                  paddingRight: 0,
                   lineHeight: textareaLineHeight ? `${textareaLineHeight}px` : undefined
                 }}
                 aria-hidden="true"
@@ -1268,10 +1280,12 @@ export function MessageInput({
             )}
             {inlineSuggestion && isFocused && (
               <div
-                className="pointer-events-none absolute inset-0 whitespace-pre-wrap px-0 text-base md:text-sm text-gray-400 dark:text-[#8e8ea0]"
+                className="pointer-events-none absolute inset-0 whitespace-pre-wrap text-base md:text-sm text-gray-400 dark:text-[#8e8ea0]"
                 style={{
                   paddingTop: Math.max(textareaVerticalPadding.top - INLINE_SUGGESTION_VERTICAL_OFFSET, 0),
                   paddingBottom: textareaVerticalPadding.bottom,
+                  paddingLeft: `${TEXTAREA_HORIZONTAL_PADDING}px`,
+                  paddingRight: 0,
                   lineHeight: textareaLineHeight ? `${textareaLineHeight}px` : undefined
                 }}
                 aria-hidden="true"
@@ -1301,6 +1315,8 @@ export function MessageInput({
                 maxHeight: '120px',
                 paddingTop: `${textareaVerticalPadding.top}px`,
                 paddingBottom: `${textareaVerticalPadding.bottom}px`,
+                paddingLeft: `${TEXTAREA_HORIZONTAL_PADDING}px`,
+                paddingRight: 0,
                 border: 'none',
                 outline: 'none',
                 boxShadow: 'none',

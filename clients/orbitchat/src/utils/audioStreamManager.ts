@@ -21,42 +21,134 @@ class AudioStreamManager {
   private isEnabled: boolean = false;
   private onPlaybackStart: (() => void) | null = null;
   private onPlaybackEnd: (() => void) | null = null;
+  private mimeTypeCache: Map<string, string> = new Map();
   private onChunkPlayed: ((chunkIndex: number) => void) | null = null;
   private blobUrls: string[] = [];
   private suppressPlaybackErrors: boolean = false;
 
   /**
-   * Enable audio playback after user interaction (required by browsers)
-   * Call this after a user gesture like clicking a button
-   * 
-   * Note: AudioContext is created lazily when first audio chunk is played,
-   * not here, to avoid browser warnings about autoplay policies.
+   * Enable audio playback after user interaction (required by browsers).
+   * Call this from a direct user gesture handler (click / tap / keydown).
+   *
+   * Mobile browsers enforce TWO independent autoplay gates:
+   *   1. AudioContext — must be created / resumed inside a gesture
+   *   2. HTMLAudioElement.play() — must be *called* (not awaited) inside a gesture
+   *
+   * IMPORTANT: the `.play()` call must happen BEFORE any `await` so it stays
+   * in the synchronous portion of the gesture handler.  The browser checks
+   * the call-site, not when the promise resolves.
    */
   public async enableAudio(): Promise<boolean> {
     try {
-      // Don't create AudioContext here - create it lazily when we actually play audio
-      // This prevents the browser warning about AudioContext not being in a user gesture
-      
-      // Create a silent audio to unlock audio playback
-      // This helps with browser autoplay policies and must happen in user gesture context
-      try {
-        const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
-        silentAudio.volume = 0;
-        await silentAudio.play();
-        silentAudio.pause();
-      } catch {
-        // Silent audio unlock might fail if not in user gesture context
-        // This is okay - we'll still mark as enabled and try again later
-        debugLog('[AudioStreamManager] Silent audio unlock deferred (will work on next interaction)');
+      // ---------------------------------------------------------------
+      // Phase 1 — SYNCHRONOUS (must stay in the gesture call-stack)
+      // ---------------------------------------------------------------
+
+      // 1a. Create AudioContext
+      if (!this.audioContext) {
+        const AudioCtx =
+          typeof AudioContext !== 'undefined'
+            ? AudioContext
+            : (typeof window !== 'undefined' && window.webkitAudioContext) || null;
+        if (AudioCtx) {
+          this.audioContext = new AudioCtx();
+        }
       }
 
+      // 1b. Kick off AudioContext resume (returns a promise but the *call*
+      //     itself is synchronous and that is what the browser needs).
+      const resumePromise =
+        this.audioContext?.state === 'suspended'
+          ? this.audioContext.resume()
+          : Promise.resolve();
+
+      // 1c. Unlock HTMLAudioElement BEFORE any await.  We generate a tiny
+      //     but valid silent WAV in-memory (the previous 0-byte data URL
+      //     was rejected by some mobile browsers as invalid audio).
+      let htmlUnlockPromise: Promise<void> = Promise.resolve();
+      try {
+        const silentBlob = this.createSilentWavBlob();
+        const silentUrl = URL.createObjectURL(silentBlob);
+        const silentAudio = new Audio();
+        silentAudio.setAttribute('playsinline', '');
+        silentAudio.setAttribute('webkit-playsinline', '');
+        silentAudio.src = silentUrl;
+        silentAudio.volume = 0;
+        // .play() MUST be called synchronously here — do NOT await yet
+        htmlUnlockPromise = silentAudio.play()
+          .then(() => { silentAudio.pause(); })
+          .catch(() => {
+            debugLog('[AudioStreamManager] HTMLAudioElement silent unlock failed (will retry on next gesture)');
+          })
+          .finally(() => { URL.revokeObjectURL(silentUrl); });
+      } catch {
+        debugLog('[AudioStreamManager] Could not create silent audio element');
+      }
+
+      // ---------------------------------------------------------------
+      // Phase 2 — ASYNC (gesture context no longer required)
+      // ---------------------------------------------------------------
+
+      // 2a. Wait for AudioContext to be ready
+      await resumePromise;
+
+      // 2b. Play a silent buffer through AudioContext (belt-and-suspenders)
+      if (this.audioContext && this.audioContext.state === 'running') {
+        const buf = this.audioContext.createBuffer(1, 1, 22050);
+        const src = this.audioContext.createBufferSource();
+        src.buffer = buf;
+        src.connect(this.audioContext.destination);
+        src.start(0);
+      }
+
+      // 2c. Wait for HTMLAudioElement unlock to settle
+      await htmlUnlockPromise;
+
       this.isEnabled = true;
-      debugLog('[AudioStreamManager] Audio playback enabled');
+      debugLog('[AudioStreamManager] Audio playback enabled', {
+        audioContextState: this.audioContext?.state
+      });
       return true;
     } catch (err) {
       debugError('[AudioStreamManager] Failed to enable audio:', err);
       return false;
     }
+  }
+
+  /**
+   * Generate a tiny valid silent WAV blob (0.05 s, 8 kHz, mono, 16-bit).
+   * Using a real PCM payload instead of a 0-byte data URL ensures mobile
+   * browsers treat it as legitimate audio and honour the play() call.
+   */
+  private createSilentWavBlob(): Blob {
+    const sampleRate = 8000;
+    const numSamples = 400;          // 0.05 seconds
+    const bytesPerSample = 2;        // 16-bit
+    const dataSize = numSamples * bytesPerSample;
+    const headerSize = 44;
+    const buffer = new ArrayBuffer(headerSize + dataSize);
+    const v = new DataView(buffer);
+
+    const writeStr = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) v.setUint8(offset + i, str.charCodeAt(i));
+    };
+
+    writeStr(0, 'RIFF');
+    v.setUint32(4, 36 + dataSize, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    v.setUint32(16, 16, true);       // fmt chunk size
+    v.setUint16(20, 1, true);        // PCM
+    v.setUint16(22, 1, true);        // mono
+    v.setUint32(24, sampleRate, true);
+    v.setUint32(28, sampleRate * bytesPerSample, true);
+    v.setUint16(32, bytesPerSample, true);
+    v.setUint16(34, 16, true);       // bits per sample
+    writeStr(36, 'data');
+    v.setUint32(40, dataSize, true);
+    // PCM samples are all zeros (silence) — ArrayBuffer is zero-initialized
+
+    return new Blob([buffer], { type: 'audio/wav' });
   }
 
   /**
@@ -72,25 +164,28 @@ class AudioStreamManager {
   }
 
   /**
-   * Initialize AudioContext lazily when needed (during user gesture)
-   * This is called from playNextChunk to ensure it's within a user gesture context
+   * Ensure AudioContext is ready for playback.
+   * Creation happens in enableAudio() (inside a user gesture).  This method
+   * only handles the resume-if-suspended case (e.g. after backgrounding).
    */
   private async ensureAudioContext(): Promise<boolean> {
-    if (!this.audioContext && typeof AudioContext !== 'undefined') {
-      try {
-        this.audioContext = new AudioContext();
-        // If created in suspended state, try to resume (should work if in user gesture)
-        if (this.audioContext.state === 'suspended') {
-          await this.audioContext.resume();
+    // Fall back to creating here if enableAudio() was called without AudioContext support at the time
+    if (!this.audioContext) {
+      const AudioCtx =
+        typeof AudioContext !== 'undefined'
+          ? AudioContext
+          : (typeof window !== 'undefined' && window.webkitAudioContext) || null;
+      if (AudioCtx) {
+        try {
+          this.audioContext = new AudioCtx();
+        } catch (err) {
+          debugError('[AudioStreamManager] Failed to create AudioContext:', err);
+          return false;
         }
-        return true;
-      } catch (err) {
-        debugError('[AudioStreamManager] Failed to create/resume AudioContext:', err);
-        return false;
       }
     }
-    // Resume if suspended
-    if (this.audioContext && this.audioContext.state === 'suspended') {
+
+    if (this.audioContext?.state === 'suspended') {
       try {
         await this.audioContext.resume();
       } catch (err) {
@@ -99,6 +194,50 @@ class AudioStreamManager {
       }
     }
     return true;
+  }
+
+  /**
+   * Resolve the best MIME type for a given audio format string.
+   * iOS Safari doesn't support the Ogg container, so for "opus" audio we
+   * probe the browser and fall back to WebM or bare audio/opus.
+   */
+  private resolveMimeType(format: string): string {
+    const cached = this.mimeTypeCache.get(format);
+    if (cached) return cached;
+
+    let mime: string;
+    switch (format) {
+      case 'mp3':
+        mime = 'audio/mpeg';
+        break;
+      case 'wav':
+        mime = 'audio/wav';
+        break;
+      case 'webm':
+        mime = 'audio/webm';
+        break;
+      case 'ogg':
+        mime = 'audio/ogg';
+        break;
+      case 'opus': {
+        // Probe browser codec support — iOS Safari can't play Ogg containers
+        const probe = typeof document !== 'undefined' ? document.createElement('audio') : null;
+        if (probe?.canPlayType('audio/ogg; codecs=opus')) {
+          mime = 'audio/ogg; codecs=opus';
+        } else if (probe?.canPlayType('audio/webm; codecs=opus')) {
+          mime = 'audio/webm; codecs=opus';
+        } else {
+          mime = 'audio/mp4';   // last resort — works on iOS for many payloads
+        }
+        break;
+      }
+      default:
+        mime = `audio/${format}`;
+    }
+
+    this.mimeTypeCache.set(format, mime);
+    debugLog(`[AudioStreamManager] Resolved MIME type for "${format}": ${mime}`);
+    return mime;
   }
 
   /**
@@ -214,129 +353,42 @@ class AudioStreamManager {
         bytes[i] = binaryString.charCodeAt(i);
       }
 
-      // Determine MIME type
-      const mimeType = chunk.audioFormat === 'mp3' ? 'audio/mpeg' :
-                      chunk.audioFormat === 'wav' ? 'audio/wav' :
-                      chunk.audioFormat === 'ogg' ? 'audio/ogg' :
-                      chunk.audioFormat === 'opus' ? 'audio/ogg; codecs=opus' :
-                      chunk.audioFormat === 'webm' ? 'audio/webm' :
-                      `audio/${chunk.audioFormat}`;
+      // Determine MIME type (with iOS Safari fallback for Opus)
+      const mimeType = this.resolveMimeType(chunk.audioFormat);
 
       // Create blob and audio element
       const audioBlob = new Blob([bytes], { type: mimeType });
       const audioUrl = URL.createObjectURL(audioBlob);
       this.blobUrls.push(audioUrl);
 
-      const audio = new Audio();
-      // Explicitly set src to ensure it's set before loading
-      audio.src = audioUrl;
-      this.currentAudio = audio;
-      
       const cleanup = () => {
-        if (audio.src) {
-          audio.src = '';
+        if (this.currentAudio) {
+          try { this.currentAudio.pause(); } catch { /* ignore */ }
+          this.currentAudio.removeAttribute('src');
+          this.currentAudio.load();
         }
         URL.revokeObjectURL(audioUrl);
         this.blobUrls = this.blobUrls.filter(url => url !== audioUrl);
       };
 
-      // Wait for audio to be ready before playing
-      await new Promise<void>((resolve, reject) => {
-        let isResolved = false;
-        
-        // Set up error handler
-        const errorHandler = () => {
-          if (isResolved) return;
-          
-          // Extract error details from the audio element
-          const error = audio.error;
-          const errorDetails = error ? {
-            code: error.code,
-            message: error.message || `MediaError code ${error.code}`,
-            MEDIA_ERR_ABORTED: error.code === MediaError.MEDIA_ERR_ABORTED,
-            MEDIA_ERR_NETWORK: error.code === MediaError.MEDIA_ERR_NETWORK,
-            MEDIA_ERR_DECODE: error.code === MediaError.MEDIA_ERR_DECODE,
-            MEDIA_ERR_SRC_NOT_SUPPORTED: error.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
-          } : 'Unknown error';
-          
-          // When playback is intentionally stopped we expect an empty src error
-          if (this.suppressPlaybackErrors) {
-            isResolved = true;
-            cleanup();
-            resolve();
-            return;
-          }
+      // ---------- Try HTMLAudioElement first ----------
+      let played = false;
+      try {
+        played = await this.playViaAudioElement(audioUrl, chunk, mimeType, cleanup);
+      } catch {
+        played = false;
+      }
 
-          isResolved = true;
-          console.error(`[AudioStreamManager] Error playing chunk ${chunk.chunkIndex}:`, errorDetails, {
-            audioFormat: chunk.audioFormat,
-            chunkIndex: chunk.chunkIndex,
-            audioLength: chunk.audio.length,
-            mimeType: mimeType,
-            audioContextState: this.audioContext?.state,
-            audioSrc: audio.src,
-            audioReadyState: audio.readyState
-          });
-          debugError(`[AudioStreamManager] Error playing chunk ${chunk.chunkIndex}:`, errorDetails);
-          cleanup();
-          reject(new Error(`Audio playback error: ${JSON.stringify(errorDetails)}`));
-        };
-        
-        audio.addEventListener('error', errorHandler, { once: true });
-
-        // Wait for audio to be ready to play
-        const canPlayHandler = async () => {
-          if (isResolved) return;
-          
-          try {
-            // Set up ended handler
-            audio.addEventListener('ended', () => {
-              if (isResolved) return;
-              isResolved = true;
-              debugLog(`[AudioStreamManager] Chunk ${chunk.chunkIndex} finished`);
-              if (this.onChunkPlayed) {
-                this.onChunkPlayed(chunk.chunkIndex);
-              }
-              cleanup();
-              resolve();
-            }, { once: true });
-
-            // Try to play
-            const playPromise = audio.play();
-            if (playPromise) {
-              await playPromise;
-            }
-          } catch (err) {
-            if (isResolved) return;
-            if (this.suppressPlaybackErrors) {
-              isResolved = true;
-              cleanup();
-              resolve();
-              return;
-            }
-            isResolved = true;
-            console.error(`[AudioStreamManager] Audio.play() rejected for chunk ${chunk.chunkIndex}:`, err, {
-              audioFormat: chunk.audioFormat,
-              chunkIndex: chunk.chunkIndex,
-              audioContextState: this.audioContext?.state,
-              isEnabled: this.isEnabled,
-              audioSrc: audio.src,
-              audioReadyState: audio.readyState
-            });
-            cleanup();
-            reject(err);
-          }
-        };
-
-        // Use 'canplay' event - fired when enough data is available to start playback
-        if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-          // Already ready, play immediately
-          canPlayHandler();
-        } else {
-          // Wait for audio to load - use 'canplay' which fires when enough data is available
-          audio.addEventListener('canplay', canPlayHandler, { once: true });
+      // ---------- Fallback: decode through AudioContext ----------
+      if (!played && !this.suppressPlaybackErrors && this.audioContext) {
+        debugLog(`[AudioStreamManager] HTMLAudioElement failed for chunk ${chunk.chunkIndex}, trying AudioContext fallback`);
+        try {
+          played = await this.playViaAudioContext(bytes.buffer, chunk.chunkIndex);
+        } catch (ctxErr) {
+          debugError(`[AudioStreamManager] AudioContext fallback also failed for chunk ${chunk.chunkIndex}:`, ctxErr);
         }
-      });
+        cleanup();
+      }
       this.currentAudio = null;
 
       // Continue with next chunk
@@ -359,6 +411,106 @@ class AudioStreamManager {
       // Try to continue with next chunk even if one fails
       this.playNextChunk();
     }
+  }
+
+  /**
+   * Play audio through an HTMLAudioElement (primary path).
+   * Returns true if playback completed, false if the browser blocked it.
+   */
+  private playViaAudioElement(
+    audioUrl: string,
+    chunk: AudioChunk,
+    mimeType: string,
+    cleanup: () => void
+  ): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      const audio = new Audio();
+      audio.setAttribute('playsinline', '');
+      audio.setAttribute('webkit-playsinline', '');
+      audio.src = audioUrl;
+      this.currentAudio = audio;
+
+      let settled = false;
+      const settle = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(ok);
+      };
+
+      const errorHandler = () => {
+        if (this.suppressPlaybackErrors) { cleanup(); settle(true); return; }
+        const err = audio.error;
+        debugError(`[AudioStreamManager] Media error on chunk ${chunk.chunkIndex}:`, err ? {
+          code: err.code, message: err.message,
+          SRC_NOT_SUPPORTED: err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+        } : 'unknown');
+        cleanup();
+        settle(false);
+      };
+      audio.addEventListener('error', errorHandler, { once: true });
+
+      const tryPlay = async () => {
+        if (settled) return;
+        try {
+          audio.addEventListener('ended', () => {
+            if (settled) return;
+            debugLog(`[AudioStreamManager] Chunk ${chunk.chunkIndex} finished`);
+            if (this.onChunkPlayed) this.onChunkPlayed(chunk.chunkIndex);
+            cleanup();
+            settle(true);
+          }, { once: true });
+
+          await audio.play();
+        } catch (playErr) {
+          if (this.suppressPlaybackErrors) { cleanup(); settle(true); return; }
+          debugLog(`[AudioStreamManager] audio.play() rejected for chunk ${chunk.chunkIndex}:`, playErr);
+          cleanup();
+          settle(false);  // signal caller to try AudioContext fallback
+        }
+      };
+
+      if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        tryPlay();
+      } else {
+        audio.addEventListener('canplay', () => tryPlay(), { once: true });
+      }
+    });
+  }
+
+  /**
+   * Fallback: decode audio data via AudioContext.decodeAudioData and play
+   * through an AudioBufferSourceNode.  This bypasses the HTMLAudioElement
+   * autoplay gate entirely — only the AudioContext gate matters, and we
+   * already unlocked that during enableAudio().
+   */
+  private playViaAudioContext(
+    arrayBuffer: ArrayBuffer,
+    chunkIndex: number
+  ): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
+      if (!this.audioContext) { reject(new Error('No AudioContext')); return; }
+
+      // decodeAudioData consumes the buffer, so we need a copy
+      const copy = arrayBuffer.slice(0);
+      this.audioContext.decodeAudioData(
+        copy,
+        (audioBuffer) => {
+          if (!this.audioContext || this.suppressPlaybackErrors) { resolve(true); return; }
+          const source = this.audioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(this.audioContext.destination);
+          source.onended = () => {
+            debugLog(`[AudioStreamManager] Chunk ${chunkIndex} finished (AudioContext path)`);
+            if (this.onChunkPlayed) this.onChunkPlayed(chunkIndex);
+            resolve(true);
+          };
+          source.start(0);
+        },
+        (decodeErr) => {
+          reject(decodeErr);
+        }
+      );
+    });
   }
 
   /**

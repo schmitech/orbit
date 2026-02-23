@@ -109,6 +109,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const shouldShowAdapterNotesPanel =
     showEmptyState && !isAgentSelectionVisible && !!currentConversation?.adapterName;
   const chatMaxWidthClass = 'max-w-7xl';
+  const inputMaxWidthClass = 'max-w-3xl';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const messageInputWidthClass = 'w-full';
   const emptyStateInputWrapperClass = shouldShowAdapterNotesPanel
@@ -141,7 +142,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const emptyStateTopSpacingClass = shouldShowAgentSelectionList
     ? 'pt-0 md:pt-0'
     : shouldShowAdapterNotesPanel
-      ? 'pt-5 md:pt-0'
+      ? 'pt-5 md:pt-5'
       : 'pt-4 md:pt-6';
   const hasAdapterConfigurationError = !!adapterNotesError;
   const ensureConversationReadyForAgent = useCallback((): string | null => {
@@ -765,7 +766,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           {showEmptyState ? (
             // Empty state: Flex layout that pushes input to bottom on mobile, left-aligned on desktop
             <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
-              <div className={`flex-1 flex flex-col justify-between md:justify-start ${shouldShowAgentSelectionList ? 'min-h-0 overflow-hidden' : shouldShowAdapterNotesPanel ? 'overflow-y-auto' : 'md:flex-none'}`}>
+              <div className={`flex-1 flex flex-col justify-between ${shouldShowAgentSelectionList ? 'md:justify-start min-h-0 overflow-hidden' : shouldShowAdapterNotesPanel ? 'md:justify-between overflow-y-auto' : 'md:justify-start md:flex-none'}`}>
                 <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex flex-col' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
                     <div className={`${prominentWidthClass}`}>
@@ -867,7 +868,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         autoFocusEnabled
                         suppressMobileAutoFocus={shouldShowAdapterNotesPanel}
                         placeholder={defaultInputPlaceholder}
-                        maxWidthClass={chatMaxWidthClass}
+                        maxWidthClass={inputMaxWidthClass}
                       />
                     </div>
                   </div>
@@ -904,7 +905,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     }
                     autoFocusEnabled
                     placeholder="Ask another question..."
-                    maxWidthClass={chatMaxWidthClass}
+                    maxWidthClass={inputMaxWidthClass}
                   />
                 </div>
               </div>

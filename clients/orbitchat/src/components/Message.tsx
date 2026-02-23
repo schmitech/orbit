@@ -397,31 +397,34 @@ export function Message({
 
         {isAssistant && !message.isStreaming && (
           <>
-            <div className="flex flex-wrap items-center gap-1 md:gap-2 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
-              <button
-                onClick={copyToClipboard}
-                className="inline-flex items-center gap-1 rounded px-3 py-2 md:px-2 md:py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
-                title="Copy to clipboard"
-                aria-label="Copy to clipboard"
-              >
-                <Copy className="h-4 w-4" />
-                <span className="hidden sm:inline">Copy</span>
-              </button>
-
-              {onRegenerate && (
+            <div className="flex flex-wrap items-center gap-1 md:gap-1 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
+              <div className="flex items-center gap-1 md:gap-1">
                 <button
-                  onClick={() => onRegenerate(message.id)}
-                  className="inline-flex items-center gap-1 rounded px-3 py-2 md:px-2 md:py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
-                  title="Regenerate response"
-                  aria-label="Regenerate response"
+                  onClick={copyToClipboard}
+                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
+                  title="Copy to clipboard"
+                  aria-label="Copy to clipboard"
                 >
-                  <RotateCcw className="h-4 w-4" />
-                  <span className="hidden sm:inline">Retry</span>
+                  <Copy className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Copy</span>
                 </button>
-              )}
+
+                {onRegenerate && (
+                  <button
+                    onClick={() => onRegenerate(message.id)}
+                    className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
+                    title="Regenerate response"
+                    aria-label="Regenerate response"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Retry</span>
+                  </button>
+                )}
+              </div>
 
               {threadsEnabled && onStartThread && message.supportsThreading && !message.threadInfo && sessionId && (
                 <>
+                <div className="hidden md:block w-px h-4 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
                 <div className="inline-flex items-center gap-1">
                   <button
                     onClick={() => {
@@ -429,22 +432,22 @@ export function Message({
                       setIsThreadOpen(true);
                       onStartThread(message.id, sessionId);
                     }}
-                    className="inline-flex items-center gap-1 rounded px-3 py-2 md:px-2 md:py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
+                    className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
                     title="Reply in thread"
                     aria-label="Reply in thread"
                   >
-                    <MessageSquare className="h-4 w-4" />
+                    <MessageSquare className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Reply in thread</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowThreadHelp(prev => !prev)}
-                    className="inline-flex items-center rounded p-2.5 md:p-1 text-gray-500 hover:bg-gray-200 dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
+                    className="inline-flex items-center rounded-md p-2.5 md:p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-[#8e919d] dark:hover:bg-[#3c3f4a] dark:hover:text-[#bfc2cd] transition-colors"
                     title="Use this when your question is about this specific answer. Use the main input for unrelated topics."
                     aria-label="Thread help"
                     aria-expanded={showThreadHelp}
                   >
-                    <HelpCircle className="h-4 w-4" />
+                    <HelpCircle className="h-3.5 w-3.5" />
                   </button>
                 </div>
                 {showThreadHelp && (
@@ -456,24 +459,27 @@ export function Message({
               )}
 
               {getEnableFeedbackButtons() && (
-                <div className="flex items-center gap-1">
+                <>
+                <div className="hidden md:block w-px h-4 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
+                <div className="flex items-center gap-0.5">
                   <button
                     onClick={() => handleFeedback('up')}
-                    className={`rounded p-2.5 md:p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'up' ? 'text-green-600 dark:text-green-400' : ''}`}
+                    className={`rounded-md p-2.5 md:p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
                     title="Good response"
                     aria-label="Good response"
                   >
-                    <ThumbsUp className="h-4 w-4" />
+                    <ThumbsUp className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => handleFeedback('down')}
-                    className={`rounded p-2.5 md:p-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a] ${feedback === 'down' ? 'text-red-600 dark:text-red-400' : ''}`}
+                    className={`rounded-md p-2.5 md:p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
                     title="Poor response"
                     aria-label="Poor response"
                   >
-                    <ThumbsDown className="h-4 w-4" />
+                    <ThumbsDown className="h-3.5 w-3.5" />
                   </button>
                 </div>
+                </>
               )}
 
               {copied && (
@@ -528,7 +534,7 @@ export function Message({
 
                 <div
                   ref={threadComposerRef}
-                  className="mt-1 pt-1"
+                  className="mt-1 pt-1 w-full max-w-3xl"
                 >
                   <div className="flex items-center gap-2">
                     <label htmlFor={threadInputId} className="sr-only">

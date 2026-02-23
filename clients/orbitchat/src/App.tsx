@@ -27,7 +27,7 @@ function App() {
     <ThemeProvider>
       <SettingsProvider>
         <AuthGate>
-          <div className="h-screen flex flex-col bg-white dark:bg-[#212121] text-slate-900 dark:text-slate-100">
+          <div className="h-dvh flex flex-col bg-white dark:bg-[#212121] text-slate-900 dark:text-slate-100">
             <div className="flex-1 flex flex-col md:flex-row md:pl-4 min-h-0">
               <div className="hidden md:flex md:h-full">
                 <Sidebar onOpenSettings={() => setIsSettingsOpen(true)} />
