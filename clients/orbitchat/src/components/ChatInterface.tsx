@@ -74,7 +74,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const syntaxTheme: 'dark' | 'light' = isDark ? 'dark' : 'light';
   const adapterNotesMarkdownClass = [
     'message-markdown w-full min-w-0',
-    'prose prose-slate dark:prose-invert max-w-none',
+    'prose prose-slate dark:prose-invert max-w-none md:prose-lg',
     '[&>:first-child]:mt-0 [&>:last-child]:mb-0',
     forcedThemeClass
   ]
@@ -142,7 +142,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const emptyStateTopSpacingClass = shouldShowAgentSelectionList
     ? 'pt-0 md:pt-0'
     : shouldShowAdapterNotesPanel
-      ? 'pt-5 md:pt-5'
+      ? 'pt-5 md:pt-0'
       : 'pt-4 md:pt-6';
   const hasAdapterConfigurationError = !!adapterNotesError;
   const ensureConversationReadyForAgent = useCallback((): string | null => {
@@ -766,7 +766,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
           {showEmptyState ? (
             // Empty state: Flex layout that pushes input to bottom on mobile, left-aligned on desktop
             <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
-              <div className={`flex-1 flex flex-col justify-between ${shouldShowAgentSelectionList ? 'md:justify-start min-h-0 overflow-hidden' : shouldShowAdapterNotesPanel ? 'md:justify-between overflow-y-auto' : 'md:justify-start md:flex-none'}`}>
+              <div className={`flex-1 flex flex-col justify-between ${shouldShowAgentSelectionList ? 'md:justify-start min-h-0 overflow-hidden' : shouldShowAdapterNotesPanel ? 'md:justify-start md:pt-10 md:gap-6 overflow-y-auto' : 'md:justify-start md:flex-none'}`}>
                 <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex flex-col' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
                     <div className={`${prominentWidthClass}`}>
@@ -815,7 +815,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       />
                     </div>
                   ) : shouldShowAdapterNotesPanel ? (
-                    <div className={`${prominentWidthClass} py-0`}>
+                    <div className="mx-auto w-full max-w-3xl py-0">
                       <div className="px-1 pb-2 pt-2 md:pb-2 md:pt-0">
                         {currentConversation?.adapterInfo?.notes ? (
                           <MarkdownRenderer
@@ -873,6 +873,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         suppressMobileAutoFocus={shouldShowAdapterNotesPanel}
                         placeholder={defaultInputPlaceholder}
                         maxWidthClass={inputMaxWidthClass}
+                        isCentered={shouldShowAdapterNotesPanel}
                       />
                     </div>
                   </div>
