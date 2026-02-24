@@ -770,9 +770,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex flex-col' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
                     <div className={`${prominentWidthClass}`}>
-                      <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
-                        {bodyHeadingText}
-                      </h2>
+                      <MarkdownRenderer
+                        content={bodyHeadingText}
+                        className="prose prose-slate dark:prose-invert max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0 text-2xl font-semibold text-[#11111b] dark:text-white [&_p]:text-2xl [&_p]:font-semibold [&_p]:leading-tight [&_p]:m-0"
+                        syntaxTheme={syntaxTheme}
+                      />
                       {bodyHeadingText === applicationName && hasIntroDescription && shouldShowAgentSelectionList && (
                         <div className="mt-2">
                           <MarkdownRenderer
@@ -788,9 +790,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     <div className="flex flex-col min-h-0 flex-1 gap-3 md:gap-6 overflow-y-auto md:overflow-hidden">
                       <div className={`${prominentWidthClass} flex-shrink-0 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between`}>
                         <div className="flex-1">
-                          <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white text-center md:text-left">
-                            {applicationName}
-                          </h2>
+                          <MarkdownRenderer
+                            content={applicationName}
+                            className="prose prose-slate dark:prose-invert max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0 text-2xl font-semibold text-[#11111b] dark:text-white text-center md:text-left [&_p]:text-2xl [&_p]:font-semibold [&_p]:leading-tight [&_p]:m-0"
+                            syntaxTheme={syntaxTheme}
+                          />
                           {hasIntroDescription && (
                             <div className="mt-2">
                               <MarkdownRenderer
