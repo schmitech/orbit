@@ -88,7 +88,8 @@ export interface RuntimeConfig {
     logoUrl: string;
     logoUrlLight: string;
     logoUrlDark: string;
-    brandName: string;
+    logoHeight: string;
+    logoWidth: string;
     bgColor: string;
     textColor: string;
     showBorder: boolean;
@@ -193,7 +194,8 @@ export const DEFAULTS: RuntimeConfig = {
     logoUrl: '',
     logoUrlLight: '',
     logoUrlDark: '',
-    brandName: '',
+    logoHeight: '',
+    logoWidth: '',
     bgColor: '',
     textColor: '',
     showBorder: true,
@@ -441,9 +443,14 @@ export function getHeaderLogoUrlDark(): string {
   return configured || DEFAULT_HEADER_LOGO_DARK;
 }
 
-export function getHeaderBrandName(): string {
-  return runtimeConfig.header.brandName;
+export function getHeaderLogoHeight(): string {
+  return runtimeConfig.header.logoHeight?.trim() || '';
 }
+
+export function getHeaderLogoWidth(): string {
+  return runtimeConfig.header.logoWidth?.trim() || '';
+}
+
 
 export function getHeaderBgColor(): string {
   return runtimeConfig.header.bgColor;

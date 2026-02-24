@@ -98,7 +98,11 @@ header:
   # (same location as favicon.svg)
   logoUrlLight: ""
   logoUrlDark: ""
-  brandName: ""
+  # Logo dimensions (optional). Controls the rendered size of the logo.
+  # Accepts any valid CSS value: "40px", "2.5rem", "auto", etc.
+  # Defaults: logoHeight "2.5rem" (≈40px), logoWidth "auto".
+  logoHeight: ""
+  logoWidth: ""
   bgColor: ""
   textColor: ""
   showBorder: true

@@ -118,7 +118,7 @@ function loadAdaptersForProxy(yamlAdapters: YamlConfig['adapters'], env: Record<
 }
 
 export function orbitchatConfigPlugin(): Plugin {
-  const yamlPath = path.join(process.cwd(), 'orbitchat.yaml');
+  let yamlPath = '';
   let yamlConfig: YamlConfig | null = null;
   let adaptersCache: Record<string, AdapterConfig> | null = null;
   let resolvedEnv: Record<string, string> = {};
@@ -128,6 +128,10 @@ export function orbitchatConfigPlugin(): Plugin {
 
     config(_, { mode }) {
       resolvedEnv = loadEnv(mode, process.cwd(), '');
+      const configFile = resolvedEnv.ORBITCHAT_CONFIG || process.env.ORBITCHAT_CONFIG;
+      yamlPath = configFile
+        ? path.resolve(process.cwd(), configFile)
+        : path.join(process.cwd(), 'orbitchat.yaml');
       yamlConfig = loadYamlFile(yamlPath);
 
       if (yamlConfig) {

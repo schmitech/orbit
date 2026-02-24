@@ -147,7 +147,7 @@ const DEFAULTS = {
     messages: { maxLength: 500 },
   },
   auth: { enabled: false, domain: '', clientId: '', audience: '' },
-  header: { enabled: false, logoUrl: '', logoUrlLight: '', logoUrlDark: '', brandName: '', bgColor: '', textColor: '', showBorder: true, navLinks: [] },
+  header: { enabled: false, logoUrl: '', logoUrlLight: '', logoUrlDark: '', logoHeight: '', logoWidth: '', bgColor: '', textColor: '', showBorder: true, navLinks: [] },
   footer: { enabled: false, text: '', bgColor: '', textColor: '', showBorder: false, layout: 'stacked', align: 'center', topPadding: 'large', navLinks: [] },
   adapters: [],
 };

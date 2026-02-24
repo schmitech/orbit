@@ -85,7 +85,8 @@ export interface OrbitChatYamlConfig {
     logoUrl?: string;
     logoUrlLight?: string;
     logoUrlDark?: string;
-    brandName?: string;
+    logoHeight?: string;
+    logoWidth?: string;
     bgColor?: string;
     textColor?: string;
     showBorder?: boolean;

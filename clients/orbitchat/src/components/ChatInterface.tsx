@@ -81,7 +81,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     .filter(Boolean)
     .join(' ');
   const introDescriptionMarkdownClass = [
-    'application-description prose prose-slate dark:prose-invert max-w-none text-base leading-relaxed',
+    'application-description prose prose-slate dark:prose-invert max-w-none text-sm md:text-base leading-relaxed',
     'text-[#4a4c5a] dark:text-[#bfc2cd]',
     '[&>:first-child]:mt-0 [&>:last-child]:mb-0',
     forcedThemeClass
@@ -785,10 +785,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     </div>
                   )}
                   {shouldShowAgentSelectionList ? (
-                    <div className="flex flex-col min-h-0 overflow-hidden flex-1 gap-3 md:gap-6">
+                    <div className="flex flex-col min-h-0 flex-1 gap-3 md:gap-6 overflow-y-auto md:overflow-hidden">
                       <div className={`${prominentWidthClass} flex-shrink-0 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between`}>
                         <div className="flex-1">
-                          <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white">
+                          <h2 className="text-2xl font-semibold text-[#11111b] dark:text-white text-center md:text-left">
                             {applicationName}
                           </h2>
                           {hasIntroDescription && (
@@ -807,7 +807,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       </div>
                       <AgentSelectionList
                         onAdapterSelect={handleAgentCardSelection}
-                        className={`${prominentWidthClass} flex-1 min-h-0 overflow-hidden`}
+                        className={`${prominentWidthClass} md:flex-1 md:min-h-0 md:overflow-hidden`}
                       />
                     </div>
                   ) : shouldShowAdapterNotesPanel ? (
