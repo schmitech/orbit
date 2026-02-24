@@ -268,7 +268,3 @@ If you've updated `orbitchat.yaml` but don't see changes:
 - `GET /api/adapters` only exposes non-secret metadata (name, description, notes, model) — never keys or backend URLs.
 - Keep `VITE_ADAPTER_KEYS` out of source control.
 - Run the proxy behind HTTPS in production.
-
-## License
-
-MIT
