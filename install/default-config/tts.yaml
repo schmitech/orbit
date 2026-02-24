@@ -20,7 +20,7 @@ tts_providers:
     api_base: "https://api.openai.com/v1"
     # TTS configuration
     tts_model: "gpt-4o-mini-tts"  # OpenAI TTS model: tts-1, tts-1-hd, gpt-4o-mini-tts
-    tts_voice: "coral"  # Voice options: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse
+    tts_voice: "nova"  # Voice options: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse
     tts_format: "mp3"  # Output format: mp3, opus, aac, flac
     # Timeout configuration
     timeout:
