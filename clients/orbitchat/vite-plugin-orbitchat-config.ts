@@ -78,6 +78,10 @@ function loadAdaptersForProxy(yamlAdapters: YamlConfig['adapters'], env: Record<
     try {
       const keys = JSON.parse(envKeysRaw);
       for (const [id, value] of Object.entries(keys)) {
+        if (!adapters[id]) {
+          // Strict mode: only adapters explicitly declared in orbitchat.yaml are allowed.
+          continue;
+        }
         const isObjectValue = typeof value === 'object' && value !== null;
         const apiKey = isObjectValue
           ? String((value as { apiKey?: unknown; key?: unknown }).apiKey || (value as { apiKey?: unknown; key?: unknown }).key || '')
@@ -86,22 +90,11 @@ function loadAdaptersForProxy(yamlAdapters: YamlConfig['adapters'], env: Record<
         const description = isObjectValue ? (value as { description?: unknown }).description : undefined;
         const notes = isObjectValue ? (value as { notes?: unknown }).notes : undefined;
         const model = isObjectValue ? (value as { model?: unknown }).model : undefined;
-
-        if (!adapters[id]) {
-          adapters[id] = {
-            apiKey,
-            apiUrl: typeof apiUrl === 'string' && apiUrl ? apiUrl : defaultApiUrl,
-            description: typeof description === 'string' ? description : undefined,
-            notes: typeof notes === 'string' ? notes : undefined,
-            model: typeof model === 'string' ? model : undefined,
-          };
-        } else {
-          adapters[id].apiKey = apiKey;
-          if (typeof apiUrl === 'string' && apiUrl) adapters[id].apiUrl = apiUrl;
-          if (typeof description === 'string') adapters[id].description = description;
-          if (typeof notes === 'string') adapters[id].notes = notes;
-          if (typeof model === 'string') adapters[id].model = model;
-        }
+        adapters[id].apiKey = apiKey;
+        if (typeof apiUrl === 'string' && apiUrl) adapters[id].apiUrl = apiUrl;
+        if (typeof description === 'string') adapters[id].description = description;
+        if (typeof notes === 'string') adapters[id].notes = notes;
+        if (typeof model === 'string') adapters[id].model = model;
       }
     } catch { /* ignore */ }
   }

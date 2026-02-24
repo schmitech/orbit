@@ -110,14 +110,41 @@ function loadAdaptersFromConfig(): Adapter[] | null {
     if (config?.adapters && Array.isArray(config.adapters)) {
       debugLog('Loading adapters from window.ORBIT_CHAT_CONFIG');
       const runtimeAdapters = normalizeAdapterList(config.adapters);
+      if (runtimeAdapters.length === 0) {
+        return null;
+      }
 
-      if (runtimeAdapters.length > 0) {
-        return runtimeAdapters;
+      // Strict mode: only expose YAML adapters that have a matching configured key.
+      const rawEnvKeys = import.meta.env.VITE_ADAPTER_KEYS;
+      if (!rawEnvKeys || !rawEnvKeys.trim()) {
+        return [];
+      }
+
+      try {
+        const parsed = JSON.parse(rawEnvKeys) as Record<string, unknown>;
+        const configuredIds = new Set(
+          Object.entries(parsed)
+            .filter(([, value]) => {
+              if (typeof value === 'string') {
+                return value.trim().length > 0;
+              }
+              if (value && typeof value === 'object') {
+                const asObj = value as { apiKey?: unknown; key?: unknown };
+                if (typeof asObj.apiKey === 'string' && asObj.apiKey.trim().length > 0) return true;
+                if (typeof asObj.key === 'string' && asObj.key.trim().length > 0) return true;
+              }
+              return false;
+            })
+            .map(([id]) => id)
+        );
+        return runtimeAdapters.filter(adapter => configuredIds.has(adapter.id));
+      } catch {
+        return [];
       }
     }
   }
 
-  // VITE_ADAPTER_KEYS is now handled by the Vite plugin / CLI — no env fallback needed here.
+  // VITE_ADAPTER_KEYS is handled by the Vite plugin / CLI.
   return null;
 }
 
@@ -125,7 +152,7 @@ function loadAdaptersFromConfig(): Adapter[] | null {
  * Fetch available adapters from the server or fallback to config
  * Priority:
  * 1. /api/adapters endpoint (for orbitchat CLI middleware mode)
- * 2. VITE_ADAPTER_KEYS env var / window.ORBIT_CHAT_CONFIG.adapters (for static deployments)
+ * 2. window.ORBIT_CHAT_CONFIG.adapters filtered by VITE_ADAPTER_KEYS (for static deployments)
  */
 export async function fetchAdapters(): Promise<Adapter[]> {
   if (adaptersCache && (Date.now() - adaptersCacheAt) < ADAPTERS_CACHE_TTL_MS) {
@@ -166,7 +193,7 @@ export async function fetchAdapters(): Promise<Adapter[]> {
   }
 
   debugError('No adapters available from API or config');
-  throw new Error('No adapters available. Configure VITE_ADAPTER_KEYS environment variable.');
+  throw new Error('No adapters available. Define adapters in orbitchat.yaml and provide matching ids in VITE_ADAPTER_KEYS.');
 }
 
 /**
