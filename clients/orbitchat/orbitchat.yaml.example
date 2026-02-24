@@ -8,6 +8,9 @@ application:
   inputPlaceholder: "Message ORBIT..."
   settingsAboutMsg: "ORBIT Chat"
   locale: "en-US"
+  # Optional favicon URL or local file path (absolute or relative to orbitchat.yaml).
+  # If empty, uses bundled default: /favicon.svg
+  favicon: ""
 
 # ---- API ----
 

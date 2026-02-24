@@ -8,6 +8,7 @@
  */
 
 export const DEFAULT_API_URL = 'http://localhost:3000';
+const DEFAULT_FAVICON = '/favicon.svg';
 const DEFAULT_HEADER_LOGO_LIGHT = '/orbit-logo-light.png';
 const DEFAULT_HEADER_LOGO_DARK = '/orbit-logo-dark.png';
 
@@ -23,6 +24,7 @@ export interface RuntimeConfig {
     inputPlaceholder: string;
     settingsAboutMsg: string;
     locale: string;
+    favicon: string;
   };
   debug: {
     consoleDebug: boolean;
@@ -129,6 +131,7 @@ export const DEFAULTS: RuntimeConfig = {
     inputPlaceholder: 'Message ORBIT...',
     settingsAboutMsg: 'ORBIT Chat',
     locale: 'en-US',
+    favicon: '',
   },
   debug: {
     consoleDebug: false,
@@ -336,6 +339,11 @@ export function getConsoleDebug(): boolean {
 
 export function getLocale(): string {
   return runtimeConfig.application.locale;
+}
+
+export function getApplicationFavicon(): string {
+  const configured = runtimeConfig.application.favicon?.trim();
+  return configured || DEFAULT_FAVICON;
 }
 
 export function getEnableUploadButton(): boolean {

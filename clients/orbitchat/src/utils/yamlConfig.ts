@@ -14,6 +14,7 @@ export interface OrbitChatYamlConfig {
     inputPlaceholder?: string;
     settingsAboutMsg?: string;
     locale?: string;
+    favicon?: string;
   };
   debug?: {
     consoleDebug?: boolean;

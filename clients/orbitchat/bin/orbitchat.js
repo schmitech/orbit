@@ -114,6 +114,7 @@ const DEFAULTS = {
     inputPlaceholder: 'Message ORBIT...',
     settingsAboutMsg: 'ORBIT Chat',
     locale: 'en-US',
+    favicon: '',
   },
   debug: {
     consoleDebug: false,
@@ -408,6 +409,14 @@ function createServer(distPath, config, serverConfig = {}) {
       const configScript = `<script>window.ORBIT_CHAT_CONFIG = ${JSON.stringify(config)};</script>`;
       content = content.replace(/<head>/i, '<head>\n    ' + configScript);
       if (config.application?.name) content = content.replace(/<title>.*?<\/title>/i, `<title>${config.application.name}</title>`);
+      if (config.application?.favicon?.trim()) {
+        const iconTag = `<link rel="icon" href="${config.application.favicon}" />`;
+        if (/<link[^>]*rel=["']icon["'][^>]*>/i.test(content)) {
+          content = content.replace(/<link[^>]*rel=["']icon["'][^>]*>/i, iconTag);
+        } else {
+          content = content.replace(/<head>/i, `<head>\n    ${iconTag}`);
+        }
+      }
       res.setHeader('Content-Type', 'text/html');
       res.send(content);
     });
@@ -452,6 +461,11 @@ function main() {
   mapHeaderLogoAsset('logoUrl', 'header_logo');
   mapHeaderLogoAsset('logoUrlLight', 'header_logo_light');
   mapHeaderLogoAsset('logoUrlDark', 'header_logo_dark');
+  const faviconPath = resolveLocalAssetPath(config.application?.favicon, yamlPath);
+  if (faviconPath) {
+    localAssets.application_favicon = faviconPath;
+    config.application.favicon = `/__orbitchat_assets/application_favicon?v=${Date.now()}`;
+  }
 
   const distPath = path.join(__dirname, '..', 'dist');
   const app = createServer(distPath, config, { ...serverConfig, rateLimit: yamlObj?.guestLimits?.rateLimit, localAssets });
