@@ -431,6 +431,7 @@ function main() {
     else if (args[i] === '--cors-origin') serverConfig.corsOrigin = args[++i];
     else if (args[i] === '--help' || args[i] === '-h') { printHelp(); return; }
     else if (args[i] === '--version' || args[i] === '-v') { console.log(getCliVersion()); return; }
+    else if (args[i].startsWith('-')) { console.error(`Unknown option: ${args[i]}\n`); printHelp(); process.exit(1); }
   }
 
   loadDotEnv(process.cwd());
