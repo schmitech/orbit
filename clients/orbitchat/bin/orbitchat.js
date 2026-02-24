@@ -214,6 +214,10 @@ function loadAdaptersForProxy(yamlAdapters) {
     try {
       const keys = JSON.parse(envKeysRaw);
       for (const [id, value] of Object.entries(keys)) {
+        if (!adapters[id]) {
+          // Strict mode: only adapters explicitly declared in orbitchat.yaml are allowed.
+          continue;
+        }
         const isObjectValue = typeof value === 'object' && value !== null;
         const apiKey = isObjectValue
           ? String(value.apiKey || value.key || '')
@@ -222,22 +226,11 @@ function loadAdaptersForProxy(yamlAdapters) {
         const description = isObjectValue && value.description ? String(value.description) : undefined;
         const notes = isObjectValue && value.notes ? String(value.notes) : undefined;
         const model = isObjectValue && value.model ? String(value.model) : undefined;
-
-        if (!adapters[id]) {
-          adapters[id] = {
-            apiKey,
-            apiUrl: apiUrl || fallbackApiUrl,
-            description,
-            notes,
-            model
-          };
-        } else {
-          adapters[id].apiKey = apiKey;
-          if (apiUrl) adapters[id].apiUrl = apiUrl;
-          if (description !== undefined) adapters[id].description = description;
-          if (notes !== undefined) adapters[id].notes = notes;
-          if (model !== undefined) adapters[id].model = model;
-        }
+        adapters[id].apiKey = apiKey;
+        if (apiUrl) adapters[id].apiUrl = apiUrl;
+        if (description !== undefined) adapters[id].description = description;
+        if (notes !== undefined) adapters[id].notes = notes;
+        if (model !== undefined) adapters[id].model = model;
       }
     } catch { /* ignore */ }
   }
