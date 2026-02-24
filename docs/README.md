@@ -43,6 +43,7 @@ New to ORBIT? Start here.
 | Guide | Description |
 |-------|-------------|
 | [Quick Start](../README.md#-start-in-minutes) | Get ORBIT running in minutes with Docker or manual installation |
+| [Articles & Case Studies](https://schmitech.ai/en/orbit/articles) | Deep dives into configuration and real-world use cases |
 | [Tutorial](tutorial.md) | Step-by-step guide to chat with your data |
 | [Server Setup](server.md) | Detailed server configuration and deployment options |
 | [Configuration Guide](configuration.md) | Complete configuration reference |
@@ -200,11 +201,14 @@ Contribute to ORBIT or extend its capabilities.
 
 ---
 
-## 🏢 Commercial Support
+## 🏢 Support & Community
 
-Need enterprise-grade support? **[Schmitech](https://schmitech.ai/en)** is the official commercial support provider for ORBIT.
+Need help getting started?
+- **[Step-by-Step Tutorial](tutorial.md)** — Learn how to connect your data.
+- **[GitHub Discussions](https://github.com/schmitech/orbit/discussions)** — Get help from the community.
+- **[Commercial Support](https://schmitech.ai/en)** — Enterprise-grade assistance from Schmitech.
 
-### Services Available
+### Commercial Services Available
 
 - **Managed Hosting** — Fully managed deployments with SLA guarantees
 - **Custom Development** — Custom adapters, integrations, and model tuning
