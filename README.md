@@ -95,7 +95,7 @@ Open-source traction is the fuel that keeps ORBIT's sandbox, docs, adapters, and
 - **Adapters for every data shape** – Intent + QA retrievers cover Postgres/MySQL/DuckDB/SQLite, MongoDB, Elasticsearch, HTTP APIs, and the major vector stores (Chroma, Qdrant, Pinecone, Milvus, Weaviate).
 - **Batteries included** – Per-key RBAC, rate limits/quotas, audit logging (SQLite or MongoDB + optional Elasticsearch), content safety providers, retries/circuit breakers, and observability dashboards ship by default.
 - **Multimodal + widgets** – Ship chat UIs via orbitchat CLI, React widget, [orbit-mobile](clients/orbit-mobile/README.md) (iOS), or OpenAI-compatible API; render charts, math, and audio/video streams out of the box.
-- **Zero lock-in deployments** – Try it in the hosted sandbox, run a Docker preset in under 60 seconds, or install the full server with TLS + GPU detection when you're ready for production.
+- **Zero lock-in deployments** – Try it in the hosted sandbox, run a Docker demo, or install the full server with TLS + GPU detection when you're ready for production.
 
 ## 🧩 Supported Integrations
 
