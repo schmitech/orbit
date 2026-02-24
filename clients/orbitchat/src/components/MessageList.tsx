@@ -145,7 +145,7 @@ export function MessageList({
       className="message-list flex-1 overflow-y-auto pb-6 pt-4 sm:pt-6"
       onScroll={handleScroll}
     >
-      <div className="space-y-6 px-2 sm:px-4 md:px-0">
+      <div className="space-y-6 px-2 sm:px-4 md:px-0 md:max-w-4xl md:mx-auto">
         {topLevelMessages.map((message) => (
           <div
             key={message.id}

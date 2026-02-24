@@ -911,6 +911,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     autoFocusEnabled
                     placeholder="Ask another question..."
                     maxWidthClass="max-w-4xl"
+                    isCentered
                   />
                 </div>
               </div>
