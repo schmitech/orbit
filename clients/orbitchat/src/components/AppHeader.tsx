@@ -46,7 +46,7 @@ export function AppHeader() {
 
   return (
     <header
-      className={`relative z-30 shrink-0 bg-transparent px-3 pt-2 pb-1 sm:px-6 sm:pt-3 sm:pb-2 md:sticky md:top-0 ${headerBorderClass}`.trim()}
+      className={`relative z-30 shrink-0 bg-white dark:bg-[#212121] px-3 pt-2 pb-1 sm:px-6 sm:pt-3 sm:pb-2 md:pt-5 md:sticky md:top-0 ${headerBorderClass}`.trim()}
       style={{
         backgroundColor: bgColor || undefined,
         color: textColor || undefined,
@@ -55,17 +55,23 @@ export function AppHeader() {
       <div className="mx-auto flex w-full max-w-7xl items-center justify-center md:justify-between gap-2 px-4 sm:gap-3 sm:px-0">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {logoUrl && (
-            <img
-              src={logoUrl}
-              alt="Logo"
-              draggable={false}
-              className={`block flex-shrink-0 select-none ${hasCustomLogoDimensions ? '' : 'h-8 w-auto sm:h-10'}`.trim()}
-              style={{
-                WebkitUserDrag: 'none',
-                ...(logoHeight ? { height: logoHeight } : {}),
-                ...(logoWidth ? { width: logoWidth } : {}),
-              }}
-            />
+            <a
+              href="/"
+              aria-label="Go to home page"
+              className="inline-flex items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-blue-300 dark:focus-visible:ring-offset-[#212121]"
+            >
+              <img
+                src={logoUrl}
+                alt="Logo"
+                draggable={false}
+                className={`block flex-shrink-0 select-none ${hasCustomLogoDimensions ? '' : 'h-8 w-auto sm:h-10'}`.trim()}
+                style={{
+                  WebkitUserDrag: 'none',
+                  ...(logoHeight ? { height: logoHeight } : {}),
+                  ...(logoWidth ? { width: logoWidth } : {}),
+                }}
+              />
+            </a>
           )}
         </div>
         <div className="hidden md:flex min-w-0 items-center justify-end gap-2 sm:gap-4">

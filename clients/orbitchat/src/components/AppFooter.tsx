@@ -44,7 +44,7 @@ export function AppFooter({ placement = 'default', compact = false }: AppFooterP
 
   return (
     <footer
-      className={`shrink-0 bg-transparent ${compact ? 'text-xs' : 'text-sm'} ${paddingClass} ${borderClass}`.trim()}
+      className={`shrink-0 bg-white dark:bg-[#212121] ${compact ? 'text-xs' : 'text-sm'} ${paddingClass} ${borderClass}`.trim()}
       style={{
         backgroundColor: bgColor || undefined,
         color: textColor || undefined,
