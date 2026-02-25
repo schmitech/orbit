@@ -82,6 +82,8 @@ export function AppHeader() {
                   <li key={link.url}>
                     <a
                       href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className={navLinkBaseClass}
                       style={{ color: textColor || undefined }}
                     >

@@ -70,6 +70,8 @@ export function AppFooter({ placement = 'default', compact = false }: AppFooterP
                         )}
                         <a
                           href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className={linkBaseClass}
                           style={{ color: textColor || undefined }}
                         >

@@ -101,8 +101,10 @@ header:
   # (same location as favicon.svg)
   logoUrlLight: ""
   logoUrlDark: ""
-  # Logo dimensions (optional). Controls the rendered size of the logo.
-  # Accepts any valid CSS value: "40px", "2.5rem", "auto", etc.
+  # Logo dimensions (optional). Controls the rendered CSS size of the logo.
+  # Accepts any valid CSS size string, e.g.:
+  #   "40px", "2.5rem", "2.2em", "auto", "clamp(32px, 4vw, 48px)"
+  # Include units for numeric values ("px", "rem", "em", etc.); avoid bare numbers like "4".
   # Defaults: logoHeight "2.5rem" (≈40px), logoWidth "auto".
   logoHeight: ""
   logoWidth: ""
