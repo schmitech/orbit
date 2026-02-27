@@ -909,7 +909,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       hasAdapterConfigurationError
                     }
                     autoFocusEnabled
-                    placeholder="Ask another question..."
+                    placeholder="Start a new topic..."
                     maxWidthClass="max-w-4xl"
                     isCentered
                   />

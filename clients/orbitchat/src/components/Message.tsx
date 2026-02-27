@@ -6,7 +6,6 @@ import {
   ChevronUp,
   Copy,
   File,
-  HelpCircle,
   Loader2,
   MessageSquare,
   RotateCcw,
@@ -16,7 +15,7 @@ import {
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 import { debugError } from '../utils/debug';
-import { getEnableFeedbackButtons, getEnableConversationThreads, getIsAuthConfigured, getLocale } from '../utils/runtimeConfig';
+import { getEnableFeedbackButtons, getEnableConversationThreads, getIsAuthConfigured } from '../utils/runtimeConfig';
 import { AudioPlayer } from './AudioPlayer';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { AppConfig } from '../utils/config';
@@ -50,7 +49,6 @@ export function Message({
   const [threadInput, setThreadInput] = useState('');
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
-  const [showThreadHelp, setShowThreadHelp] = useState(false);
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
   const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
   const threadComposerRef = useRef<HTMLDivElement>(null);
@@ -67,7 +65,6 @@ export function Message({
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
   const isAuthenticated = useIsAuthenticated();
   const isGuest = getIsAuthConfigured() && !isAuthenticated;
-  const locale = getLocale();
   const threadsEnabled = getEnableConversationThreads();
   const threadCharLimit = AppConfig.maxMessageLength;
   const threadLimit = AppConfig.maxMessagesPerThread;
@@ -174,22 +171,6 @@ export function Message({
     shouldAutoScrollThreadRef.current = true;
   }, [isThreadOpen, scrollThreadRepliesToBottom]);
 
-  const timestamp = useMemo(() => {
-    const value = message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp);
-
-    const dayOfWeek = value.toLocaleDateString(locale, { weekday: 'short' });
-    const month = value.toLocaleDateString(locale, { month: 'short' });
-    const day = value.getDate().toString().padStart(2, '0');
-    const year = value.getFullYear();
-    const time = value.toLocaleTimeString(locale, {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-
-    return `${dayOfWeek}, ${month} ${day}, ${year} ${time}`;
-  }, [message.timestamp, locale]);
-
   const bubbleClasses = isAssistant
     ? 'message-bubble min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
     : 'message-bubble message-bubble-user min-w-0 break-words leading-relaxed bg-blue-100 text-blue-900 dark:bg-blue-600 dark:text-white rounded-2xl rounded-tr-sm px-4 py-2.5';
@@ -209,14 +190,6 @@ export function Message({
   const handleFeedback = (type: 'up' | 'down') => {
     setFeedback(feedback === type ? null : type);
   };
-
-  const formatThreadTimestamp = useCallback((value: Date | string) => {
-    const dateValue = value instanceof Date ? value : new Date(value);
-    return dateValue.toLocaleTimeString(locale, {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }, [locale]);
 
   const handleThreadSubmit = async () => {
     if (!onSendThreadMessage || !message.threadInfo || threadLimitReached) {
@@ -366,7 +339,7 @@ export function Message({
         </div>
       );
     });
-  }, [formatThreadTimestamp, syntaxTheme, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
+  }, [syntaxTheme, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
 
   return (
     <div className={`group animate-fadeIn min-w-0 px-0${!isAssistant ? ' max-w-[75%]' : ''}`}>
@@ -399,62 +372,44 @@ export function Message({
               <div className="flex items-center gap-1 md:gap-1">
                 <button
                   onClick={copyToClipboard}
-                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
                   title="Copy to clipboard"
                   aria-label="Copy to clipboard"
                 >
-                  <Copy className="h-3.5 w-3.5" />
+                  <Copy className="h-4 w-4 md:h-3.5 md:w-3.5" />
                   <span className="hidden sm:inline">Copy</span>
                 </button>
 
                 {onRegenerate && (
                   <button
                     onClick={() => onRegenerate(message.id)}
-                    className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
                     title="Regenerate response"
                     aria-label="Regenerate response"
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
+                    <RotateCcw className="h-4 w-4 md:h-3.5 md:w-3.5" />
                     <span className="hidden sm:inline">Retry</span>
                   </button>
                 )}
-              </div>
 
-              {threadsEnabled && onStartThread && message.supportsThreading && !message.threadInfo && sessionId && (
-                <>
-                <div className="hidden md:block w-px h-4 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
-                <div className="inline-flex items-center gap-1">
+                {threadsEnabled && message.supportsThreading && !message.threadInfo && onStartThread && sessionId && (
                   <button
+                    type="button"
                     onClick={() => {
                       pendingThreadFocusRef.current = true;
                       setIsThreadOpen(true);
                       onStartThread(message.id, sessionId);
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
-                    title="Reply in thread"
-                    aria-label="Reply in thread"
+                    className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
+                    title="Follow up on this answer"
+                    aria-label="Follow up on this answer"
                   >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Reply in thread</span>
+                    <MessageSquare className="h-4 w-4 md:h-3.5 md:w-3.5" />
+                    <span>Follow up</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowThreadHelp(prev => !prev)}
-                    className="inline-flex items-center rounded-md p-2.5 md:p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-[#8e919d] dark:hover:bg-[#3c3f4a] dark:hover:text-[#bfc2cd] transition-colors"
-                    title="Use this when your question is about this specific answer. Use the main input for unrelated topics."
-                    aria-label="Thread help"
-                    aria-expanded={showThreadHelp}
-                  >
-                    <HelpCircle className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                {showThreadHelp && (
-                  <div className="basis-full rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] leading-relaxed text-blue-900 dark:border-blue-500/30 dark:bg-blue-900/20 dark:text-blue-100">
-                    Use this when your question is about this specific answer. Use the main input for unrelated topics.
-                  </div>
                 )}
-                </>
-              )}
+              </div>
+
 
               {getEnableFeedbackButtons() && (
                 <>

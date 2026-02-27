@@ -9,7 +9,7 @@ import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
-import { getDefaultInputPlaceholder, getEnableAudioInput, getEnableAudioOutput, getEnableAutocomplete, getEnableUploadButton, getIsAuthConfigured, getVoiceRecognitionLanguage, getVoiceSilenceTimeoutMs, resolveApiUrl } from '../utils/runtimeConfig';
+import { getDefaultInputPlaceholder, getEnableAudioInput, getEnableAudioOutput, getEnableAutocomplete, getEnableConversationThreads, getEnableUploadButton, getIsAuthConfigured, getVoiceRecognitionLanguage, getVoiceSilenceTimeoutMs, resolveApiUrl } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
 import { audioStreamManager } from '../utils/audioStreamManager';
@@ -160,6 +160,9 @@ export function MessageInput({
     bottom: Math.max(DEFAULT_TEXTAREA_VERTICAL_PADDING - VERTICAL_ALIGNMENT_OFFSET, 0)
   }));
   const [textareaLineHeight, setTextareaLineHeight] = useState<number | null>(null);
+  const [threadHintDismissed, setThreadHintDismissed] = useState(() =>
+    typeof window !== 'undefined' && localStorage.getItem('orbit-thread-hint-dismissed') === 'true'
+  );
 
   const isAuthenticated = useIsAuthenticated();
   const isGuest = getIsAuthConfigured() && !isAuthenticated;
@@ -1184,6 +1187,23 @@ export function MessageInput({
                 Sign in for higher limits
               </button>
             )}
+          </div>
+        )}
+
+        {!threadHintDismissed && conversationMessagesCount > 0 && getEnableConversationThreads() && (
+          <div role="status" className="mb-3 flex w-full items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-500/40 dark:bg-blue-900/20 dark:text-blue-200">
+            <span className="flex-1">Want to follow up on a specific answer? Use the reply field below that message.</span>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem('orbit-thread-hint-dismissed', 'true');
+                setThreadHintDismissed(true);
+              }}
+              className="flex-shrink-0 rounded p-0.5 text-blue-400 hover:bg-blue-100 hover:text-blue-600 dark:text-blue-300 dark:hover:bg-blue-800/40 dark:hover:text-blue-100 transition-colors"
+              aria-label="Dismiss thread hint"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         )}
 
