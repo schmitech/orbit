@@ -1192,7 +1192,7 @@ export function MessageInput({
 
         {!threadHintDismissed && conversationMessagesCount > 0 && getEnableConversationThreads() && (
           <div role="status" className="mb-3 flex w-full items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-500/40 dark:bg-blue-900/20 dark:text-blue-200">
-            <span className="flex-1">Want to follow up on a specific answer? Use the reply field below that message.</span>
+            <span className="flex-1">Want to continue a discussion about a specific answer? Click the "Follow up" link below that response.</span>
             <button
               type="button"
               onClick={() => {
