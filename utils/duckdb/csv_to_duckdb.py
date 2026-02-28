@@ -90,11 +90,16 @@ AUTHOR:
 
 import duckdb
 import argparse
+import os
+import shutil
 import sys
+import tempfile
 import time
 import re
 from pathlib import Path
 from typing import Optional, List, Dict, Set
+
+from split_csv import split_csv as split_csv_file
 
 try:
     import requests
@@ -626,6 +631,66 @@ def load_csv_fast(
     return count
 
 
+def load_csv_chunked(
+    conn: duckdb.DuckDBPyConnection,
+    csv_path: str,
+    table_name: str,
+    schema: list,
+    split_size_mb: int,
+    primary_key: Optional[str] = None,
+    skip_columns: Optional[list] = None,
+    config: Optional[dict] = None,
+    *,
+    header: bool = True,
+    delimiter: Optional[str] = None,
+    quote: Optional[str] = None,
+    escape: Optional[str] = None,
+    null_values: Optional[List[str]] = None,
+    encoding: Optional[str] = None,
+    sample_size: int = 10000,
+    quiet: bool = False,
+) -> int:
+    """Split a large CSV into chunks, then load each chunk into the same table."""
+    chunk_bytes = split_size_mb * 1024 * 1024
+    tmp_dir = tempfile.mkdtemp(prefix="csv_split_")
+
+    try:
+        if not quiet:
+            file_mb = os.path.getsize(csv_path) / (1024 * 1024)
+            print(f"   Splitting {file_mb:.1f} MB CSV into ~{split_size_mb} MB chunks...")
+
+        chunk_files = split_csv_file(
+            csv_path, output_dir=tmp_dir, chunk_size=chunk_bytes, encoding=encoding or "utf-8"
+        )
+
+        if not chunk_files:
+            raise RuntimeError("Splitting produced no output files")
+
+        total = len(chunk_files)
+        total_count = 0
+
+        for i, chunk_path in enumerate(chunk_files, 1):
+            if not quiet:
+                chunk_mb = os.path.getsize(chunk_path) / (1024 * 1024)
+                print(f"   Loading chunk {i}/{total} ({chunk_mb:.1f} MB)...")
+
+            count = load_csv_fast(
+                conn, chunk_path, table_name, schema,
+                primary_key, skip_columns, config,
+                header=header, delimiter=delimiter, quote=quote,
+                escape=escape, null_values=null_values,
+                encoding=encoding, sample_size=sample_size,
+                quiet=True,
+            )
+            total_count += count
+            if not quiet:
+                print(f"      +{count:,} records (total: {total_count:,})")
+
+        return total_count
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 def print_sample_data(conn: duckdb.DuckDBPyConnection, table_name: str, limit: int = 5):
     """Print sample records from the table."""
     print(f"\nSample Data (first {limit} rows):")
@@ -819,6 +884,19 @@ Examples:
     )
 
     parser.add_argument(
+        '--auto-split',
+        action='store_true',
+        help='Automatically split CSVs >100 MB into 50 MB chunks before loading'
+    )
+
+    parser.add_argument(
+        '--split-size',
+        type=int,
+        default=0,
+        help='Split CSV into chunks of this size (MB) before loading. 0 = disabled.'
+    )
+
+    parser.add_argument(
         '--quiet', '-q',
         action='store_true',
         help='Minimal output'
@@ -960,6 +1038,9 @@ Examples:
         if csv_options_display:
             print(f"   CSV Options: {', '.join(csv_options_display)}")
         print(f"   Clean mode: {'Yes' if args.clean else 'No'}")
+        if args.auto_split or args.split_size or config.get('split_size'):
+            effective = args.split_size or config.get('split_size', 0) or 50
+            print(f"   Split size: {effective} MB (auto-split)")
         print()
 
     # Connect to DuckDB
@@ -1015,26 +1096,57 @@ Examples:
         if not args.quiet:
             print(f"   Created {created} indexes")
 
+    # Determine split size (MB). --split-size takes priority, then --auto-split,
+    # then config file, then 0 (disabled).
+    split_size_mb = args.split_size or config.get('split_size', 0)
+    if not split_size_mb and args.auto_split:
+        split_size_mb = 50  # default chunk size for --auto-split
+
+    file_size_mb = csv_path.stat().st_size / (1024 * 1024)
+    use_chunked = split_size_mb > 0 and file_size_mb > split_size_mb
+
     # Load data
-    if not args.quiet:
-        print("Loading data...")
-    count = load_csv_fast(
-        conn,
-        str(csv_path),
-        table_name,
-        schema,
-        primary_key,
-        skip_columns,
-        config,
-        header=header,
-        delimiter=delimiter,
-        quote=quote,
-        escape=escape_char,
-        null_values=null_values,
-        encoding=encoding,
-        sample_size=sample_size,
-        quiet=args.quiet,
-    )
+    if use_chunked:
+        if not args.quiet:
+            print(f"Loading data (chunked, ~{split_size_mb} MB per chunk)...")
+        count = load_csv_chunked(
+            conn,
+            str(csv_path),
+            table_name,
+            schema,
+            split_size_mb,
+            primary_key,
+            skip_columns,
+            config,
+            header=header,
+            delimiter=delimiter,
+            quote=quote,
+            escape=escape_char,
+            null_values=null_values,
+            encoding=encoding,
+            sample_size=sample_size,
+            quiet=args.quiet,
+        )
+    else:
+        if not args.quiet:
+            print("Loading data...")
+        count = load_csv_fast(
+            conn,
+            str(csv_path),
+            table_name,
+            schema,
+            primary_key,
+            skip_columns,
+            config,
+            header=header,
+            delimiter=delimiter,
+            quote=quote,
+            escape=escape_char,
+            null_values=null_values,
+            encoding=encoding,
+            sample_size=sample_size,
+            quiet=args.quiet,
+        )
     if not args.quiet:
         print(f"Loaded {count:,} records")
 

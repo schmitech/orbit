@@ -48,6 +48,9 @@ def generate_database(target_name, config, clean=False):
             return False
         cmd.extend(["--config", config['config_path']])
 
+    if config.get('split_size'):
+        cmd.extend(["--split-size", str(config['split_size'])])
+
     if clean:
         cmd.append("--clean")
 

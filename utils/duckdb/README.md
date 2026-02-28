@@ -82,6 +82,32 @@ derived_columns:
 - `--no-header` plus `--encoding` handle headerless or non-UTF-8 datasets.
 - The same keys can be set in per-dataset YAML configs when you prefer not to pass CLI flags.
 
+## Large CSV Support (Auto-Split)
+
+For very large CSV files (e.g. 450 MB+), the loader can automatically split the file into chunks before importing. This provides per-chunk progress, resilience (if one chunk has issues the rest still loads), and reduced memory pressure.
+
+**CLI usage:**
+```bash
+# Auto-split files >100 MB into 50 MB chunks
+python csv_to_duckdb.py huge.csv --auto-split --schema huge.sql --output huge.duckdb
+
+# Custom chunk size (split into 25 MB chunks)
+python csv_to_duckdb.py huge.csv --split-size 25 --schema huge.sql --output huge.duckdb
+```
+
+**Per-dataset config** (`csv_to_duckdb.yaml`):
+```yaml
+datasets:
+  large-dataset:
+    description: "Large dataset"
+    csv_path: "huge.csv"
+    schema_path: "huge.sql"
+    output_path: "huge.duckdb"
+    split_size: 50  # MB — auto-split if CSV exceeds this
+```
+
+If the CSV is smaller than the split size, it loads normally in a single pass.
+
 ## How It Works
 
 1.  **`generate_duckdbs.py`**: Reads `csv_to_duckdb.yaml`.

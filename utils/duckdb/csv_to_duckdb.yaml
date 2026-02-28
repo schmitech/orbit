@@ -11,6 +11,8 @@
 #   schema_path:  Path to the SQL file containing CREATE TABLE/INDEX statements.
 #   output_path:  Path where the resulting DuckDB file will be saved.
 #   config_path:  (Optional) Path to a YAML file for advanced column mapping/transformations.
+#   split_size:   (Optional) Split CSVs larger than this (MB) into chunks before loading.
+#                 Useful for very large files (e.g. 450 MB+). Example: split_size: 50
 # =============================================================================
 
 datasets:
