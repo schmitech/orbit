@@ -130,6 +130,28 @@ footer:
   topPadding: "large" # "large" | "normal"
   navLinks: []
 
+# ---- Startup Scripts (optional) ----
+# Inject external JavaScript tags into <head> during app initialization.
+# Useful for analytics, ads, tag managers, etc.
+# Each item must include either `src` or inline `content`.
+# startupScripts:
+#   - src: "https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"
+#     id: "ga-loader"
+#     async: true
+#   - id: "ga-bootstrap"
+#     content: |
+#       window.dataLayer = window.dataLayer || [];
+#       function gtag(){dataLayer.push(arguments);}
+#       gtag('js', new Date());
+#       gtag('config', 'G-XXXXXXXXXX');
+#   - src: "https://example.com/custom-sdk.js"
+#     async: true
+#     defer: false
+#     crossOrigin: "anonymous" # "anonymous" | "use-credentials"
+#     referrerPolicy: "strict-origin-when-cross-origin"
+#     integrity: ""
+startupScripts: []
+
 # ---- Adapters (metadata + URLs — API keys go in VITE_ADAPTER_KEYS env var) ----
 # Each adapter must have a unique `id` to match its API key in VITE_ADAPTER_KEYS.
 # The `name` is a display-only label and can be changed freely without affecting the key mapping.

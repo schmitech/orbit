@@ -150,6 +150,7 @@ const DEFAULTS = {
   auth: { enabled: false, domain: '', clientId: '', audience: '' },
   header: { enabled: false, logoUrl: '', logoUrlLight: '', logoUrlDark: '', logoHeight: '', logoWidth: '', bgColor: '', textColor: '', showBorder: true, navLinks: [] },
   footer: { enabled: false, text: '', bgColor: '', textColor: '', showBorder: false, layout: 'stacked', align: 'center', topPadding: 'large', navLinks: [] },
+  startupScripts: [],
   adapters: [],
 };
 

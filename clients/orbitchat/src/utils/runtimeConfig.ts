@@ -17,6 +17,18 @@ export interface NavLink {
   url: string;
 }
 
+export interface StartupScript {
+  src?: string;
+  content?: string;
+  id?: string;
+  async?: boolean;
+  defer?: boolean;
+  type?: string;
+  integrity?: string;
+  crossOrigin?: 'anonymous' | 'use-credentials';
+  referrerPolicy?: string;
+}
+
 export interface RuntimeConfig {
   application: {
     name: string;
@@ -108,6 +120,7 @@ export interface RuntimeConfig {
     topPadding: 'normal' | 'large';
     navLinks: NavLink[];
   };
+  startupScripts: StartupScript[];
   adapters: Array<{
     id: string;
     name: string;
@@ -215,6 +228,7 @@ export const DEFAULTS: RuntimeConfig = {
     topPadding: 'large',
     navLinks: [],
   },
+  startupScripts: [],
   adapters: [],
 };
 
@@ -517,6 +531,27 @@ export function getFooterAlign(): 'left' | 'center' {
 
 export function getFooterTopPadding(): 'normal' | 'large' {
   return runtimeConfig.footer.topPadding === 'normal' ? 'normal' : 'large';
+}
+
+export function getStartupScripts(): StartupScript[] {
+  const raw = runtimeConfig.startupScripts;
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .filter((item): item is StartupScript => Boolean(item && typeof item === 'object'))
+    .map((item) => {
+      const src = typeof item.src === 'string' ? item.src.trim() : '';
+      const content = typeof item.content === 'string' ? item.content.trim() : '';
+      const id = typeof item.id === 'string' ? item.id.trim() : '';
+
+      return {
+        ...item,
+        src: src || undefined,
+        content: content || undefined,
+        id: id || undefined,
+      };
+    })
+    .filter((item) => Boolean(item.src || item.content));
 }
 
 export function getFooterNavLinks(): NavLink[] {

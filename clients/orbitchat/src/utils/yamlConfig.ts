@@ -104,6 +104,17 @@ export interface OrbitChatYamlConfig {
     topPadding?: 'normal' | 'large';
     navLinks?: NavLink[];
   };
+  startupScripts?: Array<{
+    src?: string;
+    content?: string;
+    id?: string;
+    async?: boolean;
+    defer?: boolean;
+    type?: string;
+    integrity?: string;
+    crossOrigin?: 'anonymous' | 'use-credentials';
+    referrerPolicy?: string;
+  }>;
   adapters?: Array<{
     name: string;
     apiUrl?: string;
