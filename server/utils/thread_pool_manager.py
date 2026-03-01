@@ -216,9 +216,10 @@ class ThreadPoolManager:
     def shutdown(self, wait: bool = True) -> None:
         """
         Shutdown all thread pools.
-        
+
         Args:
-            wait: Whether to wait for pending tasks to complete
+            wait: Whether to wait for pending tasks to complete.
+                  Pending futures are always cancelled to prevent indefinite blocking.
         """
         logger.info("Shutting down thread pools...")
         final_stats = self.get_pool_stats()
@@ -229,15 +230,15 @@ class ThreadPoolManager:
                 f"active_threads={stats['active_threads']}, "
                 f"queued_tasks={stats['queued_tasks']}"
             )
-            
+
             if self._active_tasks:
                 logger.warning(
                     f"ThreadPoolManager: {len(self._active_tasks)} tasks still active at shutdown"
                 )
-        
+
         for pool_name, pool in self._pools.items():
             try:
-                pool.shutdown(wait=wait)
+                pool.shutdown(wait=wait, cancel_futures=True)
                 logger.info(f"Shut down {pool_name} thread pool")
             except Exception as e:
                 logger.error(f"Error shutting down {pool_name} thread pool: {str(e)}")

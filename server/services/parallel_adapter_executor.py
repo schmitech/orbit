@@ -1181,9 +1181,9 @@ class ParallelAdapterExecutor:
         else:
             logger.info("No active requests to wait for")
         
-        # Shutdown thread pool
+        # Shutdown thread pool - cancel pending work to avoid blocking the event loop
         logger.info("Shutting down thread pool")
-        self.thread_pool.shutdown(wait=True)
+        self.thread_pool.shutdown(wait=False, cancel_futures=True)
         
         # Reset circuit breakers
         logger.info("Resetting circuit breakers")

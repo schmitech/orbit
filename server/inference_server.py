@@ -301,15 +301,13 @@ class InferenceServer:
     async def _shutdown_services(self, app: FastAPI) -> None:
         """
         Shut down all services and clients.
-        
+
         Args:
             app: The FastAPI application containing services
         """
-        logger.info("Shutting down services...")
-        
         # Create a list to collect shutdown tasks
         shutdown_tasks = []
-        
+
         # Helper function to safely add shutdown task
         def add_shutdown_task(service, service_name):
             if service is not None and hasattr(service, 'close'):
@@ -320,34 +318,30 @@ class InferenceServer:
                         service.close()
                 except Exception as e:
                     logger.error(f"Error preparing shutdown for {service_name}: {str(e)}")
-        
+
         # Add services to shutdown tasks if they exist and have close methods
         if hasattr(app.state, 'llm_client'):
             add_shutdown_task(app.state.llm_client, 'LLM Client')
-        
+
         if hasattr(app.state, 'logger_service'):
             add_shutdown_task(app.state.logger_service, 'Logger Service')
-        
+
         # Handle lazy-loaded retriever closure
         if hasattr(app.state, 'retriever'):
             if hasattr(app.state.retriever, '_retriever') and app.state.retriever._retriever is not None:
                 add_shutdown_task(app.state.retriever._retriever, 'Retriever')
             else:
                 logger.info("Retriever was never initialized, no need to close")
-        
-        if hasattr(app.state, 'prompt_service'):
-            # PromptService doesn't have a close method, so we skip it
-            logger.info("Skipping PromptService shutdown (no close method)")
-        
+
         if hasattr(app.state, 'reranker_service'):
             add_shutdown_task(app.state.reranker_service, 'Reranker Service')
-        
+
         if hasattr(app.state, 'api_key_service'):
             add_shutdown_task(app.state.api_key_service, 'API Key Service')
-        
+
         if hasattr(app.state, 'embedding_service'):
             add_shutdown_task(app.state.embedding_service, 'Embedding Service')
-            
+
         # Close Moderator Service
         if hasattr(app.state, 'moderator_service'):
             add_shutdown_task(app.state.moderator_service, 'Moderator Service')
@@ -359,11 +353,11 @@ class InferenceServer:
         # Close Redis service
         if hasattr(app.state, 'redis_service'):
             add_shutdown_task(app.state.redis_service, 'Redis Service')
-        
+
         # Close Metrics service
         if hasattr(app.state, 'metrics_service'):
             add_shutdown_task(app.state.metrics_service, 'Metrics Service')
-        
+
         # Close Chat History service
         if hasattr(app.state, 'chat_history_service'):
             add_shutdown_task(app.state.chat_history_service, 'Chat History Service')
@@ -376,28 +370,24 @@ class InferenceServer:
         if hasattr(app.state, 'file_processing_service'):
             add_shutdown_task(app.state.file_processing_service, 'File Processing Service')
 
-        # Close fault tolerance services
+        # Close fault tolerance services (with timeout to prevent hanging)
         if hasattr(self.service_factory, '_shutdown_fault_tolerance_services'):
             try:
-                await self.service_factory._shutdown_fault_tolerance_services(app)
+                await asyncio.wait_for(
+                    self.service_factory._shutdown_fault_tolerance_services(app),
+                    timeout=10.0
+                )
+            except asyncio.TimeoutError:
+                logger.error("Timeout shutting down fault tolerance services, continuing shutdown")
             except Exception as e:
                 logger.error(f"Error shutting down fault tolerance services: {str(e)}")
-        
+
         # Close all tracked aiohttp sessions
         shutdown_tasks.append(close_all_aiohttp_sessions())
-        
-        # Shutdown thread pool manager
-        if hasattr(self, 'thread_pool_manager'):
-            try:
-                self.thread_pool_manager.shutdown(wait=True)
-                logger.info("Thread pool manager shut down successfully")
-            except Exception as e:
-                logger.error(f"Error shutting down thread pool manager: {str(e)}")
-        
-        # Only run asyncio.gather if there are tasks to gather
+
+        # Run all async service shutdown tasks with timeout
         if shutdown_tasks:
             try:
-                # Wait for all shutdown tasks to complete with a timeout
                 await asyncio.wait_for(asyncio.gather(*shutdown_tasks, return_exceptions=True), timeout=30.0)
                 logger.info("Services shut down successfully")
             except asyncio.TimeoutError:
@@ -406,6 +396,23 @@ class InferenceServer:
                 logger.error(f"Error during shutdown of services: {str(e)}")
         else:
             logger.info("No services to shut down")
+
+        # LAST: Shutdown thread pool manager (after all services that may use pools)
+        # Run in executor to avoid blocking the event loop
+        if hasattr(self, 'thread_pool_manager'):
+            try:
+                loop = asyncio.get_event_loop()
+                await asyncio.wait_for(
+                    loop.run_in_executor(None, lambda: self.thread_pool_manager.shutdown(wait=True)),
+                    timeout=5.0
+                )
+                logger.info("Thread pool manager shut down successfully")
+            except asyncio.TimeoutError:
+                logger.warning("Thread pool shutdown timed out, force-cancelling remaining tasks")
+                self.thread_pool_manager.shutdown(wait=False)
+                logger.info("Thread pool manager force shut down")
+            except Exception as e:
+                logger.error(f"Error shutting down thread pool manager: {str(e)}")
 
     def create_ssl_context(self) -> Optional[ssl.SSLContext]:
         """
