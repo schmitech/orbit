@@ -9,24 +9,42 @@
 <p align="center">
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python"></a>
+  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/github/v/release/schmitech/orbit" alt="Latest release"></a>
+  <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit" alt="Last commit"></a>
   <a href="https://github.com/schmitech/orbit" target="_blank">
     <img src="https://img.shields.io/github/stars/schmitech/orbit?style=social&label=Star" alt="GitHub stars">
   </a>
 </p>
 
-# ORBIT: The Unified AI Gateway
+# ORBIT: Enterprise AI Gateway
 **Open Retrieval-Based Inference Toolkit**
 
-**Connect 20+ LLM providers and your data (SQL, Vector, NoSQL, APIs, etc.) through one API.**
+**Connect 20+ LLM providers and enterprise data through one governed API.**
 
-ORBIT is a self-hosted gateway that eliminates vendor lock-in and glue code. It unifies the fragmented components—LLMs, databases, and voice engines—into a single interface.
+ORBIT is a self-hosted gateway that eliminates vendor lock-in and integration glue code. It unifies LLMs, databases, APIs, and voice engines behind one OpenAI-compatible interface.
 
 [**Try the Sandbox**](https://orbitsandbox.dev/) | [**API Reference**](https://orbit.schmitech.ai/redoc) | [**Docker Guide**](docker/README.md)
 
+<p align="center">
+  <a href="https://orbitsandbox.dev/">Watch Product Demo</a>
+</p>
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/70d045a4-27dc-4df7-9ede-1be90f0a4847" controls muted playsinline width="700"></video>
+</p>
+
+<p align="center">
+  <a href="https://github.com/schmitech/orbit">Star ORBIT on GitHub</a> to follow new adapters, releases, and production features.
+</p>
+
+<p align="center">
+  Officially backed by <a href="https://schmitech.ai/en/orbit">Schmitech</a>, the ORBIT service provider for enterprise deployment and support.
+</p>
+
 ---
 
-### ⚡ Quick Start: Chat via Curl
-Try our hosted API immediately with no setup:
+### ⚡ Get Value in 60 Seconds
+
+**A) Try hosted API now**
 
 ```bash
 curl -X POST https://orbit.schmitech.ai/v1/chat \
@@ -39,16 +57,60 @@ curl -X POST https://orbit.schmitech.ai/v1/chat \
   }'
 ```
 
+**B) Run ORBIT locally with Docker**
+
+```bash
+docker run -d --name orbit -p 3000:3000 -p 5173:5173 schmitech/orbit:basic
+
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: local-test' \
+  -d '{
+    "messages": [{"role": "user", "content": "Summarize ORBIT in one sentence."}],
+    "stream": false
+  }'
+```
+
 ---
 
 ### 🚀 Key Capabilities
 
-*   **Unified API:** Swap OpenAI, Anthropic, Gemini, Groq, or local models (Ollama/vLLM) via config only.
-*   **Agentic AI & MCP:** Fully compatible with the **Model Context Protocol (MCP)**. Use ORBIT as a tool provider for agentic applications like OpenClaw, Claude Desktop, and more.
-*   **Native RAG:** Connect Postgres, MongoDB, Elasticsearch, or Pinecone. Query your data using natural language.
+*   **Unified API:** Switch OpenAI, Anthropic, Gemini, Groq, or local models (Ollama/vLLM) by config.
+*   **Agentic AI & MCP:** Compatible with **Model Context Protocol (MCP)** for tool-enabled agent workflows.
+*   **Native RAG:** Connect Postgres, MongoDB, Elasticsearch, or Pinecone for natural-language data access.
 *   **Voice-First:** Real-time, full-duplex speech-to-speech with interruption handling via PersonaPlex.
-*   **Production Ready:** Built-in RBAC, rate limiting, audit logging, and circuit breakers.
-*   **Privacy First:** Self-host on your own infrastructure to maintain full data sovereignty.
+*   **Governance Built In:** RBAC, rate limiting, audit logging, and circuit breakers.
+*   **Privacy First:** Self-host on your own infrastructure for full data control.
+
+---
+
+### 🆚 Why Enterprise Teams Choose ORBIT
+
+| If you use... | You often get... | ORBIT gives you... |
+| :--- | :--- | :--- |
+| Single-provider SDKs | Vendor lock-in and provider-specific rewrites | One OpenAI-compatible API across providers |
+| Basic LLM proxy only | Model routing, but no data connectivity | Unified model + retrieval + tooling gateway |
+| RAG-only framework | Strong retrieval, weak multi-provider inference control | Native RAG with multi-provider and policy controls |
+| In-house glue scripts | Fragile integrations and high ops cost | A production-ready gateway with RBAC, limits, and logs |
+
+---
+
+### 🏢 Enterprise Readiness
+
+*   **Deployment Flexibility:** Run ORBIT in your own environment for strict data-boundary requirements.
+*   **Operational Control:** Standardize access, traffic policies, and audit trails behind one gateway.
+*   **Architecture Fit:** Integrates with existing data systems, identity patterns, and model providers.
+*   **Service Backing:** Schmitech provides enterprise onboarding, deployment support, and ongoing operations guidance.
+
+---
+
+### 🎯 Common Use Cases
+
+*   **Enterprise RAG:** Query SQL, NoSQL, and vector stores with one natural-language API.
+*   **Provider Failover:** Route between OpenAI, Anthropic, Gemini, Groq, and local models without rewrites.
+*   **Voice Agents:** Build full-duplex speech-to-speech experiences with interruption handling.
+*   **MCP Tooling Layer:** Expose data and actions to agentic apps through MCP compatibility.
 
 ---
 
@@ -65,7 +127,7 @@ curl -X POST https://orbit.schmitech.ai/v1/chat \
 
 ### 📦 Deployment
 
-**Docker (Instant)**
+**Docker (Fastest Path)**
 ```bash
 docker run -d -p 3000:3000 -p 5173:5173 schmitech/orbit:basic
 ```
@@ -79,6 +141,16 @@ cp env.example .env && ./install/setup.sh
 source venv/bin/activate
 ./bin/orbit.sh start && cat ./logs/orbit.log
 ```
+
+---
+
+### 📈 Project Momentum
+
+*   Frequent releases: [Releases](https://github.com/schmitech/orbit/releases)
+*   Active roadmap and Q&A: [Discussions](https://github.com/schmitech/orbit/discussions)
+*   Feature requests and bugs: [Issues](https://github.com/schmitech/orbit/issues)
+*   Technical writeups: [Articles & Case Studies](https://schmitech.ai/en/orbit/articles)
+*   Enterprise services: [Official ORBIT provider (Schmitech)](https://schmitech.ai/en/orbit)
 
 ---
 
@@ -97,6 +169,9 @@ source venv/bin/activate
 *   [Documentation](docs/) – Full architecture and setup guides.
 *   [GitHub Issues](https://github.com/schmitech/orbit/issues) – Bug reports and feature requests.
 *   [Discussions](https://github.com/schmitech/orbit/discussions) – Community help and roadmap.
+*   [Enterprise Services](https://schmitech.ai/en/orbit) – Backed by Schmitech for onboarding, deployment, and production support.
+*   [Good First Issues](https://github.com/schmitech/orbit/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22) – Starter tasks for new contributors.
+*   [Help Wanted](https://github.com/schmitech/orbit/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22help%20wanted%22) – High-impact tasks where contributions are needed.
 
 > ⭐ **Help ORBIT grow:** [Star the repo](https://github.com/schmitech/orbit) to support the project and get notified of new adapters!
 
