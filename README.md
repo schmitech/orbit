@@ -26,7 +26,7 @@ ORBIT is a self-hosted gateway that eliminates vendor lock-in and integration gl
 [**Try the Sandbox**](https://orbitsandbox.dev/) | [**API Reference**](https://orbit.schmitech.ai/redoc) | [**Docker Guide**](docker/README.md)
 
 <p align="center">
-  <a href="https://orbitsandbox.dev/">Watch Product Demo</a>
+  <a href="https://orbitsandbox.dev/">Try It Yourself!</a>
 </p>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/e700b56b-9204-48c5-8111-a68f6cccf3e2" controls muted playsinline width="900"></video>
