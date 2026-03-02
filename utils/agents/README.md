@@ -13,6 +13,7 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 | `ux-review-agent.md` | Evaluates UX quality — accessibility, responsive design, interaction patterns, performance UX, and design consistency (React / Vite / Node) |
 | `responsive-design-agent.md` | Makes an existing React webapp fully responsive across mobile devices (iOS, Android) without breaking the desktop version |
 | `bug-detection-agent.md` | Finds existing bugs, latent defects, race conditions, edge cases, and fragile code that will break under real-world conditions |
+| `database-scalability-agent.md` | Database concurrency, connection pooling, Redis caching strategy, query optimization, and load resilience for high-traffic systems |
 
 ---
 
@@ -25,6 +26,7 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 - **UI feels off, inaccessible, or inconsistent?** → Use `ux-review-agent.md`
 - **Need to make a desktop app work on mobile?** → Use `responsive-design-agent.md`
 - **Hunting for bugs, edge cases, and things that will break in production?** → Use `bug-detection-agent.md`
+- **Need to handle thousands/millions of requests without melting the database?** → Use `database-scalability-agent.md`
 - **Want the full picture?** → Combine agents in a single session (see below)
 
 ### 2. Start a new conversation with your AI assistant
@@ -95,6 +97,16 @@ Apply the following assessment framework to the attached codebase:
 [Paste or attach your code]
 ```
 
+### Single Agent — Database Scalability
+
+```
+Apply the following assessment framework to the attached codebase:
+
+[Paste contents of database-scalability-agent.md here]
+
+[Paste or attach your code]
+```
+
 ### Combined — Full Review
 
 ```
@@ -133,6 +145,7 @@ Focus especially on [API security / auth flows / data protection / third-party i
 Focus especially on [accessibility / responsive design / interaction feedback / performance UX / design consistency].
 Focus especially on [navigation / forms / touch interactions / iOS Safari quirks / Android Chrome quirks].
 Focus especially on [async bugs / state management / null safety / edge cases / error handling gaps / race conditions].
+Focus especially on [connection pooling / Redis caching / query optimization / concurrency control / write throughput / read scaling].
 ```
 
 ### Scope Modifiers
@@ -145,6 +158,9 @@ The design system uses [Tailwind / MUI / Chakra / shadcn/ui / custom tokens].
 Target devices: [iPhone SE through iPhone 15 Pro Max / specific Android devices / tablets].
 The app currently uses [CSS Modules / styled-components / Tailwind / plain CSS].
 Assume [high traffic / concurrent users / unreliable network / hostile user input].
+The database is [Postgres / MySQL / MongoDB / etc.] with [Prisma / TypeORM / Sequelize / Drizzle / raw queries].
+Target load: [X requests per second / X concurrent users / X database size].
+Redis is used for [caching / sessions / job queues / rate limiting / pub-sub / all of the above].
 ```
 
 ### Compliance Modifiers
@@ -249,6 +265,24 @@ Summary includes:
 - Recurring systemic patterns
 - Overall code reliability score (1–10)
 - Recommended linter rules, TypeScript settings, and testing strategies to prevent recurrence
+
+### Database Scalability Agent
+
+For each issue:
+- **Location** — file and line/section
+- **Issue** — what fails under load and why
+- **Category** — Connection Management / Redis Caching / Query Performance / Concurrency Control / Rate Limiting & Backpressure / Background Processing / Monitoring / Schema Design
+- **Severity** — Critical (outage/data corruption) / High (significant degradation) / Medium (suboptimal) / Low (minor optimization)
+- **Load Threshold** — estimated request volume where the issue surfaces
+- **Fix** — refactored code with production-ready config values
+
+Summary includes:
+- Issues by severity and category
+- Estimated max throughput before degradation
+- Top 5 bottlenecks that will fail first
+- Connection pool and Redis memory sizing recommendations
+- Overall production readiness score at target load (1–10)
+- Phased optimization roadmap (immediate / pre-launch / at-scale)
 
 ---
 
