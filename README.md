@@ -29,7 +29,7 @@ ORBIT is a self-hosted gateway that eliminates vendor lock-in and integration gl
   <a href="https://orbitsandbox.dev/">Watch Product Demo</a>
 </p>
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/70d045a4-27dc-4df7-9ede-1be90f0a4847" controls muted playsinline width="700"></video>
+  <video src="https://github.com/user-attachments/assets/e700b56b-9204-48c5-8111-a68f6cccf3e2" controls muted playsinline width="900"></video>
 </p>
 
 <p align="center">
