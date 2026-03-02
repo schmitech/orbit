@@ -21,7 +21,7 @@
 
 **Connect 20+ LLM providers and enterprise data through one governed API.**
 
-ORBIT is a self-hosted gateway that eliminates vendor lock-in and integration glue code. It unifies LLMs, databases, APIs, and voice engines behind one OpenAI-compatible interface.
+ORBIT is a self-hosted gateway that eliminates vendor lock-in and integration glue code. It unifies LLMs, databases, APIs, and voice engines behind one OpenAI-compatible interface and MCP endpoint, letting teams standardize on one integration surface while keeping security, compliance, and operational controls consistent.
 
 [**Try the Sandbox**](https://orbitsandbox.dev/) | [**API Reference**](https://orbit.schmitech.ai/redoc) | [**Docker Guide**](docker/README.md)
 
