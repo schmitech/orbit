@@ -101,14 +101,14 @@ curl -X POST http://localhost:3000/v1/chat \
 *   **Deployment Flexibility:** Run ORBIT in your own environment for strict data-boundary requirements.
 *   **Operational Control:** Standardize access, traffic policies, and audit trails behind one gateway.
 *   **Architecture Fit:** Integrates with existing data systems, identity patterns, and model providers.
-*   **Service Backing:** Schmitech provides enterprise onboarding, deployment support, and ongoing operations guidance.
+*   **Service Backing:** [Schmitech](https://schmitech.ai/) provides enterprise onboarding, deployment support, and ongoing operations guidance.
 
 ---
 
 ### 🎯 Common Use Cases
 
 *   **Enterprise RAG:** Query SQL, NoSQL, and vector stores with one natural-language API.
-*   **Provider Failover:** Route between OpenAI, Anthropic, Gemini, Groq, and local models without rewrites.
+*   **Provider Failover:** Route between Ollama, vLLM, OpenAI, Anthropic, Gemini, Groq, etc. without rewrites.
 *   **Voice Agents:** Build full-duplex speech-to-speech experiences with interruption handling.
 *   **MCP Tooling Layer:** Expose data and actions to agentic apps through MCP compatibility.
 
