@@ -8,8 +8,10 @@ for better maintainability and single responsibility.
 
 import json
 import asyncio
+import hashlib
 import logging
-from typing import Dict, Any, Optional, List
+import time
+from typing import Dict, Any, Optional, List, Tuple
 from bson import ObjectId
 
 from inference.pipeline_factory import PipelineFactory
@@ -109,6 +111,13 @@ class PipelineChatService:
         # Store pipeline reference for async initialization
         self._pipeline_initialized = False
 
+        # Query burst cache — short-TTL cache to absorb repeated identical queries
+        query_cache_config = config.get('internal_services', {}).get('redis', {}).get('query_cache', {})
+        self._query_cache_enabled = query_cache_config.get('enabled', True)
+        self._query_cache_ttl = int(query_cache_config.get('ttl', 30))
+        self._query_cache_max_memory = int(query_cache_config.get('max_memory_entries', 100))
+        self._memory_cache: Dict[str, Tuple[Dict[str, Any], float]] = {}
+
         logger.debug("Pipeline-based chat service initialized with clean providers")
 
     def _init_handlers(self, adapter_manager) -> None:
@@ -158,6 +167,71 @@ class PipelineChatService:
             self._pipeline_initialized = True
             logger.info("Pipeline provider initialized")
 
+    def _build_query_cache_key(
+        self, message: str, adapter_name: str,
+        thread_id: Optional[str] = None,
+        file_ids: Optional[List[str]] = None,
+        system_prompt_id: Optional[ObjectId] = None,
+    ) -> str:
+        """Build a deterministic cache key for query burst deduplication."""
+        key_data = json.dumps({
+            'msg': message.strip().lower(),
+            'adapter': adapter_name,
+            'tid': thread_id or '',
+            'fids': sorted(file_ids) if file_ids else [],
+            'pid': str(system_prompt_id) if system_prompt_id else '',
+        }, sort_keys=True)
+        return f"qcache:{hashlib.sha256(key_data.encode()).hexdigest()[:32]}"
+
+    async def _get_cached_response(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        """Return cached query result from Redis or in-memory fallback."""
+        if not self._query_cache_enabled:
+            return None
+
+        # Try Redis
+        if self.redis_service:
+            try:
+                cached = await self.redis_service.get_json(cache_key)
+                if cached:
+                    logger.debug(f"Query cache HIT (Redis): {cache_key[:20]}")
+                    return cached
+            except Exception:
+                pass
+
+        # In-memory fallback
+        entry = self._memory_cache.get(cache_key)
+        if entry:
+            result, expire_at = entry
+            if time.monotonic() < expire_at:
+                logger.debug(f"Query cache HIT (memory): {cache_key[:20]}")
+                return result
+            del self._memory_cache[cache_key]
+
+        return None
+
+    async def _store_cached_response(self, cache_key: str, result: Dict[str, Any]) -> None:
+        """Store query result in Redis and in-memory cache."""
+        if not self._query_cache_enabled or 'error' in result:
+            return
+
+        # Redis
+        if self.redis_service:
+            try:
+                await self.redis_service.store_json(cache_key, result, ttl=self._query_cache_ttl)
+            except Exception:
+                pass
+
+        # In-memory (evict expired entries first, then oldest if still full)
+        now = time.monotonic()
+        if len(self._memory_cache) >= self._query_cache_max_memory:
+            expired = [k for k, (_, exp) in self._memory_cache.items() if now >= exp]
+            for k in expired:
+                del self._memory_cache[k]
+            if len(self._memory_cache) >= self._query_cache_max_memory:
+                del self._memory_cache[next(iter(self._memory_cache))]
+
+        self._memory_cache[cache_key] = (result, now + self._query_cache_ttl)
+
     async def process_chat(self, message: str, client_ip: str, adapter_name: str,
                           system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
                           session_id: Optional[str] = None, user_id: Optional[str] = None,
@@ -196,6 +270,16 @@ class PipelineChatService:
         try:
             # Ensure pipeline is initialized
             await self.initialize()
+
+            # --- Query burst cache: return cached result for identical recent queries ---
+            cache_key = None
+            if self._query_cache_enabled and not audio_input:
+                cache_key = self._build_query_cache_key(
+                    message, adapter_name, thread_id, file_ids, system_prompt_id
+                )
+                cached = await self._get_cached_response(cache_key)
+                if cached:
+                    return cached
 
             # Log request details
             await self.response_processor.log_request_details(
@@ -274,7 +358,7 @@ class PipelineChatService:
                     logger.warning(f"Failed to generate audio: {str(e)}")
 
             # Build and return result
-            return self.response_processor.build_result(
+            final_result = self.response_processor.build_result(
                 response=processed_response,
                 sources=result.sources,
                 metadata=result.metadata,
@@ -285,6 +369,12 @@ class PipelineChatService:
                 session_id=session_id,
                 adapter_name=adapter_name
             )
+
+            # --- Cache the result for burst protection (skip if audio) ---
+            if cache_key and not audio_data:
+                await self._store_cached_response(cache_key, final_result)
+
+            return final_result
 
         except Exception as e:
             logger.error(f"Error processing chat with pipeline: {str(e)}")
@@ -331,6 +421,23 @@ class PipelineChatService:
             logger.debug(f"[PIPELINE_CHAT_SERVICE] Starting stream processing: adapter={adapter_name}, session={session_id}, has_cancel_event={cancel_event is not None}")
             # Ensure pipeline is initialized
             await self.initialize()
+
+            # --- Query burst cache: replay cached response as a simulated stream ---
+            if self._query_cache_enabled and not audio_input:
+                stream_cache_key = self._build_query_cache_key(
+                    message, adapter_name, thread_id, file_ids, system_prompt_id
+                )
+                cached = await self._get_cached_response(stream_cache_key)
+                if cached:
+                    text_chunk = json.dumps({"response": cached.get("response", ""), "done": False})
+                    yield f"data: {text_chunk}\n\n"
+                    done_data = {"done": True}
+                    if cached.get("sources"):
+                        done_data["sources"] = cached["sources"]
+                    if cached.get("metadata"):
+                        done_data["metadata"] = cached["metadata"]
+                    yield f"data: {json.dumps(done_data)}\n\n"
+                    return
 
             # Log request details
             await self.response_processor.log_request_details(
@@ -434,6 +541,21 @@ class PipelineChatService:
                         language=language
                     ):
                         yield chunk
+
+                    # Cache the streamed result for burst protection
+                    if (self._query_cache_enabled and not audio_input
+                            and not return_audio and final_state.accumulated_text):
+                        try:
+                            stream_cache_key = self._build_query_cache_key(
+                                message, adapter_name, thread_id, file_ids, system_prompt_id
+                            )
+                            cache_result = {
+                                "response": final_state.accumulated_text,
+                                "sources": context.sources if context.sources else [],
+                            }
+                            await self._store_cached_response(stream_cache_key, cache_result)
+                        except Exception:
+                            pass
 
             except Exception as stream_error:
                 logger.error(f"Error in pipeline streaming: {str(stream_error)}")

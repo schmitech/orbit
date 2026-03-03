@@ -347,6 +347,7 @@ class RedisService:
             ("thread_dataset:*", "thread dataset data"),
             ("rate_limit:*", "rate limit data"),
             ("cache:*", "general cache"),
+            ("qcache:*", "query burst cache"),
             ("temp:*", "temporary data"),
         ]
 

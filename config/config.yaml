@@ -301,6 +301,11 @@ internal_services:
     circuit_recovery_timeout: 30
     # Cache startup behavior
     clear_cache_on_startup: true
+    # Query burst cache — absorbs repeated identical queries (e.g. user clicking retry)
+    query_cache:
+      enabled: false
+      ttl: 30                      # seconds to cache identical query results
+      max_memory_entries: 100      # in-memory fallback when Redis unavailable
 
 chat_history:
   enabled: true
