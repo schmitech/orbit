@@ -81,6 +81,14 @@ guestLimits:
   #     windowMs: 60000
   #     maxRequests: 5
 
+# ---- Server ----
+server:
+  # Express "trust proxy" setting (passed to app.set('trust proxy', ...)).
+  # Keep false when not behind a reverse proxy.
+  # Use 1 when running behind one trusted proxy (Nginx/ALB/Ingress/Cloudflare).
+  # You may also use true, an IP/subnet string, or array (Express semantics).
+  trustProxy: false
+
 # ---- Authentication ----
 # Credentials (domain, clientId, audience) go in .env as VITE_AUTH_* vars
 auth:

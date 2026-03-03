@@ -61,6 +61,18 @@ function jsonBody(res) {
 // Test suites
 // ---------------------------------------------------------------------------
 
+describe('Express proxy – trust proxy setting', () => {
+  it('applies configured trust proxy to the Express app', () => {
+    const app = createServer(null, { adapters: [] }, { trustProxy: 1 });
+    assert.equal(app.get('trust proxy'), 1);
+  });
+
+  it('keeps default trust proxy when not configured', () => {
+    const app = createServer(null, { adapters: [] }, {});
+    assert.equal(app.get('trust proxy'), false);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // API-only server tests
 // ---------------------------------------------------------------------------

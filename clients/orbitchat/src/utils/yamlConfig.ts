@@ -8,6 +8,9 @@ import type { NavLink } from './runtimeConfig';
 
 /** Shape of orbitchat.yaml */
 export interface OrbitChatYamlConfig {
+  server?: {
+    trustProxy?: boolean | number | string | string[];
+  };
   application?: {
     name?: string;
     description?: string;

@@ -253,6 +253,12 @@ function createServer(distPath, config, serverConfig = {}) {
   const adapters = loadAdaptersForProxy(config.adapters);
   const apiOnly = serverConfig.apiOnly || false;
   const localAssets = serverConfig.localAssets || {};
+  const trustProxy = serverConfig.trustProxy;
+
+  // For deployments behind reverse proxies, trust forwarded headers when configured.
+  if (typeof trustProxy !== 'undefined') {
+    app.set('trust proxy', trustProxy);
+  }
 
   if (apiOnly) {
     const allowedOrigin = serverConfig.corsOrigin || '*';
@@ -463,7 +469,12 @@ function main() {
   }
 
   const distPath = path.join(__dirname, '..', 'dist');
-  const app = createServer(distPath, config, { ...serverConfig, rateLimit: yamlObj?.guestLimits?.rateLimit, localAssets });
+  const app = createServer(distPath, config, {
+    ...serverConfig,
+    rateLimit: yamlObj?.guestLimits?.rateLimit,
+    trustProxy: yamlObj?.server?.trustProxy,
+    localAssets
+  });
 
   const server = app.listen(serverConfig.port, serverConfig.host, () => {
     console.debug(`🚀 ORBIT Chat is running at http://${serverConfig.host}:${serverConfig.port}`);

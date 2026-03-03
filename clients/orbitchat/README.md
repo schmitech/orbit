@@ -187,6 +187,8 @@ api:
   url: "http://localhost:3000"
 features:
   enableUpload: true
+server:
+  trustProxy: false
 ```
 
 Header logos (`header.logoUrl`, `header.logoUrlLight`, `header.logoUrlDark`) support:
@@ -208,6 +210,11 @@ Default logo fallback behavior:
     logoUrlDark: ""
   ```
   With this config, light/dark themes automatically use the default files from `public/`.
+
+Server/reverse proxy setting:
+- `server.trustProxy` maps directly to Express `app.set('trust proxy', value)`.
+- Default is `false`.
+- Set `server.trustProxy: 1` when ORBIT Chat is behind a single trusted reverse proxy.
 
 ### Environment Variables
 
@@ -261,6 +268,37 @@ If the agent selector shows no adapters:
 If you've updated `orbitchat.yaml` but don't see changes:
 1. The CLI watches the YAML file and should restart automatically.
 2. Clear browser site data/localStorage for the app origin to ensure no stale session state is being used.
+
+### `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` (rate limit + reverse proxy)
+
+If you see a log like:
+
+```txt
+ValidationError: The 'X-Forwarded-For' header is set but the Express 'trust proxy' setting is false (default).
+code: 'ERR_ERL_UNEXPECTED_X_FORWARDED_FOR'
+```
+
+this usually means ORBIT Chat is running behind a reverse proxy (Nginx, ingress controller, load balancer, Cloudflare, etc.) that adds `X-Forwarded-For`, but Express is still using the default `trust proxy = false`.
+
+Why this matters:
+1. The app still runs (this is a validation warning), but guest rate limiting may identify client IPs incorrectly.
+2. In the worst case, many users can be rate-limited as if they were a single client.
+
+How to prevent it:
+1. If you are behind a trusted reverse proxy, set this in `orbitchat.yaml`:
+   ```yaml
+   server:
+     trustProxy: 1
+   ```
+2. If you are not intentionally behind a proxy, remove unexpected `X-Forwarded-For` injection in your network path.
+3. As a temporary workaround, disable guest rate limiting in `orbitchat.yaml`:
+   ```yaml
+   guestLimits:
+     rateLimit:
+       enabled: false
+   ```
+
+Reference: https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/
 
 ## Security
 
