@@ -337,15 +337,25 @@ class DatasourceRegistry:
                 self._datasource_references.pop(cache_key, None)
 
                 try:
-                    # Close the datasource
+                    # Close the datasource safely
                     import asyncio
                     if asyncio.iscoroutinefunction(datasource.close):
-                        # Schedule async close
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.create_task(datasource.close())
-                        else:
-                            asyncio.run(datasource.close())
+                        try:
+                            loop = asyncio.get_running_loop()
+                            # Use call_soon_threadsafe to safely schedule in running loop
+                            loop.call_soon_threadsafe(
+                                lambda ds=datasource: loop.create_task(ds.close())
+                            )
+                        except RuntimeError:
+                            # No running loop — run synchronously
+                            try:
+                                asyncio.run(datasource.close())
+                            except RuntimeError:
+                                # Nested loop or shutting down — best effort
+                                if logger_instance:
+                                    logger_instance.warning(
+                                        f"Could not close datasource {cache_key} — no event loop available"
+                                    )
                     else:
                         datasource.close()
 

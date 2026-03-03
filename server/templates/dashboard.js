@@ -587,6 +587,69 @@
             }
         }
 
+        function updateRedisHealth(data) {
+            const section = document.getElementById('redis-health-section');
+            if (!section) return;
+
+            if (!data || !data.enabled) {
+                section.classList.add('hidden');
+                return;
+            }
+
+            section.classList.remove('hidden');
+
+            // Status
+            const statusEl = document.getElementById('redis-status');
+            const hintEl = document.getElementById('redis-status-hint');
+            if (data.initialized) {
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'text-2xl font-semibold text-emerald-300';
+                hintEl.textContent = 'Healthy';
+            } else {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'text-2xl font-semibold text-rose-300';
+                hintEl.textContent = 'Not initialized';
+            }
+
+            // Circuit breaker
+            const cb = data.circuit_breaker || {};
+            const cbStateEl = document.getElementById('redis-cb-state');
+            const cbState = (cb.state || 'unknown').toLowerCase();
+            const cbStyles = {
+                closed:    'text-2xl font-semibold text-emerald-300',
+                open:      'text-2xl font-semibold text-rose-300',
+                half_open: 'text-2xl font-semibold text-amber-300',
+                unknown:   'text-2xl font-semibold text-slate-400'
+            };
+            cbStateEl.textContent = cbState.replace('_', '-');
+            cbStateEl.className = cbStyles[cbState] || cbStyles.unknown;
+            document.getElementById('redis-cb-failures').textContent = cb.failure_count ?? 0;
+            document.getElementById('redis-cb-max').textContent = cb.max_failures ?? 5;
+
+            // Pool stats
+            const pool = data.pool || {};
+            const inUse = pool.in_use_connections || 0;
+            const maxConn = pool.max_connections || 0;
+            document.getElementById('redis-pool-in-use').textContent = inUse;
+            document.getElementById('redis-pool-max').textContent = maxConn;
+
+            const utilPct = maxConn > 0 ? ((inUse / maxConn) * 100) : 0;
+            const clampedUtil = clampPercentage(utilPct);
+            document.getElementById('redis-pool-util').textContent = formatNumber(clampedUtil, 1);
+
+            const utilBar = document.getElementById('redis-pool-util-bar');
+            if (utilBar) {
+                utilBar.style.width = clampedUtil.toFixed(1) + '%';
+                if (clampedUtil >= 90) {
+                    utilBar.className = 'progress-bar bg-rose-500/80';
+                } else if (clampedUtil >= 70) {
+                    utilBar.className = 'progress-bar bg-amber-400/80';
+                } else {
+                    utilBar.className = 'progress-bar bg-emerald-400/80';
+                }
+            }
+        }
+
         function updateDatasourcePool(data) {
             const section = document.getElementById('datasource-pool-section');
             const container = document.getElementById('datasource-connections');
@@ -702,6 +765,10 @@
                     updateDatasourcePool(data.datasource_pool);
                 } else {
                     console.debug('No datasource_pool in WebSocket data');
+                }
+
+                if (data.redis_health) {
+                    updateRedisHealth(data.redis_health);
                 }
             };
 

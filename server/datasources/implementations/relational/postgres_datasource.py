@@ -9,21 +9,22 @@ logger = logging.getLogger(__name__)
 
 
 class PostgreSQLDatasource(BaseDatasource):
-    """PostgreSQL database datasource implementation."""
-    
+    """PostgreSQL database datasource implementation with connection pooling."""
+
     @property
     def datasource_name(self) -> str:
         """Return the name of this datasource for config lookup."""
         return 'postgres'
-    
+
     async def initialize(self) -> None:
-        """Initialize the PostgreSQL database connection."""
+        """Initialize the PostgreSQL database connection pool."""
         postgres_config = self.config.get('datasources', {}).get('postgres', {})
-        
+
         try:
             import psycopg2
+            import psycopg2.pool
             from psycopg2.extras import RealDictCursor
-            
+
             # Extract connection parameters
             host = postgres_config.get('host', 'localhost')
             port = postgres_config.get('port', 5432)
@@ -31,31 +32,52 @@ class PostgreSQLDatasource(BaseDatasource):
             username = postgres_config.get('username', 'postgres')
             password = postgres_config.get('password', '')
             sslmode = postgres_config.get('sslmode', 'prefer')
-            
-            logger.info(f"Initializing PostgreSQL connection to {host}:{port}/{database}")
-            
-            # Create connection
-            self._client = psycopg2.connect(
+
+            # Pool settings
+            pool_size = postgres_config.get('pool_size', 10)
+            min_pool_size = postgres_config.get('min_pool_size', 2)
+            connection_timeout = postgres_config.get('connection_timeout', 5)
+            statement_timeout = postgres_config.get('statement_timeout', 10000)
+            validate_on_borrow = postgres_config.get('validate_on_borrow', True)
+
+            logger.info(f"Initializing PostgreSQL connection pool to {host}:{port}/{database} "
+                        f"(pool_size={pool_size}, min={min_pool_size})")
+
+            # Create thread-safe connection pool
+            self._pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=min_pool_size,
+                maxconn=pool_size,
                 host=host,
                 port=port,
                 database=database,
                 user=username,
                 password=password,
                 sslmode=sslmode,
-                cursor_factory=RealDictCursor  # Use dict cursor by default
+                cursor_factory=RealDictCursor,
+                connect_timeout=connection_timeout,
+                options=f'-c statement_timeout={statement_timeout}'
             )
-            
-            # Test the connection
-            cursor = self._client.cursor()
-            cursor.execute("SELECT version();")
-            version = cursor.fetchone()
-            cursor.close()
-            
-            if version:
-                logger.info(f"PostgreSQL connection successful: {version['version']}")
-            
+
+            self._validate_on_borrow = validate_on_borrow
+
+            # Test a connection from the pool
+            conn = self._pool.getconn()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT version();")
+                version = cursor.fetchone()
+                cursor.close()
+
+                if version:
+                    logger.info(f"PostgreSQL connection successful: {version['version']}")
+            finally:
+                self._pool.putconn(conn)
+
+            # Expose a single client for backward compatibility
+            self._client = self._pool.getconn()
+
             self._initialized = True
-            
+
         except ImportError:
             logger.error("psycopg2 not available. Install with: pip install psycopg2-binary")
             raise
@@ -63,26 +85,77 @@ class PostgreSQLDatasource(BaseDatasource):
             logger.error(f"Failed to connect to PostgreSQL database: {str(e)}")
             logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
             raise
-    
+
+    def get_connection(self):
+        """Get a connection from the pool, validating if configured."""
+        if not hasattr(self, '_pool') or not self._pool:
+            return self._client
+
+        conn = self._pool.getconn()
+
+        if getattr(self, '_validate_on_borrow', False):
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+                cursor.close()
+            except Exception:
+                # Connection is stale, get a new one
+                try:
+                    self._pool.putconn(conn, close=True)
+                except Exception:
+                    pass
+                conn = self._pool.getconn()
+
+        return conn
+
+    def return_connection(self, conn):
+        """Return a connection to the pool."""
+        if hasattr(self, '_pool') and self._pool:
+            self._pool.putconn(conn)
+
     async def health_check(self) -> bool:
-        """Perform a health check on the PostgreSQL connection."""
-        if not self._initialized or not self._client:
+        """Perform a health check on the PostgreSQL connection pool."""
+        if not self._initialized:
             return False
-            
+
         try:
-            cursor = self._client.cursor()
-            cursor.execute("SELECT 1")
-            cursor.fetchone()
-            cursor.close()
-            return True
+            if hasattr(self, '_pool') and self._pool:
+                conn = self._pool.getconn()
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT 1")
+                    cursor.fetchone()
+                    cursor.close()
+                    return True
+                finally:
+                    self._pool.putconn(conn)
+            elif self._client:
+                cursor = self._client.cursor()
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+                cursor.close()
+                return True
+            return False
         except Exception as e:
             logger.error(f"PostgreSQL health check failed: {e}")
             return False
-    
+
     async def close(self) -> None:
-        """Close the PostgreSQL connection."""
-        if self._client:
+        """Close the PostgreSQL connection pool."""
+        if hasattr(self, '_pool') and self._pool:
+            # Return the backward-compat client first
+            if self._client:
+                try:
+                    self._pool.putconn(self._client)
+                except Exception:
+                    pass
+                self._client = None
+            self._pool.closeall()
+            self._pool = None
+            logger.info("PostgreSQL connection pool closed")
+        elif self._client:
             self._client.close()
             self._client = None
-            self._initialized = False
             logger.info("PostgreSQL connection closed")
+        self._initialized = False

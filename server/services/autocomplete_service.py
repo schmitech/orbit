@@ -475,6 +475,21 @@ class AutocompleteService:
             return cached
 
         logger.debug(f"[Autocomplete] Cache miss for {adapter_name}, fetching from adapter")
+
+        # Stampede protection: only one request fetches fresh data per adapter
+        if self.use_redis_cache and self.redis_service and getattr(self.redis_service, 'client', None):
+            lock_key = f"lock:{self.redis_key_prefix}{adapter_name}"
+            try:
+                lock_acquired = await self.redis_service.client.set(lock_key, "1", nx=True, ex=10)
+            except Exception:
+                lock_acquired = True
+            if not lock_acquired:
+                import asyncio
+                await asyncio.sleep(0.2)
+                cached = await self._get_cached_examples(adapter_name)
+                if cached is not None:
+                    return cached
+
         examples = []
 
         try:

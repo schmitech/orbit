@@ -288,7 +288,7 @@ inference:
   gemini:
     enabled: true
     api_key: ${GOOGLE_API_KEY}
-    model: "gemini-3-pro-image-preview"
+    model: "gemini-3.1-pro-preview"
     context_window: 1000000  # Gemini supports up to 1M tokens
     temperature: 1.0
     top_p: 0.95

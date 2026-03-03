@@ -223,9 +223,19 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
         self.connection_params = self.extract_connection_params(self.datasource_config)
 
         # Database-specific settings
-        self.use_connection_pool = self.datasource_config.get('use_connection_pool', False)
-        self.pool_size = self.datasource_config.get('pool_size', 5)
-        self.connection_timeout = self.datasource_config.get('connection_timeout', 30)
+        self.use_connection_pool = self.datasource_config.get('use_connection_pool', True)
+        self.pool_size = self.datasource_config.get('pool_size', 10)
+        self.connection_timeout = self.datasource_config.get('connection_timeout', 5)
+        self.statement_timeout = self.datasource_config.get('statement_timeout', 10000)
+
+        # Read replica routing
+        self._read_replica_datasource = None
+        read_replica_config = self.datasource_config.get('read_replica')
+        if read_replica_config:
+            logger.info(f"Read replica configured for {self._get_datasource_name()}")
+            self._read_replica_config = read_replica_config
+        else:
+            self._read_replica_config = None
     
     async def test_connection(self) -> bool:
         """

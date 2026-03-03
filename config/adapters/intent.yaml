@@ -23,6 +23,10 @@ adapters:
       supports_threading: true
       supports_autocomplete: true
       requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
     config:
       # reranker_top_n: 10      # Optional: limit reranked results (overrides return_results)
       check_same_thread: false  # Allow multi-threaded access
@@ -76,6 +80,10 @@ adapters:
       supports_threading: true
       supports_autocomplete: true  # Enable autocomplete from template nl_examples
       requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
     config:
       # Path to the domain definition file
       domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
@@ -121,7 +129,7 @@ adapters:
     implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
     database: "examples/intent-templates/duckdb-intent-template/examples/ev-population/ev_population.duckdb"
     inference_provider: "gemini"
-    model: "gemini-3-pro-preview"
+    model: "gemini-3.1-pro-preview"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     capabilities:
@@ -132,6 +140,10 @@ adapters:
       supports_threading: true
       supports_autocomplete: true  # Enable autocomplete from template nl_examples
       requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
     config:
       # Path to the domain definition file
       domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/ev-population/ev_population_domain.yaml"
@@ -184,6 +196,10 @@ adapters:
       supports_session_tracking: false   # Does not need session tracking
       requires_api_key_validation: false # API key used for access control only
       supports_autocomplete: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
       optional_parameters:
         - "api_key"
 
@@ -212,8 +228,9 @@ adapters:
 
       # Unified retriever features
       use_connection_pool: true  # Enable connection pooling
-      pool_size: 5  # Connection pool size
-      connection_timeout: 30  # Connection timeout in seconds
+      pool_size: 10  # Connection pool size (match DB worker count)
+      connection_timeout: 5  # Fail fast under load (seconds)
+      statement_timeout: 10000  # Kill runaway queries after 10s (ms)
 
       # Query monitoring (automatically provided by new base)
       enable_query_monitoring: true
@@ -223,13 +240,13 @@ adapters:
   # This adapter demonstrates Elasticsearch Query DSL generation from natural language
   # Connection parameters are inherited from config/datasources.yaml
   - name: "intent-elasticsearch-app-logs"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "elasticsearch"  # References datasources.yaml elasticsearch config
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentElasticsearchRetriever"
     inference_provider: "gemini"
-    model: "gemini-3-pro-preview"
+    model: "gemini-3.1-pro-preview"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     # reranker_provider: "ollama"
@@ -242,6 +259,10 @@ adapters:
       supports_threading: true
       supports_autocomplete: true
       requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
     
     config:
       # Domain and template configuration
@@ -301,6 +322,10 @@ adapters:
       supports_threading: true
       supports_autocomplete: true  # Enable autocomplete from template nl_examples
       requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
     config:
       # Domain and template configuration
       domain_config_path: "examples/intent-templates/http-intent-template/examples/jsonplaceholder/templates/jsonplaceholder_domain.yaml"
@@ -358,6 +383,10 @@ adapters:
       supports_threading: true
       supports_autocomplete: true  # Enable autocomplete from template nl_examples
       requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
     config:
       # Domain and template configuration
       domain_config_path: "examples/intent-templates/http-intent-template/examples/paris-open-data/templates/paris_quoifaire_domain.yaml"
@@ -408,6 +437,18 @@ adapters:
     inference_provider: "ollama_cloud"
     model: "gpt-oss:20b"
     embedding_provider: "ollama"  # Used for chunk ranking
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true  # Enable autocomplete from template nl_examples
+      requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
     config:
       # TESTING: Using minimal templates for validation
       # Switch to firecrawl_domain.yaml and firecrawl_templates.yaml for full Wikipedia templates
@@ -506,6 +547,10 @@ adapters:
       supports_threading: true
       supports_autocomplete: true  # Enable autocomplete from template nl_examples
       requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
     config:
       reranker_top_n: 10
       # Domain and template configuration
@@ -577,6 +622,10 @@ adapters:
       supports_threading: true
       supports_autocomplete: true  # Enable autocomplete from template nl_examples
       requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
     config:
       # Domain and template configuration
       domain_config_path: "examples/intent-templates/graphql-intent-template/examples/spacex/templates/spacex_domain.yaml"
@@ -646,7 +695,10 @@ adapters:
       supports_threading: false
       supports_autocomplete: true
       requires_api_key_validation: true
-    
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2    
     config:
       # Optional: Dedicated function-calling model (FunctionGemma-style)
       # If not set, uses main inference model for function calling

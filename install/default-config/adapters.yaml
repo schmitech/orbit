@@ -56,3 +56,4 @@ adapters: []
 import:
   - "adapters/passthrough.yaml"
   - "adapters/multimodal.yaml"
+  - "adapters/qa.yaml"

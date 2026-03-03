@@ -4,6 +4,7 @@ Updated to work with the new BaseSQLDatabaseRetriever architecture.
 """
 
 import logging
+import re
 import traceback
 from typing import Dict, Any, List, Optional
 from ..relational.sqlite_retriever import SQLiteRetriever
@@ -174,14 +175,18 @@ class QASSQLRetriever(SQLiteRetriever):
                 order_by_clause = ""
                 for token in query_tokens:
                     if len(token) > 2:
-                        order_by_clause += f" + (CASE WHEN question LIKE '%{token}%' THEN 1 ELSE 0 END)"
+                        # Sanitize token to prevent SQL injection in ORDER BY
+                        safe_token = re.sub(r'[^a-zA-Z0-9]', '', token)
+                        if safe_token:
+                            order_by_clause += f" + (CASE WHEN question LIKE '%{safe_token}%' THEN 1 ELSE 0 END)"
                 
                 if order_by_clause:
                     order_by_clause = f"ORDER BY ({order_by_clause[3:]}) DESC"
                 
-                # Build the final SQL query
+                # Build the final SQL query with explicit columns
+                columns = ', '.join(self.default_search_fields) if self.default_search_fields else '*'
                 sql = f"""
-                    SELECT * FROM {collection_name} 
+                    SELECT {columns} FROM {collection_name}
                     WHERE {where_clause}
                     {order_by_clause}
                     LIMIT ?
@@ -227,24 +232,29 @@ class QASSQLRetriever(SQLiteRetriever):
             """
             
             rows = await self.execute_query(sql, query_tokens + [self.max_results])
-            
+
+            if not rows:
+                return []
+
+            # Build lookup of question_id -> match_count
+            match_counts = {row["question_id"]: row["match_count"] for row in rows}
+            question_ids = list(match_counts.keys())
+
+            # Fetch all documents in a single query instead of N individual queries
+            placeholders = ','.join(['?'] * len(question_ids))
+            columns = ', '.join(self.default_search_fields) if self.default_search_fields else '*'
+            doc_rows = await self.execute_query(
+                f"SELECT {columns} FROM {self.collection} WHERE id IN ({placeholders})",
+                question_ids
+            )
+
             results = []
-            for row in rows:
-                question_id = row["question_id"]  # Use question_id instead of doc_id
-                match_count = row["match_count"]
-                
-                # Get the actual document
-                doc_rows = await self.execute_query(
-                    f"SELECT * FROM {self.collection} WHERE id = ?", 
-                    [question_id]
-                )
-                
-                if doc_rows:
-                    # Add QA-specific token match info to the document
-                    doc = doc_rows[0]
-                    doc["match_count"] = match_count
-                    doc["token_match_ratio"] = match_count / len(query_tokens) if query_tokens else 0
-                    results.append(doc)
+            for doc in doc_rows:
+                doc_id = doc.get("id")
+                match_count = match_counts.get(doc_id, 0)
+                doc["match_count"] = match_count
+                doc["token_match_ratio"] = match_count / len(query_tokens) if query_tokens else 0
+                results.append(doc)
             
             return results
             

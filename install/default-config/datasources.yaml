@@ -26,6 +26,12 @@ datasources:
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
     sslmode: ${DATASOURCE_POSTGRES_SSL_MODE}
+    use_connection_pool: true
+    pool_size: 10
+    min_pool_size: 2
+    connection_timeout: 5
+    statement_timeout: 10000
+    validate_on_borrow: true
   supabase:
     host: ${DATASOURCE_SUPABASE_HOST}
     port: ${DATASOURCE_SUPABASE_PORT}
@@ -33,6 +39,12 @@ datasources:
     username: ${DATASOURCE_SUPABASE_USERNAME}
     password: ${DATASOURCE_SUPABASE_PASSWORD}
     sslmode: require
+    use_connection_pool: true
+    pool_size: 10
+    min_pool_size: 2
+    connection_timeout: 5
+    statement_timeout: 10000
+    validate_on_borrow: true
   milvus:
     host: "localhost"
     port: 19530
@@ -66,18 +78,33 @@ datasources:
     service_name: ${DATASOURCE_ORACLE_SERVICE}
     username: ${DATASOURCE_ORACLE_USERNAME}
     password: ${DATASOURCE_ORACLE_PASSWORD}
+    use_connection_pool: true
+    pool_size: 10
+    min_pool_size: 2
+    connection_timeout: 5
+    statement_timeout: 10000
   mysql:
     host: ${DATASOURCE_MYSQL_HOST}
     port: ${DATASOURCE_MYSQL_PORT}
     database: ${DATASOURCE_MYSQL_DATABASE}
     username: ${DATASOURCE_MYSQL_USERNAME}
     password: ${DATASOURCE_MYSQL_PASSWORD}
+    use_connection_pool: true
+    pool_size: 10
+    min_pool_size: 2
+    connection_timeout: 5
+    statement_timeout: 10000
   mariadb:
     host: ${DATASOURCE_MARIADB_HOST}
     port: ${DATASOURCE_MARIADB_PORT}
     database: ${DATASOURCE_MARIADB_DATABASE}
     username: ${DATASOURCE_MARIADB_USERNAME}
     password: ${DATASOURCE_MARIADB_PASSWORD}
+    use_connection_pool: true
+    pool_size: 10
+    min_pool_size: 2
+    connection_timeout: 5
+    statement_timeout: 10000
   sqlserver:
     host: ${DATASOURCE_SQLSERVER_HOST}
     port: ${DATASOURCE_SQLSERVER_PORT}
@@ -85,6 +112,11 @@ datasources:
     username: ${DATASOURCE_SQLSERVER_USERNAME}
     password: ${DATASOURCE_SQLSERVER_PASSWORD}
     driver: "ODBC Driver 18 for SQL Server"
+    use_connection_pool: true
+    pool_size: 10
+    min_pool_size: 2
+    connection_timeout: 5
+    statement_timeout: 10000
   cassandra:
     contact_points: ${DATASOURCE_CASSANDRA_HOSTS}
     port: ${DATASOURCE_CASSANDRA_PORT}

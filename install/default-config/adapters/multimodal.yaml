@@ -12,15 +12,16 @@ adapters:
     # Provider overrides (optional - use when you want different providers than global defaults)
     inference_provider: "ollama"    # Override default inference provider
     model: "granite4:1b"            # Specific model for this adapter
-    embedding_provider: "ollama"          # Embedding provider for file chunk retrieval (matches uploaded files)
-    # vision_provider: "ollama"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
-    # stt_provider: "whisper"               # STT provider for audio transcription (see stt.yaml) - local, free!
-    # tts_provider: "ollama"                # TTS provider for audio output (see tts.yaml)
+    embedding_provider: "ollama"    # Embedding provider for file chunk retrieval (matches uploaded files)
+    # vision_provider: "ollama"     # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    # stt_provider: "whisper"      # STT provider for audio transcription (see stt.yaml) - local, free!
+    # tts_provider: "ollama"        # TTS provider for audio output (see tts.yaml)
 
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
       retrieval_behavior: "conditional"  # Only retrieves when file_ids are present
       formatting_style: "clean"          # Clean format (no citations) to prevent LLM citation markers
+      supports_threading: false
       supports_file_ids: true            # Accepts file_ids parameter for filtering
       supports_session_tracking: true    # Uses session_id for tracking
       requires_api_key_validation: true  # Validates file ownership via API key

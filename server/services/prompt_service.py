@@ -210,6 +210,29 @@ class PromptService:
 
             logger.debug(f"Looking up prompt with ID: {prompt_id_str}")
 
+            # Stampede protection: acquire a lock so only one request rebuilds this cache entry
+            if self.redis_service:
+                lock_key = f"lock:{cache_key}"
+                try:
+                    # Try to acquire lock (SET NX with 10s TTL)
+                    lock_acquired = await self.redis_service.client.set(
+                        lock_key, "1", nx=True, ex=10
+                    ) if self.redis_service.client else True
+                except Exception:
+                    lock_acquired = True  # Proceed without lock on error
+
+                if not lock_acquired:
+                    # Another request is rebuilding; briefly wait and retry cache
+                    import asyncio
+                    await asyncio.sleep(0.1)
+                    cached_value = await self.redis_service.get(cache_key)
+                    if cached_value:
+                        try:
+                            return json.loads(cached_value)
+                        except Exception:
+                            pass
+                    # Still no cache — fall through to DB query
+
             # Query with original ID (database service handles backend-specific format)
             prompt = await self.database.find_one(self.collection_name, {"_id": prompt_id})
 

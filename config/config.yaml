@@ -254,7 +254,7 @@ internal_services:
   # Audit trail storage configuration
   # Stores conversation audit logs for compliance and analytics
   audit:
-    enabled: true
+    enabled: false
     # Storage backend for audit logs
     # Options: "elasticsearch", "sqlite", "mongodb", "database"
     # "database" means use the same backend as internal_services.backend.type
@@ -290,6 +290,17 @@ internal_services:
     password: ${INTERNAL_SERVICES_REDIS_PASSWORD}
     use_ssl: false
     ttl: 3600  # 1 hour, matching temp_key_expiry
+    # Connection pool settings
+    max_connections: 20
+    socket_connect_timeout: 5
+    socket_timeout: 5
+    retry_on_timeout: true
+    # Resilience settings
+    health_check_interval: 30
+    max_consecutive_failures: 5
+    circuit_recovery_timeout: 30
+    # Cache startup behavior
+    clear_cache_on_startup: true
 
 chat_history:
   enabled: true

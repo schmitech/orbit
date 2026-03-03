@@ -91,11 +91,35 @@ class BaseDatasource(ABC):
     def get_client(self) -> Any:
         """
         Get the datasource client (synchronous version).
-        
+
         Returns:
             The initialized datasource client
-            
+
         Raises:
             RuntimeError: If the datasource is not initialized
         """
         return self.client
+
+    def get_connection(self) -> Any:
+        """
+        Get a connection from the pool (or the single client as fallback).
+
+        Pooled datasource implementations should override this to return
+        a connection from their driver-level pool with optional validation.
+
+        Returns:
+            A database connection ready for use
+        """
+        return self._client
+
+    def return_connection(self, conn: Any) -> None:
+        """
+        Return a connection to the pool.
+
+        Pooled datasource implementations should override this to release
+        the connection back to the driver-level pool.
+
+        Args:
+            conn: The connection to return
+        """
+        pass

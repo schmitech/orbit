@@ -249,8 +249,8 @@ class AbstractSQLRetriever(BaseRetriever):
         if not self.enable_query_monitoring:
             return
             
-        # Log slow queries
-        if execution_time > 5.0:  # 5 seconds
+        # Log slow queries (2s threshold to catch issues before statement_timeout)
+        if execution_time > 2.0:
             logger.warning(f"Slow query detected: {sql_query} ({execution_time:.2f}s)")
         
         # Log large result sets

@@ -1,6 +1,6 @@
 adapters:
 - name: qa-sql
-  enabled: true
+  enabled: false
   type: retriever
   datasource: sqlite
   adapter: qa
@@ -23,9 +23,9 @@ adapters:
     max_results: 5
     return_results: 3
     # reranker_top_n: 5
-    use_connection_pool: false
-    pool_size: 1
-    connection_timeout: 30
+    use_connection_pool: true
+    pool_size: 10
+    connection_timeout: 5
     enable_query_monitoring: true
     query_timeout: 5000
     table: city
@@ -71,7 +71,10 @@ adapters:
     supports_session_tracking: false
     supports_threading: false
     requires_api_key_validation: false
-
+    context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+    context_max_tokens: 8000
+    numeric_precision:
+      decimal_places: 2
   config:
     collection: city
     confidence_threshold: 0.3

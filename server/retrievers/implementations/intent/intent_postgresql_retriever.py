@@ -34,9 +34,10 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
     def __init__(self, config: Dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
         """Initialize PostgreSQL intent retriever."""
         super().__init__(config=config, domain_adapter=domain_adapter, connection=connection, **kwargs)
-        
+
         # PostgreSQL-specific settings
         self.sslmode = self.get_config_value(self.datasource_config, 'sslmode', 'prefer')
+        self.statement_timeout = self.datasource_config.get('statement_timeout', 10000)
         self.connection_pool = None
     
     def _get_datasource_name(self) -> str:
@@ -62,9 +63,9 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
                 raise ImportError("psycopg2 not available. Install with: pip install psycopg2-binary")
 
             if self.use_connection_pool and not self.connection_pool:
-                # Create connection pool
-                self.connection_pool = psycopg2.pool.SimpleConnectionPool(
-                    1,  # minconn
+                # Create thread-safe connection pool
+                self.connection_pool = psycopg2.pool.ThreadedConnectionPool(
+                    2,  # minconn
                     self.pool_size,  # maxconn
                     host=self.connection_params['host'],
                     port=self.connection_params['port'],
@@ -72,7 +73,9 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
                     user=self.connection_params['username'],
                     password=self.connection_params['password'],
                     sslmode=self.sslmode,
-                    cursor_factory=RealDictCursor
+                    cursor_factory=RealDictCursor,
+                    connect_timeout=self.connection_timeout,
+                    options=f'-c statement_timeout={self.statement_timeout}'
                 )
                 
                 logger.debug(f"Created PostgreSQL connection pool with size {self.pool_size}")

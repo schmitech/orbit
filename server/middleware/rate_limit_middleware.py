@@ -15,12 +15,55 @@ Features:
 import time
 import logging
 import ipaddress
+import threading
 from typing import Optional, Tuple, Dict, Any, List
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
+
+
+class InMemoryRateLimiter:
+    """In-memory token bucket rate limiter used as fallback when Redis is unavailable."""
+
+    def __init__(self, rate_per_minute: int, cleanup_interval: int = 300):
+        self._rate = rate_per_minute
+        self._interval = 60.0 / rate_per_minute if rate_per_minute > 0 else 0
+        self._buckets: Dict[str, Tuple[float, float]] = {}  # key -> (tokens, last_refill)
+        self._lock = threading.Lock()
+        self._last_cleanup = time.monotonic()
+        self._cleanup_interval = cleanup_interval
+
+    def is_allowed(self, key: str, limit: int) -> Tuple[bool, int]:
+        """Check if a request is allowed and return (allowed, remaining)."""
+        now = time.monotonic()
+
+        with self._lock:
+            # Periodic cleanup of stale entries
+            if now - self._last_cleanup > self._cleanup_interval:
+                cutoff = now - 120
+                self._buckets = {
+                    k: v for k, v in self._buckets.items() if v[1] > cutoff
+                }
+                self._last_cleanup = now
+
+            if key in self._buckets:
+                tokens, last_refill = self._buckets[key]
+                # Refill tokens based on elapsed time
+                elapsed = now - last_refill
+                tokens = min(limit, tokens + elapsed * (limit / 60.0))
+            else:
+                tokens = float(limit)
+                last_refill = now
+
+            if tokens >= 1.0:
+                tokens -= 1.0
+                self._buckets[key] = (tokens, now)
+                return True, int(tokens)
+            else:
+                self._buckets[key] = (tokens, now)
+                return False, 0
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -89,6 +132,9 @@ return current
         # Registered Lua script (initialized lazily when Redis is available)
         self._incr_script = None
         self._script_registered_client = None
+
+        # In-memory fallback rate limiter (activates when Redis is unavailable)
+        self._fallback_limiter = InMemoryRateLimiter(rate_per_minute=self.ip_requests_per_minute)
 
         logger.info(
             f"Rate limiting middleware initialized: enabled={self.enabled}, "
@@ -317,9 +363,13 @@ return current
             # Invalidate script so it's re-registered on next call
             self._incr_script = None
             self._script_registered_client = None
-            logger.warning(f"Rate limit check failed, allowing request: {e}")
-            # On Redis error, allow the request (fail-open)
-            return True, limit_per_minute, limit_per_minute, current_time + 60
+            logger.warning(f"Redis rate limit check failed, using in-memory fallback: {e}")
+            # Fall back to in-memory rate limiter instead of fail-open
+            allowed, remaining = self._fallback_limiter.is_allowed(
+                f"{prefix}:{identifier}", limit_per_minute
+            )
+            reset_time = (current_minute + 1) * 60
+            return allowed, remaining, limit_per_minute, reset_time
     
     def _add_rate_limit_headers(
         self,
@@ -363,8 +413,23 @@ return current
         # Check if Redis service is available
         redis_service = getattr(request.app.state, 'redis_service', None)
         if not redis_service or not redis_service.enabled:
-            # Redis not available, pass through without limiting
-            return await call_next(request)
+            # Redis not available — use in-memory fallback instead of passing through
+            client_ip = self._get_client_ip(request)
+            allowed, remaining = self._fallback_limiter.is_allowed(
+                f"ip:{client_ip}", self.ip_requests_per_minute
+            )
+            if not allowed:
+                response = JSONResponse(
+                    status_code=429,
+                    content={
+                        "detail": f"Rate limit exceeded. Please retry after {self.retry_after_seconds} seconds.",
+                        "retry_after": self.retry_after_seconds
+                    }
+                )
+                response.headers["Retry-After"] = str(self.retry_after_seconds)
+                return response
+            response = await call_next(request)
+            return response
         
         # Ensure Redis is initialized
         if not redis_service.initialized:
