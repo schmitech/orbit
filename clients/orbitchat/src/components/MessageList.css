@@ -63,8 +63,8 @@ html.text-lg .message-list .message-bubble {
   min-width: 0;
   margin-left: 0;
   margin-right: 0;
-  /* Enable horizontal scrolling for wide content on mobile */
-  overflow-x: auto;
+  /* Avoid container-level horizontal scrollbar; let child content own overflow */
+  overflow-x: visible;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -73,6 +73,7 @@ html.text-lg .message-list .message-bubble {
   .message-list .message-markdown {
     scrollbar-width: thin;
     scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
+    overflow-x: visible;
   }
 
   .message-list .message-markdown::-webkit-scrollbar {
@@ -154,6 +155,43 @@ html.text-lg .message-list .message-bubble {
 .thread-markdown-wrapper td {
   min-width: 12rem;
   vertical-align: top;
+}
+
+.thread-markdown-wrapper .markdown-content table,
+.thread-markdown-wrapper table {
+  overflow-x: scroll !important;
+  scrollbar-gutter: stable both-edges;
+}
+
+.thread-markdown-wrapper .markdown-content {
+  overflow: visible; /* Prevent container-level scrollbar above thread composer */
+}
+
+.thread-markdown-wrapper .markdown-content table::-webkit-scrollbar,
+.thread-markdown-wrapper table::-webkit-scrollbar {
+  height: 8px;
+}
+
+.thread-markdown-wrapper .markdown-content table::-webkit-scrollbar-track,
+.thread-markdown-wrapper table::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 999px;
+}
+
+.thread-markdown-wrapper .markdown-content table::-webkit-scrollbar-thumb,
+.thread-markdown-wrapper table::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 999px;
+}
+
+.dark .thread-markdown-wrapper .markdown-content table::-webkit-scrollbar-track,
+.dark .thread-markdown-wrapper table::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.dark .thread-markdown-wrapper .markdown-content table::-webkit-scrollbar-thumb,
+.dark .thread-markdown-wrapper table::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.62);
 }
 
 .thread-markdown-wrapper .prose {

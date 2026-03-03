@@ -331,8 +331,8 @@ export function Message({
         <div key={reply.id} className={`min-w-0 flex ${replyIsAssistant ? 'justify-start' : 'justify-end'}`}>
           <div className={replyIsAssistant ? 'min-w-0 w-full max-w-full' : 'min-w-0 max-w-[85%]'}>
             <div className={replyIsAssistant
-              ? 'thread-markdown-wrapper overflow-x-auto text-sm text-[#353740] dark:text-[#ececf1]'
-              : 'thread-markdown-wrapper overflow-x-auto text-sm bg-blue-100 text-blue-900 dark:bg-blue-600 dark:text-white rounded-2xl rounded-tr-sm px-3 py-2'
+              ? 'thread-markdown-wrapper overflow-x-visible text-sm text-[#353740] dark:text-[#ececf1]'
+              : 'thread-markdown-wrapper overflow-x-visible text-sm bg-blue-100 text-blue-900 dark:bg-blue-600 dark:text-white rounded-2xl rounded-tr-sm px-3 py-2'
             }>
               {replyContent}
             </div>
