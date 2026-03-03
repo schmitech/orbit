@@ -159,8 +159,8 @@ html.text-lg .message-list .message-bubble {
 
 .thread-markdown-wrapper .markdown-content table,
 .thread-markdown-wrapper table {
-  overflow-x: scroll !important;
-  scrollbar-gutter: stable both-edges;
+  overflow-x: auto !important;
+  scrollbar-gutter: auto;
 }
 
 .thread-markdown-wrapper .markdown-content {
