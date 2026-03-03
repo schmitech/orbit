@@ -144,52 +144,12 @@ html.text-lg .message-list .message-bubble {
 .thread-markdown-wrapper {
   width: 100%;
   min-width: 0;
-  overflow-x: scroll;
+  overflow-x: visible;
   overflow-y: hidden;
-  position: relative;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.45) rgba(0, 0, 0, 0.08);
-  scrollbar-gutter: stable both-edges;
-  padding-bottom: 2px; /* keep horizontal scrollbar visible above rounded bubble edge */
-}
-
-.thread-markdown-wrapper::-webkit-scrollbar {
-  height: 6px;
-}
-
-.thread-markdown-wrapper::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.08);
-  border-radius: 3px;
-}
-
-.thread-markdown-wrapper::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.45);
-  border-radius: 3px;
-}
-
-.dark .thread-markdown-wrapper {
-  scrollbar-color: rgba(255, 255, 255, 0.5) rgba(255, 255, 255, 0.14);
-}
-
-.dark .thread-markdown-wrapper::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.14);
-}
-
-.dark .thread-markdown-wrapper::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.5);
 }
 
 /* Ensure tables in threads have proper styling */
-.thread-markdown-wrapper .markdown-content table,
-.thread-markdown-wrapper table {
-  display: table; /* let wrapper own horizontal scrolling */
-  overflow: visible;
-  width: max-content;
-  min-width: max-content;
-  table-layout: auto;
-}
-
 .thread-markdown-wrapper th,
 .thread-markdown-wrapper td {
   min-width: 12rem;
@@ -198,27 +158,4 @@ html.text-lg .message-list .message-bubble {
 
 .thread-markdown-wrapper .prose {
   max-width: 100%;
-}
-
-.thread-scroll-indicator {
-  height: 5px;
-  margin-top: 4px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.12);
-  overflow: hidden;
-}
-
-.thread-scroll-indicator-thumb {
-  height: 100%;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.45);
-  will-change: transform;
-}
-
-.dark .thread-scroll-indicator {
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.dark .thread-scroll-indicator-thumb {
-  background: rgba(255, 255, 255, 0.55);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp,
   Check,
@@ -33,81 +33,6 @@ interface MessageProps {
 }
 
 const EMPTY_THREAD_REPLIES: MessageType[] = [];
-
-function ThreadReplyContent({
-  wrapperClassName,
-  children,
-}: {
-  wrapperClassName: string;
-  children: ReactNode;
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [showIndicator, setShowIndicator] = useState(false);
-  const [thumbWidthPercent, setThumbWidthPercent] = useState(100);
-  const [thumbOffsetPercent, setThumbOffsetPercent] = useState(0);
-
-  useEffect(() => {
-    const element = scrollRef.current;
-    if (!element) {
-      return;
-    }
-
-    const updateIndicator = () => {
-      const viewportWidth = element.clientWidth;
-      const totalWidth = element.scrollWidth;
-      const scrollLeft = element.scrollLeft;
-      const hasOverflow = totalWidth - viewportWidth > 2;
-
-      setShowIndicator(hasOverflow);
-      if (!hasOverflow) {
-        setThumbWidthPercent(100);
-        setThumbOffsetPercent(0);
-        return;
-      }
-
-      const thumbWidth = Math.max((viewportWidth / totalWidth) * 100, 14);
-      const maxOffset = Math.max(100 - thumbWidth, 0);
-      const scrollRange = Math.max(totalWidth - viewportWidth, 1);
-      const scrollProgress = Math.min(Math.max(scrollLeft / scrollRange, 0), 1);
-
-      setThumbWidthPercent(thumbWidth);
-      setThumbOffsetPercent(maxOffset * scrollProgress);
-    };
-
-    updateIndicator();
-    element.addEventListener('scroll', updateIndicator, { passive: true });
-
-    let resizeObserver: ResizeObserver | null = null;
-    if (typeof window !== 'undefined' && typeof window.ResizeObserver !== 'undefined') {
-      resizeObserver = new window.ResizeObserver(() => updateIndicator());
-      resizeObserver.observe(element);
-    }
-
-    return () => {
-      element.removeEventListener('scroll', updateIndicator);
-      resizeObserver?.disconnect();
-    };
-  }, [children]);
-
-  return (
-    <>
-      <div ref={scrollRef} className={wrapperClassName}>
-        {children}
-      </div>
-      {showIndicator && (
-        <div className="thread-scroll-indicator" aria-hidden="true">
-          <div
-            className="thread-scroll-indicator-thumb"
-            style={{
-              width: `${thumbWidthPercent}%`,
-              transform: `translateX(${thumbOffsetPercent}%)`,
-            }}
-          />
-        </div>
-      )}
-    </>
-  );
-}
 
 export function Message({
   message,
@@ -404,15 +329,13 @@ export function Message({
 
       return (
         <div key={reply.id} className={`min-w-0 flex ${replyIsAssistant ? 'justify-start' : 'justify-end'}`}>
-          <div className={replyIsAssistant ? 'min-w-0' : 'min-w-0 max-w-[85%]'}>
-            <ThreadReplyContent
-              wrapperClassName={replyIsAssistant
-                ? 'thread-markdown-wrapper overflow-x-auto text-sm text-[#353740] dark:text-[#ececf1]'
-                : 'thread-markdown-wrapper overflow-x-auto text-sm bg-blue-100 text-blue-900 dark:bg-blue-600 dark:text-white rounded-2xl rounded-tr-sm px-3 py-2'
-              }
-            >
+          <div className={replyIsAssistant ? 'min-w-0 w-full max-w-full' : 'min-w-0 max-w-[85%]'}>
+            <div className={replyIsAssistant
+              ? 'thread-markdown-wrapper overflow-x-auto text-sm text-[#353740] dark:text-[#ececf1]'
+              : 'thread-markdown-wrapper overflow-x-auto text-sm bg-blue-100 text-blue-900 dark:bg-blue-600 dark:text-white rounded-2xl rounded-tr-sm px-3 py-2'
+            }>
               {replyContent}
-            </ThreadReplyContent>
+            </div>
           </div>
         </div>
       );
