@@ -610,10 +610,12 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   const [config, setConfig] = useState<ChartConfig | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isWaitingForData, setIsWaitingForData] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(0);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCodeRef = useRef<string>('');
   const lastUpdateTimeRef = useRef<number>(0);
   const streamingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chartViewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const now = Date.now();
@@ -749,6 +751,21 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     };
   }, [code, language]);
 
+  useEffect(() => {
+    const node = chartViewportRef.current;
+    if (!node || typeof window === 'undefined' || typeof window.ResizeObserver === 'undefined') return;
+
+    const observer = new window.ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect?.width ?? 0;
+      if (width > 0) {
+        setContainerWidth(width);
+      }
+    });
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, []);
+
   if (error) {
     return (
       <div className="graph-error">
@@ -806,7 +823,6 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   }
 
   const colors = config.colors && config.colors.length ? config.colors : DEFAULT_COLORS;
-  const height = config.height || 320;
   const derivedSeries = buildSeries(config, colors);
 
   const hasRightAxis = derivedSeries.some((series) => series.yAxisId === 'right');
@@ -839,9 +855,19 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     config.xAxisType ??
     (config.type === 'scatter' ? 'number' : inferXAxisTypeFromData(config.data, config.xKey));
   const isCategoryXAxis = xAxisType === 'category';
+  const isCompactViewport = containerWidth > 0 && containerWidth < 640;
+  const height = config.height || (isCompactViewport ? 380 : 320);
   
   // Calculate data point count and determine label rotation/truncation needs
   const dataPointCount = config.data?.length || 0;
+  const defaultChartWidth = isCompactViewport ? 520 : 720;
+  const estimatedPerPointWidth =
+    config.type === 'bar' || config.type === 'composed'
+      ? (isCompactViewport ? 92 : 72)
+      : config.type === 'line' || config.type === 'area'
+      ? (isCompactViewport ? 84 : 64)
+      : (isCompactViewport ? 64 : 56);
+  const intrinsicChartWidth = config.width ?? (isCategoryXAxis ? Math.max(defaultChartWidth, dataPointCount * estimatedPerPointWidth) : defaultChartWidth);
   
   // Analyze actual label lengths for smarter truncation decisions
   const analyzeLabelLengths = (): { maxLength: number; avgLength: number } => {
@@ -899,8 +925,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
 
   const estimatedTickLabelHeight = estimateTickLabelHeight();
   const xAxisHeight = shouldRotateLabels
-    ? Math.min(Math.max(estimatedTickLabelHeight + 16, 80), 160)
-    : Math.max(estimatedTickLabelHeight + 12, 36);
+    ? Math.min(Math.max(estimatedTickLabelHeight + (isCompactViewport ? 12 : 16), isCompactViewport ? 64 : 80), isCompactViewport ? 140 : 160)
+    : Math.max(estimatedTickLabelHeight + 12, isCompactViewport ? 32 : 36);
 
   // Note: Don't set scale: 'band' explicitly - Recharts handles this automatically
   // for bar charts, and setting it can interfere with rendering in some cases
@@ -1013,8 +1039,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   const bottomMargin = baseBottomMargin + axisLabelSpace + legendSpace + rotatedPadding + rotatedWithLabelExtra;
 
   const chartMargin = {
-    left: leftAxisLabelText ? 80 : 10,
-    right: rightAxisLabelText ? 80 : 10,
+    left: leftAxisLabelText ? (isCompactViewport ? 68 : 80) : 10,
+    right: rightAxisLabelText ? (isCompactViewport ? 68 : 80) : 10,
     top: 10,
     bottom: bottomMargin,
   };
@@ -1037,85 +1063,86 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
 
   const legendWrapperStyle: React.CSSProperties = {
     color: textColor,
-    marginTop: xAxisHasLabel ? 16 + xAxisLabelOffset : 12,
-    paddingTop: shouldRotateLabels ? Math.min(Math.max(estimatedTickLabelHeight - 50, 8), 30) : 8,
+    marginTop: xAxisHasLabel ? (isCompactViewport ? 12 : 16) + xAxisLabelOffset : (isCompactViewport ? 8 : 12),
+    paddingTop: shouldRotateLabels ? Math.min(Math.max(estimatedTickLabelHeight - 50, 8), isCompactViewport ? 22 : 30) : 8,
     display: 'flex',
     justifyContent: 'center',
-    gap: useLegendVerticalLayout ? '8px' : '16px',
+    gap: useLegendVerticalLayout ? '8px' : (isCompactViewport ? '10px' : '16px'),
     flexDirection: useLegendVerticalLayout ? 'column' : 'row',
     alignItems: useLegendVerticalLayout ? 'center' : undefined,
   };
 
   return (
-    <div
-      className="graph-container chart-container"
-      style={{ flexDirection: 'column', alignItems: 'stretch', position: 'relative' }}
-    >
-      {isStreaming && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '8px',
-            right: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '4px 8px',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            borderRadius: '4px',
-            fontSize: '12px',
-            color: '#3b82f6',
-            zIndex: 10,
-          }}
-        >
-          <svg
+    <>
+      <div
+        className="graph-container chart-container"
+        style={{ flexDirection: 'column', alignItems: 'stretch', position: 'relative' }}
+      >
+        {isStreaming && (
+          <div className="md-expandable-actions">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '4px 8px',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                borderRadius: '4px',
+                fontSize: '12px',
+                color: '#3b82f6',
+              }}
+            >
+              <svg
+                style={{
+                  animation: 'spin 1s linear infinite',
+                  marginRight: '4px',
+                  width: '12px',
+                  height: '12px'
+                }}
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeLinecap="round" />
+              </svg>
+              Updating...
+              <style>{`
+                @keyframes spin {
+                  from { transform: rotate(0deg); }
+                  to { transform: rotate(360deg); }
+                }
+              `}</style>
+            </div>
+          </div>
+        )}
+        {config.title && (
+          <h4
             style={{
-              animation: 'spin 1s linear infinite',
-              marginRight: '4px',
-              width: '12px',
-              height: '12px'
+              textAlign: 'center',
+              marginBottom: config.description ? '4px' : '12px',
+              marginTop: 0,
+              color: textColor,
+              fontWeight: 600,
+              background: 'transparent',
             }}
-            viewBox="0 0 24 24"
-            fill="none"
           >
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeLinecap="round" />
-          </svg>
-          Updating...
-          <style>{`
-            @keyframes spin {
-              from { transform: rotate(0deg); }
-              to { transform: rotate(360deg); }
-            }
-          `}</style>
-        </div>
-      )}
-      {config.title && (
-        <h4
-          style={{
-            textAlign: 'center',
-            marginBottom: config.description ? '4px' : '12px',
-            marginTop: 0,
-            color: textColor,
-            fontWeight: 600,
-            background: 'transparent',
-          }}
-        >
-          {config.title}
-        </h4>
-      )}
-      {config.description && (
-        <p
-          style={{
-            textAlign: 'center',
-            marginTop: 0,
-            marginBottom: '12px',
-            color: secondaryTextColor,
-            fontSize: '0.9rem',
-          }}
-        >
-          {config.description}
-        </p>
-      )}
-      <ResponsiveContainer width="100%" height={height}>
+            {config.title}
+          </h4>
+        )}
+        {config.description && (
+          <p
+            style={{
+              textAlign: 'center',
+              marginTop: 0,
+              marginBottom: '12px',
+              color: secondaryTextColor,
+              fontSize: '0.9rem',
+            }}
+          >
+            {config.description}
+          </p>
+        )}
+        <div ref={chartViewportRef} style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
+          <div style={{ width: `${intrinsicChartWidth}px`, minWidth: '100%', height: `${height}px` }}>
+            <ResponsiveContainer width="100%" height="100%">
         {config.type === 'bar' && (
           <BarChart data={config.data} margin={chartMargin} barCategoryGap="20%">
             {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />}
@@ -1128,7 +1155,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             />
             <YAxis
               yAxisId="left"
-              width={80}
+              width={isCompactViewport ? 68 : 80}
               tickFormatter={axisTickFormatter}
               {...axisStylingProps}
             >
@@ -1138,7 +1165,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                width={80}
+                width={isCompactViewport ? 68 : 80}
                 tickFormatter={axisTickFormatter}
                 {...axisStylingProps}
               >
@@ -1181,7 +1208,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             />
             <YAxis
               yAxisId="left"
-              width={80}
+              width={isCompactViewport ? 68 : 80}
               tickFormatter={axisTickFormatter}
               {...axisStylingProps}
             >
@@ -1191,7 +1218,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                width={80}
+                width={isCompactViewport ? 68 : 80}
                 tickFormatter={axisTickFormatter}
                 {...axisStylingProps}
               >
@@ -1235,7 +1262,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             />
             <YAxis
               yAxisId="left"
-              width={80}
+              width={isCompactViewport ? 68 : 80}
               tickFormatter={axisTickFormatter}
               {...axisStylingProps}
             >
@@ -1245,7 +1272,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                width={80}
+                width={isCompactViewport ? 68 : 80}
                 tickFormatter={axisTickFormatter}
                 {...axisStylingProps}
               >
@@ -1290,7 +1317,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             />
             <YAxis
               yAxisId="left"
-              width={80}
+              width={isCompactViewport ? 68 : 80}
               tickFormatter={axisTickFormatter}
               {...axisStylingProps}
             >
@@ -1300,7 +1327,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                width={80}
+                width={isCompactViewport ? 68 : 80}
                 tickFormatter={axisTickFormatter}
                 {...axisStylingProps}
               >
@@ -1409,7 +1436,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             />
             <YAxis
               dataKey={config.dataKeys?.[0] || 'y'}
-              width={80}
+              width={isCompactViewport ? 68 : 80}
               tickFormatter={axisTickFormatter}
               {...axisStylingProps}
             >
@@ -1428,7 +1455,10 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             <Scatter name="Data" data={config.data} fill={colors[0]} />
           </ScatterChart>
         )}
-      </ResponsiveContainer>
-    </div>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    </>
   );
 };

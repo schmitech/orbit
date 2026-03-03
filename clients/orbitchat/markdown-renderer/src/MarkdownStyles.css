@@ -5,91 +5,91 @@
 .markdown-content {
   /* Light mode colors (default) */
   --md-bg-primary: #ffffff;
-  --md-bg-secondary: #f8f9fa;
-  --md-bg-tertiary: rgba(0, 0, 0, 0.06);
-  --md-text-primary: #1a1a1a;
-  --md-text-secondary: #4b5563;
+  --md-bg-secondary: #f9fafb;
+  --md-bg-tertiary: #f3f4f6;
+  --md-text-primary: #353740;
+  --md-text-secondary: #6b7280;
   --md-text-muted: #6b7280;
-  --md-border-color: rgba(0, 0, 0, 0.1);
-  --md-border-color-strong: rgba(0, 0, 0, 0.2);
+  --md-border-color: #e5e7eb;
+  --md-border-color-strong: #d1d5db;
   --md-link-color: #2563eb;
   --md-link-hover: #1d4ed8;
-  --md-code-bg: rgba(0, 0, 0, 0.06);
-  --md-code-border: rgba(0, 0, 0, 0.1);
-  --md-table-header-bg: rgba(0, 0, 0, 0.05);
+  --md-code-bg: #f3f4f6;
+  --md-code-border: #e5e7eb;
+  --md-table-header-bg: #f3f4f6;
   --md-error-bg: rgba(255, 0, 0, 0.05);
   --md-error-border: rgba(255, 0, 0, 0.2);
   --md-error-text: #cc0000;
 
   /* Chart-specific colors */
-  --md-chart-bg: #ffffff;
-  --md-chart-text: #1a1a1a;
+  --md-chart-bg: var(--md-bg-secondary);
+  --md-chart-text: #353740;
   --md-chart-grid: #e5e7eb;
   --md-chart-axis: #374151;
   --md-chart-tooltip-bg: #ffffff;
-  --md-chart-tooltip-border: #ccc;
-  --md-chart-tooltip-text: #000000;
+  --md-chart-tooltip-border: #d1d5db;
+  --md-chart-tooltip-text: #353740;
 }
 
 /* Dark mode via class */
 .markdown-content.dark,
 .dark .markdown-content,
 [data-theme="dark"] .markdown-content {
-  --md-bg-primary: #1a1a2e;
-  --md-bg-secondary: #16213e;
-  --md-bg-tertiary: rgba(255, 255, 255, 0.1);
-  --md-text-primary: #e4e4e7;
-  --md-text-secondary: #a1a1aa;
-  --md-text-muted: #71717a;
-  --md-border-color: rgba(255, 255, 255, 0.1);
-  --md-border-color-strong: rgba(255, 255, 255, 0.2);
+  --md-bg-primary: #212121;
+  --md-bg-secondary: #202123;
+  --md-bg-tertiary: #2a2b32;
+  --md-text-primary: #ececf1;
+  --md-text-secondary: #bfc2cd;
+  --md-text-muted: #9ca3af;
+  --md-border-color: #3c3f4a;
+  --md-border-color-strong: #4b5563;
   --md-link-color: #60a5fa;
   --md-link-hover: #93c5fd;
-  --md-code-bg: rgba(255, 255, 255, 0.1);
-  --md-code-border: rgba(255, 255, 255, 0.15);
-  --md-table-header-bg: rgba(255, 255, 255, 0.08);
+  --md-code-bg: #202123;
+  --md-code-border: #3c3f4a;
+  --md-table-header-bg: #2a2b32;
   --md-error-bg: rgba(255, 100, 100, 0.1);
   --md-error-border: rgba(255, 100, 100, 0.3);
   --md-error-text: #ff6b6b;
 
   /* Chart-specific colors for dark mode */
-  --md-chart-bg: #1e293b;
-  --md-chart-text: #e4e4e7;
-  --md-chart-grid: #374151;
-  --md-chart-axis: #9ca3af;
-  --md-chart-tooltip-bg: #1e293b;
-  --md-chart-tooltip-border: #475569;
-  --md-chart-tooltip-text: #e4e4e7;
+  --md-chart-bg: var(--md-bg-secondary);
+  --md-chart-text: #ececf1;
+  --md-chart-grid: #3c3f4a;
+  --md-chart-axis: #bfc2cd;
+  --md-chart-tooltip-bg: #212121;
+  --md-chart-tooltip-border: #3c3f4a;
+  --md-chart-tooltip-text: #ececf1;
 }
 
 /* System preference dark mode */
 @media (prefers-color-scheme: dark) {
   .markdown-content:not(.light):not([data-theme="light"]) {
-    --md-bg-primary: #1a1a2e;
-    --md-bg-secondary: #16213e;
-    --md-bg-tertiary: rgba(255, 255, 255, 0.1);
-    --md-text-primary: #e4e4e7;
-    --md-text-secondary: #a1a1aa;
-    --md-text-muted: #71717a;
-    --md-border-color: rgba(255, 255, 255, 0.1);
-    --md-border-color-strong: rgba(255, 255, 255, 0.2);
+    --md-bg-primary: #212121;
+    --md-bg-secondary: #202123;
+    --md-bg-tertiary: #2a2b32;
+    --md-text-primary: #ececf1;
+    --md-text-secondary: #bfc2cd;
+    --md-text-muted: #9ca3af;
+    --md-border-color: #3c3f4a;
+    --md-border-color-strong: #4b5563;
     --md-link-color: #60a5fa;
     --md-link-hover: #93c5fd;
-    --md-code-bg: rgba(255, 255, 255, 0.1);
-    --md-code-border: rgba(255, 255, 255, 0.15);
-    --md-table-header-bg: rgba(255, 255, 255, 0.08);
+    --md-code-bg: #202123;
+    --md-code-border: #3c3f4a;
+    --md-table-header-bg: #2a2b32;
     --md-error-bg: rgba(255, 100, 100, 0.1);
     --md-error-border: rgba(255, 100, 100, 0.3);
     --md-error-text: #ff6b6b;
 
     /* Chart-specific colors for dark mode */
-    --md-chart-bg: #1e293b;
-    --md-chart-text: #e4e4e7;
-    --md-chart-grid: #374151;
-    --md-chart-axis: #9ca3af;
-    --md-chart-tooltip-bg: #1e293b;
-    --md-chart-tooltip-border: #475569;
-    --md-chart-tooltip-text: #e4e4e7;
+    --md-chart-bg: var(--md-bg-secondary);
+    --md-chart-text: #ececf1;
+    --md-chart-grid: #3c3f4a;
+    --md-chart-axis: #bfc2cd;
+    --md-chart-tooltip-bg: #212121;
+    --md-chart-tooltip-border: #3c3f4a;
+    --md-chart-tooltip-text: #ececf1;
   }
 }
 
@@ -427,12 +427,28 @@
   border-collapse: collapse;
   font-size: 0.75em;
   margin: 12px 0;
-  table-layout: auto; /* Changed from fixed to auto for better column sizing */
-  width: max-content; /* Allow table to expand beyond container width */
-  min-width: 100%; /* But at least fill the container */
+  display: block; /* Allows direct horizontal scroll on the table element */
+  table-layout: auto;
+  width: max-content; /* Expand to fit content so columns don't get squeezed */
+  min-width: 100%;
+  max-width: none;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges;
+}
+
+.markdown-content table::-webkit-scrollbar {
+  height: 10px;
+}
+
+.markdown-content table::-webkit-scrollbar-track {
+  background: var(--md-bg-tertiary);
+}
+
+.markdown-content table::-webkit-scrollbar-thumb {
+  background: var(--md-border-color-strong);
+  border-radius: 999px;
 }
 
 /* Table body structure */
@@ -458,38 +474,57 @@
   font-weight: 600;
   text-align: left;
   background-color: var(--md-table-header-bg);
-  white-space: normal; /* Allow wrapping for long header text */
-  min-width: 120px; /* Minimum width for headers */
-  max-width: 250px; /* Maximum width before wrapping */
-  word-break: break-word; /* Break long words if needed */
-  hyphens: auto; /* Enable hyphenation for better text breaking */
+  white-space: nowrap;
+  min-width: 140px;
+  max-width: none;
+  word-break: normal;
+  hyphens: none;
 }
 
 /* Data cells - more flexible */
 .markdown-content td {
-  white-space: normal; /* Allow wrapping for long cell text */
-  min-width: 80px; /* Minimum width for data cells */
-  max-width: 200px; /* Maximum width before wrapping */
-  word-break: break-word; /* Break long words if needed */
-  hyphens: auto; /* Enable hyphenation for better text breaking */
+  white-space: nowrap;
+  min-width: 120px;
+  max-width: none;
+  word-break: normal;
+  hyphens: none;
 }
 
 /* Special handling for URLs/emails - more aggressive breaking */
 .markdown-content td a,
 .markdown-content td:has(a) {
-  word-break: break-all;
+  white-space: nowrap;
+  word-break: normal;
   display: inline-block;
-  max-width: 180px; /* Adjusted for new cell sizing */
+  max-width: none;
 }
 
 /* Make tables more compact on smaller chat areas */
+@media (max-width: 767px) {
+  .markdown-content table {
+    font-size: 0.72em;
+  }
+
+  .markdown-content th,
+  .markdown-content td {
+    padding: 5px 7px;
+    min-width: 96px;
+    max-width: none;
+  }
+
+  .markdown-content th {
+    min-width: 108px;
+    max-width: none;
+  }
+}
+
 @media (max-width: 480px) {
   .markdown-content table {
     font-size: 0.7em;
   }
   .markdown-content th, .markdown-content td {
     padding: 4px 6px;
-    min-width: 60px;
+    min-width: 90px;
   }
 }
 
@@ -534,7 +569,7 @@
   margin: 16px 0;
   padding: 12px;
   border-radius: 6px;
-  background-color: var(--md-chart-bg);
+  background-color: var(--md-bg-secondary);
   border: 1px solid var(--md-border-color);
   display: flex;
   justify-content: center;
@@ -542,6 +577,27 @@
   min-height: 100px;
   overflow-x: auto;
   overflow-y: hidden;
+}
+
+.markdown-content.dark .graph-container,
+.dark .markdown-content .graph-container,
+[data-theme="dark"] .markdown-content .graph-container {
+  background-color: #202123;
+  border-color: #3c3f4a;
+}
+
+.markdown-content.light .graph-container,
+[data-theme="light"] .markdown-content .graph-container {
+  background-color: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.markdown-content .md-expandable-actions {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 /* Chart titles - theme-aware */
