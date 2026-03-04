@@ -139,13 +139,20 @@ done
 
 # Get the script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-ORBIT_SCRIPT="$PROJECT_ROOT/bin/orbit.sh"
+DEFAULT_PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-$DEFAULT_PROJECT_ROOT}"
+ORBIT_SCRIPT="${ORBIT_SCRIPT:-$PROJECT_ROOT/bin/orbit.sh}"
 
 # Check if orbit.sh exists
 if [ ! -f "$ORBIT_SCRIPT" ]; then
-    echo -e "${RED}Error: orbit.sh not found at $ORBIT_SCRIPT${NC}"
-    exit 1
+    echo -e "${YELLOW}orbit.sh not found at $ORBIT_SCRIPT${NC}"
+    if command -v orbit &>/dev/null; then
+        ORBIT_SCRIPT="orbit"
+        echo -e "${GREEN}Using 'orbit' from PATH${NC}"
+    else
+        echo -e "${RED}Error: Set ORBIT_SCRIPT or ensure bin/orbit.sh exists${NC}"
+        exit 1
+    fi
 fi
 
 # Function to check if a key already exists by client_name (renamed key name)
