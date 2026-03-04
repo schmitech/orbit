@@ -765,6 +765,33 @@ class CLITester:
         else:
             logger.error("✗ Should have failed when both options are provided")
             return False
+
+    def test_api_key_create_with_both_notes_options_error(self) -> bool:
+        """Test that providing both --notes and --notes-file results in an error"""
+        logger.info("\n=== Testing API Key Creation with Both Notes Options (Error Case) ===")
+        adapter_name = "passthrough"  # Use a commonly available adapter
+        notes_file = self.create_temp_prompt_file("Notes from file.")
+
+        result = self.run_command([
+            "key", "create",
+            "--adapter", adapter_name,
+            "--name", "CLI Test Client Both Notes Options",
+            "--notes", "Inline notes",
+            "--notes-file", notes_file
+        ])
+
+        # Should fail with an error message
+        if not result["success"]:
+            error_output = result["stdout"].lower() + " " + result["stderr"].lower()
+            if "cannot specify both" in error_output or "both --notes and --notes-file" in error_output:
+                logger.info("✓ Correctly rejected both --notes and --notes-file")
+                return True
+            else:
+                logger.error(f"✗ Unexpected error message: stdout: {result['stdout']}, stderr: {result['stderr']}")
+                return False
+        else:
+            logger.error("✗ Should have failed when both notes options are provided")
+            return False
     
     def test_prompt_create_with_prompt_text(self) -> bool:
         """Test system prompt creation with --prompt-text (new feature)"""
@@ -2173,6 +2200,7 @@ async def test_cli_api_key_operations():
         assert tester.test_api_key_create(), "CLI API key create test failed"
         assert tester.test_api_key_create_with_prompt_text(), "CLI API key create with --prompt-text test failed"
         assert tester.test_api_key_create_with_both_prompt_options_error(), "CLI API key create with both options error test failed"
+        assert tester.test_api_key_create_with_both_notes_options_error(), "CLI API key create with both notes options error test failed"
         assert tester.test_api_key_test(), "CLI API key test failed"
         tester.test_authentication_logout()
 

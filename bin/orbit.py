@@ -70,7 +70,7 @@ User Management Commands (Admin Only):
         Delete a user
 
 API Key Management Commands:
-    orbit key create --adapter ADAPTER --name NAME [--notes NOTES] [--prompt-id ID] [--prompt-name NAME] [--prompt-file FILE]
+    orbit key create --adapter ADAPTER --name NAME [--notes NOTES] [--notes-file FILE] [--prompt-id ID] [--prompt-name NAME] [--prompt-file FILE]
         Create a new API key for an adapter
         
     orbit key list [--active-only] [--limit LIMIT] [--offset OFFSET]
@@ -168,6 +168,7 @@ Examples:
 
     # API Key Management
     orbit key create --adapter city --name "City Assistant" --notes "For city queries"
+    orbit key create --adapter city --name "City Assistant" --notes-file notes/city.txt
     orbit key create --adapter city --name "City Assistant" --prompt-file prompts/city.txt --prompt-name "City Prompt"
     orbit key list                                      # List all API keys
     orbit key list --active-only                        # List only active keys

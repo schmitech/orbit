@@ -179,8 +179,15 @@ class ApiService:
     def create_api_key(self, client_name: str, notes: Optional[str] = None,
                       prompt_id: Optional[str] = None, prompt_name: Optional[str] = None,
                       prompt_file: Optional[str] = None, adapter_name: Optional[str] = None,
-                      prompt_text: Optional[str] = None) -> Dict[str, Any]:
+                      prompt_text: Optional[str] = None,
+                      notes_file: Optional[str] = None) -> Dict[str, Any]:
         """Create a new API key."""
+        # Resolve notes input.
+        # Priority: notes > notes_file
+        resolved_notes = notes
+        if not resolved_notes and notes_file:
+            resolved_notes = self.api_client.read_file_content(notes_file)
+
         # Handle prompt if needed
         # Priority: prompt_text > prompt_file
         if prompt_text and (prompt_name or prompt_id):
@@ -204,8 +211,8 @@ class ApiService:
         data = {"client_name": client_name}
         if adapter_name:
             data["adapter_name"] = adapter_name
-        if notes:
-            data["notes"] = notes
+        if resolved_notes:
+            data["notes"] = resolved_notes
         
         response = self.api_client.post("/admin/api-keys", headers=headers, json_data=data)
         response.raise_for_status()
@@ -495,4 +502,3 @@ class ApiService:
         response = self.api_client.get("/admin/quotas/usage-report", headers=headers, params=params)
         response.raise_for_status()
         return response.json()
-

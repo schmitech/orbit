@@ -36,6 +36,7 @@ class KeyCreateCommand(BaseCommand):
         parser.add_argument('--adapter', required=True, help='Adapter name to associate with the key')
         parser.add_argument('--name', required=True, help='Client name for identification')
         parser.add_argument('--notes', help='Optional notes about this API key')
+        parser.add_argument('--notes-file', help='Path to file containing notes text')
         parser.add_argument('--prompt-id', help='Existing system prompt ID to associate')
         parser.add_argument('--prompt-name', help='Name for a new system prompt')
         parser.add_argument('--prompt-file', help='Path to file containing system prompt')
@@ -43,19 +44,25 @@ class KeyCreateCommand(BaseCommand):
     
     def execute(self, args: argparse.Namespace) -> int:
         try:
+            # Validate that both notes and notes-file are not provided
+            if args.notes and args.notes_file:
+                self.formatter.error("Cannot specify both --notes and --notes-file. Use only one.")
+                return 1
+
             # Validate that both prompt-text and prompt-file are not provided
             if args.prompt_text and args.prompt_file:
                 self.formatter.error("Cannot specify both --prompt-text and --prompt-file. Use only one.")
                 return 1
             
             result = self.api_service.create_api_key(
-                args.name,
-                args.notes,
-                args.prompt_id,
-                args.prompt_name,
-                args.prompt_file,
-                args.adapter,
-                args.prompt_text
+                client_name=args.name,
+                notes=args.notes,
+                prompt_id=args.prompt_id,
+                prompt_name=args.prompt_name,
+                prompt_file=args.prompt_file,
+                adapter_name=args.adapter,
+                prompt_text=args.prompt_text,
+                notes_file=args.notes_file,
             )
             if getattr(args, 'output', None) == 'json':
                 self.formatter.format_json(result)
@@ -361,4 +368,3 @@ class KeyListAdaptersCommand(BaseCommand):
                 console.print("No adapters configured")
                 console.print("Check config/adapters.yaml for adapter configuration")
         return 0
-
