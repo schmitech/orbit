@@ -55,6 +55,44 @@ const PLACEHOLDER_VERTICAL_OFFSET = 0;
 const INLINE_SUGGESTION_VERTICAL_OFFSET = 0;
 const TEXTAREA_HORIZONTAL_PADDING = 2;
 
+function resolveAutocompleteSupport(adapterInfo: unknown): boolean | null {
+  if (!adapterInfo || typeof adapterInfo !== 'object') {
+    return null;
+  }
+
+  const info = adapterInfo as Record<string, unknown>;
+  const directCapabilityKeys = [
+    'supportsAutocomplete',
+    'isAutocompleteSupported',
+    'autocompleteSupported'
+  ];
+
+  for (const key of directCapabilityKeys) {
+    if (typeof info[key] === 'boolean') {
+      return info[key] as boolean;
+    }
+  }
+
+  const nestedCapabilityParents = ['capabilities', 'features'];
+  const nestedCapabilityKeys = ['autocomplete', 'supportsAutocomplete', 'autocomplete_supported'];
+
+  for (const parent of nestedCapabilityParents) {
+    const nested = info[parent];
+    if (!nested || typeof nested !== 'object') {
+      continue;
+    }
+
+    const nestedInfo = nested as Record<string, unknown>;
+    for (const key of nestedCapabilityKeys) {
+      if (typeof nestedInfo[key] === 'boolean') {
+        return nestedInfo[key] as boolean;
+      }
+    }
+  }
+
+  return null;
+}
+
 function getExtensionFromMimeType(mimeType: string | undefined): string {
   if (!mimeType) {
     return 'bin';
@@ -211,10 +249,10 @@ export function MessageInput({
   const voiceRecordingAvailable = audioInputEnabled && voiceSupported;
   const uploadFeatureEnabled = getEnableUploadButton();
   const autocompleteEnabled = getEnableAutocomplete();
+  const adapterSupportsAutocomplete = resolveAutocompleteSupport(currentConversation?.adapterInfo);
   // Autocomplete suggestions based on nl_examples from intent templates
   const {
     suggestions,
-    isLoading: autocompleteLoading,
     selectedIndex,
     setSelectedIndex,
     selectNext,
@@ -226,11 +264,12 @@ export function MessageInput({
     enabled: autocompleteEnabled && !isListening,
     apiUrl: currentConversation?.apiUrl,
     adapterName: currentConversation?.adapterName,
+    adapterSupportsAutocomplete,
     inputRef: textareaRef
   });
   const hasSuggestions = suggestions.length > 0;
   const autocompleteVisible = !isListening;
-  const showAutocompletePanel = autocompleteVisible && (hasSuggestions || autocompleteLoading);
+  const showAutocompletePanel = autocompleteVisible && hasSuggestions;
   const showAutocompleteHints = autocompleteVisible && hasSuggestions;
   const activeSuggestionIndex = selectedIndex >= 0 ? selectedIndex : 0;
   const activeSuggestion = hasSuggestions ? suggestions[activeSuggestionIndex] : null;
@@ -1215,9 +1254,6 @@ export function MessageInput({
                 <span>Suggestions</span>
               </div>
               <div role="listbox" aria-label="Autocomplete suggestions" className="max-h-64 overflow-y-auto p-1.5">
-                {autocompleteLoading && !hasSuggestions && (
-                  <div className="px-3 py-3 text-sm text-gray-500 dark:text-[#bfc2cd]">Loading suggestions...</div>
-                )}
                 {suggestions.map((suggestion, index) => {
                   const isSelected = index === selectedIndex;
 

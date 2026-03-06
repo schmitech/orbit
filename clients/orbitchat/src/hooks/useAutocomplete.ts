@@ -14,6 +14,7 @@ export interface UseAutocompleteOptions {
   enabled?: boolean;
   apiUrl?: string | null;
   adapterName?: string | null;
+  adapterSupportsAutocomplete?: boolean | null;
   /**
    * Optional ref to refocus after accepting a suggestion (helps on mobile/touch).
    */
@@ -52,6 +53,7 @@ export function useAutocomplete(
   const {
     enabled = getEnableAutocomplete(),
     adapterName,
+    adapterSupportsAutocomplete,
     inputRef
   } = options;
 
@@ -66,6 +68,7 @@ export function useAutocomplete(
   const latestRequestIdRef = useRef(0);
   const suggestionsRef = useRef<AutocompleteSuggestion[]>([]);
   const lastNonEmptySuggestionsRef = useRef<AutocompleteSuggestion[]>([]);
+  const unsupportedAdaptersRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     suggestionsRef.current = suggestions;
@@ -131,6 +134,16 @@ export function useAutocomplete(
       return;
     }
 
+    if (adapterSupportsAutocomplete === false || unsupportedAdaptersRef.current.has(adapterName)) {
+      setSuggestions([]);
+      lastNonEmptySuggestionsRef.current = [];
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+      setIsLoading(false);
+      return;
+    }
+
     // Cancel previous request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -169,7 +182,13 @@ export function useAutocomplete(
 
       if (!response.ok) {
         debugWarn('[useAutocomplete] Request failed:', response.status);
-        setSuggestions(getFallbackSuggestions(searchQuery));
+        if ([404, 405, 501].includes(response.status)) {
+          unsupportedAdaptersRef.current.add(adapterName);
+          setSuggestions([]);
+          lastNonEmptySuggestionsRef.current = [];
+        } else {
+          setSuggestions(getFallbackSuggestions(searchQuery));
+        }
         return;
       }
 
@@ -223,7 +242,7 @@ export function useAutocomplete(
         setIsLoading(false);
       }
     }
-  }, [enabled, adapterName, sanitizeSuggestionText, getFallbackSuggestions]);
+  }, [enabled, adapterName, adapterSupportsAutocomplete, sanitizeSuggestionText, getFallbackSuggestions]);
 
   // Debounced effect
   useEffect(() => {
@@ -241,7 +260,12 @@ export function useAutocomplete(
       setIsLoading(false);
     };
 
-    if (!enabled || query.length < MIN_QUERY_LENGTH) {
+    if (
+      !enabled ||
+      query.length < MIN_QUERY_LENGTH ||
+      adapterSupportsAutocomplete === false ||
+      (adapterName ? unsupportedAdaptersRef.current.has(adapterName) : false)
+    ) {
       setSuggestions([]);
       cleanupActiveRequests();
       return;
@@ -265,7 +289,7 @@ export function useAutocomplete(
         clearTimeout(debounceTimeoutRef.current);
       }
     };
-  }, [query, fetchSuggestions, enabled]);
+  }, [query, fetchSuggestions, enabled, adapterName, adapterSupportsAutocomplete]);
 
   // Cleanup on unmount
   useEffect(() => {
