@@ -190,7 +190,7 @@ class DocumentRerankingStep(PipelineStep):
             context.formatted_context = self._format_context(context.retrieved_docs, capabilities=capabilities)
 
             # Store reranking metadata
-            if not hasattr(context, 'metadata'):
+            if not getattr(context, 'metadata', None):
                 context.metadata = {}
 
             context.metadata['reranking'] = {

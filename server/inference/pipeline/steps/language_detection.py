@@ -348,7 +348,7 @@ class DetectionResult:
     language: str
     confidence: float
     method: str
-    raw_results: Dict[str, Any] = None
+    raw_results: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         # Normalize language code on creation
@@ -363,7 +363,7 @@ class MixedLanguageResult:
     secondary_languages: List[Tuple[str, float]] = field(default_factory=list)
     is_mixed: bool = False
     method: str = "ensemble"
-    raw_results: Dict[str, Any] = None
+    raw_results: Optional[Dict[str, Any]] = None
 
 
 # ============================================================================
@@ -524,7 +524,7 @@ class LanguageDetectionStep(PipelineStep):
                 logger.info(
                     f"DEBUG: Detected language: {result.language} "
                     f"(confidence: {result.confidence:.2f}, method: {result.method}) "
-                    f"for message: {context.message[:50]}..."
+                    f"for message: {(context.message or '')[:50]}..."
                 )
 
         except Exception as e:
@@ -644,6 +644,7 @@ class LanguageDetectionStep(PipelineStep):
         """
         Detect language using ensemble of multiple backends with async execution.
         """
+        text = text or ""
         # Handle very short text - but try script detection first for CJK
         text_stripped = text.strip()
         if not text_stripped:
@@ -1029,19 +1030,19 @@ class LanguageDetectionStep(PipelineStep):
         return None
 
     # Backward compatibility: sync version for external callers
+    # Deprecated: prefer calling _detect_language_ensemble_async directly in async code.
     def _detect_language_ensemble(self, text: str, previous_language: Optional[str] = None) -> DetectionResult:
-        """Sync wrapper for backward compatibility."""
+        """Sync wrapper for backward compatibility. Deprecated — use async version."""
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                # If we're already in an async context, run directly
+                # Schedule on the running loop from a worker thread
                 import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(
-                        asyncio.run,
-                        self._detect_language_ensemble_async(text, previous_language)
-                    )
-                    return future.result(timeout=2.0)
+                future = asyncio.run_coroutine_threadsafe(
+                    self._detect_language_ensemble_async(text, previous_language),
+                    loop
+                )
+                return future.result(timeout=2.0)
             else:
                 return asyncio.run(self._detect_language_ensemble_async(text, previous_language))
         except Exception as e:

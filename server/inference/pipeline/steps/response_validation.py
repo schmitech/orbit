@@ -49,7 +49,7 @@ class ResponseValidationStep(PipelineStep):
                 
                 if not is_safe:
                     logger.warning(f"Response blocked by Moderator Service: {refusal_message}")
-                    context.set_error("Response blocked by content moderator", block=True)
+                    context.set_error(refusal_message or "Response blocked by content moderator", block=True)
                     context.response = ""  # Clear the unsafe response
                     return context
                     

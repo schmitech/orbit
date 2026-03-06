@@ -305,10 +305,10 @@ class ContextRetrievalStep(PipelineStep):
             truncation_info = self._get_truncation_info(docs)
 
             if truncation_info:
-                truncation_info['shown']
+                shown = truncation_info['shown']
                 total = truncation_info['total']
                 logger.info(
-                    f"Retrieved {len(docs)} documents "
+                    f"Retrieved {shown} documents "
                     f"(truncated from {total} total)"
                 )
             else:

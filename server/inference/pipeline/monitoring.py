@@ -260,11 +260,14 @@ class PipelineMonitor:
         }
         
         for step_name, step_metrics in self.step_metrics.items():
+            # Substitute None for min_execution_time when no executions recorded
+            # (initial value is float('inf') which is correct for min() math but not for export)
+            min_time = step_metrics.min_execution_time if step_metrics.total_executions > 0 else 0.0
             metrics['steps'][step_name] = {
                 'total_executions': step_metrics.total_executions,
                 'success_rate': step_metrics.success_rate,
                 'avg_execution_time': step_metrics.avg_execution_time,
-                'min_execution_time': step_metrics.min_execution_time,
+                'min_execution_time': min_time,
                 'max_execution_time': step_metrics.max_execution_time
             }
         

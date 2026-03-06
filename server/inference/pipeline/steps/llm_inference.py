@@ -481,7 +481,7 @@ class LLMInferenceStep(PipelineStep):
         language_name = language_names.get(detected_language, detected_language.upper())
 
         # If detection is low-confidence or heuristic, default to a safe English instruction for ASCII text
-        method = detection_meta.get('method') or detection_meta.get('method', '')
+        method = detection_meta.get('method', '')
         confidence = float(detection_meta.get('confidence', 0.0))
         msg = context.message or ""
         ascii_ratio = (sum(1 for c in msg if ord(c) < 128) / len(msg)) if msg else 1.0

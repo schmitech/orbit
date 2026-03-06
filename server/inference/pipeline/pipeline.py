@@ -50,7 +50,7 @@ class InferencePipeline:
         start_time = asyncio.get_event_loop().time()
         
         try:
-            logger.debug(f"Starting pipeline processing for message: {context.message[:50]}...")
+            logger.debug(f"Starting pipeline processing for message: {(context.message or '')[:50]}...")
             
             # Process through each step
             for step in self.steps:
@@ -117,16 +117,16 @@ class InferencePipeline:
         start_time = asyncio.get_event_loop().time()
         
         try:
-            logger.debug(f"Starting streaming pipeline processing for message: {context.message[:50]}...")
+            logger.debug(f"Starting streaming pipeline processing for message: {(context.message or '')[:50]}...")
 
             # Process through each step EXCEPT the LLM step (which we'll stream separately)
             # and ResponseValidationStep (which needs the response to exist)
             for step in self.steps:
                 # Skip the LLM step - we'll handle it with streaming below
-                if step.get_name() == 'LLMInferenceStep':
+                if isinstance(step, LLMInferenceStep):
                     continue
                 # Skip ResponseValidationStep - it runs after streaming completes
-                if step.get_name() == 'ResponseValidationStep':
+                if isinstance(step, ResponseValidationStep):
                     continue
 
                 if not step.should_execute(context):
@@ -156,6 +156,8 @@ class InferencePipeline:
                         logger.warning(f"Pipeline stopped at step {step.get_name()}: {'blocked' if context.is_blocked else 'error'}")
                         error_json = json.dumps({"error": context.error or "Pipeline blocked", "done": True})
                         yield error_json
+                        total_time = asyncio.get_event_loop().time() - start_time
+                        self.monitor.record_pipeline_metrics(total_time, False)
                         return
                         
                 except Exception as e:
@@ -165,12 +167,14 @@ class InferencePipeline:
                     logger.error(f"Error in step {step.get_name()}: {str(e)}")
                     error_json = json.dumps({"error": str(e), "done": True})
                     yield error_json
+                    total_time = asyncio.get_event_loop().time() - start_time
+                    self.monitor.record_pipeline_metrics(total_time, False)
                     return
             
             # Find the LLM step for streaming
             llm_step = None
             for step in self.steps:
-                if step.get_name() == 'LLMInferenceStep':
+                if isinstance(step, LLMInferenceStep):
                     llm_step = step
                     break
             
@@ -257,7 +261,7 @@ class InferencePipeline:
             
             # Record overall pipeline metrics
             total_time = asyncio.get_event_loop().time() - start_time
-            self.monitor.record_pipeline_metrics(total_time, True)
+            self.monitor.record_pipeline_metrics(total_time, not context.has_error())
             
             logger.info(f"Streaming pipeline processing completed in {total_time:.3f}s")
             
