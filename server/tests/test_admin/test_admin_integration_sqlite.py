@@ -22,38 +22,109 @@ import pytest
 from typing import Optional
 import os
 from pathlib import Path
+import yaml
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+def _candidate_config_roots() -> list[Path]:
+    """Return likely config roots for local and test execution layouts."""
+    script_dir = Path(__file__).parent
+    roots = [
+        script_dir.parent.parent / "config",         # <repo>/server/config (legacy)
+        script_dir.parent.parent.parent / "config",  # <repo>/config (current)
+        Path.cwd() / "config",
+    ]
+    seen = set()
+    unique = []
+    for root in roots:
+        resolved = root.resolve()
+        if resolved not in seen:
+            seen.add(resolved)
+            unique.append(resolved)
+    return unique
+
+
+def _load_main_config() -> tuple[dict, Optional[Path]]:
+    """Load main config.yaml from known locations."""
+    for root in _candidate_config_roots():
+        config_path = root / "config.yaml"
+        if config_path.exists():
+            try:
+                with open(config_path, "r") as f:
+                    return yaml.safe_load(f) or {}, config_path
+            except Exception as e:
+                logger.warning(f"Failed to read config file {config_path}: {e}")
+    return {}, None
+
+
+def _discover_enabled_adapter_name() -> str:
+    """Pick an enabled adapter from config files for integration API key tests."""
+    preferred = "simple-chat"
+    enabled_names: list[str] = []
+
+    for root in _candidate_config_roots():
+        adapters_path = root / "adapters.yaml"
+        if not adapters_path.exists():
+            continue
+        try:
+            with open(adapters_path, "r") as f:
+                adapters_root = yaml.safe_load(f) or {}
+        except Exception as e:
+            logger.warning(f"Failed reading {adapters_path}: {e}")
+            continue
+
+        def collect_enabled(adapters: list[dict]) -> None:
+            for adapter in adapters or []:
+                if isinstance(adapter, dict) and adapter.get("enabled", True):
+                    name = adapter.get("name")
+                    if isinstance(name, str):
+                        enabled_names.append(name)
+
+        collect_enabled(adapters_root.get("adapters", []))
+        for rel_path in adapters_root.get("import", []) or []:
+            imported_path = root / rel_path
+            if not imported_path.exists():
+                continue
+            try:
+                with open(imported_path, "r") as f:
+                    imported = yaml.safe_load(f) or {}
+                collect_enabled(imported.get("adapters", []))
+            except Exception as e:
+                logger.warning(f"Failed reading imported adapter file {imported_path}: {e}")
+
+    if preferred in enabled_names:
+        return preferred
+    if enabled_names:
+        return enabled_names[0]
+    return preferred
+
+
+def _resolve_sqlite_db_path(config: dict, config_path: Optional[Path]) -> Optional[Path]:
+    """Resolve sqlite database path based on config.yaml location."""
+    sqlite_cfg = config.get("internal_services", {}).get("backend", {}).get("sqlite", {})
+    db_value = sqlite_cfg.get("database_path", "orbit.db")
+    db_path = Path(db_value)
+    if db_path.is_absolute():
+        return db_path
+    if config_path is not None:
+        return (config_path.parent.parent / db_path).resolve()
+    return (Path.cwd() / db_path).resolve()
+
+
 # Load server port from config
 def get_server_url() -> str:
-    """Get server URL from config file"""
-    try:
-        import yaml
-        # Look for config.yaml in the config directory
-        script_dir = Path(__file__).parent
-        project_root = script_dir.parent.parent
-        config_path = project_root / "config" / "config.yaml"
+    """Get server URL from config file."""
+    config, _ = _load_main_config()
+    port = config.get("general", {}).get("port", 3000)
 
-        if config_path.exists():
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-                port = config.get('general', {}).get('port', 3000)
+    backend_type = config.get("internal_services", {}).get("backend", {}).get("type")
+    if backend_type and backend_type != "sqlite":
+        logger.warning(f"Backend is configured as '{backend_type}', expected 'sqlite'")
+        logger.warning("This test is designed for SQLite backend testing")
 
-                # Verify SQLite is configured
-                backend_type = config.get('internal_services', {}).get('backend', {}).get('type')
-                if backend_type != 'sqlite':
-                    logger.warning(f"Backend is configured as '{backend_type}', expected 'sqlite'")
-                    logger.warning("This test is designed for SQLite backend testing")
-
-                return f"http://localhost:{port}"
-    except Exception as e:
-        logger.warning(f"Failed to read config file: {e}")
-
-    # Fallback to default
-    return "http://localhost:3000"
+    return f"http://localhost:{port}"
 
 # Server configuration
 SERVER_URL = get_server_url()
@@ -78,6 +149,7 @@ class AdminTesterSQLite:
         self.session: Optional[aiohttp.ClientSession] = None
         self.created_api_keys = []  # Track created API keys for cleanup
         self.created_prompts = []   # Track created prompts for cleanup
+        self.test_adapter = _discover_enabled_adapter_name()
 
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
@@ -206,11 +278,13 @@ class AdminTesterSQLite:
         """Verify that the server is actually using SQLite backend"""
         logger.info("\\n=== Verifying SQLite Backend ===")
 
-        # Check if orbit.db file exists in project root
+        # Resolve sqlite DB path from active config
         try:
-            script_dir = Path(__file__).parent
-            project_root = script_dir.parent.parent
-            db_path = project_root / "orbit.db"
+            config, config_path = _load_main_config()
+            db_path = _resolve_sqlite_db_path(config, config_path)
+            if db_path is None:
+                logger.warning("✗ Could not resolve SQLite database path from config")
+                return False
 
             if db_path.exists():
                 logger.info(f"✓ SQLite database file found: {db_path}")
@@ -235,7 +309,7 @@ class AdminTesterSQLite:
             logger.error("✗ No authentication token available (auth is enabled)")
             return False
 
-        existing_adapter = "qa-sql"
+        existing_adapter = self.test_adapter
 
         data = {
             "adapter_name": existing_adapter,
