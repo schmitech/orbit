@@ -449,10 +449,11 @@ export const MermaidRenderer: React.FC<MermaidRendererProps> = ({ code }) => {
         className="mermaid-svg-container"
         style={{
           display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
+          justifyContent: 'flex-start',
+          alignItems: 'flex-start',
           width: '100%',
-          overflow: 'auto',
+          overflowX: 'auto',
+          overflowY: 'visible',
         }}
         dangerouslySetInnerHTML={{ __html: svg }}
       />

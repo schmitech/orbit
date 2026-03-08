@@ -699,13 +699,12 @@
 .markdown-content .mermaid-container {
   text-align: center;
   min-height: 100px;
-  overflow: auto;
-  max-height: 600px;
+  overflow: visible;
   -webkit-overflow-scrolling: touch;
 }
 
 .markdown-content .mermaid-container svg {
-  max-width: 100%;
+  max-width: none;
   height: auto;
   display: block;
   margin: 0 auto;
@@ -714,10 +713,14 @@
 /* Allow horizontal scroll only for complex diagrams that exceed container */
 .markdown-content .mermaid-svg-container {
   min-height: 80px;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
 }
 
 .markdown-content .mermaid-svg-container svg {
-  max-width: 100%;
+  max-width: none;
   height: auto;
 }
 
