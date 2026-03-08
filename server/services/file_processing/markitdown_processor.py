@@ -91,12 +91,12 @@ class MarkItDownProcessor(FileProcessor):
 
             # Text formats
             'text/html',
-            # CSV excluded - use native CSVProcessor for token-efficient output
+            'text/csv',
             'text/plain',
             'text/markdown',
             'text/xml',
             'application/xml',
-            # JSON excluded - use native JSONProcessor for token-efficient output
+            'application/json',
 
             # Images (EXIF metadata extraction)
             'image/png',

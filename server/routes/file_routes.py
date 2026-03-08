@@ -521,8 +521,9 @@ def create_file_router() -> APIRouter:
             # Initialize retriever and query
             from services.retriever_cache import get_retriever_cache
 
-            # Get config from request
-            config = getattr(request.app.state, 'config', {})
+            # Get adapter-specific config to ensure embedding provider matches
+            # what was used during indexing (prevents dimension mismatch)
+            config = await processing_service._get_adapter_config_for_api_key(x_api_key)
 
             # Get or create cached retriever
             retriever_cache = get_retriever_cache()

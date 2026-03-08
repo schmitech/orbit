@@ -189,7 +189,10 @@ class FileMetadataStore:
 
             if result:
                 logger.debug(f"Updated file {file_id} status to {status}")
-            return result
+            else:
+                logger.debug(f"File {file_id} not found for status update (no rows affected)")
+            # Return True even if file didn't exist (idempotent update)
+            return True
 
         except Exception as e:
             logger.error(f"Error updating processing status: {e}")
@@ -320,7 +323,10 @@ class FileMetadataStore:
 
             if result:
                 logger.debug(f"Deleted file {file_id} and chunks")
-            return result
+            else:
+                logger.debug(f"File {file_id} not found for deletion (already deleted or never existed)")
+            # Return True even if file didn't exist (idempotent delete)
+            return True
 
         except Exception as e:
             logger.error(f"Error deleting file: {e}")
