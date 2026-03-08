@@ -1,7 +1,7 @@
 {
   "name": "orbitchat",
   "private": false,
-  "version": "3.3.8",
+  "version": "3.4.0",
   "type": "module",
   "bin": {
     "orbitchat": "./bin/orbitchat.js",
@@ -11,7 +11,7 @@
     "bin",
     "dist",
     "orbitchat.sh",
-"README.md",
+    "README.md",
     "package.json"
   ],
   "scripts": {
