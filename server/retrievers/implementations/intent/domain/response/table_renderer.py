@@ -21,6 +21,30 @@ class TableRenderer:
     """Renders tabular data in multiple formats."""
 
     @staticmethod
+    def _to_json_safe(value: Any) -> Any:
+        """Best-effort conversion of runtime values into JSON-serializable data."""
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+
+        if isinstance(value, dict):
+            return {str(k): TableRenderer._to_json_safe(v) for k, v in value.items()}
+
+        if isinstance(value, (list, tuple, set)):
+            return [TableRenderer._to_json_safe(v) for v in value]
+
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            return bytes(value).decode("utf-8", errors="replace")
+
+        isoformat = getattr(value, "isoformat", None)
+        if callable(isoformat):
+            try:
+                return isoformat()
+            except Exception:
+                pass
+
+        return str(value)
+
+    @staticmethod
     def render(columns: List[str], rows: List[List[Any]], format: Optional[str] = None) -> str:
         """
         Render columns and rows into a table string.
@@ -73,7 +97,13 @@ class TableRenderer:
             logger.debug("py_toon_format not installed, falling back to pipe-separated format")
             return TableRenderer._render_pipe_separated(columns, rows)
         try:
-            data = [dict(zip(columns, row)) for row in rows]
+            data = [
+                {
+                    str(column): TableRenderer._to_json_safe(value)
+                    for column, value in zip(columns, row)
+                }
+                for row in rows
+            ]
             return toon_dumps(data)
         except Exception as e:
             logger.warning("TOON rendering failed (%s), falling back to pipe-separated", e)
