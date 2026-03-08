@@ -82,7 +82,7 @@ _required_packages = {
     'AWSBedrockInferenceService': 'boto3',
     'AzureOpenAIInferenceService': 'azure.ai.inference',
     'VertexAIInferenceService': 'google.cloud.aiplatform',
-    'GeminiInferenceService': 'google.generativeai',
+    'GeminiInferenceService': 'google.genai',
     'ReplicateInferenceService': 'replicate',
     'WatsonInferenceService': 'ibm_watsonx_ai',
     'HuggingFaceInferenceService': 'transformers',
@@ -96,7 +96,7 @@ _required_packages = {
 
     # Vision services
     'OpenAIVisionService': 'openai',
-    'GeminiVisionService': 'google.generativeai',
+    'GeminiVisionService': 'google.genai',
     'AnthropicVisionService': 'anthropic',
     'CohereVisionService': 'cohere',
 

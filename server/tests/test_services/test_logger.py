@@ -260,8 +260,9 @@ async def test_log_conversation_with_es_mocked(test_config):
     call_kwargs = mock_es.index.call_args[1]
     assert call_kwargs['index'] == 'test_orbit'
     assert 'document' in call_kwargs
-    assert call_kwargs['document']['query'] == "Test query"
-    assert call_kwargs['document']['response'] == "Test response"
+    # query and response are excluded from ES document (stored in audit service)
+    assert call_kwargs['document']['backend'] == "test-backend"
+    assert call_kwargs['document']['blocked'] is False
 
     await service.close()
 

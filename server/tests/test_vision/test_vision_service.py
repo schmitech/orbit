@@ -78,7 +78,7 @@ class TestVisionServiceRegistration:
     def partial_enabled_config(self) -> Dict[str, Any]:
         """Create a config with only some vision providers enabled."""
         return {
-            "vision": {
+            "visions": {
                 "openai": {
                     "enabled": True,
                     "api_key": "test-openai-key",
@@ -417,7 +417,6 @@ class TestGeminiVisionService:
             "model": "gemini-2.0-flash-exp",
             "temperature": 0.0,
             "max_tokens": 1000,
-            "transport": "rest"
         }
 
     @pytest.fixture
@@ -439,32 +438,21 @@ class TestGeminiVisionService:
             service = GeminiVisionService(gemini_config)
             service.initialized = True
 
-            # Mock google.generativeai and asyncio.to_thread (REST transport uses to_thread)
-            with patch('google.generativeai') as mock_genai, \
-                 patch('asyncio.to_thread') as mock_to_thread:
-                
-                mock_model = MagicMock()
-                mock_response = MagicMock()
-                
-                # Create proper mock structure for response.candidates[0].content.parts[0].text
-                mock_part = MagicMock()
-                mock_part.text = "This image shows a green square."
-                
-                mock_content = MagicMock()
-                mock_content.parts = [mock_part]
-                
-                mock_candidate = MagicMock()
-                mock_candidate.content = mock_content
-                
-                mock_response.candidates = [mock_candidate]
+            # Mock the google-genai client pattern
+            mock_response = MagicMock()
+            mock_part = MagicMock()
+            mock_part.text = "This image shows a green square."
+            mock_content = MagicMock()
+            mock_content.parts = [mock_part]
+            mock_candidate = MagicMock()
+            mock_candidate.content = mock_content
+            mock_response.candidates = [mock_candidate]
 
-                # asyncio.to_thread is an async function, so use AsyncMock
-                mock_to_thread.return_value = mock_response
-                
-                mock_genai.GenerativeModel.return_value = mock_model
-                mock_genai.configure = MagicMock()
+            mock_client = MagicMock()
+            mock_client.models.generate_content.return_value = mock_response
+            service._genai_client = mock_client
 
-                # Test analyze_image
+            with patch('asyncio.to_thread', return_value=mock_response) as mock_to_thread:
                 result = await service.analyze_image(sample_image_bytes)
 
                 assert isinstance(result, str)
@@ -481,77 +469,49 @@ class TestGeminiVisionService:
             service = GeminiVisionService(gemini_config)
             service.initialized = True
 
-            # Mock google.generativeai and asyncio.to_thread (REST transport uses to_thread)
-            with patch('google.generativeai') as mock_genai, \
-                 patch('asyncio.to_thread') as mock_to_thread:
-                
-                mock_model = MagicMock()
-                mock_response = MagicMock()
-                
-                # Create proper mock structure for response.candidates[0].content.parts[0].text
-                mock_part = MagicMock()
-                mock_part.text = "A solid green square."
-                
-                mock_content = MagicMock()
-                mock_content.parts = [mock_part]
-                
-                mock_candidate = MagicMock()
-                mock_candidate.content = mock_content
-                
-                mock_response.candidates = [mock_candidate]
+            mock_response = MagicMock()
+            mock_part = MagicMock()
+            mock_part.text = "A solid green square."
+            mock_content = MagicMock()
+            mock_content.parts = [mock_part]
+            mock_candidate = MagicMock()
+            mock_candidate.content = mock_content
+            mock_response.candidates = [mock_candidate]
 
-                # asyncio.to_thread is an async function, so use AsyncMock
-                mock_to_thread.return_value = mock_response
-                
-                mock_genai.GenerativeModel.return_value = mock_model
-                mock_genai.configure = MagicMock()
+            mock_client = MagicMock()
+            mock_client.models.generate_content.return_value = mock_response
+            service._genai_client = mock_client
 
-                # Test describe_image
+            with patch('asyncio.to_thread', return_value=mock_response):
                 result = await service.describe_image(sample_image_bytes)
 
                 assert isinstance(result, str)
                 assert len(result) > 0
 
     @pytest.mark.asyncio
-    async def test_multimodal_inference_with_rest(self, gemini_config, sample_image_bytes):
-        """Test Gemini multimodal_inference with REST transport."""
+    async def test_multimodal_inference(self, gemini_config, sample_image_bytes):
+        """Test Gemini multimodal_inference."""
         from ai_services.implementations.vision.gemini_vision_service import GeminiVisionService
-
-        # Create service with REST transport
-        gemini_config['transport'] = 'rest'
 
         # Patch the API key resolution
         with patch.object(GeminiVisionService, '_resolve_api_key', return_value='test-key'):
             service = GeminiVisionService(gemini_config)
             service.initialized = True
 
-            # Mock google.generativeai and asyncio.to_thread
-            with patch('google.generativeai') as mock_genai, \
-                 patch('asyncio.to_thread') as mock_to_thread:
+            mock_response = MagicMock()
+            mock_part = MagicMock()
+            mock_part.text = "Green square for testing."
+            mock_content = MagicMock()
+            mock_content.parts = [mock_part]
+            mock_candidate = MagicMock()
+            mock_candidate.content = mock_content
+            mock_response.candidates = [mock_candidate]
 
-                mock_model = MagicMock()
-                mock_response = MagicMock()
-                
-                # Create proper mock structure for response.candidates[0].content.parts[0].text
-                mock_part = MagicMock()
-                mock_part.text = "Green square for testing."
-                
-                mock_content = MagicMock()
-                mock_content.parts = [mock_part]
-                
-                mock_candidate = MagicMock()
-                mock_candidate.content = mock_content
-                
-                mock_response.candidates = [mock_candidate]
+            mock_client = MagicMock()
+            mock_client.models.generate_content.return_value = mock_response
+            service._genai_client = mock_client
 
-                # asyncio.to_thread is an async function, so use AsyncMock
-                mock_to_thread.return_value = mock_response
-                
-                mock_genai.GenerativeModel.return_value = mock_model
-                mock_genai.GenerationConfig = MagicMock()
-                mock_genai.configure = MagicMock()
-
-                # Test multimodal_inference
+            with patch('asyncio.to_thread', return_value=mock_response):
                 result = await service.multimodal_inference(
                     sample_image_bytes,
                     "What color is this square?"

@@ -26,7 +26,6 @@ dependencies = [
     "deepseek>=1.0.0",
     "mistralai>=1.12.4",
     "openrouter>=0.7.11",
-    "google-generativeai>=0.8.6",
     "together>=2.3.0",
     "google-genai>=1.66.0",
     "setuptools>=82.0.0",
