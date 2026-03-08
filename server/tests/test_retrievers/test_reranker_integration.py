@@ -13,15 +13,31 @@ import asyncio
 from unittest.mock import Mock, AsyncMock
 
 # Import modules to test
+import os
 import sys
 from pathlib import Path
 
-# Get the directory of this script
-SCRIPT_DIR = Path(__file__).parent.absolute()
+# Add server/ and project root to Python path (server/ must come before
+# tests/ to avoid server/tests/inference/ shadowing server/inference/).
+import importlib
+SERVER_DIR = str(Path(__file__).resolve().parents[2])
+PROJECT_ROOT = str(Path(__file__).resolve().parents[3])
+if SERVER_DIR not in sys.path:
+    sys.path.insert(0, SERVER_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(1, PROJECT_ROOT)
 
-# Add server directory to Python path
-SERVER_DIR = SCRIPT_DIR.parent.parent
-sys.path.append(str(SERVER_DIR))
+# Pre-load the real inference package from server/ to prevent shadowing
+_tests_dir = str(Path(__file__).resolve().parents[1])
+if 'inference' not in sys.modules or not hasattr(sys.modules.get('inference'), 'pipeline_factory'):
+    for _k in [k for k in sys.modules if k == 'inference' or k.startswith('inference.')]:
+        del sys.modules[_k]
+    _saved = sys.path.copy()
+    sys.path = [p for p in sys.path if os.path.normpath(p) != os.path.normpath(_tests_dir)]
+    sys.path.insert(0, SERVER_DIR)
+    importlib.invalidate_caches()
+    import inference  # noqa: F811
+    sys.path = _saved
 
 from services.reranker_service_manager import RerankingServiceManager
 from inference.pipeline.steps.document_reranking import DocumentRerankingStep
