@@ -205,7 +205,7 @@ export const MermaidRenderer: React.FC<MermaidRendererProps> = ({ code }) => {
 
   useEffect(() => {
     if (!code.trim()) {
-      setSvg(null);
+      setSvg(null); // eslint-disable-line react-hooks/set-state-in-effect -- intentional reset when code is empty
       setError(null);
       setBindFunctions(null);
       return;

@@ -1,6 +1,5 @@
 import { defineConfig, type ViteDevServer, type PluginOption } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 import { orbitchatConfigPlugin } from './vite-plugin-orbitchat-config';
 
 // Plugin to fix MaxListenersExceededWarning in development
@@ -25,20 +24,6 @@ export default defineConfig(() => {
       exclude: [
         'lucide-react',
       ],
-    },
-    resolve: {
-      alias: {
-        // Markdown renderer alias (always needed)
-        '@schmitech/markdown-renderer': path.resolve(__dirname, 'markdown-renderer/src/index.ts'),
-        '@schmitech/markdown-renderer/styles': path.resolve(__dirname, 'markdown-renderer/src/MarkdownStyles.css'),
-      },
-    },
-    server: {
-      fs: {
-        allow: [
-          path.resolve(__dirname, '..'),
-        ],
-      },
     },
   };
 });

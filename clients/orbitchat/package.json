@@ -11,13 +11,7 @@
     "bin",
     "dist",
     "orbitchat.sh",
-    "markdown-renderer/src",
-    "!markdown-renderer/src/demo",
-    "!markdown-renderer/src/demo/**",
-    "!markdown-renderer/package.json",
-    "!markdown-renderer/README.md",
-    "markdown-renderer/LICENSE",
-    "README.md",
+"README.md",
     "package.json"
   ],
   "scripts": {
@@ -29,8 +23,6 @@
     "dev:with-api": "npm run build:api && npm run dev:local",
     "lint": "npm run lint:app",
     "lint:app": "eslint . --report-unused-disable-directives --max-warnings 0",
-    "lint:renderer": "eslint --config markdown-renderer/eslint.config.js \"markdown-renderer/src/**/*.{ts,tsx}\"",
-    "lint:all": "npm run lint:app && npm run lint:renderer",
     "preview": "vite preview",
     "preview:local": "VITE_USE_LOCAL_API=true vite preview",
     "test": "node --test 'tests/**/*.test.js'",

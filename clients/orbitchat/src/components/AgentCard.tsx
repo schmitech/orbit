@@ -1,6 +1,6 @@
 import { ChevronRight } from 'lucide-react';
 import type { Adapter } from '../utils/middlewareConfig';
-import { MarkdownRenderer } from '@schmitech/markdown-renderer';
+import { MarkdownRenderer } from './markdown';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface AgentCardProps {

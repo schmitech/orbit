@@ -2,35 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* KaTeX math rendering styles */
-.katex {
-  font-size: 1em !important;
-}
-
-.katex-display {
-  margin: 1em 0 !important;
-  text-align: center;
-}
-
-/* Ensure math doesn't get cut off */
-.markdown-content .katex {
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.markdown-content .katex-display {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 0.5em 0;
-}
-
-/* Dark mode support for math */
-@media (prefers-color-scheme: dark) {
-  .katex {
-    color: inherit !important;
-  }
-}
-
 @layer base {
   * {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";

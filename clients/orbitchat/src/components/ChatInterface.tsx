@@ -15,7 +15,7 @@ import {
 } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
-import { MarkdownRenderer } from '@schmitech/markdown-renderer';
+import { MarkdownRenderer } from './markdown';
 import { useTheme } from '../contexts/ThemeContext';
 import { AgentSelectionList } from './AgentSelectionList';
 import { AuthStatus } from './AuthStatus';

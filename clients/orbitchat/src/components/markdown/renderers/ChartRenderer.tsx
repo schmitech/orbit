@@ -32,7 +32,7 @@ import type {
 } from '../types';
 
 // Default color palette for charts
-export const DEFAULT_COLORS = [
+const DEFAULT_COLORS = [
   '#3b82f6',
   '#8b5cf6',
   '#ec4899',
@@ -254,7 +254,7 @@ const applyConfigLine = (config: PartialChartConfig, key: string, rawValue: stri
   }
 };
 
-export const parseChartConfig = (code: string, language: string): ChartConfig | null => {
+const parseChartConfig = (code: string, language: string): ChartConfig | null => {
   try {
     // Parse JSON format
     if (language === 'chart-json') {
@@ -641,7 +641,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     if (!parsed) {
       if (likelyStreaming) {
         // During streaming, show waiting state instead of error
-        setIsWaitingForData(true);
+        setIsWaitingForData(true); // eslint-disable-line react-hooks/set-state-in-effect -- intentional state sync from prop
         setIsStreaming(true);
         setError(null);
         setConfig(null);
@@ -1141,8 +1141,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
           </p>
         )}
         <div ref={chartViewportRef} style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
-          <div style={{ width: `${intrinsicChartWidth}px`, minWidth: '100%', height: `${height}px` }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div style={{ minWidth: '100%' }}>
+            <ResponsiveContainer width={intrinsicChartWidth} height={height}>
         {config.type === 'bar' && (
           <BarChart data={config.data} margin={chartMargin} barCategoryGap="20%">
             {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />}

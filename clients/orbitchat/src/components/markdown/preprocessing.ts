@@ -66,6 +66,20 @@ function maskCodeSegments(src: string) {
     return key;
   });
 
+  // Mask LaTeX display math \[...\] and normalize to $$...$$
+  src = src.replace(/\\\[([\s\S]*?)\\\]/g, (_m, body) => {
+    const key = `__DISPLAY_MATH_${i++}__`;
+    masks[key] = `$$${body}$$`;
+    return key;
+  });
+
+  // Mask LaTeX inline math \(...\) and normalize to $...$
+  src = src.replace(/\\\(([\s\S]*?)\\\)/g, (_m, body) => {
+    const key = `__INLINE_MATH_${i++}__`;
+    masks[key] = `$${body}$`;
+    return key;
+  });
+
   // Mask fenced code blocks ``` ``` and ~~~ ~~~
   src = src.replace(/(^|\n)(```|~~~)([^\n]*)\n([\s\S]*?)\n\2(\n|$)/g, (_m, p1, fence, info, body, p5) => {
     const key = `__FENCED_CODE_${i++}__`;
@@ -99,21 +113,70 @@ function maskInlineMath(src: string) {
     // It must match the ENTIRE string, not just the start
     const looksLikeCurrency = /^-?\d{1,3}(?:,\d{3})*(?:\.\d+)?(?:\s?[KMBkmb]|[Kk]ilo|[Mm]illion|[Bb]illion)?$/.test(trimmed);
     if (looksLikeCurrency) return _m;
-    
-    // Fix: Double-escape backslashes followed by punctuation to prevent Markdown from consuming them
-    // e.g. \, -> \\,  and \{ -> \\{
-    // We protect any backslash that isn't followed by a letter or digit
-    const fixedBody = body.replace(/\\([^A-Za-z0-9])/g, (_match: string, char: string) => {
-      if (char === '\\') return '\\\\\\\\';
-      return '\\\\' + char;
-    });
 
     const key = `__INLINE_MATH_${i++}__`;
-    masks[key] = `$${fixedBody}$`;
+    // Preserve original LaTeX exactly; escaping here can break valid commands like `\,` and `\left`.
+    masks[key] = `$${body}$`;
     return key;
   });
 
   return { masked: src, masks };
+}
+
+const HIGH_CONFIDENCE_LATEX_COMMAND =
+  /\\(?:iiint|iint|oint|int|sum|prod|lim|frac|sqrt|sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|ln|log|exp|Delta|nabla|partial)\b/;
+
+/**
+ * Wrap bare LaTeX expressions that are missing $ delimiters.
+ * This runs after inline/display math is masked, so we can safely process
+ * surrounding text without touching already-delimited math.
+ */
+function wrapBareLatexMathSegments(src: string): string {
+  const placeholderPattern = /(__INLINE_MATH_\d+__|__DISPLAY_MATH_\d+__|__CURRENCY_\d+__)/g;
+  const isPlaceholder = /^(__INLINE_MATH_\d+__|__DISPLAY_MATH_\d+__|__CURRENCY_\d+__)$/;
+
+  return src
+    .split('\n')
+    .map((line) => {
+      if (!HIGH_CONFIDENCE_LATEX_COMMAND.test(line)) return line;
+
+      return line
+        .split(placeholderPattern)
+        .map((segment) => {
+          if (!segment || isPlaceholder.test(segment)) return segment;
+          if (!HIGH_CONFIDENCE_LATEX_COMMAND.test(segment)) return segment;
+          if (segment.includes('$')) return segment;
+
+          return segment.replace(
+            /\\(?:iiint|iint|oint|int|sum|prod|lim|frac|sqrt|sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|ln|log|exp|Delta|nabla|partial)\b[^\n]*/g,
+            (expr) => {
+              const trimmed = expr.trimEnd();
+              if (!trimmed) return expr;
+              return `$${trimmed}$${expr.slice(trimmed.length)}`;
+            }
+          );
+        })
+        .join('');
+    })
+    .join('\n');
+}
+
+/**
+ * Repair malformed inline math where a single equation is accidentally split
+ * into nested `$...$` segments, e.g.:
+ * `$A = $B$ + C$` -> `$A = B + C$`
+ */
+function fixNestedInlineMathDelimiters(src: string): string {
+  return src.replace(
+    /\$([^$\n]*?)\s*=\s*\$([^$\n]+)\$\s*([^$\n]*?)\$/g,
+    (_m, left, middle, right) => {
+      const normalizedLeft = String(left).trimEnd();
+      const normalizedMiddle = String(middle).trim();
+      const normalizedRight = String(right).trim();
+      const rhs = [normalizedMiddle, normalizedRight].filter(Boolean).join(' ');
+      return `$${normalizedLeft} = ${rhs}$`;
+    }
+  );
 }
 
 /**
@@ -333,6 +396,11 @@ export const preprocessMarkdown = (content: string): string => {
     
     // Convert HTML <br> tags into newline characters so they render like real line breaks
     processed = processed.replace(/<br\s*\/?>/gi, '\n');
+
+    // Fix malformed inline-math delimiters like "\ne$ -1" that prematurely close math.
+    processed = processed.replace(/\\(ne|neq)\$(?=\s*[-+0-9A-Za-z(])/g, '\\$1');
+    // Fix malformed nested inline delimiters like `$A = $B$ + C$`.
+    processed = fixNestedInlineMathDelimiters(processed);
     
     // LLMs sometimes keep the first table row on the same line as preceding text (e.g. "Table: | Col |")
     // ReactMarkdown expects the table to start on a fresh line, so split those constructs.
@@ -386,6 +454,9 @@ export const preprocessMarkdown = (content: string): string => {
     processed = mathMasked;
     // Merge math masks into main masks
     Object.assign(masks, mathMasks);
+
+    // Wrap remaining bare LaTeX in text segments (outside already-masked math).
+    processed = wrapBareLatexMathSegments(processed);
     
     // Auto-detect and wrap common math patterns that might not have delimiters
     // This helps catch expressions like "x^2 + y^2 = z^2" and wrap them properly
@@ -405,6 +476,10 @@ export const preprocessMarkdown = (content: string): string => {
       processed = processed.replace(pattern, (match, expr) => {
         // Check if already wrapped in $ or $$
         if (match.includes('$')) return match;
+        // Skip masked segments to avoid producing nested math delimiters after unmasking.
+        if (match.includes('__INLINE_MATH_') || match.includes('__DISPLAY_MATH_') || match.includes('__CURRENCY_')) {
+          return match;
+        }
         // Avoid wrapping single-letter words like "I" that are not math
         const trimmed = String(expr ?? '').trim();
         if (/^[A-Za-z]$/.test(trimmed)) return match;
@@ -425,12 +500,7 @@ export const preprocessMarkdown = (content: string): string => {
       });
     });
 
-    // 1) Normalize LaTeX delimiters to markdown-math friendly forms
-    //    \[...\] -> $$...$$   and   \(...\) -> $...$
-    processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (_m, p1) => `\n$$${p1}$$\n`);
-    processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (_m, p1) => `$${p1}$`);
-
-    // 2) Protect stray $ that aren't math (e.g., isolated dollar signs in prose)
+    // 1) Protect stray $ that aren't math (e.g., isolated dollar signs in prose)
     //    If we see $word$ that doesn't look like math, escape both sides.
     //    Skip if it's already a placeholder (currency or math)
     processed = processed.replace(
@@ -471,7 +541,7 @@ export const preprocessMarkdown = (content: string): string => {
       }
     );
 
-    // 2.5) Escape stray double-dollar markers that appear inline with text and have no closing pair
+    // 1.5) Escape stray double-dollar markers that appear inline with text and have no closing pair
     processed = processed
       .split('\n')
       .map((line) => {

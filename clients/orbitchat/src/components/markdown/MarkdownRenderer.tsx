@@ -8,7 +8,7 @@ import 'katex/dist/katex.min.css';
 // Load mhchem for chemistry support (ESM build so it patches the same KaTeX instance)
 import 'katex/contrib/mhchem';
 
-import { preprocessMarkdown, containsMathNotation } from './preprocessing';
+import { preprocessMarkdown } from './preprocessing';
 import { CodeBlock } from './CodeBlock';
 import { BLOCK_LEVEL_TAGS, type MarkdownRendererProps } from './types';
 
@@ -228,6 +228,3 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   );
 };
 
-// Re-export public APIs for backward compatibility
-export { preprocessMarkdown, containsMathNotation };
-export type { MarkdownRendererProps };

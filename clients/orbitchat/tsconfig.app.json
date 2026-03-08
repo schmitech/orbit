@@ -8,11 +8,6 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
-    "baseUrl": ".",
-    "paths": {
-      "@schmitech/markdown-renderer": ["markdown-renderer/src/index.ts"],
-      "@schmitech/markdown-renderer/styles": ["markdown-renderer/src/MarkdownStyles.css"]
-    },
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "isolatedModules": true,

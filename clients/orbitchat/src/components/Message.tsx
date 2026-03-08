@@ -12,7 +12,7 @@ import {
   ThumbsUp
 } from 'lucide-react';
 import { Message as MessageType } from '../types';
-import { MarkdownRenderer } from '@schmitech/markdown-renderer';
+import { MarkdownRenderer } from './markdown';
 import { debugError } from '../utils/debug';
 import { getEnableFeedbackButtons, getEnableConversationThreads, getIsAuthConfigured } from '../utils/runtimeConfig';
 import { AudioPlayer } from './AudioPlayer';
