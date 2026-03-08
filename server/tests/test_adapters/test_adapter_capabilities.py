@@ -8,7 +8,9 @@ import os
 from unittest.mock import Mock
 
 # Add the server directory to the Python path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+_server_dir = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+if _server_dir not in sys.path:
+    sys.path.insert(0, _server_dir)
 
 from adapters.capabilities import (
     AdapterCapabilities,

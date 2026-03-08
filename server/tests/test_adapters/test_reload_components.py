@@ -11,8 +11,24 @@ import sys
 import os
 from unittest.mock import Mock, AsyncMock, patch
 
-# Add the server directory to the Python path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+# Add the server directory to the Python path for imports.
+_server_dir = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+if _server_dir not in sys.path:
+    sys.path.insert(0, _server_dir)
+
+# server/tests/inference/ shadows server/inference/.  Pre-load the real
+# inference package from server/ to prevent the shadow package being used.
+import importlib
+_tests_dir = os.path.join(_server_dir, 'tests')
+if 'inference' not in sys.modules or not hasattr(sys.modules.get('inference'), 'pipeline_factory'):
+    for _k in [k for k in sys.modules if k == 'inference' or k.startswith('inference.')]:
+        del sys.modules[_k]
+    _saved = sys.path.copy()
+    sys.path = [p for p in sys.path if os.path.normpath(p) != os.path.normpath(_tests_dir)]
+    sys.path.insert(0, _server_dir)
+    importlib.invalidate_caches()
+    import inference  # noqa: F811 — force correct resolution
+    sys.path = _saved
 
 from services.reload.dependency_cache_cleaner import DependencyCacheCleaner
 from services.reload.adapter_reloader import AdapterReloader
