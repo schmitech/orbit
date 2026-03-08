@@ -104,14 +104,14 @@ class ResponseFormatter:
         return str(value)
 
     def _format_percentage(self, value: Any) -> str:
-        """Format value as percentage"""
+        """Format value as percentage.
+
+        Always treats value as percentage form (25 = 25%, 0.5 = 0.5%).
+        If field stores ratios (0.5 = 50%), use display_format "percentage_ratio" instead.
+        """
         try:
             if isinstance(value, (int, float)):
-                # Assume value is already in percentage form (e.g., 25 for 25%)
-                if value < 1:
-                    return f"{value:.1%}"
-                else:
-                    return f"{value:.1f}%"
+                return f"{value:.1f}%"
         except (ValueError, TypeError):
             pass
         return str(value)

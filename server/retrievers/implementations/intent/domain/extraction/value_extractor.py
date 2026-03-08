@@ -155,14 +155,29 @@ class ValueExtractor:
             return None
 
     def _parse_date(self, date_str: str) -> Optional[str]:
-        """Parse date string into ISO format"""
-        date_formats = [
-            "%Y-%m-%d",  # ISO format
-            "%m/%d/%Y",  # US format
-            "%m-%d-%Y",  # Alternative format
-            "%d/%m/%Y",  # European format
-            "%d-%m-%Y",  # Alternative European
-        ]
+        """Parse date string into ISO format.
+
+        Uses domain config date_format preference to disambiguate US vs European formats.
+        """
+        # Check domain config for preferred date format
+        date_format_preference = getattr(self.domain_config, 'date_format', 'us')
+
+        if date_format_preference == 'european':
+            date_formats = [
+                "%Y-%m-%d",  # ISO format (unambiguous)
+                "%d/%m/%Y",  # European format
+                "%d-%m-%Y",  # Alternative European
+                "%m/%d/%Y",  # US format (fallback)
+                "%m-%d-%Y",  # Alternative US
+            ]
+        else:
+            date_formats = [
+                "%Y-%m-%d",  # ISO format (unambiguous)
+                "%m/%d/%Y",  # US format
+                "%m-%d-%Y",  # Alternative US
+                "%d/%m/%Y",  # European format (fallback)
+                "%d-%m-%Y",  # Alternative European
+            ]
 
         for fmt in date_formats:
             try:

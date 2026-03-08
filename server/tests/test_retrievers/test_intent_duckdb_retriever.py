@@ -578,16 +578,23 @@ async def test_intent_retriever_close_all_resources(test_config, test_database, 
 
         retriever._initialize_vector_store = mock_init_vector_store
 
+        # Mock inference client initialization to avoid missing module issues
+        async def mock_init_inference_client():
+            retriever.inference_client = Mock()
+            retriever.inference_client.aclose = AsyncMock()
+
+        retriever._initialize_inference_client = mock_init_inference_client
+
         await retriever.initialize()
-        
+
         # Verify resources are initialized
         assert retriever.embedding_client is not None
         assert retriever.inference_client is not None
         assert hasattr(retriever, 'template_store') and retriever.template_store is not None
-        
+
         # Close all resources
         await retriever.close()
-        
+
         # Verify resources are closed (connection should be closed)
         assert not retriever._is_connection_alive()
         
@@ -630,13 +637,18 @@ async def test_intent_retriever_close_handles_client_errors(test_config, test_da
         from ai_services import register_all_services
         register_all_services(test_config)
 
-        # Mock vector store initialization to avoid Chroma setup issues
+        # Mock vector store and inference client initialization
         async def mock_init_vector_store():
             retriever.template_store = Mock()
             retriever.template_store.close = AsyncMock()
             retriever.template_store.batch_add_templates = AsyncMock(return_value=[])
 
+        async def mock_init_inference_client():
+            retriever.inference_client = Mock()
+            retriever.inference_client.aclose = AsyncMock()
+
         retriever._initialize_vector_store = mock_init_vector_store
+        retriever._initialize_inference_client = mock_init_inference_client
 
         await retriever.initialize()
         
@@ -681,13 +693,18 @@ async def test_intent_retriever_close_handles_sync_and_async_close(test_config, 
         from ai_services import register_all_services
         register_all_services(test_config)
 
-        # Mock vector store initialization to avoid Chroma setup issues
+        # Mock vector store and inference client initialization
         async def mock_init_vector_store():
             retriever.template_store = Mock()
             retriever.template_store.close = AsyncMock()
             retriever.template_store.batch_add_templates = AsyncMock(return_value=[])
 
+        async def mock_init_inference_client():
+            retriever.inference_client = Mock()
+            retriever.inference_client.aclose = AsyncMock()
+
         retriever._initialize_vector_store = mock_init_vector_store
+        retriever._initialize_inference_client = mock_init_inference_client
 
         await retriever.initialize()
         
@@ -734,12 +751,17 @@ async def test_intent_retriever_close_idempotent(test_config, test_database, moc
         from ai_services import register_all_services
         register_all_services(test_config)
 
-        # Mock vector store initialization to avoid Chroma setup issues
+        # Mock vector store and inference client initialization
         async def mock_init_vector_store():
             retriever.template_store = Mock()
             retriever.template_store.close = AsyncMock()
 
+        async def mock_init_inference_client():
+            retriever.inference_client = Mock()
+            retriever.inference_client.aclose = AsyncMock()
+
         retriever._initialize_vector_store = mock_init_vector_store
+        retriever._initialize_inference_client = mock_init_inference_client
 
         await retriever.initialize()
         
@@ -772,12 +794,17 @@ async def test_intent_retriever_close_with_template_store(test_config, test_data
         from ai_services import register_all_services
         register_all_services(test_config)
 
-        # Mock vector store initialization to avoid Chroma setup issues
+        # Mock vector store and inference client initialization
         async def mock_init_vector_store():
             retriever.template_store = Mock()
             retriever.template_store.close = AsyncMock()
 
+        async def mock_init_inference_client():
+            retriever.inference_client = Mock()
+            retriever.inference_client.aclose = AsyncMock()
+
         retriever._initialize_vector_store = mock_init_vector_store
+        retriever._initialize_inference_client = mock_init_inference_client
 
         await retriever.initialize()
         

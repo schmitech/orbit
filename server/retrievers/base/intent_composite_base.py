@@ -94,6 +94,7 @@ class CompositeIntentRetriever(BaseRetriever):
 
         # Shared embedding client for consistent scoring
         self.embedding_client = None
+        self._embedding_reinit_lock = asyncio.Lock()
 
         # Multi-stage selection configuration (from config.yaml composite_retrieval section)
         self._init_multi_stage_config(config)
@@ -101,6 +102,7 @@ class CompositeIntentRetriever(BaseRetriever):
         # Reranking service (initialized lazily)
         self._reranker = None
         self._rerank_cache: Dict[str, Tuple[float, List[Dict]]] = {}  # query -> (timestamp, results)
+        self._max_rerank_cache_size = 1000
 
         logger.info(f"CompositeIntentRetriever configured with {len(self.child_adapter_names)} child adapters: {self.child_adapter_names}")
         if self.multistage_enabled:
@@ -214,38 +216,36 @@ class CompositeIntentRetriever(BaseRetriever):
         Ensure the embedding client is valid and ready for use.
 
         If the underlying client was closed (e.g., by cache cleanup of another adapter),
-        re-initialize the embedding service.
+        re-initialize the embedding service. Uses an asyncio lock to prevent concurrent
+        re-initialization races.
 
         Returns:
             True if the client is valid, False if re-initialization failed
         """
-        # Check if client exists and has a valid underlying connection
-        if self.embedding_client is None:
-            logger.warning("Composite retriever embedding client is None, reinitializing...")
-            await self._initialize_embedding_client()
-            return self.embedding_client is not None
+        # Quick check without lock
+        if self.embedding_client is not None and not self._is_embedding_client_closed():
+            return True
 
-        # For OpenAI-based clients, check if the underlying client was closed
-        # This can happen when DependencyCacheCleaner closes shared embedding services
-        # Note: Ollama services use session_manager instead of client, so skip check for them
-        uses_session_manager = hasattr(self.embedding_client, 'session_manager')
-        client_was_closed = (
-            hasattr(self.embedding_client, 'client') and
-            self.embedding_client.client is None and
-            not uses_session_manager  # Only check client for non-Ollama services
-        )
-        if client_was_closed:
+        async with self._embedding_reinit_lock:
+            # Re-check under lock
+            if self.embedding_client is not None and not self._is_embedding_client_closed():
+                return True
+
+            if self.embedding_client is None:
+                logger.warning("Composite retriever embedding client is None, reinitializing...")
+                await self._initialize_embedding_client()
+                return self.embedding_client is not None
+
+            # Client was closed, re-initialize
             provider = getattr(self, '_embedding_provider', None) or 'unknown'
             logger.warning(
                 f"Composite retriever's {provider} embedding client was closed "
                 f"(likely by cache cleanup of another adapter). Reinitializing..."
             )
 
-            # Re-initialize the embedding client with a fresh instance
             from embeddings.base import EmbeddingServiceFactory
 
             try:
-                # Clear the factory cache for this provider to get a fresh instance
                 provider_to_use = self._embedding_provider or self.config.get('embedding', {}).get('provider', 'ollama')
                 factory_instances = EmbeddingServiceFactory.get_cached_instances()
                 keys_to_remove = [k for k in factory_instances.keys() if k.startswith(f"{provider_to_use}:")]
@@ -255,7 +255,6 @@ class CompositeIntentRetriever(BaseRetriever):
                             if key in EmbeddingServiceFactory._instances:
                                 del EmbeddingServiceFactory._instances[key]
 
-                # Create a fresh embedding service
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(
                     self.config, provider_to_use
                 )
@@ -270,7 +269,16 @@ class CompositeIntentRetriever(BaseRetriever):
                 logger.error(f"Failed to reinitialize embedding client: {e}")
                 return False
 
-        return True
+    def _is_embedding_client_closed(self) -> bool:
+        """Check if the embedding client's underlying connection was closed."""
+        if self.embedding_client is None:
+            return True
+        uses_session_manager = hasattr(self.embedding_client, 'session_manager')
+        return (
+            hasattr(self.embedding_client, 'client') and
+            self.embedding_client.client is None and
+            not uses_session_manager
+        )
     
     async def _resolve_child_adapters(self) -> None:
         """Resolve child adapter references via the adapter manager."""
@@ -497,6 +505,12 @@ class CompositeIntentRetriever(BaseRetriever):
                 ]
                 for k in expired_keys:
                     del self._rerank_cache[k]
+
+                # Evict oldest entries if cache exceeds max size
+                if len(self._rerank_cache) > self._max_rerank_cache_size:
+                    sorted_entries = sorted(self._rerank_cache.items(), key=lambda x: x[1][0])
+                    for k, _ in sorted_entries[:len(sorted_entries) // 2]:
+                        del self._rerank_cache[k]
 
             logger.debug(f"Reranked {len(candidates)} candidates, top score: {max(score_map.values()) if score_map else 0:.3f}")
             return score_map

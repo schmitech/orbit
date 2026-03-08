@@ -178,12 +178,23 @@ class Validator:
         for key, value in parameters.items():
             if '.' in key:
                 entity_name, field_name = key.split('.', 1)
-                is_valid, error_msg = self.validate(value, entity_name, field_name)
+            else:
+                # For non-dotted keys, search across all entities for the field
+                entity_name = None
+                field_name = key
+                for ent_name, entity in self.domain_config.entities.items():
+                    if key in entity.fields:
+                        entity_name = ent_name
+                        break
+                if entity_name is None:
+                    continue  # No matching entity found, skip validation
 
-                if not is_valid and error_msg:
-                    if field_name not in errors:
-                        errors[field_name] = []
-                    errors[field_name].append(error_msg)
+            is_valid, error_msg = self.validate(value, entity_name, field_name)
+
+            if not is_valid and error_msg:
+                if field_name not in errors:
+                    errors[field_name] = []
+                errors[field_name].append(error_msg)
 
         return errors
 

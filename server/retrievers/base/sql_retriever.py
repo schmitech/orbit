@@ -3,6 +3,7 @@ Enhanced SQL retriever abstract class with domain adapter support
 """
 
 import logging
+import re
 import string
 import traceback
 from abc import abstractmethod
@@ -171,6 +172,7 @@ class AbstractSQLRetriever(BaseRetriever):
         Can be overridden by subclasses for additional initialization.
         """
         await self._ensure_datasource_initialized()
+        self.initialized = True
 
     async def close(self) -> None:
         """
@@ -219,29 +221,27 @@ class AbstractSQLRetriever(BaseRetriever):
         """Apply security filter to SQL query."""
         if not self.security_filter:
             return sql_query
-        
-        # If query already has WHERE clause, add AND condition
-        if "WHERE" in sql_query.upper():
-            return sql_query.replace("WHERE", f"WHERE {self.security_filter} AND", 1)
+
+        # Use case-insensitive regex to handle SQL keywords in any case
+        if re.search(r'\bWHERE\b', sql_query, re.IGNORECASE):
+            return re.sub(r'\bWHERE\b', f"WHERE {self.security_filter} AND", sql_query, count=1, flags=re.IGNORECASE)
+        elif re.search(r'\bORDER\s+BY\b', sql_query, re.IGNORECASE):
+            return re.sub(r'\bORDER\s+BY\b', f"WHERE {self.security_filter} ORDER BY", sql_query, count=1, flags=re.IGNORECASE)
+        elif re.search(r'\bLIMIT\b', sql_query, re.IGNORECASE):
+            return re.sub(r'\bLIMIT\b', f"WHERE {self.security_filter} LIMIT", sql_query, count=1, flags=re.IGNORECASE)
         else:
-            # Add WHERE clause before ORDER BY or LIMIT
-            if "ORDER BY" in sql_query.upper():
-                return sql_query.replace("ORDER BY", f"WHERE {self.security_filter} ORDER BY", 1)
-            elif "LIMIT" in sql_query.upper():
-                return sql_query.replace("LIMIT", f"WHERE {self.security_filter} LIMIT", 1)
-            else:
-                return f"{sql_query} WHERE {self.security_filter}"
+            return f"{sql_query} WHERE {self.security_filter}"
     
     def _apply_column_restrictions(self, sql_query: str, collection_name: str) -> str:
         """Apply column restrictions to SQL query."""
         if not self.allowed_columns:
             return sql_query
-        
-        # Replace SELECT * with specific columns
-        if "SELECT *" in sql_query:
+
+        # Replace SELECT * with specific columns (case-insensitive)
+        if "SELECT *" in sql_query.upper():
             allowed_cols = ", ".join(self.allowed_columns)
-            return sql_query.replace("SELECT *", f"SELECT {allowed_cols}", 1)
-        
+            return re.sub(r'SELECT\s+\*', f"SELECT {allowed_cols}", sql_query, count=1, flags=re.IGNORECASE)
+
         return sql_query
     
     def _monitor_query_execution(self, sql_query: str, execution_time: float, row_count: int):
@@ -276,9 +276,11 @@ class AbstractSQLRetriever(BaseRetriever):
         if hasattr(self.domain_adapter, 'get_search_conditions'):
             search_config = self.domain_adapter.get_search_conditions(query, collection_name)
         else:
-            # Default simple search
+            # Default simple search - validate collection name to prevent SQL injection
+            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_.]*$', collection_name):
+                raise ValueError(f"Invalid collection name: {collection_name}")
             search_config = {
-                "sql": f"SELECT * FROM {collection_name} LIMIT ?",
+                "sql": f'SELECT * FROM "{collection_name}" LIMIT ?',
                 "params": [self.max_results],
                 "fields": self.default_search_fields
             }

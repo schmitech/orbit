@@ -37,8 +37,8 @@ class SQLConnectionMixin:
 
         # Mask sensitive values
         if key.lower() in ['password', 'pass', 'pwd', 'secret', 'token']:
-            '*' * len(str(value)) if value else ''
-            logger.debug(f"Config key '{key}': [MASKED]")
+            masked = '*' * len(str(value)) if value else ''
+            logger.debug(f"Config key '{key}': {masked}")
         else:
             logger.debug(f"Config key '{key}': {value}")
 

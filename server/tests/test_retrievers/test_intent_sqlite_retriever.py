@@ -25,6 +25,22 @@ from retrievers.implementations.intent.intent_sqlite_retriever import IntentSQLi
 
 
 @pytest.fixture
+def mock_domain_adapter():
+    """Create a mock domain adapter for testing."""
+    adapter = Mock()
+    adapter.get_domain_config.return_value = {
+        "domain_name": "Test Contacts",
+        "description": "Test domain",
+        "entities": {
+            "contacts": {
+                "table_name": "contacts"
+            }
+        }
+    }
+    return adapter
+
+
+@pytest.fixture
 def test_config(tmp_path):
     """Create a test configuration with temporary SQLite database."""
     db_path = tmp_path / "test.db"
@@ -211,26 +227,33 @@ async def test_sqlite_retriever_connection_after_close_error(test_config, test_d
 
 
 @pytest.mark.asyncio
-async def test_intent_retriever_close_all_resources(test_config, test_database):
+async def test_intent_retriever_close_all_resources(test_config, test_database, mock_domain_adapter):
     """Test that close() method closes all resources (database, embedding, inference, template_store)."""
     test_config["datasources"]["sqlite"]["database"] = test_database
-    
-    retriever = IntentSQLiteRetriever(config=test_config)
-    
+
+    retriever = IntentSQLiteRetriever(config=test_config, domain_adapter=mock_domain_adapter)
+
     # Initialize the retriever to set up all resources
     try:
         # Register services first
         from ai_services import register_all_services
         register_all_services(test_config)
-        
+
         # Mock vector store initialization to avoid Chroma setup issues
         async def mock_init_vector_store():
             retriever.template_store = Mock()
             retriever.template_store.close = AsyncMock()
             retriever.template_store.batch_add_templates = AsyncMock(return_value=[])
-        
+
         retriever._initialize_vector_store = mock_init_vector_store
-        
+
+        # Mock inference client initialization to avoid missing module issues
+        async def mock_init_inference_client():
+            retriever.inference_client = Mock()
+            retriever.inference_client.aclose = AsyncMock()
+
+        retriever._initialize_inference_client = mock_init_inference_client
+
         await retriever.initialize()
         
         # Verify resources are initialized
@@ -273,17 +296,30 @@ async def test_intent_retriever_close_handles_missing_clients(test_config, test_
 
 
 @pytest.mark.asyncio
-async def test_intent_retriever_close_handles_client_errors(test_config, test_database):
+async def test_intent_retriever_close_handles_client_errors(test_config, test_database, mock_domain_adapter):
     """Test that errors in one client don't prevent others from closing."""
     test_config["datasources"]["sqlite"]["database"] = test_database
-    
-    retriever = IntentSQLiteRetriever(config=test_config)
-    
+
+    retriever = IntentSQLiteRetriever(config=test_config, domain_adapter=mock_domain_adapter)
+
     try:
         # Register services first
         from ai_services import register_all_services
         register_all_services(test_config)
-        
+
+        # Mock vector store and inference client initialization
+        async def mock_init_vector_store():
+            retriever.template_store = Mock()
+            retriever.template_store.close = AsyncMock()
+            retriever.template_store.batch_add_templates = AsyncMock(return_value=[])
+
+        async def mock_init_inference_client():
+            retriever.inference_client = Mock()
+            retriever.inference_client.aclose = AsyncMock()
+
+        retriever._initialize_vector_store = mock_init_vector_store
+        retriever._initialize_inference_client = mock_init_inference_client
+
         await retriever.initialize()
         
         # Create mock clients that raise errors on close
@@ -314,17 +350,30 @@ async def test_intent_retriever_close_handles_client_errors(test_config, test_da
 
 
 @pytest.mark.asyncio
-async def test_intent_retriever_close_handles_sync_and_async_close(test_config, test_database):
+async def test_intent_retriever_close_handles_sync_and_async_close(test_config, test_database, mock_domain_adapter):
     """Test that close() handles both sync and async close methods."""
     test_config["datasources"]["sqlite"]["database"] = test_database
-    
-    retriever = IntentSQLiteRetriever(config=test_config)
-    
+
+    retriever = IntentSQLiteRetriever(config=test_config, domain_adapter=mock_domain_adapter)
+
     try:
         # Register services first
         from ai_services import register_all_services
         register_all_services(test_config)
-        
+
+        # Mock vector store and inference client initialization
+        async def mock_init_vector_store():
+            retriever.template_store = Mock()
+            retriever.template_store.close = AsyncMock()
+            retriever.template_store.batch_add_templates = AsyncMock(return_value=[])
+
+        async def mock_init_inference_client():
+            retriever.inference_client = Mock()
+            retriever.inference_client.aclose = AsyncMock()
+
+        retriever._initialize_vector_store = mock_init_vector_store
+        retriever._initialize_inference_client = mock_init_inference_client
+
         await retriever.initialize()
         
         # Create mock clients with different close method types
@@ -364,17 +413,30 @@ async def test_intent_retriever_close_handles_sync_and_async_close(test_config, 
 
 
 @pytest.mark.asyncio
-async def test_intent_retriever_close_idempotent(test_config, test_database):
+async def test_intent_retriever_close_idempotent(test_config, test_database, mock_domain_adapter):
     """Test that close() can be called multiple times safely (idempotent)."""
     test_config["datasources"]["sqlite"]["database"] = test_database
-    
-    retriever = IntentSQLiteRetriever(config=test_config)
-    
+
+    retriever = IntentSQLiteRetriever(config=test_config, domain_adapter=mock_domain_adapter)
+
     try:
         # Register services first
         from ai_services import register_all_services
         register_all_services(test_config)
-        
+
+        # Mock vector store and inference client initialization
+        async def mock_init_vector_store():
+            retriever.template_store = Mock()
+            retriever.template_store.close = AsyncMock()
+            retriever.template_store.batch_add_templates = AsyncMock(return_value=[])
+
+        async def mock_init_inference_client():
+            retriever.inference_client = Mock()
+            retriever.inference_client.aclose = AsyncMock()
+
+        retriever._initialize_vector_store = mock_init_vector_store
+        retriever._initialize_inference_client = mock_init_inference_client
+
         await retriever.initialize()
         
         # Close multiple times - should not error
@@ -395,17 +457,30 @@ async def test_intent_retriever_close_idempotent(test_config, test_database):
 
 
 @pytest.mark.asyncio
-async def test_intent_retriever_close_with_template_store(test_config, test_database):
+async def test_intent_retriever_close_with_template_store(test_config, test_database, mock_domain_adapter):
     """Test that close() properly closes template_store if it exists."""
     test_config["datasources"]["sqlite"]["database"] = test_database
-    
-    retriever = IntentSQLiteRetriever(config=test_config)
-    
+
+    retriever = IntentSQLiteRetriever(config=test_config, domain_adapter=mock_domain_adapter)
+
     try:
         # Register services first
         from ai_services import register_all_services
         register_all_services(test_config)
-        
+
+        # Mock vector store and inference client initialization
+        async def mock_init_vector_store():
+            retriever.template_store = Mock()
+            retriever.template_store.close = AsyncMock()
+            retriever.template_store.batch_add_templates = AsyncMock(return_value=[])
+
+        async def mock_init_inference_client():
+            retriever.inference_client = Mock()
+            retriever.inference_client.aclose = AsyncMock()
+
+        retriever._initialize_vector_store = mock_init_vector_store
+        retriever._initialize_inference_client = mock_init_inference_client
+
         await retriever.initialize()
         
         # Verify template_store exists

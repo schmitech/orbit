@@ -113,6 +113,7 @@ class IntentHTTPRetriever(BaseRetriever):
 
         # Initialize service clients
         self.embedding_client = None
+        self._embedding_reinit_lock = asyncio.Lock()
         self.inference_client = None
         self.template_store = None
 
@@ -217,6 +218,13 @@ class IntentHTTPRetriever(BaseRetriever):
             logger.debug(f"{self.__class__.__name__} initialization complete")
 
         except Exception as e:
+            # Cleanup HTTP client on partial initialization failure
+            if hasattr(self, 'http_client') and self.http_client:
+                try:
+                    await self.http_client.aclose()
+                except Exception:
+                    pass
+                self.http_client = None
             logger.error(f"Failed to initialize {self.__class__.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
@@ -325,38 +333,36 @@ class IntentHTTPRetriever(BaseRetriever):
         Ensure the embedding client is valid and ready for use.
 
         If the underlying client was closed (e.g., by cache cleanup of another adapter),
-        re-initialize the embedding service.
+        re-initialize the embedding service. Uses an asyncio lock to prevent concurrent
+        re-initialization races.
 
         Returns:
             True if the client is valid, False if re-initialization failed
         """
-        # Check if client exists
-        if self.embedding_client is None:
-            logger.warning("HTTP intent retriever embedding client is None, reinitializing...")
-            await self._initialize_embedding_client()
-            return self.embedding_client is not None
+        # Quick check without lock
+        if self.embedding_client is not None and not self._is_embedding_client_closed():
+            return True
 
-        # For OpenAI-based clients, check if the underlying client was closed
-        # This can happen when DependencyCacheCleaner closes shared embedding services
-        # Note: Ollama services use session_manager instead of client, so skip check for them
-        uses_session_manager = hasattr(self.embedding_client, 'session_manager')
-        client_was_closed = (
-            hasattr(self.embedding_client, 'client') and
-            self.embedding_client.client is None and
-            not uses_session_manager  # Only check client for non-Ollama services
-        )
-        if client_was_closed:
+        async with self._embedding_reinit_lock:
+            # Re-check under lock
+            if self.embedding_client is not None and not self._is_embedding_client_closed():
+                return True
+
+            if self.embedding_client is None:
+                logger.warning("HTTP intent retriever embedding client is None, reinitializing...")
+                await self._initialize_embedding_client()
+                return self.embedding_client is not None
+
+            # Client was closed, re-initialize
             provider = getattr(self, '_embedding_provider', None) or 'unknown'
             logger.warning(
                 f"HTTP intent retriever's {provider} embedding client was closed "
                 f"(likely by cache cleanup of another adapter). Reinitializing..."
             )
 
-            # Re-initialize the embedding client with a fresh instance
             from embeddings.base import EmbeddingServiceFactory
 
             try:
-                # Clear the factory cache for this provider to get a fresh instance
                 provider_to_use = self._embedding_provider or self.config.get('embedding', {}).get('provider', 'ollama')
                 factory_instances = EmbeddingServiceFactory.get_cached_instances()
                 keys_to_remove = [k for k in factory_instances.keys() if k.startswith(f"{provider_to_use}:")]
@@ -366,7 +372,6 @@ class IntentHTTPRetriever(BaseRetriever):
                             if key in EmbeddingServiceFactory._instances:
                                 del EmbeddingServiceFactory._instances[key]
 
-                # Create a fresh embedding service
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(
                     self.config, provider_to_use
                 )
@@ -381,7 +386,16 @@ class IntentHTTPRetriever(BaseRetriever):
                 logger.error(f"Failed to reinitialize embedding client: {e}")
                 return False
 
-        return True
+    def _is_embedding_client_closed(self) -> bool:
+        """Check if the embedding client's underlying connection was closed."""
+        if self.embedding_client is None:
+            return True
+        uses_session_manager = hasattr(self.embedding_client, 'session_manager')
+        return (
+            hasattr(self.embedding_client, 'client') and
+            self.embedding_client.client is None and
+            not uses_session_manager
+        )
 
     async def _initialize_inference_client(self):
         """Initialize inference client with adapter-specific override support."""
@@ -614,6 +628,18 @@ class IntentHTTPRetriever(BaseRetriever):
                 config=self.intent_config
             )
 
+            # Re-initialize domain-aware components with new domain config
+            domain_config = self.domain_adapter.get_domain_config()
+            from retrievers.implementations.intent.domain import DomainConfig
+            if isinstance(domain_config, dict):
+                domain_config = DomainConfig(domain_config)
+            from retrievers.implementations.intent.domain_strategies.registry import DomainStrategyRegistry
+            domain_strategy = DomainStrategyRegistry.get_strategy(domain_config.domain_name, domain_config)
+            self.parameter_extractor = DomainParameterExtractor(self.inference_client, domain_config, domain_strategy)
+            self.response_generator = DomainResponseGenerator(domain_config, domain_strategy)
+            self.template_reranker = TemplateReranker(domain_config, domain_strategy)
+            self.template_processor = TemplateProcessor(domain_config)
+
             # 2. Clear existing templates from vector store
             if self.template_store:
                 await self.template_store.clear_all_templates()
@@ -651,7 +677,7 @@ class IntentHTTPRetriever(BaseRetriever):
             ' '.join(string_tags)
         ]
 
-        param_names = [p['name'].replace('_', ' ') for p in template.get('parameters', [])]
+        param_names = [p.get('name', '').replace('_', ' ') for p in template.get('parameters', []) if p.get('name')]
         parts.extend(param_names)
 
         if 'semantic_tags' in template:
@@ -676,8 +702,15 @@ class IntentHTTPRetriever(BaseRetriever):
                                    collection_name: Optional[str] = None,
                                    **kwargs) -> List[Dict[str, Any]]:
         """Process a natural language query using intent-based HTTP translation."""
+        cancel_event = kwargs.pop('cancel_event', None)
+
         try:
             logger.debug(f"Processing intent query: {query}")
+
+            # Check cancellation before starting
+            if cancel_event and cancel_event.is_set():
+                logger.debug("Intent HTTP query cancelled before template search")
+                return []
 
             # Find best matching templates
             templates = await self._find_best_templates(query)
@@ -700,6 +733,11 @@ class IntentHTTPRetriever(BaseRetriever):
 
             # Try templates in order of relevance
             for template_info in templates:
+                # Check cancellation between template attempts
+                if cancel_event and cancel_event.is_set():
+                    logger.debug("Intent HTTP query cancelled during template iteration")
+                    return []
+
                 template = template_info['template']
                 similarity = template_info['similarity']
                 template_id = template.get('id', 'unknown')
@@ -813,7 +851,7 @@ class IntentHTTPRetriever(BaseRetriever):
             logger.error(f"Error in intent-based retrieval: {e}")
             logger.error(traceback.format_exc())
             return [{
-                "content": f"An error occurred while processing your query: {e}",
+                "content": "An error occurred while processing your query. Please try again.",
                 "metadata": {"source": "intent_http", "error": str(e)},
                 "confidence": 0.0
             }]
@@ -891,7 +929,10 @@ class IntentHTTPRetriever(BaseRetriever):
 
             param_descriptions = []
             for param in required_params:
-                desc = f"- {param['name']} ({param['type']}): {param['description']}"
+                param_name = param.get('name', 'unknown')
+                param_type = param.get('type', 'string')
+                param_desc = param.get('description', '')
+                desc = f"- {param_name} ({param_type}): {param_desc}"
                 if 'example' in param:
                     desc += f" (Example: {param['example']})"
                 if 'allowed_values' in param:
@@ -911,15 +952,22 @@ JSON:"""
 
             response = await self.inference_client.generate(extraction_prompt)
 
-            import re
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                parameters = json.loads(json_match.group())
+            # Find the first { and try progressively smaller substrings to handle
+            # LLM responses with trailing commentary after the JSON object
+            start = response.find('{')
+            if start != -1:
+                for end in range(len(response), start, -1):
+                    try:
+                        parameters = json.loads(response[start:end])
+                        break
+                    except json.JSONDecodeError:
+                        continue
 
             for param in required_params:
-                if (param['name'] not in parameters or
-                    parameters[param['name']] is None) and 'default' in param:
-                    parameters[param['name']] = param['default']
+                pname = param.get('name')
+                if pname and (pname not in parameters or
+                    parameters[pname] is None) and 'default' in param:
+                    parameters[pname] = param['default']
 
             logger.debug(f"Extracted parameters: {parameters}")
 
