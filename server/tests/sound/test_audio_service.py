@@ -49,11 +49,12 @@ class TestAudioServiceRegistration:
     def enabled_providers_config(self) -> Dict[str, Any]:
         """Create a config with all audio providers enabled."""
         return {
-            "sounds": {
+            "tts": {"enabled": True},
+            "stt": {"enabled": True},
+            "tts_providers": {
                 "openai": {
                     "enabled": True,
                     "api_key": "test-openai-key",
-                    "stt_model": "whisper-1",
                     "tts_model": "tts-1",
                     "tts_voice": "alloy",
                     "tts_format": "mp3"
@@ -61,28 +62,51 @@ class TestAudioServiceRegistration:
                 "google": {
                     "enabled": True,
                     "api_key": "test-google-key",
-                    "stt_model": "latest_long",
                     "tts_model": "neural2",
                     "tts_voice": "en-US-Neural2-A"
                 },
                 "anthropic": {
                     "enabled": True,
                     "api_key": "test-anthropic-key",
-                    "stt_model": None,
                     "tts_model": None
                 },
                 "ollama": {
                     "enabled": True,
                     "base_url": "http://localhost:11434",
-                    "stt_model": "whisper",
                     "tts_model": "piper",
                     "tts_voice": "en_US-lessac-medium"
                 },
                 "cohere": {
                     "enabled": True,
                     "api_key": "test-cohere-key",
-                    "stt_model": None,
                     "tts_model": None
+                }
+            },
+            "stt_providers": {
+                "openai": {
+                    "enabled": True,
+                    "api_key": "test-openai-key",
+                    "stt_model": "whisper-1",
+                },
+                "google": {
+                    "enabled": True,
+                    "api_key": "test-google-key",
+                    "stt_model": "latest_long",
+                },
+                "anthropic": {
+                    "enabled": True,
+                    "api_key": "test-anthropic-key",
+                    "stt_model": None,
+                },
+                "ollama": {
+                    "enabled": True,
+                    "base_url": "http://localhost:11434",
+                    "stt_model": "whisper",
+                },
+                "cohere": {
+                    "enabled": True,
+                    "api_key": "test-cohere-key",
+                    "stt_model": None,
                 }
             }
         }
@@ -91,11 +115,12 @@ class TestAudioServiceRegistration:
     def partial_enabled_config(self) -> Dict[str, Any]:
         """Create a config with only some audio providers enabled."""
         return {
-            "sounds": {
+            "tts": {"enabled": True},
+            "stt": {"enabled": True},
+            "tts_providers": {
                 "openai": {
                     "enabled": True,
                     "api_key": "test-openai-key",
-                    "stt_model": "whisper-1"
                 },
                 "google": {
                     "enabled": False,
@@ -108,11 +133,37 @@ class TestAudioServiceRegistration:
                 "ollama": {
                     "enabled": True,
                     "base_url": "http://localhost:11434",
-                    "stt_model": "whisper"
                 },
                 "cohere": {
                     "enabled": False,
                     "api_key": "test-cohere-key"
+                }
+            },
+            "stt_providers": {
+                "openai": {
+                    "enabled": True,
+                    "api_key": "test-openai-key",
+                    "stt_model": "whisper-1"
+                },
+                "google": {
+                    "enabled": False,
+                    "api_key": "test-google-key",
+                    "stt_model": "latest_long"
+                },
+                "anthropic": {
+                    "enabled": False,
+                    "api_key": "test-anthropic-key",
+                    "stt_model": None
+                },
+                "ollama": {
+                    "enabled": True,
+                    "base_url": "http://localhost:11434",
+                    "stt_model": "whisper"
+                },
+                "cohere": {
+                    "enabled": False,
+                    "api_key": "test-cohere-key",
+                    "stt_model": None
                 }
             }
         }

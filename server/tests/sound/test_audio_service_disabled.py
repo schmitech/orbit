@@ -17,7 +17,8 @@ from unittest.mock import patch, MagicMock, AsyncMock
 import logging
 
 # Get the absolute path to the server directory (parent of tests)
-server_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Since we're in tests/sound/, go up two levels to get to server/
+server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Add server directory to Python path
 sys.path.append(server_dir)
 
@@ -48,15 +49,37 @@ class TestAudioServiceDisabled:
     def audio_disabled_config(self) -> Dict[str, Any]:
         """Create a config with audio globally disabled."""
         return {
-            "sound": {
+            "sound": {  # AdapterLoader audio_provider path checks legacy sound.enabled
                 "enabled": False,
                 "provider": "openai"
             },
-            "sounds": {
+            "tts": {
+                "enabled": False,
+                "provider": "openai"
+            },
+            "stt": {
+                "enabled": False,
+                "provider": "openai"
+            },
+            "tts_providers": {
                 "openai": {
                     "enabled": True,
                     "api_key": "test-key",
                     "tts_model": "gpt-4o-mini-tts",
+                },
+                "google": {
+                    "enabled": True,
+                    "api_key": "test-key"
+                },
+                "whisper": {
+                    "enabled": True,
+                    "model_size": "base"
+                }
+            },
+            "stt_providers": {
+                "openai": {
+                    "enabled": True,
+                    "api_key": "test-key",
                     "stt_model": "whisper-1"
                 },
                 "google": {
@@ -74,19 +97,37 @@ class TestAudioServiceDisabled:
     def audio_enabled_config(self) -> Dict[str, Any]:
         """Create a config with audio globally enabled."""
         return {
-            "sound": {
+            "tts": {
                 "enabled": True,
                 "provider": "openai"
             },
-            "sounds": {
+            "stt": {
+                "enabled": True,
+                "provider": "openai"
+            },
+            "tts_providers": {
                 "openai": {
                     "enabled": True,
                     "api_key": "test-key",
                     "tts_model": "gpt-4o-mini-tts",
-                    "stt_model": "whisper-1"
                 },
                 "google": {
                     "enabled": False,  # Individual provider disabled
+                    "api_key": "test-key"
+                },
+                "whisper": {
+                    "enabled": True,
+                    "model_size": "base"
+                }
+            },
+            "stt_providers": {
+                "openai": {
+                    "enabled": True,
+                    "api_key": "test-key",
+                    "stt_model": "whisper-1"
+                },
+                "google": {
+                    "enabled": False,
                     "api_key": "test-key"
                 },
                 "whisper": {
@@ -97,7 +138,7 @@ class TestAudioServiceDisabled:
         }
 
     def test_no_audio_services_registered_when_disabled(self, audio_disabled_config):
-        """Test that no audio services are registered when sound.enabled: false."""
+        """Test that no audio services are registered when TTS+STT are globally disabled."""
         # Mock the import to prevent actual module loading
         with patch('builtins.__import__') as mock_import:
             mock_module = MagicMock()
@@ -127,7 +168,7 @@ class TestAudioServiceDisabled:
             assert 'whisper' not in audio_providers
 
     def test_audio_services_registered_when_enabled(self, audio_enabled_config):
-        """Test that audio services are registered when sound.enabled: true."""
+        """Test that audio services are registered when TTS/STT are globally enabled."""
         # Mock the import to prevent actual module loading
         with patch('builtins.__import__') as mock_import:
             mock_module = MagicMock()
@@ -157,7 +198,7 @@ class TestAudioServiceDisabled:
 
     def test_logging_when_audio_globally_disabled(self, audio_disabled_config, caplog):
         """Test that appropriate log message is shown when audio is globally disabled."""
-        caplog.set_level(logging.INFO)
+        caplog.set_level(logging.INFO, logger='ai_services.registry')
 
         # Mock the import to prevent actual module loading
         with patch('builtins.__import__') as mock_import:
@@ -176,9 +217,7 @@ class TestAudioServiceDisabled:
 
             # Check that the global disable message was logged
             log_messages = [record.message for record in caplog.records]
-            assert any("Sound services are globally disabled" in msg for msg in log_messages)
-            assert any("sound.enabled: false" in msg for msg in log_messages)
-            assert any("TTS and STT functionality will not be available" in msg for msg in log_messages)
+            assert any("Both TTS and STT services are globally disabled" in msg for msg in log_messages)
 
     def test_create_service_fails_when_audio_disabled(self, audio_disabled_config):
         """Test that creating an audio service fails when audio is disabled."""
@@ -199,7 +238,11 @@ class TestAudioServiceDisabled:
     def test_string_false_value_for_enabled(self):
         """Test that string 'false' value is properly handled."""
         config = {
-            "sound": {
+            "tts": {
+                "enabled": "false",  # String instead of boolean
+                "provider": "openai"
+            },
+            "stt": {
                 "enabled": "false",  # String instead of boolean
                 "provider": "openai"
             }
@@ -221,13 +264,16 @@ class TestAudioServiceDisabled:
             audio_providers = available_services.get('audio', [])
             assert len(audio_providers) == 0
 
-    def test_missing_sound_config_defaults_to_enabled(self):
-        """Test that missing sound config defaults to enabled (backward compatibility)."""
+    def test_missing_tts_stt_config_defaults_to_enabled(self):
+        """Test that missing tts/stt global config defaults to enabled."""
         config = {
-            "sounds": {
+            "tts_providers": {
+                "openai": {"enabled": True}
+            },
+            "stt_providers": {
                 "openai": {"enabled": True}
             }
-            # No "sound" section
+            # No global "tts"/"stt" sections: defaults should be enabled
         }
 
         # Mock the import
@@ -256,14 +302,27 @@ class TestAudioCacheManagerDisabled:
     def audio_disabled_config(self) -> Dict[str, Any]:
         """Create a config with audio globally disabled."""
         return {
-            "sound": {
+            "sound": {  # AdapterLoader audio_provider path still checks legacy sound.enabled
                 "enabled": False,
                 "provider": "openai"
             },
-            "sounds": {
+            "tts": {
+                "enabled": False,
+                "provider": "openai"
+            },
+            "stt": {
+                "enabled": False,
+                "provider": "openai"
+            },
+            "tts_providers": {
                 "openai": {
                     "enabled": True,
                     "tts_model": "gpt-4o-mini-tts",
+                }
+            },
+            "stt_providers": {
+                "openai": {
+                    "enabled": True,
                     "stt_model": "whisper-1"
                 }
             }
@@ -317,7 +376,18 @@ class TestAdapterLoaderAudioDisabled:
                 "enabled": False,
                 "provider": "openai"
             },
-            "sounds": {
+            "tts": {
+                "enabled": False,
+                "provider": "openai"
+            },
+            "stt": {
+                "enabled": False,
+                "provider": "openai"
+            },
+            "tts_providers": {
+                "openai": {"enabled": True}
+            },
+            "stt_providers": {
                 "openai": {"enabled": True}
             }
         }
@@ -381,7 +451,10 @@ class TestAdapterLoaderAudioDisabled:
         # Should have DEBUG message about skipping audio service
         debug_records = [r for r in caplog.records if r.levelno == logging.DEBUG]
         assert any(
-            "Skipping audio service preload" in r.message and "audio is globally disabled" in r.message
+            "audio is globally disabled" in r.message and (
+                "Skipping audio preload" in r.message or
+                "Skipping audio service preload" in r.message
+            )
             for r in debug_records
         ), f"Expected DEBUG log about skipping audio. Got: {log_messages}"
 
