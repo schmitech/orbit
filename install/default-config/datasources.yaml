@@ -26,10 +26,13 @@ datasources:
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
     sslmode: ${DATASOURCE_POSTGRES_SSL_MODE}
+    # Connection pool & timeout settings
     use_connection_pool: true
     pool_size: 10
     min_pool_size: 2
     connection_timeout: 5
+    idle_timeout: 300
+    max_connection_lifetime: 1800
     statement_timeout: 10000
     validate_on_borrow: true
   supabase:
@@ -60,6 +63,9 @@ datasources:
     node: ${DATASOURCE_ELASTICSEARCH_NODE}
     verify_certs: true
     timeout: 30
+    max_retries: 3
+    retry_on_timeout: true
+    http_compress: true
     auth:
       username: ${DATASOURCE_ELASTICSEARCH_USERNAME}
       password: ${DATASOURCE_ELASTICSEARCH_PASSWORD}
@@ -83,6 +89,7 @@ datasources:
     min_pool_size: 2
     connection_timeout: 5
     statement_timeout: 10000
+    validate_on_borrow: true
   mysql:
     host: ${DATASOURCE_MYSQL_HOST}
     port: ${DATASOURCE_MYSQL_PORT}
@@ -94,6 +101,7 @@ datasources:
     min_pool_size: 2
     connection_timeout: 5
     statement_timeout: 10000
+    validate_on_borrow: true
   mariadb:
     host: ${DATASOURCE_MARIADB_HOST}
     port: ${DATASOURCE_MARIADB_PORT}
@@ -105,6 +113,7 @@ datasources:
     min_pool_size: 2
     connection_timeout: 5
     statement_timeout: 10000
+    validate_on_borrow: true
   sqlserver:
     host: ${DATASOURCE_SQLSERVER_HOST}
     port: ${DATASOURCE_SQLSERVER_PORT}
@@ -156,6 +165,10 @@ datasources:
     tls: ${DATASOURCE_MONGODB_TLS}
     retry_writes: true
     w: "majority"
+    max_pool_size: 50
+    min_pool_size: 5
+    wait_queue_timeout_ms: 5000
+    server_selection_timeout_ms: 5000
 
     # Legacy settings (for existing orbit database)
     apikey_collection: "api_keys"

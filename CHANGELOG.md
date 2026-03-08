@@ -1,5 +1,42 @@
 # Changelog
 
+## [2.6.0] - 2026-03-08
+
+### Core System Updates
+- Database & Scalability: Added database connection pooling, Redis resilience, and scalability fixes across PostgreSQL, MySQL, SQL Server, and Oracle; added DB scalability agent; fixed non-thread-safe SimpleConnectionPool, SQL injection in QA retriever ORDER BY, N+1 query pattern, and Redis permanent-disable-on-error behavior
+- Query Burst Cache: Added short-TTL (30s) query result caching at PipelineChatService level to absorb repeated identical requests (Redis primary with in-memory fallback); cache key from message, adapter, thread_id, file_ids, prompt_id
+- Server Shutdown: Fixed graceful shutdown hanging due to event loop deadlock; reordered shutdown (services first, thread pools last), thread pool shutdown in run_in_executor with timeout fallback
+- Startup & Config: Added startup script injection (startupScripts runtime config); configurable Express trust proxy via orbitchat.yaml for reverse-proxy/rate-limit deployments
+- CSV Pipeline: Added auto-split support for large CSVs in csv_to_duckdb pipeline (e.g. 450MB+), with --auto-split and --split-size CLI flags and per-chunk progress
+- API Key Scripts: Added --notes-file support to orbit key create and PoliceStats key generation; fixed script path resolution for project-root execution (e.g. ./utils/scripts/... from repo root)
+- Dependencies: Replaced deprecated google-generativeai (Gemini) library; updated dependency versions and Qdrant client
+- Retrievers: Fixed 18 bugs in server/retrievers including SQL injection via unvalidated collection_name, case-sensitive filter bypasses, redundant re-initialization, stale domain components, greedy JSON extraction, error message leakage, HTTP client resource leak, race condition in embedding client re-init, unbounded rerank cache growth, template/parameter handling, and unit test mocking
+- Pipeline: Fixed 11 pipeline bugs (context.message guards, pipeline metrics on early returns, step identification, refusal_message in response_validation, truncation_info, metadata=None in document_reranking, sync wrapper run_coroutine_threadsafe, Optional types, metrics export)
+- File Adapter: Fixed 20 failing file-adapter tests (metadata store idempotent delete/update, SQLite migration for embedding_provider/embedding_dimensions and file_id→id rename, MarkItDown text/csv and application/json, query endpoint adapter-specific config)
+- Other Fixes: Fixed JSON TOON conversion for object serialization; fixed unit tests across adapters, admin integration, and sound service
+
+### Chat-app & UI Improvements
+- orbitchat v3.4.0: NPM releases with merged markdown-renderer, improved markdown/mermaid rendering, and regression test prompts
+- Thread UX: Improved thread discoverability with inline "Follow up" button, placeholder "Start a new topic...", and dismissible banner; polish header links (new tab, rel noopener), accessibility (focus ring on logo), and logo size config docs
+- Desktop: Redesigned initial chat interface; centered conversation layout at max-w-4xl; iMessage-style right-aligned blue chat bubbles for user messages; configurable header logo dimensions and application.name as markdown with emoji support; application.favicon override with bundled fallback
+- Mobile: Fix viewport (h-dvh), TTS on mobile (AudioContext on user gesture, Opus MIME probing for iOS Safari), multi-tone sound effects; display cards in two columns; input autofocus, thread scrolling, Settings Dialog and reset flow; various mobile input and UX fixes
+- Tables & Scrolling: Fix content and table horizontal scrolling (including reply threads); remove static horizontal scroll bar in thread tables
+- Adapters: fix(adapters) enforce yaml+env pairing for visible/active agents (id vs name, VITE_ADAPTER_KEYS); v3.2.5 decouple display name from API key mapping (required id field)
+- Autocomplete: fix(chat) suppress autocomplete for unsupported adapters (capability flag or 404/405/501); only show suggestions panel when suggestions exist
+- Theme: Improve header/footer light theme (pure white default), header logo link to home, dark theme preserved; change default OpenAI voice to nova
+
+### Bug Fixes & Technical Improvements
+- CLI: fix(cli) reject unknown command-line options with error and help text
+- Config: Removed brandName header setting; logo-only branding; clarified logoHeight/logoWidth docs
+- Refactor: Major refactoring merging markdown components into orbitchat and removing markdown-renderer sub-project; removed directory/folder cleanups
+
+### API & Client Updates
+- orbitchat v3.4.0: Published NPM versions with UI, markdown, and config improvements
+
+### Documentation & Configuration
+- README: Revamp for pragmatic onboarding and MCP support (curl quick-start, stable release install, tutorials/technical articles/case studies); docs(readme) optimize for enterprise positioning (demo video, trust badges, 60s quickstart, Schmitech as official ORBIT enterprise provider)
+- Content: Update intro wording, demo video link, and minor wording/content updates; config changes for adapters and voice default
+
 ## [2.5.0] - 2026-02-20
 
 ### Core System Updates

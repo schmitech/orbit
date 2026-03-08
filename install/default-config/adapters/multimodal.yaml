@@ -4,18 +4,18 @@
 
 adapters:
   - name: "simple-chat-with-files"
-    enabled: false
+    enabled: true
     type: "passthrough"  # Passthrough adapter with file retrieval capabilities
     datasource: "none"  # No actual datasource needed (files managed separately)
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    # Provider overrides (optional - use when you want different providers than global defaults)
     inference_provider: "ollama"    # Override default inference provider
-    model: "granite4:1b"            # Specific model for this adapter
-    embedding_provider: "ollama"    # Embedding provider for file chunk retrieval (matches uploaded files)
-    # vision_provider: "ollama"     # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
-    # stt_provider: "whisper"      # STT provider for audio transcription (see stt.yaml) - local, free!
-    # tts_provider: "ollama"        # TTS provider for audio output (see tts.yaml)
+    model: "granite-cpu"            # Specific model for this adapter
+    embedding_provider: "ollama"            # Embedding provider for vector storage/retrieval
+    embedding_model: "nomic-embed-text"     # Embedding model (for text chunk embeddings)
+    vision_provider: "ollama"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    stt_provider: "qwen3-vl:8b"           # STT provider for audio transcription (see stt.yaml) - local, free!
+    
 
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
@@ -54,3 +54,216 @@ adapters:
       confidence_threshold: 0.3
       max_results: 10       # Retrieve 5 chunks for good similarity matching
       return_results: 10    # Send top 3 to LLM to stay within context limits
+
+  # Enhanced multimodal adapter with audio file transcription support
+  - name: "simple-chat-with-files-audio"
+    enabled: false
+    type: "passthrough"  # Passthrough adapter with file retrieval and audio transcription
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    # Provider overrides
+    inference_provider: "ollama"
+    model: "glm-4.7"
+    embedding_provider: "ollama"
+    vision_provider: "gemini"             # For image files
+    stt_provider: "gemini"                # For audio file transcription (see stt.yaml)
+    tts_provider: "gemini"                # For TTS output (see tts.yaml)
+
+    # Capabilities: Multimodal with audio support
+    capabilities:
+      retrieval_behavior: "conditional"
+      formatting_style: "clean"
+      supports_file_ids: true
+      supports_session_tracking: true
+      requires_api_key_validation: true
+      skip_when_no_files: true
+      optional_parameters:
+        - "file_ids"
+        - "api_key"
+        - "session_id"
+
+    config:
+      # Storage configuration
+      storage_backend: "filesystem"
+      storage_root: "./uploads"
+      max_file_size: 104857600  # 100MB (increased for audio files)
+
+      # Audio processing settings
+      enable_audio_transcription: true
+      audio_transcription_language: null  # Auto-detect language
+
+      # Processing configuration
+      chunking_strategy: "recursive"
+      chunk_size: 1000
+      chunk_overlap: 200
+
+      # Vector store integration
+      vector_store: "chroma"
+      collection_prefix: "files_"
+
+      # Supported file types (including audio)
+      supported_types:
+        - "application/pdf"
+        - "text/plain"
+        - "text/markdown"
+        - "text/csv"
+        - "application/json"
+        - "text/html"
+        - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        - "image/png"
+        - "image/jpeg"
+        - "image/tiff"
+        - "audio/wav"
+        - "audio/mpeg"
+        - "audio/mp3"
+        - "audio/ogg"
+        - "audio/flac"
+        - "audio/webm"
+
+      # Q&A settings
+      confidence_threshold: 0.3
+      max_results: 5
+      return_results: 3
+
+  # Local audio file transcription with Whisper (no API costs!)
+  # Upload audio files → Get transcriptions and chat about the content
+  # Uses local Whisper for transcription - completely free and offline!
+  - name: "local-voice-chat"
+    enabled: false
+    type: "passthrough"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+
+    # Provider overrides
+    inference_provider: "openai"
+    model: "gpt-5.4"
+    embedding_provider: "openai"
+    stt_provider: "whisper"  # Local Whisper for audio transcription (free, offline)
+
+    # Capabilities: Audio file transcription with chat
+    capabilities:
+      retrieval_behavior: "conditional"  # Only retrieves when audio files are uploaded
+      formatting_style: "clean"          # Clean format (no citations)
+      supports_file_ids: true            # Accepts audio file uploads
+      supports_session_tracking: true
+      requires_api_key_validation: true  # Validates file ownership
+      skip_when_no_files: true           # Skip retrieval when no files
+      optional_parameters:
+        - "file_ids"
+        - "api_key"
+        - "session_id"
+
+    config:
+      # Storage configuration
+      storage_backend: "filesystem"
+      storage_root: "./uploads"
+      max_file_size: 104857600  # 100MB for audio files
+
+      # Audio transcription settings
+      enable_audio_transcription: true
+      audio_transcription_language: null  # Auto-detect language
+
+      # Whisper-specific settings (nested under 'stt_providers' for WhisperAudioService)
+      stt_providers:
+        whisper:
+          enabled: true
+          model_size: "base"       # Whisper model: tiny, base, small, medium, large-v3
+          device: "cpu"            # Device: auto, cpu, cuda
+          language: null           # Auto-detect language (99 languages supported)
+          task: "transcribe"       # Task: transcribe or translate
+
+      # Processing configuration
+      chunking_strategy: "recursive"
+      chunk_size: 1000
+      chunk_overlap: 200
+
+      # Vector store integration
+      vector_store: "chroma"
+      collection_prefix: "audio_files_"
+
+      # Supported audio file types (transcribed with Whisper)
+      supported_types:
+        - "audio/wav"
+        - "audio/mpeg"
+        - "audio/mp3"
+        - "audio/mp4"
+        - "audio/ogg"
+        - "audio/flac"
+        - "audio/webm"
+        - "audio/x-m4a"
+        - "audio/aac"
+
+      # Q&A settings
+      confidence_threshold: 0.3
+      max_results: 5
+      return_results: 3
+
+      # Audio output: DISABLED (Whisper doesn't support TTS)
+      return_audio: false
+
+      # Performance notes:
+      # - tiny: ~32x faster, good for quick testing
+      # - base: ~16x faster, good balance (RECOMMENDED)
+      # - small: ~6x faster, better accuracy
+      # - medium: ~2x faster, high quality
+      # - large-v3: Best accuracy, slower
+
+  # Math teacher quadratic specialist with file support (exercise sheets, PDFs, images)
+  - name: "math-teacher-quadratic-files"
+    enabled: false
+    type: "passthrough"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    inference_provider: "ollama_cloud"
+    model: "qwen3-coder:480b-cloud"
+    embedding_provider: "openrouter"
+    embedding_model: "openai/text-embedding-3-small"
+    vision_provider: "openai"
+    tts_provider: "openai"
+
+    capabilities:
+      retrieval_behavior: "conditional"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_file_ids: true
+      supports_session_tracking: true
+      requires_api_key_validation: true
+      skip_when_no_files: true
+      optional_parameters:
+        - "file_ids"
+        - "api_key"
+        - "session_id"
+
+    config:
+      storage_backend: "filesystem"
+      storage_root: "./uploads"
+      max_file_size: 52428800  # 50MB
+
+      chunking_strategy: "recursive"
+      chunk_size: 1000
+      chunk_overlap: 100
+
+      vector_store: "chroma"
+      collection_prefix: "files_math_quadratic_"
+
+      confidence_threshold: 0.3
+      max_results: 10
+      return_results: 10
+
+      # Supported file types for exercise sheets, handouts, scanned problems
+      supported_types:
+        - "application/pdf"
+        - "text/plain"
+        - "text/markdown"
+        - "text/csv"
+        - "application/json"
+        - "text/html"
+        - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        - "image/png"
+        - "image/jpeg"
+        - "image/tiff"
+        - "image/webp"

@@ -134,8 +134,8 @@ docker run -d -p 3000:3000 -p 5173:5173 schmitech/orbit:basic
 
 **Stable Release (Recommended)**
 ```bash
-curl -L https://github.com/schmitech/orbit/releases/download/v2.5.0/orbit-2.5.0.tar.gz -o orbit-2.5.0.tar.gz
-tar -xzf orbit-2.5.0.tar.gz && cd orbit-2.5.0
+curl -L https://github.com/schmitech/orbit/releases/download/v2.6.0/orbit-2.6.0.tar.gz -o orbit-2.6.0.tar.gz
+tar -xzf orbit-2.6.0.tar.gz && cd orbit-2.6.0
 
 cp env.example .env && ./install/setup.sh
 source venv/bin/activate

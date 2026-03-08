@@ -17,7 +17,7 @@ inference:
     enabled: true
     use_preset: "smollm2-1.7b-cpu"  # Reference to preset in config/ollama.yaml
   ollama_cloud:
-    enabled: true
+    enabled: false
     api_key: ${OLLAMA_CLOUD_API_KEY}
     model: "gpt-oss:120b" # Supported models: https://docs.ollama.com/cloud
     stream: true
@@ -154,7 +154,7 @@ inference:
       max_wait_ms: 30000
       exponential_base: 2
   tensorrt:
-    enabled: true
+    enabled: false
     # Mode: "direct" (load model locally with TensorRT-LLM) or "api" (connect to trtllm-serve)
     mode: "direct"
 
@@ -249,7 +249,7 @@ inference:
       max_wait_ms: 30000
       exponential_base: 2
   llama_cpp:
-    enabled: true
+    enabled: false
     # Mode: "direct" (load model locally with Python bindings) or "api" (connect to llama.cpp server)
     mode: "direct"
 
@@ -286,20 +286,20 @@ inference:
       "<|end_of_role|>"
     ]   
   gemini:
-    enabled: true
+    enabled: false
     api_key: ${GOOGLE_API_KEY}
-    model: "gemini-3.1-pro-preview"
-    context_window: 1000000  # Gemini supports up to 1M tokens
-    temperature: 1.0
-    top_p: 0.95
-    top_k: 40
-    max_tokens: 32768
+    model: "gemini-3-pro-preview"
+    context_window: 1000000  # Gemini supports up to 1M tokens (input context)
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 8192         # Max output tokens; 1024 was causing cut-off responses
     stream: true
     transport: "rest"
     # Safety settings - set to true to disable all safety filters (useful for reducing false positives)
     disable_safety: true
   groq:
-    enabled: true
+    enabled: false
     api_key: ${GROQ_API_KEY}
     model: "llama-3.1-8b-instant"
     context_window: 131072  # Llama 3.1 supports 128K context on Groq
@@ -308,7 +308,7 @@ inference:
     max_tokens: 32000
     stream: true
   deepseek:
-    enabled: true
+    enabled: false
     api_key: ${DEEPSEEK_API_KEY}
     api_base: "https://api.deepseek.com/v1"
     model: "deepseek-chat"
@@ -351,7 +351,7 @@ inference:
     stream: true
     verbose: true
   openai:
-    enabled: true
+    enabled: false
     api_key: ${OPENAI_API_KEY}
     model: "gpt-5"
     context_window: 128000  # GPT-4 Turbo/GPT-4o supports 128K context
@@ -360,7 +360,7 @@ inference:
     max_tokens: 16000
     stream: true
   mistral:
-    enabled: true
+    enabled: false
     api_key: ${MISTRAL_API_KEY}
     api_base: "https://api.mistral.ai/v1"
     model: "mistral-small-latest"
@@ -370,7 +370,7 @@ inference:
     max_tokens: 1024
     stream: true
   anthropic:
-    enabled: true
+    enabled: false
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
     model: "claude-sonnet-4-20250514"
@@ -390,7 +390,7 @@ inference:
     stream: true
     show_thinking: false
   xai:
-    enabled: true
+    enabled: false
     api_key: ${XAI_API_KEY}
     api_base: "https://api.x.ai/v1"
     model: "grok-4-1-fast"
@@ -444,7 +444,7 @@ inference:
     stream: true
     stop: []
   openrouter:
-    enabled: true
+    enabled: false
     api_key: ${OPENROUTER_API_KEY}
     base_url: "https://openrouter.ai/api/v1"
     model: "meta-llama/llama-3.1-8b-instruct"
@@ -455,7 +455,7 @@ inference:
     stream: true
     verbose: false
   cohere:
-    enabled: true
+    enabled: false
     api_key: ${COHERE_API_KEY}
     api_base: "https://api.cohere.ai/compatibility/v1"
     model: "command-a-03-2025"
