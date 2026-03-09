@@ -1,0 +1,64 @@
+services:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Ollama - LLM inference server
+  # ═══════════════════════════════════════════════════════════════════════════
+  ollama:
+    image: ollama/ollama:latest
+    container_name: orbit-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Ollama Init - One-shot model puller
+  # ═══════════════════════════════════════════════════════════════════════════
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: orbit-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Pulling models..."
+        ollama pull smollm2
+        ollama pull nomic-embed-text:latest
+        echo "Models pulled successfully."
+    restart: "no"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ORBIT - API server
+  # ═══════════════════════════════════════════════════════════════════════════
+  orbit:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: orbit-server
+    ports:
+      - "3000:3000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=ollama:11434
+      - ORBIT_PRESET=auto
+    volumes:
+      - orbit-data:/orbit/data
+      - orbit-logs:/orbit/logs
+    restart: unless-stopped
+
+volumes:
+  ollama-data:
+  orbit-data:
+  orbit-logs:

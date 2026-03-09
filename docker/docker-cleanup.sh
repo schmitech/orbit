@@ -143,8 +143,8 @@ fi
 
 # Check for open ports
 echo ""
-echo -e "${BLUE}Checking for open Docker-related ports (3000, 5432, 6379, 8000, 8080, 9000)...${NC}"
-PORTS=(3000 5432 6379 8000 8080 9000)
+echo -e "${BLUE}Checking for open Docker-related ports (3000, 5432, 6379, 8000, 8080, 9000, 11434)...${NC}"
+PORTS=(3000 5432 6379 8000 8080 9000 11434)
 ANY_OPEN=false
 for PORT in "${PORTS[@]}"; do
     if lsof -i :$PORT &>/dev/null 2>&1 || netstat -an | grep -q ":$PORT " 2>/dev/null; then

@@ -57,11 +57,13 @@ curl -X POST https://orbit.schmitech.ai/v1/chat \
   }'
 ```
 
-**B) Run ORBIT locally with Docker**
+**B) Run ORBIT locally with Docker Compose**
 
 ```bash
-docker run -d --name orbit -p 3000:3000 -p 5173:5173 schmitech/orbit:basic
+git clone https://github.com/schmitech/orbit.git && cd orbit/docker
+docker compose up -d
 
+# Wait for services to start, then test
 curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
   -H 'X-API-Key: default-key' \
@@ -71,6 +73,8 @@ curl -X POST http://localhost:3000/v1/chat \
     "stream": false
   }'
 ```
+
+For GPU acceleration (NVIDIA): `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d`
 
 ---
 
@@ -127,12 +131,16 @@ curl -X POST http://localhost:3000/v1/chat \
 
 ### 📦 Deployment
 
-**Docker (Fastest Path)**
+**Docker Compose (Fastest Path)**
 ```bash
-docker run -d -p 3000:3000 -p 5173:5173 schmitech/orbit:basic
+git clone https://github.com/schmitech/orbit.git && cd orbit/docker
+docker compose up -d
 ```
+This starts ORBIT + Ollama with SmolLM2, auto-pulls models, and exposes the API on port 3000. Connect [orbitchat](https://www.npmjs.com/package/orbitchat) from your host: `ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' npx orbitchat`
 
-**Stable Release (Recommended)**
+See the full [Docker Guide](docker/README.md) for GPU mode, volumes, and configuration.
+
+**Stable Release (Recommended for Production)**
 ```bash
 curl -L https://github.com/schmitech/orbit/releases/download/v2.6.0/orbit-2.6.0.tar.gz -o orbit-2.6.0.tar.gz
 tar -xzf orbit-2.6.0.tar.gz && cd orbit-2.6.0

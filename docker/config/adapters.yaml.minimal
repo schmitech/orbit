@@ -1,0 +1,7 @@
+# Adapter configurations for ORBIT Docker (minimal)
+# Only loads the passthrough adapter category (simple-chat)
+
+adapters: []
+
+import:
+  - "adapters/passthrough.yaml"

@@ -250,7 +250,8 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
         # Check if provider is enabled in config
         if config:
             provider_config = visions_config.get(provider_key, {})
-            enabled = provider_config.get('enabled', True)
+            # Default to False — if vision.yaml is not imported, no vision services should register
+            enabled = provider_config.get('enabled', False)
             if enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false'):
                 logger.info(f"Skipping {display_name} vision service - disabled in config")
                 continue
@@ -301,10 +302,11 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
     """
     if config:
         # Check global enable flags
+        # Default to False — if tts.yaml/stt.yaml are not imported, no audio services should register
         tts_config = config.get('tts', {})
         stt_config = config.get('stt', {})
-        tts_enabled = tts_config.get('enabled', True)
-        stt_enabled = stt_config.get('enabled', True)
+        tts_enabled = tts_config.get('enabled', False)
+        stt_enabled = stt_config.get('enabled', False)
 
         # Both TTS and STT must be disabled to skip all
         all_disabled = (not _is_enabled(tts_enabled)) and (not _is_enabled(stt_enabled))

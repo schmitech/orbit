@@ -21,6 +21,13 @@ general:
     required: true
   inference_provider: "ollama"
 
+# DISABLED - Not needed for passthrough chat (imported yamls set enabled: true)
+embedding:
+  enabled: false
+
+reranker:
+  enabled: false
+
 # DISABLED - Saves ~50MB (pycld2, langdetect, langid libraries)
 language_detection:
   enabled: false
@@ -30,6 +37,13 @@ performance:
   workers: 4
   keep_alive_timeout: 30
   adapter_preload_timeout: 120
+
+  # DISABLED - Not needed for basic chat
+  compression:
+    enabled: false
+  etag_caching:
+    enabled: false
+
   thread_pools:
     io_workers: 20
     cpu_workers: 10
@@ -43,6 +57,8 @@ fault_tolerance:
     recovery_timeout: 30
     success_threshold: 3
     timeout: 30
+    max_recovery_timeout: 300.0
+    enable_exponential_backoff: true
   execution:
     strategy: "all"
     timeout: 35
@@ -64,6 +80,10 @@ api_keys:
   header_name: "X-API-Key"
   prefix: "orbit_"
 
+prompt_service:
+  cache:
+    ttl_seconds: 3600
+
 logging:
   level: "INFO"
   handlers:
@@ -80,6 +100,21 @@ logging:
       format: "text"
   capture_warnings: true
   propagate: false
+  loggers:
+    py.warnings:
+      level: "ERROR"
+      propagate: false
+      disabled: true
+    uvicorn:
+      level: "WARNING"
+      propagate: false
+    uvicorn.access:
+      level: "WARNING"
+      propagate: false
+    httpx:
+      level: "WARNING"
+    httpcore:
+      level: "WARNING"
 
 # DISABLED - Not needed for basic chat
 clock_service:
@@ -143,6 +178,7 @@ files:
   processing:
     docling_enabled: false
     markitdown_enabled: false
+    processor_priority: "docling"
 
 # DISABLED - Reduces overhead (enable if you need dashboard)
 monitoring:

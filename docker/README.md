@@ -1,82 +1,84 @@
-# ORBIT Basic Docker Image - Quick Start Guide
+# ORBIT Docker - Quick Start Guide
 
-This guide will help you get started with the ORBIT basic Docker image - a minimal, self-contained image perfect for testing and onboarding new users.
+This guide will help you get started with ORBIT using docker-compose. The setup uses separate containers for better isolation, flexibility, and GPU configuration.
+
+## Architecture
+
+```
+docker-compose.yml
+├── ollama        (official ollama/ollama image, port 11434)
+├── ollama-init   (one-shot: pulls smollm2 + nomic-embed-text models)
+└── orbit         (lean Python server image, port 3000)
+```
+
+- **Ollama** runs in its own container with a persistent volume for models
+- **ORBIT server** is a lean Python image (no Ollama, no Node.js bundled)
+- **orbitchat** is installed separately on the host via `npm install -g orbitchat`
 
 ## What's Included
 
-The basic image contains:
 - **ORBIT server** with core functionality
-- **orbitchat web app** - browser-based chat interface (no installation needed!)
 - **simple-chat adapter** - a conversational chatbot adapter
-- **Ollama** with pre-pulled models:
-  - **granite4:1b** - chat/inference model
+- **Ollama** (separate container) with auto-pulled models:
+  - **smollm2** - chat/inference model (ultra-fast, ~1.2GB)
   - **nomic-embed-text** - embeddings model
 - **Default database** - pre-configured so no API key creation needed
 - **Default configuration** - optimized for quick start
+- **Automatic GPU/CPU detection** - selects optimal preset at runtime
 
-No API keys or external services required - just pull and run!
+No external API keys or cloud services required!
 
 ## Prerequisites
 
-- **Docker** (version 20.10 or higher)
+- **Docker** (version 20.10 or higher) with **Docker Compose** v2
 - **4GB+ RAM** available for Docker
-- **2GB+ disk space** for the image
+- **3GB+ disk space** for images and models
+- **Node.js** (optional, for orbitchat web interface)
 
 ## Quick Start
 
-### 1. Pull the Image
+### 1. Start the Services
 
 ```bash
-docker pull schmitech/orbit:basic
+cd docker
+docker compose up -d
 ```
 
-Or use the latest tag:
+This starts three containers:
+- **ollama** - LLM inference server (port 11434)
+- **ollama-init** - pulls required models then exits
+- **orbit** - ORBIT API server (port 3000)
+
+### 2. Verify Everything is Running
+
 ```bash
-docker pull schmitech/orbit:latest
+# Check container status
+docker compose ps
 ```
 
-### 2. Run the Container
+You should see `ollama` and `orbit` as healthy, and `ollama-init` as exited (0).
 
 ```bash
-docker run -d \
-  --name orbit-basic \
-  -p 5173:5173 \
-  -p 3000:3000 \
-  schmitech/orbit:basic
-```
-
-This exposes:
-- **Port 5173** - orbitchat web app (open in your browser)
-- **Port 3000** - ORBIT API (used by the web app)
-
-### 3. Open the Web App
-
-Open your browser and go to:
-```
-http://localhost:5173
-```
-
-You can start chatting immediately - no setup required!
-
-**Note:** The `ORBIT_DEFAULT_ADMIN_PASSWORD` environment variable is optional. If not set, it defaults to `admin123`. It's only needed if you want to use CLI commands (like creating API keys). The API works without authentication for the simple-chat adapter.
-
-### 4. Verify It's Running (Optional)
-
-Check the container status:
-```bash
-docker ps | grep orbit-basic
-```
-
-Test the health endpoint:
-```bash
+# Test the health endpoint
 curl http://localhost:3000/health
+
+# Verify models are available
+curl http://localhost:11434/api/tags
 ```
 
-You should see a response indicating the server is healthy.
+### 3. Connect orbitchat (Optional)
 
-### 5. Test the API (Optional)
+Install and run the orbitchat web interface from your host machine:
 
-Make a simple chat request:
+```bash
+npm install -g orbitchat
+ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' orbitchat
+```
+
+Then open `http://localhost:5173` in your browser.
+
+### 4. Test the API
+
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
@@ -90,97 +92,93 @@ curl -X POST http://localhost:3000/v1/chat \
   }'
 ```
 
+## GPU Mode (NVIDIA)
+
+To enable NVIDIA GPU acceleration for Ollama:
+
+```bash
+cd docker
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+```
+
+This requires:
+- NVIDIA GPU with compatible drivers
+- [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installed
+
+The ORBIT server automatically detects the GPU and selects the appropriate preset (`smollm2-1.7b-gpu` vs `smollm2-1.7b-cpu`).
+
+You can also force a specific preset:
+
+```bash
+# In docker-compose.yml, change the orbit service environment:
+environment:
+  - ORBIT_PRESET=smollm2-1.7b-gpu
+```
+
 ## Configuration
 
 ### Environment Variables
 
-Optional environment variables:
-- `ORBIT_DEFAULT_ADMIN_PASSWORD` - Admin password for CLI access (default: `admin123` if not set)
-  - Only needed if you want to use CLI commands (login, creating API keys, etc.)
-  - The API works without authentication for the simple-chat adapter
+Set these in `docker-compose.yml` under the `orbit` service:
+
+- `ORBIT_PRESET` - Override GPU auto-detection (default: `auto`)
+  - `auto` - detect GPU and select appropriate preset
+  - `smollm2-1.7b-gpu` - force GPU preset
+  - `smollm2-1.7b-cpu` - force CPU preset
+  - Any preset name from `ollama.yaml`
+- `OLLAMA_HOST` - Ollama service address (default: `ollama:11434`)
+- `ORBIT_DEFAULT_ADMIN_PASSWORD` - Admin password for CLI access (default: `admin123`)
 
 ### Persistent Data
 
-To persist data across container restarts, mount volumes:
+Docker-compose volumes are configured by default:
 
-```bash
-docker run -d \
-  --name orbit-basic \
-  -p 5173:5173 \
-  -p 3000:3000 \
-  -v orbit-data:/orbit/data \
-  -v orbit-logs:/orbit/logs \
-  schmitech/orbit:basic
-```
+- `ollama-data` - Ollama models (persists across restarts, no re-download)
+- `orbit-data` - ORBIT application data
+- `orbit-logs` - ORBIT server logs
 
-Or with a custom admin password (only needed for CLI access):
-```bash
-docker run -d \
-  --name orbit-basic \
-  -p 5173:5173 \
-  -p 3000:3000 \
-  -e ORBIT_DEFAULT_ADMIN_PASSWORD=your-secure-password \
-  -v orbit-data:/orbit/data \
-  -v orbit-logs:/orbit/logs \
-  schmitech/orbit:basic
-```
+Models are only pulled once by `ollama-init`. Subsequent `docker compose down && docker compose up -d` will reuse cached models.
 
 ## Using the CLI
 
 ### Using the Helper Script (Recommended)
 
-The easiest way to use the CLI is with the `orbit-docker.sh` helper script:
-
 ```bash
 # Login as admin (will prompt for password, default: admin123)
-./docker/orbit-docker.sh --container orbit-basic login
+./docker/orbit-docker.sh --container orbit-server login
 
-# Create a default API key with a simple prompt (using --prompt-text)
-./docker/orbit-docker.sh --container orbit-basic cli key create \
+# Create a default API key with a simple prompt
+./docker/orbit-docker.sh --container orbit-server cli key create \
   --adapter simple-chat \
   --name "Default Chat Key" \
   --prompt-name "Default Assistant Prompt" \
   --prompt-text "You are a helpful assistant. Be concise and friendly."
 
-# Or create a key with a prompt from a file
-./docker/orbit-docker.sh --container orbit-basic cli key create \
-  --adapter simple-chat \
-  --name "My App Key" \
-  --prompt-name "Custom Prompt" \
-  --prompt-file /path/to/prompt.txt
-
 # List API keys
-./docker/orbit-docker.sh --container orbit-basic cli key list
+./docker/orbit-docker.sh --container orbit-server cli key list
 
 # Check status
-./docker/orbit-docker.sh --container orbit-basic status
+./docker/orbit-docker.sh --container orbit-server status
 ```
 
 ### Direct Docker Exec
 
-You can also access the CLI directly:
-
 ```bash
 # Login as admin
-docker exec -it orbit-basic python /orbit/bin/orbit.py login --username admin
+docker exec -it orbit-server python /orbit/bin/orbit.py login --username admin
 
-# Create an API key with a simple prompt (using --prompt-text)
-docker exec -it orbit-basic python /orbit/bin/orbit.py key create \
+# Create an API key
+docker exec -it orbit-server python /orbit/bin/orbit.py key create \
   --adapter simple-chat \
   --name "Default Key" \
   --prompt-name "Default Prompt" \
   --prompt-text "You are a helpful assistant. Be concise and friendly."
 
-# Create an API key without a prompt
-docker exec -it orbit-basic python /orbit/bin/orbit.py key create \
-  --adapter simple-chat \
-  --name "My App"
-
 # List API keys
-docker exec -it orbit-basic python /orbit/bin/orbit.py key list
+docker exec -it orbit-server python /orbit/bin/orbit.py key list
 ```
 
-**Note:** The CLI supports both `--prompt-text` (direct string) and `--prompt-file` (file path). Use `--prompt-text` for simple prompts, and `--prompt-file` for longer prompts stored in files.
+The CLI supports both `--prompt-text` (direct string) and `--prompt-file` (file path).
 
 ## API Examples
 
@@ -215,269 +213,125 @@ curl -X POST http://localhost:3000/v1/chat \
   --no-buffer
 ```
 
-### With Custom API Key
-
-To create and use your own API key using the CLI:
+## Stopping the Services
 
 ```bash
-curl -X POST http://localhost:3000/v1/chat \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: orbit_your-key-here' \
-  -H 'X-Session-ID: my-session' \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "What is ORBIT?"}
-    ],
-    "stream": false
-  }'
-```
+cd docker
 
-## Stopping the Container
+# Stop all containers
+docker compose down
 
-```bash
-# Stop the container
-docker stop orbit-basic
-
-# Remove the container
-docker rm orbit-basic
+# Stop and remove volumes (deletes models and data)
+docker compose down -v
 ```
 
 ## Troubleshooting
 
-### Container Won't Start
+### Services Won't Start
 
 Check the logs:
 ```bash
-docker logs orbit-basic
+docker compose logs           # All services
+docker compose logs orbit     # ORBIT server only
+docker compose logs ollama    # Ollama only
 ```
 
 ### Port Already in Use
 
-Use different ports:
-```bash
-docker run -d \
-  --name orbit-basic \
-  -p 5174:5173 \
-  -p 3001:3000 \
-  schmitech/orbit:basic
+Change ports in `docker-compose.yml`:
+```yaml
+services:
+  orbit:
+    ports:
+      - "3001:3000"   # Use host port 3001 instead
+  ollama:
+    ports:
+      - "11435:11434" # Use host port 11435 instead
 ```
-
-Then access the web app at `http://localhost:5174`
 
 ### Out of Memory
 
-Increase Docker's memory limit in Docker Desktop settings, or ensure you have at least 4GB RAM available.
+Increase Docker's memory limit in Docker Desktop settings, or ensure at least 4GB RAM is available.
 
-### Model Not Found
+### Models Not Available
 
-The model should be included in the image. If you see errors about missing models, check:
+The `ollama-init` service pulls models on first start. Check its logs:
 ```bash
-docker exec orbit-basic ollama list
+docker compose logs ollama-init
 ```
 
-You should see `granite4:1b` and `nomic-embed-text` in the output. If not, you can pull them manually:
+If it failed, you can manually pull models:
 ```bash
-docker exec orbit-basic ollama pull granite4:1b
-docker exec orbit-basic ollama pull nomic-embed-text:latest
+docker exec orbit-ollama ollama pull smollm2
+docker exec orbit-ollama ollama pull nomic-embed-text:latest
 ```
 
-## What's Different from the Full Image?
+### ORBIT Can't Connect to Ollama
 
-The basic image is optimized for simplicity:
-- **Includes orbitchat web app** - ready-to-use browser interface, no npm install needed
-- **Only simple-chat adapter** - no file uploads, no retrieval, just chat
-- **Pre-included Ollama + model** - granite4:1b is pre-pulled in the image
-- **Default database included** - no need to create API keys to get started
-- **Default dependencies only** - no cloud SDKs or extra packages
+Ensure the `ollama` service is healthy:
+```bash
+docker compose ps
+curl http://localhost:11434/api/tags
+```
 
-For full functionality (file uploads, multiple adapters, etc.), use the standard ORBIT Docker setup as described in the main README.
+The ORBIT entrypoint waits for Ollama to be ready, but if Ollama takes too long to start, try restarting:
+```bash
+docker compose restart orbit
+```
 
-## Building and Publishing the Basic Image
-
-If you want to build and publish your own basic Docker image, follow these steps:
+## Building and Publishing
 
 ### Prerequisites for Building
 
 - **Docker** (version 20.10 or higher)
 - **Git** (to clone the repository)
 - **Docker Hub account** (if publishing)
-- **12GB+ disk space** (for the build process, Node.js, orbitchat, and model download)
+- **4GB+ disk space** (for the build process - no models bundled in image)
 
-### Step-by-Step Instructions
-
-#### 1. Clone the Repository
-
-```bash
-git clone https://github.com/schmitech/orbit.git
-cd orbit
-```
-
-#### 2. Navigate to Docker Directory
+### Build the Image
 
 ```bash
 cd docker
+chmod +x publish.sh
+
+# Build only
+./publish.sh --build
+
+# Build and publish to Docker Hub
+./publish.sh --publish
+
+# Build and publish with version tag
+./publish.sh --publish --tag v1.0.0
 ```
 
-#### 3. Make the Publish Script Executable
-
-```bash
-chmod +x publish-basic.sh
-```
-
-#### 4. Build the Image
-
-Build the Docker image locally:
-
-```bash
-./publish-basic.sh --build
-```
-
-This will:
-- Install Node.js and orbitchat web app
-- Install Ollama in the image
-- Pull the granite4:1b model (chat) and nomic-embed-text (embeddings)
-- Copy the default database (orbit.db)
-- Build the Docker image
-- Tag it as `schmitech/orbit:basic` and `schmitech/orbit:latest`
-
-**Note:** The first build may take 15-30 minutes depending on your internet connection, as it needs to:
-- Install system dependencies
-- Install Node.js and orbitchat
-- Install Python packages
-- Install Ollama and pull the models
-
-#### 5. Test the Image Locally
-
-Before publishing, test the image:
-
-```bash
-# Run the container
-docker run -d \
-  --name orbit-basic-test \
-  -p 5173:5173 \
-  -p 3000:3000 \
-  schmitech/orbit:basic
-
-# Wait for startup (Ollama and services need time to initialize)
-sleep 30
-
-# Test the health endpoint
-curl http://localhost:3000/health
-
-# Open the web app in your browser
-open http://localhost:5173  # macOS
-# or: xdg-open http://localhost:5173  # Linux
-# or manually open http://localhost:5173 in your browser
-
-# (Optional) Test the API directly
-curl -X POST http://localhost:3000/v1/chat \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: default-key' \
-  -H 'X-Session-ID: test-session' \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "Hello, what is 2+2?"}
-    ],
-    "stream": false
-  }'
-
-# Clean up
-docker stop orbit-basic-test
-docker rm orbit-basic-test
-```
-
-#### 6. Login to Docker Hub (if Publishing)
-
-If you want to publish to Docker Hub:
-
-```bash
-docker login
-```
-
-Enter your Docker Hub username and password when prompted.
-
-#### 7. Publish to Docker Hub
-
-Publish the image with the default tags:
-
-```bash
-./publish-basic.sh --publish
-```
-
-Or publish with a version tag:
-
-```bash
-./publish-basic.sh --publish --tag v1.0.0
-```
-
-This will:
-- Build the image (if not already built)
-- Push `schmitech/orbit:basic`
-- Push `schmitech/orbit:latest`
-- Push `schmitech/orbit:basic-v1.0.0` (if `--tag` is specified)
+The build creates a lean server-only image (no Ollama, no Node.js, no models). Models are pulled at runtime by the `ollama-init` service.
 
 ### Build Script Options
 
-The `publish-basic.sh` script supports the following options:
-
 ```bash
-# Build only (no publish)
-./publish-basic.sh --build
-
-# Build and publish
-./publish-basic.sh --publish
-
-# Build and publish with version tag
-./publish-basic.sh --publish --tag v1.0.0
-
-# Show help
-./publish-basic.sh --help
+./publish.sh --build              # Build the Docker image
+./publish.sh --publish            # Build and push to Docker Hub
+./publish.sh --publish --tag v1.0.0  # Build, push, and tag version
+./publish.sh --help               # Show help
 ```
 
 ### Troubleshooting the Build
 
-#### Build Fails with Missing Config Files
-
-Ensure the required configuration files exist:
-
+**Build fails with missing config files:**
 ```bash
 ls install/default-config/ollama.yaml
 ls install/default-config/inference.yaml
 ls install/orbit.db.default
 ```
 
-#### Ollama Model Pull Fails
-
-If the model pull fails during build:
-
-1. Check your internet connection
-2. The build starts Ollama temporarily to pull the model
-3. You can test Ollama manually: `ollama pull granite4:1b`
-
-#### Docker Build Runs Out of Memory
-
-If the build fails due to memory issues:
-
-1. Increase Docker's memory limit in Docker Desktop settings
-2. Close other applications to free up RAM
-3. The build process needs at least 4GB RAM available
-
-#### Image Size is Very Large
-
-The basic image should be around 4-5GB including Node.js, orbitchat, Ollama, and the models. If it's significantly larger:
-
-1. Check that you're using `Dockerfile.basic` (not the full Dockerfile)
-2. Ensure you're not including unnecessary files
+**Docker build runs out of memory:** Increase Docker's memory limit to at least 4GB.
 
 ## Next Steps
 
-Once you're comfortable with the basic image, you can:
-1. Explore the full ORBIT capabilities using the standard Docker setup
+Once you're comfortable with the basic setup, you can:
+1. Explore the full ORBIT capabilities with additional adapters
 2. Customize the configuration for your needs
-3. Add additional adapters and models
-4. Integrate with your applications
+3. Add more Ollama models by editing the `ollama-init` command
+4. Integrate with your applications using the API
 
-For more information, see the main [README.md](README.md).
-
-Happy Orbiting! 🚀
-
+For more information, see the main [README.md](../README.md).

@@ -106,12 +106,19 @@ class AdapterLoader:
             logger.warning(f"No inference provider configured for adapter '{adapter_name}' (neither in adapter config nor global config)")
 
         # Preload embedding service if adapter has an override or uses global default
-        embedding_provider = adapter_config.get('embedding_provider')
-        if not embedding_provider:
-            # Use global default provider
-            embedding_provider = self.config.get('embedding', {}).get('provider')
-            if embedding_provider:
-                logger.debug(f"Using global default embedding_provider: {embedding_provider}")
+        # First check if embeddings are globally enabled
+        embedding_global_config = self.config.get('embedding', {})
+        embedding_globally_enabled = embedding_global_config.get('enabled', True)
+        if embedding_globally_enabled is False or (isinstance(embedding_globally_enabled, str) and embedding_globally_enabled.lower() == 'false'):
+            logger.debug(f"Skipping embedding preload for adapter '{adapter_name}' - embeddings are globally disabled")
+            embedding_provider = None
+        else:
+            embedding_provider = adapter_config.get('embedding_provider')
+            if not embedding_provider:
+                # Use global default provider
+                embedding_provider = embedding_global_config.get('provider')
+                if embedding_provider:
+                    logger.debug(f"Using global default embedding_provider: {embedding_provider}")
 
         if embedding_provider:
             logger.info(f"Preloading embedding provider '{embedding_provider}' for adapter '{adapter_name}'")

@@ -2,7 +2,7 @@
 set -e
 
 echo "═══════════════════════════════════════════════════════════════════════════"
-echo "  ORBIT Basic - Starting with Ollama"
+echo "  ORBIT Server - Starting"
 echo "═══════════════════════════════════════════════════════════════════════════"
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -106,96 +106,47 @@ for adapter_file in /orbit/config/adapters/*.yaml; do
 done
 echo "Updated adapter configs with preset: $SELECTED_PRESET"
 
-# Start Ollama in the background
-echo "Starting Ollama server..."
-ollama serve &
-OLLAMA_PID=$!
+# ═══════════════════════════════════════════════════════════════════════════
+# Rewrite Ollama URLs for docker-compose networking
+# ═══════════════════════════════════════════════════════════════════════════
+OLLAMA_URL="http://${OLLAMA_HOST:-localhost:11434}"
+echo "Rewriting Ollama URLs to: $OLLAMA_URL"
+find /orbit/config -name '*.yaml' -exec sed -i "s|http://localhost:11434|${OLLAMA_URL}|g" {} +
 
+# ═══════════════════════════════════════════════════════════════════════════
 # Wait for Ollama to be ready
-echo "Waiting for Ollama to be ready..."
+# ═══════════════════════════════════════════════════════════════════════════
+echo "Waiting for Ollama to be ready at ${OLLAMA_URL}..."
 MAX_RETRIES=30
 RETRY_COUNT=0
-while ! curl -s http://localhost:11434/api/tags > /dev/null 2>&1; do
+while ! curl -s "${OLLAMA_URL}/api/tags" > /dev/null 2>&1; do
     RETRY_COUNT=$((RETRY_COUNT + 1))
     if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-        echo "Error: Ollama failed to start after $MAX_RETRIES attempts"
+        echo "Error: Ollama failed to respond after $MAX_RETRIES attempts"
         exit 1
     fi
     echo "Waiting for Ollama... (attempt $RETRY_COUNT/$MAX_RETRIES)"
     sleep 2
 done
-echo "✓ Ollama is ready"
+echo "Ollama is ready"
 
-# Verify SmolLM2 model is available
-echo "Checking for SmolLM2 model..."
-if ollama list | grep -qi "smollm2"; then
-    echo "✓ Model SmolLM2 is available"
-else
-    echo "Model not found, pulling smollm2:latest..."
-    ollama pull smollm2:latest
-    echo "✓ Model SmolLM2 pulled successfully"
-fi
-
-# Verify nomic-embed-text model is available for embeddings
-echo "Checking for nomic-embed-text model..."
-if ollama list | grep -q "nomic-embed-text"; then
-    echo "✓ Model nomic-embed-text is available"
-else
-    echo "Model not found, pulling nomic-embed-text:latest..."
-    ollama pull nomic-embed-text:latest
-    echo "✓ Model nomic-embed-text pulled successfully"
-fi
-
-# Start the ORBIT server in the background
-echo "Starting ORBIT server..."
-python /orbit/server/main.py --config /orbit/config/config.yaml &
-ORBIT_PID=$!
-
-# Wait for ORBIT server to be ready
-echo "Waiting for ORBIT server to be ready..."
-MAX_RETRIES=30
-RETRY_COUNT=0
-while ! curl -s http://localhost:3000/health > /dev/null 2>&1; do
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-        echo "Error: ORBIT server failed to start after $MAX_RETRIES attempts"
-        exit 1
-    fi
-    echo "Waiting for ORBIT server... (attempt $RETRY_COUNT/$MAX_RETRIES)"
-    sleep 2
-done
-echo "✓ ORBIT server is ready"
-
-# Start orbitchat web app (direct mode with default API key)
-echo "Starting orbitchat web app on port 5173..."
-
-orbitchat --api-url http://localhost:3000 --api-key default-key --host 0.0.0.0 &
-ORBITCHAT_PID=$!
-
-echo "✓ orbitchat web app started"
 echo ""
 echo "═══════════════════════════════════════════════════════════════════════════"
-echo "  ORBIT Basic is ready!"
+echo "  ORBIT Server is starting"
 echo "═══════════════════════════════════════════════════════════════════════════"
-echo "  Web App:  http://localhost:5173"
 echo "  API:      http://localhost:3000"
-echo "  Model:    SmolLM2 1.7B"
+echo "  Ollama:   $OLLAMA_URL"
 echo "  Preset:   $SELECTED_PRESET"
 if [ "$DETECTED_GPU" = "cpu" ]; then
     echo "  Hardware: CPU"
 else
     echo "  Hardware: GPU ($DETECTED_GPU)"
 fi
+echo ""
+echo "  Connect orbitchat from host:"
+echo "    ORBIT_ADAPTER_KEYS='{\"simple-chat\":\"default-key\"}' orbitchat"
 echo "═══════════════════════════════════════════════════════════════════════════"
 echo ""
 
-# Handle shutdown gracefully
-trap "echo 'Shutting down...'; kill $ORBITCHAT_PID $ORBIT_PID $OLLAMA_PID 2>/dev/null; exit 0" SIGTERM SIGINT
-
-# Wait for any process to exit
-wait -n
-
-# If any process exits, shut down all
-echo "A process exited, shutting down..."
-kill $ORBITCHAT_PID $ORBIT_PID $OLLAMA_PID 2>/dev/null
-exit 1
+# Run ORBIT server as PID 1 for proper signal handling
+exec python /orbit/server/main.py --config /orbit/config/config.yaml

@@ -25,8 +25,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Performance optimizations
     libopenblas-dev \
     numactl \
-    # GPU detection utilities (works without NVIDIA driver)
-    pciutils \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -44,18 +42,6 @@ ENV OMP_NUM_THREADS=4 \
     # Optimize for inference (not training)
     TOKENIZERS_PARALLELISM=false
 
-# Install Node.js (LTS version) for orbitchat web app
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install orbitchat globally
-RUN npm install -g orbitchat
-
-# Install Ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh
-
 # Copy dependency configuration first (for better caching)
 COPY install/dependencies.toml /orbit/install/
 COPY install/generate_requirements.py /orbit/install/
@@ -64,11 +50,11 @@ COPY install/generate_requirements.py /orbit/install/
 COPY install/setup.sh /orbit/install/
 RUN chmod +x /orbit/install/setup.sh
 
-# Install Python dependencies (default profile only - minimal for basic chat)
+# Install Python dependencies (all profiles - ready for future adapters like multimodal)
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir tomli && \
     cd /orbit/install && \
-    python3 generate_requirements.py default --output /tmp/requirements.txt && \
+    python3 generate_requirements.py all --output /tmp/requirements.txt && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
@@ -89,12 +75,8 @@ COPY install/default-config/ /orbit/config/
 # ═══════════════════════════════════════════════════════════════════════════
 # Docker Config Profiles
 # ═══════════════════════════════════════════════════════════════════════════
-# Available profiles in docker/config/:
-#   - config.yaml.minimal    : Basic chat only (smallest image, ~2GB)
-#   - config.yaml.multimodal : Files, vision, audio support (future)
-#   - config.yaml.full       : All features enabled (future)
-# ═══════════════════════════════════════════════════════════════════════════
 COPY docker/config/config.yaml.minimal /orbit/config/config.yaml
+COPY docker/config/adapters.yaml.minimal /orbit/config/adapters.yaml
 COPY docker/config/adapters/passthrough.yaml.minimal /orbit/config/adapters/passthrough.yaml
 
 # Create .env file from env.example (same as tarball approach)
@@ -109,22 +91,9 @@ RUN mkdir -p /orbit/logs /orbit/data /orbit/models
 # Copy default database file (so user won't need to create a default key)
 COPY install/orbit.db.default /orbit/orbit.db
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Pull Models During Build
-# ═══════════════════════════════════════════════════════════════════════════
-# SmolLM2 1.7B: Ultra-fast inference model (~1.2GB) - optimized for edge
-# nomic-embed-text: Embedding model for RAG/search functionality
-# ═══════════════════════════════════════════════════════════════════════════
-RUN ollama serve & \
-    sleep 5 && \
-    ollama pull smollm2 && \
-    ollama pull nomic-embed-text:latest && \
-    pkill ollama || true
-
 # Set environment variables
 ENV PYTHONPATH=/orbit:/orbit/server
 ENV PATH="/orbit/bin:${PATH}"
-ENV OLLAMA_HOST=0.0.0.0:11434
 
 # ═══════════════════════════════════════════════════════════════════════════
 # GPU/CPU Auto-Detection Configuration
@@ -137,16 +106,16 @@ ENV OLLAMA_HOST=0.0.0.0:11434
 # ═══════════════════════════════════════════════════════════════════════════
 ENV ORBIT_PRESET=auto
 
-# Expose the web app port and API port (Ollama runs internally)
-EXPOSE 5173 3000
+# Expose API port only (Ollama runs in separate container, orbitchat runs on host)
+EXPOSE 3000
 
-# Health check - check both the API and web app
+# Health check - API server only
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
-  CMD curl -f http://localhost:3000/health && curl -f http://localhost:5173 || exit 1
+  CMD curl -f http://localhost:3000/health || exit 1
 
 # Copy entrypoint script
-COPY docker/docker-entrypoint-basic.sh /orbit/docker-entrypoint-basic.sh
-RUN chmod +x /orbit/docker-entrypoint-basic.sh
+COPY docker/docker-entrypoint.sh /orbit/docker-entrypoint.sh
+RUN chmod +x /orbit/docker-entrypoint.sh
 
 # Run the entrypoint script
-ENTRYPOINT ["/orbit/docker-entrypoint-basic.sh"]
+ENTRYPOINT ["/orbit/docker-entrypoint.sh"]
