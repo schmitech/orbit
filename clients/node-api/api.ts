@@ -166,6 +166,44 @@ export interface AutocompleteResponse {
   query: string;
 }
 
+export interface AuthUser {
+  id: string;
+  username: string;
+  role: string;
+  active?: boolean;
+  created_at?: string | null;
+  last_login?: string | null;
+}
+
+export interface AuthLoginResponse {
+  token: string;
+  user: AuthUser;
+}
+
+export interface ApiKeyQuotaConfig {
+  daily_limit?: number | null;
+  monthly_limit?: number | null;
+  throttle_enabled?: boolean;
+  throttle_priority?: number;
+}
+
+export interface ApiKeyQuotaUsage {
+  daily_used: number;
+  monthly_used: number;
+  daily_reset_at: number;
+  monthly_reset_at: number;
+  last_request_at?: number | null;
+}
+
+export interface ApiKeyQuotaDetails {
+  api_key_masked: string;
+  quota: ApiKeyQuotaConfig;
+  usage: ApiKeyQuotaUsage;
+  daily_remaining?: number | null;
+  monthly_remaining?: number | null;
+  throttle_delay_ms?: number;
+}
+
 interface ApiClientConfig {
   apiUrl: string;
   apiKey?: string | null;
@@ -225,6 +263,16 @@ export class ApiClient {
 
   public getSessionId(): string | null {
     return this.sessionId;
+  }
+
+  private withBearerAuth(headers: Record<string, string> = {}, authToken?: string): Record<string, string> {
+    if (authToken && authToken.trim().length > 0) {
+      return {
+        ...headers,
+        Authorization: `Bearer ${authToken.trim()}`
+      };
+    }
+    return headers;
   }
 
   private hasFailedToFetch(error: any): boolean {
@@ -559,6 +607,610 @@ export class ApiClient {
       console.warn('[ApiClient] Autocomplete error:', error.message);
       return { suggestions: [], query };
     }
+  }
+
+  // Auth endpoints
+  public async login(username: string, password: string): Promise<AuthLoginResponse> {
+    return await this.requestJsonOrThrow<AuthLoginResponse>(
+      `${this.apiUrl}/auth/login`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      },
+      'Login failed'
+    );
+  }
+
+  public async logout(authToken?: string): Promise<{ message: string }> {
+    return await this.requestJsonOrThrow<{ message: string }>(
+      `${this.apiUrl}/auth/logout`,
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Logout failed'
+    );
+  }
+
+  public async getCurrentUser(authToken?: string): Promise<AuthUser> {
+    return await this.requestJsonOrThrow<AuthUser>(
+      `${this.apiUrl}/auth/me`,
+      {
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to fetch current user'
+    );
+  }
+
+  public async registerUser(
+    payload: { username: string; password: string; role?: string },
+    authToken?: string
+  ): Promise<{ id: string; username: string; role: string }> {
+    return await this.requestJsonOrThrow<{ id: string; username: string; role: string }>(
+      `${this.apiUrl}/auth/register`,
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({ 'Content-Type': 'application/json' }, authToken),
+        body: JSON.stringify({
+          username: payload.username,
+          password: payload.password,
+          role: payload.role ?? 'user'
+        })
+      },
+      'Failed to register user'
+    );
+  }
+
+  public async listUsers(
+    params: { role?: string; active_only?: boolean; limit?: number; offset?: number } = {},
+    authToken?: string
+  ): Promise<AuthUser[]> {
+    const url = new URL(`${this.apiUrl}/auth/users`);
+    if (params.role) url.searchParams.set('role', params.role);
+    if (typeof params.active_only === 'boolean') url.searchParams.set('active_only', String(params.active_only));
+    if (typeof params.limit === 'number') url.searchParams.set('limit', String(params.limit));
+    if (typeof params.offset === 'number') url.searchParams.set('offset', String(params.offset));
+
+    return await this.requestJsonOrThrow<AuthUser[]>(
+      url.toString(),
+      {
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to list users'
+    );
+  }
+
+  public async getUserByUsername(username: string, authToken?: string): Promise<AuthUser> {
+    const url = new URL(`${this.apiUrl}/auth/users/by-username`);
+    url.searchParams.set('username', username);
+    return await this.requestJsonOrThrow<AuthUser>(
+      url.toString(),
+      {
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to get user by username'
+    );
+  }
+
+  public async deleteUser(userId: string, authToken?: string): Promise<{ message: string; user_id: string }> {
+    return await this.requestJsonOrThrow<{ message: string; user_id: string }>(
+      `${this.apiUrl}/auth/users/${userId}`,
+      {
+        method: 'DELETE',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to delete user'
+    );
+  }
+
+  public async changePassword(
+    currentPassword: string,
+    newPassword: string,
+    authToken?: string
+  ): Promise<{ message: string }> {
+    return await this.requestJsonOrThrow<{ message: string }>(
+      `${this.apiUrl}/auth/change-password`,
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({ 'Content-Type': 'application/json' }, authToken),
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+      },
+      'Failed to change password'
+    );
+  }
+
+  public async resetUserPassword(
+    userId: string,
+    newPassword: string,
+    authToken?: string
+  ): Promise<{ message: string; user_id: string }> {
+    return await this.requestJsonOrThrow<{ message: string; user_id: string }>(
+      `${this.apiUrl}/auth/reset-password`,
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({ 'Content-Type': 'application/json' }, authToken),
+        body: JSON.stringify({ user_id: userId, new_password: newPassword })
+      },
+      'Failed to reset user password'
+    );
+  }
+
+  public async deactivateUser(userId: string, authToken?: string): Promise<{ message: string; user_id: string }> {
+    return await this.requestJsonOrThrow<{ message: string; user_id: string }>(
+      `${this.apiUrl}/auth/users/${userId}/deactivate`,
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to deactivate user'
+    );
+  }
+
+  public async activateUser(userId: string, authToken?: string): Promise<{ message: string; user_id: string }> {
+    return await this.requestJsonOrThrow<{ message: string; user_id: string }>(
+      `${this.apiUrl}/auth/users/${userId}/activate`,
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to activate user'
+    );
+  }
+
+  // Admin endpoints
+  public async createApiKey(
+    payload: { client_name: string; notes?: string; system_prompt_id?: string; adapter_name?: string },
+    authToken?: string
+  ): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/admin/api-keys`,
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({ 'Content-Type': 'application/json' }, authToken),
+        body: JSON.stringify(payload)
+      },
+      'Failed to create API key'
+    );
+  }
+
+  public async listApiKeys(
+    params: { collection?: string; adapter?: string; active_only?: boolean; limit?: number; offset?: number } = {},
+    authToken?: string
+  ): Promise<any[]> {
+    const url = new URL(`${this.apiUrl}/admin/api-keys`);
+    if (params.collection) url.searchParams.set('collection', params.collection);
+    if (params.adapter) url.searchParams.set('adapter', params.adapter);
+    if (typeof params.active_only === 'boolean') url.searchParams.set('active_only', String(params.active_only));
+    if (typeof params.limit === 'number') url.searchParams.set('limit', String(params.limit));
+    if (typeof params.offset === 'number') url.searchParams.set('offset', String(params.offset));
+
+    return await this.requestJsonOrThrow<any[]>(
+      url.toString(),
+      {
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to list API keys'
+    );
+  }
+
+  public async getApiKeyStatusByValue(apiKey: string, authToken?: string): Promise<ApiKeyStatus> {
+    return await this.requestJsonOrThrow<ApiKeyStatus>(
+      `${this.apiUrl}/admin/api-keys/${apiKey}/status`,
+      {
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to get API key status'
+    );
+  }
+
+  public async renameApiKey(oldApiKey: string, newApiKey: string, authToken?: string): Promise<any> {
+    const url = new URL(`${this.apiUrl}/admin/api-keys/${oldApiKey}/rename`);
+    url.searchParams.set('new_api_key', newApiKey);
+    return await this.requestJsonOrThrow<any>(
+      url.toString(),
+      {
+        method: 'PATCH',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to rename API key'
+    );
+  }
+
+  public async deactivateApiKey(apiKey: string, authToken?: string): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/admin/api-keys/deactivate`,
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({ 'Content-Type': 'application/json' }, authToken),
+        body: JSON.stringify({ api_key: apiKey })
+      },
+      'Failed to deactivate API key'
+    );
+  }
+
+  public async deleteApiKey(apiKey: string, authToken?: string): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/admin/api-keys/${apiKey}`,
+      {
+        method: 'DELETE',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to delete API key'
+    );
+  }
+
+  public async getAdapterInfoFromApiKeyHeader(): Promise<AdapterInfo> {
+    this.getRequiredApiKey('API key is required to get adapter information');
+
+    return await this.requestJsonOrThrow<AdapterInfo>(
+      `${this.apiUrl}/admin/api-keys/info`,
+      {
+        method: 'GET'
+      },
+      'Failed to get adapter info'
+    );
+  }
+
+  public async associatePromptWithApiKey(apiKey: string, promptId: string, authToken?: string): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/admin/api-keys/${apiKey}/prompt`,
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({ 'Content-Type': 'application/json' }, authToken),
+        body: JSON.stringify({ prompt_id: promptId })
+      },
+      'Failed to associate prompt with API key'
+    );
+  }
+
+  public async getApiKeyQuota(apiKey: string, authToken?: string): Promise<ApiKeyQuotaDetails> {
+    return await this.requestJsonOrThrow<ApiKeyQuotaDetails>(
+      `${this.apiUrl}/admin/api-keys/${apiKey}/quota`,
+      {
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to get API key quota'
+    );
+  }
+
+  public async updateApiKeyQuota(apiKey: string, quota: ApiKeyQuotaConfig, authToken?: string): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/admin/api-keys/${apiKey}/quota`,
+      {
+        method: 'PUT',
+        headers: this.withBearerAuth({ 'Content-Type': 'application/json' }, authToken),
+        body: JSON.stringify(quota)
+      },
+      'Failed to update API key quota'
+    );
+  }
+
+  public async resetApiKeyQuota(apiKey: string, period: 'daily' | 'monthly' | 'all' = 'daily', authToken?: string): Promise<any> {
+    const url = new URL(`${this.apiUrl}/admin/api-keys/${apiKey}/quota/reset`);
+    url.searchParams.set('period', period);
+    return await this.requestJsonOrThrow<any>(
+      url.toString(),
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to reset API key quota'
+    );
+  }
+
+  public async getQuotaUsageReport(
+    period: 'daily' | 'monthly' = 'daily',
+    limit: number = 100,
+    authToken?: string
+  ): Promise<any> {
+    const url = new URL(`${this.apiUrl}/admin/quotas/usage-report`);
+    url.searchParams.set('period', period);
+    url.searchParams.set('limit', String(limit));
+    return await this.requestJsonOrThrow<any>(
+      url.toString(),
+      {
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to get quota usage report'
+    );
+  }
+
+  public async createPrompt(
+    payload: { name: string; prompt: string; version?: string },
+    authToken?: string
+  ): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/admin/prompts`,
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({ 'Content-Type': 'application/json' }, authToken),
+        body: JSON.stringify(payload)
+      },
+      'Failed to create prompt'
+    );
+  }
+
+  public async listPrompts(
+    params: { name_filter?: string; limit?: number; offset?: number } = {},
+    authToken?: string
+  ): Promise<any[]> {
+    const url = new URL(`${this.apiUrl}/admin/prompts`);
+    if (params.name_filter) url.searchParams.set('name_filter', params.name_filter);
+    if (typeof params.limit === 'number') url.searchParams.set('limit', String(params.limit));
+    if (typeof params.offset === 'number') url.searchParams.set('offset', String(params.offset));
+
+    return await this.requestJsonOrThrow<any[]>(
+      url.toString(),
+      {
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to list prompts'
+    );
+  }
+
+  public async getPrompt(promptId: string, authToken?: string): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/admin/prompts/${promptId}`,
+      {
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to get prompt'
+    );
+  }
+
+  public async updatePrompt(
+    promptId: string,
+    payload: { prompt: string; version?: string },
+    authToken?: string
+  ): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/admin/prompts/${promptId}`,
+      {
+        method: 'PUT',
+        headers: this.withBearerAuth({ 'Content-Type': 'application/json' }, authToken),
+        body: JSON.stringify(payload)
+      },
+      'Failed to update prompt'
+    );
+  }
+
+  public async deletePrompt(promptId: string, authToken?: string): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/admin/prompts/${promptId}`,
+      {
+        method: 'DELETE',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to delete prompt'
+    );
+  }
+
+  public async reloadAdapters(adapterName?: string, authToken?: string): Promise<any> {
+    const url = new URL(`${this.apiUrl}/admin/reload-adapters`);
+    if (adapterName) url.searchParams.set('adapter_name', adapterName);
+    return await this.requestJsonOrThrow<any>(
+      url.toString(),
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to reload adapters'
+    );
+  }
+
+  public async reloadTemplates(adapterName?: string, authToken?: string): Promise<any> {
+    const url = new URL(`${this.apiUrl}/admin/reload-templates`);
+    if (adapterName) url.searchParams.set('adapter_name', adapterName);
+    return await this.requestJsonOrThrow<any>(
+      url.toString(),
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to reload templates'
+    );
+  }
+
+  public async getServerInfo(authToken?: string): Promise<{ pid: number; version: string; status: string }> {
+    return await this.requestJsonOrThrow<{ pid: number; version: string; status: string }>(
+      `${this.apiUrl}/admin/info`,
+      {
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to get server info'
+    );
+  }
+
+  public async shutdownServer(authToken?: string): Promise<{ status: string; message: string; timestamp: string }> {
+    return await this.requestJsonOrThrow<{ status: string; message: string; timestamp: string }>(
+      `${this.apiUrl}/admin/shutdown`,
+      {
+        method: 'POST',
+        headers: this.withBearerAuth({}, authToken)
+      },
+      'Failed to shutdown server'
+    );
+  }
+
+  // Health endpoints
+  public async getHealth(): Promise<{ status: string }> {
+    return await this.requestJsonOrThrow<{ status: string }>(
+      `${this.apiUrl}/health/`,
+      {
+        method: 'GET'
+      },
+      'Failed to get health status'
+    );
+  }
+
+  public async getHealthAdapters(): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/health/adapters`,
+      {
+        method: 'GET'
+      },
+      'Failed to get adapter health'
+    );
+  }
+
+  public async resetAdapterCircuit(adapterName: string): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/health/adapters/${adapterName}/reset`,
+      {
+        method: 'POST'
+      },
+      'Failed to reset adapter circuit'
+    );
+  }
+
+  public async getEmbeddingServiceStats(): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/health/embedding-services`,
+      {
+        method: 'GET'
+      },
+      'Failed to get embedding service stats'
+    );
+  }
+
+  public async getMongoDbServiceStats(): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/health/mongodb-services`,
+      {
+        method: 'GET'
+      },
+      'Failed to get MongoDB service stats'
+    );
+  }
+
+  public async getReadiness(): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/health/ready`,
+      {
+        method: 'GET'
+      },
+      'Failed to get readiness status'
+    );
+  }
+
+  public async getSystemStatus(): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/health/system`,
+      {
+        method: 'GET'
+      },
+      'Failed to get system status'
+    );
+  }
+
+  public async getAdapterHistory(adapterName: string, full: boolean = false): Promise<any> {
+    const suffix = full ? '/history/full' : '/history';
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/health/adapters/${adapterName}${suffix}`,
+      {
+        method: 'GET'
+      },
+      'Failed to get adapter history'
+    );
+  }
+
+  public async getThreadPoolStats(): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/health/thread-pools`,
+      {
+        method: 'GET'
+      },
+      'Failed to get thread pool stats'
+    );
+  }
+
+  public async logThreadPoolStatus(): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/health/thread-pools/log-status`,
+      {
+        method: 'POST'
+      },
+      'Failed to log thread pool status'
+    );
+  }
+
+  // Voice and dashboard endpoints
+  public async getVoiceStatus(): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/voice/status`,
+      {
+        method: 'GET'
+      },
+      'Failed to get voice status'
+    );
+  }
+
+  public getVoiceWebSocketUrl(
+    adapterName: string,
+    options: { sessionId?: string; userId?: string; apiKey?: string } = {}
+  ): string {
+    const base = this.apiUrl.replace(/^http/i, 'ws');
+    const url = new URL(`${base}/ws/voice/${adapterName}`);
+    const sessionId = options.sessionId ?? this.sessionId ?? undefined;
+    const apiKey = options.apiKey ?? this.apiKey ?? undefined;
+
+    if (sessionId) url.searchParams.set('session_id', sessionId);
+    if (options.userId) url.searchParams.set('user_id', options.userId);
+    if (apiKey) url.searchParams.set('api_key', apiKey);
+    return url.toString();
+  }
+
+  public async getPrometheusMetrics(): Promise<string> {
+    const response = await this.fetchWithNetworkErrorHandling(`${this.apiUrl}/metrics`, this.getFetchOptions({ method: 'GET' }));
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch Prometheus metrics: ${response.status} ${errorText}`);
+    }
+    return await response.text();
+  }
+
+  public async getMetricsJson(): Promise<any> {
+    return await this.requestJsonOrThrow<any>(
+      `${this.apiUrl}/metrics/json`,
+      {
+        method: 'GET'
+      },
+      'Failed to get dashboard metrics'
+    );
+  }
+
+  public async getDashboardHtml(username: string, password: string): Promise<string> {
+    if (typeof btoa !== 'function') {
+      throw new Error('Base64 encoding is not available in this runtime');
+    }
+    const credentials = btoa(`${username}:${password}`);
+    const response = await this.fetchWithNetworkErrorHandling(
+      `${this.apiUrl}/dashboard`,
+      this.getFetchOptions({
+        method: 'GET',
+        headers: { Authorization: `Basic ${credentials}` }
+      })
+    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch dashboard HTML: ${response.status} ${errorText}`);
+    }
+    return await response.text();
+  }
+
+  public getMetricsWebSocketUrl(): string {
+    return `${this.apiUrl.replace(/^http/i, 'ws')}/ws/metrics`;
   }
 
   // Helper to get fetch options with connection pooling if available
@@ -1150,11 +1802,14 @@ export class ApiClient {
    * @returns Promise resolving to upload response with file_id
    * @throws Error if upload fails
    */
-  public async uploadFile(file: File): Promise<FileUploadResponse> {
+  public async uploadFile(file: File, prompt?: string): Promise<FileUploadResponse> {
     this.getRequiredApiKey('API key is required for file upload');
 
     const formData = new FormData();
     formData.append('file', file);
+    if (prompt && prompt.trim().length > 0) {
+      formData.append('prompt', prompt.trim());
+    }
 
     return await this.requestJsonOrThrow<FileUploadResponse>(
       `${this.apiUrl}/api/files/upload`,
@@ -1277,6 +1932,18 @@ export class ApiClient {
       console.warn(`[ApiClient] ${friendlyMessage}`);
       throw new Error(friendlyMessage);
     }
+  }
+
+  public async deleteAllFiles(): Promise<{ message: string; deleted_count: number; errors?: string[] | null }> {
+    this.getRequiredApiKey('API key is required for deleting files');
+
+    return await this.requestJsonOrThrow<{ message: string; deleted_count: number; errors?: string[] | null }>(
+      `${this.apiUrl}/api/files`,
+      {
+        method: 'DELETE'
+      },
+      'Failed to delete all files'
+    );
   }
 }
 
