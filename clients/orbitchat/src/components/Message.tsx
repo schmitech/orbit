@@ -176,7 +176,7 @@ export function Message({
   }, [isThreadOpen, scrollThreadRepliesToBottom]);
 
   const bubbleClasses = isAssistant
-    ? 'message-bubble min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
+    ? 'message-bubble message-bubble-assistant min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
     : 'message-bubble message-bubble-user min-w-0 break-words leading-relaxed bg-blue-100 text-blue-900 dark:bg-blue-600 dark:text-white rounded-2xl rounded-tr-sm px-4 py-2.5';
 
   const attachmentClasses = 'border-gray-200 bg-white/80 dark:border-[#3b3c49] dark:bg-white/5';

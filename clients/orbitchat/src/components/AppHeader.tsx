@@ -46,25 +46,25 @@ export function AppHeader() {
 
   return (
     <header
-      className={`relative z-30 shrink-0 bg-white dark:bg-[#212121] px-3 pt-2 pb-1 sm:px-6 sm:pt-3 sm:pb-2 md:pt-5 md:sticky md:top-0 ${headerBorderClass}`.trim()}
+      className={`relative z-30 shrink-0 bg-white px-3 pb-1 pt-2 dark:bg-[#212121] sm:px-5 sm:pb-2 sm:pt-3 lg:px-8 md:sticky md:top-0 md:pt-5 ${headerBorderClass}`.trim()}
       style={{
         backgroundColor: bgColor || undefined,
         color: textColor || undefined,
       }}
     >
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-center md:justify-between gap-2 px-4 sm:gap-3 sm:px-0">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+      <div className="mx-auto flex w-full max-w-[96rem] items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center justify-center md:justify-start">
           {logoUrl && (
             <a
               href="/"
               aria-label="Go to home page"
-              className="inline-flex items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-blue-300 dark:focus-visible:ring-offset-[#212121]"
+              className="inline-flex items-center rounded-sm px-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-blue-300 dark:focus-visible:ring-offset-[#212121] md:-ml-1"
             >
               <img
                 src={logoUrl}
                 alt="Logo"
                 draggable={false}
-                className={`block flex-shrink-0 select-none ${hasCustomLogoDimensions ? '' : 'h-8 w-auto sm:h-10'}`.trim()}
+                className={`block max-w-full flex-shrink-0 select-none ${hasCustomLogoDimensions ? '' : 'h-8 w-auto sm:h-10 md:h-11'}`.trim()}
                 style={{
                   WebkitUserDrag: 'none',
                   ...(logoHeight ? { height: logoHeight } : {}),
@@ -74,7 +74,7 @@ export function AppHeader() {
             </a>
           )}
         </div>
-        <div className="hidden md:flex min-w-0 items-center justify-end gap-2 sm:gap-4">
+        <div className="hidden min-w-0 flex-1 items-center justify-end gap-2 sm:gap-4 md:flex">
           {navLinks.length > 0 && (
             <nav aria-label="Header links" className="hidden sm:block">
               <ul className="flex items-center gap-1.5 sm:gap-2">
