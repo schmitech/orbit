@@ -4,6 +4,7 @@
 
 import { debugLog } from '../utils/debug';
 import { getAccessToken } from '../auth/tokenStore';
+import { getUserIdHeaderValue } from '../auth/userId';
 
 // Type definitions for the API
 export interface StreamResponse {
@@ -171,12 +172,48 @@ export interface ApiFunctions {
 }
 
 async function buildHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
-  const headers = { ...extra };
+  const headers = {
+    'X-User-ID': await getUserIdHeaderValue(),
+    ...extra
+  };
   const token = await getAccessToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
+}
+
+async function buildErrorMessage(response: Response): Promise<string> {
+  const baseMessage = `API request failed: ${response.status} ${response.statusText}`;
+
+  try {
+    const contentType = response.headers.get('content-type') || '';
+
+    if (contentType.includes('application/json')) {
+      const data = await response.json() as {
+        detail?: unknown;
+        error?: unknown;
+        message?: unknown;
+      };
+      const detail =
+        (typeof data.detail === 'string' && data.detail.trim()) ||
+        (typeof data.error === 'string' && data.error.trim()) ||
+        (typeof data.message === 'string' && data.message.trim());
+
+      if (detail) {
+        return `${baseMessage}: ${detail}`;
+      }
+    } else {
+      const text = (await response.text()).trim();
+      if (text) {
+        return `${baseMessage}: ${text}`;
+      }
+    }
+  } catch {
+    // Ignore response parsing errors and fall back to the status line.
+  }
+
+  return baseMessage;
 }
 
 // Cache for loaded API
@@ -242,7 +279,7 @@ function createProxyApi(): ApiFunctions {
         });
 
         if (!response.ok) {
-          throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+          throw new Error(await buildErrorMessage(response));
         }
 
         if (response.headers.get('content-type')?.includes('text/event-stream')) {

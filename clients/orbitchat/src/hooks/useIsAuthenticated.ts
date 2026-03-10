@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { subscribeAuthState, getIsAuthenticated } from '../auth/authState';
+import { subscribeAuthState, getAuthenticatedUserId, getIsAuthenticated } from '../auth/authState';
 
 /**
  * React hook that re-renders when auth state changes.
@@ -7,4 +7,8 @@ import { subscribeAuthState, getIsAuthenticated } from '../auth/authState';
  */
 export function useIsAuthenticated(): boolean {
   return useSyncExternalStore(subscribeAuthState, getIsAuthenticated, getIsAuthenticated);
+}
+
+export function useAuthenticatedUserId(): string | null {
+  return useSyncExternalStore(subscribeAuthState, getAuthenticatedUserId, getAuthenticatedUserId);
 }

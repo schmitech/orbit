@@ -2,15 +2,31 @@ import { useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { getIsAuthConfigured } from '../utils/runtimeConfig';
 import { setTokenGetter, clearTokenGetter } from '../auth/tokenStore';
-import { setIsAuthenticated } from '../auth/authState';
+import { setAuthenticatedUserId, setIsAuthenticated } from '../auth/authState';
 
 function AuthGateInner({ children }: { children: React.ReactNode }) {
-  const { isLoading, isAuthenticated, getAccessTokenSilently } = useAuth0();
+  const { isLoading, isAuthenticated, getAccessTokenSilently, user } = useAuth0();
 
   // Sync auth state to module-scoped store (drives AppConfig Proxy + React hook)
   useEffect(() => {
     setIsAuthenticated(isAuthenticated);
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAuthenticatedUserId(null);
+      return;
+    }
+
+    const resolvedUserId =
+      user?.sub ||
+      user?.email ||
+      user?.nickname ||
+      user?.name ||
+      null;
+
+    setAuthenticatedUserId(resolvedUserId);
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -35,6 +51,7 @@ function AuthGateInner({ children }: { children: React.ReactNode }) {
 function AuthGateBypass({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setIsAuthenticated(false);
+    setAuthenticatedUserId(null);
     clearTokenGetter();
   }, []);
 

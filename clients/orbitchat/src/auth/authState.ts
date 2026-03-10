@@ -7,16 +7,35 @@
 type Listener = () => void;
 
 let isAuthenticated = false;
+let authenticatedUserId: string | null = null;
 const listeners = new Set<Listener>();
+
+function notifyListeners(): void {
+  listeners.forEach(listener => listener());
+}
 
 export function getIsAuthenticated(): boolean {
   return isAuthenticated;
 }
 
+export function getAuthenticatedUserId(): string | null {
+  return authenticatedUserId;
+}
+
 export function setIsAuthenticated(value: boolean): void {
   if (isAuthenticated === value) return;
   isAuthenticated = value;
-  listeners.forEach(listener => listener());
+  if (!value && authenticatedUserId !== null) {
+    authenticatedUserId = null;
+  }
+  notifyListeners();
+}
+
+export function setAuthenticatedUserId(value: string | null): void {
+  const normalized = typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+  if (authenticatedUserId === normalized) return;
+  authenticatedUserId = normalized;
+  notifyListeners();
 }
 
 export function subscribeAuthState(listener: Listener): () => void {

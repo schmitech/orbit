@@ -4,7 +4,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { clearTokenGetter } from '../auth/tokenStore';
-import { setIsAuthenticated } from '../auth/authState';
+import { setAuthenticatedUserId, setIsAuthenticated } from '../auth/authState';
 import { useLoginPromptStore } from '../stores/loginPromptStore';
 
 interface SettingsProps {
@@ -41,6 +41,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
     // Reset in-memory auth/login state first so UI doesn't retain stale auth state.
     clearTokenGetter();
     setIsAuthenticated(false);
+    setAuthenticatedUserId(null);
     useLoginPromptStore.getState().closeLoginPrompt();
 
     // Clear all persisted app data and auth/session artifacts.
