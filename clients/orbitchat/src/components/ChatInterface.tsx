@@ -108,10 +108,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     showEmptyState && isAgentSelectionVisible;
   const shouldShowAdapterNotesPanel =
     showEmptyState && !isAgentSelectionVisible && !!currentConversation?.adapterName;
-  const chatMaxWidthClass = 'max-w-7xl';
-  const inputMaxWidthClass = 'max-w-3xl';
+  const chatMaxWidthClass = 'max-w-[96rem]';
+  const inputMaxWidthClass = 'max-w-[57.6rem]';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
-  const messageInputWidthClass = 'w-full';
+  const messageInputWidthClass = `mx-auto w-full ${inputMaxWidthClass}`;
+  const agentNotesWidthClass = `mx-auto w-full ${inputMaxWidthClass}`;
   const emptyStateInputWrapperClass = shouldShowAdapterNotesPanel
     ? MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES
     : MOBILE_INPUT_WRAPPER_CLASSES;
@@ -607,7 +608,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
   return (
     <main className="flex-1 flex flex-col bg-transparent overflow-hidden" aria-label="Chat workspace">
-      <div className="flex h-full w-full flex-col px-3 sm:px-6 overflow-hidden">
+      <div className="flex h-full w-full flex-col overflow-hidden px-3 sm:px-5 lg:px-8">
         <div className={`mx-auto flex h-full w-full ${chatMaxWidthClass} flex-col overflow-hidden md:pb-4 ${MOBILE_FRAME_CLASSES}`}>
 
           {/* Error Banner */}
@@ -815,8 +816,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       />
                     </div>
                   ) : shouldShowAdapterNotesPanel ? (
-                    <div className="mx-auto w-full max-w-3xl py-0">
-                      <div className="px-1 pb-2 pt-2 md:pb-2 md:pt-0">
+                    <div className={`${agentNotesWidthClass} py-0`}>
+                      <div className="pb-2 pt-2 text-left md:pt-0 md:pb-2">
                         {currentConversation?.adapterInfo?.notes ? (
                           <MarkdownRenderer
                             content={currentConversation.adapterInfo.notes}
@@ -910,7 +911,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     }
                     autoFocusEnabled
                     placeholder="Start a new topic..."
-                    maxWidthClass="max-w-4xl"
+                    maxWidthClass={inputMaxWidthClass}
                     isCentered
                   />
                 </div>

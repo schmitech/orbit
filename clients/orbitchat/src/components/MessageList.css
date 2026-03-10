@@ -16,45 +16,18 @@
   scroll-behavior: auto;
   /* Prevent layout shifts from causing scroll jumps */
   overflow-anchor: auto;
+  --orbit-assistant-bubble-max: min(100%, 82rem);
+  --orbit-user-bubble-max: min(100%, 52rem);
+  --orbit-markdown-max: min(100%, 78rem);
 }
 
 .message-list .message-bubble {
   width: 100%;
-  max-width: 1000px;
+  max-width: var(--orbit-assistant-bubble-max);
 }
 
 .message-list .message-bubble.message-bubble-user {
-  max-width: 100%;
-}
-
-html.text-sm .message-list .message-bubble {
-  max-width: 1120px;
-}
-
-html.text-base .message-list .message-bubble {
-  max-width: 1000px;
-}
-
-html.text-lg .message-list .message-bubble {
-  max-width: 900px;
-}
-
-@media (min-width: 1280px) {
-  .message-list .message-bubble {
-    max-width: 1040px;
-  }
-
-  html.text-sm .message-list .message-bubble {
-    max-width: 1160px;
-  }
-
-  html.text-base .message-list .message-bubble {
-    max-width: 1040px;
-  }
-
-  html.text-lg .message-list .message-bubble {
-    max-width: 920px;
-  }
+  max-width: var(--orbit-user-bubble-max);
 }
 
 .message-list .message-markdown {
@@ -63,13 +36,38 @@ html.text-lg .message-list .message-bubble {
   min-width: 0;
   margin-left: 0;
   margin-right: 0;
+  font-size: clamp(1rem, 0.97rem + 0.22vw, 1.125rem);
+  line-height: 1.75;
   /* Avoid container-level horizontal scrollbar; let child content own overflow */
   overflow-x: visible;
   -webkit-overflow-scrolling: touch;
 }
 
+.message-list .message-bubble.message-bubble-user .message-markdown {
+  font-size: clamp(0.98rem, 0.95rem + 0.16vw, 1.0625rem);
+  line-height: 1.7;
+}
+
+.message-list .message-markdown p,
+.message-list .message-markdown li,
+.message-list .message-markdown blockquote {
+  max-width: 72ch;
+}
+
+.message-list .message-markdown h1,
+.message-list .message-markdown h2,
+.message-list .message-markdown h3 {
+  line-height: 1.2;
+}
+
 /* Hide scrollbar on mobile for cleaner look, but keep functionality */
 @media (max-width: 767px) {
+  .message-list {
+    --orbit-assistant-bubble-max: 100%;
+    --orbit-user-bubble-max: min(100%, 92%);
+    --orbit-markdown-max: 100%;
+  }
+
   .message-list .message-markdown {
     scrollbar-width: thin;
     scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
@@ -105,39 +103,23 @@ html.text-lg .message-list .message-bubble {
 }
 
 @media (min-width: 768px) {
+  .message-list {
+    --orbit-assistant-bubble-max: min(100%, 76rem);
+    --orbit-user-bubble-max: min(100%, 48rem);
+    --orbit-markdown-max: min(100%, 72rem);
+  }
+
   .message-list .message-markdown {
-    max-width: 940px;
+    max-width: var(--orbit-markdown-max);
     overflow-x: visible;
-  }
-
-  html.text-sm .message-list .message-markdown {
-    max-width: 1040px;
-  }
-
-  html.text-base .message-list .message-markdown {
-    max-width: 940px;
-  }
-
-  html.text-lg .message-list .message-markdown {
-    max-width: 840px;
   }
 }
 
 @media (min-width: 1280px) {
-  .message-list .message-markdown {
-    max-width: 980px;
-  }
-
-  html.text-sm .message-list .message-markdown {
-    max-width: 1100px;
-  }
-
-  html.text-base .message-list .message-markdown {
-    max-width: 980px;
-  }
-
-  html.text-lg .message-list .message-markdown {
-    max-width: 880px;
+  .message-list {
+    --orbit-assistant-bubble-max: min(100%, 82rem);
+    --orbit-user-bubble-max: min(100%, 52rem);
+    --orbit-markdown-max: min(100%, 78rem);
   }
 }
 
@@ -148,6 +130,8 @@ html.text-lg .message-list .message-bubble {
   overflow-x: visible;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  font-size: 0.975rem;
+  line-height: 1.65;
 }
 
 /* Ensure tables in threads have proper styling */
