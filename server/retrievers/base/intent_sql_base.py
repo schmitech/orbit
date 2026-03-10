@@ -1013,8 +1013,17 @@ JSON:"""
                 results = await self.execute_query(sql_query, formatted_parameters)
             elif has_positional_params and param_list:
                 # SQLite-style positional parameters: ?
-                # Build tuple in order of template parameters (preserving duplicates)
+                # Build tuple in order of template parameters
                 param_tuple = tuple(formatted_parameters.get(p['name'], p.get('default')) for p in param_list)
+
+                # Verify binding count matches placeholder count
+                placeholder_count = sql_query.count('?')
+                if placeholder_count != len(param_tuple):
+                    logger.warning(
+                        f"Positional parameter mismatch: SQL has {placeholder_count} placeholders "
+                        f"but {len(param_tuple)} values supplied. Template: {template.get('id', 'unknown')}"
+                    )
+
                 results = await self.execute_query(sql_query, param_tuple)
             else:
                 # No parameters or unknown format, use the dict

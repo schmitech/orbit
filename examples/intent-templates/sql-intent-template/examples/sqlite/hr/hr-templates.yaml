@@ -2,7 +2,7 @@ status: completed
 generated_at: '2025-01-15T00:00:00.000000'
 last_updated: '2025-01-15T00:00:00.000000'
 generator_version: 1.0.0
-total_templates: 93
+total_templates: 39
 templates:
   # ============================================================================
   # EMPLOYEE SEARCH & LOOKUP TEMPLATES
@@ -13,7 +13,7 @@ templates:
     sql_template: |
       SELECT e.id, e.first_name, e.last_name, e.email, e.phone, e.hire_date, e.status
       FROM employees e
-      WHERE e.first_name LIKE '%' || ? || '%' OR e.last_name LIKE '%' || ? || '%'
+      WHERE (e.first_name || ' ' || e.last_name) LIKE ?
       ORDER BY e.last_name, e.first_name
       LIMIT ? OFFSET ?
     parameters:
@@ -551,7 +551,7 @@ templates:
       - name: days
         type: integer
         description: Number of days to look back
-        required: true
+        required: false
         default: 30
       - name: limit
         type: integer
@@ -838,7 +838,7 @@ templates:
       FROM departments d
       LEFT JOIN employee_departments ed ON d.id = ed.department_id AND ed.end_date IS NULL
       LEFT JOIN employees e ON ed.employee_id = e.id AND e.status = 'active'
-      LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL AND ep.is_primary = 1
       GROUP BY d.id
       ORDER BY salary_budget_pct DESC
       LIMIT ? OFFSET ?
@@ -958,7 +958,7 @@ templates:
         COUNT(*) as hires,
         GROUP_CONCAT(DISTINCT d.name) as departments_hired_into
       FROM employees e
-      LEFT JOIN employee_departments ed ON e.id = ed.employee_id
+      LEFT JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL AND ed.is_primary = 1
       LEFT JOIN departments d ON ed.department_id = d.id
       WHERE e.hire_date >= date('now', '-' || ? || ' years')
       GROUP BY strftime('%Y-%m', e.hire_date)
@@ -998,12 +998,12 @@ templates:
         COUNT(DISTINCT e.id) as headcount,
         COALESCE(SUM(ep.salary), 0) as total_payroll,
         ROUND(COALESCE(AVG(ep.salary), 0), 2) as avg_salary,
-        COALESCE(SUM(d.budget), 0) as total_budget,
-        ROUND(COALESCE(SUM(ep.salary), 0) * 100.0 / NULLIF(SUM(d.budget), 0), 2) as payroll_to_budget_pct
+        (SELECT COALESCE(SUM(d2.budget), 0) FROM departments d2 WHERE d2.location = d.location) as total_budget,
+        ROUND(COALESCE(SUM(ep.salary), 0) * 100.0 / NULLIF((SELECT SUM(d2.budget) FROM departments d2 WHERE d2.location = d.location), 0), 2) as payroll_to_budget_pct
       FROM departments d
       LEFT JOIN employee_departments ed ON d.id = ed.department_id AND ed.end_date IS NULL
       LEFT JOIN employees e ON ed.employee_id = e.id AND e.status = 'active'
-      LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+      LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL AND ep.is_primary = 1
       GROUP BY d.location
       ORDER BY total_payroll DESC
       LIMIT ? OFFSET ?
@@ -1047,7 +1047,7 @@ templates:
           ROUND((julianday('now') - julianday(e.hire_date)) / 365.0, 1) as tenure_years,
           ep.salary
         FROM employees e
-        LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL
+        LEFT JOIN employee_positions ep ON e.id = ep.employee_id AND ep.end_date IS NULL AND ep.is_primary = 1
         WHERE e.status = 'active'
       )
       GROUP BY tenure_bucket
@@ -1218,7 +1218,7 @@ templates:
         COUNT(*) as new_hires,
         SUM(COUNT(*)) OVER (PARTITION BY d.id ORDER BY strftime('%Y', e.hire_date)) as cumulative_hires
       FROM employees e
-      INNER JOIN employee_departments ed ON e.id = ed.employee_id
+      INNER JOIN employee_departments ed ON e.id = ed.employee_id AND ed.end_date IS NULL AND ed.is_primary = 1
       INNER JOIN departments d ON ed.department_id = d.id
       WHERE e.hire_date >= date('now', '-' || ? || ' years')
       GROUP BY d.id, d.name, strftime('%Y', e.hire_date)
