@@ -894,6 +894,13 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     debugError('Failed to create thread:', error);
                   }
                 }}
+                onClearThread={async (messageId: string, threadId: string) => {
+                  try {
+                    await useChatStore.getState().deleteThread(currentConversation.id, messageId, threadId);
+                  } catch (error) {
+                    debugError('Failed to clear thread:', error);
+                  }
+                }}
                 onSendThreadMessage={handleSendThreadMessage}
                 sessionId={currentConversation.sessionId}
                 isLoading={isLoading}

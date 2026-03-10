@@ -285,6 +285,20 @@ async def test_thread_deletion(test_services):
     # Verify thread exists
     thread = await services['thread'].get_thread(thread_id)
     assert thread is not None
+    thread_session_id = thread['thread_session_id']
+
+    # Store thread replies under the child session to verify cascade cleanup.
+    await services['chat_history'].add_conversation_turn(
+        session_id=thread_session_id,
+        user_message="Follow-up question",
+        assistant_response="Follow-up response",
+        metadata={"adapter_name": "intent-test"}
+    )
+    thread_messages_before = await services['db'].find_many(
+        'chat_history',
+        {'session_id': thread_session_id}
+    )
+    assert len(thread_messages_before) == 2
 
     # Delete thread
     result = await services['thread'].delete_thread(thread_id)
@@ -297,6 +311,13 @@ async def test_thread_deletion(test_services):
     # Verify dataset is deleted
     dataset = await services['thread'].get_thread_dataset(thread_id)
     assert dataset is None
+
+    # Verify thread replies are deleted from chat history
+    thread_messages_after = await services['db'].find_many(
+        'chat_history',
+        {'session_id': thread_session_id}
+    )
+    assert thread_messages_after == []
 
 
 @pytest.mark.asyncio

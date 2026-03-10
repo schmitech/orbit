@@ -281,6 +281,15 @@ class ThreadService:
                 if dataset_key:
                     await self.dataset_service.delete_dataset(dataset_key)
 
+                # Thread replies are stored under a dedicated session_id.
+                # Remove them so deleting a thread matches full conversation cleanup semantics.
+                thread_session_id = thread_doc.get('thread_session_id')
+                if thread_session_id:
+                    await self.database_service.delete_many(
+                        'chat_history',
+                        {'session_id': thread_session_id}
+                    )
+
             # Delete thread metadata
             result = await self.database_service.delete_one(
                 self.collection_name,

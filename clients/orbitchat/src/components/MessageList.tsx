@@ -10,6 +10,7 @@ interface MessageListProps {
   messages: MessageType[];
   onRegenerate?: (messageId: string) => void;
   onStartThread?: (messageId: string, sessionId: string) => void;
+  onClearThread?: (messageId: string, threadId: string) => Promise<void> | void;
   onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string) => Promise<void> | void;
   sessionId?: string;
   isLoading?: boolean;
@@ -19,6 +20,7 @@ export function MessageList({
   messages,
   onRegenerate,
   onStartThread,
+  onClearThread,
   onSendThreadMessage,
   sessionId,
   isLoading
@@ -156,6 +158,7 @@ export function MessageList({
               message={message}
               onRegenerate={onRegenerate}
               onStartThread={onStartThread}
+              onClearThread={onClearThread}
               onSendThreadMessage={onSendThreadMessage}
               threadMessages={threadLookup.get(message.id)}
               sessionId={sessionId}

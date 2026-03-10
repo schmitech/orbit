@@ -16,6 +16,7 @@ import { MarkdownRenderer } from './markdown';
 import { debugError } from '../utils/debug';
 import { getEnableFeedbackButtons, getEnableConversationThreads, getIsAuthConfigured } from '../utils/runtimeConfig';
 import { AudioPlayer } from './AudioPlayer';
+import { ConfirmationModal } from './ConfirmationModal';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { AppConfig } from '../utils/config';
 import { useTheme } from '../contexts/ThemeContext';
@@ -26,6 +27,7 @@ interface MessageProps {
   message: MessageType;
   onRegenerate?: (messageId: string) => void;
   onStartThread?: (messageId: string, sessionId: string) => void;
+  onClearThread?: (messageId: string, threadId: string) => Promise<void> | void;
   onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string) => Promise<void> | void;
   threadMessages?: MessageType[];
   sessionId?: string;
@@ -38,6 +40,7 @@ export function Message({
   message,
   onRegenerate,
   onStartThread,
+  onClearThread,
   onSendThreadMessage,
   threadMessages,
   sessionId,
@@ -48,6 +51,8 @@ export function Message({
   const [threadInput, setThreadInput] = useState('');
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
+  const [showClearThreadConfirmation, setShowClearThreadConfirmation] = useState(false);
+  const [isClearingThread, setIsClearingThread] = useState(false);
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
   const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
   const threadComposerRef = useRef<HTMLDivElement>(null);
@@ -237,6 +242,31 @@ export function Message({
     threadHasStreaming ||
     isSendingThreadMessage ||
     threadLimitReached;
+  const canClearThread =
+    !!message.threadInfo &&
+    !!onClearThread &&
+    threadReplyCount > 0 &&
+    !threadHasStreaming &&
+    !isSendingThreadMessage &&
+    !isThreadSendDisabled;
+
+  const handleClearThread = async () => {
+    if (!message.threadInfo || !onClearThread) {
+      return;
+    }
+
+    setIsClearingThread(true);
+    try {
+      await onClearThread(message.id, message.threadInfo.thread_id);
+      setShowClearThreadConfirmation(false);
+      setIsThreadOpen(false);
+      setThreadInput('');
+    } catch (error) {
+      debugError('Failed to clear thread:', error);
+    } finally {
+      setIsClearingThread(false);
+    }
+  };
 
   useEffect(() => {
     if (!isThreadOpen || threadComposerDisabled) {
@@ -448,17 +478,30 @@ export function Message({
 
         {threadsEnabled && message.threadInfo && (
           <div className="thread-panel mt-3 md:mt-5 border-l-2 border-gray-200 pl-3 sm:pl-4 dark:border-[#3b3c49]">
-            <button
-              onClick={() => setIsThreadOpen(prev => !prev)}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition-colors hover:text-gray-700 dark:text-[#bfc2cd] dark:hover:text-white"
-            >
-              <MessageSquare className="h-3 w-3" />
-              <span>{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</span>
-              {isThreadOpen
-                ? <ChevronUp className="h-3 w-3" />
-                : <ChevronDown className="h-3 w-3" />
-              }
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setIsThreadOpen(prev => !prev)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition-colors hover:text-gray-700 dark:text-[#bfc2cd] dark:hover:text-white"
+              >
+                <MessageSquare className="h-3 w-3" />
+                <span>{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</span>
+                {isThreadOpen
+                  ? <ChevronUp className="h-3 w-3" />
+                  : <ChevronDown className="h-3 w-3" />
+                }
+              </button>
+              {canClearThread && (
+                <button
+                  type="button"
+                  onClick={() => setShowClearThreadConfirmation(true)}
+                  className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
+                  title="Clear replies"
+                  aria-label="Clear replies"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
 
             {isThreadOpen && (
               <>
@@ -550,6 +593,21 @@ export function Message({
           </div>
         )}
       </div>
+      <ConfirmationModal
+        isOpen={showClearThreadConfirmation}
+        onClose={() => {
+          if (!isClearingThread) {
+            setShowClearThreadConfirmation(false);
+          }
+        }}
+        onConfirm={handleClearThread}
+        title="Clear Replies"
+        message="Are you sure you want to clear these replies? This removes the child thread from the backend without deleting the main conversation."
+        confirmText="Clear"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={isClearingThread}
+      />
     </div>
   );
 }

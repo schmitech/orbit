@@ -237,6 +237,7 @@ interface ExtendedChatState extends ChatState {
   selectConversation: (id: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   deleteAllConversations: () => Promise<void>;
+  deleteThread: (conversationId: string, parentMessageId: string, threadId: string) => Promise<void>;
   sendMessage: (content: string, fileIds?: string[], threadId?: string) => Promise<void>;
   createThread: (messageId: string, sessionId: string) => Promise<void>;
   appendToLastMessage: (content: string, conversationId?: string) => void;
@@ -749,6 +750,85 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       localStorage.setItem('chat-state', JSON.stringify({
         conversations: [defaultConversation],
         currentConversationId: defaultConversationId
+      }));
+    }, 0);
+  },
+
+  deleteThread: async (conversationId: string, parentMessageId: string, threadId: string) => {
+    const conversation = get().conversations.find(conv => conv.id === conversationId);
+    if (!conversation) {
+      throw new Error('Conversation not found');
+    }
+
+    if (!conversation.adapterName) {
+      throw new Error('Adapter not configured for this conversation');
+    }
+
+    const parentMessage = conversation.messages.find(msg => msg.id === parentMessageId);
+    if (!parentMessage?.threadInfo || parentMessage.threadInfo.thread_id !== threadId) {
+      throw new Error('Thread not found for this message');
+    }
+
+    const conversationApiUrl = resolveApiUrl(conversation.apiUrl || getApiUrl());
+    const api = await getApi();
+    const apiClient = new api.ApiClient({
+      apiUrl: conversationApiUrl,
+      sessionId: conversation.sessionId,
+      adapterName: conversation.adapterName
+    });
+
+    const threadService = new (await import('../services/threadService')).ThreadService(apiClient);
+    await threadService.deleteThread(threadId);
+
+    set(state => ({
+      conversations: state.conversations.map(conv => {
+        if (conv.id !== conversationId) {
+          return conv;
+        }
+
+        const messages = conv.messages
+          .filter(msg => {
+            if (!msg.isThreadMessage) {
+              return true;
+            }
+
+            const belongsToDeletedThread =
+              msg.threadId === threadId ||
+              msg.parentMessageId === parentMessageId;
+
+            return !belongsToDeletedThread;
+          })
+          .map(msg => {
+            if (msg.id !== parentMessageId) {
+              return msg;
+            }
+
+            return {
+              ...msg,
+              threadInfo: undefined,
+              supportsThreading: true
+            };
+          });
+
+        const shouldResetThreadPointers =
+          conv.currentThreadId === threadId ||
+          conv.currentThreadSessionId === parentMessage.threadInfo?.thread_session_id;
+
+        return {
+          ...conv,
+          messages,
+          currentThreadId: shouldResetThreadPointers ? undefined : conv.currentThreadId,
+          currentThreadSessionId: shouldResetThreadPointers ? undefined : conv.currentThreadSessionId,
+          updatedAt: new Date()
+        };
+      })
+    }));
+
+    setTimeout(() => {
+      const currentState = get();
+      localStorage.setItem('chat-state', JSON.stringify({
+        conversations: currentState.conversations,
+        currentConversationId: currentState.currentConversationId
       }));
     }, 0);
   },
