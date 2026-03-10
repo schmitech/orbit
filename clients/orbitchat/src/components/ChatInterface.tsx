@@ -1,12 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
 import { Settings, Menu, Plus } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
-import { getApi } from '../api/loader';
 import {
-  getApiUrl,
   getApplicationName,
   getApplicationDescription,
   getDefaultInputPlaceholder,
@@ -20,13 +18,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { AgentSelectionList } from './AgentSelectionList';
 import { AuthStatus } from './AuthStatus';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
-import type { Conversation } from '../types';
-import {
-  getAgentSlugFromPath,
-  replaceAgentSlug,
-  resolveAdapterNameFromSlug,
-  slugifyAdapterName
-} from '../utils/agentRouting';
+import { useChatAgentSelection } from '../hooks/useChatAgentSelection';
 
 const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-transparent px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-none backdrop-blur-0 dark:border-[#2f303d] dark:bg-transparent md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
@@ -37,12 +29,8 @@ const MOBILE_INPUT_WRAPPER_CLASSES =
 const MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES =
   'shrink-0 mt-3 overflow-visible bg-transparent pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:bg-transparent md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:bg-transparent md:[&>div]:rounded-none md:[&>div]:px-0';
 
-// Mobile header classes for native-like sticky behavior
 const MOBILE_HEADER_CLASSES =
   'relative z-20 shrink-0 -mx-4 px-4 pt-2 pb-2 bg-white border-b border-slate-200 dark:border-[#3b3d49] dark:bg-[#1e1f29] md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
-
-// Note: We use getApiUrl() directly when needed
-// to ensure we always read the latest runtime config (including CLI args)
 
 interface ChatInterfaceProps {
   onOpenSettings: () => void;
@@ -89,25 +77,31 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     .filter(Boolean)
     .join(' ');
 
-  const [isConfiguringAdapter, setIsConfiguringAdapter] = useState(false);
-  const [adapterNotesError, setAdapterNotesError] = useState<string | null>(null);
-
   const currentConversation = conversations.find(c => c.id === currentConversationId);
   const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
   const applicationName = getApplicationName();
   const applicationDescription = getApplicationDescription().trim();
   const hasIntroDescription = applicationDescription.length > 0;
-  const initialPathSlugRef = useRef<string | null>(
-    typeof window !== 'undefined' ? getAgentSlugFromPath(window.location.pathname) : null
-  );
-  const initialAgentSelectionVisible = showEmptyState && !initialPathSlugRef.current;
-  const [isAgentSelectionVisible, setIsAgentSelectionVisible] = useState(initialAgentSelectionVisible);
-  const agentSelectionConversationRef = useRef<string | null>(null);
-  const shouldShowAgentSelectionList =
-    showEmptyState && isAgentSelectionVisible;
-  const shouldShowAdapterNotesPanel =
-    showEmptyState && !isAgentSelectionVisible && !!currentConversation?.adapterName;
+
+  const {
+    adapterNotesError,
+    handleAgentCardSelection,
+    handleChangeAgent,
+    hasAdapterConfigurationError,
+    isAgentSelectionVisible,
+    isConfiguringAdapter,
+    shouldShowAdapterNotesPanel,
+    shouldShowAgentSelectionList
+  } = useChatAgentSelection({
+    currentConversation,
+    showEmptyState,
+    createConversation,
+    configureApiSettings,
+    clearError,
+    clearCurrentConversationAdapter
+  });
+
   const chatMaxWidthClass = 'max-w-[96rem]';
   const inputMaxWidthClass = 'max-w-[57.6rem]';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
@@ -145,347 +139,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     : shouldShowAdapterNotesPanel
       ? 'pt-5 md:pt-0'
       : 'pt-4 md:pt-6';
-  const hasAdapterConfigurationError = !!adapterNotesError;
-  const ensureConversationReadyForAgent = useCallback((): string | null => {
-    const state = useChatStore.getState();
-    const activeConversation = state.currentConversationId
-      ? state.conversations.find(conv => conv.id === state.currentConversationId)
-      : null;
 
-    if (!activeConversation || activeConversation.messages.length > 0) {
-      try {
-        const newConversationId = createConversation();
-        agentSelectionConversationRef.current = newConversationId;
-        return newConversationId;
-      } catch (error) {
-        debugWarn(
-          'Cannot create a new conversation for agent selection:',
-          error instanceof Error ? error.message : 'Unknown error'
-        );
-      }
-    }
-    return activeConversation?.id || null;
-  }, [createConversation]);
-
-  useEffect(() => {
-    if (currentConversation?.adapterLoadError) {
-      setAdapterNotesError(currentConversation.adapterLoadError);
-    } else {
-      setAdapterNotesError(null);
-    }
-  }, [currentConversation?.id, currentConversation?.adapterName, currentConversation?.adapterLoadError]);
-
-  const persistChatState = useCallback(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    setTimeout(() => {
-      const currentState = useChatStore.getState();
-      localStorage.setItem('chat-state', JSON.stringify({
-        conversations: currentState.conversations,
-        currentConversationId: currentState.currentConversationId
-      }));
-    }, 0);
-  }, []);
-
-  const markConversationAdapterError = useCallback((conversationId?: string, message?: string) => {
-    if (!conversationId) {
-      return;
-    }
-    const friendlyMessage = message || 'Unable to configure this agent.';
-    let updated = false;
-    useChatStore.setState(state => {
-      const target = state.conversations.find(conv => conv.id === conversationId);
-      if (!target || target.messages.length > 0) {
-        return state;
-      }
-      updated = true;
-      return {
-        conversations: state.conversations.map(conv =>
-          conv.id === conversationId
-            ? { ...conv, adapterLoadError: friendlyMessage }
-            : conv
-        )
-      };
-    });
-    if (updated) {
-      persistChatState();
-    }
-  }, [persistChatState]);
-
-  const clearConversationAdapterError = useCallback((conversationId?: string) => {
-    if (!conversationId) {
-      return;
-    }
-    let updated = false;
-    useChatStore.setState(state => {
-      const target = state.conversations.find(conv => conv.id === conversationId);
-      if (!target || !target.adapterLoadError) {
-        return state;
-      }
-      updated = true;
-      return {
-        conversations: state.conversations.map(conv =>
-          conv.id === conversationId
-            ? { ...conv, adapterLoadError: null }
-            : conv
-        )
-      };
-    });
-    if (updated) {
-      persistChatState();
-    }
-  }, [persistChatState]);
-
-  const getAdapterInfoErrorMessage = useCallback((error: unknown): string => {
-    if (error instanceof Error) {
-      if (error.message.includes('401')) {
-        return 'We couldn’t load this agent. It may not exist or you might not have access to it.';
-      }
-      if (error.message.includes('404')) {
-        return 'This agent was not found on the server. Please pick another agent.';
-      }
-      return error.message;
-    }
-    return 'Unable to load agent overview right now.';
-  }, []);
-
-  type AdapterInfoFetchResult = { ok: true } | { ok: false; error?: unknown };
-
-  const fetchAdapterInfoForConversation = useCallback(async (conversation?: Conversation | null): Promise<AdapterInfoFetchResult> => {
-    if (!conversation) {
-      return { ok: false };
-    }
-
-    const adapterName = conversation.adapterName;
-    if (!adapterName) {
-      return { ok: false };
-    }
-
-    try {
-      const api = await getApi();
-      const adapterClient = new api.ApiClient({
-        apiUrl: conversation.apiUrl || getApiUrl(),
-        sessionId: null,
-        adapterName: adapterName
-      });
-
-      if (typeof adapterClient.getAdapterInfo !== 'function') {
-        return { ok: false };
-      }
-
-      const adapterInfo = await adapterClient.getAdapterInfo();
-      useChatStore.setState(state => ({
-        conversations: state.conversations.map(conv =>
-          conv.id === conversation.id
-            ? { ...conv, adapterInfo, adapterLoadError: null, updatedAt: new Date() }
-            : conv
-        )
-      }));
-
-      const latestState = useChatStore.getState();
-      if (latestState.currentConversationId === conversation.id) {
-        setAdapterNotesError(null);
-      }
-
-      persistChatState();
-      return { ok: true };
-    } catch (error) {
-      const latestState = useChatStore.getState();
-      const friendlyMessage = getAdapterInfoErrorMessage(error);
-      if (latestState.currentConversationId === conversation.id) {
-        setAdapterNotesError(friendlyMessage);
-      }
-      const latestConversation = latestState.conversations.find(conv => conv.id === conversation.id);
-      if (latestConversation && latestConversation.messages.length === 0) {
-        markConversationAdapterError(conversation.id, friendlyMessage);
-      }
-      return { ok: false, error };
-    }
-  }, [getAdapterInfoErrorMessage, markConversationAdapterError, persistChatState, setAdapterNotesError]);
-
-  // Reset agent selection visibility when conversations change
-  useEffect(() => {
-    if (!showEmptyState) {
-      if (isAgentSelectionVisible) {
-        setIsAgentSelectionVisible(false);
-      }
-      agentSelectionConversationRef.current = currentConversation?.id || null;
-      return;
-    }
-
-    if (initialPathSlugRef.current) {
-      agentSelectionConversationRef.current = currentConversation?.id || null;
-      return;
-    }
-
-    const conversationId = currentConversation?.id || null;
-    if (agentSelectionConversationRef.current !== conversationId) {
-      agentSelectionConversationRef.current = conversationId;
-      setIsAgentSelectionVisible(true);
-    }
-  }, [showEmptyState, currentConversation?.id, isAgentSelectionVisible]);
-
-
-  useEffect(() => {
-    if (initialPathSlugRef.current) {
-      return;
-    }
-
-    if (shouldShowAgentSelectionList || !currentConversation?.adapterName) {
-      replaceAgentSlug(null);
-      return;
-    }
-    replaceAgentSlug(slugifyAdapterName(currentConversation.adapterName));
-  }, [shouldShowAgentSelectionList, currentConversation?.adapterName]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const synchronizeFromLocation = async () => {
-      if (typeof window === 'undefined') {
-        return;
-      }
-      const slug = getAgentSlugFromPath(window.location.pathname);
-      if (!slug) {
-        return;
-      }
-      const adapterName = await resolveAdapterNameFromSlug(slug);
-      if (cancelled) {
-        return;
-      }
-      if (!adapterName) {
-        ensureConversationReadyForAgent();
-        replaceAgentSlug(null);
-        clearCurrentConversationAdapter();
-        setIsAgentSelectionVisible(true);
-        initialPathSlugRef.current = null;
-        return;
-      }
-      ensureConversationReadyForAgent();
-      setIsAgentSelectionVisible(false);
-      replaceAgentSlug(slug);
-      const configure = adapterSelectionRef.current;
-      if (configure) {
-        await configure(adapterName);
-      }
-      initialPathSlugRef.current = null;
-    };
-
-    void synchronizeFromLocation();
-
-    const handlePopState = () => {
-      void synchronizeFromLocation();
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      cancelled = true;
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [ensureConversationReadyForAgent, clearCurrentConversationAdapter]);
-
-  // Debug: Log current conversation state
-  useEffect(() => {
-    debugLog('[ChatInterface] Conversation state:', {
-      hasConversation: !!currentConversation,
-      adapterName: currentConversation?.adapterName,
-      hasAdapterInfo: !!currentConversation?.adapterInfo,
-      hasNotes: !!currentConversation?.adapterInfo?.notes,
-      notes: currentConversation?.adapterInfo?.notes?.substring(0, 50) + '...'
-    });
-  }, [currentConversation]);
-
-  // Load adapter info if in middleware mode and adapter is selected but info is missing or incomplete
-  // This handles: 1) race conditions, 2) stale localStorage without notes field
-  const adapterInfoLoadedRef = useRef<string | null>(null);
-  const adapterInfoRetryTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const adapterInfoRateLimitCooldownMs = 30000;
-  useEffect(() => {
-    const loadMissingAdapterInfo = async () => {
-      const adapterName = currentConversation?.adapterName;
-      // Only load once per adapter to avoid duplicate requests
-      if (adapterInfoLoadedRef.current === adapterName) return;
-
-      // Check if adapterInfo is missing OR if notes field is missing (stale data from before notes feature)
-      const needsRefresh = !currentConversation?.adapterInfo ||
-                          (currentConversation?.adapterInfo && currentConversation.adapterInfo.notes === undefined);
-
-      if (adapterName && needsRefresh) {
-        adapterInfoLoadedRef.current = adapterName;
-        debugLog('[ChatInterface] Loading adapter info - adapterName:', adapterName, 'reason:', !currentConversation?.adapterInfo ? 'missing' : 'notes undefined');
-        try {
-          const apiUrl = currentConversation?.apiUrl || getApiUrl();
-          debugLog('[ChatInterface] Calling configureApiSettings for:', adapterName);
-          await configureApiSettings(apiUrl, undefined, adapterName);
-          debugLog('[ChatInterface] Adapter info loaded successfully');
-        } catch (error) {
-          debugError('[ChatInterface] Failed to load adapter info:', error);
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          const isRateLimited = errorMessage.includes('429') || errorMessage.includes('Too Many Requests');
-
-          if (isRateLimited && adapterName) {
-            const existingTimer = adapterInfoRetryTimersRef.current.get(adapterName);
-            if (existingTimer) {
-              clearTimeout(existingTimer);
-            }
-            const retryTimer = setTimeout(() => {
-              if (adapterInfoLoadedRef.current === adapterName) {
-                adapterInfoLoadedRef.current = null;
-              }
-              adapterInfoRetryTimersRef.current.delete(adapterName);
-            }, adapterInfoRateLimitCooldownMs);
-            adapterInfoRetryTimersRef.current.set(adapterName, retryTimer);
-            debugWarn(`[ChatInterface] Adapter info request rate-limited; retrying in ${adapterInfoRateLimitCooldownMs / 1000}s`);
-          } else {
-            // Reset flag on non-rate-limit errors so it can retry
-            adapterInfoLoadedRef.current = null;
-          }
-
-          if (currentConversation?.adapterName === adapterName) {
-            const friendlyMessage = getAdapterInfoErrorMessage(error);
-            setAdapterNotesError(friendlyMessage);
-            markConversationAdapterError(currentConversation.id, friendlyMessage);
-          }
-        }
-      } else {
-        debugLog('[ChatInterface] Skipping adapter info load:', {
-          adapterName,
-          hasAdapterInfo: !!currentConversation?.adapterInfo,
-          hasNotes: currentConversation?.adapterInfo?.notes !== undefined,
-          refValue: adapterInfoLoadedRef.current
-        });
-      }
-    };
-    loadMissingAdapterInfo();
-  }, [
-    currentConversation?.adapterName,
-    currentConversation?.adapterInfo,
-    currentConversation?.apiUrl,
-    currentConversation?.adapterLoadError,
-    currentConversation?.id,
-    configureApiSettings,
-    getAdapterInfoErrorMessage,
-    markConversationAdapterError
-  ]);
-
-  useEffect(() => {
-    const retryTimers = adapterInfoRetryTimersRef.current;
-    return () => {
-      retryTimers.forEach(timer => clearTimeout(timer));
-      retryTimers.clear();
-    };
-  }, []);
-
-  // Clean up any orphaned streaming messages on mount (only once, not on every render)
-  // Removed automatic cleanup to preserve streaming state when switching conversations
-  // Streaming messages will be cleaned up when they complete naturally
-
-  // Don't save API settings to localStorage when modal fields change
-  // Only save when explicitly configured via configureApiSettings
-  // This prevents default values from overwriting localStorage
-
-  // Enable/disable audio streaming based on Voice Responses setting
   useEffect(() => {
     let removeGestureListeners: (() => void) | null = null;
 
@@ -552,68 +206,24 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     }
   };
 
-  const handleEmptyStateAdapterChange = useCallback(async (adapterName: string) => {
-    if (!adapterName) {
+  const handleClearThread = useCallback(async (messageId: string, threadId: string) => {
+    if (!currentConversation) {
       return;
     }
-    const state = useChatStore.getState();
-    const activeConversation = state.currentConversationId
-      ? state.conversations.find(conv => conv.id === state.currentConversationId)
-      : null;
-    if (!activeConversation) {
-      return;
-    }
-    setIsConfiguringAdapter(true);
-    setAdapterNotesError(null);
-    clearConversationAdapterError(activeConversation.id);
     try {
-      const runtimeApiUrl = activeConversation.apiUrl || getApiUrl();
-      await configureApiSettings(runtimeApiUrl, undefined, adapterName);
-      clearError();
-      const latestState = useChatStore.getState();
-      const latestConversation = latestState.conversations.find(conv => conv.id === latestState.currentConversationId);
-      if (latestConversation?.adapterName === adapterName && (!latestConversation.adapterInfo || latestConversation.adapterInfo.notes === undefined)) {
-        const result = await fetchAdapterInfoForConversation(latestConversation);
-        if (!result.ok && result.error) {
-          debugError('Failed to load adapter info after selecting adapter:', result.error);
-        }
-      }
+      await useChatStore.getState().deleteThread(currentConversation.id, messageId, threadId);
     } catch (error) {
-      debugError('Failed to configure adapter from empty state:', error);
-      const friendlyMessage = getAdapterInfoErrorMessage(error);
-      setAdapterNotesError(friendlyMessage);
-      markConversationAdapterError(activeConversation.id, friendlyMessage);
-    } finally {
-      setIsConfiguringAdapter(false);
+      debugError('Failed to clear thread:', error);
     }
-  }, [
-    configureApiSettings,
-    clearError,
-    fetchAdapterInfoForConversation,
-    markConversationAdapterError,
-    clearConversationAdapterError,
-    getAdapterInfoErrorMessage
-  ]);
-
-  const handleAgentCardSelection = (adapterName: string) => {
-    ensureConversationReadyForAgent();
-    setIsAgentSelectionVisible(false);
-    replaceAgentSlug(slugifyAdapterName(adapterName));
-    void handleEmptyStateAdapterChange(adapterName);
-  };
-  const adapterSelectionRef = useRef(handleEmptyStateAdapterChange);
-  useEffect(() => {
-    adapterSelectionRef.current = handleEmptyStateAdapterChange;
-  }, [handleEmptyStateAdapterChange]);
+  }, [currentConversation]);
 
   return (
     <main className="flex-1 flex flex-col bg-transparent overflow-hidden" aria-label="Chat workspace">
       <div className="flex h-full w-full flex-col overflow-hidden px-3 sm:px-5 lg:px-8">
         <div className={`mx-auto flex h-full w-full ${chatMaxWidthClass} flex-col overflow-hidden md:pb-4 ${MOBILE_FRAME_CLASSES}`}>
 
-          {/* Error Banner */}
           {error && (
-            <div 
+            <div
               role="alert"
               className="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200"
             >
@@ -630,9 +240,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
             </div>
           )}
 
-          {/* Chat Header */}
           <div className={effectiveHeaderClasses}>
-            {/* Mobile navigation buttons - inside header so they stick with it */}
             {onOpenSidebar && (
               <div className="mb-2 flex items-center justify-between gap-2 md:hidden">
                 <div className="flex items-center gap-2">
@@ -660,7 +268,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
             )}
             <div className="flex flex-col gap-2 md:gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="min-w-0 flex-1">
-                {/* Adapter Info - show first when available */}
                 {showHeaderMetadata && (
                   <div className="space-y-1.5 md:space-y-3">
                     <div className="hidden md:flex min-w-0 flex-wrap items-center gap-2 justify-start md:flex-nowrap">
@@ -729,9 +336,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       if (!canChangeAgent) {
                         return;
                       }
-                      clearCurrentConversationAdapter();
-                      replaceAgentSlug(null);
-                      setIsAgentSelectionVisible(true);
+                      handleChangeAgent();
                     }}
                     disabled={!canChangeAgent}
                     className={`order-2 sm:order-1 inline-flex h-8 md:h-[42px] w-[calc(50%-0.25rem)] min-w-[140px] md:w-[190px] items-center justify-center gap-1 md:gap-2 rounded-full border px-2.5 md:px-3.5 py-1.5 md:py-2.5 text-[11px] md:text-[13px] font-medium tracking-[0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 ${
@@ -763,14 +368,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
             </div>
           </div>
 
-          {/* Messages and Input - Conditional Layout */}
           {showEmptyState ? (
-            // Empty state: Flex layout that pushes input to bottom on mobile, left-aligned on desktop
             <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
               <div className={`flex-1 flex flex-col justify-between ${shouldShowAgentSelectionList ? 'md:justify-start min-h-0 overflow-hidden' : shouldShowAdapterNotesPanel ? 'md:justify-start md:pt-10 md:gap-6 overflow-y-auto' : 'md:justify-start md:flex-none'}`}>
                 <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex flex-col' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
-                    <div className={`${prominentWidthClass}`}>
+                    <div className={prominentWidthClass}>
                       <MarkdownRenderer
                         content={bodyHeadingText}
                         className="prose prose-slate dark:prose-invert max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0 text-2xl font-semibold text-[#11111b] dark:text-white [&_p]:text-2xl [&_p]:font-semibold [&_p]:leading-tight [&_p]:m-0"
@@ -817,7 +420,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     </div>
                   ) : shouldShowAdapterNotesPanel ? (
                     <div className={`${agentNotesWidthClass} py-0`}>
-                      <div className="pb-2 pt-2 text-left md:pt-0 md:pb-2">
+                      <div className="pb-2 pt-2 text-left md:pb-2 md:pt-0">
                         {currentConversation?.adapterInfo?.notes ? (
                           <MarkdownRenderer
                             content={currentConversation.adapterInfo.notes}
@@ -842,7 +445,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   ) : (
                     <div className={`${prominentWidthClass} mb-2`}>
                       {currentConversation?.adapterInfo?.notes ? (
-                        // Show adapter notes as the main prompt with markdown rendering
                         <div className="text-base text-gray-600 dark:text-[#bfc2cd] leading-relaxed">
                           <MarkdownRenderer
                             content={currentConversation.adapterInfo.notes}
@@ -851,7 +453,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                           />
                         </div>
                       ) : (
-                        // Fallback to default message
                         <h2 className="text-xl md:text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
                           How can I assist you today?
                         </h2>
@@ -882,7 +483,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
               </div>
             </div>
           ) : (
-            // Has messages: Normal layout with messages at top and input at bottom
             <div className="flex flex-1 flex-col min-h-0">
               <MessageList
                 messages={currentConversation.messages}
@@ -894,13 +494,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     debugError('Failed to create thread:', error);
                   }
                 }}
-                onClearThread={async (messageId: string, threadId: string) => {
-                  try {
-                    await useChatStore.getState().deleteThread(currentConversation.id, messageId, threadId);
-                  } catch (error) {
-                    debugError('Failed to clear thread:', error);
-                  }
-                }}
+                onClearThread={handleClearThread}
                 onSendThreadMessage={handleSendThreadMessage}
                 sessionId={currentConversation.sessionId}
                 isLoading={isLoading}
