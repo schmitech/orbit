@@ -4,9 +4,11 @@
 
         // Time window state (minutes)
         let selectedWindowMinutes = 5;
+        let lastMetricsSnapshot = null;
 
         // Server-sent thresholds (defaults until first message)
         let thresholds = { cpu: 90, memory: 85, error_rate: 5, response_time_ms: 5000 };
+        const announcer = document.getElementById('dashboard-announcer');
 
         // Chart configurations
         const chartOptions = {
@@ -238,12 +240,31 @@
                 document.querySelectorAll('.time-window-btn').forEach((b) => {
                     b.setAttribute('aria-pressed', b === btn);
                 });
+                if (lastMetricsSnapshot) {
+                    updateMetrics(lastMetricsSnapshot);
+                }
+                announce(`Chart window set to ${minutes} minute${minutes === 1 ? '' : 's'}.`);
             });
         });
 
         // Export button
         document.getElementById('export-btn').addEventListener('click', () => {
             window.open('/dashboard/export', '_blank');
+            announce('Export opened in a new tab.');
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+            announce('Logging out of the dashboard.');
+            try {
+                await fetch('/dashboard/logout', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+            } catch (error) {
+                console.error('Dashboard logout failed:', error);
+            } finally {
+                window.location.href = '/dashboard/login';
+            }
         });
 
         function updateChartWithActiveTooltip(chart, labels, datasetValues) {
@@ -294,6 +315,16 @@
             return Math.min(100, Math.max(0, value));
         }
 
+        function announce(message) {
+            if (!announcer) {
+                return;
+            }
+            announcer.textContent = '';
+            requestAnimationFrame(() => {
+                announcer.textContent = message;
+            });
+        }
+
         function formatNumber(value, fractionDigits = null) {
             const num = Number(value);
             if (Number.isNaN(num)) {
@@ -322,12 +353,90 @@
             return String(value).replace(/[&<>"']/g, (char) => lookup[char] || char);
         }
 
-        function getMaxPoints() {
-            // Data comes at ~5s intervals. Calculate points for selected window.
-            return Math.ceil((selectedWindowMinutes * 60) / 5);
+        function updateChartSummary(id, text) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = text;
+            }
+        }
+
+        function getChartDensityConfig() {
+            if (selectedWindowMinutes <= 5) {
+                return { targetPoints: 60, maxTicks: 6 };
+            }
+            if (selectedWindowMinutes <= 15) {
+                return { targetPoints: 45, maxTicks: 7 };
+            }
+            if (selectedWindowMinutes <= 30) {
+                return { targetPoints: 36, maxTicks: 7 };
+            }
+            return { targetPoints: 24, maxTicks: 8 };
+        }
+
+        function updateChartAxisDensity(chart) {
+            const density = getChartDensityConfig();
+            if (chart?.options?.scales?.x?.ticks) {
+                chart.options.scales.x.ticks.maxTicksLimit = density.maxTicks;
+            }
+        }
+
+        function aggregateSeries(labels, seriesList) {
+            if (!labels.length) {
+                return { labels, seriesList };
+            }
+
+            const density = getChartDensityConfig();
+            if (labels.length <= density.targetPoints) {
+                return { labels, seriesList };
+            }
+
+            const bucketSize = Math.ceil(labels.length / density.targetPoints);
+            const aggregatedLabels = [];
+            const aggregatedSeries = seriesList.map(() => []);
+
+            for (let start = 0; start < labels.length; start += bucketSize) {
+                const end = Math.min(start + bucketSize, labels.length);
+                aggregatedLabels.push(labels[end - 1]);
+
+                seriesList.forEach((series, index) => {
+                    const bucket = series.slice(start, end).filter((value) => typeof value === 'number' && !Number.isNaN(value));
+                    if (!bucket.length) {
+                        aggregatedSeries[index].push(null);
+                        return;
+                    }
+                    const avg = bucket.reduce((sum, value) => sum + value, 0) / bucket.length;
+                    aggregatedSeries[index].push(avg);
+                });
+            }
+
+            return { labels: aggregatedLabels, seriesList: aggregatedSeries };
+        }
+
+        function getMaxPoints(timestamps) {
+            if (!Array.isArray(timestamps) || timestamps.length < 2) {
+                return Math.ceil((selectedWindowMinutes * 60) / 5);
+            }
+
+            const intervals = [];
+            for (let i = 1; i < timestamps.length; i += 1) {
+                const prev = new Date(timestamps[i - 1]).getTime();
+                const curr = new Date(timestamps[i]).getTime();
+                const deltaSeconds = (curr - prev) / 1000;
+                if (Number.isFinite(deltaSeconds) && deltaSeconds > 0) {
+                    intervals.push(deltaSeconds);
+                }
+            }
+
+            if (!intervals.length) {
+                return Math.ceil((selectedWindowMinutes * 60) / 5);
+            }
+
+            const avgIntervalSeconds = intervals.reduce((sum, value) => sum + value, 0) / intervals.length;
+            return Math.max(1, Math.ceil((selectedWindowMinutes * 60) / avgIntervalSeconds));
         }
 
         function updateMetrics(data) {
+            lastMetricsSnapshot = data;
             const cpuPercent = clampPercentage(data.system.cpu_percent);
             const memoryPercent = clampPercentage(data.system.memory_percent);
             const errorPercent = clampPercentage(data.requests.error_rate);
@@ -372,7 +481,7 @@
 
             // Reliability = 100% - error rate
             const reliabilityPercent = clampPercentage(100 - errorPercent);
-            document.getElementById('error-rate').textContent = formatNumber(reliabilityPercent, 2);
+            document.getElementById('reliability-percent').textContent = formatNumber(reliabilityPercent, 2);
 
             const reliabilityStatusEl = document.getElementById('reliability-status');
             let reliabilityStatus = 'Nominal';
@@ -394,11 +503,11 @@
                 reliabilityStatusEl.className = reliabilityStatusClass;
             }
 
-            const errorBar = document.getElementById('error-rate-bar');
-            if (errorBar) {
-                errorBar.className = `progress-bar ${reliabilityBarClass}`;
-                errorBar.style.width = errorPercent.toFixed(2) + '%';
-                errorBar.setAttribute('aria-valuenow', Math.round(errorPercent));
+            const reliabilityBar = document.getElementById('reliability-bar');
+            if (reliabilityBar) {
+                reliabilityBar.className = `progress-bar ${reliabilityBarClass}`;
+                reliabilityBar.style.width = reliabilityPercent.toFixed(2) + '%';
+                reliabilityBar.setAttribute('aria-valuenow', Math.round(reliabilityPercent));
             }
             document.getElementById('uptime').textContent = data.system.uptime;
 
@@ -427,29 +536,53 @@
                 const labels = data.time_series.timestamps.map(t =>
                     new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
                 );
-                const maxPoints = getMaxPoints();
+                const maxPoints = getMaxPoints(data.time_series.timestamps);
                 const startIdx = Math.max(0, labels.length - maxPoints);
                 const trimmedLabels = labels.slice(startIdx);
 
-                updateChartWithActiveTooltip(systemChart, trimmedLabels, [
+                const systemSeries = aggregateSeries(trimmedLabels, [
                     data.time_series.cpu.slice(startIdx),
                     data.time_series.memory.slice(startIdx)
                 ]);
-
-                updateChartWithActiveTooltip(requestChart, trimmedLabels, [
+                const requestSeries = aggregateSeries(trimmedLabels, [
                     data.time_series.requests_per_second.slice(startIdx),
                     data.time_series.error_rate.slice(startIdx)
                 ]);
-
-                updateChartWithActiveTooltip(responseChart, trimmedLabels, [
+                const responseSeries = aggregateSeries(trimmedLabels, [
                     data.time_series.response_time.slice(startIdx)
                 ]);
-
-                updateChartWithActiveTooltip(percentileChart, trimmedLabels, [
+                const percentileSeries = aggregateSeries(trimmedLabels, [
                     data.time_series.response_time_p50.slice(startIdx),
                     data.time_series.response_time_p95.slice(startIdx),
                     data.time_series.response_time_p99.slice(startIdx)
                 ]);
+
+                updateChartAxisDensity(systemChart);
+                updateChartAxisDensity(requestChart);
+                updateChartAxisDensity(responseChart);
+                updateChartAxisDensity(percentileChart);
+
+                updateChartWithActiveTooltip(systemChart, systemSeries.labels, systemSeries.seriesList);
+                updateChartWithActiveTooltip(requestChart, requestSeries.labels, requestSeries.seriesList);
+                updateChartWithActiveTooltip(responseChart, responseSeries.labels, responseSeries.seriesList);
+                updateChartWithActiveTooltip(percentileChart, percentileSeries.labels, percentileSeries.seriesList);
+
+                updateChartSummary(
+                    'system-chart-summary',
+                    `CPU and memory usage over time. Latest CPU: ${formatNumber(cpuPercent, 1)} percent. Latest memory: ${formatNumber(memoryPercent, 1)} percent.`
+                );
+                updateChartSummary(
+                    'request-chart-summary',
+                    `Request throughput and error rate over time. Latest throughput: ${formatNumber(data.requests.per_second, 1)} requests per second. Latest error rate: ${formatNumber(errorPercent, 2)} percent.`
+                );
+                updateChartSummary(
+                    'response-chart-summary',
+                    `Average response time over time. Latest response time: ${formatNumber(data.time_series.response_time[data.time_series.response_time.length - 1] ?? 0, 1)} milliseconds.`
+                );
+                updateChartSummary(
+                    'percentile-chart-summary',
+                    `Response time percentiles over time. Latest P50: ${formatNumber(data.time_series.response_time_p50[data.time_series.response_time_p50.length - 1] ?? 0, 1)} milliseconds. Latest P95: ${formatNumber(data.time_series.response_time_p95[data.time_series.response_time_p95.length - 1] ?? 0, 1)} milliseconds. Latest P99: ${formatNumber(data.time_series.response_time_p99[data.time_series.response_time_p99.length - 1] ?? 0, 1)} milliseconds.`
+                );
             }
         }
 
@@ -899,6 +1032,7 @@
                 indicator.setAttribute('aria-label', 'Connection active');
                 document.getElementById('status-text').textContent = 'Connected';
                 clearInterval(reconnectInterval);
+                announce('Dashboard connected. Live telemetry resumed.');
             };
 
             ws.onmessage = (event) => {
@@ -907,6 +1041,7 @@
                     data = JSON.parse(event.data);
                 } catch (e) {
                     console.error('Failed to parse WebSocket message:', e);
+                    announce('Received invalid telemetry data. Some metrics may be stale.');
                     return;
                 }
 
@@ -944,6 +1079,7 @@
                 indicator.className = 'status-dot bg-rose-500/80';
                 indicator.setAttribute('aria-label', 'Connection lost');
                 document.getElementById('status-text').textContent = 'Reconnecting...';
+                announce('Connection lost. Attempting to reconnect every 5 seconds.');
 
                 clearInterval(reconnectInterval);
                 let attempt = 0;
@@ -956,6 +1092,7 @@
 
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
+                announce('Telemetry connection error. Data may be stale.');
             };
         }
 
@@ -967,4 +1104,3 @@
             }
             clearInterval(reconnectInterval);
         });
-

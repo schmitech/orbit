@@ -4,6 +4,17 @@
         body {
             font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
         .surface-card {
             background: rgba(15, 23, 42, 0.88);
             border: 1px solid rgba(148, 163, 184, 0.14);
@@ -117,6 +128,7 @@
             align-items: center;
             gap: 0.5rem;
             padding: 0.45rem 0.9rem;
+            min-height: 44px;
             border-radius: 999px;
             border: 1px solid rgba(148, 163, 184, 0.2);
             background: rgba(15, 23, 42, 0.5);
@@ -127,6 +139,8 @@
         }
         .state-filter {
             padding: 0.3rem 0.9rem;
+            min-width: 44px;
+            min-height: 44px;
             border-radius: 999px;
             border: 1px solid rgba(148, 163, 184, 0.2);
             color: rgba(226, 232, 240, 0.7);
@@ -156,6 +170,8 @@
         /* Time window selector */
         .time-window-btn {
             padding: 0.35rem 0.9rem;
+            min-width: 44px;
+            min-height: 44px;
             border-radius: 999px;
             border: 1px solid rgba(148, 163, 184, 0.2);
             color: rgba(226, 232, 240, 0.7);
@@ -183,6 +199,8 @@
             align-items: center;
             gap: 0.4rem;
             padding: 0.5rem 1rem;
+            min-width: 44px;
+            min-height: 44px;
             border-radius: 999px;
             border: 1px solid rgba(148, 163, 184, 0.2);
             color: rgba(226, 232, 240, 0.7);

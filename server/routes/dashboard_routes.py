@@ -6,14 +6,15 @@ Provides web-based dashboard and metrics endpoints.
 
 import asyncio
 import base64
+import html
 import json
 import logging
 from datetime import datetime, timezone
 from http.cookies import SimpleCookie
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse, Response, JSONResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from urllib.parse import quote
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Depends, HTTPException, Form
+from fastapi.responses import HTMLResponse, Response, JSONResponse, RedirectResponse
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -55,21 +56,48 @@ TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 _dashboard_html_cache = None
 _dashboard_template_mtime: Optional[float] = None
 _dashboard_static_versions: Dict[str, str] = {}
-BASIC_AUTH_REALM = 'Basic realm="ORBIT Dashboard"'
-basic_auth = HTTPBasic(auto_error=False)
+_dashboard_login_template_cache = None
+_dashboard_login_template_mtime: Optional[float] = None
 
-async def require_dashboard_admin(
-    request: Request,
-    credentials: Optional[HTTPBasicCredentials] = Depends(basic_auth)
-):
-    """Require HTTP Basic admin credentials to access dashboard resources."""
-    if not credentials:
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required",
-            headers={"WWW-Authenticate": BASIC_AUTH_REALM}
+
+def _load_dashboard_login_template() -> str:
+    """Load the dashboard login template with simple change detection."""
+    global _dashboard_login_template_cache, _dashboard_login_template_mtime
+    template_path = TEMPLATE_DIR / "dashboard_login.html"
+    try:
+        current_mtime = template_path.stat().st_mtime
+    except FileNotFoundError:
+        logger.error("Dashboard login template not found at %s", template_path)
+        return "<h1>Dashboard login template missing</h1>"
+
+    if (
+        _dashboard_login_template_cache is None
+        or _dashboard_login_template_mtime != current_mtime
+    ):
+        _dashboard_login_template_cache = template_path.read_text()
+        _dashboard_login_template_mtime = current_mtime
+
+    return _dashboard_login_template_cache
+
+
+def _dashboard_login_html(next_path: str = "/dashboard", error_message: Optional[str] = None) -> str:
+    """Render the dashboard login template."""
+    template = _load_dashboard_login_template()
+    error_block = ""
+    if error_message:
+        error_block = (
+            f'<div class="login-alert" role="alert">{html.escape(error_message)}</div>'
         )
 
+    return (
+        template
+        .replace("{{NEXT_PATH}}", html.escape(next_path, quote=True))
+        .replace("{{ERROR_BLOCK}}", error_block)
+    )
+
+
+async def _get_dashboard_admin_user(request: Request) -> Optional[Dict[str, Any]]:
+    """Validate the dashboard auth cookie and return the admin user."""
     auth_service = getattr(request.app.state, 'auth_service', None)
     if not auth_service:
         raise HTTPException(status_code=503, detail="Authentication service not available")
@@ -77,18 +105,23 @@ async def require_dashboard_admin(
     if not getattr(auth_service, "_initialized", True):
         await auth_service.initialize()
 
-    success, user_info = await auth_service.verify_credentials(credentials.username, credentials.password)
-    if not success or not user_info or user_info.get("role") != "admin":
-        raise HTTPException(
-            status_code=401,
-            detail="Admin credentials required",
-            headers={"WWW-Authenticate": BASIC_AUTH_REALM}
-        )
+    token = request.cookies.get("dashboard_token")
+    if not token:
+        return None
 
-    return {
-        "user": user_info,
-        "credentials": credentials
-    }
+    valid, user_info = await auth_service.validate_token(token)
+    if not valid or not user_info or user_info.get("role") != "admin":
+        return None
+
+    return user_info
+
+
+async def require_dashboard_admin(request: Request) -> Dict[str, Any]:
+    """Require an authenticated dashboard admin via cookie token."""
+    user_info = await _get_dashboard_admin_user(request)
+    if not user_info:
+        raise HTTPException(status_code=401, detail="Dashboard authentication required")
+    return user_info
 
 def _load_dashboard_template() -> str:
     """Load dashboard HTML template with simple change detection."""
@@ -179,39 +212,83 @@ def create_dashboard_router() -> APIRouter:
     # Store active WebSocket connections
     active_connections: list[WebSocket] = []
 
+    @router.get("/dashboard/login", response_class=HTMLResponse)
+    async def get_dashboard_login(request: Request, next: str = "/dashboard"):
+        """Render the dashboard login page."""
+        next_path = next if next and next.startswith("/") else "/dashboard"
+        user_info = await _get_dashboard_admin_user(request)
+        if user_info:
+            return RedirectResponse(url=next_path, status_code=303)
+        return HTMLResponse(content=_dashboard_login_html(next_path=next_path))
+
+    @router.post("/dashboard/login")
+    async def post_dashboard_login(
+        request: Request,
+        username: str = Form(...),
+        password: str = Form(...),
+        next: str = Form("/dashboard")
+    ):
+        """Authenticate an admin user for the dashboard login page."""
+        auth_service = getattr(request.app.state, 'auth_service', None)
+        if not auth_service:
+            raise HTTPException(status_code=503, detail="Authentication service not available")
+
+        if not getattr(auth_service, "_initialized", True):
+            await auth_service.initialize()
+
+        success, token, user_info = await auth_service.authenticate_user(username, password)
+        if not success or not token or not user_info or user_info.get("role") != "admin":
+            return HTMLResponse(
+                content=_dashboard_login_html(
+                    next_path=next if next and next.startswith("/") else "/dashboard",
+                    error_message="Invalid admin username or password."
+                ),
+                status_code=401
+            )
+
+        destination = next if next and next.startswith("/") else "/dashboard"
+        response = RedirectResponse(url=destination, status_code=303)
+        secure_cookie = request.url.scheme == "https"
+        response.set_cookie(
+            "dashboard_token",
+            token,
+            httponly=True,
+            secure=secure_cookie,
+            samesite="lax",
+            max_age=int(getattr(auth_service, "session_duration_hours", 12) * 3600)
+        )
+        return response
+
+    @router.post("/dashboard/logout")
+    async def post_dashboard_logout(request: Request):
+        """Logout from the dashboard and clear the auth cookie."""
+        auth_service = getattr(request.app.state, 'auth_service', None)
+        if auth_service:
+            token = request.cookies.get("dashboard_token")
+            if token:
+                try:
+                    await auth_service.logout(token)
+                except Exception:
+                    logger.debug("Failed to revoke dashboard token during logout", exc_info=True)
+
+        response = RedirectResponse(url="/dashboard/login", status_code=303)
+        response.delete_cookie("dashboard_token", path="/")
+        return response
+
     @router.get("/dashboard", response_class=HTMLResponse)
     async def get_dashboard(
         request: Request,
-        metrics_service = Depends(get_metrics_service_for_dashboard),
-        auth_context = Depends(require_dashboard_admin)
+        metrics_service = Depends(get_metrics_service_for_dashboard)
     ):
         """Serve the monitoring dashboard"""
+        user_info = await _get_dashboard_admin_user(request)
+        if not user_info:
+            return RedirectResponse(
+                url=f"/dashboard/login?next={quote(request.url.path)}",
+                status_code=303
+            )
         html = _load_dashboard_template()
-        response = HTMLResponse(content=html)
-
-        auth_service = getattr(request.app.state, 'auth_service', None)
-        if auth_service:
-            credentials = auth_context.get("credentials")
-            existing_token = request.cookies.get("dashboard_token")
-            token_valid = False
-            if existing_token:
-                valid, user_info = await auth_service.validate_token(existing_token)
-                token_valid = valid and user_info and user_info.get("role") == "admin"
-
-            if not token_valid and credentials:
-                success, token, _ = await auth_service.authenticate_user(credentials.username, credentials.password)
-                if success and token:
-                    secure_cookie = request.url.scheme == "https"
-                    response.set_cookie(
-                        "dashboard_token",
-                        token,
-                        httponly=True,
-                        secure=secure_cookie,
-                        samesite="lax",
-                        max_age=int(getattr(auth_service, "session_duration_hours", 12) * 3600)
-                    )
-
-        return response
+        return HTMLResponse(content=html)
     
     @router.websocket("/ws/metrics")
     async def websocket_metrics(websocket: WebSocket):
@@ -447,10 +524,15 @@ def create_dashboard_router() -> APIRouter:
     @router.get("/dashboard/export")
     async def export_dashboard_snapshot(
         request: Request,
-        metrics_service = Depends(get_metrics_service_for_dashboard),
-        auth_context = Depends(require_dashboard_admin)
+        metrics_service = Depends(get_metrics_service_for_dashboard)
     ):
         """Export a complete dashboard snapshot as JSON for incident reports."""
+        user_info = await _get_dashboard_admin_user(request)
+        if not user_info:
+            return RedirectResponse(
+                url=f"/dashboard/login?next={quote(request.url.path)}",
+                status_code=303
+            )
         snapshot: Dict[str, Any] = {
             'exported_at': datetime.now(timezone.utc).isoformat(),
             'metrics': metrics_service.get_dashboard_metrics(),

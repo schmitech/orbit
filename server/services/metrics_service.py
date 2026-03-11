@@ -221,6 +221,38 @@ class MetricsService:
         # Start background metrics collection
         self._collection_task = None
         self._start_time = time.time()
+
+    def _should_track_application_endpoint(self, endpoint: str) -> bool:
+        """Return True only for user-facing ORBIT application routes."""
+        if not endpoint:
+            return False
+
+        excluded_exact_paths = {
+            "/",
+            "/dashboard",
+            "/favicon.ico",
+            "/metrics",
+            "/metrics/json",
+            "/openapi.json",
+            "/docs",
+            "/redoc",
+        }
+        excluded_prefixes = (
+            "/dashboard/",
+            "/static/",
+            "/auth",
+            "/admin",
+            "/health",
+            "/metrics/",
+            "/.well-known/",
+        )
+
+        if endpoint in excluded_exact_paths:
+            return False
+        if endpoint.startswith(excluded_prefixes):
+            return False
+
+        return True
     
     async def start_collection(self):
         """Start background metrics collection"""
@@ -320,6 +352,8 @@ class MetricsService:
     def record_request(self, method: str, endpoint: str, status: int, duration: float):
         """Record HTTP request metrics"""
         if not self.enabled:
+            return
+        if not self._should_track_application_endpoint(endpoint):
             return
             
         self.request_counter.labels(method=method, endpoint=endpoint, status=str(status)).inc()
