@@ -75,10 +75,6 @@ class ProcessingContext:
     source_language: Optional[str] = None  # Source language for translation
     target_language: Optional[str] = None  # Target language for translation
     
-    # Audio output data
-    audio_response: Optional[bytes] = None  # Generated audio data (TTS)
-    audio_response_format: Optional[str] = None  # Format of generated audio
-
     # Stream cancellation
     cancel_event: Optional[asyncio.Event] = None  # Event to signal stream cancellation
 

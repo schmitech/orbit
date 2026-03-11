@@ -168,17 +168,26 @@ class DynamicAdapterManager:
         finally:
             self.adapter_cache.release_initialization(adapter_name)
 
-    async def _wait_for_adapter_initialization(self, adapter_name: str) -> Any:
+    async def _wait_for_adapter_initialization(self, adapter_name: str, timeout: float = 60.0) -> Any:
         """
         Wait for another process to finish initializing an adapter.
 
         Args:
             adapter_name: Name of the adapter being initialized
+            timeout: Maximum time to wait in seconds (default 60s)
 
         Returns:
             The initialized adapter instance
+
+        Raises:
+            TimeoutError: If initialization does not complete within timeout
         """
+        deadline = asyncio.get_event_loop().time() + timeout
         while True:
+            if asyncio.get_event_loop().time() > deadline:
+                raise TimeoutError(
+                    f"Timed out waiting for adapter '{adapter_name}' initialization after {timeout}s"
+                )
             await asyncio.sleep(0.1)
             cached_adapter = self.adapter_cache.get(adapter_name)
             if cached_adapter:

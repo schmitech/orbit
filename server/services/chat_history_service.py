@@ -746,6 +746,7 @@ class ChatHistoryService:
         Get or create a lock for a specific session.
 
         This ensures thread-safe cleanup operations per session.
+        Automatically prunes old locks when the dict grows too large.
 
         Args:
             session_id: Session identifier
@@ -755,6 +756,14 @@ class ChatHistoryService:
         """
         async with self._locks_lock:
             if session_id not in self._session_locks:
+                # Prune unlocked entries when dict exceeds 2x max_tracked_sessions
+                if len(self._session_locks) > self.max_tracked_sessions * 2:
+                    unlocked = [
+                        sid for sid, lock in self._session_locks.items()
+                        if not lock.locked()
+                    ]
+                    for sid in unlocked:
+                        del self._session_locks[sid]
                 self._session_locks[session_id] = asyncio.Lock()
             return self._session_locks[session_id]
 
@@ -786,14 +795,6 @@ class ChatHistoryService:
 
         # Acquire per-session lock to prevent concurrent cleanup
         session_lock = await self._get_session_lock(session_id)
-
-        # Use try_lock pattern: if another coroutine is already cleaning up, skip
-        if session_lock.locked():
-            logger.debug(
-                "Session %s cleanup already in progress, skipping",
-                session_id,
-            )
-            return 0
 
         async with session_lock:
             try:

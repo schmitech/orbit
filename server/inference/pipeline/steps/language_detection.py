@@ -515,7 +515,7 @@ class LanguageDetectionStep(PipelineStep):
             # Persist to session storage for stickiness across API calls
             await self._save_session_language(context, result)
 
-            # Also store in context metadata for backward compatibility
+            # Store in context metadata (used by context_retrieval for language boosting)
             context.metadata['last_detected_language'] = result.language
             context.metadata['last_detected_language_confidence'] = result.confidence
 
@@ -845,7 +845,7 @@ class LanguageDetectionStep(PipelineStep):
         """Run a backend detector with timeout."""
         try:
             # Run in executor since detection libraries are synchronous
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             result = await asyncio.wait_for(
                 loop.run_in_executor(None, detector_func, text),
                 timeout=timeout
@@ -993,6 +993,7 @@ class LanguageDetectionStep(PipelineStep):
             try:
                 confidence = 1.0 / (1.0 + math.exp(-float(score)))
             except Exception:
+                logger.debug("langid confidence normalization failed", exc_info=True)
                 confidence = 0.7
             confidence = max(0.0, min(1.0, confidence))
             return DetectionResult(
@@ -1001,7 +1002,7 @@ class LanguageDetectionStep(PipelineStep):
                 method='langid'
             )
         except Exception:
-            pass
+            logger.debug("langid detection failed", exc_info=True)
         return None
 
     def _detect_pycld2(self, text: str) -> Optional[DetectionResult]:
@@ -1026,30 +1027,6 @@ class LanguageDetectionStep(PipelineStep):
                     method='pycld2'
                 )
         except Exception:
-            pass
+            logger.debug("pycld2 detection failed", exc_info=True)
         return None
 
-    # Backward compatibility: sync version for external callers
-    # Deprecated: prefer calling _detect_language_ensemble_async directly in async code.
-    def _detect_language_ensemble(self, text: str, previous_language: Optional[str] = None) -> DetectionResult:
-        """Sync wrapper for backward compatibility. Deprecated — use async version."""
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Schedule on the running loop from a worker thread
-                import concurrent.futures
-                future = asyncio.run_coroutine_threadsafe(
-                    self._detect_language_ensemble_async(text, previous_language),
-                    loop
-                )
-                return future.result(timeout=2.0)
-            else:
-                return asyncio.run(self._detect_language_ensemble_async(text, previous_language))
-        except Exception as e:
-            logger.error(f"Error in sync ensemble detection: {e}")
-            return DetectionResult(
-                language=self.fallback_language,
-                confidence=0.0,
-                method='sync_fallback',
-                raw_results={'error': str(e)}
-            )

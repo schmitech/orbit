@@ -6,7 +6,7 @@ including metrics collection, health checks, and performance tracking.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
 from collections import defaultdict, deque
 import threading
@@ -24,7 +24,7 @@ class StepMetrics:
     min_execution_time: float = float('inf')
     max_execution_time: float = 0.0
     recent_execution_times: deque = field(default_factory=lambda: deque(maxlen=100))
-    error_messages: List[str] = field(default_factory=list)
+    error_messages: deque = field(default_factory=lambda: deque(maxlen=50))
     
     @property
     def success_rate(self) -> float:
@@ -103,7 +103,7 @@ class PipelineMonitor:
     def record_step_metrics(self, step_name: str, execution_time: float, 
                            success: bool, error_message: Optional[str] = None) -> None:
         """
-        Alias for record_step_execution for backward compatibility.
+        Convenience alias for record_step_execution.
         """
         self.record_step_execution(step_name, execution_time, success, error_message)
     

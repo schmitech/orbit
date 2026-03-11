@@ -20,7 +20,6 @@ class ServiceContainer:
     
     def __init__(self):
         """Initialize the service container."""
-        self._services: Dict[str, Any] = {}
         self._factories: Dict[str, Callable] = {}
         self._singletons: Dict[str, Any] = {}
         self.logger = logging.getLogger(__name__)
@@ -101,7 +100,6 @@ class ServiceContainer:
     
     def clear(self) -> None:
         """Clear all registered services."""
-        self._services.clear()
         self._factories.clear()
         self._singletons.clear()
         logger.debug("Cleared all services from container")

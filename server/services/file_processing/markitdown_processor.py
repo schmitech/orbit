@@ -134,7 +134,7 @@ class MarkItDownProcessor(FileProcessor):
         if not MARKITDOWN_AVAILABLE:
             raise ImportError("markitdown not available")
 
-        logger.info(f"[MarkItDown] Starting text extraction for: {filename or 'unknown'} ({len(file_data)} bytes)")
+        logger.debug(f"[MarkItDown] Starting text extraction for: {filename or 'unknown'} ({len(file_data)} bytes)")
 
         # Lazy initialization - only create converter when actually processing a file
         self._ensure_initialized()

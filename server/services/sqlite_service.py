@@ -313,7 +313,7 @@ class SQLiteService(DatabaseService):
             db_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Connect to SQLite database in a thread
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             self.connection = await loop.run_in_executor(
                 self.executor,
                 self._connect_db
@@ -328,6 +328,12 @@ class SQLiteService(DatabaseService):
             self._initialized = True
 
         except Exception as e:
+            # Close connection if it was created before failure
+            if hasattr(self, 'connection') and self.connection:
+                try:
+                    self.connection.close()
+                except Exception:
+                    pass
             logger.error(f"Failed to initialize SQLite Service: {str(e)}")
             raise
 
@@ -341,7 +347,7 @@ class SQLiteService(DatabaseService):
 
     async def _create_tables(self) -> None:
         """Create database tables"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         for table_name, schema in self._schema.items():
             await loop.run_in_executor(
                 self.executor,
@@ -353,7 +359,7 @@ class SQLiteService(DatabaseService):
 
     async def _create_indexes(self) -> None:
         """Create database indexes"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         for table_name, indexes in self._indexes.items():
             for index_sql in indexes:
                 await loop.run_in_executor(
@@ -443,7 +449,7 @@ class SQLiteService(DatabaseService):
 
     async def _ensure_table_exists(self, table_name: str, document: Dict[str, Any]) -> None:
         """Ensure a table exists, create it if not"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # Check if table exists
         exists = await loop.run_in_executor(
@@ -526,7 +532,7 @@ class SQLiteService(DatabaseService):
         if not self._initialized:
             await self.initialize()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # Check if table exists first
         table_exists = await loop.run_in_executor(
@@ -729,7 +735,7 @@ class SQLiteService(DatabaseService):
             else:
                 sql = f"SELECT * FROM {collection_name} LIMIT 1"
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
                 self.executor,
                 self._execute_sql_fetchone,
@@ -787,7 +793,7 @@ class SQLiteService(DatabaseService):
 
             sql += f" LIMIT {limit} OFFSET {skip}"
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             results = await loop.run_in_executor(
                 self.executor,
                 self._execute_sql_fetchall,
@@ -830,7 +836,7 @@ class SQLiteService(DatabaseService):
 
             sql = f"INSERT INTO {collection_name} ({columns}) VALUES ({placeholders})"
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(
                 self.executor,
                 self._execute_sql,
@@ -908,7 +914,7 @@ class SQLiteService(DatabaseService):
             sql = f"UPDATE {collection_name} SET {set_clause} WHERE {where_clause}"
             params = tuple(set_values + list(where_params))
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             cursor = await loop.run_in_executor(
                 self.executor,
                 self._execute_sql,
@@ -952,7 +958,7 @@ class SQLiteService(DatabaseService):
             sql = f"""DELETE FROM {collection_name}
                      WHERE rowid = (SELECT rowid FROM {collection_name} WHERE {where_clause} LIMIT 1)"""
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             cursor = await loop.run_in_executor(
                 self.executor,
                 self._execute_sql,
@@ -993,7 +999,7 @@ class SQLiteService(DatabaseService):
 
             sql = f"DELETE FROM {collection_name} WHERE {where_clause}"
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             cursor = await loop.run_in_executor(
                 self.executor,
                 self._execute_sql,
@@ -1026,7 +1032,7 @@ class SQLiteService(DatabaseService):
         try:
             sql = f"DELETE FROM {collection_name}"
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             cursor = await loop.run_in_executor(
                 self.executor,
                 self._execute_sql,
@@ -1047,23 +1053,39 @@ class SQLiteService(DatabaseService):
         operations: Callable[[Any], Awaitable[Any]]
     ) -> Any:
         """
-        Execute operations within a transaction
+        Execute operations within an explicit SQLite transaction.
+
+        Uses BEGIN IMMEDIATE to acquire a write lock upfront, preventing
+        deadlocks when multiple writers compete. Commits on success,
+        rolls back on failure.
 
         Args:
             operations: Async function that performs operations
 
         Returns:
             Result of the operations
-
-        Note:
-            For SQLite, transactions are implicit. We just execute the operations.
         """
         if not self._initialized:
             await self.initialize()
 
-        # SQLite transactions are handled automatically
-        # Just execute the operations
-        return await operations(None)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            self.executor,
+            lambda: self.connection.execute("BEGIN IMMEDIATE")
+        )
+        try:
+            result = await operations(None)
+            await loop.run_in_executor(
+                self.executor,
+                self.connection.commit
+            )
+            return result
+        except Exception:
+            await loop.run_in_executor(
+                self.executor,
+                self.connection.rollback
+            )
+            raise
 
     async def ensure_id_is_object_id(self, id_value: Union[str, Any]) -> str:
         """
@@ -1128,11 +1150,16 @@ class SQLiteService(DatabaseService):
         return doc
 
     def close(self) -> None:
-        """Close the SQLite connection"""
+        """Close the SQLite connection and shut down the executor"""
         if self.connection:
             self.connection.close()
+            self.connection = None
             self._initialized = False
             self._collections = {}
+        if hasattr(self, 'executor') and self.executor:
+            self.executor.shutdown(wait=False)
+            # Recreate executor so singleton instance remains reusable
+            self.executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix='sqlite_')
 
     @classmethod
     def clear_cache(cls) -> None:
@@ -1141,10 +1168,10 @@ class SQLiteService(DatabaseService):
             # Close all cached instances
             for instance in cls._instances.values():
                 try:
-                    if hasattr(instance, 'close') and instance.connection:
-                        instance.connection.close()
+                    if hasattr(instance, 'close'):
+                        instance.close()
                 except Exception as e:
-                    logger.warning(f"Error closing SQLite connection: {e}")
+                    logger.warning(f"Error closing SQLite instance: {e}")
 
             cls._instances.clear()
             logger.debug("Cleared all SQLite service instances from cache")

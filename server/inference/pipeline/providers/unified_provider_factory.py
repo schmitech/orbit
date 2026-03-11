@@ -34,24 +34,6 @@ class UnifiedProviderFactory:
         return list(inference_config.keys())
 
     @classmethod
-    def _get_enabled_providers(cls, config: Dict[str, Any]) -> List[str]:
-        """
-        Get list of enabled providers from inference.yaml.
-
-        Args:
-            config: Application configuration dictionary
-
-        Returns:
-            List of enabled provider names
-        """
-        inference_config = config.get('inference', {})
-        enabled = []
-        for provider_name, provider_config in inference_config.items():
-            if isinstance(provider_config, dict) and provider_config.get('enabled', False):
-                enabled.append(provider_name)
-        return enabled
-
-    @classmethod
     def create_provider(cls, config: Dict[str, Any]) -> LLMProvider:
         """
         Create an LLM provider using the unified architecture.
@@ -119,28 +101,3 @@ class UnifiedProviderFactory:
 
         return create_unified_provider(provider_name, config)
 
-    @classmethod
-    def list_providers(cls, config: Dict[str, Any]) -> List[str]:
-        """
-        List all configured providers from inference.yaml.
-
-        Args:
-            config: Application configuration dictionary
-
-        Returns:
-            List of configured provider names
-        """
-        return cls._get_configured_providers(config)
-
-    @classmethod
-    def list_available_providers(cls, config: Dict[str, Any]) -> List[str]:
-        """
-        List providers that are enabled in inference.yaml.
-
-        Args:
-            config: Application configuration dictionary
-
-        Returns:
-            List of enabled provider names
-        """
-        return cls._get_enabled_providers(config)

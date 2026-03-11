@@ -151,8 +151,10 @@ class DocumentRerankingStep(PipelineStep):
                 logger.warning("No document texts to rerank - skipping reranking")
                 return context
 
-            # Get top_n configuration
+            # Get top_n configuration, default to min(doc count, 10)
             top_n = self._get_top_n_config(context)
+            if top_n is None:
+                top_n = min(len(documents), 10)
 
             logger.debug(
                 "DocumentRerankingStep.process() - Reranking %s docs with top_n=%s",

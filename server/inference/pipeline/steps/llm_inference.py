@@ -5,6 +5,7 @@ This step handles the core language model generation.
 """
 
 import logging
+from collections import OrderedDict
 from typing import AsyncGenerator
 from ..base import PipelineStep, ProcessingContext
 
@@ -21,7 +22,8 @@ class LLMInferenceStep(PipelineStep):
     def __init__(self, container):
         """Initialize the LLM inference step."""
         super().__init__(container)
-        self._prompt_cache = {}  # In-memory cache for system prompts when prompt_service unavailable
+        self._prompt_cache: OrderedDict[str, str] = OrderedDict()  # LRU cache for system prompts (max 100)
+        self._prompt_cache_max_size = 100
     
     def should_execute(self, context: ProcessingContext) -> bool:
         """
@@ -54,7 +56,7 @@ class LLMInferenceStep(PipelineStep):
 
         try:
             llm_provider = None
-            if context.inference_provider:
+            if context.inference_provider and self.container.has('adapter_manager'):
                 # Get the adapter manager and get the cached/new provider
                 adapter_manager = self.container.get('adapter_manager')
                 # Pass adapter_name to get model-specific provider if configured
@@ -70,7 +72,7 @@ class LLMInferenceStep(PipelineStep):
 
             if debug_enabled:
                 logger.debug("Sending prompt to LLM: %r", full_prompt)
-            
+
             # Generate response with message format support
             kwargs = {}
             if hasattr(context, 'messages') and context.messages:
@@ -108,7 +110,7 @@ class LLMInferenceStep(PipelineStep):
 
         try:
             llm_provider = None
-            if context.inference_provider:
+            if context.inference_provider and self.container.has('adapter_manager'):
                 # Get the adapter manager and get the cached/new provider
                 adapter_manager = self.container.get('adapter_manager')
                 # Pass adapter_name to get model-specific provider if configured
@@ -384,6 +386,7 @@ class LLMInferenceStep(PipelineStep):
         # Check in-memory cache first (for cases where prompt_service is unavailable)
         cache_key = f"prompt:{context.system_prompt_id}"
         if cache_key in self._prompt_cache:
+            self._prompt_cache.move_to_end(cache_key)
             logger.debug(f"Using in-memory cached system prompt for {context.system_prompt_id}")
             return self._prompt_cache[cache_key]
 
@@ -395,8 +398,10 @@ class LLMInferenceStep(PipelineStep):
                 prompt_doc = await prompt_service.get_prompt_by_id(context.system_prompt_id)
                 if prompt_doc:
                     prompt_text = prompt_doc.get('prompt', '')
-                    # Only cache in memory as a fallback
+                    # Only cache in memory as a fallback (LRU eviction)
                     self._prompt_cache[cache_key] = prompt_text
+                    if len(self._prompt_cache) > self._prompt_cache_max_size:
+                        self._prompt_cache.popitem(last=False)
                     return prompt_text
             except Exception as e:
                 logger.warning(f"Failed to retrieve system prompt: {str(e)}")

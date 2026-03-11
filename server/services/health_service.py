@@ -2,8 +2,8 @@
 Health service for checking the status of components
 """
 
-import asyncio
 import logging
+import time
 from typing import Dict, Any, Optional
 
 from models.schema import HealthStatus
@@ -23,7 +23,7 @@ class HealthService:
     
     async def get_health_status(self, use_cache: bool = True) -> HealthStatus:
         """Get health status of the server"""
-        current_time = asyncio.get_event_loop().time()
+        current_time = time.monotonic()
         
         # Return cached status if available and not expired
         if use_cache and self._last_status and (current_time - self._last_check_time) < self._cache_ttl:

@@ -196,7 +196,7 @@ class PipelineChatService:
                     logger.debug(f"Query cache HIT (Redis): {cache_key[:20]}")
                     return cached
             except Exception:
-                pass
+                logger.debug("Failed to read query cache from Redis", exc_info=True)
 
         # In-memory fallback
         entry = self._memory_cache.get(cache_key)
@@ -219,7 +219,7 @@ class PipelineChatService:
             try:
                 await self.redis_service.store_json(cache_key, result, ttl=self._query_cache_ttl)
             except Exception:
-                pass
+                logger.debug("Failed to store query cache in Redis", exc_info=True)
 
         # In-memory (evict expired entries first, then oldest if still full)
         now = time.monotonic()

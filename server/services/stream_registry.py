@@ -9,7 +9,7 @@ import asyncio
 import logging
 from typing import Dict, Tuple, Optional
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 import threading
 
 logger = logging.getLogger(__name__)
@@ -75,7 +75,7 @@ class StreamRegistry:
                 session_id=session_id,
                 request_id=request_id,
                 cancel_event=cancel_event,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
                 adapter_name=adapter_name
             )
             self._streams[key] = stream_info
@@ -156,7 +156,7 @@ class StreamRegistry:
             Number of stale streams removed
         """
         async with self._registry_lock:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             stale_keys = [
                 key for key, info in self._streams.items()
                 if (now - info.created_at).total_seconds() > max_age_seconds

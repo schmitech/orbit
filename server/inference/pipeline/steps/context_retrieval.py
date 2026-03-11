@@ -41,8 +41,6 @@ class ContextRetrievalStep(PipelineStep):
         super().__init__(container)
         self._capability_registry = get_capability_registry()
 
-        container.get('config') if container.has('config') else {}
-
         self._initialize_capabilities()
 
     def _initialize_capabilities(self) -> None:

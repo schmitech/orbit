@@ -7,6 +7,7 @@ This module contains the core pipeline implementation for processing AI inferenc
 import asyncio
 import json
 import logging
+import time
 from typing import List, AsyncGenerator
 from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
@@ -47,7 +48,7 @@ class InferencePipeline:
         Returns:
             Updated processing context with results
         """
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.perf_counter()
         
         try:
             logger.debug(f"Starting pipeline processing for message: {(context.message or '')[:50]}...")
@@ -58,7 +59,7 @@ class InferencePipeline:
                     logger.debug(f"Skipping step {step.get_name()} - conditions not met")
                     continue
                 
-                step_start_time = asyncio.get_event_loop().time()
+                step_start_time = time.perf_counter()
                 
                 try:
                     # Pre-process step
@@ -71,7 +72,7 @@ class InferencePipeline:
                     await step.post_process(context)
                     
                     # Record metrics
-                    step_time = asyncio.get_event_loop().time() - step_start_time
+                    step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(step.get_name(), step_time, True)
                     
                     logger.debug(f"Completed step {step.get_name()} in {step_time:.3f}s")
@@ -82,7 +83,7 @@ class InferencePipeline:
                         break
                         
                 except Exception as e:
-                    step_time = asyncio.get_event_loop().time() - step_start_time
+                    step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(step.get_name(), step_time, False)
                     
                     logger.error(f"Error in step {step.get_name()}: {str(e)}")
@@ -90,14 +91,14 @@ class InferencePipeline:
                     break
             
             # Record overall pipeline metrics
-            total_time = asyncio.get_event_loop().time() - start_time
+            total_time = time.perf_counter() - start_time
             self.monitor.record_pipeline_metrics(total_time, not context.has_error())
             
             logger.info(f"Pipeline processing completed in {total_time:.3f}s")
             return context
             
         except Exception as e:
-            total_time = asyncio.get_event_loop().time() - start_time
+            total_time = time.perf_counter() - start_time
             self.monitor.record_pipeline_metrics(total_time, False)
             
             logger.error(f"Pipeline processing failed: {str(e)}")
@@ -114,7 +115,7 @@ class InferencePipeline:
         Yields:
             Streaming response chunks
         """
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.perf_counter()
         
         try:
             logger.debug(f"Starting streaming pipeline processing for message: {(context.message or '')[:50]}...")
@@ -133,7 +134,7 @@ class InferencePipeline:
                     logger.debug(f"Skipping step {step.get_name()} - conditions not met")
                     continue
                 
-                step_start_time = asyncio.get_event_loop().time()
+                step_start_time = time.perf_counter()
                 
                 try:
                     # Pre-process step
@@ -146,7 +147,7 @@ class InferencePipeline:
                     await step.post_process(context)
                     
                     # Record metrics
-                    step_time = asyncio.get_event_loop().time() - step_start_time
+                    step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(step.get_name(), step_time, True)
                     
                     logger.debug(f"Completed step {step.get_name()} in {step_time:.3f}s")
@@ -156,18 +157,18 @@ class InferencePipeline:
                         logger.warning(f"Pipeline stopped at step {step.get_name()}: {'blocked' if context.is_blocked else 'error'}")
                         error_json = json.dumps({"error": context.error or "Pipeline blocked", "done": True})
                         yield error_json
-                        total_time = asyncio.get_event_loop().time() - start_time
+                        total_time = time.perf_counter() - start_time
                         self.monitor.record_pipeline_metrics(total_time, False)
                         return
                         
                 except Exception as e:
-                    step_time = asyncio.get_event_loop().time() - step_start_time
+                    step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(step.get_name(), step_time, False)
                     
                     logger.error(f"Error in step {step.get_name()}: {str(e)}")
                     error_json = json.dumps({"error": str(e), "done": True})
                     yield error_json
-                    total_time = asyncio.get_event_loop().time() - start_time
+                    total_time = time.perf_counter() - start_time
                     self.monitor.record_pipeline_metrics(total_time, False)
                     return
             
@@ -193,7 +194,7 @@ class InferencePipeline:
                     yield json.dumps({"response": context.response, "done": False})
                     yield json.dumps({"done": True})
                     return
-                step_start_time = asyncio.get_event_loop().time()
+                step_start_time = time.perf_counter()
                 
                 try:
                     # Pre-process step
@@ -238,11 +239,11 @@ class InferencePipeline:
                     yield done_json
                     
                     # Record metrics
-                    step_time = asyncio.get_event_loop().time() - step_start_time
+                    step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(llm_step.get_name(), step_time, True)
                     
                 except Exception as e:
-                    step_time = asyncio.get_event_loop().time() - step_start_time
+                    step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(llm_step.get_name(), step_time, False)
                     
                     logger.error(f"Error in streaming LLM step: {str(e)}")
@@ -260,13 +261,13 @@ class InferencePipeline:
                     yield error_json
             
             # Record overall pipeline metrics
-            total_time = asyncio.get_event_loop().time() - start_time
+            total_time = time.perf_counter() - start_time
             self.monitor.record_pipeline_metrics(total_time, not context.has_error())
             
             logger.info(f"Streaming pipeline processing completed in {total_time:.3f}s")
             
         except Exception as e:
-            total_time = asyncio.get_event_loop().time() - start_time
+            total_time = time.perf_counter() - start_time
             self.monitor.record_pipeline_metrics(total_time, False)
             
             logger.error(f"Streaming pipeline processing failed: {str(e)}")
