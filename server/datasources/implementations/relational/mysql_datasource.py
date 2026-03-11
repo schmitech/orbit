@@ -23,11 +23,10 @@ class MySQLDatasource(BaseDatasource):
         try:
             import mysql.connector
             from mysql.connector import pooling, Error
-        except ImportError:
-            logger.warning("mysql-connector-python not available. Install with: pip install mysql-connector-python")
+        except ImportError as e:
             self._client = None
-            self._initialized = True
-            return
+            self._initialized = False
+            raise RuntimeError("mysql-connector-python is required for MySQLDatasource") from e
 
         # Extract connection parameters
         host = mysql_config.get('host', 'localhost')
@@ -76,9 +75,6 @@ class MySQLDatasource(BaseDatasource):
             finally:
                 conn.close()
 
-            # Expose a single client for backward compatibility
-            self._client = self._pool.get_connection()
-
             self._initialized = True
 
         except Error as e:
@@ -103,6 +99,12 @@ class MySQLDatasource(BaseDatasource):
                     pass
             return conn
         return self._client
+
+    def get_client(self):
+        """Get a dedicated client connection for legacy callers."""
+        if self._client is None and hasattr(self, '_pool') and self._pool:
+            self._client = self.get_connection()
+        return super().get_client()
 
     def return_connection(self, conn):
         """Return a connection to the pool (MySQL connector auto-returns on close)."""

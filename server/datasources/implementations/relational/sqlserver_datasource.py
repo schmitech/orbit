@@ -24,11 +24,10 @@ class SQLServerDatasource(BaseDatasource):
 
         try:
             import pymssql
-        except ImportError:
-            logger.warning("pymssql not available. Install with: pip install pymssql")
+        except ImportError as e:
             self._client = None
-            self._initialized = True
-            return
+            self._initialized = False
+            raise RuntimeError("pymssql is required for SQLServerDatasource") from e
 
         # Extract connection parameters
         host = sqlserver_config.get('host', 'localhost')
@@ -78,9 +77,6 @@ class SQLServerDatasource(BaseDatasource):
             finally:
                 self.return_connection(conn)
 
-            # Expose a single client for backward compatibility
-            self._client = self.get_connection()
-
             self._initialized = True
 
         except Exception as e:
@@ -113,6 +109,12 @@ class SQLServerDatasource(BaseDatasource):
             # Pool exhausted, create a new connection
             import pymssql
             return pymssql.connect(**self._conn_params)
+
+    def get_client(self):
+        """Get a dedicated client connection for legacy callers."""
+        if self._client is None and hasattr(self, '_pool_queue') and self._pool_queue is not None:
+            self._client = self.get_connection()
+        return super().get_client()
 
     def return_connection(self, conn):
         """Return a connection to the pool."""

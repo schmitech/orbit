@@ -33,7 +33,7 @@ class DatasourceFactory:
         self.logger = logger
         self.registry = get_registry()
     
-    def initialize_datasource_client(self, provider: str) -> Any:
+    async def initialize_datasource_client(self, provider: str) -> Any:
         """
         Initialize a datasource client based on the selected provider.
         
@@ -53,20 +53,7 @@ class DatasourceFactory:
                 logger.error(f"Failed to create datasource: {provider}")
                 return None
             
-            # Initialize the datasource (this will be async in the future)
-            import asyncio
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # If we're in an async context, we can't use run_until_complete
-                    # For now, we'll handle this synchronously
-                    logger.warning(f"Async initialization not supported in sync context for {provider}")
-                    return None
-                else:
-                    loop.run_until_complete(datasource.initialize())
-            except RuntimeError:
-                # No event loop running, create one
-                asyncio.run(datasource.initialize())
+            await datasource.initialize()
             
             # Return the client
             return datasource.get_client()

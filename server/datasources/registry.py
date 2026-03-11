@@ -141,15 +141,16 @@ class DatasourceRegistry:
         Returns:
             Datasource instance or None if not found
         """
+        log = logger or logging.getLogger(__name__)
         implementation = self.get_implementation(datasource_name)
         if not implementation:
-            logger.error(f"Datasource implementation not found: {datasource_name}")
+            log.error(f"Datasource implementation not found: {datasource_name}")
             return None
             
         try:
             return implementation(config, logger)
         except Exception as e:
-            logger.error(f"Failed to create datasource {datasource_name}: {e}")
+            log.error(f"Failed to create datasource {datasource_name}: {e}")
             return None
     
     def is_available(self, datasource_name: str) -> bool:
@@ -188,11 +189,39 @@ class DatasourceRegistry:
             database = datasource_config.get('database', ':memory:')
             return f"{datasource_name}:{database}"
 
-        elif datasource_name in ['postgres', 'postgresql', 'mysql', 'mssql']:
-            # Relational DBs: cache key includes host, port, database
+        elif datasource_name in ['postgres', 'postgresql']:
+            # PostgreSQL: cache key includes host, port, database
             host = datasource_config.get('host', 'localhost')
             port = datasource_config.get('port', 5432)
             database = datasource_config.get('database', 'default')
+            username = datasource_config.get('username', '')
+            return f"{datasource_name}:{host}:{port}:{database}:{username}"
+
+        elif datasource_name in ['mysql', 'mariadb']:
+            host = datasource_config.get('host', 'localhost')
+            port = datasource_config.get('port', 3306)
+            database = datasource_config.get('database', 'default')
+            username = datasource_config.get('username', '')
+            return f"{datasource_name}:{host}:{port}:{database}:{username}"
+
+        elif datasource_name in ['sqlserver', 'mssql']:
+            host = datasource_config.get('host', 'localhost')
+            port = datasource_config.get('port', 1433)
+            database = datasource_config.get('database', 'master')
+            username = datasource_config.get('username', '')
+            return f"{datasource_name}:{host}:{port}:{database}:{username}"
+
+        elif datasource_name in ['oracle']:
+            host = datasource_config.get('host', 'localhost')
+            port = datasource_config.get('port', 1521)
+            service_name = datasource_config.get('service_name', 'XE')
+            username = datasource_config.get('username', '')
+            return f"{datasource_name}:{host}:{port}:{service_name}:{username}"
+
+        elif datasource_name in ['supabase']:
+            host = datasource_config.get('host', 'localhost')
+            port = datasource_config.get('port', 5432)
+            database = datasource_config.get('database', 'postgres')
             username = datasource_config.get('username', '')
             return f"{datasource_name}:{host}:{port}:{database}:{username}"
 
@@ -207,6 +236,9 @@ class DatasourceRegistry:
 
         elif datasource_name in ['qdrant']:
             # Qdrant: cache key includes host and port
+            url = datasource_config.get('url')
+            if url:
+                return f"{datasource_name}:url:{url}"
             host = datasource_config.get('host', 'localhost')
             port = datasource_config.get('port', 6333)
             return f"{datasource_name}:{host}:{port}"
@@ -223,6 +255,15 @@ class DatasourceRegistry:
             port = datasource_config.get('port', 27017)
             database = datasource_config.get('database', 'default')
             return f"{datasource_name}:{host}:{port}:{database}"
+
+        elif datasource_name in ['cassandra']:
+            contact_points = datasource_config.get('contact_points', 'localhost')
+            if isinstance(contact_points, list):
+                contact_points = ",".join(str(cp) for cp in contact_points)
+            port = datasource_config.get('port', 9042)
+            keyspace = datasource_config.get('keyspace', 'orbit')
+            username = datasource_config.get('username', '')
+            return f"{datasource_name}:{contact_points}:{port}:{keyspace}:{username}"
 
         elif datasource_name in ['athena']:
             # Athena: cache key includes region, catalog, schema and workgroup
@@ -244,6 +285,11 @@ class DatasourceRegistry:
             # Use generic key since there's no centralized connection
             return "http:placeholder"
 
+        elif datasource_name in ['milvus']:
+            host = datasource_config.get('host', 'localhost')
+            port = datasource_config.get('port', 19530)
+            return f"{datasource_name}:{host}:{port}"
+
         else:
             # Generic: use datasource name as cache key (no pooling)
             logger.warning(f"No specific cache key generation for {datasource_name}, using datasource name only")
@@ -264,6 +310,9 @@ class DatasourceRegistry:
         Returns:
             Datasource instance or None if not found
         """
+        if datasource_name == 'sqlite':
+            return self.create_datasource(datasource_name, config, logger_instance)
+
         # Generate cache key based on connection parameters
         cache_key = self._generate_cache_key(datasource_name, config)
 
@@ -320,6 +369,11 @@ class DatasourceRegistry:
             config: Configuration dictionary (used to generate cache key)
             logger_instance: Logger instance
         """
+        if datasource_name == 'sqlite':
+            if logger_instance:
+                logger_instance.debug("SQLite datasources are not pooled; skipping release")
+            return
+
         cache_key = self._generate_cache_key(datasource_name, config)
 
         with self._pool_lock:

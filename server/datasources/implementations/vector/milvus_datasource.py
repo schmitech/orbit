@@ -22,12 +22,10 @@ class MilvusDatasource(BaseDatasource):
         
         try:
             from pymilvus import connections, utility
-        except ImportError:
-            logger.warning("pymilvus not available. Install with: pip install pymilvus")
-            logger.info("Milvus datasource not yet implemented")
+        except ImportError as e:
             self._client = None
-            self._initialized = True
-            return
+            self._initialized = False
+            raise RuntimeError("pymilvus is required for MilvusDatasource") from e
         
         # Extract connection parameters
         host = milvus_config.get('host', 'localhost')
@@ -47,9 +45,9 @@ class MilvusDatasource(BaseDatasource):
                 
         except Exception as e:
             logger.error(f"Failed to connect to Milvus: {str(e)}")
-            logger.info("Milvus datasource not yet implemented")
             self._client = None
-            self._initialized = True
+            self._initialized = False
+            raise
     
     async def health_check(self) -> bool:
         """Perform a health check on the Milvus connection."""

@@ -229,7 +229,7 @@ class InferenceServer:
         from adapters.registry import ADAPTER_REGISTRY
         logger.info("Initializing retrievers package for RAG mode")
 
-    def _initialize_datasource_client(self, provider: str) -> Any:
+    async def _initialize_datasource_client(self, provider: str) -> Any:
         """
         Initialize a datasource client based on the selected provider.
         
@@ -239,7 +239,7 @@ class InferenceServer:
         Returns:
             An initialized datasource client
         """
-        return self.datasource_factory.initialize_datasource_client(provider)
+        return await self.datasource_factory.initialize_datasource_client(provider)
 
     async def _initialize_services(self, app: FastAPI) -> None:
         """

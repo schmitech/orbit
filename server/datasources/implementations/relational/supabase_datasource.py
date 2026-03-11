@@ -23,11 +23,10 @@ class SupabaseDatasource(BaseDatasource):
         try:
             import psycopg2
             from psycopg2.extras import RealDictCursor
-        except ImportError:
-            logger.warning("psycopg2 not available. Install with: pip install psycopg2-binary")
+        except ImportError as e:
             self._client = None
-            self._initialized = True
-            return
+            self._initialized = False
+            raise RuntimeError("psycopg2 is required for SupabaseDatasource") from e
         
         # Extract connection parameters
         host = supabase_config.get('host', 'localhost')

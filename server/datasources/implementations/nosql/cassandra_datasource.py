@@ -23,11 +23,10 @@ class CassandraDatasource(BaseDatasource):
         try:
             from cassandra.cluster import Cluster
             from cassandra.auth import PlainTextAuthProvider
-        except ImportError:
-            logger.warning("cassandra-driver not available. Install with: pip install cassandra-driver")
+        except ImportError as e:
             self._client = None
-            self._initialized = True
-            return
+            self._initialized = False
+            raise RuntimeError("cassandra-driver is required for CassandraDatasource") from e
         
         # Extract connection parameters
         contact_points = cassandra_config.get('contact_points', 'localhost')

@@ -23,11 +23,10 @@ class MariaDBDatasource(BaseDatasource):
         try:
             import mysql.connector
             from mysql.connector import Error
-        except ImportError:
-            logger.warning("mysql-connector-python not available. Install with: pip install mysql-connector-python")
+        except ImportError as e:
             self._client = None
-            self._initialized = True
-            return
+            self._initialized = False
+            raise RuntimeError("mysql-connector-python is required for MariaDBDatasource") from e
         
         # Extract connection parameters
         host = mariadb_config.get('host', 'localhost')

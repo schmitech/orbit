@@ -22,11 +22,10 @@ class OracleDatasource(BaseDatasource):
 
         try:
             import oracledb
-        except ImportError:
-            logger.warning("oracledb not available. Install with: pip install oracledb")
+        except ImportError as e:
             self._client = None
-            self._initialized = True
-            return
+            self._initialized = False
+            raise RuntimeError("oracledb is required for OracleDatasource") from e
 
         # Extract connection parameters
         host = oracle_config.get('host', 'localhost')
@@ -73,9 +72,6 @@ class OracleDatasource(BaseDatasource):
 
             logger.info("Oracle connection pool successful")
 
-            # Expose a single client for backward compatibility
-            self._client = self._pool.acquire()
-
             self._initialized = True
 
         except Exception as e:
@@ -88,6 +84,12 @@ class OracleDatasource(BaseDatasource):
         if hasattr(self, '_pool') and self._pool:
             return self._pool.acquire()
         return self._client
+
+    def get_client(self):
+        """Get a dedicated client connection for legacy callers."""
+        if self._client is None and hasattr(self, '_pool') and self._pool:
+            self._client = self.get_connection()
+        return super().get_client()
 
     def return_connection(self, conn):
         """Return a connection to the pool."""

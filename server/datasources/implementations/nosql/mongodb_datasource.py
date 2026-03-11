@@ -22,11 +22,10 @@ class MongoDBDatasource(BaseDatasource):
 
         try:
             from motor.motor_asyncio import AsyncIOMotorClient
-        except ImportError:
-            logger.warning("motor not available. Install with: pip install motor")
+        except ImportError as e:
             self._client = None
-            self._initialized = True
-            return
+            self._initialized = False
+            raise RuntimeError("motor is required for MongoDBDatasource") from e
 
         # Extract connection parameters
         database = mongodb_config.get('database', 'orbit')

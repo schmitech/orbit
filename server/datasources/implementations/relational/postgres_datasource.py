@@ -73,14 +73,12 @@ class PostgreSQLDatasource(BaseDatasource):
             finally:
                 self._pool.putconn(conn)
 
-            # Expose a single client for backward compatibility
-            self._client = self._pool.getconn()
-
             self._initialized = True
 
-        except ImportError:
-            logger.error("psycopg2 not available. Install with: pip install psycopg2-binary")
-            raise
+        except ImportError as e:
+            self._client = None
+            self._initialized = False
+            raise RuntimeError("psycopg2 is required for PostgreSQLDatasource") from e
         except Exception as e:
             logger.error(f"Failed to connect to PostgreSQL database: {str(e)}")
             logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
@@ -108,6 +106,12 @@ class PostgreSQLDatasource(BaseDatasource):
                 conn = self._pool.getconn()
 
         return conn
+
+    def get_client(self):
+        """Get a dedicated client connection for legacy callers."""
+        if self._client is None and hasattr(self, '_pool') and self._pool:
+            self._client = self.get_connection()
+        return super().get_client()
 
     def return_connection(self, conn):
         """Return a connection to the pool."""
