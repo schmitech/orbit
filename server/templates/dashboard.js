@@ -212,7 +212,9 @@
                 }
                 adapterStateFilter = state;
                 adapterStateButtons.forEach((btn) => {
-                    btn.classList.toggle('active', btn === button);
+                    const isActive = btn === button;
+                    btn.classList.toggle('active', isActive);
+                    btn.setAttribute('aria-pressed', isActive);
                 });
                 if (lastAdapterSnapshot) {
                     renderAdapterList(lastAdapterSnapshot);
@@ -306,6 +308,7 @@
             const cpuBar = document.getElementById('cpu-usage-bar');
             if (cpuBar) {
                 cpuBar.style.width = cpuPercent.toFixed(1) + '%';
+                cpuBar.setAttribute('aria-valuenow', Math.round(cpuPercent));
             }
 
             document.getElementById('memory-usage').textContent = formatNumber(data.system.memory_gb, 2);
@@ -313,6 +316,7 @@
             const memoryBar = document.getElementById('memory-usage-bar');
             if (memoryBar) {
                 memoryBar.style.width = memoryPercent.toFixed(1) + '%';
+                memoryBar.setAttribute('aria-valuenow', Math.round(memoryPercent));
             }
             const memoryHealth = document.getElementById('memory-health');
             if (memoryHealth) {
@@ -361,6 +365,7 @@
             if (errorBar) {
                 errorBar.className = `progress-bar ${reliabilityBarClass}`;
                 errorBar.style.width = errorPercent.toFixed(2) + '%';
+                errorBar.setAttribute('aria-valuenow', Math.round(errorPercent));
             }
             document.getElementById('uptime').textContent = data.system.uptime;
 
@@ -561,7 +566,7 @@
                     return `
                         <div class="surface-card p-5 space-y-4">
                             <div class="flex items-center justify-between">
-                                <h3 class="text-sm font-semibold text-slate-100">${name}</h3>
+                                <h3 class="text-sm font-semibold text-slate-100">${escapeHtml(name)}</h3>
                                 <span class="${badgeClass}">${clampedUtil.toFixed(1)}%</span>
                             </div>
                             <div class="space-y-2 text-xs text-slate-400">
@@ -640,6 +645,7 @@
             const utilBar = document.getElementById('redis-pool-util-bar');
             if (utilBar) {
                 utilBar.style.width = clampedUtil.toFixed(1) + '%';
+                utilBar.setAttribute('aria-valuenow', Math.round(clampedUtil));
                 if (clampedUtil >= 90) {
                     utilBar.className = 'progress-bar bg-rose-500/80';
                 } else if (clampedUtil >= 70) {
@@ -712,10 +718,10 @@
                             <div class="adapter-card">
                                 <div class="flex-1">
                                     <div class="flex items-center gap-2 mb-1">
-                                        <p class="text-sm font-semibold text-slate-100">${dsType}</p>
+                                        <p class="text-sm font-semibold text-slate-100">${escapeHtml(dsType)}</p>
                                         <span class="${badgeClass}">${refCount} ref${refCount !== 1 ? 's' : ''}</span>
                                     </div>
-                                    <p class="text-xs text-slate-400 font-mono truncate">${connInfo}</p>
+                                    <p class="text-xs text-slate-400 font-mono truncate">${escapeHtml(connInfo)}</p>
                                 </div>
                                 <div class="text-right">
                                     <p class="text-xs ${statusClass} font-medium">${statusText}</p>
@@ -740,16 +746,24 @@
             ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
-                document.getElementById('status-indicator').className = 'status-dot bg-emerald-400/80 pulse';
+                const indicator = document.getElementById('status-indicator');
+                indicator.className = 'status-dot bg-emerald-400/80 pulse';
+                indicator.setAttribute('aria-label', 'Connection active');
                 document.getElementById('status-text').textContent = 'Connected';
                 clearInterval(reconnectInterval);
             };
 
             ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
+                let data;
+                try {
+                    data = JSON.parse(event.data);
+                } catch (e) {
+                    console.error('Failed to parse WebSocket message:', e);
+                    return;
+                }
+
                 updateMetrics(data.metrics);
 
-                // Always show adapter status
                 if (data.adapters) {
                     updateAdapterStatus({ adapters: data.adapters });
                 } else {
@@ -761,10 +775,7 @@
                 }
 
                 if (data.datasource_pool) {
-                    console.debug('Datasource pool data received:', data.datasource_pool);
                     updateDatasourcePool(data.datasource_pool);
-                } else {
-                    console.debug('No datasource_pool in WebSocket data');
                 }
 
                 if (data.redis_health) {
@@ -773,11 +784,16 @@
             };
 
             ws.onclose = () => {
-                document.getElementById('status-indicator').className = 'status-dot bg-rose-500/80';
-                document.getElementById('status-text').textContent = 'Disconnected';
+                const indicator = document.getElementById('status-indicator');
+                indicator.className = 'status-dot bg-rose-500/80';
+                indicator.setAttribute('aria-label', 'Connection lost');
+                document.getElementById('status-text').textContent = 'Reconnecting...';
 
                 clearInterval(reconnectInterval);
+                let attempt = 0;
                 reconnectInterval = setInterval(() => {
+                    attempt++;
+                    document.getElementById('status-text').textContent = `Reconnecting... (${attempt})`;
                     connectWebSocket();
                 }, 5000);
             };

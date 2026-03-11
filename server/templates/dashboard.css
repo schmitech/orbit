@@ -137,6 +137,10 @@
             border-color: rgba(148, 163, 184, 0.4);
             color: rgba(226, 232, 240, 0.95);
         }
+        .state-filter:focus-visible {
+            outline: 2px solid rgba(56, 189, 248, 0.7);
+            outline-offset: 2px;
+        }
         .state-filter.active {
             background: rgba(16, 185, 129, 0.12);
             border-color: rgba(16, 185, 129, 0.4);
@@ -154,6 +158,18 @@
             0% { opacity: 1; }
             50% { opacity: 0.55; }
             100% { opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .pulse {
+                animation: none;
+            }
+            .surface-card,
+            .adapter-card {
+                transition: none;
+            }
+            .progress-bar {
+                transition: none;
+            }
         }
         @media (max-width: 640px) {
             .metric-card .metric-value {
