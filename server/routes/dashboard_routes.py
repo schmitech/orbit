@@ -6,11 +6,13 @@ Provides web-based dashboard and metrics endpoints.
 
 import asyncio
 import base64
+import json
 import logging
+from datetime import datetime, timezone
 from http.cookies import SimpleCookie
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pathlib import Path
 
@@ -364,6 +366,42 @@ def create_dashboard_router() -> APIRouter:
                 except Exception as e:
                     logger.debug(f"Error getting Redis health stats: {e}")
 
+                # Pipeline step metrics
+                try:
+                    pipeline_monitor = getattr(websocket.app.state, 'pipeline_monitor', None)
+                    if pipeline_monitor:
+                        step_metrics = pipeline_monitor.get_all_step_metrics()
+                        if step_metrics:
+                            steps_data = {}
+                            for step_name, sm in step_metrics.items():
+                                min_time = sm.min_execution_time if sm.total_executions > 0 else 0.0
+                                steps_data[step_name] = {
+                                    'total_executions': sm.total_executions,
+                                    'success_rate': round(sm.success_rate, 4),
+                                    'avg_time_ms': round(sm.avg_execution_time * 1000, 1),
+                                    'min_time_ms': round(min_time * 1000, 1),
+                                    'max_time_ms': round(sm.max_execution_time * 1000, 1),
+                                }
+                            data['pipeline_steps'] = steps_data
+                            pm = pipeline_monitor.get_pipeline_metrics()
+                            data['pipeline_summary'] = {
+                                'total_executions': pm.get('total_pipeline_executions', 0),
+                                'success_rate': round(pm.get('pipeline_success_rate', 0.0), 4),
+                                'avg_time_ms': round(pm.get('avg_response_time', 0.0) * 1000, 1),
+                            }
+                except Exception as e:
+                    logger.debug(f"Error getting pipeline metrics: {e}")
+
+                # Active connections info
+                data['connections'] = {
+                    'websocket_clients': len(active_connections),
+                }
+                try:
+                    if metrics_service and getattr(metrics_service, 'active_sessions', None):
+                        data['connections']['active_sessions'] = int(metrics_service.active_sessions._value.get())
+                except Exception:
+                    data['connections']['active_sessions'] = 0
+
                 # Add server mode information for dashboard display
                 data['server_mode'] = {
                     'adapters_available': bool(data.get('adapters'))
@@ -405,5 +443,51 @@ def create_dashboard_router() -> APIRouter:
     async def get_json_metrics(metrics_service = Depends(get_metrics_service_for_dashboard)):
         """JSON metrics endpoint for custom integrations"""
         return metrics_service.get_dashboard_metrics()
-    
+
+    @router.get("/dashboard/export")
+    async def export_dashboard_snapshot(
+        request: Request,
+        metrics_service = Depends(get_metrics_service_for_dashboard),
+        auth_context = Depends(require_dashboard_admin)
+    ):
+        """Export a complete dashboard snapshot as JSON for incident reports."""
+        snapshot: Dict[str, Any] = {
+            'exported_at': datetime.now(timezone.utc).isoformat(),
+            'metrics': metrics_service.get_dashboard_metrics(),
+        }
+        # Adapters
+        adapter_manager = get_adapter_manager(request)
+        if adapter_manager:
+            try:
+                if hasattr(adapter_manager, 'get_health_status'):
+                    health = adapter_manager.get_health_status()
+                    snapshot['adapters'] = health.get('circuit_breakers', {})
+                elif hasattr(adapter_manager, 'parallel_executor') and adapter_manager.parallel_executor:
+                    if hasattr(adapter_manager.parallel_executor, 'get_circuit_breaker_status'):
+                        snapshot['adapters'] = adapter_manager.parallel_executor.get_circuit_breaker_status()
+            except Exception:
+                pass
+        # Thread pools
+        tpm = getattr(request.app.state, 'thread_pool_manager', None)
+        if tpm:
+            try:
+                snapshot['thread_pools'] = tpm.get_pool_stats()
+            except Exception:
+                pass
+        # Pipeline
+        pm = getattr(request.app.state, 'pipeline_monitor', None)
+        if pm:
+            try:
+                snapshot['pipeline'] = json.loads(pm.export_metrics(format='json'))
+            except Exception:
+                pass
+
+        return Response(
+            content=json.dumps(snapshot, indent=2, default=str),
+            media_type="application/json",
+            headers={
+                'Content-Disposition': f'attachment; filename="orbit-snapshot-{datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")}.json"'
+            }
+        )
+
     return router

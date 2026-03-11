@@ -2,6 +2,12 @@
         let ws = null;
         let reconnectInterval = null;
 
+        // Time window state (minutes)
+        let selectedWindowMinutes = 5;
+
+        // Server-sent thresholds (defaults until first message)
+        let thresholds = { cpu: 90, memory: 85, error_rate: 5, response_time_ms: 5000 };
+
         // Chart configurations
         const chartOptions = {
             responsive: true,
@@ -188,6 +194,7 @@
             options: chartOptions
         });
 
+        // Adapter state
         let adapterSearchFilter = '';
         let adapterStateFilter = 'all';
         let lastAdapterSnapshot = null;
@@ -220,6 +227,23 @@
                     renderAdapterList(lastAdapterSnapshot);
                 }
             });
+        });
+
+        // Time window selector
+        document.querySelectorAll('.time-window-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const minutes = parseInt(btn.getAttribute('data-window'), 10);
+                if (minutes === selectedWindowMinutes) return;
+                selectedWindowMinutes = minutes;
+                document.querySelectorAll('.time-window-btn').forEach((b) => {
+                    b.setAttribute('aria-pressed', b === btn);
+                });
+            });
+        });
+
+        // Export button
+        document.getElementById('export-btn').addEventListener('click', () => {
+            window.open('/dashboard/export', '_blank');
         });
 
         function updateChartWithActiveTooltip(chart, labels, datasetValues) {
@@ -298,10 +322,20 @@
             return String(value).replace(/[&<>"']/g, (char) => lookup[char] || char);
         }
 
+        function getMaxPoints() {
+            // Data comes at ~5s intervals. Calculate points for selected window.
+            return Math.ceil((selectedWindowMinutes * 60) / 5);
+        }
+
         function updateMetrics(data) {
             const cpuPercent = clampPercentage(data.system.cpu_percent);
             const memoryPercent = clampPercentage(data.system.memory_percent);
             const errorPercent = clampPercentage(data.requests.error_rate);
+
+            // Update thresholds from server if present
+            if (data.thresholds) {
+                thresholds = { ...thresholds, ...data.thresholds };
+            }
 
             document.getElementById('cpu-usage').textContent = formatNumber(cpuPercent, 1);
             document.getElementById('cpu-usage-label').textContent = formatNumber(cpuPercent, 1) + '%';
@@ -320,10 +354,10 @@
             }
             const memoryHealth = document.getElementById('memory-health');
             if (memoryHealth) {
-                if (memoryPercent >= 85) {
+                if (memoryPercent >= thresholds.memory) {
                     memoryHealth.textContent = 'Critical';
                     memoryHealth.className = 'text-sm font-semibold text-rose-300';
-                } else if (memoryPercent >= 70) {
+                } else if (memoryPercent >= thresholds.memory * 0.82) {
                     memoryHealth.textContent = 'Elevated';
                     memoryHealth.className = 'text-sm font-semibold text-amber-300';
                 } else {
@@ -336,7 +370,7 @@
             document.getElementById('total-requests').textContent = formatNumber(data.requests.total);
             document.getElementById('requests-error-rate').textContent = formatNumber(errorPercent, 2) + '%';
 
-            // Calculate reliability as (100% - error rate)
+            // Reliability = 100% - error rate
             const reliabilityPercent = clampPercentage(100 - errorPercent);
             document.getElementById('error-rate').textContent = formatNumber(reliabilityPercent, 2);
 
@@ -345,11 +379,11 @@
             let reliabilityStatusClass = 'text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300';
             let reliabilityBarClass = 'bg-emerald-400/80';
 
-            if (errorPercent >= 5) {
+            if (errorPercent >= thresholds.error_rate) {
                 reliabilityStatus = 'Critical';
                 reliabilityStatusClass = 'text-sm font-semibold uppercase tracking-[0.18em] text-rose-300';
                 reliabilityBarClass = 'bg-rose-500/85';
-            } else if (errorPercent >= 1) {
+            } else if (errorPercent >= thresholds.error_rate * 0.2) {
                 reliabilityStatus = 'Degraded';
                 reliabilityStatusClass = 'text-sm font-semibold uppercase tracking-[0.18em] text-amber-300';
                 reliabilityBarClass = 'bg-amber-400/80';
@@ -360,7 +394,6 @@
                 reliabilityStatusEl.className = reliabilityStatusClass;
             }
 
-            // Show error rate as a progress bar (inverse of reliability)
             const errorBar = document.getElementById('error-rate-bar');
             if (errorBar) {
                 errorBar.className = `progress-bar ${reliabilityBarClass}`;
@@ -369,13 +402,32 @@
             }
             document.getElementById('uptime').textContent = data.system.uptime;
 
+            // Disk usage
+            const diskEl = document.getElementById('disk-usage');
+            if (diskEl && data.system.disk_usage_percent !== undefined) {
+                const diskPct = data.system.disk_usage_percent;
+                diskEl.textContent = formatNumber(diskPct, 1) + '%';
+                if (diskPct >= 90) {
+                    diskEl.className = 'text-sm font-medium text-rose-300';
+                } else if (diskPct >= 75) {
+                    diskEl.className = 'text-sm font-medium text-amber-300';
+                } else {
+                    diskEl.className = 'text-sm font-medium text-slate-200';
+                }
+            }
+
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+
+            // Endpoint stats
+            if (data.endpoint_stats && data.endpoint_stats.length > 0) {
+                updateEndpointStats(data.endpoint_stats);
+            }
 
             if (data.time_series && data.time_series.timestamps.length > 0) {
                 const labels = data.time_series.timestamps.map(t =>
-                    new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
                 );
-                const maxPoints = 30;
+                const maxPoints = getMaxPoints();
                 const startIdx = Math.max(0, labels.length - maxPoints);
                 const trimmedLabels = labels.slice(startIdx);
 
@@ -399,6 +451,115 @@
                     data.time_series.response_time_p99.slice(startIdx)
                 ]);
             }
+        }
+
+        // --- Endpoint latency table ---
+        function updateEndpointStats(endpoints) {
+            const section = document.getElementById('endpoint-stats-section');
+            const tbody = document.getElementById('endpoint-table-body');
+            if (!section || !tbody) return;
+
+            if (!endpoints || endpoints.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+            section.classList.remove('hidden');
+
+            const methodColors = { GET: 'method-get', POST: 'method-post', PUT: 'method-put', DELETE: 'method-delete' };
+
+            tbody.innerHTML = endpoints.map(ep => {
+                const method = (ep.method || 'GET').toUpperCase();
+                const methodClass = methodColors[method] || 'method-get';
+                const latencyClass = ep.avg_latency_ms >= (thresholds.response_time_ms || 5000) ? 'text-rose-300' :
+                                     ep.avg_latency_ms >= 1000 ? 'text-amber-300' : 'text-slate-200';
+                const errorClass = ep.error_rate >= 5 ? 'text-rose-300' :
+                                   ep.error_rate >= 1 ? 'text-amber-300' : 'text-slate-200';
+                return `<tr>
+                    <td><span class="method-badge ${methodClass}">${method}</span></td>
+                    <td class="font-mono text-xs">${escapeHtml(ep.endpoint)}</td>
+                    <td class="text-right font-medium">${formatNumber(ep.total_requests)}</td>
+                    <td class="text-right font-medium ${latencyClass}">${formatNumber(ep.avg_latency_ms, 1)} ms</td>
+                    <td class="text-right font-medium ${errorClass}">${formatNumber(ep.error_rate, 2)}%</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // --- Pipeline steps ---
+        function updatePipelineSteps(steps, summary) {
+            const section = document.getElementById('pipeline-steps-section');
+            const container = document.getElementById('pipeline-steps');
+            const summaryContainer = document.getElementById('pipeline-summary');
+            if (!section || !container) return;
+
+            if (!steps || Object.keys(steps).length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+            section.classList.remove('hidden');
+
+            // Summary cards
+            if (summaryContainer && summary) {
+                summaryContainer.innerHTML = [
+                    { label: 'Total Executions', value: formatNumber(summary.total_executions) },
+                    { label: 'Success Rate', value: formatNumber((summary.success_rate * 100), 1) + '%' },
+                    { label: 'Avg Pipeline Time', value: formatNumber(summary.avg_time_ms, 1) + ' ms' },
+                ].map(({ label, value }) => `
+                    <div class="adapter-summary-card">
+                        <p class="label">${label}</p>
+                        <p class="value" style="font-size:1.5rem">${value}</p>
+                    </div>
+                `).join('');
+            }
+
+            // Step cards
+            const entries = Object.entries(steps).sort((a, b) => b[1].total_executions - a[1].total_executions);
+            container.innerHTML = entries.map(([name, s]) => {
+                const successPct = (s.success_rate * 100);
+                let badgeClass = 'badge bg-emerald-400/15 text-emerald-200 border-emerald-400/25';
+                if (successPct < 80) {
+                    badgeClass = 'badge bg-rose-500/15 text-rose-200 border-rose-500/30';
+                } else if (successPct < 95) {
+                    badgeClass = 'badge bg-amber-400/15 text-amber-200 border-amber-400/30';
+                }
+
+                return `
+                    <div class="adapter-card">
+                        <div class="flex items-start justify-between gap-3">
+                            <p class="text-sm font-semibold text-slate-100">${escapeHtml(name)}</p>
+                            <span class="${badgeClass}">${formatNumber(successPct, 1)}%</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 text-xs text-slate-400">
+                            <div>
+                                <p class="uppercase tracking-[0.16em] text-[0.65rem]">Avg</p>
+                                <p class="text-sm text-slate-200 font-semibold">${formatNumber(s.avg_time_ms, 1)} ms</p>
+                            </div>
+                            <div>
+                                <p class="uppercase tracking-[0.16em] text-[0.65rem]">Min</p>
+                                <p class="text-sm text-slate-200 font-semibold">${formatNumber(s.min_time_ms, 1)} ms</p>
+                            </div>
+                            <div>
+                                <p class="uppercase tracking-[0.16em] text-[0.65rem]">Max</p>
+                                <p class="text-sm text-slate-200 font-semibold">${formatNumber(s.max_time_ms, 1)} ms</p>
+                            </div>
+                        </div>
+                        <div class="text-xs text-slate-400">${formatNumber(s.total_executions)} executions</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- Connections info ---
+        function updateConnections(conn) {
+            if (!conn) return;
+            const wsEl = document.getElementById('ws-clients');
+            const wsPlural = document.getElementById('ws-clients-s');
+            const sessEl = document.getElementById('active-sessions');
+            if (wsEl) {
+                const count = conn.websocket_clients || 0;
+                wsEl.textContent = count;
+                if (wsPlural) wsPlural.textContent = count === 1 ? '' : 's';
+            }
+            if (sessEl) sessEl.textContent = conn.active_sessions || 0;
         }
 
         const adapterStateStyles = {
@@ -482,7 +643,7 @@
                 const latency = status?.average_latency_ms;
                 const latencyDisplay = typeof latency === 'number'
                     ? `${formatNumber(latency, latency >= 100 ? 0 : 1)} ms`
-                    : '—';
+                    : '\u2014';
 
                 return `
                     <div class="adapter-card">
@@ -542,7 +703,6 @@
                         ((pool.active_threads / pool.max_workers) * 100) : 0;
                     const clampedUtil = clampPercentage(utilization);
 
-                    // Determine if pool is idle
                     const isIdle = pool.active_threads === 0 && pool.queued_tasks === 0;
 
                     let barColor = 'bg-emerald-400/80';
@@ -603,7 +763,6 @@
 
             section.classList.remove('hidden');
 
-            // Status
             const statusEl = document.getElementById('redis-status');
             const hintEl = document.getElementById('redis-status-hint');
             if (data.initialized) {
@@ -616,7 +775,6 @@
                 hintEl.textContent = 'Not initialized';
             }
 
-            // Circuit breaker
             const cb = data.circuit_breaker || {};
             const cbStateEl = document.getElementById('redis-cb-state');
             const cbState = (cb.state || 'unknown').toLowerCase();
@@ -631,7 +789,6 @@
             document.getElementById('redis-cb-failures').textContent = cb.failure_count ?? 0;
             document.getElementById('redis-cb-max').textContent = cb.max_failures ?? 5;
 
-            // Pool stats
             const pool = data.pool || {};
             const inUse = pool.in_use_connections || 0;
             const maxConn = pool.max_connections || 0;
@@ -661,23 +818,18 @@
             const container = document.getElementById('datasource-connections');
 
             if (data && data.total_cached_datasources > 0) {
-                // Show the section
                 section.classList.remove('hidden');
 
-                // Update summary metrics
                 const totalDatasources = data.total_cached_datasources || 0;
                 const totalReferences = data.total_references || 0;
 
                 document.getElementById('pool-total-datasources').textContent = formatNumber(totalDatasources);
                 document.getElementById('pool-total-references').textContent = formatNumber(totalReferences);
 
-                // Calculate pooling efficiency (what % of connections are saved)
-                // If we have 5 references but only 2 datasources, we saved 3 connections = 60% efficiency
                 const efficiency = totalReferences > 0 ?
                     (((totalReferences - totalDatasources) / totalReferences) * 100) : 0;
                 document.getElementById('pool-efficiency').textContent = formatNumber(Math.max(0, efficiency), 1);
 
-                // Estimate memory savings (rough estimate: 5MB per connection saved)
                 const connectionsSaved = Math.max(0, totalReferences - totalDatasources);
                 const memorySavedMB = connectionsSaved * 5;
                 document.getElementById('pool-memory-saved').textContent =
@@ -685,17 +837,14 @@
                         `${formatNumber(memorySavedMB / 1024, 2)} GB` :
                         `${formatNumber(memorySavedMB)} MB`;
 
-                // Build the datasource list
                 if (data.datasource_keys && data.reference_counts) {
                     const html = data.datasource_keys.map(key => {
                         const refCount = data.reference_counts[key] || 0;
 
-                        // Extract datasource type and connection info
                         const parts = key.split(':');
                         const dsType = parts[0] || 'unknown';
                         const connInfo = parts.slice(1).join(':') || 'default';
 
-                        // Color based on reference count (higher = better pooling)
                         let badgeClass = 'badge bg-slate-500/15 text-slate-200 border-slate-500/30';
                         let statusText = 'Single use';
                         let statusClass = 'text-slate-400';
@@ -734,7 +883,6 @@
                     container.innerHTML = '<p class="text-sm text-slate-400">No datasource details available</p>';
                 }
             } else {
-                // Hide the section if no datasources
                 section.classList.add('hidden');
             }
         }
@@ -781,6 +929,14 @@
                 if (data.redis_health) {
                     updateRedisHealth(data.redis_health);
                 }
+
+                if (data.pipeline_steps) {
+                    updatePipelineSteps(data.pipeline_steps, data.pipeline_summary);
+                }
+
+                if (data.connections) {
+                    updateConnections(data.connections);
+                }
             };
 
             ws.onclose = () => {
@@ -811,4 +967,4 @@
             }
             clearInterval(reconnectInterval);
         });
-    
+

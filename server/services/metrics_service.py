@@ -195,8 +195,8 @@ class MetricsService:
             registry=self.registry
         )
         
-        # Time series data for dashboard - use configured values
-        max_data_points = self.time_series_window // self.collection_interval
+        # Time series data for dashboard - support up to 1 hour for time window selector
+        max_data_points = max(self.time_series_window, 3600) // self.collection_interval
         self.time_series_data = {
             'cpu': deque(maxlen=max_data_points),
             'memory': deque(maxlen=max_data_points),
@@ -213,7 +213,11 @@ class MetricsService:
         self.request_timestamps = deque(maxlen=1000)
         self.error_timestamps = deque(maxlen=1000)
         self.response_times = deque(maxlen=100)
-        
+
+        # Per-endpoint tracking for latency breakdown (bounded)
+        self.endpoint_stats: Dict[str, Dict[str, Any]] = {}
+        self._max_tracked_endpoints = 200
+
         # Start background metrics collection
         self._collection_task = None
         self._start_time = time.time()
@@ -327,6 +331,18 @@ class MetricsService:
         if status >= 400:
             self.error_timestamps.append(now)
         self.response_times.append(duration)
+
+        # Track per-endpoint stats
+        if endpoint not in self.endpoint_stats:
+            if len(self.endpoint_stats) >= self._max_tracked_endpoints:
+                min_key = min(self.endpoint_stats, key=lambda k: self.endpoint_stats[k]['total'])
+                del self.endpoint_stats[min_key]
+            self.endpoint_stats[endpoint] = {'total': 0, 'errors': 0, 'total_duration': 0.0, 'method': method}
+        ep = self.endpoint_stats[endpoint]
+        ep['total'] += 1
+        if status >= 400:
+            ep['errors'] += 1
+        ep['total_duration'] += duration
     
     def record_adapter_request(self, adapter: str, status: str, duration: float):
         """Record adapter request metrics"""
@@ -433,6 +449,24 @@ class MetricsService:
         p95_response_time = self._calculate_percentile(response_times_list, 95) * 1000
         p99_response_time = self._calculate_percentile(response_times_list, 99) * 1000
 
+        # Top 10 endpoints by request count
+        sorted_endpoints = sorted(
+            self.endpoint_stats.items(),
+            key=lambda x: x[1]['total'],
+            reverse=True
+        )[:10]
+        endpoint_list = []
+        for ep_path, stats in sorted_endpoints:
+            avg_ms = (stats['total_duration'] / stats['total'] * 1000) if stats['total'] > 0 else 0
+            error_pct = (stats['errors'] / stats['total'] * 100) if stats['total'] > 0 else 0
+            endpoint_list.append({
+                'endpoint': ep_path,
+                'method': stats.get('method', 'GET'),
+                'total_requests': stats['total'],
+                'avg_latency_ms': round(avg_ms, 1),
+                'error_rate': round(error_pct, 2)
+            })
+
         return {
             'system': {
                 'cpu_percent': round(process_cpu_percent, 1),
@@ -444,7 +478,7 @@ class MetricsService:
             },
             'requests': {
                 'total': sum(1 for t in self.request_timestamps),
-                'per_second': round(requests_per_second),  # Integer for requests per second
+                'per_second': round(requests_per_second),
                 'error_rate': round(error_rate, 2),
                 'avg_response_time': round(avg_response_time, 2),
                 'p50_response_time': round(p50_response_time, 2),
@@ -461,6 +495,13 @@ class MetricsService:
                 'response_time_p95': list(self.time_series_data['response_time_p95']),
                 'response_time_p99': list(self.time_series_data['response_time_p99']),
                 'timestamps': list(self.time_series_data['timestamps'])
+            },
+            'endpoint_stats': endpoint_list,
+            'thresholds': {
+                'cpu': self.cpu_threshold,
+                'memory': self.memory_threshold,
+                'error_rate': self.error_rate_threshold,
+                'response_time_ms': self.response_time_threshold,
             }
         }
     

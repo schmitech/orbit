@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/chart.min.js"></script>
     <link rel="stylesheet" href="/static/dashboard.tailwind.generated.css?v={{DASHBOARD_TAILWIND_VERSION}}">
     <link rel="stylesheet" href="/static/dashboard.css?v={{DASHBOARD_CUSTOM_VERSION}}">
 </head>
@@ -16,21 +16,27 @@
     <main class="max-w-7xl mx-auto px-6 py-10 space-y-10">
         <header class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div class="space-y-3">
-                <img src="/static/orbit-logo-dark.png" alt="ORBIT" class="h-14 md:h-16 w-auto">
+                <img src="/static/orbit-logo-dark.png" alt="ORBIT" class="h-8 md:h-9 w-auto">
                 <p class="text-sm text-slate-400 max-w-2xl">Real-time service health, throughput, and reliability telemetry.</p>
             </div>
             <div class="flex items-center gap-5">
-                <div class="flex items-center gap-3 rounded-full border border-slate-800 bg-slate-900/60 px-5 py-3 shadow-lg shadow-slate-900/30">
-                    <span id="status-indicator" class="status-dot bg-emerald-400/80 pulse" role="status" aria-label="Connection active"></span>
-                    <div class="flex flex-col">
-                        <span id="status-text" class="text-sm font-medium text-slate-100">Connected</span>
-                        <span class="text-xs text-slate-400">WebSocket Stream</span>
-                    </div>
+                <span id="status-indicator" class="status-dot bg-emerald-400/80 pulse" role="status" aria-label="Connection active"></span>
+                <div class="flex flex-col">
+                    <span id="status-text" class="text-sm font-medium text-slate-100">Connected</span>
+                    <span class="text-xs text-slate-400">
+                        <span id="ws-clients">0</span> client<span id="ws-clients-s">s</span> &middot; <span id="active-sessions">0</span> sessions
+                    </span>
                 </div>
                 <div class="text-xs text-slate-500 text-right">
                     Last Update
                     <div id="last-update" class="text-sm font-semibold text-slate-200">Never</div>
                 </div>
+                <button id="export-btn" type="button" class="flex items-center gap-1.5 bg-transparent border-0 text-sm font-medium text-slate-400 hover:text-slate-100 cursor-pointer p-0 transition-colors" title="Export snapshot as JSON">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Export
+                </button>
             </div>
         </header>
 
@@ -127,14 +133,26 @@
                         <span>Uptime</span>
                         <span id="uptime" class="text-sm font-medium text-slate-200">0m</span>
                     </div>
+                    <div class="flex items-center justify-between text-xs text-slate-400">
+                        <span>Disk</span>
+                        <span id="disk-usage" class="text-sm font-medium text-slate-200">0%</span>
+                    </div>
                 </div>
             </article>
         </section>
 
         <section>
-            <div class="flex flex-col gap-2 mb-6">
-                <h2 class="section-title text-slate-100">Live Signals</h2>
-                <p class="section-subtitle">System resources, throughput, and latency trends update as telemetry streams in.</p>
+            <div class="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+                <div class="space-y-1">
+                    <h2 class="section-title text-slate-100">Live Signals</h2>
+                    <p class="section-subtitle">System resources, throughput, and latency trends update as telemetry streams in.</p>
+                </div>
+                <div class="flex flex-wrap gap-2 text-xs" id="time-window-selector" role="group" aria-label="Chart time window">
+                    <button type="button" class="time-window-btn" data-window="5" aria-pressed="true">5m</button>
+                    <button type="button" class="time-window-btn" data-window="15" aria-pressed="false">15m</button>
+                    <button type="button" class="time-window-btn" data-window="30" aria-pressed="false">30m</button>
+                    <button type="button" class="time-window-btn" data-window="60" aria-pressed="false">1h</button>
+                </div>
             </div>
             <div id="charts-grid" class="grid grid-cols-1 gap-6 xl:grid-cols-2">
                 <article class="surface-card chart-card p-6 h-[320px]">
@@ -174,7 +192,50 @@
                     </div>
                 </article>
             </div>
-            <article id="adapter-status-container" class="surface-card p-6 space-y-4 hidden">
+
+            <!-- Endpoint Latency Table -->
+            <article id="endpoint-stats-section" class="surface-card p-6 space-y-4 mt-6 hidden">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-100">Endpoint Latency</h3>
+                        <p class="text-sm text-slate-400">Top endpoints by request volume with average response times.</p>
+                    </div>
+                    <span class="badge bg-indigo-400/10 text-indigo-200 border-indigo-400/30">Per-Route</span>
+                </div>
+                <div class="endpoint-table-wrap">
+                    <table class="endpoint-table">
+                        <thead>
+                            <tr>
+                                <th>Method</th>
+                                <th>Endpoint</th>
+                                <th class="text-right">Requests</th>
+                                <th class="text-right">Avg Latency</th>
+                                <th class="text-right">Error Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody id="endpoint-table-body">
+                            <tr><td colspan="5" class="text-slate-400 text-center">Collecting endpoint data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <!-- Pipeline Steps -->
+            <article id="pipeline-steps-section" class="surface-card p-6 space-y-4 mt-6 hidden">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-100">Pipeline Step Latency</h3>
+                        <p class="text-sm text-slate-400">Per-step execution timing across the inference pipeline.</p>
+                    </div>
+                    <span class="badge bg-violet-400/10 text-violet-200 border-violet-400/30">Pipeline</span>
+                </div>
+                <div id="pipeline-summary" class="grid gap-3 sm:grid-cols-3 text-sm text-slate-400"></div>
+                <div id="pipeline-steps" class="adapter-grid">
+                    <p class="text-sm text-slate-400">Waiting for pipeline activity...</p>
+                </div>
+            </article>
+
+            <article id="adapter-status-container" class="surface-card p-6 space-y-4 mt-6 hidden">
                 <div class="flex items-center justify-between">
                     <div>
                         <h3 class="text-lg font-semibold text-slate-100">Adapter Health</h3>
@@ -214,7 +275,7 @@
                 <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
                     <div class="flex items-center justify-between">
                         <span class="metric-label">Pooled Datasources</span>
-                        <svg class="w-8 h-8 text-cyan-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-8 h-8 text-cyan-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
                         </svg>
                     </div>
@@ -224,7 +285,7 @@
                 <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
                     <div class="flex items-center justify-between">
                         <span class="metric-label">Total References</span>
-                        <svg class="w-8 h-8 text-violet-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-8 h-8 text-violet-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
                         </svg>
                     </div>
@@ -234,7 +295,7 @@
                 <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
                     <div class="flex items-center justify-between">
                         <span class="metric-label">Pooling Efficiency</span>
-                        <svg class="w-8 h-8 text-emerald-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-8 h-8 text-emerald-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                     </div>
@@ -244,7 +305,7 @@
                 <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
                     <div class="flex items-center justify-between">
                         <span class="metric-label">Memory Savings</span>
-                        <svg class="w-8 h-8 text-amber-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-8 h-8 text-amber-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
                         </svg>
                     </div>
@@ -266,7 +327,7 @@
                 <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
                     <div class="flex items-center justify-between">
                         <span class="metric-label">Status</span>
-                        <svg class="w-8 h-8 text-rose-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-8 h-8 text-rose-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
                         </svg>
                     </div>
@@ -276,17 +337,17 @@
                 <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
                     <div class="flex items-center justify-between">
                         <span class="metric-label">Circuit Breaker</span>
-                        <svg class="w-8 h-8 text-amber-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-8 h-8 text-amber-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                         </svg>
                     </div>
-                    <div class="text-2xl font-semibold" id="redis-cb-state">—</div>
+                    <div class="text-2xl font-semibold" id="redis-cb-state">&mdash;</div>
                     <div class="text-xs text-slate-400">Failures: <span id="redis-cb-failures">0</span> / <span id="redis-cb-max">5</span></div>
                 </article>
                 <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
                     <div class="flex items-center justify-between">
                         <span class="metric-label">Pool Connections</span>
-                        <svg class="w-8 h-8 text-cyan-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-8 h-8 text-cyan-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
                         </svg>
                     </div>
@@ -296,7 +357,7 @@
                 <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
                     <div class="flex items-center justify-between">
                         <span class="metric-label">Pool Utilization</span>
-                        <svg class="w-8 h-8 text-emerald-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-8 h-8 text-emerald-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                         </svg>
                     </div>
