@@ -57,7 +57,7 @@ curl -X POST https://orbit.schmitech.ai/v1/chat \
   }'
 ```
 
-**B) Run ORBIT locally with Docker Compose**
+**B) Run ORBIT locally with Docker Compose** (recommended — includes Ollama)
 
 ```bash
 git clone https://github.com/schmitech/orbit.git && cd orbit/docker
@@ -75,6 +75,15 @@ curl -X POST http://localhost:3000/v1/chat \
 ```
 
 For GPU acceleration (NVIDIA): `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d`
+
+**C) Run ORBIT from the pre-built image** (server only; point it at your own Ollama)
+
+```bash
+docker pull schmitech/orbit:basic
+docker run -d --name orbit-basic -p 3000:3000 schmitech/orbit:basic
+```
+
+If Ollama runs on your host (e.g. port 11434), add `-e OLLAMA_HOST=host.docker.internal:11434` so the container can reach it. The image includes simple-chat only; for the full stack (Ollama + models), use option B or the [Docker Guide](docker/README.md).
 
 ---
 
@@ -138,7 +147,9 @@ docker compose up -d
 ```
 This starts ORBIT + Ollama with SmolLM2, auto-pulls models, and exposes the API on port 3000. Connect [orbitchat](https://www.npmjs.com/package/orbitchat) from your host: `ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' npx orbitchat`
 
-See the full [Docker Guide](docker/README.md) for GPU mode, volumes, and configuration.
+**Pre-built image only** (server + your own Ollama): `docker pull schmitech/orbit:basic` then `docker run -d --name orbit-basic -p 3000:3000 -e OLLAMA_HOST=host.docker.internal:11434 schmitech/orbit:basic` if Ollama runs on the host.
+
+See the full [Docker Guide](docker/README.md) for GPU mode, volumes, single-container run, and configuration.
 
 **Stable Release (Recommended for Production)**
 ```bash

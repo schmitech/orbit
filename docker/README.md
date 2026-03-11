@@ -37,7 +37,14 @@ No external API keys or cloud services required!
 
 ## Quick Start
 
-### 1. Start the Services
+You can run ORBIT with Docker in two ways:
+
+| Option | Use when |
+|--------|----------|
+| **Docker Compose** (below) | You want Ollama + models + ORBIT in one go (recommended). |
+| **Pre-built image only** | You already have Ollama on the host or elsewhere; you only need the ORBIT server. |
+
+### 1. Start the Services (Docker Compose)
 
 ```bash
 cd docker
@@ -91,6 +98,27 @@ curl -X POST http://localhost:3000/v1/chat \
     "stream": false
   }'
 ```
+
+### Option B: Pre-built image (single container)
+
+To run only the ORBIT server from Docker Hub (no Ollama or models inside the image):
+
+```bash
+docker pull schmitech/orbit:basic
+docker run -d --name orbit-basic -p 3000:3000 schmitech/orbit:basic
+```
+
+The server will listen on port 3000 but needs an LLM backend to handle chat:
+
+- **Ollama on your host:** use `host.docker.internal` so the container can reach it:
+  ```bash
+  docker run -d --name orbit-basic -p 3000:3000 \
+    -e OLLAMA_HOST=host.docker.internal:11434 \
+    schmitech/orbit:basic
+  ```
+- **Ollama in another container or remote:** set `OLLAMA_HOST` to that address (e.g. `ollama:11434` or `http://your-ollama-host:11434`).
+
+The `basic` image includes the **simple-chat** adapter only. For the full stack (Ollama + model pull + ORBIT), use Docker Compose (Option A above).
 
 ## GPU Mode (NVIDIA)
 
