@@ -366,6 +366,21 @@ textarea {
   box-shadow: none;
 }
 
+.secret-field {
+  position: relative;
+  width: 100%;
+  min-width: min(100%, 26rem);
+}
+
+.secret-field code {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.7rem 2.75rem 0.7rem 0.75rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .password-toggle:hover:not(:disabled),
 .password-toggle:active:not(:disabled) {
   background: transparent;
@@ -651,6 +666,70 @@ tbody tr:nth-child(even) {
   border: 1px solid #fecaca;
 }
 
+.test-result {
+  min-height: 44px;
+  min-width: min(100%, 24rem);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border);
+  background: var(--surface-subtle);
+  color: var(--ink-secondary);
+}
+
+.test-result:empty {
+  display: none;
+}
+
+.test-result-ok,
+.test-result-fail {
+  border-style: solid;
+  align-items: flex-start;
+}
+
+.test-result-ok {
+  background: var(--success-50);
+  border-color: #a7f3d0;
+  color: var(--success-text);
+}
+
+.test-result-fail {
+  background: var(--danger-50);
+  border-color: #fecaca;
+  color: var(--danger-text);
+}
+
+.test-result-icon {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.test-result-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.test-result-copy strong {
+  font-size: var(--text-sm);
+  line-height: 1.2;
+}
+
+.test-result-copy span {
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
 .status-active {
   color: var(--success-text);
   font-weight: 600;
@@ -690,6 +769,37 @@ tbody tr:nth-child(even) {
 .quota-section {
   display: grid;
   gap: var(--sp-3);
+}
+
+.log-panel {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.log-meta {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.log-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.log-viewer {
+  margin: 0;
+  min-height: 320px;
+  max-height: 420px;
 }
 
 .danger-zone {

@@ -9,6 +9,7 @@ This module contains all admin-related endpoints including:
 
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, HTTPException, Header, Query
 
@@ -49,6 +50,30 @@ def check_service_availability(service, service_name: str):
             status_code=503, 
             detail=f"{service_name} is not available"
         )
+
+
+def _tail_file(path: Path, n: int) -> list:
+    """Read last n lines by seeking from end of file instead of reading everything."""
+    with path.open("rb") as f:
+        f.seek(0, 2)
+        size = f.tell()
+        if size == 0:
+            return []
+        block_size = 8192
+        blocks: list = []
+        pos = size
+        newline_count = 0
+
+        while pos > 0 and newline_count < n + 1:
+            read_size = min(block_size, pos)
+            pos -= read_size
+            f.seek(pos)
+            block = f.read(read_size)
+            blocks.insert(0, block)
+            newline_count += block.count(b"\n")
+
+        text = b"".join(blocks).decode("utf-8", errors="replace")
+        return text.splitlines()[-n:]
 
 
 async def admin_auth_check(
@@ -165,6 +190,7 @@ async def list_api_keys(
     # Check if API key service is available
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
+    prompt_service = getattr(request.app.state, 'prompt_service', None)
     
     try:
         # Validate parameters
@@ -196,6 +222,21 @@ async def list_api_keys(
             limit=limit,
             skip=offset
         )
+
+        prompt_names = {}
+        if prompt_service:
+            prompt_ids = {
+                str(key.get("system_prompt_id"))
+                for key in api_keys
+                if key.get("system_prompt_id")
+            }
+            for prompt_id in prompt_ids:
+                try:
+                    prompt = await prompt_service.get_prompt_by_id(prompt_id)
+                    if prompt:
+                        prompt_names[prompt_id] = prompt.get("name")
+                except Exception as exc:
+                    logger.warning(f"Failed to resolve prompt name for API key list prompt {prompt_id}: {exc}")
 
         # Convert documents to JSON-serializable format
         serialized_keys = []
@@ -231,7 +272,9 @@ async def list_api_keys(
 
             # Handle system_prompt_id if it exists
             if key.get("system_prompt_id"):
-                key_dict["system_prompt_id"] = str(key["system_prompt_id"])
+                prompt_id = str(key["system_prompt_id"])
+                key_dict["system_prompt_id"] = prompt_id
+                key_dict["system_prompt_name"] = prompt_names.get(prompt_id)
 
             serialized_keys.append(key_dict)
         
@@ -240,6 +283,72 @@ async def list_api_keys(
     except Exception as e:
         logger.error(f"Error listing API keys: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to list API keys: {str(e)}")
+
+
+@admin_router.get("/api-keys/{api_key_id}/detail")
+async def get_api_key_detail(
+    api_key_id: str,
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """Get admin-only detail for a specific API key record, including the raw key value."""
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    check_service_availability(api_key_service, "API key service")
+    prompt_service = getattr(request.app.state, 'prompt_service', None)
+
+    try:
+        if not api_key_service._initialized:
+            await api_key_service.initialize()
+
+        key = await api_key_service.database.find_one(
+            api_key_service.collection_name,
+            {"_id": api_key_id}
+        )
+        if not key:
+            raise HTTPException(status_code=404, detail="API key not found")
+
+        key_dict = {
+            "_id": str(key["_id"]) if key.get("_id") else None,
+            "api_key": key.get("api_key"),
+            "adapter_name": key.get("adapter_name"),
+            "collection_name": key.get("collection_name"),
+            "client_name": key.get("client_name"),
+            "notes": key.get("notes"),
+            "active": key.get("active", True),
+            "created_at": None,
+        }
+
+        created_at = key.get("created_at")
+        if created_at:
+            if hasattr(created_at, 'timestamp'):
+                key_dict["created_at"] = created_at.timestamp()
+            elif isinstance(created_at, str):
+                try:
+                    dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    key_dict["created_at"] = dt.timestamp()
+                except Exception:
+                    key_dict["created_at"] = None
+            else:
+                key_dict["created_at"] = created_at
+
+        if key.get("system_prompt_id"):
+            prompt_id = str(key["system_prompt_id"])
+            key_dict["system_prompt_id"] = prompt_id
+            if prompt_service:
+                try:
+                    prompt = await prompt_service.get_prompt_by_id(prompt_id)
+                    if prompt:
+                        key_dict["system_prompt_name"] = prompt.get("name")
+                except Exception as exc:
+                    logger.warning(f"Failed to resolve prompt name for API key detail prompt {prompt_id}: {exc}")
+
+        return key_dict
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving API key detail for {api_key_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve API key detail: {str(e)}")
 
 
 @admin_router.get("/api-keys/{api_key}/status")
@@ -1309,4 +1418,75 @@ async def shutdown_server(
         "status": "success",
         "message": "Server shutdown initiated",
         "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+
+
+@admin_router.post("/restart")
+async def restart_server(
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Restart the server process in place.
+
+    This endpoint re-execs the current Python process after a short delay so
+    the HTTP response can be sent back to the admin UI first.
+    """
+    import asyncio
+    import os
+    import sys
+
+    logger.info("Server restart initiated via /admin/restart endpoint")
+
+    async def restart_background():
+        await asyncio.sleep(0.5)
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    asyncio.create_task(restart_background())
+
+    return {
+        "status": "success",
+        "message": "Server restart initiated",
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+
+
+@admin_router.get("/logs/tail")
+def tail_log_file(
+    request: Request,
+    lines: int = Query(200, ge=10, le=500),
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Return the most recently updated ORBIT log file contents.
+    """
+    config = request.app.state.config or {}
+    file_config = config.get("logging", {}).get("handlers", {}).get("file", {})
+    log_dir = Path(file_config.get("directory", "logs"))
+    base_filename = file_config.get("filename", "orbit.log")
+    log_prefix = base_filename + "*"
+
+    candidates = sorted(
+        [path for path in log_dir.glob(log_prefix) if path.is_file()],
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+
+    if not candidates:
+        raise HTTPException(status_code=404, detail="No log files found")
+
+    log_path = candidates[0]
+
+    try:
+        mtime = log_path.stat().st_mtime
+        tail_lines = _tail_file(log_path, lines)
+    except OSError as exc:
+        logger.error(f"Failed reading log file {log_path}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to read log file")
+
+    return {
+        "file": str(log_path),
+        "filename": log_path.name,
+        "updated_at": datetime.utcfromtimestamp(mtime).isoformat() + "Z",
+        "lines": tail_lines,
     }
