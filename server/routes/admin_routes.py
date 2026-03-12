@@ -11,7 +11,9 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, Query, Body
+import markdown
+import nh3
 
 from utils import is_true_value
 from models.schema import (
@@ -912,6 +914,41 @@ async def get_prompt(
         prompt["updated_at"] = prompt["updated_at"].timestamp()
         
     return prompt
+
+
+@admin_router.post("/render-markdown")
+def render_markdown_preview(
+    payload: dict = Body(...),
+    authorized: bool = Depends(admin_auth_check)
+):
+    """Render markdown to sanitized HTML for admin preview panels."""
+    text = (payload or {}).get("markdown", "")
+    if not isinstance(text, str):
+        raise HTTPException(status_code=422, detail="markdown must be a string")
+    if len(text) > 50_000:
+        raise HTTPException(status_code=422, detail="markdown too large")
+
+    try:
+        html = markdown.markdown(
+            text,
+            extensions=["extra", "tables", "fenced_code", "sane_lists", "nl2br"],
+        )
+        clean_html = nh3.clean(
+            html,
+            tags={
+                "p", "br", "strong", "em", "code", "pre", "h1", "h2", "h3", "h4", "h5", "h6",
+                "ul", "ol", "li", "blockquote", "a", "table", "thead", "tbody", "tr", "th", "td",
+                "hr"
+            },
+            attributes={
+                "a": {"href", "title", "target"},
+            },
+            url_schemes={"http", "https", "mailto"},
+        )
+        return {"html": clean_html}
+    except Exception as e:
+        logger.error(f"Error rendering markdown preview: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to render markdown preview")
 
 
 @admin_router.put("/prompts/{prompt_id}", response_model=SystemPromptResponse)

@@ -116,6 +116,17 @@
     return el("div", { className: "table-wrap" }, table);
   }
 
+  function debounce(fn, delay) {
+    var timer = null;
+    return function () {
+      var args = arguments;
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        fn.apply(null, args);
+      }, delay);
+    };
+  }
+
   function trapFocus(e, root) {
     var focusable = root.querySelectorAll(
       'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -848,6 +859,45 @@
     return api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/detail");
   }
 
+  function createMarkdownPreview(textarea) {
+    var frame = el("div", { className: "markdown-preview-shell" },
+      el("div", { className: "markdown-preview-header" }, "Preview"),
+      el("div", { className: "markdown-preview is-empty", "aria-live": "polite" },
+        el("p", { className: "muted" }, "Nothing to preview yet.")
+      )
+    );
+    var body = frame.querySelector(".markdown-preview");
+    var requestToken = 0;
+
+    async function renderPreview() {
+      var text = textarea.value.trim();
+      if (!text) {
+        body.className = "markdown-preview is-empty";
+        body.innerHTML = '<p class="muted">Nothing to preview yet.</p>';
+        return;
+      }
+
+      var token = ++requestToken;
+      body.className = "markdown-preview is-loading";
+      body.innerHTML = '<p class="muted">Rendering preview...</p>';
+
+      try {
+        var result = await api("POST", "/admin/render-markdown", { markdown: text });
+        if (token !== requestToken) return;
+        body.className = "markdown-preview";
+        body.innerHTML = result && result.html ? result.html : "<p></p>";
+      } catch (err) {
+        if (token !== requestToken) return;
+        body.className = "markdown-preview is-error";
+        body.textContent = "Preview unavailable: " + err.message;
+      }
+    }
+
+    textarea.addEventListener("input", debounce(renderPreview, 220));
+    renderPreview();
+    return frame;
+  }
+
   function renderKeyTable(wrap, keys, rightPanel) {
     clear(wrap);
     if (!keys || keys.length === 0) {
@@ -1353,10 +1403,14 @@
     panel.appendChild(summary);
 
     // Edit
+    var originalVersion = prompt.version || "1.0";
+    var originalPromptText = prompt.prompt || "";
+    var isEditingPrompt = false;
     var vInput = el("input", { type: "text", value: prompt.version || "1.0", maxlength: "100" });
     var tArea = el("textarea", { rows: "8", maxlength: "1000" }, prompt.prompt || "");
     var saveBtn = el("button", { type: "button" }, "Save Changes");
     saveBtn.addEventListener("click", async function () {
+      if (saveBtn.disabled) return;
       saveBtn.disabled = true;
       try {
         await api("PUT", "/admin/prompts/" + encodeURIComponent(promptId), {
@@ -1372,9 +1426,44 @@
       }
     });
     
+    var editPreview = createMarkdownPreview(tArea);
+    var editorWrap = el("div", { className: "prompt-editor-pane", style: "display:none" },
+      field("Prompt Text", tArea)
+    );
+    var previewWrap = el("div", { className: "prompt-preview-pane" }, editPreview);
+    var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Prompt Text");
+    var cancelBtn = el("button", { className: "secondary", type: "button", style: "display:none" }, "Cancel");
+    function promptHasChanges() {
+      return vInput.value.trim() !== originalVersion || tArea.value !== originalPromptText;
+    }
+    function syncPromptSaveState() {
+      saveBtn.disabled = !isEditingPrompt || !promptHasChanges();
+    }
+    function setPromptEditMode(editing) {
+      isEditingPrompt = editing;
+      editorWrap.style.display = editing ? "block" : "none";
+      previewWrap.style.display = editing ? "none" : "block";
+      editToggle.style.display = editing ? "none" : "inline-flex";
+      cancelBtn.style.display = editing ? "inline-flex" : "none";
+      syncPromptSaveState();
+    }
+    editToggle.addEventListener("click", function () {
+      setPromptEditMode(true);
+    });
+    cancelBtn.addEventListener("click", function () {
+      vInput.value = originalVersion;
+      tArea.value = originalPromptText;
+      tArea.dispatchEvent(new Event("input"));
+      setPromptEditMode(false);
+    });
+    vInput.addEventListener("input", syncPromptSaveState);
+    tArea.addEventListener("input", syncPromptSaveState);
+    syncPromptSaveState();
     panel.appendChild(el("div", { className: "stack", style: "margin-top:var(--sp-3)" },
       field("Version", vInput),
-      field("Prompt Text", tArea),
+      el("div", { className: "inline-form" }, editToggle, cancelBtn),
+      previewWrap,
+      editorWrap,
       saveBtn
     ));
 
