@@ -1192,7 +1192,7 @@ export function MessageInput({
   const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
 
   return (
-    <div className={`bg-transparent px-2 py-1.5 md:bg-white md:px-0 md:pt-4 md:pb-2 md:dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
+    <div className={`bg-transparent px-2 py-1.5 md:bg-transparent md:px-0 md:pt-4 md:pb-2 md:dark:bg-transparent sm:px-4 ${containerAlignmentClasses}`}>
       <div className={`${isCentered ? 'mx-auto' : 'mx-auto md:mx-0'} w-full ${contentMaxWidth}`}>
         {voiceError && audioInputEnabled && (
           <div role="alert" aria-live="assertive" className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">

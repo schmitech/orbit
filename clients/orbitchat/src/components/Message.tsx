@@ -64,8 +64,8 @@ export function Message({
 
   const isAssistant = message.role === 'assistant';
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
-  const threadReplyCount = threadReplies.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length;
   const threadMessageCount = threadReplies.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length;
+  const threadReplyCount = threadMessageCount;
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
   const isAuthenticated = useIsAuthenticated();
   const isGuest = getIsAuthConfigured() && !isAuthenticated;
@@ -319,14 +319,18 @@ export function Message({
       );
     }
 
+    const streamingClass = message.isStreaming && isAssistant ? ' streaming-cursor' : '';
+
     return (
-      <MarkdownRenderer
-        content={truncateLongContent(sanitizeMessageContent(message.content || ''))}
-        className={mainMarkdownClassName}
-        syntaxTheme={syntaxTheme}
-      />
+      <div className={streamingClass || undefined}>
+        <MarkdownRenderer
+          content={truncateLongContent(sanitizeMessageContent(message.content || ''))}
+          className={mainMarkdownClassName}
+          syntaxTheme={syntaxTheme}
+        />
+      </div>
     );
-  }, [mainMarkdownClassName, message.content, message.isStreaming, syntaxTheme]);
+  }, [mainMarkdownClassName, message.content, message.isStreaming, isAssistant, syntaxTheme]);
 
   const renderedThreadReplies = useMemo(() => {
     // Sort replies by timestamp to maintain chronological order
@@ -341,6 +345,7 @@ export function Message({
       const replyIsAssistant = reply.role === 'assistant';
 
       const replyMarkdownClass = replyIsAssistant ? threadAssistantMarkdownClass : threadUserMarkdownClass;
+      const replyStreamingClass = reply.isStreaming && replyIsAssistant ? ' streaming-cursor' : '';
       const replyContent = reply.isStreaming && (!reply.content || reply.content === '…') ? (
         <div className={replyMarkdownClass}>
           <div className="flex items-center gap-1.5 py-1">
@@ -350,11 +355,13 @@ export function Message({
           </div>
         </div>
       ) : (
-        <MarkdownRenderer
-          content={truncateLongContent(sanitizeMessageContent(reply.content || ''))}
-          className={replyMarkdownClass}
-          syntaxTheme={syntaxTheme}
-        />
+        <div className={replyStreamingClass || undefined}>
+          <MarkdownRenderer
+            content={truncateLongContent(sanitizeMessageContent(reply.content || ''))}
+            className={replyMarkdownClass}
+            syntaxTheme={syntaxTheme}
+          />
+        </div>
       );
 
       return (
@@ -507,7 +514,12 @@ export function Message({
               <>
                 <div
                   ref={threadRepliesRef}
-                  className="mt-2 space-y-2"
+                  className="thread-replies-scroll mt-2 space-y-2"
+                  onScroll={() => {
+                    if (!threadRepliesRef.current) return;
+                    const { scrollTop, scrollHeight, clientHeight } = threadRepliesRef.current;
+                    shouldAutoScrollThreadRef.current = scrollHeight - scrollTop - clientHeight < 100;
+                  }}
                 >
                   {threadReplyCount > 0 ? renderedThreadReplies : null}
                 </div>

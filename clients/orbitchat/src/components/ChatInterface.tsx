@@ -500,7 +500,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 isLoading={isLoading}
               />
               <div className={MOBILE_INPUT_WRAPPER_CLASSES}>
-                <div className="w-full">
+                <div className="mx-auto w-full max-w-[96rem] px-3 sm:px-5 md:px-6 lg:px-8 xl:px-10">
                   <MessageInput
                     onSend={handleSendMessage}
                     disabled={
@@ -512,8 +512,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     }
                     autoFocusEnabled
                     placeholder="Start a new topic..."
-                    maxWidthClass={inputMaxWidthClass}
-                    isCentered
+                    maxWidthClass="max-w-[52rem]"
+                    isCentered={false}
                   />
                 </div>
               </div>

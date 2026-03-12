@@ -129,6 +129,44 @@
   }
 }
 
+/* Blinking cursor shown at the end of streaming assistant messages */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.streaming-cursor::after {
+  content: '▍';
+  display: inline;
+  animation: blink-cursor 1s step-end infinite;
+  color: currentColor;
+  margin-left: 1px;
+  font-weight: 400;
+}
+
+/* Thread replies scroll container */
+.thread-replies-scroll {
+  max-height: 60vh;
+  overflow-y: auto;
+  scroll-behavior: auto;
+  overflow-anchor: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
+}
+
+.thread-replies-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.thread-replies-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thread-replies-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(128, 128, 128, 0.3);
+  border-radius: 2px;
+}
+
 /* Thread markdown wrapper - ensures consistent horizontal scrolling for tables and wide content */
 .thread-markdown-wrapper {
   width: 100%;
