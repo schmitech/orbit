@@ -258,9 +258,7 @@ class ApiService:
     def deactivate_api_key(self, api_key: str) -> Dict[str, Any]:
         """Deactivate an API key."""
         headers = self._get_auth_headers()
-        headers["Content-Type"] = "application/json"
-        data = {"api_key": api_key}
-        response = self.api_client.post("/admin/api-keys/deactivate", headers=headers, json_data=data)
+        response = self.api_client.post(f"/admin/api-keys/{api_key}/deactivate", headers=headers)
         response.raise_for_status()
         return response.json()
     

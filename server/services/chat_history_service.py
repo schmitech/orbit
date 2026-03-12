@@ -1158,7 +1158,8 @@ class ChatHistoryService:
         self,
         session_id: str,
         api_key: str,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        api_key_service=None
     ) -> Dict[str, Any]:
         """
         Clear conversation history for a specific session with mandatory API key validation.
@@ -1167,6 +1168,7 @@ class ChatHistoryService:
             session_id: Session identifier to clear (required)
             api_key: API key for validation and authorization (required)
             user_id: Optional user ID for additional validation
+            api_key_service: API key service for validation (preferred over self.api_key_service)
 
         Returns:
             Dictionary containing operation result and statistics
@@ -1193,13 +1195,15 @@ class ChatHistoryService:
             }
 
         try:
-            if hasattr(self, "api_key_service") and self.api_key_service:
+            # Prefer explicitly passed service over instance attribute to avoid shared-state races
+            _api_key_svc = api_key_service or getattr(self, "api_key_service", None)
+            if _api_key_svc:
                 # Get adapter manager to check live configs (respects hot-reload)
                 adapter_manager = None
                 if hasattr(self, 'database_service') and hasattr(self.database_service, 'app_state'):
                     adapter_manager = getattr(self.database_service.app_state, 'adapter_manager', None)
 
-                is_valid, adapter_name, _ = await self.api_key_service.validate_api_key(api_key, adapter_manager)
+                is_valid, adapter_name, _ = await _api_key_svc.validate_api_key(api_key, adapter_manager)
                 if not is_valid:
                     return {
                         "success": False,

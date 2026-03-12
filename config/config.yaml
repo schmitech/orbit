@@ -520,7 +520,7 @@ files:
   default_collection_prefix: "files_"  # Default prefix for collection names
 
 monitoring:
-  enabled: true                    # Enable/disable monitoring dashboard
+  enabled: true                    # Enable/disable monitoring
   metrics:
     collection_interval: 5         # Seconds between metric collections
     time_window: 300              # Seconds of historical data to keep (5 minutes)
@@ -577,7 +577,7 @@ security:
     # Content Security Policy - restricts resource loading
     # Adjust based on your frontend requirements
     # Allows dashboard external resources: Chart.js CDN and Google Fonts
-    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; frame-ancestors 'self'"
+    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
 
     # HTTP Strict Transport Security - enforce HTTPS
     # Only effective when served over HTTPS
@@ -610,7 +610,7 @@ security:
 
   # Rate limiting configuration (requires Redis to be enabled)
   rate_limiting:
-    enabled: true                    # Master switch (requires Redis to be enabled)
+    enabled: false                    # Master switch (requires Redis to be enabled)
 
     # Proxy header trust configuration
     # SECURITY: Only enable trust_proxy_headers when behind a trusted reverse proxy

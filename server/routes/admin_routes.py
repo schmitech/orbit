@@ -17,7 +17,7 @@ import nh3
 
 from utils import is_true_value
 from models.schema import (
-    ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate,
+    ApiKeyCreate, ApiKeyResponse,
     SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse,
     ApiKeyPromptAssociate, ChatHistoryClearResponse, AdapterReloadResponse,
     TemplateReloadResponse, ApiKeyQuota, ApiKeyQuotaUpdate, ApiKeyUsage,
@@ -353,144 +353,85 @@ async def get_api_key_detail(
         raise HTTPException(status_code=500, detail=f"Failed to retrieve API key detail: {str(e)}")
 
 
-@admin_router.get("/api-keys/{api_key}/status")
+@admin_router.get("/api-keys/{api_key_id}/status")
 async def get_api_key_status(
-    api_key: str, 
+    api_key_id: str,
     request: Request,
     authorized: bool = Depends(admin_auth_check)
 ):
     """
     Get the status of a specific API key.
-    
-    This endpoint provides detailed status information for an API key:
-    - Active/inactive status
-    - Last used timestamp
-    - Associated collection
-    - System prompt association
-    - Usage statistics
-    
-    Security considerations:
-    - This is an admin-only endpoint
-    - Should be protected by additional authentication
-    - API key is masked in logs
-    
-    Args:
-        api_key: The API key to check
-        request: The incoming request
-        
-    Returns:
-        Status information for the specified API key
-        
-    Raises:
-        HTTPException: If API key status check fails or service is unavailable
+
+    Accepts a record _id, raw API key value, or adapter name for
+    backwards compatibility with client proxies.
     """
-    # Check if API key service is available
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
-    
-    status = await api_key_service.get_api_key_status(api_key)
-    
-    # Log with masked API key
-    masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
-    logger.debug(f"Checked status for API key: {masked_api_key}")
-    
+
+    # Try _id first, then raw key, then adapter name
+    status = await api_key_service.get_api_key_status_by_id(api_key_id)
+    if not status.get("exists"):
+        status = await api_key_service.get_api_key_status(api_key_id)
+    logger.debug(f"Checked status for API key identifier: {api_key_id}")
     return status
 
 
-@admin_router.patch("/api-keys/{old_api_key}/rename")
+@admin_router.patch("/api-keys/{api_key_id}/rename")
 async def rename_api_key(
-    old_api_key: str,
-    new_api_key: str,
-    request: Request,
+    api_key_id: str,
+    new_api_key: str = Query(..., min_length=8, description="New API key value"),
+    request: Request = None,
     authorized: bool = Depends(admin_auth_check)
 ):
     """
-    Rename an API key by updating its value
-
-    This endpoint allows administrators to rename an existing API key to a new value.
-    The new key must not already exist in the system.
-
-    Security considerations:
-    - This is an admin-only endpoint
-    - Should be protected by additional authentication
-    - Both old and new keys are masked in logs
-
-    Args:
-        old_api_key: The current API key to rename
-        new_api_key: The new API key value (as query parameter)
-        request: The incoming request
-        authorized: Authentication check result
-
-    Returns:
-        Success message with status
-
-    Raises:
-        HTTPException: If old key doesn't exist, new key already exists, or rename fails
+    Rename an API key by record ID.
     """
-    # Check if API key service is available
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
 
-    success = await api_key_service.rename_api_key(old_api_key, new_api_key)
+    new_api_key = new_api_key.strip()
+    if len(new_api_key) < 8:
+        raise HTTPException(status_code=422, detail="New API key must be at least 8 characters")
+
+    success = await api_key_service.rename_api_key_by_id(api_key_id, new_api_key)
 
     if not success:
         raise HTTPException(status_code=500, detail="Failed to rename API key")
 
-    # Log with masked API keys
-    masked_old_key = f"***{old_api_key[-4:]}" if old_api_key else "***"
-    masked_new_key = f"***{new_api_key[-4:]}" if new_api_key else "***"
-    logger.info(f"Renamed API key from {masked_old_key} to {masked_new_key}")
-
-    return {"status": "success", "message": "API key renamed successfully", "new_api_key": new_api_key}
+    masked_new = f"***{new_api_key[-4:]}" if new_api_key else "***"
+    logger.info(f"Renamed API key {api_key_id} to {masked_new}")
+    return {"status": "success", "message": "API key renamed successfully", "new_api_key_masked": masked_new}
 
 
-@admin_router.post("/api-keys/deactivate")
+@admin_router.post("/api-keys/{api_key_id}/deactivate")
 async def deactivate_api_key(
-    data: ApiKeyDeactivate,
+    api_key_id: str,
     api_key_service = Depends(get_api_key_service),
     authorized: bool = Depends(admin_auth_check)
 ):
-    """
-    Deactivate an API key
-
-    This is an admin-only endpoint and should be properly secured in production.
-    """
-    # In production, add authentication middleware to restrict access to admin endpoints
-
-    success = await api_key_service.deactivate_api_key(data.api_key)
+    """Deactivate an API key by record ID."""
+    success = await api_key_service.deactivate_api_key_by_id(api_key_id)
 
     if not success:
         raise HTTPException(status_code=404, detail="API key not found")
 
-    # Log with masked API key
-    masked_api_key = f"***{data.api_key[-4:]}" if data.api_key else "***"
-    logger.info(f"Deactivated API key: {masked_api_key}")
-
+    logger.info(f"Deactivated API key: {api_key_id}")
     return {"status": "success", "message": "API key deactivated"}
 
 
-@admin_router.delete("/api-keys/{api_key}")
+@admin_router.delete("/api-keys/{api_key_id}")
 async def delete_api_key(
-    api_key: str,
+    api_key_id: str,
     api_key_service = Depends(get_api_key_service),
     authorized: bool = Depends(admin_auth_check)
 ):
-    """
-    Delete an API key
-    
-    This is an admin-only endpoint and should be properly secured in production.
-    """
-    # In production, add authentication middleware to restrict access to admin endpoints
-    
-    success = await api_key_service.delete_api_key(api_key)
-    
+    """Delete an API key by record ID."""
+    success = await api_key_service.delete_api_key_by_id(api_key_id)
+
     if not success:
         raise HTTPException(status_code=404, detail="API key not found")
-    
-    # Log with masked API key
-    masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
-    logger.info(f"Deleted API key: {masked_api_key}")
-        
+
+    logger.info(f"Deleted API key: {api_key_id}")
     return {"status": "success", "message": "API key deleted"}
 
 
@@ -531,15 +472,15 @@ async def get_adapter_info_alias(
     return await _get_adapter_info_response(request, x_api_key)
 
 
-@admin_router.post("/api-keys/{api_key}/prompt")
+@admin_router.post("/api-keys/{api_key_id}/prompt")
 async def associate_prompt_with_api_key(
-    api_key: str,
+    api_key_id: str,
     data: ApiKeyPromptAssociate,
     api_key_service = Depends(get_api_key_service),
     authorized: bool = Depends(admin_auth_check)
 ):
-    """Associate a system prompt with an API key"""
-    success = await api_key_service.update_api_key_system_prompt(api_key, data.prompt_id)
+    """Associate a system prompt with an API key by record ID."""
+    success = await api_key_service.update_api_key_system_prompt(api_key_id, data.prompt_id)
 
     if not success:
         raise HTTPException(status_code=404, detail="API key not found or prompt not associated")
@@ -548,31 +489,21 @@ async def associate_prompt_with_api_key(
 
 
 # API Key Quota Management Routes
-@admin_router.get("/api-keys/{api_key}/quota", response_model=ApiKeyQuotaResponse)
+async def _resolve_api_key(request: Request, api_key_id: str) -> str:
+    """Resolve a record _id to the raw API key value for quota service calls."""
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    check_service_availability(api_key_service, "API key service")
+    doc = await api_key_service._resolve_key_doc(api_key_id)
+    return doc["api_key"]
+
+
+@admin_router.get("/api-keys/{api_key_id}/quota", response_model=ApiKeyQuotaResponse)
 async def get_api_key_quota(
-    api_key: str,
+    api_key_id: str,
     request: Request,
     authorized: bool = Depends(admin_auth_check)
 ):
-    """
-    Get quota configuration and current usage for an API key.
-
-    Returns quota limits, current usage statistics, and remaining quota.
-    If throttling is disabled, returns an error.
-
-    Args:
-        api_key: The API key to get quota for
-        request: The incoming request
-        authorized: Authentication check result
-
-    Returns:
-        ApiKeyQuotaResponse with quota config and usage statistics
-
-    Raises:
-        HTTPException 404: If API key not found
-        HTTPException 503: If quota service is not available
-    """
-    # Check if quota service is available
+    """Get quota configuration and current usage for an API key by record ID."""
     quota_service = getattr(request.app.state, 'quota_service', None)
     if not quota_service or not quota_service.enabled:
         raise HTTPException(
@@ -580,14 +511,7 @@ async def get_api_key_quota(
             detail="Quota service is not available. Ensure throttling is enabled in configuration."
         )
 
-    # Verify API key exists
-    api_key_service = getattr(request.app.state, 'api_key_service', None)
-    if api_key_service:
-        status = await api_key_service.get_api_key_status(api_key)
-        if not status.get('exists'):
-            raise HTTPException(status_code=404, detail="API key not found")
-
-    # Get quota config and usage
+    api_key = await _resolve_api_key(request, api_key_id)
     quota_config, usage_stats = await quota_service.get_quota_and_usage(api_key)
     daily_remaining, monthly_remaining = quota_service.calculate_remaining(quota_config, usage_stats)
 
@@ -639,33 +563,14 @@ async def get_api_key_quota(
     )
 
 
-@admin_router.put("/api-keys/{api_key}/quota")
+@admin_router.put("/api-keys/{api_key_id}/quota")
 async def update_api_key_quota(
-    api_key: str,
+    api_key_id: str,
     quota_data: ApiKeyQuotaUpdate,
     request: Request,
     authorized: bool = Depends(admin_auth_check)
 ):
-    """
-    Update quota settings for an API key.
-
-    Allows updating daily/monthly limits, enabling/disabling throttling,
-    and setting the throttle priority.
-
-    Args:
-        api_key: The API key to update quota for
-        quota_data: The quota update request data
-        request: The incoming request
-        authorized: Authentication check result
-
-    Returns:
-        Success message with updated quota
-
-    Raises:
-        HTTPException 404: If API key not found
-        HTTPException 503: If quota service is not available
-    """
-    # Check if quota service is available
+    """Update quota settings for an API key by record ID."""
     quota_service = getattr(request.app.state, 'quota_service', None)
     if not quota_service or not quota_service.enabled:
         raise HTTPException(
@@ -673,14 +578,7 @@ async def update_api_key_quota(
             detail="Quota service is not available. Ensure throttling is enabled in configuration."
         )
 
-    # Verify API key exists
-    api_key_service = getattr(request.app.state, 'api_key_service', None)
-    if api_key_service:
-        status = await api_key_service.get_api_key_status(api_key)
-        if not status.get('exists'):
-            raise HTTPException(status_code=404, detail="API key not found")
-
-    # Update quota config
+    api_key = await _resolve_api_key(request, api_key_id)
     success = await quota_service.update_quota_config(
         api_key,
         daily_limit=quota_data.daily_limit,
@@ -692,39 +590,18 @@ async def update_api_key_quota(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update quota configuration")
 
-    # Log with masked API key
-    masked_key = f"***{api_key[-4:]}" if len(api_key) >= 4 else "***"
-    logger.info(f"Updated quota for API key: {masked_key}")
-
+    logger.info(f"Updated quota for API key id: {api_key_id}")
     return {"status": "success", "message": "Quota configuration updated successfully"}
 
 
-@admin_router.post("/api-keys/{api_key}/quota/reset")
+@admin_router.post("/api-keys/{api_key_id}/quota/reset")
 async def reset_api_key_quota(
-    api_key: str,
+    api_key_id: str,
     request: Request,
     period: str = Query("daily", pattern="^(daily|monthly|all)$"),
     authorized: bool = Depends(admin_auth_check)
 ):
-    """
-    Reset quota usage counters for an API key.
-
-    Allows resetting daily usage, monthly usage, or both.
-
-    Args:
-        api_key: The API key to reset quota for
-        period: The period to reset ("daily", "monthly", or "all")
-        request: The incoming request
-        authorized: Authentication check result
-
-    Returns:
-        Success message confirming reset
-
-    Raises:
-        HTTPException 404: If API key not found
-        HTTPException 503: If quota service is not available
-    """
-    # Check if quota service is available
+    """Reset quota usage counters for an API key by record ID."""
     quota_service = getattr(request.app.state, 'quota_service', None)
     if not quota_service or not quota_service.enabled:
         raise HTTPException(
@@ -732,23 +609,13 @@ async def reset_api_key_quota(
             detail="Quota service is not available. Ensure throttling is enabled in configuration."
         )
 
-    # Verify API key exists
-    api_key_service = getattr(request.app.state, 'api_key_service', None)
-    if api_key_service:
-        status = await api_key_service.get_api_key_status(api_key)
-        if not status.get('exists'):
-            raise HTTPException(status_code=404, detail="API key not found")
-
-    # Reset usage
+    api_key = await _resolve_api_key(request, api_key_id)
     success = await quota_service.reset_usage(api_key, period)
 
     if not success:
         raise HTTPException(status_code=500, detail="Failed to reset quota usage")
 
-    # Log with masked API key
-    masked_key = f"***{api_key[-4:]}" if len(api_key) >= 4 else "***"
-    logger.info(f"Reset {period} quota for API key: {masked_key}")
-
+    logger.info(f"Reset {period} quota for API key id: {api_key_id}")
     return {"status": "success", "message": f"Quota usage ({period}) reset successfully"}
 
 
@@ -1004,7 +871,8 @@ async def delete_prompt(
 async def get_chat_history(
     session_id: str,
     request: Request,
-    limit: int = 50
+    limit: int = Query(50, ge=1, le=500),
+    authorized: bool = Depends(admin_auth_check)
 ):
     """Get chat history for a session"""
     chat_history_service = getattr(request.app.state, 'chat_history_service', None)
@@ -1065,11 +933,10 @@ async def clear_chat_history(
     if not api_key_service:
         raise HTTPException(status_code=503, detail="API key service is not available")
 
-    setattr(chat_history_service, 'api_key_service', api_key_service)
-
     result = await chat_history_service.clear_conversation_history(
         session_id=session_id,
-        api_key=x_api_key
+        api_key=x_api_key,
+        api_key_service=api_key_service
     )
 
     if not result.get("success"):
@@ -1353,12 +1220,10 @@ async def delete_conversation_with_files(
     if chat_history_service:
         try:
             api_key_service = getattr(request.app.state, 'api_key_service', None)
-            if api_key_service:
-                setattr(chat_history_service, 'api_key_service', api_key_service)
-
             result = await chat_history_service.clear_conversation_history(
                 session_id=session_id,
-                api_key=x_api_key
+                api_key=x_api_key,
+                api_key_service=api_key_service
             )
 
             if result.get("success"):

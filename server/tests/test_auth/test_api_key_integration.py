@@ -459,8 +459,7 @@ class ApiKeyAuthTester:
         # Test deactivating API key
         try:
             async with self.session.post(
-                f"{self.base_url}/admin/api-keys/deactivate",
-                json={"api_key": api_key},
+                f"{self.base_url}/admin/api-keys/{api_key}/deactivate",
                 headers=self._get_admin_headers(),
                 timeout=10
             ) as response:

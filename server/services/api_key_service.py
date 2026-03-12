@@ -595,6 +595,90 @@ class ApiKeyService:
             logger.error(f"Error updating API key system prompt: {str(e)}")
             return False
     
+    async def _resolve_key_doc(self, api_key_or_id: str) -> dict:
+        """
+        Resolve an API key document by _id first, then by raw api_key value.
+        Returns the document or raises 404.
+        """
+        doc = await self.database.find_one(self.collection_name, {"_id": api_key_or_id})
+        if not doc:
+            doc = await self.database.find_one(self.collection_name, {"api_key": api_key_or_id})
+        if not doc:
+            raise HTTPException(status_code=404, detail="API key not found")
+        return doc
+
+    async def get_api_key_status_by_id(self, api_key_id: str) -> Dict[str, Any]:
+        """Get the full status of an API key by record _id or raw key value."""
+        try:
+            key_doc = await self.database.find_one(self.collection_name, {"_id": api_key_id})
+            if not key_doc:
+                key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key_id})
+            if not key_doc:
+                return {
+                    "exists": False, "active": False,
+                    "adapter_name": None, "message": "API key does not exist"
+                }
+            system_prompt_info = None
+            if key_doc.get("system_prompt_id"):
+                system_prompt_info = {"id": str(key_doc["system_prompt_id"]), "exists": True}
+            return {
+                "exists": True,
+                "active": bool(key_doc.get("active")),
+                "adapter_name": key_doc.get("adapter_name"),
+                "client_name": key_doc.get("client_name"),
+                "created_at": key_doc.get("created_at"),
+                "system_prompt": system_prompt_info
+            }
+        except Exception as e:
+            logger.error(f"Error getting API key status by id: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error checking API key status: {str(e)}")
+
+    async def rename_api_key_by_id(self, api_key_id: str, new_api_key: str) -> bool:
+        """Rename an API key identified by record _id or raw key value."""
+        try:
+            key_doc = await self._resolve_key_doc(api_key_id)
+            doc_id = str(key_doc["_id"])
+            existing = await self.database.find_one(self.collection_name, {"api_key": new_api_key})
+            if existing:
+                raise HTTPException(status_code=409, detail="New API key already exists")
+            result = await self.database.update_one(
+                self.collection_name, {"_id": doc_id},
+                {"$set": {"api_key": new_api_key}}
+            )
+            return result
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error renaming API key by id: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error renaming API key: {str(e)}")
+
+    async def deactivate_api_key_by_id(self, api_key_id: str) -> bool:
+        """Deactivate an API key identified by record _id or raw key value."""
+        try:
+            key_doc = await self._resolve_key_doc(api_key_id)
+            doc_id = str(key_doc["_id"])
+            return await self.database.update_one(
+                self.collection_name, {"_id": doc_id},
+                {"$set": {"active": False}}
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error deactivating API key by id: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error deactivating API key: {str(e)}")
+
+    async def delete_api_key_by_id(self, api_key_id: str) -> bool:
+        """Delete an API key identified by record _id or raw key value."""
+        try:
+            key_doc = await self._resolve_key_doc(api_key_id)
+            doc_id = str(key_doc["_id"])
+            return await self.database.delete_one(self.collection_name, {"_id": doc_id})
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error deleting API key by id: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error deleting API key: {str(e)}")
+
     async def rename_api_key(self, old_api_key: str, new_api_key: str) -> bool:
         """
         Rename an API key by updating its api_key value

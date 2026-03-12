@@ -981,6 +981,7 @@
 
   function renderKeyDetail(panel, key, onRefresh) {
     clear(panel);
+    var keyId = key._id || "";
     var keyVal = key.api_key || key.key || "";
     panel.appendChild(el("h2", null, "Key: " + (key.client_name || keyVal)));
     var revealSecret = false;
@@ -1025,7 +1026,7 @@
       testResult.className = "test-result";
       testResult.appendChild(el("span", { className: "muted" }, "Checking key status..."));
       try {
-        await api("GET", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/status");
+        await api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/status");
         testResult.className = "test-result test-result-ok";
         testResult.appendChild(el("span", { className: "test-result-icon", "aria-hidden": "true" }, "✓"));
         testResult.appendChild(el("div", { className: "test-result-copy" },
@@ -1054,7 +1055,7 @@
       if (!nk) return;
       renameBtn.disabled = true;
       try {
-        await api("PATCH", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/rename?new_api_key=" + encodeURIComponent(nk));
+        await api("PATCH", "/admin/api-keys/" + encodeURIComponent(keyId) + "/rename?new_api_key=" + encodeURIComponent(nk));
         showStatus("Key renamed");
         onRefresh();
       } catch (err) {
@@ -1076,8 +1077,8 @@
     loadQuotaBtn.addEventListener("click", async function () {
       loadQuotaBtn.disabled = true;
       try {
-        var quota = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota");
-        renderQuotaDetail(quotaWrap, keyVal, quota);
+        var quota = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/quota");
+        renderQuotaDetail(quotaWrap, keyId, quota);
       } catch (err) {
         showError(err.message);
       } finally {
@@ -1102,7 +1103,7 @@
       if (!pid) return;
       assocBtn.disabled = true;
       try {
-        await api("POST", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/prompt", { prompt_id: pid });
+        await api("POST", "/admin/api-keys/" + encodeURIComponent(keyId) + "/prompt", { prompt_id: pid });
         key.system_prompt_id = pid;
         var matchedPrompt = (cachedPrompts || []).find(function (prompt) {
           return promptIdentifier(prompt) === pid;
@@ -1131,7 +1132,7 @@
           onConfirm: async function () {
             deactivateBtn.disabled = true;
             try {
-              await api("POST", "/admin/api-keys/deactivate", { api_key: keyVal });
+              await api("POST", "/admin/api-keys/" + encodeURIComponent(keyId) + "/deactivate");
               showStatus("Key deactivated");
               onRefresh();
             } finally {
@@ -1150,7 +1151,7 @@
         expectedText: key.client_name || "DELETE",
         confirmLabel: "Delete",
         onConfirm: async function () {
-          await api("DELETE", "/admin/api-keys/" + encodeURIComponent(keyVal));
+          await api("DELETE", "/admin/api-keys/" + encodeURIComponent(keyId));
           showStatus("Key deleted");
           onRefresh();
         }
@@ -1170,7 +1171,7 @@
     rawBtn.addEventListener("click", async function () {
       rawBtn.disabled = true;
       try {
-        var status = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/status");
+        var status = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/status");
         clear(rawWrap);
         rawWrap.appendChild(el("pre", null, JSON.stringify(status, null, 2)));
       } catch (err) {
@@ -1182,7 +1183,7 @@
     panel.appendChild(rawWrap);
   }
 
-  function renderQuotaDetail(wrap, keyVal, quota) {
+  function renderQuotaDetail(wrap, keyId, quota) {
     clear(wrap);
     // Display
     var usage = quota.usage || {};
@@ -1210,10 +1211,10 @@
           onConfirm: async function () {
             btn.disabled = true;
             try {
-              await api("POST", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota/reset?period=" + period);
+              await api("POST", "/admin/api-keys/" + encodeURIComponent(keyId) + "/quota/reset?period=" + period);
               showStatus("Quota " + period + " reset");
-              var updated = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota");
-              renderQuotaDetail(wrap, keyVal, updated);
+              var updated = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/quota");
+              renderQuotaDetail(wrap, keyId, updated);
             } finally {
               btn.disabled = false;
             }
@@ -1248,10 +1249,10 @@
         else body.daily_limit = null;
         if (monthlyInput.value !== "") body.monthly_limit = parseInt(monthlyInput.value);
         else body.monthly_limit = null;
-        await api("PUT", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota", body);
+        await api("PUT", "/admin/api-keys/" + encodeURIComponent(keyId) + "/quota", body);
         showStatus("Quota updated");
-        var updated = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota");
-        renderQuotaDetail(wrap, keyVal, updated);
+        var updated = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/quota");
+        renderQuotaDetail(wrap, keyId, updated);
       } catch (err) {
         showError(err.message);
       } finally {
