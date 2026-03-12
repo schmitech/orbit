@@ -204,7 +204,7 @@
     }, el("div", { className: "dialog-body" }, bodyChildren));
     backdrop.appendChild(dialog);
     document.body.appendChild(backdrop);
-    confirmBtn.focus();
+    (isDanger ? cancelBtn : confirmBtn).focus();
 
     function close() {
       document.removeEventListener("keydown", handler);
@@ -265,13 +265,24 @@
   // API helper
   // ------------------------------------------------------------------
   async function api(method, path, body) {
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function () { controller.abort(); }, 30000);
     var opts = {
       method: method,
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
     };
     if (authToken) opts.headers["Authorization"] = "Bearer " + authToken;
     if (body !== undefined) opts.body = JSON.stringify(body);
-    var resp = await fetch(path, opts);
+    var resp;
+    try {
+      resp = await fetch(path, opts);
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === "AbortError") throw new Error("Request timed out");
+      throw err;
+    }
+    clearTimeout(timeoutId);
     if (resp.status === 401) {
       authToken = null;
       currentUser = null;
@@ -1288,7 +1299,7 @@
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "100" });
     var versionInput = el("input", { type: "text", value: "1.0", maxlength: "100" });
-    var textArea = el("textarea", { rows: "5", required: "true", maxlength: "1000" });
+    var textArea = el("textarea", { rows: "5", required: "true", maxlength: "50000" });
     var createBtn = el("button", { type: "button" }, "Create Prompt");
 
     var form = el("div", { className: "stack" },
@@ -1407,7 +1418,7 @@
     var originalPromptText = prompt.prompt || "";
     var isEditingPrompt = false;
     var vInput = el("input", { type: "text", value: prompt.version || "1.0", maxlength: "100" });
-    var tArea = el("textarea", { rows: "8", maxlength: "1000" }, prompt.prompt || "");
+    var tArea = el("textarea", { rows: "8", maxlength: "50000" }, prompt.prompt || "");
     var saveBtn = el("button", { type: "button" }, "Save Changes");
     saveBtn.addEventListener("click", async function () {
       if (saveBtn.disabled) return;
@@ -1611,15 +1622,20 @@
     var refreshLogsBtn = el("button", { className: "secondary", type: "button" }, "Refresh Logs");
     var logOutput = el("pre", { className: "log-viewer" }, "Loading logs...");
 
+    var logsInFlight = false;
+
     function scheduleLogRefresh() {
       clearOpsLogPolling();
       if (activeTab !== "ops" || !autoRefreshInput.checked) return;
+      if (document.hidden) return;
       opsLogPollTimer = setTimeout(function () {
         loadLogs(true);
       }, 3000);
     }
 
     async function loadLogs(silent) {
+      if (logsInFlight) return;
+      logsInFlight = true;
       refreshLogsBtn.disabled = true;
       try {
         var result = await api("GET", "/admin/logs/tail?lines=200");
@@ -1630,6 +1646,7 @@
         if (!silent) showError(err.message);
         logOutput.textContent = "Failed to load logs.";
       } finally {
+        logsInFlight = false;
         refreshLogsBtn.disabled = false;
         scheduleLogRefresh();
       }
