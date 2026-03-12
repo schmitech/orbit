@@ -14,10 +14,10 @@
   --border-light:  #e8ecf3;
 
   /* Brand */
-  --brand-500:     #0e7a72;
-  --brand-600:     #0a655e;
-  --brand-700:     #084e48;
-  --brand-50:      #e8f7f6;
+  --brand-500:     #2b6cb0;
+  --brand-600:     #1f5a96;
+  --brand-700:     #16497c;
+  --brand-50:      #eaf2fb;
 
   /* Danger */
   --danger-500:    #c4382a;
@@ -171,6 +171,16 @@ textarea {
   letter-spacing: -0.01em;
 }
 
+.brand-block {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.brand-logo {
+  height: 2.25rem;
+  width: auto;
+}
+
 .topbar p {
   margin: var(--sp-1) 0 0;
   font-size: var(--text-sm);
@@ -235,11 +245,24 @@ textarea {
 }
 
 .tabs button:hover:not(.active) {
-  color: var(--ink-secondary);
-  background: var(--surface-raised);
+  color: var(--brand-700);
+  background: #eaf2fb;
 }
 
 .tabs button.active {
+  color: var(--brand-500);
+  background: var(--surface);
+  border-bottom-color: var(--brand-500);
+}
+
+.tabs button:hover:not(:disabled),
+.tabs button:active:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+
+.tabs button.active:hover:not(:disabled),
+.tabs button.active:active:not(:disabled) {
   color: var(--brand-500);
   background: var(--surface);
   border-bottom-color: var(--brand-500);
@@ -320,6 +343,34 @@ textarea {
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   min-width: 0;
   width: 100%;
+}
+
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-right: 2.75rem;
+}
+
+.password-toggle {
+  position: absolute;
+  right: var(--sp-2);
+  top: 50%;
+  transform: translateY(-50%);
+  min-height: auto;
+  padding: var(--sp-1);
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  box-shadow: none;
+}
+
+.password-toggle:hover:not(:disabled),
+.password-toggle:active:not(:disabled) {
+  background: transparent;
+  color: var(--ink-secondary);
+  box-shadow: none;
 }
 
 input:hover,

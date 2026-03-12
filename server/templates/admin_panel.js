@@ -75,13 +75,33 @@
     });
   }
 
-  function field(labelText, input, hintText) {
-    var id = input.id || "field-" + Math.random().toString(36).slice(2, 9);
-    input.id = id;
+  function field(labelText, input, hintText, control) {
+    var target = control || input;
+    var id = target.id || "field-" + Math.random().toString(36).slice(2, 9);
+    target.id = id;
     var children = [el("span", null, labelText)];
     if (hintText) children.push(el("span", { className: "muted" }, hintText));
     children.push(input);
     return el("label", { htmlFor: id, className: "stack" }, children);
+  }
+
+  function passwordField(labelText, input, hintText) {
+    input.type = "password";
+    var wrapper = el("div", { className: "password-field" }, input);
+    var toggleBtn = el("button", {
+      type: "button",
+      className: "password-toggle",
+      "aria-label": "Show password",
+      title: "Show password",
+    }, "👁");
+    toggleBtn.addEventListener("click", function () {
+      var showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      toggleBtn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+      toggleBtn.setAttribute("title", showing ? "Show password" : "Hide password");
+    });
+    wrapper.appendChild(toggleBtn);
+    return field(labelText, wrapper, hintText, input);
   }
 
   function wrapTable(table) {
@@ -196,6 +216,7 @@
   function requireTypedConfirmation(options) {
     var input = el("input", {
       type: "text",
+      maxlength: "100",
       "aria-label": "Type " + options.expectedText + " to confirm"
     });
     var extra = el("label", { className: "dialog-field" },
@@ -286,9 +307,12 @@
     var logoutBtn = el("button", { type: "button" }, "Logout");
     logoutBtn.addEventListener("click", doLogout);
     var topbar = el("header", { className: "topbar", role: "banner" },
-      el("div", null,
-        el("h1", null, "ORBIT Admin Panel"),
-        el("p", null, currentUser ? currentUser.username : "")
+      el("div", { className: "brand-block" },
+        el("img", {
+          src: "/static/orbit-logo-dark.png",
+          alt: "",
+          className: "brand-logo",
+        })
       ),
       el("div", { className: "topbar-actions" },
         el("span", null, currentUser ? currentUser.role : ""),
@@ -447,8 +471,8 @@
 
     // Create user form
     left.appendChild(el("h2", null, "Users"));
-    var usernameInput = el("input", { type: "text", required: "true" });
-    var passwordInput = el("input", { type: "password", required: "true" });
+    var usernameInput = el("input", { type: "text", required: "true", maxlength: "100" });
+    var passwordInput = el("input", { type: "password", required: "true", maxlength: "100" });
     var roleSelect = el("select", null,
       el("option", { value: "user" }, "user"),
       el("option", { value: "admin" }, "admin")
@@ -457,7 +481,7 @@
 
     var form = el("div", { className: "inline-form" },
       field("Username", usernameInput),
-      field("Password", passwordInput),
+      passwordField("Password", passwordInput),
       field("Role", roleSelect),
       createBtn
     );
@@ -504,9 +528,9 @@
   }
 
   function renderChangeMyPassword(panel) {
-    var curPwInput = el("input", { type: "password", placeholder: "Current password" });
-    var newPwInput = el("input", { type: "password", placeholder: "New password" });
-    var confirmPwInput = el("input", { type: "password", placeholder: "Confirm new password" });
+    var curPwInput = el("input", { type: "password", placeholder: "Current password", maxlength: "100" });
+    var newPwInput = el("input", { type: "password", placeholder: "New password", maxlength: "100" });
+    var confirmPwInput = el("input", { type: "password", placeholder: "Confirm new password", maxlength: "100" });
     var changeBtn = el("button", { type: "button" }, "Change Password");
 
     changeBtn.addEventListener("click", async function () {
@@ -530,9 +554,9 @@
     });
 
     panel.appendChild(el("div", { className: "stack" },
-      field("Current Password", curPwInput),
-      field("New Password", newPwInput),
-      field("Confirm Password", confirmPwInput),
+      passwordField("Current Password", curPwInput),
+      passwordField("New Password", newPwInput),
+      passwordField("Confirm Password", confirmPwInput),
       changeBtn
     ));
   }
@@ -632,7 +656,7 @@
 
     // Reset password
     panel.appendChild(el("h3", null, "Reset Password"));
-    var newPwInput = el("input", { type: "password" });
+    var newPwInput = el("input", { type: "password", maxlength: "100" });
     var resetBtn = el("button", { type: "button" }, "Reset Password");
     resetBtn.addEventListener("click", function () {
       var pw = newPwInput.value.trim();
@@ -653,7 +677,7 @@
         }
       });
     });
-    panel.appendChild(el("div", { className: "inline-form" }, field("New password", newPwInput), resetBtn));
+    panel.appendChild(el("div", { className: "inline-form" }, passwordField("New password", newPwInput), resetBtn));
 
     // Delete
     panel.appendChild(el("h3", null, "Danger Zone"));
@@ -694,7 +718,7 @@
     await loadAdaptersAndPrompts();
 
     // Create key form
-    var clientInput = el("input", { type: "text", required: "true" });
+    var clientInput = el("input", { type: "text", required: "true", maxlength: "100" });
     var adapterSelect = el("select", null, el("option", { value: "" }, "Default adapter"));
     if (cachedAdapters) {
       cachedAdapters.forEach(function (a) {
@@ -705,10 +729,10 @@
     var promptSelect = el("select", null, el("option", { value: "" }, "No prompt"));
     if (cachedPrompts) {
       cachedPrompts.forEach(function (p) {
-        promptSelect.appendChild(el("option", { value: p.id }, p.name + " (v" + (p.version || "1.0") + ")"));
+        promptSelect.appendChild(el("option", { value: promptIdentifier(p) }, p.name + " (v" + (p.version || "1.0") + ")"));
       });
     }
-    var notesInput = el("input", { type: "text" });
+    var notesInput = el("input", { type: "text", maxlength: "100" });
     var createBtn = el("button", { type: "button" }, "Create Key");
 
     var form = el("div", { className: "inline-form" },
@@ -900,7 +924,7 @@
 
     // Rename
     panel.appendChild(el("h3", null, "Rename Key"));
-    var renameInput = el("input", { type: "text" });
+    var renameInput = el("input", { type: "text", maxlength: "100" });
     var renameBtn = el("button", { type: "button" }, "Rename");
     renameBtn.addEventListener("click", async function () {
       var nk = renameInput.value.trim();
@@ -963,7 +987,7 @@
 
     // Associate prompt
     panel.appendChild(el("h3", null, "Associate Prompt"));
-    var promptIdInput = el("input", { type: "text" });
+    var promptIdInput = el("input", { type: "text", maxlength: "100" });
     var assocBtn = el("button", { type: "button" }, "Associate");
     assocBtn.addEventListener("click", async function () {
       var pid = promptIdInput.value.trim();
@@ -1137,9 +1161,9 @@
 
     left.appendChild(el("h2", null, "System Prompts"));
 
-    var nameInput = el("input", { type: "text", required: "true" });
-    var versionInput = el("input", { type: "text", value: "1.0" });
-    var textArea = el("textarea", { rows: "5", required: "true" });
+    var nameInput = el("input", { type: "text", required: "true", maxlength: "100" });
+    var versionInput = el("input", { type: "text", value: "1.0", maxlength: "100" });
+    var textArea = el("textarea", { rows: "5", required: "true", maxlength: "1000" });
     var createBtn = el("button", { type: "button" }, "Create Prompt");
 
     var form = el("div", { className: "stack" },
@@ -1254,8 +1278,8 @@
     panel.appendChild(summary);
 
     // Edit
-    var vInput = el("input", { type: "text", value: prompt.version || "1.0" });
-    var tArea = el("textarea", { rows: "8" }, prompt.prompt || "");
+    var vInput = el("input", { type: "text", value: prompt.version || "1.0", maxlength: "100" });
+    var tArea = el("textarea", { rows: "8", maxlength: "1000" }, prompt.prompt || "");
     var saveBtn = el("button", { type: "button" }, "Save Changes");
     saveBtn.addEventListener("click", async function () {
       saveBtn.disabled = true;
@@ -1338,7 +1362,7 @@
     // Reload panel
     var reloadPanel = el("div", { className: "panel action-panel" });
     reloadPanel.appendChild(el("h2", null, "Reload Configuration"));
-    var filterInput = el("input", { type: "text" });
+    var filterInput = el("input", { type: "text", maxlength: "100" });
     reloadPanel.appendChild(el("div", { className: "stack" }, field("Adapter filter", filterInput, "Optional scope for a targeted reload")));
 
     var reloadAdaptersBtn = el("button", { type: "button" }, "Reload Adapters");
