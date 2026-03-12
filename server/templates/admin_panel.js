@@ -14,11 +14,13 @@
   // Cached data
   let cachedAdapters = null;
   let cachedPrompts = null;
+  let cachedKeys = null;
 
   // Selection state per tab
   let selectedUser = null;
   let selectedKey = null;
   let selectedPrompt = null;
+  let messageCounter = 0;
 
   // ------------------------------------------------------------------
   // DOM helpers
@@ -55,58 +57,157 @@
     while (node.firstChild) node.removeChild(node.firstChild);
   }
 
-  function escapeHtml(s) {
-    var d = document.createElement("div");
-    d.appendChild(document.createTextNode(s));
-    return d.innerHTML;
+  function maskSecret(value) {
+    if (!value) return "";
+    if (value.length <= 8) return "••••••••";
+    return value.slice(0, 4) + "••••••••" + value.slice(-4);
+  }
+
+  function promptIdentifier(prompt) {
+    return (prompt && (prompt.id || prompt._id)) || "";
+  }
+
+  function markSelectedRow(tableBody, activeRow) {
+    tableBody.querySelectorAll("tr").forEach(function (row) {
+      var isActive = row === activeRow;
+      row.classList.toggle("selected-row", isActive);
+      row.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+  }
+
+  function field(labelText, input, hintText) {
+    var id = input.id || "field-" + Math.random().toString(36).slice(2, 9);
+    input.id = id;
+    var children = [el("span", null, labelText)];
+    if (hintText) children.push(el("span", { className: "muted" }, hintText));
+    children.push(input);
+    return el("label", { htmlFor: id, className: "stack" }, children);
+  }
+
+  function wrapTable(table) {
+    return el("div", { className: "table-wrap" }, table);
+  }
+
+  function trapFocus(e, root) {
+    var focusable = root.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusable.length) return;
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
   }
 
   // ------------------------------------------------------------------
   // Status / Error messages
   // ------------------------------------------------------------------
-  let _statusTimer = null;
-  function showStatus(msg, container) {
-    _clearMsg(container);
-    var d = el("div", { className: "status", role: "status" }, msg);
-    container.prepend(d);
-    _statusTimer = setTimeout(function () { d.remove(); }, 4000);
+  function showStatus(msg) {
+    pushMessage("status", msg, true);
   }
 
-  function showError(msg, container) {
-    _clearMsg(container);
-    var d = el("div", { className: "error", role: "alert" }, msg);
-    container.prepend(d);
-    _statusTimer = setTimeout(function () { d.remove(); }, 6000);
+  function showError(msg) {
+    pushMessage("error", msg, false);
   }
 
-  function _clearMsg(container) {
-    if (_statusTimer) clearTimeout(_statusTimer);
-    container.querySelectorAll(".status, .error").forEach(function (n) { n.remove(); });
+  function pushMessage(kind, msg, autoDismiss) {
+    var region = document.getElementById("toast-region");
+    if (!region) return;
+    var dismissBtn = el("button", {
+      type: "button",
+      className: "message-dismiss",
+      "aria-label": "Dismiss notification",
+    }, "×");
+    var node = el("div", {
+      id: "message-" + (++messageCounter),
+      className: kind,
+      role: kind === "error" ? "alert" : "status",
+    },
+      el("div", { className: "message-body" }, msg),
+      dismissBtn
+    );
+    dismissBtn.addEventListener("click", function () { node.remove(); });
+    region.prepend(node);
+    if (autoDismiss) {
+      setTimeout(function () {
+        if (node.parentNode) node.remove();
+      }, 5000);
+    }
   }
 
   // ------------------------------------------------------------------
   // Confirm dialog
   // ------------------------------------------------------------------
-  function confirmDialog(title, message, onConfirm, dangerLabel) {
+  function confirmDialog(title, message, onConfirm, confirmLabel, isDanger, extraContent) {
+    var previousFocus = document.activeElement;
+    var titleId = "dialog-title-" + Date.now();
+    var descId = "dialog-desc-" + Date.now();
     var backdrop = el("div", { className: "dialog-backdrop" });
     var cancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
-    var confirmBtn = el("button", { className: dangerLabel ? "danger" : "", type: "button" }, dangerLabel || "Confirm");
-    var dialog = el("div", { className: "confirm-dialog" },
-      el("h2", null, title),
-      el("p", null, message),
-      el("div", { className: "dialog-actions" }, cancelBtn, confirmBtn)
-    );
+    var confirmBtn = el("button", { className: isDanger ? "danger" : "", type: "button" }, confirmLabel || "Confirm");
+    var bodyChildren = [
+      el("h2", { id: titleId }, title),
+      el("p", { id: descId }, message),
+    ];
+    if (extraContent) bodyChildren.push(extraContent);
+    bodyChildren.push(el("div", { className: "dialog-actions" }, cancelBtn, confirmBtn));
+    var dialog = el("div", {
+      className: "confirm-dialog",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": titleId,
+      "aria-describedby": descId,
+    }, el("div", { className: "dialog-body" }, bodyChildren));
     backdrop.appendChild(dialog);
     document.body.appendChild(backdrop);
     confirmBtn.focus();
 
-    function close() { backdrop.remove(); }
+    function close() {
+      document.removeEventListener("keydown", handler);
+      backdrop.remove();
+      if (previousFocus && previousFocus.focus) previousFocus.focus();
+    }
     cancelBtn.addEventListener("click", close);
-    confirmBtn.addEventListener("click", function () { close(); onConfirm(); });
-    backdrop.addEventListener("click", function (e) { if (e.target === backdrop) close(); });
-    document.addEventListener("keydown", function handler(e) {
-      if (e.key === "Escape") { close(); document.removeEventListener("keydown", handler); }
+    confirmBtn.addEventListener("click", async function () {
+      try {
+        await onConfirm();
+        close();
+      } catch (err) {
+        showError(err.message);
+      }
     });
+    backdrop.addEventListener("click", function (e) { if (e.target === backdrop) close(); });
+    function handler(e) {
+      if (e.key === "Escape") close();
+      if (e.key === "Tab") trapFocus(e, dialog);
+    }
+    document.addEventListener("keydown", handler);
+  }
+
+  function confirmAction(options) {
+    confirmDialog(options.title, options.message, options.onConfirm, options.confirmLabel, !!options.isDanger);
+  }
+
+  function requireTypedConfirmation(options) {
+    var input = el("input", {
+      type: "text",
+      "aria-label": "Type " + options.expectedText + " to confirm"
+    });
+    var extra = el("label", { className: "dialog-field" },
+      el("span", null, 'Type "' + options.expectedText + '" to continue'),
+      input
+    );
+    confirmDialog(options.title, options.message, async function () {
+      if (input.value.trim() !== options.expectedText) {
+        throw new Error("Confirmation text did not match.");
+      }
+      await options.onConfirm();
+    }, options.confirmLabel, options.isDanger !== false, extra);
   }
 
   // ------------------------------------------------------------------
@@ -184,7 +285,7 @@
     // Topbar
     var logoutBtn = el("button", { type: "button" }, "Logout");
     logoutBtn.addEventListener("click", doLogout);
-    var topbar = el("div", { className: "topbar" },
+    var topbar = el("header", { className: "topbar", role: "banner" },
       el("div", null,
         el("h1", null, "ORBIT Admin Panel"),
         el("p", null, currentUser ? currentUser.username : "")
@@ -196,21 +297,49 @@
     );
 
     // Tabs
-    var tabBar = el("div", { className: "tabs" });
+    var tabBar = el("div", { className: "tabs", role: "tablist", "aria-label": "Admin sections" });
     TABS.forEach(function (t) {
+      var isSelected = t.id === activeTab;
       var btn = el("button", {
+        id: "tab-" + t.id,
         type: "button",
+        role: "tab",
+        "aria-selected": String(isSelected),
+        "aria-controls": "tab-content",
+        tabindex: isSelected ? "0" : "-1",
         className: t.id === activeTab ? "active" : "",
         dataset: { tab: t.id },
       }, t.label);
       btn.addEventListener("click", function () { switchTab(t.id); });
+      btn.addEventListener("keydown", function (e) {
+        var currentIndex = TABS.findIndex(function (tab) { return tab.id === t.id; });
+        if (e.key === "ArrowRight") {
+          e.preventDefault();
+          switchTab(TABS[(currentIndex + 1) % TABS.length].id);
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          switchTab(TABS[(currentIndex - 1 + TABS.length) % TABS.length].id);
+        }
+      });
       tabBar.appendChild(btn);
     });
 
     // Content
-    var content = el("div", { id: "tab-content" });
+    var toastRegion = el("div", {
+      id: "toast-region",
+      className: "toast-region",
+      "aria-live": "polite",
+      "aria-atomic": "true",
+    });
+    var content = el("main", {
+      id: "tab-content",
+      className: "app-main",
+      role: "tabpanel",
+      tabindex: "-1",
+      "aria-labelledby": "tab-" + activeTab,
+    });
 
-    var shell = el("div", { className: "app-shell" }, topbar, tabBar, content);
+    var shell = el("div", { className: "app-shell" }, topbar, el("nav", null, tabBar), toastRegion, content);
     app.appendChild(shell);
 
     renderTab();
@@ -219,8 +348,14 @@
   function switchTab(id) {
     activeTab = id;
     document.querySelectorAll(".tabs button").forEach(function (b) {
-      b.classList.toggle("active", b.dataset.tab === id);
+      var isActive = b.dataset.tab === id;
+      b.classList.toggle("active", isActive);
+      b.setAttribute("aria-selected", String(isActive));
+      b.setAttribute("tabindex", isActive ? "0" : "-1");
+      if (isActive) b.focus();
     });
+    var panel = document.getElementById("tab-content");
+    if (panel) panel.setAttribute("aria-labelledby", "tab-" + id);
     renderTab();
   }
 
@@ -273,7 +408,7 @@
       renderInfoCard(serverPanel, "Server Info", info);
       renderInfoCard(healthPanel, "Health", health);
     } catch (err) {
-      showError("Failed to load overview: " + err.message, container);
+      showError("Failed to load overview: " + err.message);
     }
   }
 
@@ -303,7 +438,6 @@
   // TAB: Users
   // ==================================================================
   async function renderUsers(container) {
-    selectedUser = null;
     var layout = el("div", { className: "split-layout" });
     var left = el("div", { className: "panel" });
     var right = el("div", { className: "panel" });
@@ -313,8 +447,8 @@
 
     // Create user form
     left.appendChild(el("h2", null, "Users"));
-    var usernameInput = el("input", { type: "text", placeholder: "Username", required: "true" });
-    var passwordInput = el("input", { type: "password", placeholder: "Password", required: "true" });
+    var usernameInput = el("input", { type: "text", required: "true" });
+    var passwordInput = el("input", { type: "password", required: "true" });
     var roleSelect = el("select", null,
       el("option", { value: "user" }, "user"),
       el("option", { value: "admin" }, "admin")
@@ -322,9 +456,9 @@
     var createBtn = el("button", { type: "button" }, "Create User");
 
     var form = el("div", { className: "inline-form" },
-      el("label", null, "Username", usernameInput),
-      el("label", null, "Password", passwordInput),
-      el("label", null, "Role", roleSelect),
+      field("Username", usernameInput),
+      field("Password", passwordInput),
+      field("Role", roleSelect),
       createBtn
     );
     left.appendChild(form);
@@ -347,10 +481,10 @@
         await api("POST", "/auth/register", { username: u, password: p, role: roleSelect.value });
         usernameInput.value = "";
         passwordInput.value = "";
-        showStatus("User created", left);
+        showStatus("User created");
         loadUsers();
       } catch (err) {
-        showError(err.message, left);
+        showError(err.message);
       } finally {
         createBtn.disabled = false;
       }
@@ -380,25 +514,25 @@
       var nw = newPwInput.value;
       var conf = confirmPwInput.value;
       if (!cur || !nw) return;
-      if (nw !== conf) { showError("Passwords do not match", panel); return; }
+      if (nw !== conf) { showError("Passwords do not match"); return; }
       changeBtn.disabled = true;
       try {
         await api("POST", "/auth/change-password", { current_password: cur, new_password: nw });
         curPwInput.value = "";
         newPwInput.value = "";
         confirmPwInput.value = "";
-        showStatus("Password changed successfully", panel);
+        showStatus("Password changed successfully");
       } catch (err) {
-        showError(err.message, panel);
+        showError(err.message);
       } finally {
         changeBtn.disabled = false;
       }
     });
 
     panel.appendChild(el("div", { className: "stack" },
-      el("label", null, "Current Password", curPwInput),
-      el("label", null, "New Password", newPwInput),
-      el("label", null, "Confirm Password", confirmPwInput),
+      field("Current Password", curPwInput),
+      field("New Password", newPwInput),
+      field("Confirm Password", confirmPwInput),
       changeBtn
     ));
   }
@@ -422,13 +556,15 @@
     );
     var tbody = el("tbody");
     users.forEach(function (u) {
+      var isSelected = selectedUser && selectedUser.id === u.id;
       var tr = el("tr", {
-        className: "selectable-row" + (selectedUser && selectedUser.id === u.id ? " selected-row" : ""),
+        className: "selectable-row" + (isSelected ? " selected-row" : ""),
         tabindex: "0",
+        "aria-selected": isSelected ? "true" : "false",
       },
-        el("td", { dataset: { label: "Username" } }, u.username),
-        el("td", { dataset: { label: "Role" } }, u.role || ""),
-        el("td", { dataset: { label: "Active" } },
+        el("td", null, u.username),
+        el("td", null, u.role || ""),
+        el("td", null,
           el("span", { className: u.active !== false ? "status-active" : "status-inactive" },
             u.active !== false ? "Active" : "Inactive"
           )
@@ -436,26 +572,28 @@
       );
       tr.addEventListener("click", function () {
         selectedUser = u;
-        wrap.querySelectorAll("tr").forEach(function (r) { r.classList.remove("selected-row"); });
-        tr.classList.add("selected-row");
+        markSelectedRow(tbody, tr);
         renderUserDetail(rightPanel, u, function () {
           selectedUser = null;
           renderTab();
         });
       });
       tr.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tr.click(); }
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          tr.click();
+        }
       });
       tbody.appendChild(tr);
     });
     table.appendChild(thead);
     table.appendChild(tbody);
-    wrap.appendChild(table);
+    wrap.appendChild(wrapTable(table));
   }
 
   function renderUserDetail(panel, user, onRefresh) {
     clear(panel);
-    panel.appendChild(el("h2", null, "Manage: " + escapeHtml(user.username)));
+    panel.appendChild(el("h2", null, "Manage: " + user.username));
 
     var summary = el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "ID:"), " " + (user.id || "N/A")),
@@ -473,67 +611,76 @@
       user.active !== false ? "Deactivate User" : "Activate User"
     );
     toggleBtn.addEventListener("click", async function () {
-      toggleBtn.disabled = true;
-      try {
-        var action = user.active !== false ? "deactivate" : "activate";
-        await api("POST", "/auth/users/" + encodeURIComponent(user.id) + "/" + action);
-        showStatus("User " + action + "d", panel);
-        onRefresh();
-      } catch (err) {
-        showError(err.message, panel);
-      } finally {
-        toggleBtn.disabled = false;
-      }
+      var action = user.active !== false ? "deactivate" : "activate";
+      confirmAction({
+        title: (action === "deactivate" ? "Deactivate" : "Activate") + " User",
+        message: "Are you sure you want to " + action + " " + user.username + "?",
+        confirmLabel: action === "deactivate" ? "Deactivate" : "Activate",
+        onConfirm: async function () {
+          toggleBtn.disabled = true;
+          try {
+            await api("POST", "/auth/users/" + encodeURIComponent(user.id) + "/" + action);
+            showStatus("User " + action + "d");
+            onRefresh();
+          } finally {
+            toggleBtn.disabled = false;
+          }
+        }
+      });
     });
     panel.appendChild(toggleBtn);
 
     // Reset password
     panel.appendChild(el("h3", null, "Reset Password"));
-    var newPwInput = el("input", { type: "password", placeholder: "New password" });
+    var newPwInput = el("input", { type: "password" });
     var resetBtn = el("button", { type: "button" }, "Reset Password");
-    resetBtn.addEventListener("click", async function () {
+    resetBtn.addEventListener("click", function () {
       var pw = newPwInput.value.trim();
       if (!pw) return;
-      resetBtn.disabled = true;
-      try {
-        await api("POST", "/auth/reset-password", { user_id: user.id, new_password: pw });
-        newPwInput.value = "";
-        showStatus("Password reset", panel);
-      } catch (err) {
-        showError(err.message, panel);
-      } finally {
-        resetBtn.disabled = false;
-      }
+      confirmAction({
+        title: "Reset Password",
+        message: "Reset the password for " + user.username + "?",
+        confirmLabel: "Reset",
+        onConfirm: async function () {
+          resetBtn.disabled = true;
+          try {
+            await api("POST", "/auth/reset-password", { user_id: user.id, new_password: pw });
+            newPwInput.value = "";
+            showStatus("Password reset");
+          } finally {
+            resetBtn.disabled = false;
+          }
+        }
+      });
     });
-    panel.appendChild(el("div", { className: "inline-form" }, newPwInput, resetBtn));
+    panel.appendChild(el("div", { className: "inline-form" }, field("New password", newPwInput), resetBtn));
 
     // Delete
     panel.appendChild(el("h3", null, "Danger Zone"));
     var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete User");
     deleteBtn.addEventListener("click", function () {
-      confirmDialog(
-        "Delete User",
-        "Are you sure you want to delete user \"" + escapeHtml(user.username) + "\"? This cannot be undone.",
-        async function () {
-          try {
-            await api("DELETE", "/auth/users/" + encodeURIComponent(user.id));
-            showStatus("User deleted", panel);
-            onRefresh();
-          } catch (err) {
-            showError(err.message, panel);
-          }
-        },
-        "Delete"
-      );
+      requireTypedConfirmation({
+        title: "Delete User",
+        message: 'Delete user "' + user.username + '"? This cannot be undone.',
+        expectedText: user.username,
+        confirmLabel: "Delete",
+        onConfirm: async function () {
+          await api("DELETE", "/auth/users/" + encodeURIComponent(user.id));
+          showStatus("User deleted");
+          onRefresh();
+        }
+      });
     });
-    panel.appendChild(deleteBtn);
+    panel.appendChild(el("div", { className: "danger-zone" },
+      el("p", null, "Destructive actions affect account access immediately."),
+      deleteBtn
+    ));
   }
 
   // ==================================================================
   // TAB: API Keys
   // ==================================================================
   async function renderKeys(container) {
-    selectedKey = null;
     var layout = el("div", { className: "split-layout" });
     var left = el("div", { className: "panel" });
     var right = el("div", { className: "panel" });
@@ -547,7 +694,7 @@
     await loadAdaptersAndPrompts();
 
     // Create key form
-    var clientInput = el("input", { type: "text", placeholder: "Client name", required: "true" });
+    var clientInput = el("input", { type: "text", required: "true" });
     var adapterSelect = el("select", null, el("option", { value: "" }, "Default adapter"));
     if (cachedAdapters) {
       cachedAdapters.forEach(function (a) {
@@ -561,14 +708,14 @@
         promptSelect.appendChild(el("option", { value: p.id }, p.name + " (v" + (p.version || "1.0") + ")"));
       });
     }
-    var notesInput = el("input", { type: "text", placeholder: "Notes (optional)" });
+    var notesInput = el("input", { type: "text" });
     var createBtn = el("button", { type: "button" }, "Create Key");
 
     var form = el("div", { className: "inline-form" },
-      el("label", null, "Client", clientInput),
-      el("label", null, "Adapter", adapterSelect),
-      el("label", null, "Prompt", promptSelect),
-      el("label", null, "Notes", notesInput),
+      field("Client", clientInput),
+      field("Adapter", adapterSelect),
+      field("Prompt", promptSelect),
+      field("Notes", notesInput),
       createBtn
     );
     left.appendChild(form);
@@ -590,10 +737,10 @@
         await api("POST", "/admin/api-keys", body);
         clientInput.value = "";
         notesInput.value = "";
-        showStatus("API key created", left);
+        showStatus("API key created");
         loadKeys();
       } catch (err) {
-        showError(err.message, left);
+        showError(err.message);
       } finally {
         createBtn.disabled = false;
       }
@@ -602,6 +749,7 @@
     async function loadKeys() {
       try {
         var keys = await api("GET", "/admin/api-keys");
+        cachedKeys = keys;
         renderKeyTable(tableWrap, keys, right);
       } catch (err) {
         clear(tableWrap);
@@ -629,6 +777,26 @@
     }
   }
 
+  async function loadAvailableKeys() {
+    try {
+      cachedKeys = await api("GET", "/admin/api-keys");
+    } catch (_) {
+      cachedKeys = [];
+    }
+    return cachedKeys;
+  }
+
+  function fillKeySelect(select, keys) {
+    clear(select);
+    select.appendChild(el("option", { value: "" }, keys && keys.length ? "Select an API key" : "No API keys available"));
+    (keys || []).forEach(function (key) {
+      var keyVal = key.api_key || key.key || "";
+      var label = (key.client_name || "Unnamed key") + " (" + maskSecret(keyVal) + ")";
+      select.appendChild(el("option", { value: key._id || "" }, label));
+    });
+    select.disabled = !keys || keys.length === 0;
+  }
+
   function renderKeyTable(wrap, keys, rightPanel) {
     clear(wrap);
     if (!keys || keys.length === 0) {
@@ -650,14 +818,16 @@
     var tbody = el("tbody");
     keys.forEach(function (k) {
       var keyVal = k.api_key || k.key || "";
+      var isSelected = selectedKey && selectedKey.api_key === k.api_key;
       var tr = el("tr", {
-        className: "selectable-row" + (selectedKey && selectedKey.api_key === k.api_key ? " selected-row" : ""),
+        className: "selectable-row" + (isSelected ? " selected-row" : ""),
         tabindex: "0",
+        "aria-selected": isSelected ? "true" : "false",
       },
-        el("td", { dataset: { label: "Key" } }, el("code", null, keyVal)),
-        el("td", { dataset: { label: "Client" } }, k.client_name || ""),
-        el("td", { dataset: { label: "Adapter" } }, k.adapter_name || "default"),
-        el("td", { dataset: { label: "Active" } },
+        el("td", null, el("code", null, maskSecret(keyVal))),
+        el("td", null, k.client_name || ""),
+        el("td", null, k.adapter_name || "default"),
+        el("td", null,
           el("span", { className: k.active !== false ? "status-active" : "status-inactive" },
             k.active !== false ? "Active" : "Inactive"
           )
@@ -665,30 +835,40 @@
       );
       tr.addEventListener("click", function () {
         selectedKey = k;
-        wrap.querySelectorAll("tr").forEach(function (r) { r.classList.remove("selected-row"); });
-        tr.classList.add("selected-row");
+        markSelectedRow(tbody, tr);
         renderKeyDetail(rightPanel, k, function () {
           selectedKey = null;
           renderTab();
         });
       });
       tr.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tr.click(); }
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          tr.click();
+        }
       });
       tbody.appendChild(tr);
     });
     table.appendChild(thead);
     table.appendChild(tbody);
-    wrap.appendChild(table);
+    wrap.appendChild(wrapTable(table));
   }
 
   function renderKeyDetail(panel, key, onRefresh) {
     clear(panel);
     var keyVal = key.api_key || key.key || "";
-    panel.appendChild(el("h2", null, "Key: " + escapeHtml(key.client_name || keyVal)));
+    panel.appendChild(el("h2", null, "Key: " + (key.client_name || keyVal)));
+    var revealSecret = false;
+    var keyCode = el("code", null, maskSecret(keyVal));
+    var revealBtn = el("button", { className: "secondary", type: "button" }, "Reveal");
+    revealBtn.addEventListener("click", function () {
+      revealSecret = !revealSecret;
+      keyCode.textContent = revealSecret ? keyVal : maskSecret(keyVal);
+      revealBtn.textContent = revealSecret ? "Hide" : "Reveal";
+    });
 
     var summary = el("div", { className: "key-summary" },
-      el("p", null, el("strong", null, "Key:"), " ", el("code", null, keyVal)),
+      el("p", null, el("strong", null, "Key:"), " ", keyCode, " ", revealBtn),
       el("p", null, el("strong", null, "Client:"), " " + (key.client_name || "N/A")),
       el("p", null, el("strong", null, "Adapter:"), " " + (key.adapter_name || "default")),
       el("p", null, el("strong", null, "Active:"), " ",
@@ -706,7 +886,7 @@
       testBtn.disabled = true;
       testResult.textContent = "";
       try {
-        var resp = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/status");
+        await api("GET", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/status");
         testResult.className = "badge-ok";
         testResult.textContent = "Valid";
       } catch (err) {
@@ -720,7 +900,7 @@
 
     // Rename
     panel.appendChild(el("h3", null, "Rename Key"));
-    var renameInput = el("input", { type: "text", placeholder: "New key value" });
+    var renameInput = el("input", { type: "text" });
     var renameBtn = el("button", { type: "button" }, "Rename");
     renameBtn.addEventListener("click", async function () {
       var nk = renameInput.value.trim();
@@ -728,30 +908,35 @@
       renameBtn.disabled = true;
       try {
         await api("PATCH", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/rename?new_api_key=" + encodeURIComponent(nk));
-        showStatus("Key renamed", panel);
+        showStatus("Key renamed");
         onRefresh();
       } catch (err) {
-        showError(err.message, panel);
+        showError(err.message);
       } finally {
         renameBtn.disabled = false;
       }
     });
-    panel.appendChild(el("div", { className: "inline-form" }, renameInput, renameBtn));
+    panel.appendChild(el("div", { className: "inline-form" }, field("New key value", renameInput), renameBtn));
 
     // Deactivate
     if (key.active !== false) {
       var deactivateBtn = el("button", { className: "secondary", type: "button" }, "Deactivate Key");
-      deactivateBtn.addEventListener("click", async function () {
-        deactivateBtn.disabled = true;
-        try {
-          await api("POST", "/admin/api-keys/deactivate", { api_key: keyVal });
-          showStatus("Key deactivated", panel);
-          onRefresh();
-        } catch (err) {
-          showError(err.message, panel);
-        } finally {
-          deactivateBtn.disabled = false;
-        }
+      deactivateBtn.addEventListener("click", function () {
+        confirmAction({
+          title: "Deactivate Key",
+          message: "Deactivate this API key? Existing integrations will stop authenticating.",
+          confirmLabel: "Deactivate",
+          onConfirm: async function () {
+            deactivateBtn.disabled = true;
+            try {
+              await api("POST", "/admin/api-keys/deactivate", { api_key: keyVal });
+              showStatus("Key deactivated");
+              onRefresh();
+            } finally {
+              deactivateBtn.disabled = false;
+            }
+          }
+        });
       });
       panel.appendChild(deactivateBtn);
     }
@@ -770,7 +955,7 @@
         var quota = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota");
         renderQuotaDetail(quotaWrap, keyVal, quota);
       } catch (err) {
-        showError(err.message, panel);
+        showError(err.message);
       } finally {
         loadQuotaBtn.disabled = false;
       }
@@ -778,7 +963,7 @@
 
     // Associate prompt
     panel.appendChild(el("h3", null, "Associate Prompt"));
-    var promptIdInput = el("input", { type: "text", placeholder: "Prompt ID" });
+    var promptIdInput = el("input", { type: "text" });
     var assocBtn = el("button", { type: "button" }, "Associate");
     assocBtn.addEventListener("click", async function () {
       var pid = promptIdInput.value.trim();
@@ -787,35 +972,35 @@
       try {
         await api("POST", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/prompt", { prompt_id: pid });
         promptIdInput.value = "";
-        showStatus("Prompt associated", panel);
+        showStatus("Prompt associated");
       } catch (err) {
-        showError(err.message, panel);
+        showError(err.message);
       } finally {
         assocBtn.disabled = false;
       }
     });
-    panel.appendChild(el("div", { className: "inline-form" }, promptIdInput, assocBtn));
+    panel.appendChild(el("div", { className: "inline-form" }, field("Prompt ID", promptIdInput), assocBtn));
 
     // Delete
     panel.appendChild(el("h3", null, "Danger Zone"));
     var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete Key");
     deleteBtn.addEventListener("click", function () {
-      confirmDialog(
-        "Delete API Key",
-        "Are you sure you want to delete this API key? This cannot be undone.",
-        async function () {
-          try {
-            await api("DELETE", "/admin/api-keys/" + encodeURIComponent(keyVal));
-            showStatus("Key deleted", panel);
-            onRefresh();
-          } catch (err) {
-            showError(err.message, panel);
-          }
-        },
-        "Delete"
-      );
+      requireTypedConfirmation({
+        title: "Delete API Key",
+        message: "Delete this API key? This cannot be undone.",
+        expectedText: key.client_name || "DELETE",
+        confirmLabel: "Delete",
+        onConfirm: async function () {
+          await api("DELETE", "/admin/api-keys/" + encodeURIComponent(keyVal));
+          showStatus("Key deleted");
+          onRefresh();
+        }
+      });
     });
-    panel.appendChild(deleteBtn);
+    panel.appendChild(el("div", { className: "danger-zone" },
+      el("p", null, "Deleting a key immediately revokes access for downstream clients."),
+      deleteBtn
+    ));
 
     // Raw status
     panel.appendChild(el("h3", null, "Raw Status"));
@@ -829,7 +1014,7 @@
         clear(rawWrap);
         rawWrap.appendChild(el("pre", null, JSON.stringify(status, null, 2)));
       } catch (err) {
-        showError(err.message, panel);
+        showError(err.message);
       } finally {
         rawBtn.disabled = false;
       }
@@ -857,18 +1042,23 @@
     var resetRow = el("div", { className: "inline-form", style: "margin-top:var(--sp-2)" });
     ["daily", "monthly", "all"].forEach(function (period) {
       var btn = el("button", { className: "secondary", type: "button" }, "Reset " + period);
-      btn.addEventListener("click", async function () {
-        btn.disabled = true;
-        try {
-          await api("POST", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota/reset?period=" + period);
-          showStatus("Quota " + period + " reset", wrap);
-          var updated = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota");
-          renderQuotaDetail(wrap, keyVal, updated);
-        } catch (err) {
-          showError(err.message, wrap);
-        } finally {
-          btn.disabled = false;
-        }
+      btn.addEventListener("click", function () {
+        confirmAction({
+          title: "Reset Quota",
+          message: "Reset the " + period + " quota counters for this key?",
+          confirmLabel: "Reset",
+          onConfirm: async function () {
+            btn.disabled = true;
+            try {
+              await api("POST", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota/reset?period=" + period);
+              showStatus("Quota " + period + " reset");
+              var updated = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota");
+              renderQuotaDetail(wrap, keyVal, updated);
+            } finally {
+              btn.disabled = false;
+            }
+          }
+        });
       });
       resetRow.appendChild(btn);
     });
@@ -899,19 +1089,19 @@
         if (monthlyInput.value !== "") body.monthly_limit = parseInt(monthlyInput.value);
         else body.monthly_limit = null;
         await api("PUT", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota", body);
-        showStatus("Quota updated", wrap);
+        showStatus("Quota updated");
         var updated = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyVal) + "/quota");
         renderQuotaDetail(wrap, keyVal, updated);
       } catch (err) {
-        showError(err.message, wrap);
+        showError(err.message);
       } finally {
         saveBtn.disabled = false;
       }
     });
 
     editForm.appendChild(el("div", { className: "stack", style: "margin-top:var(--sp-2)" },
-      el("label", null, "Daily Limit", dailyInput),
-      el("label", null, "Monthly Limit", monthlyInput),
+      field("Daily Limit", dailyInput, "Leave blank for unlimited"),
+      field("Monthly Limit", monthlyInput, "Leave blank for unlimited"),
       el("label", { className: "check-row" }, throttleCheck, "Throttle Enabled"),
       el("div", null, priorityLabel, priorityInput),
       saveBtn
@@ -938,7 +1128,6 @@
   // TAB: Prompts
   // ==================================================================
   async function renderPrompts(container) {
-    selectedPrompt = null;
     var layout = el("div", { className: "split-layout" });
     var left = el("div", { className: "panel" });
     var right = el("div", { className: "panel" });
@@ -948,17 +1137,17 @@
 
     left.appendChild(el("h2", null, "System Prompts"));
 
-    var nameInput = el("input", { type: "text", placeholder: "Prompt name", required: "true" });
-    var versionInput = el("input", { type: "text", placeholder: "Version", value: "1.0" });
-    var textArea = el("textarea", { placeholder: "Prompt text", rows: "5", required: "true" });
+    var nameInput = el("input", { type: "text", required: "true" });
+    var versionInput = el("input", { type: "text", value: "1.0" });
+    var textArea = el("textarea", { rows: "5", required: "true" });
     var createBtn = el("button", { type: "button" }, "Create Prompt");
 
     var form = el("div", { className: "stack" },
       el("div", { className: "inline-form" },
-        el("label", null, "Name", nameInput),
-        el("label", null, "Version", versionInput)
+        field("Name", nameInput),
+        field("Version", versionInput)
       ),
-      el("label", null, "Prompt", textArea),
+      field("Prompt", textArea),
       createBtn
     );
     left.appendChild(form);
@@ -979,10 +1168,10 @@
         nameInput.value = "";
         textArea.value = "";
         versionInput.value = "1.0";
-        showStatus("Prompt created", left);
+        showStatus("Prompt created");
         loadPrompts();
       } catch (err) {
-        showError(err.message, left);
+        showError(err.message);
       } finally {
         createBtn.disabled = false;
       }
@@ -1021,40 +1210,46 @@
     );
     var tbody = el("tbody");
     prompts.forEach(function (p) {
+      var promptId = promptIdentifier(p);
+      var isSelected = selectedPrompt && promptIdentifier(selectedPrompt) === promptId;
       var tr = el("tr", {
-        className: "selectable-row" + (selectedPrompt && selectedPrompt.id === p.id ? " selected-row" : ""),
+        className: "selectable-row" + (isSelected ? " selected-row" : ""),
         tabindex: "0",
+        "aria-selected": isSelected ? "true" : "false",
       },
-        el("td", { dataset: { label: "Name" } }, p.name),
-        el("td", { dataset: { label: "Version" } }, p.version || ""),
-        el("td", { dataset: { label: "ID" } }, el("code", null, p.id || ""))
+        el("td", null, p.name),
+        el("td", null, p.version || ""),
+        el("td", null, el("code", null, promptId))
       );
       tr.addEventListener("click", function () {
         selectedPrompt = p;
-        wrap.querySelectorAll("tr").forEach(function (r) { r.classList.remove("selected-row"); });
-        tr.classList.add("selected-row");
+        markSelectedRow(tbody, tr);
         renderPromptDetail(rightPanel, p, function () {
           selectedPrompt = null;
           renderTab();
         });
       });
       tr.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tr.click(); }
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          tr.click();
+        }
       });
       tbody.appendChild(tr);
     });
     table.appendChild(thead);
     table.appendChild(tbody);
-    wrap.appendChild(table);
+    wrap.appendChild(wrapTable(table));
   }
 
   function renderPromptDetail(panel, prompt, onRefresh) {
     clear(panel);
-    panel.appendChild(el("h2", null, "Edit: " + escapeHtml(prompt.name)));
+    var promptId = promptIdentifier(prompt);
+    panel.appendChild(el("h2", null, "Edit: " + prompt.name));
 
     var summary = el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "Name:"), " " + prompt.name),
-      el("p", null, el("strong", null, "ID:"), " ", el("code", null, prompt.id || ""))
+      el("p", null, el("strong", null, "ID:"), " ", el("code", null, promptId))
     );
     panel.appendChild(summary);
 
@@ -1065,65 +1260,72 @@
     saveBtn.addEventListener("click", async function () {
       saveBtn.disabled = true;
       try {
-        await api("PUT", "/admin/prompts/" + encodeURIComponent(prompt.id), {
+        await api("PUT", "/admin/prompts/" + encodeURIComponent(promptId), {
           prompt: tArea.value,
           version: vInput.value.trim(),
         });
-        showStatus("Prompt updated", panel);
+        showStatus("Prompt updated");
         onRefresh();
       } catch (err) {
-        showError(err.message, panel);
+        showError(err.message);
       } finally {
         saveBtn.disabled = false;
       }
     });
-
+    
     panel.appendChild(el("div", { className: "stack", style: "margin-top:var(--sp-3)" },
-      el("label", null, "Version", vInput),
-      el("label", null, "Prompt Text", tArea),
+      field("Version", vInput),
+      field("Prompt Text", tArea),
       saveBtn
     ));
 
     // Associate to API key
     panel.appendChild(el("h3", null, "Associate to API Key"));
-    var keyInput = el("input", { type: "text", placeholder: "Full API key value" });
+    var keySelect = el("select", null, el("option", { value: "" }, "Loading API keys..."));
     var assocBtn = el("button", { type: "button" }, "Associate");
+    fillKeySelect(keySelect, cachedKeys);
+    assocBtn.disabled = !cachedKeys || !cachedKeys.length;
+    if (!cachedKeys) {
+      loadAvailableKeys().then(function (keys) {
+        fillKeySelect(keySelect, keys);
+        assocBtn.disabled = !keys.length;
+      });
+    }
     assocBtn.addEventListener("click", async function () {
-      var k = keyInput.value.trim();
-      if (!k) return;
+      var k = keySelect.value;
+      if (!k || !promptId) return;
       assocBtn.disabled = true;
       try {
-        await api("POST", "/admin/api-keys/" + encodeURIComponent(k) + "/prompt", { prompt_id: prompt.id });
-        keyInput.value = "";
-        showStatus("Prompt associated with key", panel);
+        await api("POST", "/admin/api-keys/" + encodeURIComponent(k) + "/prompt", { prompt_id: promptId });
+        showStatus("Prompt associated with key");
       } catch (err) {
-        showError(err.message, panel);
+        showError(err.message);
       } finally {
-        assocBtn.disabled = false;
+        assocBtn.disabled = keySelect.disabled;
       }
     });
-    panel.appendChild(el("div", { className: "inline-form" }, keyInput, assocBtn));
+    panel.appendChild(el("div", { className: "inline-form" }, field("API Key", keySelect), assocBtn));
 
     // Delete
     panel.appendChild(el("h3", null, "Danger Zone"));
     var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete Prompt");
     deleteBtn.addEventListener("click", function () {
-      confirmDialog(
-        "Delete Prompt",
-        "Are you sure you want to delete prompt \"" + escapeHtml(prompt.name) + "\"? This cannot be undone.",
-        async function () {
-          try {
-            await api("DELETE", "/admin/prompts/" + encodeURIComponent(prompt.id));
-            showStatus("Prompt deleted", panel);
-            onRefresh();
-          } catch (err) {
-            showError(err.message, panel);
-          }
-        },
-        "Delete"
-      );
+      requireTypedConfirmation({
+        title: "Delete Prompt",
+        message: 'Delete prompt "' + prompt.name + '"? This cannot be undone.',
+        expectedText: prompt.name,
+        confirmLabel: "Delete",
+        onConfirm: async function () {
+          await api("DELETE", "/admin/prompts/" + encodeURIComponent(promptId));
+          showStatus("Prompt deleted");
+          onRefresh();
+        }
+      });
     });
-    panel.appendChild(deleteBtn);
+    panel.appendChild(el("div", { className: "danger-zone" },
+      el("p", null, "Deleting a prompt breaks future associations that depend on it."),
+      deleteBtn
+    ));
   }
 
   // ==================================================================
@@ -1136,39 +1338,49 @@
     // Reload panel
     var reloadPanel = el("div", { className: "panel action-panel" });
     reloadPanel.appendChild(el("h2", null, "Reload Configuration"));
-    var filterInput = el("input", { type: "text", placeholder: "Adapter filter (optional)" });
-    reloadPanel.appendChild(el("div", { className: "stack" }, filterInput));
+    var filterInput = el("input", { type: "text" });
+    reloadPanel.appendChild(el("div", { className: "stack" }, field("Adapter filter", filterInput, "Optional scope for a targeted reload")));
 
     var reloadAdaptersBtn = el("button", { type: "button" }, "Reload Adapters");
-    reloadAdaptersBtn.addEventListener("click", async function () {
-      reloadAdaptersBtn.disabled = true;
-      try {
-        var path = "/admin/reload-adapters";
-        var f = filterInput.value.trim();
-        if (f) path += "?adapter_name=" + encodeURIComponent(f);
-        var result = await api("POST", path);
-        showStatus("Adapters reloaded: " + (result.message || "OK"), reloadPanel);
-      } catch (err) {
-        showError(err.message, reloadPanel);
-      } finally {
-        reloadAdaptersBtn.disabled = false;
-      }
+    reloadAdaptersBtn.addEventListener("click", function () {
+      confirmAction({
+        title: "Reload Adapters",
+        message: "Reload adapter configuration" + (filterInput.value.trim() ? " for " + filterInput.value.trim() : "") + "?",
+        confirmLabel: "Reload",
+        onConfirm: async function () {
+          reloadAdaptersBtn.disabled = true;
+          try {
+            var path = "/admin/reload-adapters";
+            var f = filterInput.value.trim();
+            if (f) path += "?adapter_name=" + encodeURIComponent(f);
+            var result = await api("POST", path);
+            showStatus("Adapters reloaded: " + (result.message || "OK"));
+          } finally {
+            reloadAdaptersBtn.disabled = false;
+          }
+        }
+      });
     });
 
     var reloadTemplatesBtn = el("button", { type: "button" }, "Reload Templates");
-    reloadTemplatesBtn.addEventListener("click", async function () {
-      reloadTemplatesBtn.disabled = true;
-      try {
-        var path = "/admin/reload-templates";
-        var f = filterInput.value.trim();
-        if (f) path += "?adapter_name=" + encodeURIComponent(f);
-        var result = await api("POST", path);
-        showStatus("Templates reloaded: " + (result.message || "OK"), reloadPanel);
-      } catch (err) {
-        showError(err.message, reloadPanel);
-      } finally {
-        reloadTemplatesBtn.disabled = false;
-      }
+    reloadTemplatesBtn.addEventListener("click", function () {
+      confirmAction({
+        title: "Reload Templates",
+        message: "Reload templates" + (filterInput.value.trim() ? " for " + filterInput.value.trim() : "") + "?",
+        confirmLabel: "Reload",
+        onConfirm: async function () {
+          reloadTemplatesBtn.disabled = true;
+          try {
+            var path = "/admin/reload-templates";
+            var f = filterInput.value.trim();
+            if (f) path += "?adapter_name=" + encodeURIComponent(f);
+            var result = await api("POST", path);
+            showStatus("Templates reloaded: " + (result.message || "OK"));
+          } finally {
+            reloadTemplatesBtn.disabled = false;
+          }
+        }
+      });
     });
 
     reloadPanel.appendChild(el("div", { className: "inline-form", style: "margin-top:var(--sp-3)" },
@@ -1186,20 +1398,21 @@
 
     var shutdownBtn = el("button", { className: "danger", type: "button" }, "Shutdown Server");
     shutdownBtn.addEventListener("click", function () {
-      confirmDialog(
-        "Shutdown Server",
-        "Are you sure you want to shut down the server? This will terminate the ORBIT process and cannot be reversed from this UI.",
-        async function () {
+      requireTypedConfirmation({
+        title: "Shutdown Server",
+        message: "Type SHUTDOWN to terminate the ORBIT server process.",
+        expectedText: "SHUTDOWN",
+        confirmLabel: "Shutdown",
+        onConfirm: async function () {
           shutdownBtn.disabled = true;
           try {
             await api("POST", "/admin/shutdown");
-            showStatus("Server shutdown initiated", controlPanel);
-          } catch (err) {
-            showError(err.message, controlPanel);
+            showStatus("Server shutdown initiated");
+          } finally {
+            shutdownBtn.disabled = false;
           }
-        },
-        "Shutdown"
-      );
+        }
+      });
     });
 
     controlPanel.appendChild(shutdownBtn);

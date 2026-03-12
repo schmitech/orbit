@@ -10,7 +10,14 @@
     <link rel="stylesheet" href="/static/admin_panel.css?v={{ADMIN_PANEL_CSS_VERSION}}">
 </head>
 <body>
+    <a class="skip-link" href="#tab-content">Skip to main content</a>
     <div id="app"></div>
+    <noscript>
+        <main class="noscript-panel">
+            <h1>ORBIT Admin Panel</h1>
+            <p>This interface requires JavaScript enabled.</p>
+        </main>
+    </noscript>
     <script src="/static/admin_panel.js?v={{ADMIN_PANEL_JS_VERSION}}"></script>
 </body>
 </html>

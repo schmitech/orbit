@@ -95,6 +95,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+a {
+  color: inherit;
+}
+
 button,
 input,
 select,
@@ -117,6 +121,34 @@ textarea {
   padding: var(--sp-4);
   max-width: 1400px;
   margin: 0 auto;
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--sp-4);
+  top: -40px;
+  background: var(--ink);
+  color: #fff;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  z-index: 1200;
+}
+
+.skip-link:focus {
+  top: var(--sp-4);
+}
+
+.app-main {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.toast-region {
+  position: sticky;
+  top: var(--sp-3);
+  z-index: 30;
+  display: grid;
+  gap: var(--sp-2);
 }
 
 .topbar {
@@ -199,6 +231,7 @@ textarea {
   transition: color var(--transition-fast), background var(--transition-fast);
   margin-bottom: -2px;
   border-bottom: 2px solid transparent;
+  min-height: 44px;
 }
 
 .tabs button:hover:not(.active) {
@@ -286,6 +319,7 @@ textarea {
   font-size: var(--text-base);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   min-width: 0;
+  width: 100%;
 }
 
 input:hover,
@@ -350,7 +384,7 @@ button {
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
-  min-height: 36px;
+  min-height: 44px;
   white-space: nowrap;
   background: var(--brand-500);
   color: #fff;
@@ -402,7 +436,7 @@ button.secondary:active:not(:disabled) {
 .action-panel button {
   padding: var(--sp-2) var(--sp-3);
   font-size: var(--text-sm);
-  min-height: 34px;
+  min-height: 44px;
 }
 
 /* ============================================================
@@ -411,12 +445,17 @@ button.secondary:active:not(:disabled) {
 
 .status,
 .error {
-  margin: var(--sp-2) 0;
+  margin: 0;
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   font-weight: 500;
   animation: rise-in 200ms ease-out;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  box-shadow: var(--shadow-md);
 }
 
 .status {
@@ -431,6 +470,28 @@ button.secondary:active:not(:disabled) {
   border: 1px solid #fecaca;
 }
 
+.message-body {
+  flex: 1;
+}
+
+.message-dismiss {
+  min-height: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+.message-dismiss:hover:not(:disabled),
+.message-dismiss:active:not(:disabled) {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
 /* ============================================================
    Tables
    ============================================================ */
@@ -439,6 +500,10 @@ table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--text-sm);
+}
+
+.table-wrap {
+  overflow-x: auto;
 }
 
 thead {
@@ -498,6 +563,7 @@ tbody tr:nth-child(even) {
   margin: var(--sp-1) 0;
   font-size: var(--text-sm);
   display: flex;
+  flex-wrap: wrap;
   gap: var(--sp-2);
 }
 
@@ -573,6 +639,21 @@ tbody tr:nth-child(even) {
 .quota-section {
   display: grid;
   gap: var(--sp-3);
+}
+
+.danger-zone {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid #f5c2bd;
+  border-radius: var(--radius-md);
+  background: var(--danger-50);
+}
+
+.danger-zone p {
+  margin: 0;
+  color: var(--danger-text);
+  font-size: var(--text-sm);
 }
 
 /* ============================================================
@@ -715,6 +796,16 @@ code {
   animation: dialog-in 200ms ease-out;
 }
 
+.dialog-body {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.dialog-field {
+  display: grid;
+  gap: var(--sp-1);
+}
+
 .confirm-dialog h2 {
   margin: 0 0 var(--sp-2);
   font-size: var(--text-md);
@@ -741,6 +832,16 @@ code {
 .muted {
   color: var(--ink-muted);
   font-size: var(--text-sm);
+}
+
+.noscript-panel {
+  max-width: 640px;
+  margin: var(--sp-10) auto;
+  padding: var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
 }
 
 .sr-only {
@@ -793,42 +894,8 @@ code {
     width: 100%;
   }
 
-  table,
-  thead,
-  tbody,
-  tr,
-  td,
-  th {
-    display: block;
-  }
-
-  thead {
-    display: none;
-  }
-
-  tbody tr {
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-sm);
-    margin-bottom: var(--sp-2);
-    padding: var(--sp-3);
-    background: var(--surface) !important;
-  }
-
-  td {
-    padding: var(--sp-1) 0;
-    border: none;
-    display: flex;
-    justify-content: space-between;
-    gap: var(--sp-2);
-  }
-
-  td::before {
-    content: attr(data-label);
-    font-weight: 600;
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--ink-muted);
+  .table-wrap table {
+    min-width: 640px;
   }
 }
 

@@ -547,22 +547,26 @@ class ApiKeyService:
             logger.error(f"Error creating API key: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to create API key: {str(e)}")
     
-    async def update_api_key_system_prompt(self, api_key: str, system_prompt_id: ObjectId) -> bool:
+    async def update_api_key_system_prompt(self, api_key_or_id: str, system_prompt_id: ObjectId) -> bool:
         """
         Update the system prompt associated with an API key
         
         Args:
-            api_key: The API key to update
+            api_key_or_id: The raw API key or API key record ID to update
             system_prompt_id: ID of the system prompt to associate
             
         Returns:
             True if the update was successful, False otherwise
         """
         try:
-            # First verify the API key exists
-            key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key})
+            # Accept either the raw API key or the persisted record ID.
+            key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key_or_id})
+            query = {"api_key": api_key_or_id}
             if not key_doc:
-                logger.warning(f"Attempted to update non-existent API key: {mask_api_key(api_key)}")
+                key_doc = await self.database.find_one(self.collection_name, {"_id": api_key_or_id})
+                query = {"_id": api_key_or_id}
+            if not key_doc:
+                logger.warning(f"Attempted to update non-existent API key: {mask_api_key(api_key_or_id)}")
                 return False
                 
             # Convert to string for storing (both backends store as string for consistency)
@@ -577,11 +581,13 @@ class ApiKeyService:
             # Update the API key document (store as string for consistency)
             result = await self.database.update_one(
                 self.collection_name,
-                {"api_key": api_key},
+                query,
                 {"$set": {"system_prompt_id": system_prompt_id_str}}
             )
 
-            logger.debug(f"Updated system prompt for API key {mask_api_key(api_key)} to {system_prompt_id_str}")
+            logger.debug(
+                f"Updated system prompt for API key {mask_api_key(key_doc.get('api_key', api_key_or_id))} to {system_prompt_id_str}"
+            )
                 
             return result
             
