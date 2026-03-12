@@ -850,7 +850,16 @@ class RouteConfigurator:
             logger.info("Dashboard routes registered")
         except Exception as e:
             logger.warning(f"Failed to register dashboard routes: {e}")
-        
+
+        # Include admin panel routes
+        try:
+            from routes.admin_panel_routes import create_admin_panel_router
+            admin_panel_router = create_admin_panel_router()
+            app.include_router(admin_panel_router)
+            logger.info("Admin panel routes registered")
+        except Exception as e:
+            logger.warning(f"Failed to register admin panel routes: {e}")
+
         # Include file routes for file upload and management
         try:
             from routes.file_routes import create_file_router
