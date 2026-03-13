@@ -29,6 +29,7 @@ Step-by-step recipes and how-tos for configuring ORBIT, connecting data sources,
 | [ORBIT Server Production Deployment](orbit-server-production-deployment.md) | Running ORBIT in production means making the server resilient, manageable, and optionally secured with TLS. |
 | [ORBIT Vector Store and Embeddings Setup](orbit-vector-store-embeddings-setup.md) | ORBIT uses embeddings to index and search text in vector stores (Chroma, Qdrant, Pinecone, Milvus, Weaviate). |
 | [Run the ORBIT Chat CLI (orbitchat)](run-orbit-chat-cli.md) | The orbitchat CLI is a standalone browser based chat app that talks to the ORBIT API. |
+| [Use ORBIT with OpenClaw as an MCP Agent](use-orbit-with-openclaw-as-mcp-agent.md) | Connect OpenClaw agents to ORBIT’s MCP endpoint so they can use ORBIT’s chat, RAG, and adapter-backed tools through the Model Context Protocol. |
 
 ---
 
