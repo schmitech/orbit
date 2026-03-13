@@ -168,7 +168,7 @@ source venv/bin/activate
 *   Frequent releases: [Releases](https://github.com/schmitech/orbit/releases)
 *   Active roadmap and Q&A: [Discussions](https://github.com/schmitech/orbit/discussions)
 *   Feature requests and bugs: [Issues](https://github.com/schmitech/orbit/issues)
-*   Technical writeups: [Articles & Case Studies](https://schmitech.ai/en/orbit/articles)
+*   Technical writeups: [Cookbook](docs/cookbook/) – recipes and how-tos
 *   Enterprise services: [Official ORBIT provider (Schmitech)](https://schmitech.ai/en/orbit)
 
 ---
@@ -184,7 +184,7 @@ source venv/bin/activate
 ### 📚 Resources & Support
 
 *   [Step-by-Step Tutorial](docs/tutorial.md) – Learn how to chat with your own data in minutes.
-*   [Articles & Case Studies](https://schmitech.ai/en/orbit/articles) – Deep dives into configuration and real-world use cases.
+*   [Cookbook](docs/cookbook/) – Recipes and how-tos for configuration and real-world use cases.
 *   [Documentation](docs/) – Full architecture and setup guides.
 *   [GitHub Issues](https://github.com/schmitech/orbit/issues) – Bug reports and feature requests.
 *   [Discussions](https://github.com/schmitech/orbit/discussions) – Community help and roadmap.
