@@ -154,6 +154,157 @@
   }
 
   // ------------------------------------------------------------------
+  // Server lifecycle overlay
+  // ------------------------------------------------------------------
+  function showServerOverlay(opts) {
+    // opts: { title, detail, mode: "restart"|"shutdown" }
+    var existing = document.getElementById("server-overlay");
+    if (existing) existing.remove();
+
+    var overlay = el("div", { id: "server-overlay", className: "server-overlay" });
+    var card = el("div", { className: "server-overlay-card" });
+
+    var spinner = el("div", { className: "server-overlay-spinner" });
+    var title = el("h2", { className: "server-overlay-title" }, opts.title);
+    var detail = el("p", { className: "server-overlay-detail", id: "server-overlay-detail" }, opts.detail || "");
+    var elapsed = el("p", { className: "server-overlay-elapsed", id: "server-overlay-elapsed" }, "");
+
+    card.appendChild(spinner);
+    card.appendChild(title);
+    card.appendChild(detail);
+    card.appendChild(elapsed);
+
+    if (opts.mode === "shutdown") {
+      var reconnectBtn = el("button", {
+        className: "secondary server-overlay-reconnect",
+        id: "server-overlay-reconnect",
+        type: "button",
+        style: "display:none"
+      }, "Try Reconnecting");
+      reconnectBtn.addEventListener("click", function () {
+        reconnectBtn.disabled = true;
+        reconnectBtn.textContent = "Connecting...";
+        pollServerHealth("restart");
+      });
+      card.appendChild(reconnectBtn);
+    }
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    // Disconnect live connections
+    disconnectMetricsWs();
+    clearOpsLogPolling();
+
+    // Track elapsed time
+    var startTime = Date.now();
+    var elapsedTimer = setInterval(function () {
+      var secs = Math.floor((Date.now() - startTime) / 1000);
+      var elEl = document.getElementById("server-overlay-elapsed");
+      if (elEl) elEl.textContent = secs + "s elapsed";
+    }, 1000);
+
+    if (opts.mode === "restart") {
+      // Wait a moment for server to go down, then start polling
+      setTimeout(function () {
+        pollServerHealth("restart");
+      }, 2000);
+    } else {
+      // Shutdown mode: after a delay show the reconnect button
+      setTimeout(function () {
+        var detail2 = document.getElementById("server-overlay-detail");
+        if (detail2) detail2.textContent = "The server process has been terminated.";
+        var spinner2 = overlay.querySelector(".server-overlay-spinner");
+        if (spinner2) spinner2.classList.add("stopped");
+        var btn = document.getElementById("server-overlay-reconnect");
+        if (btn) { btn.style.display = "inline-flex"; btn.disabled = false; }
+      }, 3000);
+    }
+
+    function pollServerHealth(mode) {
+      var detailEl = document.getElementById("server-overlay-detail");
+      if (detailEl) detailEl.textContent = "Waiting for server to come back...";
+
+      var attempts = 0;
+      var maxAttempts = 20; // ~60s with 3s interval
+      // Use an <img> probe to avoid console network errors from fetch.
+      // Browsers don't log ERR_CONNECTION_REFUSED for image loads.
+      function probe() {
+        attempts++;
+        var img = new Image();
+        var done = false;
+        var timer = setTimeout(function () {
+          if (done) return;
+          done = true;
+          onFail();
+        }, 2500);
+
+        img.onload = function () {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          // Image loaded means server is up — verify with a real fetch
+          fetch("/health", { method: "GET", credentials: "same-origin" })
+            .then(function (r) {
+              if (r.ok) {
+                clearInterval(elapsedTimer);
+                if (detailEl) detailEl.textContent = "Server is back online. Reloading...";
+                var spinner3 = document.querySelector(".server-overlay-spinner");
+                if (spinner3) spinner3.classList.add("done");
+                setTimeout(function () { window.location.reload(); }, 800);
+              } else {
+                scheduleNext();
+              }
+            })
+            .catch(function () { scheduleNext(); });
+        };
+        img.onerror = function () {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          onFail();
+        };
+        // Probe the favicon — any static asset works
+        img.src = "/static/favicon.svg?_t=" + Date.now();
+      }
+
+      function onFail() {
+        if (attempts >= maxAttempts) {
+          clearInterval(elapsedTimer);
+          if (detailEl) detailEl.textContent = "Server did not respond after " + (maxAttempts * 3) + "s.";
+          var spinner4 = document.querySelector(".server-overlay-spinner");
+          if (spinner4) spinner4.classList.add("stopped");
+          var btn = document.getElementById("server-overlay-reconnect");
+          if (btn) { btn.style.display = "inline-flex"; btn.disabled = false; btn.textContent = "Try Reconnecting"; }
+          else {
+            var card2 = document.querySelector(".server-overlay-card");
+            if (card2) {
+              var rb = el("button", { className: "secondary server-overlay-reconnect", type: "button" }, "Try Reconnecting");
+              rb.addEventListener("click", function () {
+                rb.disabled = true;
+                rb.textContent = "Connecting...";
+                var s = document.querySelector(".server-overlay-spinner");
+                if (s) { s.classList.remove("stopped"); s.classList.remove("done"); }
+                attempts = 0;
+                pollServerHealth("restart");
+              });
+              card2.appendChild(rb);
+            }
+          }
+          return;
+        }
+        scheduleNext();
+      }
+
+      function scheduleNext() {
+        setTimeout(probe, 3000);
+      }
+
+      probe();
+    }
+  }
+
+  // ------------------------------------------------------------------
   // Status / Error messages
   // ------------------------------------------------------------------
   function showStatus(msg) {
@@ -335,7 +486,7 @@
     { id: "overview", label: "Overview" },
     { id: "users", label: "Users" },
     { id: "keys", label: "API Keys" },
-    { id: "prompts", label: "Prompts" },
+    { id: "prompts", label: "Personas" },
     { id: "ops", label: "Ops" },
   ];
 
@@ -1343,7 +1494,7 @@
         if (name) adapterSelect.appendChild(el("option", { value: name }, name));
       });
     }
-    var promptSelect = el("select", null, el("option", { value: "" }, "No prompt"));
+    var promptSelect = el("select", null, el("option", { value: "" }, "No persona"));
     if (cachedPrompts) {
       cachedPrompts.forEach(function (p) {
         promptSelect.appendChild(el("option", { value: promptIdentifier(p) }, p.name + " (v" + (p.version || "1.0") + ")"));
@@ -1355,7 +1506,7 @@
     var form = el("div", { className: "inline-form" },
       field("Client", clientInput),
       field("Adapter", adapterSelect),
-      field("Prompt", promptSelect),
+      field("Persona", promptSelect),
       field("Notes", notesInput),
       createBtn
     );
@@ -1442,7 +1593,7 @@
 
   function fillPromptSelect(select, prompts, selectedPromptId) {
     clear(select);
-    select.appendChild(el("option", { value: "" }, prompts && prompts.length ? "Select a prompt" : "No prompts available"));
+    select.appendChild(el("option", { value: "" }, prompts && prompts.length ? "Select a persona" : "No personas available"));
     (prompts || []).forEach(function (prompt) {
       var promptId = promptIdentifier(prompt);
       var option = el("option", { value: promptId }, prompt.name + " (v" + (prompt.version || "1.0") + ")");
@@ -1509,7 +1660,7 @@
       el("tr", null,
         el("th", null, "Client"),
         el("th", null, "Adapter"),
-        el("th", null, "Prompt"),
+        el("th", null, "Persona"),
         el("th", null, "Active")
       )
     );
@@ -1590,7 +1741,7 @@
       el("p", null, el("strong", null, "Key:"), " ", keyField),
       el("p", null, el("strong", null, "Client:"), " " + (key.client_name || "N/A")),
       el("p", null, el("strong", null, "Adapter:"), " " + (key.adapter_name || "default")),
-      el("p", null, el("strong", null, "Prompt:"), " " + (key.system_prompt_name || "None")),
+      el("p", null, el("strong", null, "Persona:"), " " + (key.system_prompt_name || "None")),
       el("p", null, el("strong", null, "Active:"), " ",
         el("span", { className: key.active !== false ? "status-active" : "status-inactive" },
           key.active !== false ? "Active" : "Inactive"
@@ -1672,9 +1823,9 @@
       }
     });
 
-    // Associate prompt
-    panel.appendChild(el("h3", null, "Associate Prompt"));
-    var promptSelect = el("select", null, el("option", { value: "" }, "Loading prompts..."));
+    // Associate persona
+    panel.appendChild(el("h3", null, "Associate Persona"));
+    var promptSelect = el("select", null, el("option", { value: "" }, "Loading personas..."));
     var assocBtn = el("button", { type: "button" }, "Associate");
     fillPromptSelect(promptSelect, cachedPrompts, key.system_prompt_id);
     assocBtn.disabled = !cachedPrompts || !cachedPrompts.length;
@@ -1695,7 +1846,7 @@
           return promptIdentifier(prompt) === pid;
         });
         key.system_prompt_name = matchedPrompt ? matchedPrompt.name : key.system_prompt_name;
-        showStatus("Prompt associated");
+        showStatus("Persona associated");
         onRefresh();
       } catch (err) {
         showError(err.message);
@@ -1703,7 +1854,7 @@
         assocBtn.disabled = false;
       }
     });
-    panel.appendChild(el("div", { className: "inline-form" }, field("Prompt", promptSelect), assocBtn));
+    panel.appendChild(el("div", { className: "inline-form" }, field("Persona", promptSelect), assocBtn));
 
     // Delete
     panel.appendChild(el("h3", null, "Danger Zone"));
@@ -1872,7 +2023,7 @@
   }
 
   // ==================================================================
-  // TAB: Prompts
+  // TAB: Personas
   // ==================================================================
   async function renderPrompts(container) {
     var layout = el("div", { className: "split-layout" });
@@ -1882,19 +2033,19 @@
     layout.appendChild(right);
     container.appendChild(layout);
 
-    left.appendChild(el("h2", null, "System Prompts"));
+    left.appendChild(el("h2", null, "Personas"));
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "100" });
     var versionInput = el("input", { type: "text", value: "1.0", maxlength: "100" });
     var textArea = el("textarea", { rows: "5", required: "true", maxlength: "50000" });
-    var createBtn = el("button", { type: "button" }, "Create Prompt");
+    var createBtn = el("button", { type: "button" }, "Create Persona");
 
     var form = el("div", { className: "stack" },
       el("div", { className: "inline-form" },
         field("Name", nameInput),
         field("Version", versionInput)
       ),
-      field("Prompt", textArea),
+      field("Persona", textArea),
       createBtn
     );
     left.appendChild(form);
@@ -1902,8 +2053,8 @@
     var tableWrap = el("div", null, skeleton());
     left.appendChild(tableWrap);
 
-    right.appendChild(el("h2", null, "Prompt Details"));
-    right.appendChild(el("p", { className: "muted" }, "Select a prompt to edit"));
+    right.appendChild(el("h2", null, "Persona Details"));
+    right.appendChild(el("p", { className: "muted" }, "Select a persona to edit"));
 
     createBtn.addEventListener("click", async function () {
       var n = nameInput.value.trim();
@@ -1915,7 +2066,7 @@
         nameInput.value = "";
         textArea.value = "";
         versionInput.value = "1.0";
-        showStatus("Prompt created");
+        showStatus("Persona created");
         loadPrompts();
       } catch (err) {
         showError(err.message);
@@ -1931,7 +2082,7 @@
         renderPromptTable(tableWrap, prompts, right);
       } catch (err) {
         clear(tableWrap);
-        tableWrap.appendChild(el("p", { className: "muted" }, "Failed to load prompts"));
+        tableWrap.appendChild(el("p", { className: "muted" }, "Failed to load personas"));
       }
     }
 
@@ -1943,7 +2094,7 @@
     if (!prompts || prompts.length === 0) {
       wrap.appendChild(el("div", { className: "empty-state" },
         el("div", { className: "empty-state-icon" }, "\u{1F4DD}"),
-        el("p", null, "No prompts found")
+        el("p", null, "No personas found")
       ));
       return;
     }
@@ -2015,7 +2166,7 @@
           prompt: tArea.value,
           version: vInput.value.trim(),
         });
-        showStatus("Prompt updated");
+        showStatus("Persona updated");
         onRefresh();
       } catch (err) {
         showError(err.message);
@@ -2026,10 +2177,10 @@
     
     var editPreview = createMarkdownPreview(tArea);
     var editorWrap = el("div", { className: "prompt-editor-pane", style: "display:none" },
-      field("Prompt Text", tArea)
+      field("Persona Text", tArea)
     );
     var previewWrap = el("div", { className: "prompt-preview-pane" }, editPreview);
-    var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Prompt Text");
+    var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Persona Text");
     var cancelBtn = el("button", { className: "secondary", type: "button", style: "display:none" }, "Cancel");
     function promptHasChanges() {
       return vInput.value.trim() !== originalVersion || tArea.value !== originalPromptText;
@@ -2093,7 +2244,7 @@
       assocBtn.disabled = true;
       try {
         await api("POST", "/admin/api-keys/" + encodeURIComponent(k) + "/prompt", { prompt_id: promptId });
-        showStatus("Prompt associated with key");
+        showStatus("Persona associated with key");
       } catch (err) {
         showError(err.message);
       } finally {
@@ -2104,22 +2255,22 @@
 
     // Delete
     panel.appendChild(el("h3", null, "Danger Zone"));
-    var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete Prompt");
+    var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete Persona");
     deleteBtn.addEventListener("click", function () {
       requireTypedConfirmation({
-        title: "Delete Prompt",
-        message: 'Delete prompt "' + prompt.name + '"? This cannot be undone.',
+        title: "Delete Persona",
+        message: 'Delete persona "' + prompt.name + '"? This cannot be undone.',
         expectedText: prompt.name,
         confirmLabel: "Delete",
         onConfirm: async function () {
           await api("DELETE", "/admin/prompts/" + encodeURIComponent(promptId));
-          showStatus("Prompt deleted");
+          showStatus("Persona deleted");
           onRefresh();
         }
       });
     });
     panel.appendChild(el("div", { className: "danger-zone" },
-      el("p", null, "Deleting a prompt breaks future associations that depend on it."),
+      el("p", null, "Deleting a persona breaks future associations that depend on it."),
       deleteBtn
     ));
   }
@@ -2137,21 +2288,18 @@
       return;
     }
 
-    var grid = el("div", { className: "panel-grid" });
-    container.appendChild(grid);
+    // --- Action bar: Reload + Server Control in a compact row ---
+    var actionBar = el("div", { className: "ops-action-bar" });
 
-    // Reload panel
-    var reloadPanel = el("div", { className: "panel action-panel" });
-    reloadPanel.appendChild(el("h2", null, "Reload Configuration"));
+    // Reload section
     var filterSelect = el("select", null, el("option", { value: "" }, "All adapters"));
     if (cachedAdapters && cachedAdapters.length) {
       cachedAdapters.forEach(function (adapterName) {
         filterSelect.appendChild(el("option", { value: adapterName }, adapterName));
       });
     }
-    reloadPanel.appendChild(el("div", { className: "stack" }, field("Adapter filter", filterSelect, "Optional scope for a targeted reload")));
 
-    var reloadAdaptersBtn = el("button", { type: "button" }, "Reload Adapters");
+    var reloadAdaptersBtn = el("button", { className: "secondary", type: "button" }, "Reload Adapters");
     reloadAdaptersBtn.addEventListener("click", function () {
       confirmAction({
         title: "Reload Adapters",
@@ -2172,7 +2320,7 @@
       });
     });
 
-    var reloadTemplatesBtn = el("button", { type: "button" }, "Reload Templates");
+    var reloadTemplatesBtn = el("button", { className: "secondary", type: "button" }, "Reload Templates");
     reloadTemplatesBtn.addEventListener("click", function () {
       confirmAction({
         title: "Reload Templates",
@@ -2193,79 +2341,12 @@
       });
     });
 
-    reloadPanel.appendChild(el("div", { className: "inline-form", style: "margin-top:var(--sp-3)" },
-      reloadAdaptersBtn, reloadTemplatesBtn
-    ));
-
-    grid.appendChild(reloadPanel);
-
-    // Log viewer panel
-    var logPanel = el("div", { className: "panel log-panel" });
-    logPanel.appendChild(el("h2", null, "Server Logs"));
-    var logFilename = el("div", { className: "muted" }, "Loading latest log...");
-    var logUpdated = el("div", { className: "muted" }, "");
-    var autoRefreshInput = el("input", { type: "checkbox" });
-    autoRefreshInput.checked = true;
-    var refreshLogsBtn = el("button", { className: "secondary", type: "button" }, "Refresh Logs");
-    var logOutput = el("pre", { className: "log-viewer" }, "Loading logs...");
-
-    var logsInFlight = false;
-
-    function scheduleLogRefresh() {
-      clearOpsLogPolling();
-      if (activeTab !== "ops" || !autoRefreshInput.checked) return;
-      if (document.hidden) return;
-      opsLogPollTimer = setTimeout(function () {
-        loadLogs(true);
-      }, 3000);
-    }
-
-    async function loadLogs(silent) {
-      if (logsInFlight) return;
-      logsInFlight = true;
-      refreshLogsBtn.disabled = true;
-      try {
-        var result = await api("GET", "/admin/logs/tail?lines=200");
-        logFilename.textContent = result.filename || "orbit.log";
-        logUpdated.textContent = result.updated_at ? "Updated " + result.updated_at : "";
-        logOutput.textContent = (result.lines || []).join("\n") || "No log lines available.";
-      } catch (err) {
-        if (!silent) showError(err.message);
-        logOutput.textContent = "Failed to load logs.";
-      } finally {
-        logsInFlight = false;
-        refreshLogsBtn.disabled = false;
-        scheduleLogRefresh();
-      }
-    }
-
-    refreshLogsBtn.addEventListener("click", function () { loadLogs(false); });
-    autoRefreshInput.addEventListener("change", function () {
-      scheduleLogRefresh();
-    });
-
-    logPanel.appendChild(el("div", { className: "log-toolbar" },
-      el("div", { className: "log-meta" }, logFilename, logUpdated),
-      el("div", { className: "log-controls" },
-        el("label", { className: "check-row" }, autoRefreshInput, "Auto-refresh"),
-        refreshLogsBtn
-      )
-    ));
-    logPanel.appendChild(logOutput);
-    grid.appendChild(logPanel);
-
-    // Server control panel
-    var controlPanel = el("div", { className: "panel action-panel" });
-    controlPanel.appendChild(el("h2", null, "Server Control"));
-    controlPanel.appendChild(el("p", { className: "muted" },
-      "Restart applies the current runtime command again. Shutdown terminates the ORBIT process until it is started externally."
-    ));
-
-    var restartBtn = el("button", { className: "secondary", type: "button" }, "Restart");
+    // Server control
+    var restartBtn = el("button", { className: "secondary", type: "button" }, "Restart Server");
     restartBtn.addEventListener("click", function () {
       requireTypedConfirmation({
         title: "Restart Server",
-        message: "Type RESTART to restart the ORBIT server process in place.",
+        message: "Type RESTART to restart the ORBIT server process in place. The page will automatically reload once the server is back online.",
         expectedText: "RESTART",
         confirmLabel: "Restart",
         isDanger: false,
@@ -2273,9 +2354,14 @@
           restartBtn.disabled = true;
           try {
             await api("POST", "/admin/restart");
-            showStatus("Server restart initiated");
-          } finally {
+            showServerOverlay({
+              title: "Restarting Server",
+              detail: "The server process is restarting...",
+              mode: "restart"
+            });
+          } catch (err) {
             restartBtn.disabled = false;
+            showError("Failed to initiate restart: " + err.message);
           }
         }
       });
@@ -2285,23 +2371,281 @@
     shutdownBtn.addEventListener("click", function () {
       requireTypedConfirmation({
         title: "Shutdown Server",
-        message: "Type SHUTDOWN to terminate the ORBIT server process.",
+        message: "Type SHUTDOWN to terminate the ORBIT server process. You will need to restart it manually from the command line using 'orbit start'.",
         expectedText: "SHUTDOWN",
         confirmLabel: "Shutdown",
         onConfirm: async function () {
           shutdownBtn.disabled = true;
           try {
             await api("POST", "/admin/shutdown");
-            showStatus("Server shutdown initiated");
-          } finally {
+            showServerOverlay({
+              title: "Server Shutting Down",
+              detail: "Terminating the server process...",
+              mode: "shutdown"
+            });
+          } catch (err) {
             shutdownBtn.disabled = false;
+            showError("Failed to initiate shutdown: " + err.message);
           }
         }
       });
     });
 
-    controlPanel.appendChild(el("div", { className: "inline-form", style: "margin-top:var(--sp-3)" }, restartBtn, shutdownBtn));
-    grid.appendChild(controlPanel);
+    actionBar.appendChild(filterSelect);
+    actionBar.appendChild(reloadAdaptersBtn);
+    actionBar.appendChild(reloadTemplatesBtn);
+    actionBar.appendChild(el("div", { className: "ops-action-divider" }));
+    actionBar.appendChild(restartBtn);
+    actionBar.appendChild(shutdownBtn);
+    container.appendChild(actionBar);
+
+    // --- Log viewer: full-width terminal-style panel ---
+    var logLevelFilter = "all";
+    var logSearchTerm = "";
+    var rawLogLines = [];
+    var userNearBottom = true;
+    var pendingNewLines = 0;
+
+    var logFilename = el("span", { className: "log-filename" }, "orbit.log");
+    var logUpdated = el("span", { className: "log-updated" }, "");
+    var logCount = el("span", { className: "log-count" }, "");
+
+    // "Jump to bottom" banner shown when new lines arrive while scrolled up
+    var jumpBanner = el("button", { className: "log-jump-banner hidden", type: "button" });
+    jumpBanner.addEventListener("click", function () {
+      userNearBottom = true;
+      pendingNewLines = 0;
+      jumpBanner.classList.add("hidden");
+      logScrollAnchor.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
+
+    // Level filter buttons
+    var levels = ["all", "error", "warning", "info", "debug"];
+    var levelBar = el("div", { className: "log-level-bar" });
+    levels.forEach(function (lvl) {
+      var btn = el("button", {
+        className: "log-level-btn" + (lvl === logLevelFilter ? " active" : ""),
+        dataset: { level: lvl },
+        type: "button"
+      }, lvl === "all" ? "All" : lvl.charAt(0).toUpperCase() + lvl.slice(1));
+      btn.addEventListener("click", function () {
+        logLevelFilter = lvl;
+        levelBar.querySelectorAll(".log-level-btn").forEach(function (b) {
+          b.classList.toggle("active", b.dataset.level === lvl);
+        });
+        fullRenderLogLines();
+      });
+      levelBar.appendChild(btn);
+    });
+
+    // Search input
+    var logSearch = el("input", { type: "text", placeholder: "Filter logs...", className: "log-search-input", "aria-label": "Filter logs" });
+    logSearch.addEventListener("input", function (e) {
+      logSearchTerm = (e.target.value || "").toLowerCase();
+      fullRenderLogLines();
+    });
+
+    var logBody = el("div", { className: "log-terminal" });
+    var logScrollAnchor = el("div", { className: "log-scroll-anchor" });
+    logBody.appendChild(logScrollAnchor);
+
+    // Track scroll position to decide auto-scroll
+    logBody.addEventListener("scroll", function () {
+      var threshold = 60; // pixels from bottom
+      var atBottom = logBody.scrollHeight - logBody.scrollTop - logBody.clientHeight < threshold;
+      userNearBottom = atBottom;
+      if (atBottom && pendingNewLines > 0) {
+        pendingNewLines = 0;
+        jumpBanner.classList.add("hidden");
+      }
+    });
+
+    function detectLevel(line) {
+      var upper = line.toUpperCase();
+      if (upper.includes(" ERROR ") || upper.includes("[ERROR]") || upper.includes("ERROR:") || upper.startsWith("ERROR ")) return "error";
+      if (upper.includes(" WARNING ") || upper.includes("[WARNING]") || upper.includes("WARNING:") || upper.startsWith("WARNING ")) return "warning";
+      if (upper.includes(" DEBUG ") || upper.includes("[DEBUG]") || upper.includes("DEBUG:") || upper.startsWith("DEBUG ")) return "debug";
+      if (upper.includes(" INFO ") || upper.includes("[INFO]") || upper.includes("INFO:") || upper.startsWith("INFO ")) return "info";
+      return "info";
+    }
+
+    function matchesFilter(line) {
+      if (!line.trim()) return false;
+      var level = detectLevel(line);
+      if (logLevelFilter !== "all" && level !== logLevelFilter) return false;
+      if (logSearchTerm && line.toLowerCase().indexOf(logSearchTerm) === -1) return false;
+      return true;
+    }
+
+    function buildLogRow(line, lineNo) {
+      var level = detectLevel(line);
+      var row = el("div", { className: "log-line log-level-" + level });
+      row.appendChild(el("span", { className: "log-lineno" }, String(lineNo)));
+      var badgeText = level === "warning" ? "WARN" : level.toUpperCase();
+      row.appendChild(el("span", { className: "log-badge log-badge-" + level }, badgeText));
+
+      if (logSearchTerm) {
+        var lower = line.toLowerCase();
+        var idx = lower.indexOf(logSearchTerm);
+        if (idx >= 0) {
+          var textSpan = el("span", { className: "log-text" });
+          textSpan.appendChild(document.createTextNode(line.substring(0, idx)));
+          textSpan.appendChild(el("mark", { className: "log-highlight" }, line.substring(idx, idx + logSearchTerm.length)));
+          textSpan.appendChild(document.createTextNode(line.substring(idx + logSearchTerm.length)));
+          row.appendChild(textSpan);
+        } else {
+          row.appendChild(el("span", { className: "log-text" }, line));
+        }
+      } else {
+        row.appendChild(el("span", { className: "log-text" }, line));
+      }
+      return row;
+    }
+
+    function updateLogCount() {
+      var visible = logBody.querySelectorAll(".log-line").length;
+      logCount.textContent = visible + " / " + rawLogLines.length + " lines";
+    }
+
+    /** Full re-render — used for filter/search changes. */
+    function fullRenderLogLines() {
+      while (logBody.firstChild !== logScrollAnchor) {
+        logBody.removeChild(logBody.firstChild);
+      }
+      var frag = document.createDocumentFragment();
+      var lineNo = 0;
+      rawLogLines.forEach(function (line) {
+        if (!matchesFilter(line)) return;
+        lineNo++;
+        frag.appendChild(buildLogRow(line, lineNo));
+      });
+      logBody.insertBefore(frag, logScrollAnchor);
+      updateLogCount();
+      if (userNearBottom) {
+        logScrollAnchor.scrollIntoView({ block: "end" });
+      }
+    }
+
+    /** Append only new lines — used during tailing. */
+    function appendNewLogLines(newLines) {
+      if (!newLines.length) return;
+      var currentLineNo = logBody.querySelectorAll(".log-line").length;
+      var frag = document.createDocumentFragment();
+      var added = 0;
+      newLines.forEach(function (line) {
+        if (!matchesFilter(line)) return;
+        currentLineNo++;
+        added++;
+        frag.appendChild(buildLogRow(line, currentLineNo));
+      });
+      logBody.insertBefore(frag, logScrollAnchor);
+      updateLogCount();
+
+      if (added > 0) {
+        if (userNearBottom) {
+          logScrollAnchor.scrollIntoView({ block: "end" });
+        } else {
+          pendingNewLines += added;
+          jumpBanner.textContent = pendingNewLines + " new line" + (pendingNewLines !== 1 ? "s" : "") + " below \u2193";
+          jumpBanner.classList.remove("hidden");
+        }
+      }
+    }
+
+    var logsInFlight = false;
+
+    function scheduleLogRefresh() {
+      clearOpsLogPolling();
+      if (activeTab !== "ops") return;
+      if (document.hidden) return;
+      opsLogPollTimer = setTimeout(function () {
+        loadLogs(true);
+      }, 3000);
+    }
+
+    async function loadLogs(silent) {
+      if (logsInFlight) return;
+      logsInFlight = true;
+      try {
+        var result = await api("GET", "/admin/logs/tail?lines=500");
+        logFilename.textContent = result.filename || "orbit.log";
+        logUpdated.textContent = result.updated_at ? "Updated " + result.updated_at : "";
+        var incoming = result.lines || [];
+
+        if (rawLogLines.length === 0) {
+          // First load — full render
+          rawLogLines = incoming;
+          fullRenderLogLines();
+          // Start scrolled to bottom
+          userNearBottom = true;
+          logScrollAnchor.scrollIntoView({ block: "end" });
+        } else {
+          // Diff: find new lines appended at the end.
+          // The server returns the last N lines of the file. If the file grew,
+          // the tail end of `incoming` contains new lines not in `rawLogLines`.
+          var overlap = findOverlap(rawLogLines, incoming);
+          var newLines = incoming.slice(overlap);
+          rawLogLines = incoming;
+          if (newLines.length > 0) {
+            appendNewLogLines(newLines);
+          }
+        }
+      } catch (err) {
+        if (!silent) showError(err.message);
+      } finally {
+        logsInFlight = false;
+        scheduleLogRefresh();
+      }
+    }
+
+    /**
+     * Find how many lines from the end of `prev` overlap with the start of `next`.
+     * Returns the index in `next` where new content begins.
+     */
+    function findOverlap(prev, next) {
+      if (!prev.length || !next.length) return 0;
+      // Use the last few lines of prev as a fingerprint to find where next diverges
+      var matchLen = Math.min(prev.length, next.length, 20);
+      var tail = prev.slice(-matchLen);
+      // Search for this tail sequence in next
+      outer:
+      for (var start = 0; start <= next.length - matchLen; start++) {
+        for (var j = 0; j < matchLen; j++) {
+          if (next[start + j] !== tail[j]) continue outer;
+        }
+        // Found the tail at position `start` in next — new content starts after it
+        return start + matchLen;
+      }
+      // No overlap found — treat entire next as new (log rotated or drastically changed)
+      return 0;
+    }
+
+    // Visibility change: resume polling when tab becomes visible
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden && activeTab === "ops") {
+        scheduleLogRefresh();
+      }
+    });
+
+    var logPanel = el("div", { className: "panel log-panel-v2" });
+
+    var logHeader = el("div", { className: "log-header" },
+      el("div", { className: "log-header-left" },
+        el("h2", { style: "margin:0;font-size:var(--text-md)" }, "Server Logs"),
+        logFilename,
+        logUpdated,
+        logCount
+      ),
+      el("div", { className: "log-header-right" },
+        logSearch,
+        levelBar
+      )
+    );
+
+    logPanel.appendChild(logHeader);
+    logPanel.appendChild(logBody);
+    logPanel.appendChild(jumpBanner);
+    container.appendChild(logPanel);
 
     loadLogs(false);
   }
