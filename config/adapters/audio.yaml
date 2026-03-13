@@ -393,8 +393,8 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     # Provider overrides
-    inference_provider: "gemini"
-    model: "gemini-3-pro-preview"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
 
     # Audio providers - separate STT and TTS for flexibility
     stt_provider: "openai"       # STT provider (see stt.yaml) - local, free!
