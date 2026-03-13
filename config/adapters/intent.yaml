@@ -176,7 +176,7 @@ adapters:
       query_timeout: 5000  # 5 seconds
 
   - name: "intent-sql-postgres"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "postgres"
     adapter: "intent"
@@ -535,7 +535,7 @@ adapters:
     adapter: "intent"
     implementation: "retrievers.implementations.intent.intent_mongodb_retriever.IntentMongoDBRetriever"
     inference_provider: "ollama_cloud"
-    model: "glm-5:cloud"
+    model: "gpt-oss:120b"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     reranker_provider: "anthropic"
