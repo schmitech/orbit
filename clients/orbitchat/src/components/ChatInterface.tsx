@@ -107,6 +107,18 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const messageInputWidthClass = `mx-auto w-full ${inputMaxWidthClass}`;
   const agentNotesWidthClass = `mx-auto w-full ${inputMaxWidthClass}`;
+  const emptyStateStageClass = shouldShowAdapterNotesPanel
+    ? `relative isolate mx-auto w-full ${inputMaxWidthClass}`
+    : prominentWidthClass;
+  const emptyStateNotesPanelClass =
+    'relative overflow-hidden rounded-[2rem] border border-slate-300/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.9))] px-5 py-5 shadow-[0_12px_36px_rgba(15,23,42,0.05)] backdrop-blur-xl dark:border-white/6 dark:bg-[linear-gradient(180deg,rgba(35,36,44,0.92),rgba(26,27,35,0.9))] dark:shadow-[0_18px_48px_rgba(0,0,0,0.22)] md:px-7 md:py-6';
+  const emptyStateNotesMarkdownClass = [
+    adapterNotesMarkdownClass,
+    'max-w-none text-[1.02rem] leading-8 text-[#434654] dark:text-[#d7dae3]',
+    '[&_h1]:text-[2rem] [&_h1]:font-semibold [&_h1]:tracking-[-0.03em] [&_h1]:text-[#17191f] dark:[&_h1]:text-white',
+    '[&_h2]:text-[1.35rem] [&_h2]:font-semibold [&_h2]:tracking-[-0.02em] [&_h2]:text-[#20232b] dark:[&_h2]:text-white',
+    '[&_p]:max-w-[58ch] [&_ul]:max-w-[56ch] [&_ol]:max-w-[56ch] [&_li]:leading-8'
+  ].join(' ');
   const emptyStateInputWrapperClass = shouldShowAdapterNotesPanel
     ? MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES
     : MOBILE_INPUT_WRAPPER_CLASSES;
@@ -370,7 +382,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
           {showEmptyState ? (
             <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
-              <div className={`flex-1 flex flex-col justify-between ${shouldShowAgentSelectionList ? 'md:justify-start min-h-0 overflow-hidden' : shouldShowAdapterNotesPanel ? 'md:justify-start md:pt-10 md:gap-6 overflow-y-auto' : 'md:justify-start md:flex-none'}`}>
+              <div className={`flex-1 flex flex-col justify-between ${shouldShowAgentSelectionList ? 'md:justify-start min-h-0 overflow-hidden' : shouldShowAdapterNotesPanel ? 'md:justify-start md:pt-8 md:gap-6 overflow-y-auto' : 'md:justify-start md:flex-none'}`}>
                 <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex flex-col' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
                     <div className={prominentWidthClass}>
@@ -419,27 +431,33 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       />
                     </div>
                   ) : shouldShowAdapterNotesPanel ? (
-                    <div className={`${agentNotesWidthClass} py-0`}>
-                      <div className="pb-2 pt-2 text-left md:pb-2 md:pt-0">
-                        {currentConversation?.adapterInfo?.notes ? (
-                          <MarkdownRenderer
-                            content={currentConversation.adapterInfo.notes}
-                            className={adapterNotesMarkdownClass}
-                            syntaxTheme={syntaxTheme}
-                          />
-                        ) : adapterNotesError ? (
-                          <p className="text-sm text-red-600 dark:text-red-400">
-                            {adapterNotesError}
-                          </p>
-                        ) : isConfiguringAdapter ? (
-                          <p className="text-sm text-gray-600 dark:text-[#bfc2cd]">
-                            Configuring your agent… hang tight for just a moment.
-                          </p>
-                        ) : (
-                          <p className="text-sm text-gray-600 dark:text-[#bfc2cd]">
-                            Fetching agent overview… this only takes a moment.
-                          </p>
-                        )}
+                    <div className={`${emptyStateStageClass} px-0 py-0`}>
+                      <div className="pointer-events-none absolute inset-x-12 top-0 -z-10 h-32 rounded-full bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.14),rgba(255,255,255,0))] blur-3xl dark:bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.14),rgba(15,23,42,0))]" />
+                      <div className="pointer-events-none absolute left-1/2 top-8 -z-10 h-44 w-full max-w-[36rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.18),rgba(255,255,255,0))] blur-3xl dark:bg-[radial-gradient(circle,rgba(59,130,246,0.06),rgba(15,23,42,0))]" />
+
+                      <div className={emptyStateNotesPanelClass}>
+                        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.22),rgba(255,255,255,0))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0))]" />
+                        <div className="relative text-left">
+                          {currentConversation?.adapterInfo?.notes ? (
+                            <MarkdownRenderer
+                              content={currentConversation.adapterInfo.notes}
+                              className={emptyStateNotesMarkdownClass}
+                              syntaxTheme={syntaxTheme}
+                            />
+                          ) : adapterNotesError ? (
+                            <p className="text-sm text-red-600 dark:text-red-400">
+                              {adapterNotesError}
+                            </p>
+                          ) : isConfiguringAdapter ? (
+                            <p className="text-sm text-gray-600 dark:text-[#bfc2cd]">
+                              Configuring your agent… hang tight for just a moment.
+                            </p>
+                          ) : (
+                            <p className="text-sm text-gray-600 dark:text-[#bfc2cd]">
+                              Fetching agent overview… this only takes a moment.
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : (

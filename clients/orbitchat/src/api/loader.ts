@@ -172,7 +172,7 @@ export interface ApiFunctions {
 }
 
 async function buildHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
-  const headers = {
+  const headers: Record<string, string> = {
     'X-User-ID': await getUserIdHeaderValue(),
     ...extra
   };
