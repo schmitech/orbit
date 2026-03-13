@@ -215,57 +215,55 @@ textarea {
 }
 
 /* ============================================================
-   Tabs
+   Topbar Navigation (inline tabs)
    ============================================================ */
 
-.tabs {
-  margin: var(--sp-4) 0;
+.topbar-nav {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: var(--sp-1);
-  border-bottom: 2px solid var(--border-light);
-  padding-bottom: 0;
+  flex: 1;
+  justify-content: center;
 }
 
-.tabs button {
-  position: relative;
-  border: none;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  background: transparent;
-  color: var(--ink-muted);
-  padding: var(--sp-3) var(--sp-4);
+.topbar-nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-2) var(--sp-3);
   font-size: var(--text-sm);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  cursor: pointer;
+  letter-spacing: 0.02em;
+  color: rgba(200, 220, 255, 0.6);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
   transition: color var(--transition-fast), background var(--transition-fast);
-  margin-bottom: -2px;
-  border-bottom: 2px solid transparent;
-  min-height: 44px;
+  min-height: 36px;
+  white-space: nowrap;
 }
 
-.tabs button:hover:not(.active) {
-  color: var(--brand-700);
-  background: #eaf2fb;
+.topbar-nav-link:hover:not(.active) {
+  color: rgba(240, 244, 255, 0.9);
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.tabs button.active {
-  color: var(--brand-500);
-  background: var(--surface);
-  border-bottom-color: var(--brand-500);
+.topbar-nav-link.active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
 }
 
-.tabs button:hover:not(:disabled),
-.tabs button:active:not(:disabled) {
+.topbar-logout {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: var(--text-sm);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.topbar-logout:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.22);
   box-shadow: none;
-  transform: none;
-}
-
-.tabs button.active:hover:not(:disabled),
-.tabs button.active:active:not(:disabled) {
-  color: var(--brand-500);
-  background: var(--surface);
-  border-bottom-color: var(--brand-500);
 }
 
 /* ============================================================

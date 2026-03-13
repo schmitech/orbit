@@ -343,38 +343,24 @@
     var app = document.getElementById("app");
     clear(app);
 
-    // Topbar
-    var logoutBtn = el("button", { type: "button" }, "Logout");
+    // Topbar with inline nav
+    var logoutBtn = el("button", { type: "button", className: "topbar-logout" }, "Logout");
     logoutBtn.addEventListener("click", doLogout);
-    var topbar = el("header", { className: "topbar", role: "banner" },
-      el("div", { className: "brand-block" },
-        el("img", {
-          src: "/static/orbit-logo-dark.png",
-          alt: "",
-          className: "brand-logo",
-        })
-      ),
-      el("div", { className: "topbar-actions" },
-        el("span", null, currentUser ? currentUser.role : ""),
-        logoutBtn
-      )
-    );
 
-    // Tabs
-    var tabBar = el("div", { className: "tabs", role: "tablist", "aria-label": "Admin sections" });
+    var nav = el("nav", { className: "topbar-nav", role: "tablist", "aria-label": "Admin sections" });
     TABS.forEach(function (t) {
       var isSelected = t.id === activeTab;
-      var btn = el("button", {
+      var btn = el("a", {
         id: "tab-" + t.id,
-        type: "button",
         role: "tab",
+        href: "#",
         "aria-selected": String(isSelected),
         "aria-controls": "tab-content",
         tabindex: isSelected ? "0" : "-1",
-        className: t.id === activeTab ? "active" : "",
+        className: "topbar-nav-link" + (isSelected ? " active" : ""),
         dataset: { tab: t.id },
       }, t.label);
-      btn.addEventListener("click", function () { switchTab(t.id); });
+      btn.addEventListener("click", function (e) { e.preventDefault(); switchTab(t.id); });
       btn.addEventListener("keydown", function (e) {
         var currentIndex = TABS.findIndex(function (tab) { return tab.id === t.id; });
         if (e.key === "ArrowRight") {
@@ -385,8 +371,23 @@
           switchTab(TABS[(currentIndex - 1 + TABS.length) % TABS.length].id);
         }
       });
-      tabBar.appendChild(btn);
+      nav.appendChild(btn);
     });
+
+    var topbar = el("header", { className: "topbar", role: "banner" },
+      el("div", { className: "brand-block" },
+        el("img", {
+          src: "/static/orbit-logo-dark.png",
+          alt: "",
+          className: "brand-logo",
+        })
+      ),
+      nav,
+      el("div", { className: "topbar-actions" },
+        el("span", null, currentUser ? currentUser.role : ""),
+        logoutBtn
+      )
+    );
 
     // Content
     var toastRegion = el("div", {
@@ -403,7 +404,7 @@
       "aria-labelledby": "tab-" + activeTab,
     });
 
-    var shell = el("div", { className: "app-shell" }, topbar, el("nav", null, tabBar), toastRegion, content);
+    var shell = el("div", { className: "app-shell" }, topbar, toastRegion, content);
     app.appendChild(shell);
 
     renderTab();
@@ -416,7 +417,7 @@
       destroyOverviewCharts();
     }
     activeTab = id;
-    document.querySelectorAll(".tabs button").forEach(function (b) {
+    document.querySelectorAll(".topbar-nav-link").forEach(function (b) {
       var isActive = b.dataset.tab === id;
       b.classList.toggle("active", isActive);
       b.setAttribute("aria-selected", String(isActive));
