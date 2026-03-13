@@ -174,21 +174,6 @@
     card.appendChild(detail);
     card.appendChild(elapsed);
 
-    if (opts.mode === "shutdown") {
-      var reconnectBtn = el("button", {
-        className: "secondary server-overlay-reconnect",
-        id: "server-overlay-reconnect",
-        type: "button",
-        style: "display:none"
-      }, "Try Reconnecting");
-      reconnectBtn.addEventListener("click", function () {
-        reconnectBtn.disabled = true;
-        reconnectBtn.textContent = "Connecting...";
-        pollServerHealth("restart");
-      });
-      card.appendChild(reconnectBtn);
-    }
-
     overlay.appendChild(card);
     document.body.appendChild(overlay);
 
@@ -207,36 +192,30 @@
     if (opts.mode === "restart") {
       // Wait a moment for server to go down, then start polling
       setTimeout(function () {
-        pollServerHealth("restart");
+        pollServerHealth();
       }, 2000);
     } else {
-      // Shutdown mode: after a delay show the reconnect button
+      // Shutdown mode: show terminated message, then keep polling in background
       setTimeout(function () {
         var detail2 = document.getElementById("server-overlay-detail");
-        if (detail2) detail2.textContent = "The server process has been terminated.";
+        if (detail2) detail2.textContent = "The server process has been terminated. Start it with 'orbit start' \u2014 this page will reload automatically.";
         var spinner2 = overlay.querySelector(".server-overlay-spinner");
         if (spinner2) spinner2.classList.add("stopped");
-        var btn = document.getElementById("server-overlay-reconnect");
-        if (btn) { btn.style.display = "inline-flex"; btn.disabled = false; }
+        // Start background polling — auto-reload when someone starts the server
+        pollServerHealth();
       }, 3000);
     }
 
-    function pollServerHealth(mode) {
-      var detailEl = document.getElementById("server-overlay-detail");
-      if (detailEl) detailEl.textContent = "Waiting for server to come back...";
-
-      var attempts = 0;
-      var maxAttempts = 20; // ~60s with 3s interval
+    function pollServerHealth() {
       // Use an <img> probe to avoid console network errors from fetch.
       // Browsers don't log ERR_CONNECTION_REFUSED for image loads.
       function probe() {
-        attempts++;
         var img = new Image();
         var done = false;
         var timer = setTimeout(function () {
           if (done) return;
           done = true;
-          onFail();
+          setTimeout(probe, 3000);
         }, 2500);
 
         img.onload = function () {
@@ -248,56 +227,25 @@
             .then(function (r) {
               if (r.ok) {
                 clearInterval(elapsedTimer);
+                var detailEl = document.getElementById("server-overlay-detail");
                 if (detailEl) detailEl.textContent = "Server is back online. Reloading...";
                 var spinner3 = document.querySelector(".server-overlay-spinner");
-                if (spinner3) spinner3.classList.add("done");
+                if (spinner3) { spinner3.classList.remove("stopped"); spinner3.classList.add("done"); }
                 setTimeout(function () { window.location.reload(); }, 800);
               } else {
-                scheduleNext();
+                setTimeout(probe, 3000);
               }
             })
-            .catch(function () { scheduleNext(); });
+            .catch(function () { setTimeout(probe, 3000); });
         };
         img.onerror = function () {
           if (done) return;
           done = true;
           clearTimeout(timer);
-          onFail();
+          setTimeout(probe, 3000);
         };
         // Probe the favicon — any static asset works
         img.src = "/static/favicon.svg?_t=" + Date.now();
-      }
-
-      function onFail() {
-        if (attempts >= maxAttempts) {
-          clearInterval(elapsedTimer);
-          if (detailEl) detailEl.textContent = "Server did not respond after " + (maxAttempts * 3) + "s.";
-          var spinner4 = document.querySelector(".server-overlay-spinner");
-          if (spinner4) spinner4.classList.add("stopped");
-          var btn = document.getElementById("server-overlay-reconnect");
-          if (btn) { btn.style.display = "inline-flex"; btn.disabled = false; btn.textContent = "Try Reconnecting"; }
-          else {
-            var card2 = document.querySelector(".server-overlay-card");
-            if (card2) {
-              var rb = el("button", { className: "secondary server-overlay-reconnect", type: "button" }, "Try Reconnecting");
-              rb.addEventListener("click", function () {
-                rb.disabled = true;
-                rb.textContent = "Connecting...";
-                var s = document.querySelector(".server-overlay-spinner");
-                if (s) { s.classList.remove("stopped"); s.classList.remove("done"); }
-                attempts = 0;
-                pollServerHealth("restart");
-              });
-              card2.appendChild(rb);
-            }
-          }
-          return;
-        }
-        scheduleNext();
-      }
-
-      function scheduleNext() {
-        setTimeout(probe, 3000);
       }
 
       probe();
@@ -1557,11 +1505,15 @@
       var healthData = await api("GET", "/health/adapters").catch(function () { return null; });
       if (healthData) {
         var adapters = healthData.adapters || healthData.circuit_breakers || healthData;
-        if (typeof adapters === "object" && !Array.isArray(adapters)) {
+        if (Array.isArray(adapters)) {
+          cachedAdapters = adapters;
+        } else if (typeof adapters === "object" && adapters !== null) {
           cachedAdapters = Object.keys(adapters);
         }
       }
     } catch (_) {}
+    // Ensure cachedAdapters is always set so callers don't retry indefinitely
+    if (!cachedAdapters) cachedAdapters = [];
     try {
       cachedPrompts = await api("GET", "/admin/prompts");
     } catch (_) {
@@ -2287,6 +2239,8 @@
       });
       return;
     }
+
+    clear(container);
 
     // --- Action bar: Reload + Server Control in a compact row ---
     var actionBar = el("div", { className: "ops-action-bar" });

@@ -1209,13 +1209,10 @@ tbody tr:nth-child(even) {
   color: var(--ink-muted);
 }
 .server-overlay-elapsed {
-  margin: 0 0 var(--sp-4);
+  margin: 0;
   font-size: var(--text-xs);
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
-}
-.server-overlay-reconnect {
-  margin-top: var(--sp-2);
 }
 
 /* ============================================================
