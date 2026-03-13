@@ -47,9 +47,7 @@ class MetricsService:
         self.time_series_window = metrics_config.get('time_window', 300)  # 5 minutes default
         self.prometheus_enabled = metrics_config.get('prometheus', {}).get('enabled', True)
         
-        dashboard_config = metrics_config.get('dashboard', {})
-        self.dashboard_enabled = dashboard_config.get('enabled', True)
-        self.websocket_update_interval = dashboard_config.get('websocket_update_interval', 5)
+        self.websocket_update_interval = metrics_config.get('websocket_update_interval', 5)
         
         # Alert thresholds (for future use)
         alerts_config = monitoring_config.get('alerts', {})
@@ -229,7 +227,6 @@ class MetricsService:
 
         excluded_exact_paths = {
             "/",
-            "/dashboard",
             "/favicon.ico",
             "/metrics",
             "/metrics/json",
@@ -238,7 +235,6 @@ class MetricsService:
             "/redoc",
         }
         excluded_prefixes = (
-            "/dashboard/",
             "/static/",
             "/auth",
             "/admin",
@@ -434,10 +430,6 @@ class MetricsService:
     def is_prometheus_enabled(self) -> bool:
         """Check if Prometheus endpoint is enabled"""
         return self.enabled and self.prometheus_enabled
-    
-    def is_dashboard_enabled(self) -> bool:
-        """Check if dashboard is enabled"""
-        return self.enabled and self.dashboard_enabled
     
     def get_prometheus_metrics(self) -> bytes:
         """Get Prometheus metrics in text format"""

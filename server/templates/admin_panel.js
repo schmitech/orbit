@@ -23,6 +23,16 @@
   let messageCounter = 0;
   let opsLogPollTimer = null;
 
+  // Monitoring state
+  let metricsWs = null;
+  let metricsReconnectTimer = null;
+  let selectedWindowMinutes = 5;
+  let lastMetricsSnapshot = null;
+  let adapterSearchFilter = "";
+  let adapterStateFilter = "all";
+  let overviewCharts = {};
+  let monitoringThresholds = { cpu: 90, memory: 85, error_rate: 5, response_time_ms: 5000 };
+
   // ------------------------------------------------------------------
   // DOM helpers
   // ------------------------------------------------------------------
@@ -286,7 +296,7 @@
     if (resp.status === 401) {
       authToken = null;
       currentUser = null;
-      window.location.href = "/dashboard/login?next=/admin";
+      window.location.href = "/admin/login?next=/admin";
       throw new Error("Session expired");
     }
     var text = await resp.text();
@@ -306,7 +316,7 @@
     try {
       var resp = await fetch("/admin/api/token");
       if (!resp.ok) {
-        window.location.href = "/dashboard/login?next=/admin";
+        window.location.href = "/admin/login?next=/admin";
         return;
       }
       var data = await resp.json();
@@ -400,6 +410,11 @@
   }
 
   function switchTab(id) {
+    // Disconnect monitoring when leaving overview
+    if (activeTab === "overview" && id !== "overview") {
+      disconnectMetricsWs();
+      destroyOverviewCharts();
+    }
     activeTab = id;
     document.querySelectorAll(".tabs button").forEach(function (b) {
       var isActive = b.dataset.tab === id;
@@ -436,35 +451,605 @@
     } catch (_) {}
     authToken = null;
     currentUser = null;
-    window.location.href = "/dashboard/login?next=/admin";
+    window.location.href = "/admin/login?next=/admin";
   }
 
   // ==================================================================
-  // TAB: Overview
+  // TAB: Overview (with integrated monitoring)
   // ==================================================================
-  async function renderOverview(container) {
-    var grid = el("div", { className: "panel-grid" });
-    var serverPanel = el("div", { className: "panel" }, el("h2", null, "Server Info"), skeleton());
-    var healthPanel = el("div", { className: "panel" }, el("h2", null, "Health"), skeleton());
-    grid.appendChild(serverPanel);
-    grid.appendChild(healthPanel);
 
-    var refreshBtn = el("button", { className: "secondary", type: "button" }, "Refresh Status");
-    refreshBtn.addEventListener("click", function () { renderOverview(container); });
-    container.appendChild(refreshBtn);
-    container.appendChild(grid);
+  // --- Monitoring utility functions ---
 
-    // Fetch data in parallel
-    try {
-      var [info, health] = await Promise.all([
-        api("GET", "/admin/info"),
-        api("GET", "/health/").catch(function () { return { status: "unknown" }; }),
-      ]);
-      renderInfoCard(serverPanel, "Server Info", info);
-      renderInfoCard(healthPanel, "Health", health);
-    } catch (err) {
-      showError("Failed to load overview: " + err.message);
+  function clampPercentage(v) {
+    if (typeof v !== "number" || isNaN(v)) return 0;
+    return Math.min(100, Math.max(0, v));
+  }
+
+  function formatNum(value, frac) {
+    var n = Number(value);
+    if (Number.isNaN(n)) return value != null ? String(value) : "0";
+    if (frac == null) return n.toLocaleString();
+    return n.toLocaleString(undefined, { minimumFractionDigits: frac, maximumFractionDigits: frac });
+  }
+
+  function escapeHtml(value) {
+    if (value == null) return "";
+    var lookup = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+    return String(value).replace(/[&<>"']/g, function (c) { return lookup[c] || c; });
+  }
+
+  function getChartDensityConfig() {
+    if (selectedWindowMinutes <= 5) return { targetPoints: 60, maxTicks: 6 };
+    if (selectedWindowMinutes <= 15) return { targetPoints: 45, maxTicks: 7 };
+    if (selectedWindowMinutes <= 30) return { targetPoints: 36, maxTicks: 7 };
+    return { targetPoints: 24, maxTicks: 8 };
+  }
+
+  function aggregateSeries(labels, seriesList) {
+    if (!labels.length) return { labels: labels, seriesList: seriesList };
+    var density = getChartDensityConfig();
+    if (labels.length <= density.targetPoints) return { labels: labels, seriesList: seriesList };
+    var bucketSize = Math.ceil(labels.length / density.targetPoints);
+    var aggLabels = [];
+    var aggSeries = seriesList.map(function () { return []; });
+    for (var start = 0; start < labels.length; start += bucketSize) {
+      var end = Math.min(start + bucketSize, labels.length);
+      aggLabels.push(labels[end - 1]);
+      seriesList.forEach(function (series, idx) {
+        var bucket = series.slice(start, end).filter(function (v) { return typeof v === "number" && !isNaN(v); });
+        aggSeries[idx].push(bucket.length ? bucket.reduce(function (s, v) { return s + v; }, 0) / bucket.length : null);
+      });
     }
+    return { labels: aggLabels, seriesList: aggSeries };
+  }
+
+  function getMaxPoints(timestamps) {
+    if (!Array.isArray(timestamps) || timestamps.length < 2) return Math.ceil((selectedWindowMinutes * 60) / 5);
+    var intervals = [];
+    for (var i = 1; i < timestamps.length; i++) {
+      var d = (new Date(timestamps[i]).getTime() - new Date(timestamps[i - 1]).getTime()) / 1000;
+      if (isFinite(d) && d > 0) intervals.push(d);
+    }
+    if (!intervals.length) return Math.ceil((selectedWindowMinutes * 60) / 5);
+    var avg = intervals.reduce(function (s, v) { return s + v; }, 0) / intervals.length;
+    return Math.max(1, Math.ceil((selectedWindowMinutes * 60) / avg));
+  }
+
+  function updateChartWithActiveTooltip(chart, labels, datasetValues) {
+    var active = chart.getActiveElements();
+    chart.data.labels = labels;
+    chart.data.datasets.forEach(function (ds, idx) { ds.data = datasetValues[idx] || []; });
+    chart.update("none");
+    if (!labels.length) { chart.setActiveElements([]); return; }
+    if (active.length) {
+      var reactivated = active.map(function (a) {
+        return { datasetIndex: a.datasetIndex, index: Math.min(labels.length - 1, Math.max(0, a.index)) };
+      }).filter(function (a) { var m = chart.getDatasetMeta(a.datasetIndex); return m && m.data && m.data[a.index]; });
+      if (reactivated.length) {
+        chart.setActiveElements(reactivated);
+        var first = reactivated[0];
+        var elem = chart.getDatasetMeta(first.datasetIndex).data[first.index];
+        if (elem && chart.tooltip) { chart.tooltip.setActiveElements(reactivated, { x: elem.x, y: elem.y }); chart.tooltip.update(); }
+        chart.draw();
+      }
+    }
+  }
+
+  function destroyOverviewCharts() {
+    Object.keys(overviewCharts).forEach(function (k) {
+      try { overviewCharts[k].destroy(); } catch (_) {}
+    });
+    overviewCharts = {};
+  }
+
+  function disconnectMetricsWs() {
+    if (metricsReconnectTimer) { clearInterval(metricsReconnectTimer); metricsReconnectTimer = null; }
+    if (metricsWs) { try { metricsWs.close(); } catch (_) {} metricsWs = null; }
+  }
+
+  function connectMetricsWs() {
+    disconnectMetricsWs();
+    var protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    var ws = new WebSocket(protocol + "//" + location.host + "/ws/metrics");
+    metricsWs = ws;
+
+    ws.onopen = function () {
+      if (metricsReconnectTimer) { clearInterval(metricsReconnectTimer); metricsReconnectTimer = null; }
+      var dot = document.getElementById("mon-status-dot");
+      var txt = document.getElementById("mon-status-text");
+      if (dot) { dot.className = "status-dot connected pulse"; }
+      if (txt) { txt.textContent = "Connected"; }
+    };
+
+    ws.onmessage = function (event) {
+      try {
+        var data = JSON.parse(event.data);
+        if (data.metrics) updateMonitoringMetrics(data.metrics);
+        updateMonitoringAdapters(data.adapters || {});
+        if (data.thread_pools) updateMonitoringThreadPools(data.thread_pools);
+        if (data.datasource_pool) updateMonitoringDatasourcePool(data.datasource_pool);
+        if (data.redis_health) updateMonitoringRedisHealth(data.redis_health);
+        if (data.pipeline_steps) updateMonitoringPipeline(data.pipeline_steps, data.pipeline_summary);
+        if (data.connections) updateMonitoringConnections(data.connections);
+      } catch (e) { console.error("Metrics parse error:", e); }
+    };
+
+    ws.onclose = function () {
+      var dot = document.getElementById("mon-status-dot");
+      var txt = document.getElementById("mon-status-text");
+      if (dot) { dot.className = "status-dot disconnected"; }
+      if (txt) { txt.textContent = "Reconnecting..."; }
+      if (!metricsReconnectTimer && activeTab === "overview") {
+        metricsReconnectTimer = setInterval(function () { connectMetricsWs(); }, 5000);
+      }
+    };
+
+    ws.onerror = function () { console.error("Metrics WebSocket error"); };
+  }
+
+  // --- Light-theme chart options ---
+  var monitoringChartOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: "index", intersect: false, axis: "x" },
+    elements: { point: { radius: 0, hoverRadius: 5, hitRadius: 18 } },
+    scales: {
+      y: { beginAtZero: true, grid: { color: "rgba(15,29,51,0.06)" }, ticks: { color: "#6b7a96" } },
+      x: { grid: { color: "rgba(15,29,51,0.06)" }, ticks: { color: "#6b7a96", maxRotation: 0, minRotation: 0 } }
+    },
+    plugins: { legend: { labels: { color: "#0f1d33" } } }
+  };
+
+  function initOverviewCharts() {
+    destroyOverviewCharts();
+    var ids = ["mon-system-chart", "mon-request-chart", "mon-response-chart", "mon-percentile-chart"];
+    var configs = [
+      { datasets: [{ label: "CPU %", borderColor: "#2b6cb0", backgroundColor: "rgba(43,108,176,0.1)", tension: 0.25, fill: true, data: [] },
+                    { label: "Memory %", borderColor: "#059669", backgroundColor: "rgba(5,150,105,0.1)", tension: 0.25, fill: true, data: [] }] },
+      { datasets: [{ label: "Requests/sec", borderColor: "#d97706", backgroundColor: "rgba(217,119,6,0.1)", tension: 0.25, fill: true, data: [] },
+                    { label: "Error Rate %", borderColor: "#e11d48", backgroundColor: "rgba(225,29,72,0.1)", tension: 0.25, fill: true, data: [] }] },
+      { datasets: [{ label: "Avg Response Time", borderColor: "#7c3aed", backgroundColor: "rgba(124,58,237,0.1)", tension: 0.25, fill: true, data: [] }] },
+      { datasets: [{ label: "P50", borderColor: "#059669", fill: false, tension: 0.25, data: [] },
+                    { label: "P95", borderColor: "#d97706", fill: false, tension: 0.25, data: [] },
+                    { label: "P99", borderColor: "#e11d48", fill: false, tension: 0.25, data: [] }] }
+    ];
+
+    ids.forEach(function (id, i) {
+      var canvas = document.getElementById(id);
+      if (!canvas) return;
+      overviewCharts[id] = new Chart(canvas, {
+        type: "line",
+        data: { labels: [], datasets: configs[i].datasets.map(function (d) { return Object.assign({}, d, { pointRadius: 0, pointHoverRadius: 5, pointHitRadius: 18 }); }) },
+        options: i === 1
+          ? Object.assign({}, monitoringChartOpts, { scales: Object.assign({}, monitoringChartOpts.scales, { y: Object.assign({}, monitoringChartOpts.scales.y, { ticks: Object.assign({}, monitoringChartOpts.scales.y.ticks, { stepSize: 1, precision: 0 }), min: 0 }) }) })
+          : monitoringChartOpts
+      });
+    });
+  }
+
+  // --- Update functions ---
+
+  function updateMonitoringMetrics(data) {
+    lastMetricsSnapshot = data;
+    if (data.thresholds) monitoringThresholds = Object.assign({}, monitoringThresholds, data.thresholds);
+
+    var cpu = clampPercentage(data.system.cpu_percent);
+    var mem = clampPercentage(data.system.memory_percent);
+    var errRate = clampPercentage(data.requests.error_rate);
+    var reliability = clampPercentage(100 - errRate);
+
+    setText("mon-cpu-value", formatNum(cpu, 1));
+    setProgressBar("mon-cpu-bar", cpu, cpu >= monitoringThresholds.cpu ? "red" : cpu >= monitoringThresholds.cpu * 0.82 ? "amber" : "sky");
+    setText("mon-cpu-sub", formatNum(cpu, 1) + "% utilization");
+
+    setText("mon-mem-value", formatNum(data.system.memory_gb, 2));
+    setProgressBar("mon-mem-bar", mem, mem >= monitoringThresholds.memory ? "red" : mem >= monitoringThresholds.memory * 0.82 ? "amber" : "green");
+    setText("mon-mem-sub", formatNum(mem, 1) + "% of system");
+
+    setText("mon-rps-value", formatNum(data.requests.per_second, 1));
+    setText("mon-rps-sub", formatNum(data.requests.total) + " total");
+
+    setText("mon-rel-value", formatNum(reliability, 2));
+    setProgressBar("mon-rel-bar", reliability, errRate >= monitoringThresholds.error_rate ? "red" : errRate > 0 ? "amber" : "green");
+    setText("mon-rel-sub", errRate > 0 ? formatNum(errRate, 2) + "% error rate" : "No errors");
+
+    setText("mon-last-update", new Date().toLocaleTimeString());
+
+    // Endpoint stats
+    if (data.endpoint_stats && data.endpoint_stats.length > 0) {
+      updateMonitoringEndpoints(data.endpoint_stats);
+    }
+
+    // Charts
+    if (data.time_series && data.time_series.timestamps && data.time_series.timestamps.length > 0) {
+      var labels = data.time_series.timestamps.map(function (t) { return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); });
+      var maxPts = getMaxPoints(data.time_series.timestamps);
+      var startIdx = Math.max(0, labels.length - maxPts);
+      var trimmed = labels.slice(startIdx);
+
+      var charts = [
+        { key: "mon-system-chart", series: [data.time_series.cpu.slice(startIdx), data.time_series.memory.slice(startIdx)] },
+        { key: "mon-request-chart", series: [data.time_series.requests_per_second.slice(startIdx), data.time_series.error_rate.slice(startIdx)] },
+        { key: "mon-response-chart", series: [data.time_series.response_time.slice(startIdx)] },
+        { key: "mon-percentile-chart", series: [data.time_series.response_time_p50.slice(startIdx), data.time_series.response_time_p95.slice(startIdx), data.time_series.response_time_p99.slice(startIdx)] }
+      ];
+
+      charts.forEach(function (c) {
+        var chart = overviewCharts[c.key];
+        if (!chart) return;
+        var density = getChartDensityConfig();
+        if (chart.options && chart.options.scales && chart.options.scales.x && chart.options.scales.x.ticks) {
+          chart.options.scales.x.ticks.maxTicksLimit = density.maxTicks;
+        }
+        var agg = aggregateSeries(trimmed, c.series);
+        updateChartWithActiveTooltip(chart, agg.labels, agg.seriesList);
+      });
+    }
+  }
+
+  function setText(id, text) {
+    var e = document.getElementById(id);
+    if (e) e.textContent = text;
+  }
+
+  function setProgressBar(id, pct, color) {
+    var bar = document.getElementById(id);
+    if (!bar) return;
+    bar.style.width = clampPercentage(pct).toFixed(1) + "%";
+    bar.className = "monitoring-progress-bar " + color;
+  }
+
+  function updateMonitoringEndpoints(endpoints) {
+    var section = document.getElementById("mon-endpoint-section");
+    var tbody = document.getElementById("mon-endpoint-tbody");
+    if (!section || !tbody) return;
+    if (!endpoints || !endpoints.length) { section.style.display = "none"; return; }
+    section.style.display = "";
+    var methodColors = { GET: "method-get", POST: "method-post", PUT: "method-put", DELETE: "method-delete" };
+    tbody.innerHTML = endpoints.map(function (ep) {
+      var method = (ep.method || "GET").toUpperCase();
+      return '<tr><td><span class="method-badge ' + (methodColors[method] || "method-get") + '">' + method + '</span></td>'
+        + '<td style="font-family:var(--font-mono);font-size:var(--text-xs)">' + escapeHtml(ep.endpoint) + '</td>'
+        + '<td style="text-align:right;font-weight:600">' + formatNum(ep.total_requests) + '</td>'
+        + '<td style="text-align:right;font-weight:600">' + formatNum(ep.avg_latency_ms, 1) + ' ms</td>'
+        + '<td style="text-align:right;font-weight:600">' + formatNum(ep.error_rate, 2) + '%</td></tr>';
+    }).join("");
+  }
+
+  function updateMonitoringPipeline(steps, summary) {
+    var section = document.getElementById("mon-pipeline-section");
+    if (!section) return;
+    if (!steps || !Object.keys(steps).length) { section.style.display = "none"; return; }
+    section.style.display = "";
+    var summaryEl = document.getElementById("mon-pipeline-summary");
+    if (summaryEl && summary) {
+      summaryEl.innerHTML = [
+        { label: "Total Executions", value: formatNum(summary.total_executions) },
+        { label: "Success Rate", value: formatNum((summary.success_rate * 100), 1) + "%" },
+        { label: "Avg Pipeline Time", value: formatNum(summary.avg_time_ms, 1) + " ms" }
+      ].map(function (c) {
+        return '<div class="monitoring-summary-card"><p class="label">' + c.label + '</p><p class="value">' + c.value + '</p></div>';
+      }).join("");
+    }
+    var container = document.getElementById("mon-pipeline-steps");
+    if (!container) return;
+    var entries = Object.entries(steps).sort(function (a, b) { return b[1].total_executions - a[1].total_executions; });
+    container.innerHTML = entries.map(function (pair) {
+      var name = pair[0], s = pair[1];
+      var pct = s.success_rate * 100;
+      var badgeCls = pct < 80 ? "red" : pct < 95 ? "amber" : "green";
+      return '<div class="monitoring-adapter-card">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:var(--text-sm)">' + escapeHtml(name) + '</span>'
+        + '<span class="monitoring-badge ' + badgeCls + '">' + formatNum(pct, 1) + '%</span></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-2);font-size:var(--text-xs);color:var(--ink-muted)">'
+        + '<div><div style="text-transform:uppercase;letter-spacing:0.1em;font-size:0.65rem">Avg</div><div style="font-weight:700;color:var(--ink)">' + formatNum(s.avg_time_ms, 1) + ' ms</div></div>'
+        + '<div><div style="text-transform:uppercase;letter-spacing:0.1em;font-size:0.65rem">Min</div><div style="font-weight:700;color:var(--ink)">' + formatNum(s.min_time_ms, 1) + ' ms</div></div>'
+        + '<div><div style="text-transform:uppercase;letter-spacing:0.1em;font-size:0.65rem">Max</div><div style="font-weight:700;color:var(--ink)">' + formatNum(s.max_time_ms, 1) + ' ms</div></div></div>'
+        + '<div style="font-size:var(--text-xs);color:var(--ink-muted)">' + formatNum(s.total_executions) + ' executions</div></div>';
+    }).join("");
+  }
+
+  function updateMonitoringAdapters(adapters) {
+    var section = document.getElementById("mon-adapter-section");
+    if (!section) return;
+    var entries = Object.entries(adapters || {});
+    if (!entries.length) { section.style.display = "none"; return; }
+    section.style.display = "";
+    renderMonitoringAdapterList(adapters);
+  }
+
+  function renderMonitoringAdapterList(adapters) {
+    var summaryEl = document.getElementById("mon-adapter-summary");
+    var container = document.getElementById("mon-adapter-list");
+    if (!summaryEl || !container) return;
+    var entries = Object.entries(adapters || {});
+    if (!entries.length) {
+      summaryEl.innerHTML = '<p style="color:var(--ink-muted);font-size:var(--text-sm)">No adapter telemetry available</p>';
+      container.innerHTML = "";
+      return;
+    }
+    var counts = entries.reduce(function (acc, pair) {
+      var state = (pair[1] && pair[1].state || "unknown").toLowerCase();
+      acc[state] = (acc[state] || 0) + 1; acc.total += 1; return acc;
+    }, { total: 0, open: 0, half_open: 0, closed: 0, unknown: 0 });
+    summaryEl.innerHTML = [
+      { label: "Total", key: "total", hint: "Monitored" },
+      { label: "Open", key: "open", hint: "Tripped" },
+      { label: "Half-open", key: "half_open", hint: "Testing" },
+      { label: "Closed", key: "closed", hint: "Healthy" }
+    ].map(function (c) {
+      return '<div class="monitoring-summary-card"><p class="label">' + c.label + '</p><p class="value">' + (counts[c.key] || 0) + '</p><p class="hint">' + c.hint + '</p></div>';
+    }).join("");
+
+    var stateOrder = { open: 0, half_open: 1, closed: 2, unknown: 3 };
+    var filtered = entries.filter(function (pair) {
+      var st = (pair[1] && pair[1].state || "unknown").toLowerCase();
+      var matchState = adapterStateFilter === "all" || adapterStateFilter === st;
+      var matchSearch = !adapterSearchFilter || pair[0].toLowerCase().includes(adapterSearchFilter);
+      return matchState && matchSearch;
+    }).sort(function (a, b) {
+      var sa = (a[1] && a[1].state || "unknown").toLowerCase();
+      var sb = (b[1] && b[1].state || "unknown").toLowerCase();
+      var d = (stateOrder[sa] || 3) - (stateOrder[sb] || 3);
+      return d !== 0 ? d : a[0].localeCompare(b[0]);
+    });
+
+    if (!filtered.length) {
+      container.innerHTML = '<p style="color:var(--ink-muted);font-size:var(--text-sm)">No adapters match the current filters.</p>';
+      return;
+    }
+    var badgeMap = { closed: "green", open: "red", half_open: "amber", unknown: "muted" };
+    container.innerHTML = filtered.map(function (pair) {
+      var name = pair[0], status = pair[1];
+      var state = (status && status.state || "unknown").toLowerCase();
+      var failures = (status && status.failure_count) || 0;
+      var reqs = (status && (status.request_count || status.success_count)) || 0;
+      var latency = status && status.average_latency_ms;
+      var latencyStr = typeof latency === "number" ? formatNum(latency, latency >= 100 ? 0 : 1) + " ms" : "\u2014";
+      return '<div class="monitoring-adapter-card">'
+        + '<div style="display:flex;justify-content:space-between;align-items:start;gap:var(--sp-2)">'
+        + '<div style="min-width:0"><p style="font-weight:700;font-size:var(--text-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</p>'
+        + '<p style="font-size:var(--text-xs);color:var(--ink-muted)">Failures: ' + formatNum(failures) + '</p></div>'
+        + '<span class="monitoring-badge ' + (badgeMap[state] || "muted") + '">' + state.replace("_", " ") + '</span></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2);font-size:var(--text-xs);color:var(--ink-muted)">'
+        + '<div><div style="text-transform:uppercase;letter-spacing:0.1em;font-size:0.65rem">Requests</div><div style="font-weight:700;color:var(--ink)">' + formatNum(reqs) + '</div></div>'
+        + '<div><div style="text-transform:uppercase;letter-spacing:0.1em;font-size:0.65rem">Latency</div><div style="font-weight:700;color:var(--ink)">' + latencyStr + '</div></div></div></div>';
+    }).join("");
+  }
+
+  function updateMonitoringThreadPools(pools) {
+    var section = document.getElementById("mon-threadpool-section");
+    if (!section) return;
+    var entries = Object.entries(pools || {});
+    if (!entries.length) { section.style.display = "none"; return; }
+    section.style.display = "";
+    var container = document.getElementById("mon-threadpool-list");
+    if (!container) return;
+    container.innerHTML = entries.map(function (pair) {
+      var name = pair[0], pool = pair[1];
+      var util = pool.max_workers > 0 ? clampPercentage((pool.active_threads / pool.max_workers) * 100) : 0;
+      var isIdle = pool.active_threads === 0 && pool.queued_tasks === 0;
+      var barColor = isIdle ? "muted" : util >= 90 ? "red" : util >= 75 ? "amber" : "green";
+      var badgeCls = isIdle ? "muted" : util >= 90 ? "red" : util >= 75 ? "amber" : "green";
+      return '<div class="thread-pool-card">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center"><h4>' + escapeHtml(name) + '</h4><span class="monitoring-badge ' + badgeCls + '">' + util.toFixed(1) + '%</span></div>'
+        + '<div class="monitoring-stats-row"><span class="stats-label">Active Threads</span><span class="stats-value">' + pool.active_threads + ' / ' + pool.max_workers + '</span></div>'
+        + '<div class="monitoring-stats-row"><span class="stats-label">Queued Tasks</span><span class="stats-value">' + (pool.queued_tasks === "N/A" ? "0" : pool.queued_tasks) + '</span></div>'
+        + '<div class="monitoring-progress-track"><div id="tp-bar-' + escapeHtml(name) + '" class="monitoring-progress-bar ' + barColor + '" style="width:' + Math.max(util, 2).toFixed(1) + '%"></div></div>'
+        + (isIdle ? '<div style="font-size:var(--text-xs);color:var(--ink-muted);margin-top:var(--sp-1)">Pool idle — threads spawn on demand</div>' : '')
+        + '</div>';
+    }).join("");
+  }
+
+  function updateMonitoringRedisHealth(data) {
+    var section = document.getElementById("mon-redis-section");
+    if (!section) return;
+    if (!data || !data.enabled) { section.style.display = "none"; return; }
+    section.style.display = "";
+    var statusEl = document.getElementById("mon-redis-status");
+    if (statusEl) {
+      statusEl.textContent = data.initialized ? "Connected" : "Disconnected";
+      statusEl.style.color = data.initialized ? "var(--success-text)" : "var(--danger-text)";
+    }
+    var cb = data.circuit_breaker || {};
+    setText("mon-redis-cb", (cb.state || "unknown").replace("_", "-"));
+    setText("mon-redis-failures", (cb.failure_count || 0) + " / " + (cb.max_failures || 5));
+    var pool = data.pool || {};
+    var inUse = pool.in_use_connections || 0;
+    var maxC = pool.max_connections || 0;
+    setText("mon-redis-pool", inUse + " / " + maxC);
+    var util = maxC > 0 ? clampPercentage((inUse / maxC) * 100) : 0;
+    setProgressBar("mon-redis-bar", util, util >= 90 ? "red" : util >= 70 ? "amber" : "green");
+  }
+
+  function updateMonitoringDatasourcePool(data) {
+    var section = document.getElementById("mon-datasource-section");
+    if (!section) return;
+    if (!data || !(data.total_cached_datasources > 0)) { section.style.display = "none"; return; }
+    section.style.display = "";
+    setText("mon-ds-total", formatNum(data.total_cached_datasources || 0));
+    setText("mon-ds-refs", formatNum(data.total_references || 0));
+    var eff = data.total_references > 0 ? ((data.total_references - data.total_cached_datasources) / data.total_references * 100) : 0;
+    setText("mon-ds-efficiency", formatNum(Math.max(0, eff), 1) + "%");
+    var container = document.getElementById("mon-ds-list");
+    if (!container || !data.datasource_keys) return;
+    container.innerHTML = data.datasource_keys.map(function (key) {
+      var refCount = (data.reference_counts && data.reference_counts[key]) || 0;
+      var parts = key.split(":");
+      var dsType = parts[0] || "unknown";
+      var connInfo = parts.slice(1).join(":") || "default";
+      var badgeCls = refCount >= 5 ? "green" : refCount >= 3 ? "green" : refCount === 2 ? "amber" : "muted";
+      return '<div class="monitoring-adapter-card"><div style="display:flex;justify-content:space-between;align-items:center">'
+        + '<div><p style="font-weight:700;font-size:var(--text-sm)">' + escapeHtml(dsType) + '</p>'
+        + '<p style="font-size:var(--text-xs);color:var(--ink-muted);font-family:var(--font-mono)">' + escapeHtml(connInfo) + '</p></div>'
+        + '<span class="monitoring-badge ' + badgeCls + '">' + refCount + ' ref' + (refCount !== 1 ? "s" : "") + '</span></div></div>';
+    }).join("");
+  }
+
+  function updateMonitoringConnections(conn) {
+    setText("mon-ws-clients", (conn.websocket_clients || 0).toString());
+    setText("mon-active-sessions", (conn.active_sessions || 0).toString());
+  }
+
+  // --- Render Overview ---
+  async function renderOverview(container) {
+    // 1. Toolbar
+    var toolbar = el("div", { className: "monitoring-toolbar" },
+      el("div", { className: "monitoring-toolbar-left" },
+        el("div", { id: "mon-status-dot", className: "status-dot disconnected" }),
+        el("span", { id: "mon-status-text", style: "font-size:var(--text-sm);color:var(--ink-muted)" }, "Connecting..."),
+        el("span", { style: "font-size:var(--text-xs);color:var(--ink-muted)" }, "Last update: "),
+        el("span", { id: "mon-last-update", style: "font-size:var(--text-xs);font-family:var(--font-mono);color:var(--ink-muted)" }, "—")
+      ),
+      el("div", { className: "monitoring-toolbar-right" },
+        [1, 5, 15, 30, 60].map(function (m) {
+          var btn = el("button", {
+            className: "time-window-btn",
+            "aria-pressed": m === selectedWindowMinutes ? "true" : "false",
+            dataset: { window: String(m) }
+          }, m + "m");
+          btn.addEventListener("click", function () {
+            if (m === selectedWindowMinutes) return;
+            selectedWindowMinutes = m;
+            document.querySelectorAll(".time-window-btn").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.window === String(m)); });
+            if (lastMetricsSnapshot) updateMonitoringMetrics(lastMetricsSnapshot);
+          });
+          return btn;
+        }),
+        el("button", { className: "monitoring-export-btn", onClick: function () { window.open("/admin/export", "_blank"); } }, "Export")
+      )
+    );
+    container.appendChild(toolbar);
+
+    // 2. Metric cards
+    function metricCard(id, label, unit) {
+      return el("div", { className: "metric-card" },
+        el("div", null, el("span", { id: id + "-value", className: "metric-value" }, "—"), unit ? el("span", { className: "metric-unit" }, unit) : null),
+        el("div", { className: "metric-label" }, label),
+        el("div", { id: id + "-sub", className: "metric-sub" }, ""),
+        el("div", { className: "monitoring-progress-track" }, el("div", { id: id + "-bar", className: "monitoring-progress-bar muted", style: "width:0%" }))
+      );
+    }
+    var metricsGrid = el("div", { className: "metric-cards-grid" },
+      metricCard("mon-cpu", "CPU", "%"),
+      metricCard("mon-mem", "Memory", "GB"),
+      metricCard("mon-rps", "Throughput", "req/s"),
+      metricCard("mon-rel", "Reliability", "%")
+    );
+    container.appendChild(metricsGrid);
+
+    // 4. Charts
+    var chartsGrid = el("div", { className: "charts-grid" });
+    [["mon-system-chart", "System Resources"], ["mon-request-chart", "Request Metrics"],
+     ["mon-response-chart", "Response Time (ms)"], ["mon-percentile-chart", "Percentiles (ms)"]
+    ].forEach(function (pair) {
+      var card = el("div", { className: "chart-card" },
+        el("h3", null, pair[1]),
+        el("canvas", { id: pair[0] })
+      );
+      chartsGrid.appendChild(card);
+    });
+    container.appendChild(chartsGrid);
+
+    // 5. Endpoint latency table
+    var endpointSection = el("div", { id: "mon-endpoint-section", className: "monitoring-section", style: "display:none" },
+      el("h3", null, "Endpoint Latency"),
+      el("div", { className: "endpoint-table-wrap" },
+        el("table", { className: "endpoint-table" },
+          el("thead", null, el("tr", null,
+            el("th", null, "Method"), el("th", null, "Endpoint"), el("th", { style: "text-align:right" }, "Requests"),
+            el("th", { style: "text-align:right" }, "Avg Latency"), el("th", { style: "text-align:right" }, "Error Rate")
+          )),
+          el("tbody", { id: "mon-endpoint-tbody" })
+        )
+      )
+    );
+    container.appendChild(endpointSection);
+
+    // 6. Pipeline steps
+    var pipelineSection = el("div", { id: "mon-pipeline-section", className: "monitoring-section", style: "display:none" },
+      el("h3", null, "Pipeline Steps"),
+      el("div", { id: "mon-pipeline-summary", style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:var(--sp-2);margin-bottom:var(--sp-3)" }),
+      el("div", { id: "mon-pipeline-steps", className: "adapter-health-grid" })
+    );
+    container.appendChild(pipelineSection);
+
+    // 7. Adapter Health
+    var adapterToolbar = el("div", { className: "adapter-health-toolbar" });
+    var searchWrap = el("div", { className: "monitoring-search-field" });
+    var searchInput = el("input", { type: "text", placeholder: "Search adapters...", "aria-label": "Search adapters" });
+    searchInput.addEventListener("input", function (e) {
+      adapterSearchFilter = (e.target.value || "").trim().toLowerCase();
+      if (lastMetricsSnapshot) renderMonitoringAdapterList(document._lastAdapters || {});
+    });
+    searchWrap.appendChild(searchInput);
+    adapterToolbar.appendChild(searchWrap);
+    ["all", "closed", "half_open", "open"].forEach(function (state) {
+      var btn = el("button", { className: "state-filter" + (state === adapterStateFilter ? " active" : ""), "aria-pressed": state === adapterStateFilter ? "true" : "false" }, state === "all" ? "All" : state.replace("_", " "));
+      btn.addEventListener("click", function () {
+        adapterStateFilter = state;
+        adapterToolbar.querySelectorAll(".state-filter").forEach(function (b) {
+          var isActive = b === btn;
+          b.classList.toggle("active", isActive);
+          b.setAttribute("aria-pressed", isActive);
+        });
+        renderMonitoringAdapterList(document._lastAdapters || {});
+      });
+      adapterToolbar.appendChild(btn);
+    });
+
+    // Wrap updateMonitoringAdapters to save last snapshot for filter re-renders
+    var origUpdateAdapters = updateMonitoringAdapters;
+    updateMonitoringAdapters = function (adapters) {
+      document._lastAdapters = adapters;
+      origUpdateAdapters(adapters);
+    };
+
+    var adapterSection = el("div", { id: "mon-adapter-section", className: "monitoring-section", style: "display:none" },
+      el("h3", null, "Adapter Health"),
+      adapterToolbar,
+      el("div", { id: "mon-adapter-summary", style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:var(--sp-2);margin:var(--sp-3) 0" }),
+      el("div", { id: "mon-adapter-list", className: "adapter-health-grid" })
+    );
+    container.appendChild(adapterSection);
+
+    // 8. Datasource Pool
+    var dsSection = el("div", { id: "mon-datasource-section", className: "monitoring-section", style: "display:none" },
+      el("h3", null, "Datasource Pool"),
+      el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:var(--sp-2);margin-bottom:var(--sp-3)" },
+        el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Cached"), el("p", { id: "mon-ds-total", className: "value" }, "0")),
+        el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "References"), el("p", { id: "mon-ds-refs", className: "value" }, "0")),
+        el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Reuse Rate"), el("p", { id: "mon-ds-efficiency", className: "value" }, "0%"))
+      ),
+      el("div", { id: "mon-ds-list", className: "adapter-health-grid" })
+    );
+    container.appendChild(dsSection);
+
+    // 9. Redis Health
+    var redisSection = el("div", { id: "mon-redis-section", className: "monitoring-section", style: "display:none" },
+      el("h3", null, "Redis Health"),
+      el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:var(--sp-2)" },
+        el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Status"), el("p", { id: "mon-redis-status", className: "value" }, "—")),
+        el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Circuit Breaker"), el("p", { id: "mon-redis-cb", className: "value" }, "—")),
+        el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Failures"), el("p", { id: "mon-redis-failures", className: "value" }, "—")),
+        el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Pool"), el("p", { id: "mon-redis-pool", className: "value" }, "—"))
+      ),
+      el("div", { className: "monitoring-progress-track", style: "margin-top:var(--sp-2)" }, el("div", { id: "mon-redis-bar", className: "monitoring-progress-bar muted", style: "width:0%" }))
+    );
+    container.appendChild(redisSection);
+
+    // 10. Thread Pools
+    var threadSection = el("div", { id: "mon-threadpool-section", className: "monitoring-section", style: "display:none" },
+      el("h3", null, "Thread Pools"),
+      el("div", { id: "mon-threadpool-list", className: "thread-pool-grid" })
+    );
+    container.appendChild(threadSection);
+
+    // Initialize charts after DOM insertion
+    initOverviewCharts();
+
+    // Connect WebSocket for live monitoring
+    connectMetricsWs();
   }
 
   function renderInfoCard(panel, title, data) {
@@ -1723,6 +2308,11 @@
   // ------------------------------------------------------------------
   // Boot
   // ------------------------------------------------------------------
+  window.addEventListener("beforeunload", function () {
+    disconnectMetricsWs();
+    destroyOverviewCharts();
+  });
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {

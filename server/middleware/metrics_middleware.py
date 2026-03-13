@@ -17,7 +17,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next):
         # Skip metrics for the metrics endpoints themselves to avoid recursion
-        if request.url.path in ['/metrics', '/metrics/json', '/ws/metrics', '/dashboard']:
+        if request.url.path in ['/metrics', '/metrics/json', '/ws/metrics']:
             return await call_next(request)
         
         # Start timer (use perf_counter for monotonic timing)

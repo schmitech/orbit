@@ -842,14 +842,14 @@ class RouteConfigurator:
         app.include_router(health_router)
         logger.info("Health routes registered")
         
-        # Include dashboard routes for monitoring
+        # Include metrics routes (WebSocket + Prometheus)
         try:
-            from routes.dashboard_routes import create_dashboard_router
-            dashboard_router = create_dashboard_router()
-            app.include_router(dashboard_router)
-            logger.info("Dashboard routes registered")
+            from routes.metrics_routes import create_metrics_router
+            metrics_router = create_metrics_router()
+            app.include_router(metrics_router)
+            logger.info("Metrics routes registered")
         except Exception as e:
-            logger.warning(f"Failed to register dashboard routes: {e}")
+            logger.warning(f"Failed to register metrics routes: {e}")
 
         # Include admin panel routes
         try:

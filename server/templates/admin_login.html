@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ORBIT Dashboard Login</title>
+    <title>ORBIT Admin Login</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <style>
         :root {
             color-scheme: dark;
@@ -148,7 +149,7 @@
         <h1>Sign in to ORBIT</h1>
         <p class="login-copy">Use an admin account to access live monitoring, exports, and telemetry controls.</p>
         {{ERROR_BLOCK}}
-        <form method="post" action="/dashboard/login">
+        <form method="post" action="/admin/login">
             <input type="hidden" name="next" value="{{NEXT_PATH}}">
             <label for="username">
                 Username
@@ -173,7 +174,7 @@
                     </button>
                 </span>
             </label>
-            <button type="submit">Enter Dashboard</button>
+            <button type="submit">Sign In</button>
         </form>
     </main>
     <script>
