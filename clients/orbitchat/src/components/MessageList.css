@@ -16,9 +16,9 @@
   scroll-behavior: auto;
   /* Prevent layout shifts from causing scroll jumps */
   overflow-anchor: auto;
-  --orbit-assistant-bubble-max: min(100%, 88rem);
-  --orbit-user-bubble-max: min(100%, 52rem);
-  --orbit-markdown-max: min(100%, 84rem);
+  --orbit-assistant-bubble-max: 100%;
+  --orbit-user-bubble-max: min(100%, 72%);
+  --orbit-markdown-max: 100%;
 }
 
 .message-list .message-bubble {
@@ -27,7 +27,9 @@
 }
 
 .message-list .message-bubble.message-bubble-user {
+  width: auto;
   max-width: var(--orbit-user-bubble-max);
+  margin-left: auto;
 }
 
 .message-list .message-markdown {
@@ -110,9 +112,9 @@
 
 @media (min-width: 768px) {
   .message-list {
-    --orbit-assistant-bubble-max: min(100%, 82rem);
-    --orbit-user-bubble-max: min(100%, 48rem);
-    --orbit-markdown-max: min(100%, 78rem);
+    --orbit-assistant-bubble-max: 100%;
+    --orbit-user-bubble-max: min(100%, 70%);
+    --orbit-markdown-max: 100%;
   }
 
   .message-list .message-markdown {
@@ -123,9 +125,7 @@
 
 @media (min-width: 1280px) {
   .message-list {
-    --orbit-assistant-bubble-max: min(100%, 88rem);
-    --orbit-user-bubble-max: min(100%, 52rem);
-    --orbit-markdown-max: min(100%, 84rem);
+    --orbit-user-bubble-max: min(100%, 68%);
   }
 }
 

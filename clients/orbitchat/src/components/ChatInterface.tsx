@@ -103,7 +103,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   });
 
   const chatMaxWidthClass = 'max-w-[96rem]';
-  const inputMaxWidthClass = 'max-w-[57.6rem]';
+  const inputMaxWidthClass = 'max-w-[48rem]';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const messageInputWidthClass = `mx-auto w-full ${inputMaxWidthClass}`;
   const agentNotesWidthClass = `mx-auto w-full ${inputMaxWidthClass}`;
@@ -498,6 +498,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 onSendThreadMessage={handleSendThreadMessage}
                 sessionId={currentConversation.sessionId}
                 isLoading={isLoading}
+                contentMaxWidthClass={inputMaxWidthClass}
               />
               <div className={MOBILE_INPUT_WRAPPER_CLASSES}>
                 <div className="mx-auto w-full max-w-[96rem] px-3 sm:px-5 md:px-6 lg:px-8 xl:px-10">
@@ -512,7 +513,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     }
                     autoFocusEnabled
                     placeholder="Start a new topic..."
-                    maxWidthClass="max-w-[52rem]"
+                    maxWidthClass={inputMaxWidthClass}
                     isCentered={false}
                   />
                 </div>

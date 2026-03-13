@@ -14,6 +14,7 @@ interface MessageListProps {
   onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string) => Promise<void> | void;
   sessionId?: string;
   isLoading?: boolean;
+  contentMaxWidthClass?: string;
 }
 
 export function MessageList({
@@ -23,7 +24,8 @@ export function MessageList({
   onClearThread,
   onSendThreadMessage,
   sessionId,
-  isLoading
+  isLoading,
+  contentMaxWidthClass = 'max-w-[48rem]'
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -147,27 +149,29 @@ export function MessageList({
       className="message-list flex-1 overflow-y-auto pb-8 pt-4 sm:pt-6"
       onScroll={handleScroll}
     >
-      <div className="mx-auto w-full max-w-[96rem] space-y-7 px-3 sm:px-5 md:px-6 lg:px-8 xl:px-10">
-        {topLevelMessages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            style={{ contentVisibility: 'auto', containIntrinsicSize: '420px' }}
-          >
-            <Message
-              message={message}
-              onRegenerate={onRegenerate}
-              onStartThread={onStartThread}
-              onClearThread={onClearThread}
-              onSendThreadMessage={onSendThreadMessage}
-              threadMessages={threadLookup.get(message.id)}
-              sessionId={sessionId}
-              isThreadSendDisabled={isLoading}
-            />
-          </div>
-        ))}
+      <div className="mx-auto w-full max-w-[96rem] px-3 sm:px-5 md:px-6 lg:px-8 xl:px-10">
+        <div className={`message-list__rail mx-auto w-full space-y-7 ${contentMaxWidthClass}`}>
+          {topLevelMessages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex w-full ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              style={{ contentVisibility: 'auto', containIntrinsicSize: '420px' }}
+            >
+              <Message
+                message={message}
+                onRegenerate={onRegenerate}
+                onStartThread={onStartThread}
+                onClearThread={onClearThread}
+                onSendThreadMessage={onSendThreadMessage}
+                threadMessages={threadLookup.get(message.id)}
+                sessionId={sessionId}
+                isThreadSendDisabled={isLoading}
+              />
+            </div>
+          ))}
 
-        <div ref={messagesEndRef} className="h-8" />
+          <div ref={messagesEndRef} className="h-8" />
+        </div>
       </div>
     </div>
   );

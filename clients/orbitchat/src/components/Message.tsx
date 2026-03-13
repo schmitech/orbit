@@ -177,7 +177,7 @@ export function Message({
 
   const bubbleClasses = isAssistant
     ? 'message-bubble message-bubble-assistant min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
-    : 'message-bubble message-bubble-user min-w-0 break-words leading-relaxed bg-blue-100 text-blue-900 dark:bg-blue-600 dark:text-white rounded-2xl rounded-tr-sm px-4 py-2.5';
+    : 'message-bubble message-bubble-user inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 text-[#111827] dark:bg-[#303030] dark:text-[#f5f5f5]';
 
   const attachmentClasses = 'border-gray-200 bg-white/80 dark:border-[#3b3c49] dark:bg-white/5';
 
@@ -380,7 +380,7 @@ export function Message({
   }, [syntaxTheme, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
 
   return (
-    <div className={`group animate-fadeIn min-w-0 px-0${!isAssistant ? ' max-w-[75%]' : ''}`}>
+    <div className="group animate-fadeIn min-w-0 w-full px-0">
       <div className="min-w-0 space-y-1">
         <div className={bubbleClasses}>
           {renderedMessageContent}
