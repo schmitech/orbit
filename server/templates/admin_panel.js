@@ -1180,9 +1180,13 @@
   async function renderUsers(container) {
     var layout = el("div", { className: "split-layout" });
     var left = el("div", { className: "panel" });
-    var right = el("div", { className: "panel" });
+    var right = el("div", { className: "stack" });
+    var accountPanel = el("div", { className: "panel" });
+    var detailPanel = el("div", { className: "panel" });
     layout.appendChild(left);
     layout.appendChild(right);
+    right.appendChild(accountPanel);
+    right.appendChild(detailPanel);
     container.appendChild(layout);
 
     // Create user form
@@ -1206,11 +1210,10 @@
     var tableWrap = el("div", null, skeleton());
     left.appendChild(tableWrap);
 
-    // Right panel — change own password + placeholder
-    right.appendChild(el("h2", null, "My Account"));
-    renderChangeMyPassword(right);
-    right.appendChild(el("h3", null, "Selected User"));
-    right.appendChild(el("p", { className: "muted" }, "Select a user from the list to manage"));
+    // Right sidebar — persistent account panel plus selected user workspace
+    accountPanel.appendChild(el("h2", null, "My Account"));
+    renderChangeMyPassword(accountPanel);
+    renderSelectedUserPlaceholder(detailPanel);
 
     createBtn.addEventListener("click", async function () {
       var u = usernameInput.value.trim();
@@ -1233,7 +1236,24 @@
     async function loadUsers() {
       try {
         var users = await api("GET", "/auth/users");
-        renderUserTable(tableWrap, users, right);
+        renderUserTable(tableWrap, users, detailPanel);
+        if (selectedUser && selectedUser.id) {
+          var refreshedSelection = users.find(function (user) {
+            return user.id === selectedUser.id;
+          });
+          if (refreshedSelection) {
+            selectedUser = refreshedSelection;
+            renderUserDetail(detailPanel, refreshedSelection, function () {
+              selectedUser = null;
+              renderTab();
+            });
+          } else {
+            selectedUser = null;
+            renderSelectedUserPlaceholder(detailPanel);
+          }
+        } else {
+          renderSelectedUserPlaceholder(detailPanel);
+        }
       } catch (err) {
         clear(tableWrap);
         tableWrap.appendChild(el("p", { className: "muted" }, "Failed to load users"));
@@ -1275,6 +1295,12 @@
       passwordField("Confirm Password", confirmPwInput),
       changeBtn
     ));
+  }
+
+  function renderSelectedUserPlaceholder(panel) {
+    clear(panel);
+    panel.appendChild(el("h2", null, "Selected User"));
+    panel.appendChild(el("p", { className: "muted" }, "Select a user from the list to view account status, reset credentials, or manage access."));
   }
 
   function renderUserTable(wrap, users, rightPanel) {
@@ -1333,7 +1359,8 @@
 
   function renderUserDetail(panel, user, onRefresh) {
     clear(panel);
-    panel.appendChild(el("h2", null, "Manage: " + user.username));
+    panel.appendChild(el("h2", null, "Selected User"));
+    panel.appendChild(el("p", { className: "muted" }, "Managing " + user.username));
 
     var summary = el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "ID:"), " " + (user.id || "N/A")),
