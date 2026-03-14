@@ -29,10 +29,37 @@
   let metricsReconnectTimer = null;
   let selectedWindowMinutes = 5;
   let lastMetricsSnapshot = null;
+  let lastAdapters = {};
   let adapterSearchFilter = "";
   let adapterStateFilter = "all";
   let overviewCharts = {};
   let monitoringThresholds = { cpu: 90, memory: 85, error_rate: 5, response_time_ms: 5000 };
+
+  // ------------------------------------------------------------------
+  // API endpoint paths
+  // ------------------------------------------------------------------
+  var ENDPOINTS = {
+    token: "/admin/api/token",
+    logout: "/admin/logout",
+    health: "/health",
+    healthAdapters: "/health/adapters",
+    register: "/auth/register",
+    users: "/auth/users",
+    changePassword: "/auth/change-password",
+    resetPassword: "/auth/reset-password",
+    apiKeys: "/admin/api-keys",
+    prompts: "/admin/prompts",
+    adapterCapabilities: "/admin/adapters/capabilities",
+    jobs: "/admin/jobs",
+    logsTail: "/admin/logs/tail",
+    renderMarkdown: "/admin/render-markdown",
+    reloadAdapters: "/admin/reload-adapters",
+    reloadTemplates: "/admin/reload-templates",
+    restart: "/admin/restart",
+    shutdown: "/admin/shutdown",
+    adminExport: "/admin/export",
+    login: "/admin/login",
+  };
 
   // ------------------------------------------------------------------
   // DOM helpers
@@ -228,7 +255,7 @@
           done = true;
           clearTimeout(timer);
           // Image loaded means server is up — verify with a real fetch
-          fetch("/health", { method: "GET", credentials: "same-origin" })
+          fetch(ENDPOINTS.health, { method: "GET", credentials: "same-origin" })
             .then(function (r) {
               if (r.ok) {
                 clearInterval(elapsedTimer);
@@ -402,6 +429,21 @@
   }
 
   // ------------------------------------------------------------------
+  // Button action helper — eliminates repeated try/catch/finally/disable
+  // ------------------------------------------------------------------
+  async function withButton(btn, fn, successMsg) {
+    btn.disabled = true;
+    try {
+      await fn();
+      if (successMsg) showStatus(successMsg);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ------------------------------------------------------------------
   // API helper
   // ------------------------------------------------------------------
   async function api(method, path, body) {
@@ -426,7 +468,7 @@
     if (resp.status === 401) {
       authToken = null;
       currentUser = null;
-      window.location.href = "/admin/login?next=/admin";
+      window.location.href = ENDPOINTS.login + "?next=/admin";
       throw new Error("Session expired");
     }
     var text = await resp.text();
@@ -462,9 +504,9 @@
   // ------------------------------------------------------------------
   async function init() {
     try {
-      var resp = await fetch("/admin/api/token");
+      var resp = await fetch(ENDPOINTS.token);
       if (!resp.ok) {
-        window.location.href = "/admin/login?next=/admin";
+        window.location.href = ENDPOINTS.login + "?next=/admin";
         return;
       }
       var data = await resp.json();
@@ -596,11 +638,11 @@
   // ------------------------------------------------------------------
   async function doLogout() {
     try {
-      await fetch("/admin/logout", { method: "POST" });
+      await fetch(ENDPOINTS.logout, { method: "POST" });
     } catch (_) {}
     authToken = null;
     currentUser = null;
-    window.location.href = "/admin/login?next=/admin";
+    window.location.href = ENDPOINTS.login + "?next=/admin";
   }
 
   // ==================================================================
@@ -855,14 +897,33 @@
     if (!endpoints || !endpoints.length) { section.style.display = "none"; return; }
     section.style.display = "";
     var methodColors = { GET: "method-get", POST: "method-post", PUT: "method-put", DELETE: "method-delete" };
-    tbody.innerHTML = endpoints.map(function (ep) {
+    clear(tbody);
+    endpoints.forEach(function (ep) {
       var method = (ep.method || "GET").toUpperCase();
-      return '<tr><td><span class="method-badge ' + (methodColors[method] || "method-get") + '">' + method + '</span></td>'
-        + '<td style="font-family:var(--font-mono);font-size:var(--text-xs)">' + escapeHtml(ep.endpoint) + '</td>'
-        + '<td style="text-align:right;font-weight:600">' + formatNum(ep.total_requests) + '</td>'
-        + '<td style="text-align:right;font-weight:600">' + formatNum(ep.avg_latency_ms, 1) + ' ms</td>'
-        + '<td style="text-align:right;font-weight:600">' + formatNum(ep.error_rate, 2) + '%</td></tr>';
-    }).join("");
+      tbody.appendChild(el("tr", null,
+        el("td", null, el("span", { className: "method-badge " + (methodColors[method] || "method-get") }, method)),
+        el("td", { style: "font-family:var(--font-mono);font-size:var(--text-xs)" }, ep.endpoint),
+        el("td", { style: "text-align:right;font-weight:600" }, formatNum(ep.total_requests)),
+        el("td", { style: "text-align:right;font-weight:600" }, formatNum(ep.avg_latency_ms, 1) + " ms"),
+        el("td", { style: "text-align:right;font-weight:600" }, formatNum(ep.error_rate, 2) + "%")
+      ));
+    });
+  }
+
+  function monitoringStatCell(label, value) {
+    return el("div", null,
+      el("div", { style: "text-transform:uppercase;letter-spacing:0.1em;font-size:0.65rem" }, label),
+      el("div", { style: "font-weight:700;color:var(--ink)" }, value)
+    );
+  }
+
+  function monitoringSummaryCard(label, value, hint) {
+    var children = [
+      el("p", { className: "label" }, label),
+      el("p", { className: "value" }, value)
+    ];
+    if (hint) children.push(el("p", { className: "hint" }, hint));
+    return el("div", { className: "monitoring-summary-card" }, children);
   }
 
   function updateMonitoringPipeline(steps, summary) {
@@ -872,39 +933,42 @@
     section.style.display = "";
     var summaryEl = document.getElementById("mon-pipeline-summary");
     if (summaryEl && summary) {
-      summaryEl.innerHTML = [
-        { label: "Total Executions", value: formatNum(summary.total_executions) },
-        { label: "Success Rate", value: formatNum((summary.success_rate * 100), 1) + "%" },
-        { label: "Avg Pipeline Time", value: formatNum(summary.avg_time_ms, 1) + " ms" }
-      ].map(function (c) {
-        return '<div class="monitoring-summary-card"><p class="label">' + c.label + '</p><p class="value">' + c.value + '</p></div>';
-      }).join("");
+      clear(summaryEl);
+      summaryEl.appendChild(monitoringSummaryCard("Total Executions", formatNum(summary.total_executions)));
+      summaryEl.appendChild(monitoringSummaryCard("Success Rate", formatNum((summary.success_rate * 100), 1) + "%"));
+      summaryEl.appendChild(monitoringSummaryCard("Avg Pipeline Time", formatNum(summary.avg_time_ms, 1) + " ms"));
     }
     var container = document.getElementById("mon-pipeline-steps");
     if (!container) return;
     var entries = Object.entries(steps).sort(function (a, b) { return b[1].total_executions - a[1].total_executions; });
-    container.innerHTML = entries.map(function (pair) {
+    clear(container);
+    entries.forEach(function (pair) {
       var name = pair[0], s = pair[1];
       var pct = s.success_rate * 100;
       var badgeCls = pct < 80 ? "red" : pct < 95 ? "amber" : "green";
-      return '<div class="monitoring-adapter-card">'
-        + '<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:var(--text-sm)">' + escapeHtml(name) + '</span>'
-        + '<span class="monitoring-badge ' + badgeCls + '">' + formatNum(pct, 1) + '%</span></div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-2);font-size:var(--text-xs);color:var(--ink-muted)">'
-        + '<div><div style="text-transform:uppercase;letter-spacing:0.1em;font-size:0.65rem">Avg</div><div style="font-weight:700;color:var(--ink)">' + formatNum(s.avg_time_ms, 1) + ' ms</div></div>'
-        + '<div><div style="text-transform:uppercase;letter-spacing:0.1em;font-size:0.65rem">Min</div><div style="font-weight:700;color:var(--ink)">' + formatNum(s.min_time_ms, 1) + ' ms</div></div>'
-        + '<div><div style="text-transform:uppercase;letter-spacing:0.1em;font-size:0.65rem">Max</div><div style="font-weight:700;color:var(--ink)">' + formatNum(s.max_time_ms, 1) + ' ms</div></div></div>'
-        + '<div style="font-size:var(--text-xs);color:var(--ink-muted)">' + formatNum(s.total_executions) + ' executions</div></div>';
-    }).join("");
+      container.appendChild(el("div", { className: "monitoring-adapter-card" },
+        el("div", { style: "display:flex;justify-content:space-between;align-items:center" },
+          el("span", { style: "font-weight:700;font-size:var(--text-sm)" }, name),
+          el("span", { className: "monitoring-badge " + badgeCls }, formatNum(pct, 1) + "%")
+        ),
+        el("div", { style: "display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-2);font-size:var(--text-xs);color:var(--ink-muted)" },
+          monitoringStatCell("Avg", formatNum(s.avg_time_ms, 1) + " ms"),
+          monitoringStatCell("Min", formatNum(s.min_time_ms, 1) + " ms"),
+          monitoringStatCell("Max", formatNum(s.max_time_ms, 1) + " ms")
+        ),
+        el("div", { style: "font-size:var(--text-xs);color:var(--ink-muted)" }, formatNum(s.total_executions) + " executions")
+      ));
+    });
   }
 
   function updateMonitoringAdapters(adapters) {
+    lastAdapters = adapters || {};
     var section = document.getElementById("mon-adapter-section");
     if (!section) return;
-    var entries = Object.entries(adapters || {});
+    var entries = Object.entries(lastAdapters);
     if (!entries.length) { section.style.display = "none"; return; }
     section.style.display = "";
-    renderMonitoringAdapterList(adapters);
+    renderMonitoringAdapterList(lastAdapters);
   }
 
   function renderMonitoringAdapterList(adapters) {
@@ -913,22 +977,24 @@
     if (!summaryEl || !container) return;
     var entries = Object.entries(adapters || {});
     if (!entries.length) {
-      summaryEl.innerHTML = '<p style="color:var(--ink-muted);font-size:var(--text-sm)">No adapter telemetry available</p>';
-      container.innerHTML = "";
+      clear(summaryEl);
+      summaryEl.appendChild(el("p", { style: "color:var(--ink-muted);font-size:var(--text-sm)" }, "No adapter telemetry available"));
+      clear(container);
       return;
     }
     var counts = entries.reduce(function (acc, pair) {
       var state = (pair[1] && pair[1].state || "unknown").toLowerCase();
       acc[state] = (acc[state] || 0) + 1; acc.total += 1; return acc;
     }, { total: 0, open: 0, half_open: 0, closed: 0, unknown: 0 });
-    summaryEl.innerHTML = [
+    clear(summaryEl);
+    [
       { label: "Total", key: "total", hint: "Monitored" },
       { label: "Open", key: "open", hint: "Tripped" },
       { label: "Half-open", key: "half_open", hint: "Testing" },
       { label: "Closed", key: "closed", hint: "Healthy" }
-    ].map(function (c) {
-      return '<div class="monitoring-summary-card"><p class="label">' + c.label + '</p><p class="value">' + (counts[c.key] || 0) + '</p><p class="hint">' + c.hint + '</p></div>';
-    }).join("");
+    ].forEach(function (c) {
+      summaryEl.appendChild(monitoringSummaryCard(c.label, String(counts[c.key] || 0), c.hint));
+    });
 
     var stateOrder = { open: 0, half_open: 1, closed: 2, unknown: 3 };
     var filtered = entries.filter(function (pair) {
@@ -943,27 +1009,33 @@
       return d !== 0 ? d : a[0].localeCompare(b[0]);
     });
 
+    clear(container);
     if (!filtered.length) {
-      container.innerHTML = '<p style="color:var(--ink-muted);font-size:var(--text-sm)">No adapters match the current filters.</p>';
+      container.appendChild(el("p", { style: "color:var(--ink-muted);font-size:var(--text-sm)" }, "No adapters match the current filters."));
       return;
     }
     var badgeMap = { closed: "green", open: "red", half_open: "amber", unknown: "muted" };
-    container.innerHTML = filtered.map(function (pair) {
+    filtered.forEach(function (pair) {
       var name = pair[0], status = pair[1];
       var state = (status && status.state || "unknown").toLowerCase();
       var failures = (status && status.failure_count) || 0;
       var reqs = (status && (status.request_count || status.success_count)) || 0;
       var latency = status && status.average_latency_ms;
       var latencyStr = typeof latency === "number" ? formatNum(latency, latency >= 100 ? 0 : 1) + " ms" : "\u2014";
-      return '<div class="monitoring-adapter-card">'
-        + '<div style="display:flex;justify-content:space-between;align-items:start;gap:var(--sp-2)">'
-        + '<div style="min-width:0"><p style="font-weight:700;font-size:var(--text-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</p>'
-        + '<p style="font-size:var(--text-xs);color:var(--ink-muted)">Failures: ' + formatNum(failures) + '</p></div>'
-        + '<span class="monitoring-badge ' + (badgeMap[state] || "muted") + '">' + state.replace("_", " ") + '</span></div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2);font-size:var(--text-xs);color:var(--ink-muted)">'
-        + '<div><div style="text-transform:uppercase;letter-spacing:0.1em;font-size:0.65rem">Requests</div><div style="font-weight:700;color:var(--ink)">' + formatNum(reqs) + '</div></div>'
-        + '<div><div style="text-transform:uppercase;letter-spacing:0.1em;font-size:0.65rem">Latency</div><div style="font-weight:700;color:var(--ink)">' + latencyStr + '</div></div></div></div>';
-    }).join("");
+      container.appendChild(el("div", { className: "monitoring-adapter-card" },
+        el("div", { style: "display:flex;justify-content:space-between;align-items:start;gap:var(--sp-2)" },
+          el("div", { style: "min-width:0" },
+            el("p", { style: "font-weight:700;font-size:var(--text-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: name }, name),
+            el("p", { style: "font-size:var(--text-xs);color:var(--ink-muted)" }, "Failures: " + formatNum(failures))
+          ),
+          el("span", { className: "monitoring-badge " + (badgeMap[state] || "muted") }, state.replace("_", " "))
+        ),
+        el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2);font-size:var(--text-xs);color:var(--ink-muted)" },
+          monitoringStatCell("Requests", formatNum(reqs)),
+          monitoringStatCell("Latency", latencyStr)
+        )
+      ));
+    });
   }
 
   function updateMonitoringThreadPools(pools) {
@@ -974,20 +1046,33 @@
     section.style.display = "";
     var container = document.getElementById("mon-threadpool-list");
     if (!container) return;
-    container.innerHTML = entries.map(function (pair) {
+    clear(container);
+    entries.forEach(function (pair) {
       var name = pair[0], pool = pair[1];
       var util = pool.max_workers > 0 ? clampPercentage((pool.active_threads / pool.max_workers) * 100) : 0;
       var isIdle = pool.active_threads === 0 && pool.queued_tasks === 0;
       var barColor = isIdle ? "muted" : util >= 90 ? "red" : util >= 75 ? "amber" : "green";
       var badgeCls = isIdle ? "muted" : util >= 90 ? "red" : util >= 75 ? "amber" : "green";
-      return '<div class="thread-pool-card">'
-        + '<div style="display:flex;justify-content:space-between;align-items:center"><h4>' + escapeHtml(name) + '</h4><span class="monitoring-badge ' + badgeCls + '">' + util.toFixed(1) + '%</span></div>'
-        + '<div class="monitoring-stats-row"><span class="stats-label">Active Threads</span><span class="stats-value">' + pool.active_threads + ' / ' + pool.max_workers + '</span></div>'
-        + '<div class="monitoring-stats-row"><span class="stats-label">Queued Tasks</span><span class="stats-value">' + (pool.queued_tasks === "N/A" ? "0" : pool.queued_tasks) + '</span></div>'
-        + '<div class="monitoring-progress-track"><div id="tp-bar-' + escapeHtml(name) + '" class="monitoring-progress-bar ' + barColor + '" style="width:' + Math.max(util, 2).toFixed(1) + '%"></div></div>'
-        + (isIdle ? '<div style="font-size:var(--text-xs);color:var(--ink-muted);margin-top:var(--sp-1)">Pool idle — threads spawn on demand</div>' : '')
-        + '</div>';
-    }).join("");
+      var card = el("div", { className: "thread-pool-card" },
+        el("div", { style: "display:flex;justify-content:space-between;align-items:center" },
+          el("h4", null, name),
+          el("span", { className: "monitoring-badge " + badgeCls }, util.toFixed(1) + "%")
+        ),
+        el("div", { className: "monitoring-stats-row" },
+          el("span", { className: "stats-label" }, "Active Threads"),
+          el("span", { className: "stats-value" }, pool.active_threads + " / " + pool.max_workers)
+        ),
+        el("div", { className: "monitoring-stats-row" },
+          el("span", { className: "stats-label" }, "Queued Tasks"),
+          el("span", { className: "stats-value" }, String(pool.queued_tasks === "N/A" ? "0" : pool.queued_tasks))
+        ),
+        el("div", { className: "monitoring-progress-track" },
+          el("div", { id: "tp-bar-" + name, className: "monitoring-progress-bar " + barColor, style: "width:" + Math.max(util, 2).toFixed(1) + "%" })
+        ),
+        isIdle ? el("div", { style: "font-size:var(--text-xs);color:var(--ink-muted);margin-top:var(--sp-1)" }, "Pool idle \u2014 threads spawn on demand") : null
+      );
+      container.appendChild(card);
+    });
   }
 
   function updateMonitoringRedisHealth(data) {
@@ -1022,17 +1107,23 @@
     setText("mon-ds-efficiency", formatNum(Math.max(0, eff), 1) + "%");
     var container = document.getElementById("mon-ds-list");
     if (!container || !data.datasource_keys) return;
-    container.innerHTML = data.datasource_keys.map(function (key) {
+    clear(container);
+    data.datasource_keys.forEach(function (key) {
       var refCount = (data.reference_counts && data.reference_counts[key]) || 0;
       var parts = key.split(":");
       var dsType = parts[0] || "unknown";
       var connInfo = parts.slice(1).join(":") || "default";
       var badgeCls = refCount >= 5 ? "green" : refCount >= 3 ? "green" : refCount === 2 ? "amber" : "muted";
-      return '<div class="monitoring-adapter-card"><div style="display:flex;justify-content:space-between;align-items:center">'
-        + '<div><p style="font-weight:700;font-size:var(--text-sm)">' + escapeHtml(dsType) + '</p>'
-        + '<p style="font-size:var(--text-xs);color:var(--ink-muted);font-family:var(--font-mono)">' + escapeHtml(connInfo) + '</p></div>'
-        + '<span class="monitoring-badge ' + badgeCls + '">' + refCount + ' ref' + (refCount !== 1 ? "s" : "") + '</span></div></div>';
-    }).join("");
+      container.appendChild(el("div", { className: "monitoring-adapter-card" },
+        el("div", { style: "display:flex;justify-content:space-between;align-items:center" },
+          el("div", null,
+            el("p", { style: "font-weight:700;font-size:var(--text-sm)" }, dsType),
+            el("p", { style: "font-size:var(--text-xs);color:var(--ink-muted);font-family:var(--font-mono)" }, connInfo)
+          ),
+          el("span", { className: "monitoring-badge " + badgeCls }, refCount + " ref" + (refCount !== 1 ? "s" : ""))
+        )
+      ));
+    });
   }
 
   function updateMonitoringConnections(conn) {
@@ -1065,7 +1156,7 @@
           });
           return btn;
         }),
-        el("button", { className: "monitoring-export-btn", onClick: function () { window.open("/admin/export", "_blank"); } }, "Export")
+        el("button", { className: "monitoring-export-btn", onClick: function () { window.open(ENDPOINTS.adminExport, "_blank"); } }, "Export")
       )
     );
     container.appendChild(toolbar);
@@ -1129,7 +1220,7 @@
     var searchInput = el("input", { type: "text", placeholder: "Search adapters...", "aria-label": "Search adapters" });
     searchInput.addEventListener("input", function (e) {
       adapterSearchFilter = (e.target.value || "").trim().toLowerCase();
-      if (lastMetricsSnapshot) renderMonitoringAdapterList(document._lastAdapters || {});
+      if (lastMetricsSnapshot) renderMonitoringAdapterList(lastAdapters);
     });
     searchWrap.appendChild(searchInput);
     adapterToolbar.appendChild(searchWrap);
@@ -1142,17 +1233,10 @@
           b.classList.toggle("active", isActive);
           b.setAttribute("aria-pressed", isActive);
         });
-        renderMonitoringAdapterList(document._lastAdapters || {});
+        renderMonitoringAdapterList(lastAdapters);
       });
       adapterToolbar.appendChild(btn);
     });
-
-    // Wrap updateMonitoringAdapters to save last snapshot for filter re-renders
-    var origUpdateAdapters = updateMonitoringAdapters;
-    updateMonitoringAdapters = function (adapters) {
-      document._lastAdapters = adapters;
-      origUpdateAdapters(adapters);
-    };
 
     var adapterSection = el("div", { id: "mon-adapter-section", className: "monitoring-section", style: "display:none" },
       el("h3", null, "Adapter Health"),
@@ -1264,27 +1348,21 @@
     renderChangeMyPassword(accountPanel);
     renderSelectedUserPlaceholder(detailPanel);
 
-    createBtn.addEventListener("click", async function () {
+    createBtn.addEventListener("click", function () {
       var u = usernameInput.value.trim();
       var p = passwordInput.value.trim();
       if (!u || !p) return;
-      createBtn.disabled = true;
-      try {
-        await api("POST", "/auth/register", { username: u, password: p, role: roleSelect.value });
+      withButton(createBtn, async function () {
+        await api("POST", ENDPOINTS.register, { username: u, password: p, role: roleSelect.value });
         usernameInput.value = "";
         passwordInput.value = "";
-        showStatus("User created");
         loadUsers();
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        createBtn.disabled = false;
-      }
+      }, "User created");
     });
 
     async function loadUsers() {
       try {
-        var users = await api("GET", "/auth/users");
+        var users = await api("GET", ENDPOINTS.users);
         renderUserTable(tableWrap, users, detailPanel);
         if (selectedUser && selectedUser.id) {
           var refreshedSelection = users.find(function (user) {
@@ -1318,24 +1396,18 @@
     var confirmPwInput = el("input", { type: "password", placeholder: "Confirm new password", maxlength: "100" });
     var changeBtn = el("button", { type: "button" }, "Change Password");
 
-    changeBtn.addEventListener("click", async function () {
+    changeBtn.addEventListener("click", function () {
       var cur = curPwInput.value;
       var nw = newPwInput.value;
       var conf = confirmPwInput.value;
       if (!cur || !nw) return;
       if (nw !== conf) { showError("Passwords do not match"); return; }
-      changeBtn.disabled = true;
-      try {
-        await api("POST", "/auth/change-password", { current_password: cur, new_password: nw });
+      withButton(changeBtn, async function () {
+        await api("POST", ENDPOINTS.changePassword, { current_password: cur, new_password: nw });
         curPwInput.value = "";
         newPwInput.value = "";
         confirmPwInput.value = "";
-        showStatus("Password changed successfully");
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        changeBtn.disabled = false;
-      }
+      }, "Password changed successfully");
     });
 
     panel.appendChild(el("div", { className: "stack" },
@@ -1442,7 +1514,7 @@
           onConfirm: async function () {
             toggleBtn.disabled = true;
             try {
-              await api("POST", "/auth/users/" + encodeURIComponent(user.id) + "/" + action);
+              await api("POST", ENDPOINTS.users + "/" + encodeURIComponent(user.id) + "/" + action);
               showStatus("User " + action + "d");
               onRefresh();
             } finally {
@@ -1468,7 +1540,7 @@
         onConfirm: async function () {
           resetBtn.disabled = true;
           try {
-            await api("POST", "/auth/reset-password", { user_id: user.id, new_password: pw });
+            await api("POST", ENDPOINTS.resetPassword, { user_id: user.id, new_password: pw });
             newPwInput.value = "";
             showStatus("Password reset");
           } finally {
@@ -1490,7 +1562,7 @@
           expectedText: user.username,
           confirmLabel: "Delete",
           onConfirm: async function () {
-            await api("DELETE", "/auth/users/" + encodeURIComponent(user.id));
+            await api("DELETE", ENDPOINTS.users + "/" + encodeURIComponent(user.id));
             showStatus("User deleted");
             onRefresh();
           }
@@ -1572,33 +1644,27 @@
     detailPanel.appendChild(el("h2", null, "Key Details"));
     detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
 
-    createBtn.addEventListener("click", async function () {
+    createBtn.addEventListener("click", function () {
       var cn = clientInput.value.trim();
       if (!cn) return;
       if (!adapterSelect.value) {
         showError("Select an adapter before creating the API key.");
         return;
       }
-      createBtn.disabled = true;
-      try {
+      withButton(createBtn, async function () {
         var body = { client_name: cn, adapter_name: adapterSelect.value };
         if (promptSelect.value) body.system_prompt_id = promptSelect.value;
         if (notesInput.value.trim()) body.notes = notesInput.value.trim();
-        await api("POST", "/admin/api-keys", body);
+        await api("POST", ENDPOINTS.apiKeys, body);
         clientInput.value = "";
         notesInput.value = "";
-        showStatus("API key created");
         loadKeys();
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        createBtn.disabled = false;
-      }
+      }, "API key created");
     });
 
     async function loadKeys() {
       try {
-        var keys = await api("GET", "/admin/api-keys");
+        var keys = await api("GET", ENDPOINTS.apiKeys);
         cachedKeys = keys;
         renderKeyTable(tableWrap, keys, detailPanel);
         if (selectedKey && selectedKey._id) {
@@ -1643,7 +1709,7 @@
 
   async function loadAdaptersAndPrompts() {
     try {
-      var healthData = await api("GET", "/health/adapters").catch(function () { return null; });
+      var healthData = await api("GET", ENDPOINTS.healthAdapters).catch(function () { return null; });
       if (healthData) {
         var adapters = healthData.adapters || healthData.circuit_breakers || healthData;
         if (Array.isArray(adapters)) {
@@ -1656,7 +1722,7 @@
     // Ensure cachedAdapters is always set so callers don't retry indefinitely
     if (!cachedAdapters) cachedAdapters = [];
     try {
-      cachedPrompts = await api("GET", "/admin/prompts");
+      cachedPrompts = await api("GET", ENDPOINTS.prompts);
     } catch (_) {
       cachedPrompts = [];
     }
@@ -1664,7 +1730,7 @@
 
   async function loadAvailableKeys() {
     try {
-      cachedKeys = await api("GET", "/admin/api-keys");
+      cachedKeys = await api("GET", ENDPOINTS.apiKeys);
     } catch (_) {
       cachedKeys = [];
     }
@@ -1673,7 +1739,7 @@
 
   async function loadAdapterCapabilities() {
     try {
-      var result = await api("GET", "/admin/adapters/capabilities");
+      var result = await api("GET", ENDPOINTS.adapterCapabilities);
       cachedAdapterCapabilities = (result && result.adapters) || [];
     } catch (_) {
       cachedAdapterCapabilities = [];
@@ -1686,7 +1752,7 @@
     var attempts = 0;
     while (attempts < 240) {
       attempts += 1;
-      var job = await api("GET", "/admin/jobs/" + encodeURIComponent(jobId));
+      var job = await api("GET", ENDPOINTS.jobs + "/" + encodeURIComponent(jobId));
       if (job.status === "completed") {
         return job;
       }
@@ -1724,7 +1790,7 @@
   }
 
   async function loadKeyDetail(keyId) {
-    return api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/detail");
+    return api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/detail");
   }
 
   function createMarkdownPreview(textarea) {
@@ -1750,7 +1816,7 @@
       body.innerHTML = '<p class="muted">Rendering preview...</p>';
 
       try {
-        var result = await api("POST", "/admin/render-markdown", { markdown: text });
+        var result = await api("POST", ENDPOINTS.renderMarkdown, { markdown: text });
         if (token !== requestToken) return;
         body.className = "markdown-preview";
         body.innerHTML = result && result.html ? result.html : "<p></p>";
@@ -1883,7 +1949,7 @@
       testResult.className = "test-result";
       testResult.appendChild(el("span", { className: "muted" }, "Checking key status..."));
       try {
-        await api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/status");
+        await api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/status");
         testResult.className = "test-result test-result-ok";
         testResult.appendChild(el("span", { className: "test-result-icon", "aria-hidden": "true" }, "✓"));
         testResult.appendChild(el("div", { className: "test-result-copy" },
@@ -1907,19 +1973,13 @@
     panel.appendChild(el("h3", null, "Rename Key"));
     var renameInput = el("input", { type: "text", maxlength: "100" });
     var renameBtn = el("button", { type: "button" }, "Rename");
-    renameBtn.addEventListener("click", async function () {
+    renameBtn.addEventListener("click", function () {
       var nk = renameInput.value.trim();
       if (!nk) return;
-      renameBtn.disabled = true;
-      try {
-        await api("PATCH", "/admin/api-keys/" + encodeURIComponent(keyId) + "/rename?new_api_key=" + encodeURIComponent(nk));
-        showStatus("Key renamed");
+      withButton(renameBtn, async function () {
+        await api("PATCH", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/rename?new_api_key=" + encodeURIComponent(nk));
         onRefresh();
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        renameBtn.disabled = false;
-      }
+      }, "Key renamed");
     });
     panel.appendChild(el("div", { className: "inline-form" }, field("New key value", renameInput), renameBtn));
 
@@ -1934,7 +1994,7 @@
     loadQuotaBtn.addEventListener("click", async function () {
       loadQuotaBtn.disabled = true;
       try {
-        var quota = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/quota");
+        var quota = await api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/quota");
         renderQuotaDetail(quotaWrap, keyId, quota);
       } catch (err) {
         showError(err.message);
@@ -1955,24 +2015,18 @@
         assocBtn.disabled = !cachedPrompts || !cachedPrompts.length;
       });
     }
-    assocBtn.addEventListener("click", async function () {
+    assocBtn.addEventListener("click", function () {
       var pid = promptSelect.value;
       if (!pid) return;
-      assocBtn.disabled = true;
-      try {
-        await api("POST", "/admin/api-keys/" + encodeURIComponent(keyId) + "/prompt", { prompt_id: pid });
+      withButton(assocBtn, async function () {
+        await api("POST", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/prompt", { prompt_id: pid });
         key.system_prompt_id = pid;
         var matchedPrompt = (cachedPrompts || []).find(function (prompt) {
           return promptIdentifier(prompt) === pid;
         });
         key.system_prompt_name = matchedPrompt ? matchedPrompt.name : key.system_prompt_name;
-        showStatus("Persona associated");
         onRefresh();
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        assocBtn.disabled = false;
-      }
+      }, "Persona associated");
     });
     panel.appendChild(el("div", { className: "inline-form" }, field("Persona", promptSelect), assocBtn));
 
@@ -1989,7 +2043,7 @@
           onConfirm: async function () {
             deactivateBtn.disabled = true;
             try {
-              await api("POST", "/admin/api-keys/" + encodeURIComponent(keyId) + "/deactivate");
+              await api("POST", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/deactivate");
               showStatus("Key deactivated");
               onRefresh();
             } finally {
@@ -2008,7 +2062,7 @@
         expectedText: key.client_name || "DELETE",
         confirmLabel: "Delete",
         onConfirm: async function () {
-          await api("DELETE", "/admin/api-keys/" + encodeURIComponent(keyId));
+          await api("DELETE", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId));
           showStatus("Key deleted");
           onRefresh();
         }
@@ -2028,7 +2082,7 @@
     rawBtn.addEventListener("click", async function () {
       rawBtn.disabled = true;
       try {
-        var status = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/status");
+        var status = await api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/status");
         clear(rawWrap);
         rawWrap.appendChild(el("pre", null, JSON.stringify(status, null, 2)));
       } catch (err) {
@@ -2068,9 +2122,9 @@
           onConfirm: async function () {
             btn.disabled = true;
             try {
-              await api("POST", "/admin/api-keys/" + encodeURIComponent(keyId) + "/quota/reset?period=" + period);
+              await api("POST", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/quota/reset?period=" + period);
               showStatus("Quota " + period + " reset");
-              var updated = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/quota");
+              var updated = await api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/quota");
               renderQuotaDetail(wrap, keyId, updated);
             } finally {
               btn.disabled = false;
@@ -2106,9 +2160,9 @@
         else body.daily_limit = null;
         if (monthlyInput.value !== "") body.monthly_limit = parseInt(monthlyInput.value);
         else body.monthly_limit = null;
-        await api("PUT", "/admin/api-keys/" + encodeURIComponent(keyId) + "/quota", body);
+        await api("PUT", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/quota", body);
         showStatus("Quota updated");
-        var updated = await api("GET", "/admin/api-keys/" + encodeURIComponent(keyId) + "/quota");
+        var updated = await api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/quota");
         renderQuotaDetail(wrap, keyId, updated);
       } catch (err) {
         showError(err.message);
@@ -2192,15 +2246,14 @@
     right.appendChild(el("h2", null, "Persona Details"));
     right.appendChild(el("p", { className: "muted" }, "Select a persona to edit"));
 
-    createBtn.addEventListener("click", async function () {
+    createBtn.addEventListener("click", function () {
       var n = nameInput.value.trim();
       var t = textArea.value.trim();
       if (!n || !t) return;
-      createBtn.disabled = true;
-      try {
-        var createdPrompt = await api("POST", "/admin/prompts", { name: n, prompt: t, version: versionInput.value.trim() || "1.0" });
+      withButton(createBtn, async function () {
+        var createdPrompt = await api("POST", ENDPOINTS.prompts, { name: n, prompt: t, version: versionInput.value.trim() || "1.0" });
         if (createKeySelect.value && createdPrompt && promptIdentifier(createdPrompt)) {
-          await api("POST", "/admin/api-keys/" + encodeURIComponent(createKeySelect.value) + "/prompt", {
+          await api("POST", ENDPOINTS.apiKeys + "/" + encodeURIComponent(createKeySelect.value) + "/prompt", {
             prompt_id: promptIdentifier(createdPrompt)
           });
         }
@@ -2208,18 +2261,13 @@
         textArea.value = "";
         versionInput.value = "1.0";
         createKeySelect.value = "";
-        showStatus("Persona created");
         loadPrompts();
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        createBtn.disabled = false;
-      }
+      }, "Persona created");
     });
 
     async function loadPrompts() {
       try {
-        var prompts = await api("GET", "/admin/prompts");
+        var prompts = await api("GET", ENDPOINTS.prompts);
         cachedPrompts = prompts;
         renderPromptTable(tableWrap, prompts, right);
       } catch (err) {
@@ -2300,21 +2348,15 @@
     var vInput = el("input", { type: "text", value: prompt.version || "1.0", maxlength: "100", readonly: "true", "aria-readonly": "true" });
     var tArea = el("textarea", { rows: "8", maxlength: "50000", readonly: "true", "aria-readonly": "true" }, prompt.prompt || "");
     var saveBtn = el("button", { type: "button" }, "Save Changes");
-    saveBtn.addEventListener("click", async function () {
+    saveBtn.addEventListener("click", function () {
       if (saveBtn.disabled) return;
-      saveBtn.disabled = true;
-      try {
-        await api("PUT", "/admin/prompts/" + encodeURIComponent(promptId), {
+      withButton(saveBtn, async function () {
+        await api("PUT", ENDPOINTS.prompts + "/" + encodeURIComponent(promptId), {
           prompt: tArea.value,
           version: vInput.value.trim(),
         });
-        showStatus("Persona updated");
         onRefresh();
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        saveBtn.disabled = false;
-      }
+      }, "Persona updated");
     });
     
     var editPreview = createMarkdownPreview(tArea);
@@ -2388,23 +2430,17 @@
         assocBtn.disabled = !keys.length;
       });
     }
-    assocBtn.addEventListener("click", async function () {
+    assocBtn.addEventListener("click", function () {
       var k = keySelect.value;
       if (!k || !promptId) return;
-      assocBtn.disabled = true;
-      try {
-        await api("POST", "/admin/api-keys/" + encodeURIComponent(k) + "/prompt", { prompt_id: promptId });
+      withButton(assocBtn, async function () {
+        await api("POST", ENDPOINTS.apiKeys + "/" + encodeURIComponent(k) + "/prompt", { prompt_id: promptId });
         var refreshedKeys = await loadAvailableKeys();
         var matchedKey = refreshedKeys.find(function (key) {
           return key.system_prompt_id && String(key.system_prompt_id) === String(promptId);
         });
         fillKeySelect(keySelect, refreshedKeys, matchedKey ? matchedKey._id : null);
-        showStatus("Persona associated with key");
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        assocBtn.disabled = keySelect.disabled;
-      }
+      }, "Persona associated with key");
     });
     panel.appendChild(el("div", { className: "inline-form" }, field("API Key", keySelect), assocBtn));
 
@@ -2418,7 +2454,7 @@
         expectedText: prompt.name,
         confirmLabel: "Delete",
         onConfirm: async function () {
-          await api("DELETE", "/admin/prompts/" + encodeURIComponent(promptId));
+          await api("DELETE", ENDPOINTS.prompts + "/" + encodeURIComponent(promptId));
           showStatus("Persona deleted");
           onRefresh();
         }
@@ -2493,7 +2529,7 @@
         onConfirm: async function () {
           reloadAdaptersBtn.disabled = true;
           try {
-            var path = "/admin/reload-adapters";
+            var path = ENDPOINTS.reloadAdapters;
             var f = filterSelect.value;
             path += "/async";
             if (f) path += "?adapter_name=" + encodeURIComponent(f);
@@ -2520,7 +2556,7 @@
         onConfirm: async function () {
           reloadTemplatesBtn.disabled = true;
           try {
-            var path = "/admin/reload-templates";
+            var path = ENDPOINTS.reloadTemplates;
             var f = filterSelect.value;
             path += "/async";
             if (f) path += "?adapter_name=" + encodeURIComponent(f);
@@ -2551,7 +2587,7 @@
         onConfirm: async function () {
           restartBtn.disabled = true;
           try {
-            await api("POST", "/admin/restart");
+            await api("POST", ENDPOINTS.restart);
             showServerOverlay({
               title: "Restarting Server",
               detail: "The server process is restarting...",
@@ -2575,7 +2611,7 @@
         onConfirm: async function () {
           shutdownBtn.disabled = true;
           try {
-            await api("POST", "/admin/shutdown");
+            await api("POST", ENDPOINTS.shutdown);
             showServerOverlay({
               title: "Server Shutting Down",
               detail: "Terminating the server process...",
@@ -2766,7 +2802,7 @@
       if (logsInFlight) return;
       logsInFlight = true;
       try {
-        var result = await api("GET", "/admin/logs/tail?lines=500");
+        var result = await api("GET", ENDPOINTS.logsTail + "?lines=500");
         logFilename.textContent = result.filename || "orbit.log";
         logUpdated.textContent = result.updated_at ? "Updated " + result.updated_at : "";
         var incoming = result.lines || [];
