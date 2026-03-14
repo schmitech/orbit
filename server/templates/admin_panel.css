@@ -555,6 +555,34 @@ textarea {
   gap: var(--sp-1);
 }
 
+.admin-create-form {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.admin-create-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3) var(--sp-4);
+}
+
+.admin-create-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.admin-create-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--sp-1);
+  border-top: 1px solid var(--border-light);
+}
+
+.admin-create-form-actions button {
+  min-width: 140px;
+}
+
 .inline-form input,
 .inline-form select {
   min-width: 140px;
@@ -1240,6 +1268,12 @@ code {
   border-radius: 4px;
 }
 
+code.plain-code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
 /* ============================================================
    Overview Cards
    ============================================================ */
@@ -1450,6 +1484,18 @@ code {
   .inline-form input,
   .inline-form select {
     min-width: 0;
+    width: 100%;
+  }
+
+  .admin-create-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-create-form-actions {
+    justify-content: stretch;
+  }
+
+  .admin-create-form-actions button {
     width: 100%;
   }
 

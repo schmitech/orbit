@@ -402,7 +402,25 @@
     var data;
     try { data = JSON.parse(text); } catch (_) { data = text; }
     if (!resp.ok) {
-      var msg = (data && data.detail) || (data && data.message) || text || resp.statusText;
+      var msg = text || resp.statusText;
+      if (data && typeof data === "object") {
+        if (Array.isArray(data.detail)) {
+          msg = data.detail.map(function (item) {
+            if (item && typeof item === "object") {
+              return item.msg || JSON.stringify(item);
+            }
+            return String(item);
+          }).join("; ");
+        } else if (data.detail && typeof data.detail === "object") {
+          msg = data.detail.msg || JSON.stringify(data.detail);
+        } else if (data.detail) {
+          msg = String(data.detail);
+        } else if (data.message) {
+          msg = String(data.message);
+        } else {
+          msg = JSON.stringify(data);
+        }
+      }
       throw new Error(msg);
     }
     return data;
@@ -1450,9 +1468,13 @@
   async function renderKeys(container) {
     var layout = el("div", { className: "split-layout" });
     var left = el("div", { className: "panel" });
-    var right = el("div", { className: "panel" });
+    var right = el("div", { className: "stack" });
+    var createPanel = el("div", { className: "panel" });
+    var detailPanel = el("div", { className: "panel" });
     layout.appendChild(left);
     layout.appendChild(right);
+    right.appendChild(createPanel);
+    right.appendChild(detailPanel);
     container.appendChild(layout);
 
     left.appendChild(el("h2", null, "API Keys"));
@@ -1462,12 +1484,23 @@
 
     // Create key form
     var clientInput = el("input", { type: "text", required: "true", maxlength: "100" });
-    var adapterSelect = el("select", null, el("option", { value: "" }, "Default adapter"));
+    var adapterSelect = el("select");
+    var availableAdapterNames = [];
     if (cachedAdapters) {
       cachedAdapters.forEach(function (a) {
         var name = typeof a === "string" ? a : (a.name || a.adapter_name || "");
-        if (name) adapterSelect.appendChild(el("option", { value: name }, name));
+        if (name) availableAdapterNames.push(name);
       });
+    }
+    if (availableAdapterNames.length) {
+      availableAdapterNames.forEach(function (name, index) {
+        var option = el("option", { value: name }, name);
+        if (index === 0) option.selected = true;
+        adapterSelect.appendChild(option);
+      });
+    } else {
+      adapterSelect.appendChild(el("option", { value: "" }, "No adapters available"));
+      adapterSelect.disabled = true;
     }
     var promptSelect = el("select", null, el("option", { value: "" }, "No persona"));
     if (cachedPrompts) {
@@ -1475,30 +1508,39 @@
         promptSelect.appendChild(el("option", { value: promptIdentifier(p) }, p.name + " (v" + (p.version || "1.0") + ")"));
       });
     }
-    var notesInput = el("input", { type: "text", maxlength: "100" });
+    var notesInput = el("textarea", { rows: "4", maxlength: "500" });
     var createBtn = el("button", { type: "button" }, "Create Key");
 
-    var form = el("div", { className: "inline-form" },
-      field("Client", clientInput),
-      field("Adapter", adapterSelect),
-      field("Persona", promptSelect),
+    createPanel.appendChild(el("h2", null, "Create API Key"));
+    var form = el("div", { className: "admin-create-form" },
+      el("div", { className: "admin-create-form-grid" },
+        field("Client", clientInput),
+        field("Adapter", adapterSelect),
+        field("Persona", promptSelect)
+      ),
       field("Notes", notesInput),
-      createBtn
+      el("div", { className: "admin-create-form-actions" },
+        createBtn
+      )
     );
-    left.appendChild(form);
+    createPanel.appendChild(form);
 
     var tableWrap = el("div", null, skeleton());
     left.appendChild(tableWrap);
 
-    right.appendChild(el("h2", null, "Key Details"));
-    right.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
+    detailPanel.appendChild(el("h2", null, "Key Details"));
+    detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
 
     createBtn.addEventListener("click", async function () {
       var cn = clientInput.value.trim();
       if (!cn) return;
+      if (!adapterSelect.value) {
+        showError("Select an adapter before creating the API key.");
+        return;
+      }
       createBtn.disabled = true;
       try {
-        var body = { client_name: cn, adapter_name: adapterSelect.value || undefined };
+        var body = { client_name: cn, adapter_name: adapterSelect.value };
         if (promptSelect.value) body.system_prompt_id = promptSelect.value;
         if (notesInput.value.trim()) body.notes = notesInput.value.trim();
         await api("POST", "/admin/api-keys", body);
@@ -1517,7 +1559,38 @@
       try {
         var keys = await api("GET", "/admin/api-keys");
         cachedKeys = keys;
-        renderKeyTable(tableWrap, keys, right);
+        renderKeyTable(tableWrap, keys, detailPanel);
+        if (selectedKey && selectedKey._id) {
+          var refreshedSelection = keys.find(function (key) {
+            return key._id === selectedKey._id;
+          });
+          if (refreshedSelection) {
+            selectedKey = refreshedSelection;
+            clear(detailPanel);
+            detailPanel.appendChild(el("p", { className: "muted" }, "Loading key details..."));
+            try {
+              var detail = await loadKeyDetail(refreshedSelection._id);
+              selectedKey = detail;
+              renderKeyDetail(detailPanel, detail, function () {
+                selectedKey = null;
+                renderTab();
+              });
+            } catch (detailErr) {
+              selectedKey = null;
+              clear(detailPanel);
+              detailPanel.appendChild(el("div", { className: "empty-state" },
+                el("p", null, "Unable to load key details."),
+                el("p", { className: "muted" }, detailErr.message || "Unknown error")
+              ));
+              showError(detailErr.message);
+            }
+          } else {
+            selectedKey = null;
+            clear(detailPanel);
+            detailPanel.appendChild(el("h2", null, "Key Details"));
+            detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
+          }
+        }
       } catch (err) {
         clear(tableWrap);
         tableWrap.appendChild(el("p", { className: "muted" }, "Failed to load API keys"));
@@ -2017,12 +2090,28 @@
     var nameInput = el("input", { type: "text", required: "true", maxlength: "100" });
     var versionInput = el("input", { type: "text", value: "1.0", maxlength: "100" });
     var textArea = el("textarea", { rows: "5", required: "true", maxlength: "50000" });
+    var createKeySelect = el("select", null, el("option", { value: "" }, "Loading API keys..."));
     var createBtn = el("button", { type: "button" }, "Create Persona");
+
+    function fillCreatePersonaKeySelect(keys) {
+      fillKeySelect(createKeySelect, keys);
+      if (createKeySelect.options.length) {
+        createKeySelect.options[0].textContent = "No API key";
+      }
+    }
+
+    fillCreatePersonaKeySelect(cachedKeys);
+    if (!cachedKeys) {
+      loadAvailableKeys().then(function (keys) {
+        fillCreatePersonaKeySelect(keys);
+      });
+    }
 
     var form = el("div", { className: "stack" },
       el("div", { className: "inline-form" },
         field("Name", nameInput),
-        field("Version", versionInput)
+        field("Version", versionInput),
+        field("API Key", createKeySelect)
       ),
       field("Persona", textArea),
       createBtn
@@ -2041,10 +2130,16 @@
       if (!n || !t) return;
       createBtn.disabled = true;
       try {
-        await api("POST", "/admin/prompts", { name: n, prompt: t, version: versionInput.value.trim() || "1.0" });
+        var createdPrompt = await api("POST", "/admin/prompts", { name: n, prompt: t, version: versionInput.value.trim() || "1.0" });
+        if (createKeySelect.value && createdPrompt && promptIdentifier(createdPrompt)) {
+          await api("POST", "/admin/api-keys/" + encodeURIComponent(createKeySelect.value) + "/prompt", {
+            prompt_id: promptIdentifier(createdPrompt)
+          });
+        }
         nameInput.value = "";
         textArea.value = "";
         versionInput.value = "1.0";
+        createKeySelect.value = "";
         showStatus("Persona created");
         loadPrompts();
       } catch (err) {
@@ -2094,7 +2189,7 @@
         tabindex: "0",
         "aria-selected": isSelected ? "true" : "false",
       },
-        el("td", null, el("code", null, promptId)),
+        el("td", null, el("code", { className: "plain-code" }, promptId)),
         el("td", null, p.name),
         el("td", null, p.version || "")
       );
@@ -2126,7 +2221,7 @@
 
     var summary = el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "Name:"), " " + prompt.name),
-      el("p", null, el("strong", null, "ID:"), " ", el("code", null, promptId))
+      el("p", null, el("strong", null, "ID:"), " ", el("code", { className: "plain-code" }, promptId))
     );
     panel.appendChild(summary);
 
@@ -2134,8 +2229,8 @@
     var originalVersion = prompt.version || "1.0";
     var originalPromptText = prompt.prompt || "";
     var isEditingPrompt = false;
-    var vInput = el("input", { type: "text", value: prompt.version || "1.0", maxlength: "100" });
-    var tArea = el("textarea", { rows: "8", maxlength: "50000" }, prompt.prompt || "");
+    var vInput = el("input", { type: "text", value: prompt.version || "1.0", maxlength: "100", readonly: "true", "aria-readonly": "true" });
+    var tArea = el("textarea", { rows: "8", maxlength: "50000", readonly: "true", "aria-readonly": "true" }, prompt.prompt || "");
     var saveBtn = el("button", { type: "button" }, "Save Changes");
     saveBtn.addEventListener("click", async function () {
       if (saveBtn.disabled) return;
@@ -2159,7 +2254,7 @@
       field("Persona Text", tArea)
     );
     var previewWrap = el("div", { className: "prompt-preview-pane" }, editPreview);
-    var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Persona Text");
+    var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Persona");
     var cancelBtn = el("button", { className: "secondary", type: "button", style: "display:none" }, "Cancel");
     function promptHasChanges() {
       return vInput.value.trim() !== originalVersion || tArea.value !== originalPromptText;
@@ -2169,6 +2264,14 @@
     }
     function setPromptEditMode(editing) {
       isEditingPrompt = editing;
+      vInput.readOnly = !editing;
+      vInput.setAttribute("aria-readonly", editing ? "false" : "true");
+      if (editing) vInput.removeAttribute("readonly");
+      else vInput.setAttribute("readonly", "true");
+      tArea.readOnly = !editing;
+      tArea.setAttribute("aria-readonly", editing ? "false" : "true");
+      if (editing) tArea.removeAttribute("readonly");
+      else tArea.setAttribute("readonly", "true");
       editorWrap.style.display = editing ? "block" : "none";
       previewWrap.style.display = editing ? "none" : "block";
       editToggle.style.display = editing ? "none" : "inline-flex";
@@ -2223,6 +2326,11 @@
       assocBtn.disabled = true;
       try {
         await api("POST", "/admin/api-keys/" + encodeURIComponent(k) + "/prompt", { prompt_id: promptId });
+        var refreshedKeys = await loadAvailableKeys();
+        var matchedKey = refreshedKeys.find(function (key) {
+          return key.system_prompt_id && String(key.system_prompt_id) === String(promptId);
+        });
+        fillKeySelect(keySelect, refreshedKeys, matchedKey ? matchedKey._id : null);
         showStatus("Persona associated with key");
       } catch (err) {
         showError(err.message);

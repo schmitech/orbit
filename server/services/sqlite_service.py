@@ -158,7 +158,11 @@ class SQLiteService(DatabaseService):
                     active INTEGER NOT NULL DEFAULT 1,
                     created_at TEXT NOT NULL,
                     adapter_name TEXT,
-                    system_prompt_id TEXT
+                    system_prompt_id TEXT,
+                    quota_daily_limit INTEGER,
+                    quota_monthly_limit INTEGER,
+                    quota_throttle_enabled INTEGER,
+                    quota_throttle_priority INTEGER
                 )
             ''',
             'system_prompts': '''

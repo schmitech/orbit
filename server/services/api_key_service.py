@@ -578,6 +578,24 @@ class ApiKeyService:
                 logger.warning(f"Attempted to associate non-existent system prompt: {system_prompt_id}")
                 return False
 
+            # Keep persona-to-key association singular in the admin workflow by clearing
+            # any other key records currently pointing at the same system prompt.
+            existing_links = await self.database.find_many(
+                self.collection_name,
+                {"system_prompt_id": system_prompt_id_str},
+                limit=1000,
+                skip=0
+            )
+            current_key_id = str(key_doc.get("_id")) if key_doc.get("_id") else None
+            for linked_key in existing_links:
+                linked_key_id = str(linked_key.get("_id")) if linked_key.get("_id") else None
+                if linked_key_id and linked_key_id != current_key_id:
+                    await self.database.update_one(
+                        self.collection_name,
+                        {"_id": linked_key_id},
+                        {"$set": {"system_prompt_id": None}}
+                    )
+
             # Update the API key document (store as string for consistency)
             result = await self.database.update_one(
                 self.collection_name,

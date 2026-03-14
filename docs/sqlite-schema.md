@@ -11,8 +11,9 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 - `api_keys` - API keys for authentication
 - `system_prompts` - System prompts for chat
 - `chat_history` - Chat message history
-- `chat_history_archive` - Archived chat messages
 - `conversation_threads` - Conversation threading for intent adapters
+- `uploaded_files` - Uploaded file metadata for file adapter workflows
+- `file_chunks` - Chunk metadata for processed uploaded files
 - `audit_logs` - Audit trail records for conversation logging and compliance
 
 ## Database File Location
@@ -101,7 +102,11 @@ CREATE TABLE IF NOT EXISTS api_keys (
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     adapter_name TEXT,
-    system_prompt_id TEXT
+    system_prompt_id TEXT,
+    quota_daily_limit INTEGER,
+    quota_monthly_limit INTEGER,
+    quota_throttle_enabled INTEGER,
+    quota_throttle_priority INTEGER
 )
 ```
 
@@ -114,6 +119,10 @@ CREATE TABLE IF NOT EXISTS api_keys (
 - `created_at` (TEXT): ISO format timestamp of creation
 - `adapter_name` (TEXT): Associated adapter name (optional)
 - `system_prompt_id` (TEXT): Associated system prompt ID (optional)
+- `quota_daily_limit` (INTEGER): Optional per-key daily quota override
+- `quota_monthly_limit` (INTEGER): Optional per-key monthly quota override
+- `quota_throttle_enabled` (INTEGER): Optional per-key throttling override (1=true, 0=false)
+- `quota_throttle_priority` (INTEGER): Optional per-key throttling priority override
 
 **Indexes:**
 - `idx_api_keys_api_key` on `api_key`
@@ -188,34 +197,6 @@ CREATE TABLE IF NOT EXISTS chat_history (
 
 ---
 
-### chat_history_archive
-
-Stores archived chat messages (same schema as chat_history).
-
-```sql
-CREATE TABLE IF NOT EXISTS chat_history_archive (
-    id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    timestamp TEXT NOT NULL,
-    user_id TEXT,
-    api_key TEXT,
-    metadata_json TEXT,
-    message_hash TEXT,
-    token_count INTEGER
-)
-```
-
-**Fields:** Same as `chat_history`
-
-**Indexes:**
-- `idx_chat_history_archive_session` on `(session_id, timestamp)`
-- `idx_chat_history_archive_user` on `(user_id, timestamp)`
-- `idx_chat_history_archive_timestamp` on `timestamp`
-
----
-
 ### conversation_threads
 
 Stores conversation thread metadata for follow-up questions on retrieved datasets from intent/QA adapters.
@@ -255,6 +236,86 @@ CREATE TABLE IF NOT EXISTS conversation_threads (
 
 ---
 
+### uploaded_files
+
+Stores uploaded file metadata for retrieval and file adapter workflows.
+
+```sql
+CREATE TABLE IF NOT EXISTS uploaded_files (
+    id TEXT PRIMARY KEY,
+    api_key TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    mime_type TEXT,
+    file_size INTEGER,
+    upload_timestamp TEXT,
+    processing_status TEXT,
+    storage_key TEXT,
+    chunk_count INTEGER DEFAULT 0,
+    vector_store TEXT,
+    collection_name TEXT,
+    storage_type TEXT DEFAULT 'vector',
+    metadata_json TEXT,
+    embedding_provider TEXT,
+    embedding_dimensions INTEGER,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Unique uploaded file ID (UUID)
+- `api_key` (TEXT): API key that uploaded the file
+- `filename` (TEXT): Original filename
+- `mime_type` (TEXT): File MIME type
+- `file_size` (INTEGER): File size in bytes
+- `upload_timestamp` (TEXT): Upload timestamp
+- `processing_status` (TEXT): Processing state for the file
+- `storage_key` (TEXT): Storage key for persisted file content
+- `chunk_count` (INTEGER): Number of generated chunks
+- `vector_store` (TEXT): Vector store backend name
+- `collection_name` (TEXT): Collection/index used for retrieval
+- `storage_type` (TEXT): Storage mode, defaults to `vector`
+- `metadata_json` (TEXT): JSON-encoded file metadata
+- `embedding_provider` (TEXT): Embedding provider used
+- `embedding_dimensions` (INTEGER): Embedding vector dimensions
+- `created_at` (TEXT): Creation timestamp
+
+**Indexes:**
+- `idx_uploaded_files_api_key` on `api_key`
+- `idx_uploaded_files_processing_status` on `processing_status`
+
+---
+
+### file_chunks
+
+Stores metadata for chunks produced from uploaded files.
+
+```sql
+CREATE TABLE IF NOT EXISTS file_chunks (
+    id TEXT PRIMARY KEY,
+    file_id TEXT NOT NULL,
+    chunk_index INTEGER,
+    vector_store_id TEXT,
+    collection_name TEXT,
+    chunk_metadata TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (file_id) REFERENCES uploaded_files(id)
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Unique chunk ID (UUID)
+- `file_id` (TEXT): Parent uploaded file ID
+- `chunk_index` (INTEGER): Chunk position within the file
+- `vector_store_id` (TEXT): Vector-store-specific chunk/document ID
+- `collection_name` (TEXT): Collection/index holding the chunk embedding
+- `chunk_metadata` (TEXT): Serialized chunk metadata
+- `created_at` (TEXT): Creation timestamp
+
+**Indexes:**
+- `idx_file_chunks_file_id` on `file_id`
+
+---
+
 ### audit_logs
 
 Stores audit trail records for conversation logging and compliance.
@@ -276,7 +337,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     api_key_value TEXT,
     api_key_timestamp TEXT,
     session_id TEXT,
-    user_id TEXT
+    user_id TEXT,
+    adapter_name TEXT
 )
 ```
 
@@ -297,6 +359,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `api_key_timestamp` (TEXT): ISO timestamp when API key was used
 - `session_id` (TEXT): Session identifier for the conversation
 - `user_id` (TEXT): User identifier (if authenticated)
+- `adapter_name` (TEXT): Adapter used to service the request
 
 **Indexes:**
 - `idx_audit_logs_timestamp` on `timestamp`
@@ -304,6 +367,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `idx_audit_logs_user_id` on `user_id`
 - `idx_audit_logs_blocked` on `blocked`
 - `idx_audit_logs_backend` on `backend`
+- `idx_audit_logs_adapter_name` on `adapter_name`
 
 **Configuration:**
 The audit storage backend is configured in `config/config.yaml`:
