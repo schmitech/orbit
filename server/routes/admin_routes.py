@@ -8,6 +8,8 @@ This module contains all admin-related endpoints including:
 """
 
 import logging
+import asyncio
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -33,6 +35,51 @@ logger = logging.getLogger(__name__)
 
 # Create the admin router
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _get_admin_jobs(request: Request) -> dict:
+    """Get or initialize the in-memory admin job store."""
+    jobs = getattr(request.app.state, 'admin_jobs', None)
+    if jobs is None:
+        jobs = {}
+        request.app.state.admin_jobs = jobs
+    return jobs
+
+
+def _create_admin_job(request: Request, job_type: str, target: Optional[str] = None) -> dict:
+    """Create an in-memory admin job record."""
+    jobs = _get_admin_jobs(request)
+    job_id = str(uuid.uuid4())
+    record = {
+        "job_id": job_id,
+        "type": job_type,
+        "target": target,
+        "status": "queued",
+        "message": "Queued",
+        "created_at": datetime.utcnow().isoformat() + "Z",
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+        "result": None,
+        "error": None,
+    }
+    jobs[job_id] = record
+
+    # Keep the in-memory store bounded.
+    if len(jobs) > 100:
+        oldest = sorted(jobs.values(), key=lambda item: item.get("created_at", ""))[:-100]
+        for item in oldest:
+            jobs.pop(item["job_id"], None)
+
+    return record
+
+
+def _update_admin_job(request: Request, job_id: str, **updates) -> None:
+    """Update an in-memory admin job record."""
+    jobs = _get_admin_jobs(request)
+    job = jobs.get(job_id)
+    if not job:
+        return
+    job.update(updates)
+    job["updated_at"] = datetime.utcnow().isoformat() + "Z"
 
 
 def get_api_key_service(request: Request):
@@ -470,6 +517,40 @@ async def get_adapter_info_alias(
     Alias for adapter info endpoint used by middleware proxies to reduce API key exposure.
     """
     return await _get_adapter_info_response(request, x_api_key)
+
+
+@admin_router.get("/adapters/capabilities")
+async def get_adapter_capabilities(
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """Return adapter capability metadata relevant to admin operations."""
+    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
+    if not adapter_manager:
+        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    if not adapter_manager:
+        raise HTTPException(status_code=503, detail="Adapter manager is not available")
+
+    try:
+        available_names = adapter_manager.get_available_adapters() if hasattr(adapter_manager, 'get_available_adapters') else []
+        base_manager = getattr(adapter_manager, 'base_adapter_manager', adapter_manager)
+        adapter_cache = getattr(base_manager, 'adapter_cache', None)
+
+        capabilities = []
+        for adapter_name in available_names:
+            adapter_config = adapter_manager.get_adapter_config(adapter_name) if hasattr(adapter_manager, 'get_adapter_config') else {}
+            adapter_instance = adapter_cache.get(adapter_name) if adapter_cache and adapter_cache.contains(adapter_name) else None
+            capabilities.append({
+                "name": adapter_name,
+                "adapter_type": (adapter_config or {}).get("adapter"),
+                "cached": bool(adapter_instance),
+                "supports_template_reload": bool(adapter_instance and hasattr(adapter_instance, 'reload_templates')),
+            })
+
+        return {"adapters": capabilities}
+    except Exception as e:
+        logger.error(f"Failed to get adapter capabilities: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get adapter capabilities: {str(e)}")
 
 
 @admin_router.post("/api-keys/{api_key_id}/prompt")
@@ -1059,6 +1140,40 @@ async def reload_adapters(
         )
 
 
+@admin_router.post("/reload-adapters/async")
+async def reload_adapters_async(
+    request: Request,
+    adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload"),
+    authorized: bool = Depends(admin_auth_check)
+):
+    """Start adapter reload as a background admin job."""
+    job = _create_admin_job(request, "reload_adapters", adapter_name)
+
+    async def run_job():
+        _update_admin_job(request, job["job_id"], status="running", message="Reloading adapters")
+        try:
+            result = await reload_adapters(request=request, adapter_name=adapter_name, authorized=authorized)
+            _update_admin_job(
+                request,
+                job["job_id"],
+                status="completed",
+                message=result.message,
+                result=result.model_dump() if hasattr(result, "model_dump") else result,
+            )
+        except HTTPException as exc:
+            _update_admin_job(request, job["job_id"], status="failed", message=str(exc.detail), error=str(exc.detail))
+        except Exception as exc:
+            logger.error(f"Async adapter reload failed: {exc}", exc_info=True)
+            _update_admin_job(request, job["job_id"], status="failed", message=str(exc), error=str(exc))
+
+    asyncio.create_task(run_job())
+    return {
+      "status": "accepted",
+      "job_id": job["job_id"],
+      "message": "Adapter reload started in background"
+    }
+
+
 # Template Hot Reload
 @admin_router.post("/reload-templates", response_model=TemplateReloadResponse)
 async def reload_templates(
@@ -1139,6 +1254,54 @@ async def reload_templates(
             status_code=500,
             detail=f"Failed to reload templates: {str(e)}"
         )
+
+
+@admin_router.post("/reload-templates/async")
+async def reload_templates_async(
+    request: Request,
+    adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload templates for"),
+    authorized: bool = Depends(admin_auth_check)
+):
+    """Start template reload as a background admin job."""
+    job = _create_admin_job(request, "reload_templates", adapter_name)
+
+    async def run_job():
+        _update_admin_job(request, job["job_id"], status="running", message="Reloading templates")
+        try:
+            result = await reload_templates(request=request, adapter_name=adapter_name, authorized=authorized)
+            _update_admin_job(
+                request,
+                job["job_id"],
+                status="completed",
+                message=result.message,
+                result=result.model_dump() if hasattr(result, "model_dump") else result,
+            )
+        except HTTPException as exc:
+            _update_admin_job(request, job["job_id"], status="failed", message=str(exc.detail), error=str(exc.detail))
+        except Exception as exc:
+            logger.error(f"Async template reload failed: {exc}", exc_info=True)
+            _update_admin_job(request, job["job_id"], status="failed", message=str(exc), error=str(exc))
+
+    asyncio.create_task(run_job())
+    return {
+      "status": "accepted",
+      "job_id": job["job_id"],
+      "message": "Template reload started in background"
+    }
+
+
+@admin_router.get("/jobs/{job_id}")
+async def get_admin_job_status(
+    job_id: str,
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """Get status for an async admin job."""
+    jobs = _get_admin_jobs(request)
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Admin job not found")
+    return job
 
 
 @admin_router.delete("/conversations/{session_id}")

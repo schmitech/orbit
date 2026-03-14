@@ -40,19 +40,19 @@
 #   qa-sql -> sql-key
 #   qa-vector-chroma -> chroma-key
 #   qa-vector-qdrant-demo -> demo-key (EXCLUDED: requires special Qdrant deployment)
-#   intent-sql-sqlite-hr -> hr
+#   intent-sql-sqlite-hr -> human-resources
 #   intent-sql-sqlite-classified -> classified
 #   intent-duckdb-analytics -> analytical
-#   intent-duckdb-ev-population -> ev
-#   intent-sql-postgres -> postgres
+#   intent-duckdb-ev-population -> electric-vehicle
+#   intent-sql-postgres -> postgres-customer-orders
 #   intent-elasticsearch-app-logs -> elasticsearch
 #   intent-firecrawl-webscrape -> web
-#   intent-mongodb-mflix -> mflix
-#   intent-http-jsonplaceholder -> rest
-#   intent-http-paris-opendata -> paris
-#   intent-graphql-spacex -> spacex
-#   intent-agent-example -> agent
-#   file-document-qa -> files
+#   intent-mongodb-mflix -> mongodb-mflix
+#   intent-http-jsonplaceholder -> rest-json-api
+#   intent-http-paris-opendata -> paris-opendata
+#   intent-graphql-spacex -> graphql-spacex
+#   intent-agent-example -> agent-example
+#   file-document-qa -> file-qa-example
 #   personaplex-assistant -> personaplex
 #   personaplex-customer-service -> personaplex-cs
 #   personaplex-language-tutor -> personaplex-tutor
@@ -448,19 +448,19 @@ declare -a all_adapters=(
     "qa-sql|sql-key|examples/prompts/examples/city/city-assistant-normal-prompt.md|SQL QA Prompt"
     "qa-vector-chroma|chroma-key|examples/prompts/examples/city/city-assistant-normal-prompt.md|Chroma QA Prompt"
     # "qa-vector-qdrant-demo|demo-key|..." excluded: requires special Qdrant deployment
-    "intent-sql-sqlite-hr|hr|examples/intent-templates/sql-intent-template/examples/sqlite/hr/hr-assistant-prompt.md|HR Assistant Prompt"
+    "intent-sql-sqlite-hr|human-resources|examples/intent-templates/sql-intent-template/examples/sqlite/hr/hr-assistant-prompt.md|HR Assistant Prompt"
     "intent-sql-sqlite-classified|classified|examples/intent-templates/sql-intent-template/examples/sqlite/classified-data/classified-data-assistant-prompt.md|Classified Data Assistant Prompt"
     "intent-duckdb-analytics|analytical|examples/intent-templates/duckdb-intent-template/examples/analytics/analytics-assistant-prompt.md|DuckDB Analytics Prompt"
-    "intent-duckdb-ev-population|ev|examples/intent-templates/duckdb-intent-template/examples/ev-population/ev-assistant-prompt.md|EV Population Prompt"
-    "intent-sql-postgres|postgres|examples/postgres/prompts/customer-assistant-enhanced-prompt.txt|PostgreSQL Customer Orders Prompt"
+    "intent-duckdb-ev-population|electric-vehicle|examples/intent-templates/duckdb-intent-template/examples/ev-population/ev-assistant-prompt.md|EV Population Prompt"
+    "intent-sql-postgres|postgres-customer-orders|examples/postgres/prompts/customer-assistant-enhanced-prompt.txt|PostgreSQL Customer Orders Prompt"
     "intent-elasticsearch-app-logs|elasticsearch|examples/intent-templates/elasticsearch-intent-template/elasticsearch-log-assistant-prompt.md|Elasticsearch Logs Prompt"
     "intent-firecrawl-webscrape|web|examples/intent-templates/firecrawl-intent-template/firecrawl-knowledge-assistant-prompt.md|Firecrawl Web Prompt"
-    "intent-mongodb-mflix|mflix|examples/intent-templates/mongodb-intent-template/mongodb-mflix-assistant-prompt.md|MongoDB MFlix Prompt"
-    "intent-http-jsonplaceholder|rest|examples/intent-templates/http-intent-template/examples/jsonplaceholder/jsonplaceholder-api-assistant-prompt.md|JSONPlaceholder API Prompt"
-    "intent-http-paris-opendata|paris|examples/intent-templates/http-intent-template/examples/paris-open-data/paris-assistant-prompt.txt|Paris Open Data Prompt"
-    "intent-graphql-spacex|spacex|examples/intent-templates/graphql-intent-template/spacex-graphql-assistant-prompt.md|SpaceX GraphQL Prompt"
-    "intent-agent-example|agent|examples/intent-templates/agent-template/agent-assistant-prompt.md|Agent Assistant Prompt"
-    "file-document-qa|files|examples/prompts/examples/default-file-adapter-prompt.md|File Document QA Prompt"
+    "intent-mongodb-mflix|mongodb-mflix|examples/intent-templates/mongodb-intent-template/mongodb-mflix-assistant-prompt.md|MongoDB MFlix Prompt"
+    "intent-http-jsonplaceholder|rest-json-api|examples/intent-templates/http-intent-template/examples/jsonplaceholder/jsonplaceholder-api-assistant-prompt.md|JSONPlaceholder API Prompt"
+    "intent-http-paris-opendata|paris-opendata|examples/intent-templates/http-intent-template/examples/paris-open-data/paris-assistant-prompt.txt|Paris Open Data Prompt"
+    "intent-graphql-spacex|graphql-spacex|examples/intent-templates/graphql-intent-template/spacex-graphql-assistant-prompt.md|SpaceX GraphQL Prompt"
+    "intent-agent-example|agent-example|examples/intent-templates/agent-template/agent-assistant-prompt.md|Agent Assistant Prompt"
+    "file-document-qa|file-qa-example|examples/prompts/examples/default-file-adapter-prompt.md|File Document QA Prompt"
     "math-teacher-quadratic-files|math-teacher-quadratic|examples/prompts/examples/math-teacher-quadratic/math-teacher-quadratic-prompt.md|Math Teacher Quadratic Prompt"
     "personaplex-assistant|personaplex|examples/prompts/audio/personaplex-assistant-prompt.md|PersonaPlex Voice Assistant Prompt"
     "personaplex-customer-service|personaplex-cs|examples/prompts/audio/personaplex-customer-service-prompt.md|PersonaPlex Customer Service Prompt"

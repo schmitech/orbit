@@ -13,6 +13,7 @@
 
   // Cached data
   let cachedAdapters = null;
+  let cachedAdapterCapabilities = null;
   let cachedPrompts = null;
   let cachedKeys = null;
 
@@ -124,6 +125,10 @@
 
   function wrapTable(table) {
     return el("div", { className: "table-wrap" }, table);
+  }
+
+  function sleep(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
 
   function debounce(fn, delay) {
@@ -295,9 +300,11 @@
     var previousFocus = document.activeElement;
     var titleId = "dialog-title-" + Date.now();
     var descId = "dialog-desc-" + Date.now();
+    var inFlight = false;
     var backdrop = el("div", { className: "dialog-backdrop" });
     var cancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
     var confirmBtn = el("button", { className: isDanger ? "danger" : "", type: "button" }, confirmLabel || "Confirm");
+    var defaultConfirmContent = confirmBtn.textContent;
     var bodyChildren = [
       el("h2", { id: titleId }, title),
       el("p", { id: descId }, message),
@@ -316,22 +323,41 @@
     (isDanger ? cancelBtn : confirmBtn).focus();
 
     function close() {
+      if (inFlight) return;
       document.removeEventListener("keydown", handler);
       backdrop.remove();
       if (previousFocus && previousFocus.focus) previousFocus.focus();
     }
     cancelBtn.addEventListener("click", close);
     confirmBtn.addEventListener("click", async function () {
+      if (inFlight) return;
+      inFlight = true;
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      if (confirmBtn.dataset.loadingLabel) {
+        clear(confirmBtn);
+        confirmBtn.appendChild(el("span", { className: "button-spinner", "aria-hidden": "true" }));
+        confirmBtn.appendChild(el("span", null, confirmBtn.dataset.loadingLabel));
+      }
       try {
         await onConfirm();
+        inFlight = false;
         close();
       } catch (err) {
+        inFlight = false;
+        confirmBtn.disabled = false;
+        cancelBtn.disabled = false;
+        clear(confirmBtn);
+        confirmBtn.appendChild(document.createTextNode(defaultConfirmContent));
         showError(err.message);
       }
     });
-    backdrop.addEventListener("click", function (e) { if (e.target === backdrop) close(); });
+    backdrop.addEventListener("click", function (e) {
+      if (inFlight) return;
+      if (e.target === backdrop) close();
+    });
     function handler(e) {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape" && !inFlight) close();
       if (e.key === "Tab") trapFocus(e, dialog);
     }
     document.addEventListener("keydown", handler);
@@ -339,6 +365,11 @@
 
   function confirmAction(options) {
     confirmDialog(options.title, options.message, options.onConfirm, options.confirmLabel, !!options.isDanger);
+    var dialogs = document.querySelectorAll(".confirm-dialog .dialog-actions button:last-child");
+    var confirmBtn = dialogs[dialogs.length - 1];
+    if (confirmBtn && options.loadingLabel) {
+      confirmBtn.dataset.loadingLabel = options.loadingLabel;
+    }
   }
 
   function requireTypedConfirmation(options) {
@@ -1379,6 +1410,7 @@
     clear(panel);
     panel.appendChild(el("h2", null, "Selected User"));
     panel.appendChild(el("p", { className: "muted" }, "Managing " + user.username));
+    var isCurrentUser = !!(currentUser && currentUser.id && user && user.id && currentUser.id === user.id);
 
     var summary = el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "ID:"), " " + (user.id || "N/A")),
@@ -1392,28 +1424,35 @@
     panel.appendChild(summary);
 
     // Activate / Deactivate
-    var toggleBtn = el("button", { className: "secondary", type: "button" },
-      user.active !== false ? "Deactivate User" : "Activate User"
-    );
-    toggleBtn.addEventListener("click", async function () {
-      var action = user.active !== false ? "deactivate" : "activate";
-      confirmAction({
-        title: (action === "deactivate" ? "Deactivate" : "Activate") + " User",
-        message: "Are you sure you want to " + action + " " + user.username + "?",
-        confirmLabel: action === "deactivate" ? "Deactivate" : "Activate",
-        onConfirm: async function () {
-          toggleBtn.disabled = true;
-          try {
-            await api("POST", "/auth/users/" + encodeURIComponent(user.id) + "/" + action);
-            showStatus("User " + action + "d");
-            onRefresh();
-          } finally {
-            toggleBtn.disabled = false;
+    if (isCurrentUser) {
+      panel.appendChild(el("div", { className: "danger-zone" },
+        el("p", null, "The account currently used for this admin session cannot be deactivated or deleted here."),
+        el("p", { className: "muted" }, "Use My Account to change your own password.")
+      ));
+    } else {
+      var toggleBtn = el("button", { className: "secondary", type: "button" },
+        user.active !== false ? "Deactivate User" : "Activate User"
+      );
+      toggleBtn.addEventListener("click", async function () {
+        var action = user.active !== false ? "deactivate" : "activate";
+        confirmAction({
+          title: (action === "deactivate" ? "Deactivate" : "Activate") + " User",
+          message: "Are you sure you want to " + action + " " + user.username + "?",
+          confirmLabel: action === "deactivate" ? "Deactivate" : "Activate",
+          onConfirm: async function () {
+            toggleBtn.disabled = true;
+            try {
+              await api("POST", "/auth/users/" + encodeURIComponent(user.id) + "/" + action);
+              showStatus("User " + action + "d");
+              onRefresh();
+            } finally {
+              toggleBtn.disabled = false;
+            }
           }
-        }
+        });
       });
-    });
-    panel.appendChild(toggleBtn);
+      panel.appendChild(toggleBtn);
+    }
 
     // Reset password
     panel.appendChild(el("h3", null, "Reset Password"));
@@ -1441,25 +1480,27 @@
     panel.appendChild(el("div", { className: "inline-form" }, passwordField("New password", newPwInput), resetBtn));
 
     // Delete
-    panel.appendChild(el("h3", null, "Danger Zone"));
-    var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete User");
-    deleteBtn.addEventListener("click", function () {
-      requireTypedConfirmation({
-        title: "Delete User",
-        message: 'Delete user "' + user.username + '"? This cannot be undone.',
-        expectedText: user.username,
-        confirmLabel: "Delete",
-        onConfirm: async function () {
-          await api("DELETE", "/auth/users/" + encodeURIComponent(user.id));
-          showStatus("User deleted");
-          onRefresh();
-        }
+    if (!isCurrentUser) {
+      panel.appendChild(el("h3", null, "Danger Zone"));
+      var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete User");
+      deleteBtn.addEventListener("click", function () {
+        requireTypedConfirmation({
+          title: "Delete User",
+          message: 'Delete user "' + user.username + '"? This cannot be undone.',
+          expectedText: user.username,
+          confirmLabel: "Delete",
+          onConfirm: async function () {
+            await api("DELETE", "/auth/users/" + encodeURIComponent(user.id));
+            showStatus("User deleted");
+            onRefresh();
+          }
+        });
       });
-    });
-    panel.appendChild(el("div", { className: "danger-zone" },
-      el("p", null, "Destructive actions affect account access immediately."),
-      deleteBtn
-    ));
+      panel.appendChild(el("div", { className: "danger-zone" },
+        el("p", null, "Destructive actions affect account access immediately."),
+        deleteBtn
+      ));
+    }
   }
 
   // ==================================================================
@@ -1628,6 +1669,33 @@
       cachedKeys = [];
     }
     return cachedKeys;
+  }
+
+  async function loadAdapterCapabilities() {
+    try {
+      var result = await api("GET", "/admin/adapters/capabilities");
+      cachedAdapterCapabilities = (result && result.adapters) || [];
+    } catch (_) {
+      cachedAdapterCapabilities = [];
+    }
+    return cachedAdapterCapabilities;
+  }
+
+  async function waitForAdminJob(jobId, startedMessage) {
+    if (startedMessage) showStatus(startedMessage);
+    var attempts = 0;
+    while (attempts < 240) {
+      attempts += 1;
+      var job = await api("GET", "/admin/jobs/" + encodeURIComponent(jobId));
+      if (job.status === "completed") {
+        return job;
+      }
+      if (job.status === "failed") {
+        throw new Error(job.error || job.message || "Background job failed");
+      }
+      await sleep(1500);
+    }
+    throw new Error("Background job timed out");
   }
 
   function fillKeySelect(select, keys, selectedKeyId) {
@@ -2366,10 +2434,10 @@
   // TAB: Ops
   // ==================================================================
   function renderOps(container) {
-    if (!cachedAdapters) {
+    if (!cachedAdapterCapabilities) {
       clear(container);
       container.appendChild(el("div", { className: "panel" }, el("h2", null, "Ops"), skeleton()));
-      loadAdaptersAndPrompts().then(function () {
+      loadAdapterCapabilities().then(function () {
         if (document.body.contains(container)) renderOps(container);
       });
       return;
@@ -2382,10 +2450,37 @@
 
     // Reload section
     var filterSelect = el("select", null, el("option", { value: "" }, "All adapters"));
-    if (cachedAdapters && cachedAdapters.length) {
-      cachedAdapters.forEach(function (adapterName) {
-        filterSelect.appendChild(el("option", { value: adapterName }, adapterName));
+    if (cachedAdapterCapabilities && cachedAdapterCapabilities.length) {
+      cachedAdapterCapabilities.forEach(function (adapterInfo) {
+        filterSelect.appendChild(el("option", { value: adapterInfo.name }, adapterInfo.name));
       });
+    }
+    var reloadHint = el("p", { className: "muted" }, "Template reload applies only to cached adapters that support template libraries.");
+
+    function selectedAdapterCapability() {
+      if (!filterSelect.value) return null;
+      return (cachedAdapterCapabilities || []).find(function (adapterInfo) {
+        return adapterInfo.name === filterSelect.value;
+      }) || null;
+    }
+
+    function syncReloadControls() {
+      var selectedAdapter = selectedAdapterCapability();
+      reloadAdaptersBtn.textContent = selectedAdapter ? "Reload Adapter" : "Reload Adapters";
+      if (!selectedAdapter) {
+        reloadTemplatesBtn.disabled = false;
+        reloadHint.textContent = "Template reload applies only to cached adapters that support template libraries.";
+        return;
+      }
+      var templatesAvailable = !!selectedAdapter.supports_template_reload;
+      reloadTemplatesBtn.disabled = !templatesAvailable;
+      if (!selectedAdapter.cached) {
+        reloadHint.textContent = "Template reload is unavailable because this adapter is not currently cached.";
+      } else if (!templatesAvailable) {
+        reloadHint.textContent = "Template reload is unavailable for this adapter type.";
+      } else {
+        reloadHint.textContent = "Reload templates only for " + selectedAdapter.name + ".";
+      }
     }
 
     var reloadAdaptersBtn = el("button", { className: "secondary", type: "button" }, "Reload Adapters");
@@ -2394,13 +2489,19 @@
         title: "Reload Adapters",
         message: "Reload adapter configuration" + (filterSelect.value ? " for " + filterSelect.value : "") + "?",
         confirmLabel: "Reload",
+        loadingLabel: filterSelect.value ? "Reloading Adapter..." : "Reloading Adapters...",
         onConfirm: async function () {
           reloadAdaptersBtn.disabled = true;
           try {
             var path = "/admin/reload-adapters";
             var f = filterSelect.value;
+            path += "/async";
             if (f) path += "?adapter_name=" + encodeURIComponent(f);
-            var result = await api("POST", path);
+            var started = await api("POST", path);
+            var job = await waitForAdminJob(started.job_id, started.message);
+            var result = job.result || {};
+            await loadAdapterCapabilities();
+            syncReloadControls();
             showStatus("Adapters reloaded: " + (result.message || "OK"));
           } finally {
             reloadAdaptersBtn.disabled = false;
@@ -2415,13 +2516,19 @@
         title: "Reload Templates",
         message: "Reload templates" + (filterSelect.value ? " for " + filterSelect.value : "") + "?",
         confirmLabel: "Reload",
+        loadingLabel: filterSelect.value ? "Reloading Templates..." : "Reloading Templates...",
         onConfirm: async function () {
           reloadTemplatesBtn.disabled = true;
           try {
             var path = "/admin/reload-templates";
             var f = filterSelect.value;
+            path += "/async";
             if (f) path += "?adapter_name=" + encodeURIComponent(f);
-            var result = await api("POST", path);
+            var started = await api("POST", path);
+            var job = await waitForAdminJob(started.job_id, started.message);
+            var result = job.result || {};
+            await loadAdapterCapabilities();
+            syncReloadControls();
             showStatus("Templates reloaded: " + (result.message || "OK"));
           } finally {
             reloadTemplatesBtn.disabled = false;
@@ -2429,6 +2536,8 @@
         }
       });
     });
+    filterSelect.addEventListener("change", syncReloadControls);
+    syncReloadControls();
 
     // Server control
     var restartBtn = el("button", { className: "secondary", type: "button" }, "Restart Server");
@@ -2487,6 +2596,7 @@
     actionBar.appendChild(restartBtn);
     actionBar.appendChild(shutdownBtn);
     container.appendChild(actionBar);
+    container.appendChild(reloadHint);
 
     // --- Log viewer: full-width terminal-style panel ---
     var logLevelFilter = "all";

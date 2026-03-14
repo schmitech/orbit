@@ -626,6 +626,16 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.button-spinner {
+  width: 0.95rem;
+  height: 0.95rem;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: rgba(255, 255, 255, 1);
+  border-radius: 50%;
+  display: inline-block;
+  animation: buttonSpin 0.7s linear infinite;
+}
+
 button.danger {
   background: var(--danger-500);
 }
@@ -1198,6 +1208,9 @@ tbody tr:nth-child(even) {
 @keyframes overlayFadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+@keyframes buttonSpin {
+  to { transform: rotate(360deg); }
 }
 .server-overlay-card {
   text-align: center;
