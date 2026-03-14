@@ -87,6 +87,16 @@ If Ollama runs on your host (e.g. port 11434), add `-e OLLAMA_HOST=host.docker.i
 
 ---
 
+### 🖥️ Admin Panel
+
+ORBIT ships with a built-in admin panel for managing users, API keys, personas, and live server monitoring — all from your browser at `/admin`.
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/57ddaca1-2587-449b-a273-4d70e51f1172" controls muted playsinline width="800"></video>
+</p>
+
+---
+
 ### 🚀 Key Capabilities
 
 *   **Unified API:** Switch OpenAI, Anthropic, Gemini, Groq, or local models (Ollama/vLLM) by config.
