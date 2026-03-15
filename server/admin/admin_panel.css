@@ -424,6 +424,10 @@ textarea {
 .markdown-preview-header {
   padding: var(--sp-2) var(--sp-3);
   border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -436,6 +440,22 @@ textarea {
   min-height: 212px;
   color: var(--ink);
   overflow-wrap: anywhere;
+}
+
+.markdown-preview-toggle {
+  min-height: 32px;
+  padding: 0.35rem 0.75rem;
+  font-size: var(--text-xs);
+}
+
+.markdown-preview-collapsed {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.markdown-preview-expanded {
+  max-height: none;
+  overflow: visible;
 }
 
 .markdown-preview.is-empty,

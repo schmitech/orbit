@@ -1794,36 +1794,70 @@
   }
 
   function createMarkdownPreview(textarea) {
+    var toggleBtn = el("button", {
+      className: "secondary markdown-preview-toggle",
+      type: "button",
+      style: "display:none"
+    }, "Expand");
     var frame = el("div", { className: "markdown-preview-shell" },
-      el("div", { className: "markdown-preview-header" }, "Preview"),
-      el("div", { className: "markdown-preview is-empty", "aria-live": "polite" },
+      el("div", { className: "markdown-preview-header" },
+        el("span", null, "Preview"),
+        toggleBtn
+      ),
+      el("div", { className: "markdown-preview markdown-preview-collapsed is-empty", "aria-live": "polite" },
         el("p", { className: "muted" }, "Nothing to preview yet.")
       )
     );
     var body = frame.querySelector(".markdown-preview");
     var requestToken = 0;
+    var expanded = false;
+
+    function syncPreviewToggle() {
+      requestAnimationFrame(function () {
+        var needsToggle = body.scrollHeight > 320;
+        toggleBtn.style.display = needsToggle ? "inline-flex" : "none";
+        if (!needsToggle) {
+          expanded = false;
+          body.classList.remove("markdown-preview-expanded");
+          body.classList.add("markdown-preview-collapsed");
+          toggleBtn.textContent = "Expand";
+        }
+      });
+    }
+
+    toggleBtn.addEventListener("click", function () {
+      expanded = !expanded;
+      body.classList.toggle("markdown-preview-expanded", expanded);
+      body.classList.toggle("markdown-preview-collapsed", !expanded);
+      toggleBtn.textContent = expanded ? "Collapse" : "Expand";
+    });
 
     async function renderPreview() {
       var text = textarea.value.trim();
       if (!text) {
-        body.className = "markdown-preview is-empty";
+        expanded = false;
+        body.className = "markdown-preview markdown-preview-collapsed is-empty";
         body.innerHTML = '<p class="muted">Nothing to preview yet.</p>';
+        toggleBtn.style.display = "none";
         return;
       }
 
       var token = ++requestToken;
-      body.className = "markdown-preview is-loading";
+      body.className = "markdown-preview markdown-preview-collapsed is-loading";
       body.innerHTML = '<p class="muted">Rendering preview...</p>';
+      toggleBtn.style.display = "none";
 
       try {
         var result = await api("POST", ENDPOINTS.renderMarkdown, { markdown: text });
         if (token !== requestToken) return;
-        body.className = "markdown-preview";
+        body.className = "markdown-preview markdown-preview-collapsed";
         body.innerHTML = result && result.html ? result.html : "<p></p>";
+        syncPreviewToggle();
       } catch (err) {
         if (token !== requestToken) return;
-        body.className = "markdown-preview is-error";
+        body.className = "markdown-preview markdown-preview-collapsed is-error";
         body.textContent = "Preview unavailable: " + err.message;
+        toggleBtn.style.display = "none";
       }
     }
 

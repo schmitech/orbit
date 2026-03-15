@@ -128,7 +128,7 @@ class InferenceServer:
             lifespan=self._create_lifespan_manager(),
             default_response_class=ORJSONResponse  # Fast JSON serialization
         )
-        self.app.mount("/static", StaticFiles(directory="server/templates"), name="static")
+        self.app.mount("/static", StaticFiles(directory="server/admin"), name="static")
         
         # Initialize application state
         self.services = {}

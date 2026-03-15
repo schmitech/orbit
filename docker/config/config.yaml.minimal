@@ -180,9 +180,19 @@ files:
     markitdown_enabled: false
     processor_priority: "docling"
 
-# DISABLED - Reduces overhead (enable if you need dashboard)
 monitoring:
-  enabled: false
+  enabled: true                    # Enable/disable monitoring
+  metrics:
+    collection_interval: 5         # Seconds between metric collections
+    time_window: 300              # Seconds of historical data to keep (5 minutes)
+    prometheus:
+      enabled: true               # Enable Prometheus endpoint at /metrics
+    websocket_update_interval: 5 # Seconds between WebSocket updates
+  alerts:                         # Alert thresholds (future use)
+    cpu_threshold: 90             # Alert when CPU > 90%
+    memory_threshold: 85          # Alert when memory > 85%
+    error_rate_threshold: 5       # Alert when error rate > 5%
+    response_time_threshold: 5000 # Alert when avg response time > 5000ms
 
 security:
   cors:
@@ -205,7 +215,7 @@ security:
 
   headers:
     enabled: true
-    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; frame-ancestors 'self'"
+    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
     strict_transport_security: "max-age=31536000; includeSubDomains"
     x_content_type_options: "nosniff"
     x_frame_options: "SAMEORIGIN"

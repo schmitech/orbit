@@ -15,7 +15,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
+ADMIN_DIR = Path(__file__).parent.parent / "admin"
 
 _login_template_cache = None
 _login_template_mtime: Optional[float] = None
@@ -24,7 +24,7 @@ _login_template_mtime: Optional[float] = None
 def load_login_template() -> str:
     """Load the login template with simple change detection."""
     global _login_template_cache, _login_template_mtime
-    template_path = TEMPLATE_DIR / "admin_login.html"
+    template_path = ADMIN_DIR / "admin_login.html"
     try:
         current_mtime = template_path.stat().st_mtime
     except FileNotFoundError:

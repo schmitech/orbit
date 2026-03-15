@@ -18,7 +18,7 @@ from routes.auth_helpers import get_admin_user, render_login_html
 
 logger = logging.getLogger(__name__)
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
+ADMIN_DIR = Path(__file__).parent.parent / "admin"
 
 _admin_panel_html_cache: Optional[str] = None
 _admin_panel_template_mtime: Optional[float] = None
@@ -29,7 +29,7 @@ def _load_admin_panel_template() -> str:
     """Load admin panel HTML template with mtime-based caching."""
     global _admin_panel_html_cache, _admin_panel_template_mtime, _admin_panel_static_versions
 
-    template_path = TEMPLATE_DIR / "admin_panel.html"
+    template_path = ADMIN_DIR / "admin_panel.html"
     try:
         current_mtime = template_path.stat().st_mtime
     except FileNotFoundError:
@@ -37,8 +37,8 @@ def _load_admin_panel_template() -> str:
         return "<h1>Admin panel template missing</h1>"
 
     static_files = {
-        "{{ADMIN_PANEL_CSS_VERSION}}": TEMPLATE_DIR / "admin_panel.css",
-        "{{ADMIN_PANEL_JS_VERSION}}": TEMPLATE_DIR / "admin_panel.js",
+        "{{ADMIN_PANEL_CSS_VERSION}}": ADMIN_DIR / "admin_panel.css",
+        "{{ADMIN_PANEL_JS_VERSION}}": ADMIN_DIR / "admin_panel.js",
     }
 
     reload_required = (
