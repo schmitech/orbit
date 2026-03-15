@@ -133,11 +133,16 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     setValidationError(null);
   }, [currentConversationId]);
 
-  const conversationsWithHistory = conversations.filter(conv => conv.messages.length > 0 && !conv.adapterLoadError);
+  const conversationsWithHistory = conversations.filter(
+    conv => (conv.messages.length > 0 || (conv.attachedFiles?.length || 0) > 0) && !conv.adapterLoadError
+  );
   const filteredConversations = conversationsWithHistory.filter(conv =>
     conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     conv.messages.some(msg => 
       msg.content.toLowerCase().includes(searchQuery.toLowerCase())
+    ) ||
+    (conv.attachedFiles || []).some(file =>
+      file.filename.toLowerCase().includes(searchQuery.toLowerCase())
     )
   );
   const visibleConversations = conversationsWithHistory.length > 0 ? filteredConversations : [];

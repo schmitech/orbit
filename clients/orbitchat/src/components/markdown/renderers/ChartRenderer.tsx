@@ -890,24 +890,48 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   };
   
   const labelAnalysis = analyzeLabelLengths();
-  const shouldRotateLabels = isCategoryXAxis && dataPointCount > 6;
-  // Only truncate if we have many data points AND labels are actually long
-  const shouldTruncateLabels = isCategoryXAxis && dataPointCount > 4 && labelAnalysis.avgLength > 15;
-  const maxLabelLength = shouldTruncateLabels ? (dataPointCount > 10 ? 12 : 20) : Infinity;
+  const estimatedCategorySlotWidth =
+    isCategoryXAxis && dataPointCount > 0
+      ? Math.max((intrinsicChartWidth - 48) / dataPointCount, 0)
+      : 0;
+  const labelsNeedCompaction =
+    isCategoryXAxis &&
+    (estimatedCategorySlotWidth < 84 ||
+      (estimatedCategorySlotWidth < 108 && labelAnalysis.maxLength > 12));
+  const shouldRotateLabels =
+    isCategoryXAxis && (dataPointCount > 6 || (labelAnalysis.maxLength > 12 && estimatedCategorySlotWidth < 96));
+  // Truncate when the slot width is too narrow or the labels are long enough to crowd the axis.
+  const shouldTruncateLabels =
+    isCategoryXAxis &&
+    (labelsNeedCompaction || (dataPointCount > 4 && labelAnalysis.avgLength > 15));
+  const maxCharsPerLabel = estimatedCategorySlotWidth > 0
+    ? Math.max(Math.floor(estimatedCategorySlotWidth / 7), 8)
+    : Infinity;
+  const maxLabelLength = shouldTruncateLabels
+    ? Math.min(dataPointCount > 10 ? 12 : 20, maxCharsPerLabel)
+    : Infinity;
   const labelLengthForSizing = shouldTruncateLabels
     ? (dataPointCount > 10 ? 12 : 20)
     : labelAnalysis.maxLength || 0;
   
   // Calculate interval to show fewer labels when there are many
   // With rotated labels, we can show more labels before needing intervals
-  const calculateInterval = (count: number): number => {
+  const calculateInterval = (count: number, slotWidth: number, maxLength: number): number => {
+    if (slotWidth > 0 && (slotWidth < 68 || (slotWidth < 84 && maxLength > 14))) {
+      return 1;
+    }
+    if (slotWidth > 0 && slotWidth < 56) {
+      return 2;
+    }
     if (count <= 12) return 0; // Show all labels (common case like 12 months)
     if (count <= 16) return 1; // Show every other label
     if (count <= 24) return Math.floor(count / 12); // Show ~12 labels
     return Math.floor(count / 15); // Show ~15 labels max for very large datasets
   };
   
-  const labelInterval = isCategoryXAxis ? calculateInterval(dataPointCount) : 0;
+  const labelInterval = isCategoryXAxis
+    ? calculateInterval(dataPointCount, estimatedCategorySlotWidth, labelAnalysis.maxLength)
+    : 0;
 
   const estimateTickLabelHeight = () => {
     if (!isCategoryXAxis || dataPointCount === 0) return 24;
@@ -935,6 +959,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     interval: labelInterval as number,
     allowDuplicatedCategory: false,
     padding: { left: 16, right: 16 },
+    minTickGap: shouldRotateLabels ? 4 : 12,
     angle: shouldRotateLabels ? -45 : 0,
     textAnchor: shouldRotateLabels ? 'end' as const : 'middle' as const,
     height: xAxisHeight,

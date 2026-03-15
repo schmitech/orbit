@@ -61,6 +61,7 @@ export function Message({
   const prevThreadReplyCountRef = useRef(0);
   const prevThreadContentRef = useRef<string>('');
   const shouldAutoScrollThreadRef = useRef(true);
+  const prevIsSendingThreadMessageRef = useRef(false);
 
   const isAssistant = message.role === 'assistant';
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
@@ -270,10 +271,20 @@ export function Message({
 
   useEffect(() => {
     if (!isThreadOpen || threadComposerDisabled) {
+      prevIsSendingThreadMessageRef.current = isSendingThreadMessage;
       return;
     }
     const textarea = threadTextareaRef.current;
     if (!textarea) {
+      prevIsSendingThreadMessageRef.current = isSendingThreadMessage;
+      return;
+    }
+
+    const shouldFocusThreadComposer =
+      pendingThreadFocusRef.current || prevIsSendingThreadMessageRef.current;
+
+    if (!shouldFocusThreadComposer) {
+      prevIsSendingThreadMessageRef.current = isSendingThreadMessage;
       return;
     }
 
@@ -290,9 +301,13 @@ export function Message({
       const caretPos = textarea.value.length;
       textarea.setSelectionRange(caretPos, caretPos);
       pendingThreadFocusRef.current = false;
+      prevIsSendingThreadMessageRef.current = isSendingThreadMessage;
     });
 
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      prevIsSendingThreadMessageRef.current = isSendingThreadMessage;
+    };
   }, [isThreadOpen, threadComposerDisabled, isSendingThreadMessage]);
 
   useEffect(() => {

@@ -420,7 +420,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       throw new Error(limitMessage);
     }
 
-    if (currentConversation && currentConversation.messages.length === 0) {
+    const currentConversationHasContent = !!currentConversation && (
+      currentConversation.messages.length > 0 ||
+      (currentConversation.attachedFiles?.length || 0) > 0
+    );
+
+    if (currentConversation && !currentConversationHasContent) {
       const emptyMessage = 'Finish or delete the current conversation before starting a new one.';
       set({ error: emptyMessage });
       throw new Error(emptyMessage);
@@ -1818,8 +1823,13 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     // Find current conversation
     const currentConversation = state.conversations.find(conv => conv.id === state.currentConversationId);
     
-    // If current conversation has messages, allow creation (if under limit)
-    if (currentConversation && currentConversation.messages.length > 0) {
+    const currentConversationHasContent = !!currentConversation && (
+      currentConversation.messages.length > 0 ||
+      (currentConversation.attachedFiles?.length || 0) > 0
+    );
+
+    // If current conversation has messages or files, allow creation (if under limit)
+    if (currentConversationHasContent) {
       return maxConversations === null || state.conversations.length < maxConversations;
     }
     

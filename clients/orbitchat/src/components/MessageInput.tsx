@@ -354,6 +354,7 @@ export function MessageInput({
 
   // Check if any files are currently uploading or processing
   const conversationFiles = currentConversation?.attachedFiles || [];
+  const visibleAttachedFiles = currentConversationId ? conversationFiles : attachedFiles;
   const totalFilesAcrossConversations = conversations.reduce(
     (total, conv) => total + (conv.attachedFiles?.length || 0),
     0
@@ -373,15 +374,7 @@ export function MessageInput({
   
   // Check if any attached files are still processing
   // Include files with undefined status (still uploading), 'uploading', or 'processing' status
-  const hasProcessingFiles = attachedFiles.some(file => {
-    if (!file.processing_status) {
-      // File doesn't have status yet - likely still uploading
-      return true;
-    }
-    return file.processing_status !== 'completed' && 
-           file.processing_status !== 'error' &&
-           file.processing_status !== 'failed';
-  }) || conversationFiles.some(file => {
+  const hasProcessingFiles = visibleAttachedFiles.some(file => {
     if (!file.processing_status) {
       // File doesn't have status yet - likely still uploading
       return true;
@@ -393,6 +386,7 @@ export function MessageInput({
 
   const isUploading = currentConversationId ? !!conversationUploadingState[currentConversationId] : false;
   const hasAnyUploadingConversations = Object.values(conversationUploadingState).some(Boolean);
+  const hasTypedMessage = message.trim().length > 0;
 
   // Disable input if files are uploading, processing, or if already disabled
   const messageLimitActive = conversationMessageLimitReached || workspaceMessageLimitReached;
@@ -543,11 +537,11 @@ export function MessageInput({
   // Re-open upload area when upload completes (if user wants to upload more)
   // Only reopen if no files are attached yet (otherwise user probably doesn't need it)
   useEffect(() => {
-    if (!isUploading && attachedFiles.length === 0 && !showFileUpload) {
+    if (!isUploading && visibleAttachedFiles.length === 0 && !showFileUpload) {
       // Upload completed and no files attached - could reopen if needed
       // But we'll keep it closed by default and let user click icon to reopen
     }
-  }, [isUploading, attachedFiles.length, showFileUpload]);
+  }, [isUploading, showFileUpload, visibleAttachedFiles.length]);
 
   const syncFilesWithConversation = useCallback((files: FileAttachment[], targetConversationId?: string | null) => {
     setTimeout(() => {
@@ -728,7 +722,7 @@ export function MessageInput({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if ((message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing) {
+    if (hasTypedMessage && !isInputDisabled && !isComposing) {
       // Stop listening if still active
       if (isListening) {
         stopListening();
@@ -1401,7 +1395,7 @@ export function MessageInput({
                   onMouseEnter={() => setIsHoveringUpload(true)}
                   onMouseLeave={() => setIsHoveringUpload(false)}
                   className={`flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
-                    showFileUpload || attachedFiles.length > 0
+                    showFileUpload || visibleAttachedFiles.length > 0
                       ? 'bg-gray-200 text-[#353740] dark:bg-[#565869] dark:text-[#ececf1]'
                       : isFileUploadDisabled
                       ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
@@ -1416,8 +1410,8 @@ export function MessageInput({
                       ? `Workspace limit of ${AppConfig.maxTotalFiles} total files reached. Remove files from other conversations first.`
                       : isInputDisabled
                       ? 'Files are uploading/processing. Please wait...'
-                      : attachedFiles.length > 0
-                      ? `${attachedFiles.length} file(s) attached`
+                      : visibleAttachedFiles.length > 0
+                      ? `${visibleAttachedFiles.length} file(s) attached`
                       : 'Attach files'
                   }
                   aria-label="Attach files"
@@ -1522,9 +1516,9 @@ export function MessageInput({
               ) : (
                 <button
                   type="submit"
-                  disabled={(!message.trim() && attachedFiles.length === 0) || isInputDisabled || isComposing}
+                  disabled={!hasTypedMessage || isInputDisabled || isComposing}
                   className={`flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
-                    (message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing
+                    hasTypedMessage && !isInputDisabled && !isComposing
                       ? 'bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200'
                       : 'bg-gray-300 text-gray-500 dark:bg-[#565869] dark:text-[#6b6f7a]'
                   }`}
@@ -1538,9 +1532,9 @@ export function MessageInput({
           </div>
         </div>
 
-        {attachedFiles.length > 0 && (
+        {visibleAttachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {attachedFiles.map((file) => {
+            {visibleAttachedFiles.map((file) => {
               const isProcessing = !file.processing_status || 
                 file.processing_status === 'processing' || 
                 file.processing_status === 'uploading';

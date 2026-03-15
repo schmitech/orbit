@@ -44,6 +44,10 @@ export function useChatAgentSelection({
   const adapterInfoLoadedRef = useRef<string | null>(null);
   const adapterInfoRetryTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const adapterInfoRateLimitCooldownMs = 30000;
+  const currentConversationHasDraftContent = !!currentConversation && (
+    currentConversation.messages.length > 0 ||
+    (currentConversation.attachedFiles?.length || 0) > 0
+  );
 
   const persistChatState = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -267,11 +271,24 @@ export function useChatAgentSelection({
     }
 
     const conversationId = currentConversation?.id || null;
+    const shouldShowSelectionForConversation =
+      !currentConversation?.adapterName && !currentConversationHasDraftContent;
     if (agentSelectionConversationRef.current !== conversationId) {
       agentSelectionConversationRef.current = conversationId;
-      setIsAgentSelectionVisible(true);
+      setIsAgentSelectionVisible(shouldShowSelectionForConversation);
+      return;
     }
-  }, [showEmptyState, currentConversation?.id, isAgentSelectionVisible]);
+
+    if (isAgentSelectionVisible !== shouldShowSelectionForConversation) {
+      setIsAgentSelectionVisible(shouldShowSelectionForConversation);
+    }
+  }, [
+    showEmptyState,
+    currentConversation?.adapterName,
+    currentConversation?.id,
+    currentConversationHasDraftContent,
+    isAgentSelectionVisible
+  ]);
 
   useEffect(() => {
     const shouldShowAgentSelectionList = showEmptyState && isAgentSelectionVisible;
