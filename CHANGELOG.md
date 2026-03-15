@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.6.1] - 2026-03-15
+
+### Core System Updates
+- Admin & Operations: Added a server-rendered `/admin` panel for user management, API key CRUD with quota controls, prompt/persona management, and server operations; merged the monitoring dashboard into the admin Overview and moved related auth/export routes under `/admin/*`
+- Node API: Expanded `clients/node-api` to mirror ORBIT server endpoints, including auth, admin, quota, prompt, reload, shutdown, health, voice, dashboard helpers, WebSocket URL helpers, and `deleteAllFiles()`
+- Utilities: Restored DuckDB CSV utilities and added vLLM helper scripts
+- Agents: Added an implementation review agent
+
+### Chat-app & UI Improvements
+- orbitchat v3.5.4: Published new NPM releases including the admin/chat improvements from this cycle
+- Chat UX: Refined desktop chat layout, agent cards, agent search, empty-state presentation, streaming cursor behavior, and thread reply scrolling/height handling
+- Drafts & Attachments: Fixed file-backed draft conversations so file-only drafts stay visible/selectable, preserve agent state, avoid attachment bleed between chats, and keep send disabled until a message is entered
+- Identity & Conversations: Propagated stable user identity across Orbitchat requests and fixed thread clearing to remove child reply history as well as thread metadata
+- Admin UX: Improved admin panel record selection, confirmation flows, key/prompt association workflows, account management, and sanitized markdown preview for prompt editing
+
+### Bug Fixes & Technical Improvements
+- Client Reliability & Security: Fixed cross-conversation streaming/regenerate bugs, debounced local storage persistence, tightened upload validation and batch upload polling, fixed stale voice/autocomplete/input state bugs, and addressed XSS, command injection, and prototype-pollution issues in client/CLI code
+- Data Sources & Shutdown: Made datasource initialization async-safe, disabled unsafe SQLite pooling, avoided premature pooled connection reservation, and fixed restart/shutdown operation issues
+- SQL & Services: Fixed SQL template parameter mismatches and several inference/service bugs involving timing, memory leaks, and dead code cleanup
+- Admin Hardening: Moved API key management off raw key URLs to record IDs with compatibility fallback, added request timeouts/log polling guards, tightened CSP, bounded chat history access, and aligned configs/templates with the new admin structure
+
+### API & Client Updates
+- orbitchat v3.5.0-v3.5.4: Published updated packages during this release cycle
+
+### Documentation & Configuration
+- Cookbook: Added cookbook documentation, landing page, and an OpenClaw integration recipe
+- Config: Updated default settings, adapter model defaults, Docker instructions, and synced install/docker config templates to the latest structure
+
 ## [2.6.0] - 2026-03-08
 
 ### Core System Updates
