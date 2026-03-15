@@ -1709,14 +1709,12 @@
 
   async function loadAdaptersAndPrompts() {
     try {
-      var healthData = await api("GET", ENDPOINTS.healthAdapters).catch(function () { return null; });
-      if (healthData) {
-        var adapters = healthData.adapters || healthData.circuit_breakers || healthData;
-        if (Array.isArray(adapters)) {
-          cachedAdapters = adapters;
-        } else if (typeof adapters === "object" && adapters !== null) {
-          cachedAdapters = Object.keys(adapters);
-        }
+      // Use adapter capabilities endpoint to get actual active adapters from the dynamic adapter manager
+      if (!cachedAdapterCapabilities) {
+        await loadAdapterCapabilities();
+      }
+      if (cachedAdapterCapabilities && cachedAdapterCapabilities.length) {
+        cachedAdapters = cachedAdapterCapabilities;
       }
     } catch (_) {}
     // Ensure cachedAdapters is always set so callers don't retry indefinitely
