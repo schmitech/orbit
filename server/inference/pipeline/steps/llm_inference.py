@@ -192,12 +192,20 @@ class LLMInferenceStep(PipelineStep):
         Returns:
             True if message format should be used
         """
-        # Use message format for passthrough adapters with conversation history
+        # Use message format for passthrough adapters
         if context.adapter_name and self.container.has('adapter_manager'):
             adapter_manager = self.container.get('adapter_manager')
             adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
             if adapter_config and adapter_config.get('type') == 'passthrough':
                 return True
+
+        # Use message format for Ollama-based providers - smaller models perform
+        # significantly better with structured system/user roles than with a single
+        # concatenated prompt string in the user role
+        inference_provider = getattr(context, 'inference_provider', None)
+        if inference_provider and inference_provider.startswith('ollama'):
+            return True
+
         return False
 
     async def _build_message_format(self, context: ProcessingContext) -> None:

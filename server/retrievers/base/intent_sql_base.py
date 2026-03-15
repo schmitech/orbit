@@ -737,11 +737,18 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
 
                         table_text = TableRenderer.render(columns, rows, format=self.context_format)
 
+                        # Build query context line so the LLM knows what filters produced this data
+                        query_context = ""
+                        if parameters:
+                            param_parts = [f"{k}={v}" for k, v in parameters.items() if v is not None]
+                            if param_parts:
+                                query_context = f"Query filters: {', '.join(param_parts)}\n"
+
                         # Show truncation status in message
                         if was_truncated:
-                            result_message = f"Showing {len(results)} of {original_result_count} total results (truncated):\n{table_text}"
+                            result_message = f"{query_context}Showing {len(results)} of {original_result_count} total results (truncated):\n{table_text}"
                         else:
-                            result_message = f"Found {formatted_data['result_count']} results:\n{table_text}"
+                            result_message = f"{query_context}Found {formatted_data['result_count']} results:\n{table_text}"
 
                         content_parts.append(result_message)
 

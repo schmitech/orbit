@@ -105,9 +105,19 @@ Response:"""
             return "Domain Context:\n" + "\n".join(context_parts)
         return ""
 
+    @staticmethod
+    def _strip_markdown(text: str) -> str:
+        """Strip common markdown formatting from LLM-extracted values."""
+        # Remove bold/italic markers
+        text = text.strip().strip('*').strip('_').strip('`')
+        # Remove wrapping quotes the LLM may add
+        if len(text) >= 2 and text[0] == text[-1] and text[0] in ('"', "'"):
+            text = text[1:-1]
+        return text.strip()
+
     def _parse_llm_response(self, response: str, parameter: Dict[str, Any]) -> Optional[Any]:
         """Parse LLM response to extract parameter value"""
-        response = response.strip()
+        response = self._strip_markdown(response)
 
         if response == "NOT_FOUND" or not response:
             return None
@@ -237,6 +247,6 @@ Response:"""
                     return value
                 return str(value).lower() in ['true', 'yes', '1']
             else:
-                return str(value)
+                return self._strip_markdown(str(value))
         except (ValueError, TypeError):
             return value

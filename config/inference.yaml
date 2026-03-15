@@ -288,7 +288,7 @@ inference:
   gemini:
     enabled: true
     api_key: ${GOOGLE_API_KEY}
-    model: "gemini-3-pro-preview"
+    model: "gemini-3.1-pro-preview"
     context_window: 1000000  # Gemini supports up to 1M tokens (input context)
     temperature: 0.1
     top_p: 0.8
@@ -373,7 +373,7 @@ inference:
     enabled: true
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
-    model: "claude-sonnet-4-20250514"
+    model: "claude-sonnet-4-6"
     context_window: 200000  # Claude 3/4 supports 200K context
     temperature: 0.1
     max_tokens: 1024
