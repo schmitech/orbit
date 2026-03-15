@@ -1,5 +1,5 @@
 /* ============================================================
-   ORBIT Admin Panel — Single-file vanilla JS client
+   ORBIT Admin Portal — Single-file vanilla JS client
    ============================================================ */
 (function () {
   "use strict";
