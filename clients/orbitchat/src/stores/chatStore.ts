@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getApi, ApiClient, ConversationHistoryMessage } from '../api/loader';
+import { getApi, ApiClient, ConversationHistoryMessage } from '../apiClient';
 import { Message, Conversation, ChatState, FileAttachment, AdapterInfo } from '../types';
 import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
@@ -19,10 +19,43 @@ const DEFAULT_ADAPTER = getDefaultAdapterName() || getDefaultKey();
 const streamingBuffer: Map<string, { content: string; timeoutId: ReturnType<typeof setTimeout> | null }> = new Map();
 const STREAMING_BATCH_DELAY = 32; // ms - batch updates within this window (~30fps)
 
+// Debounced localStorage persistence to avoid excessive serialization
+const LOCALSTORAGE_SAVE_DELAY = 300; // ms
+let localStorageSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+export const debouncedSaveToLocalStorage = (getState: () => { conversations: Conversation[]; currentConversationId: string | null }) => {
+  if (localStorageSaveTimeout) {
+    clearTimeout(localStorageSaveTimeout);
+  }
+  localStorageSaveTimeout = setTimeout(() => {
+    localStorageSaveTimeout = null;
+    try {
+      const currentState = getState();
+      // Exclude transient/large data (audio) from persistence to reduce size
+      const conversationsForStorage = currentState.conversations.map(conv => ({
+        ...conv,
+        messages: conv.messages.map(msg =>
+          msg.audio ? Object.fromEntries(Object.entries(msg).filter(([k]) => k !== 'audio')) as typeof msg : msg
+        )
+      }));
+      localStorage.setItem('chat-state', JSON.stringify({
+        conversations: conversationsForStorage,
+        currentConversationId: currentState.currentConversationId
+      }));
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        debugWarn('[chatStore] localStorage quota exceeded — skipping save');
+      } else {
+        logError('[chatStore] Failed to save state to localStorage:', error);
+      }
+    }
+  }, LOCALSTORAGE_SAVE_DELAY);
+};
+
 // Stream control state for stop functionality
 let activeAbortController: AbortController | null = null;
 let activeRequestId: string | null = null;
 let activeStreamSessionId: string | null = null;
+let activeStreamConversationId: string | null = null;
 
 
 const buildDefaultConversation = (conversationId: string, sessionId: string, apiUrl: string): Conversation => {
@@ -62,7 +95,7 @@ const flushStreamingBuffer = (conversationId: string, setState: (fn: (state: Cha
         const messages = [...conv.messages];
         const lastMessage = messages[messages.length - 1];
 
-        if (lastMessage && lastMessage.role === 'assistant') {
+        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
           messages[messages.length - 1] = {
             ...lastMessage,
             content: lastMessage.content + contentToAppend
@@ -148,7 +181,7 @@ const convertHistoryMessages = (
   });
   const consumedIndices = new Set<number>();
 
-  return historyMessages.map((historyMsg) => {
+  return historyMessages.map((historyMsg, historyIndex) => {
     const normalizedRole: 'user' | 'assistant' =
       historyMsg.role === 'user' ? 'user' : 'assistant';
     const dbId = typeof historyMsg.message_id === 'string' && historyMsg.message_id.length > 0
@@ -161,12 +194,24 @@ const convertHistoryMessages = (
       reusedMessage = found.message;
       consumedIndices.add(found.index);
     } else {
-      for (let i = 0; i < existingMessages.length; i++) {
-        if (consumedIndices.has(i)) continue;
-        if (existingMessages[i].role === normalizedRole) {
-          reusedMessage = existingMessages[i];
-          consumedIndices.add(i);
-          break;
+      // Positional fallback: prefer the existing message at the same index if role matches,
+      // otherwise scan forward from that position. This avoids greedy first-match pairing
+      // that can misalign messages when the server history has insertions/deletions.
+      const startIndex = historyIndex < existingMessages.length ? historyIndex : 0;
+      // First try the positional match
+      if (!consumedIndices.has(startIndex) && existingMessages[startIndex]?.role === normalizedRole) {
+        reusedMessage = existingMessages[startIndex];
+        consumedIndices.add(startIndex);
+      } else {
+        // Scan forward from the positional index, then wrap around
+        for (let offset = 1; offset < existingMessages.length; offset++) {
+          const i = (startIndex + offset) % existingMessages.length;
+          if (consumedIndices.has(i)) continue;
+          if (existingMessages[i].role === normalizedRole) {
+            reusedMessage = existingMessages[i];
+            consumedIndices.add(i);
+            break;
+          }
         }
       }
     }
@@ -458,13 +503,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     debugLog('Waiting for the user to select an adapter for the new conversation.');
 
     // Save to localStorage
-    setTimeout(() => {
-      const currentState = get();
-      localStorage.setItem('chat-state', JSON.stringify({
-        conversations: currentState.conversations,
-        currentConversationId: currentState.currentConversationId
-      }));
-    }, 0);
+    debouncedSaveToLocalStorage(get);
 
     return id;
   },
@@ -516,13 +555,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 )
               }));
 
-              setTimeout(() => {
-                const currentState = get();
-                localStorage.setItem('chat-state', JSON.stringify({
-                  conversations: currentState.conversations,
-                  currentConversationId: currentState.currentConversationId
-                }));
-              }, 0);
+              debouncedSaveToLocalStorage(get);
             }
           } catch (error) {
             debugWarn('Failed to load adapter info for conversation:', error);
@@ -537,13 +570,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }
     
     // Save to localStorage
-    setTimeout(() => {
-      const currentState = get();
-      localStorage.setItem('chat-state', JSON.stringify({
-        conversations: currentState.conversations,
-        currentConversationId: currentState.currentConversationId
-      }));
-    }, 0);
+    debouncedSaveToLocalStorage(get);
   },
 
   deleteConversation: async (id: string) => {
@@ -642,12 +669,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         debugLog('Waiting for user to select an adapter after deleting all conversations.');
 
         // Save to localStorage
-        setTimeout(() => {
-          localStorage.setItem('chat-state', JSON.stringify({
-            conversations: [defaultConversation],
-            currentConversationId: defaultConversationId
-          }));
-        }, 0);
+        debouncedSaveToLocalStorage(get);
 
         return {
           conversations: [defaultConversation],
@@ -657,12 +679,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       }
 
       // Save to localStorage
-      setTimeout(() => {
-        localStorage.setItem('chat-state', JSON.stringify({
-          conversations: filtered,
-          currentConversationId: newCurrentId
-        }));
-      }, 0);
+      debouncedSaveToLocalStorage(get);
 
       return {
         conversations: filtered,
@@ -720,12 +737,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       }
     });
 
-    Promise.allSettled(deletionTasks).then(results => {
-      const failures = results.filter(result => result.status === 'rejected');
-      if (failures.length > 0) {
-        logError(`Some conversations failed to delete from server: ${failures.length}`, failures);
-      }
-    });
+    const results = await Promise.allSettled(deletionTasks);
+    const failures = results.filter(result => result.status === 'rejected');
+    if (failures.length > 0) {
+      logError(`Some conversations failed to delete from server: ${failures.length}`, failures);
+    }
 
     // Create a new default conversation after deleting all
     const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -751,12 +767,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       sessionId: defaultSessionId
     });
     // Save to localStorage
-    setTimeout(() => {
-      localStorage.setItem('chat-state', JSON.stringify({
-        conversations: [defaultConversation],
-        currentConversationId: defaultConversationId
-      }));
-    }, 0);
+    debouncedSaveToLocalStorage(get);
   },
 
   deleteThread: async (conversationId: string, parentMessageId: string, threadId: string) => {
@@ -829,13 +840,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       })
     }));
 
-    setTimeout(() => {
-      const currentState = get();
-      localStorage.setItem('chat-state', JSON.stringify({
-        conversations: currentState.conversations,
-        currentConversationId: currentState.currentConversationId
-      }));
-    }, 0);
+    debouncedSaveToLocalStorage(get);
   },
 
   sendMessage: async (content: string, fileIds?: string[], threadId?: string) => {
@@ -1073,8 +1078,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       const conversationApiUrl = resolveApiUrl(currentConversation.apiUrl);
       const conversationAdapterName = currentConversation.adapterName;
 
-      // Determine if we're in thread mode and use appropriate session ID
-      const activeThreadId = threadId || null;
+      // Use thread session ID if in thread mode, otherwise conversation session
       const activeSessionId = threadSessionId || currentConversation.sessionId;
 
       const api = await getApi();
@@ -1129,13 +1133,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           adapterName: conversation?.adapterInfo?.adapter_name
         });
 
-        // activeThreadId and activeSessionId are already determined above
-        // Use them for the streamChat call
-
         // Set up abort controller for stop functionality
         const abortController = new AbortController();
         activeAbortController = abortController;
         activeStreamSessionId = activeSessionId;
+        activeStreamConversationId = streamingConversationId;
         activeRequestId = null; // Will be set when we receive the first chunk
 
         for await (const response of api.streamChat(
@@ -1310,6 +1312,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       activeAbortController = null;
       activeRequestId = null;
       activeStreamSessionId = null;
+      activeStreamConversationId = null;
 
       // Flush any remaining buffered content before marking streaming as complete
       flushStreamingBuffer(streamingConversationId, set);
@@ -1345,13 +1348,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       });
 
       // Save to localStorage
-      setTimeout(() => {
-        const currentState = get();
-        localStorage.setItem('chat-state', JSON.stringify({
-          conversations: currentState.conversations,
-          currentConversationId: currentState.currentConversationId
-        }));
-      }, 0);
+      debouncedSaveToLocalStorage(get);
 
     } catch (error) {
       logError('Chat store error:', error);
@@ -1556,7 +1553,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     threadId: previousAssistantMessage.threadId,
                     parentMessageId: previousAssistantMessage.parentMessageId,
                     isThreadMessage: previousAssistantMessage.isThreadMessage
-                  }
+                  },
+                  ...conv.messages.slice(messageIndex + 1)
                 ],
                 updatedAt: new Date()
               }
@@ -1573,6 +1571,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       }
       let receivedAnyText = false;
 
+      // Set up abort controller for stop functionality (mirrors sendMessage)
+      const abortController = new AbortController();
+      activeAbortController = abortController;
+      activeStreamConversationId = regeneratingConversationId;
+      activeRequestId = null;
+
       try {
         // Ensure API is configured with the current conversation's session ID and API key
         const currentConversation = get().conversations.find(conv => conv.id === regeneratingConversationId);
@@ -1583,6 +1587,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         if (!currentConversation.adapterName) {
           throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
         }
+
+        activeStreamSessionId = currentConversation.sessionId;
 
         if (currentConversation.sessionId) {
           const conversationApiUrl = resolveApiUrl(currentConversation.apiUrl);
@@ -1635,6 +1641,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           returnAudio,
           ttsVoice
         )) {
+          // Capture request_id from server's first chunk (for stop functionality)
+          if (response.request_id && !activeRequestId) {
+            activeRequestId = response.request_id;
+            debugLog(`[chatStore] >>> CAPTURED request_id for regenerate stop: ${response.request_id}`);
+          }
+
           if (response.text) {
             // Sanitize text to remove any base64 audio data that might have leaked into content
             const sanitizedText = sanitizeMessageContent(response.text);
@@ -1706,23 +1718,42 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           }
         }
 
-        if (!receivedAnyText) {
+        // If no text received and not cancelled by user, show error
+        if (!receivedAnyText && !abortController.signal.aborted) {
           get().appendToLastMessage('No response received from the server. Please try again later.', regeneratingConversationId);
         }
       } catch (error) {
-        logError('Regenerate API error:', error);
-        // Extract meaningful error message for the user
-        let errorMessage = 'Sorry, there was an error regenerating the response.';
-        if (error instanceof Error) {
-          // Handle moderation/server errors - show the actual message
-          if (error.message.startsWith('Server error:')) {
-            errorMessage = error.message.substring('Server error: '.length);
-          } else if (error.message.includes('Could not connect') || error.message.includes('timed out')) {
-            errorMessage = error.message;
+        // Check if this was a user-initiated abort
+        const isAbortError = error instanceof Error && (
+          error.name === 'AbortError' ||
+          error.message === 'Stream cancelled by user' ||
+          error.message.includes('aborted')
+        );
+
+        if (isAbortError) {
+          debugLog('[chatStore] Regeneration stream was cancelled by user');
+          receivedAnyText = true;
+        } else {
+          logError('Regenerate API error:', error);
+          // Extract meaningful error message for the user
+          let errorMessage = 'Sorry, there was an error regenerating the response.';
+          if (error instanceof Error) {
+            // Handle moderation/server errors - show the actual message
+            if (error.message.startsWith('Server error:')) {
+              errorMessage = error.message.substring('Server error: '.length);
+            } else if (error.message.includes('Could not connect') || error.message.includes('timed out')) {
+              errorMessage = error.message;
+            }
           }
+          get().appendToLastMessage(errorMessage, regeneratingConversationId);
         }
-        get().appendToLastMessage(errorMessage, regeneratingConversationId);
       }
+
+      // Clean up stream control state
+      activeAbortController = null;
+      activeRequestId = null;
+      activeStreamSessionId = null;
+      activeStreamConversationId = null;
 
       // Flush any remaining buffered content before marking streaming as complete
       flushStreamingBuffer(regeneratingConversationId, set);
@@ -1776,13 +1807,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }));
 
     // Save to localStorage
-    setTimeout(() => {
-      const currentState = get();
-      localStorage.setItem('chat-state', JSON.stringify({
-        conversations: currentState.conversations,
-        currentConversationId: currentState.currentConversationId
-      }));
-    }, 0);
+    debouncedSaveToLocalStorage(get);
   },
 
   clearError: () => {
@@ -1791,23 +1816,36 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   // Utility function to clean up any orphaned streaming messages
   cleanupStreamingMessages: () => {
-    // Only clean up streaming messages from conversations that are not the current one
-    // This preserves streaming state when switching conversations
-    set(state => ({
-      conversations: state.conversations.map(conv => {
-        // Keep streaming messages in the current conversation (they might be actively streaming)
-        if (conv.id === state.currentConversationId) {
+    // Clean up streaming messages from conversations that are not actively streaming.
+    // The actively-streaming conversation (if any) is tracked by activeStreamConversationId.
+    const activeConvId = activeStreamConversationId;
+    set(state => {
+      let hasActiveStream = false;
+      const conversations = state.conversations.map(conv => {
+        // Preserve streaming messages in the actively-streaming conversation
+        if (conv.id === activeConvId) {
+          if (conv.messages.some(m => m.role === 'assistant' && m.isStreaming)) {
+            hasActiveStream = true;
+          }
           return conv;
         }
-        
-        // Only clean up streaming messages from other conversations if they're truly orphaned
-        // (e.g., if they're old and shouldn't be streaming anymore)
-        // For now, we'll keep all streaming messages to preserve state
-        return conv;
-      }),
-      // Only set isLoading to false if there are no active streaming operations
-      isLoading: false
-    }));
+
+        // Remove orphaned streaming messages from other conversations
+        const hasOrphaned = conv.messages.some(m => m.role === 'assistant' && m.isStreaming);
+        if (!hasOrphaned) return conv;
+
+        return {
+          ...conv,
+          messages: conv.messages.filter(m => !(m.role === 'assistant' && m.isStreaming)),
+          updatedAt: new Date()
+        };
+      });
+
+      return {
+        conversations,
+        isLoading: hasActiveStream
+      };
+    });
   },
 
   // Check if a new conversation can be created
@@ -1870,13 +1908,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     });
 
     // Save to localStorage
-    setTimeout(() => {
-      const currentState = get();
-      localStorage.setItem('chat-state', JSON.stringify({
-        conversations: currentState.conversations,
-        currentConversationId: currentState.currentConversationId
-      }));
-    }, 0);
+    debouncedSaveToLocalStorage(get);
   },
 
   // Remove file from conversation and delete from server
@@ -1930,13 +1962,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }));
 
     // Save to localStorage
-    setTimeout(() => {
-      const currentState = get();
-      localStorage.setItem('chat-state', JSON.stringify({
-        conversations: currentState.conversations,
-        currentConversationId: currentState.currentConversationId
-      }));
-    }, 0);
+    debouncedSaveToLocalStorage(get);
   },
 
   // Load files from server for a conversation
@@ -2021,13 +2047,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       });
 
       // Save to localStorage
-      setTimeout(() => {
-        const currentState = get();
-        localStorage.setItem('chat-state', JSON.stringify({
-          conversations: currentState.conversations,
-          currentConversationId: currentState.currentConversationId
-        }));
-      }, 0);
+      debouncedSaveToLocalStorage(get);
     } catch (error) {
       logError(`Failed to load files for conversation ${conversationId}:`, error);
       // Don't throw - allow conversation to load even if file loading fails
@@ -2161,13 +2181,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         };
       });
 
-      setTimeout(() => {
-        const currentState = get();
-        localStorage.setItem('chat-state', JSON.stringify({
-          conversations: currentState.conversations,
-          currentConversationId: currentState.currentConversationId
-        }));
-      }, 0);
+      debouncedSaveToLocalStorage(get);
     } catch (error) {
       debugWarn('Failed to synchronize conversations with backend:', error);
     }
@@ -2206,12 +2220,13 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       debugWarn(`[chatStore] Cannot call stopChat - missing IDs: requestId=${activeRequestId}, sessionId=${activeStreamSessionId}`);
     }
 
-    // Mark the current streaming message as complete
-    const currentConversationId = get().currentConversationId;
-    if (currentConversationId) {
+    // Mark streaming messages as complete in the conversation that is actually streaming
+    // (which may differ from currentConversationId if the user switched conversations)
+    const targetConversationId = activeStreamConversationId || get().currentConversationId;
+    if (targetConversationId) {
       set(state => ({
         conversations: state.conversations.map(conv => {
-          if (conv.id !== currentConversationId) return conv;
+          if (conv.id !== targetConversationId) return conv;
 
           return {
             ...conv,
@@ -2231,6 +2246,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     activeAbortController = null;
     activeRequestId = null;
     activeStreamSessionId = null;
+    activeStreamConversationId = null;
 
     debugLog('[chatStore] Stream stopped successfully');
   },
@@ -2254,13 +2270,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       )
     }));
 
-    setTimeout(() => {
-      const currentState = get();
-      localStorage.setItem('chat-state', JSON.stringify({
-        conversations: currentState.conversations,
-        currentConversationId: currentState.currentConversationId
-      }));
-    }, 0);
+    debouncedSaveToLocalStorage(get);
   }
 }));
 

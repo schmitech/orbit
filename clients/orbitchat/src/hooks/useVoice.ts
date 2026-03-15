@@ -151,7 +151,8 @@ export function useVoice(
       return;
     }
 
-    if (isListening) {
+    // Guard with ref to prevent double-start from rapid clicks (stale isListening closure)
+    if (recognitionRef.current) {
       return;
     }
 
@@ -240,7 +241,7 @@ export function useVoice(
       setError('Failed to start speech recognition. Please try again.');
       setIsListening(false);
     }
-  }, [isSupported, isListening, flushPendingTranscript, notifyCompletion, scheduleSilenceTimer, clearSilenceTimer, recognitionLanguage, normalizeTranscript, emitTranscript]);
+  }, [isSupported, flushPendingTranscript, notifyCompletion, scheduleSilenceTimer, clearSilenceTimer, recognitionLanguage, normalizeTranscript, emitTranscript]);
 
   const stopListening = useCallback(() => {
     debugLog('Stopping speech recognition...');

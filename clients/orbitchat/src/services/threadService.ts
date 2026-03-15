@@ -5,7 +5,7 @@
  */
 
 import { ThreadInfo } from '../types';
-import { ApiClient } from '../api/loader';
+import { ApiClient } from '../apiClient';
 
 export class ThreadService {
   private apiClient: ApiClient;

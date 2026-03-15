@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getApi } from '../api/loader';
-import { useChatStore } from '../stores/chatStore';
+import { getApi } from '../apiClient';
+import { useChatStore, debouncedSaveToLocalStorage } from '../stores/chatStore';
 import type { Conversation } from '../types';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApiUrl } from '../utils/runtimeConfig';
@@ -50,16 +50,7 @@ export function useChatAgentSelection({
   );
 
   const persistChatState = useCallback(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    setTimeout(() => {
-      const currentState = useChatStore.getState();
-      localStorage.setItem('chat-state', JSON.stringify({
-        conversations: currentState.conversations,
-        currentConversationId: currentState.currentConversationId
-      }));
-    }, 0);
+    debouncedSaveToLocalStorage(() => useChatStore.getState());
   }, []);
 
   const markConversationAdapterError = useCallback((conversationId?: string, message?: string) => {
@@ -369,12 +360,13 @@ export function useChatAgentSelection({
       if (adapterName && needsRefresh) {
         adapterInfoLoadedRef.current = adapterName;
         debugLog('[ChatInterface] Loading adapter info - adapterName:', adapterName, 'reason:', !currentConversation?.adapterInfo ? 'missing' : 'notes undefined');
-        try {
-          const apiUrl = currentConversation?.apiUrl || getApiUrl();
-          debugLog('[ChatInterface] Calling configureApiSettings for:', adapterName);
-          await configureApiSettings(apiUrl, undefined, adapterName);
+        // Use fetchAdapterInfoForConversation which creates an isolated ApiClient,
+        // avoiding mutation of the shared API state that could corrupt active streams.
+        const result = await fetchAdapterInfoForConversation(currentConversation);
+        if (result.ok) {
           debugLog('[ChatInterface] Adapter info loaded successfully');
-        } catch (error) {
+        } else {
+          const error = result.error;
           debugError('[ChatInterface] Failed to load adapter info:', error);
           const errorMessage = error instanceof Error ? error.message : String(error);
           const isRateLimited = errorMessage.includes('429') || errorMessage.includes('Too Many Requests');
@@ -395,12 +387,6 @@ export function useChatAgentSelection({
           } else {
             adapterInfoLoadedRef.current = null;
           }
-
-          if (currentConversation?.adapterName === adapterName) {
-            const friendlyMessage = getAdapterInfoErrorMessage(error);
-            setAdapterNotesError(friendlyMessage);
-            markConversationAdapterError(currentConversation.id, friendlyMessage);
-          }
         }
       } else {
         debugLog('[ChatInterface] Skipping adapter info load:', {
@@ -414,14 +400,13 @@ export function useChatAgentSelection({
 
     void loadMissingAdapterInfo();
   }, [
-    configureApiSettings,
+    fetchAdapterInfoForConversation,
+    currentConversation,
     currentConversation?.adapterInfo,
     currentConversation?.adapterLoadError,
     currentConversation?.adapterName,
     currentConversation?.apiUrl,
-    currentConversation?.id,
-    getAdapterInfoErrorMessage,
-    markConversationAdapterError
+    currentConversation?.id
   ]);
 
   useEffect(() => {

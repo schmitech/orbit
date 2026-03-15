@@ -304,16 +304,20 @@ export function useAutocomplete(
   }, []);
 
   const selectNext = useCallback(() => {
-    setSelectedIndex(prev =>
-      prev < suggestions.length - 1 ? prev + 1 : 0
-    );
-  }, [suggestions.length]);
+    setSelectedIndex(prev => {
+      const len = suggestionsRef.current.length;
+      if (len === 0) return -1;
+      return prev < len - 1 ? prev + 1 : 0;
+    });
+  }, []);
 
   const selectPrevious = useCallback(() => {
-    setSelectedIndex(prev =>
-      prev > 0 ? prev - 1 : suggestions.length - 1
-    );
-  }, [suggestions.length]);
+    setSelectedIndex(prev => {
+      const len = suggestionsRef.current.length;
+      if (len === 0) return -1;
+      return prev > 0 ? prev - 1 : len - 1;
+    });
+  }, []);
 
   const clearSuggestions = useCallback(() => {
     setSuggestions([]);

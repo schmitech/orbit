@@ -71,15 +71,16 @@ guestLimits:
     maxLength: 500
   # Server-side rate limiting for unauthenticated /api/* requests (per IP).
   # Authenticated users are NOT rate-limited here (ORBIT server handles that).
+  # File uploads, adapter info, and conversation history endpoints are exempt.
   # When this section is absent, guest rate limiting is disabled (backward compatible).
   # rateLimit:
   #   enabled: true
   #   windowMs: 60000        # 1 minute window
-  #   maxRequests: 20         # max requests per window per IP
+  #   maxRequests: 60         # max requests per window per IP
   #   # Stricter limit for chat/streaming endpoints (POST to /chat or /stream)
   #   chat:
   #     windowMs: 60000
-  #     maxRequests: 5
+  #     maxRequests: 10
 
 # ---- Server ----
 server:

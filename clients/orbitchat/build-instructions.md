@@ -77,8 +77,6 @@ orbitchat [options]
 Options:
   --api-url URL                    API URL (default: http://localhost:3000)
   --api-key KEY                    Default API key (default: default-key)
-  --use-local-api BOOLEAN          Use local API build (default: false)
-  --local-api-path PATH            Path to local API
   --console-debug BOOLEAN          Enable console debug (default: false)
   --enable-upload BOOLEAN          Enable upload button (default: false)
   --enable-feedback BOOLEAN        Enable feedback buttons (default: false)
@@ -170,73 +168,20 @@ The CLI can run an Express middleware layer that injects API keys server-side so
 npm run dev
 ```
 
-**Start with local API build:**
-```bash
-npm run dev:local
-```
-
-**Build API and start dev server:**
-```bash
-npm run dev:with-api
-```
-
-### Using Local API Build
-
-For local development, you can use the local API build instead of the npm package:
-
-**Option 1: Use the convenience script** (recommended):
-```bash
-npm run dev:with-api
-```
-This script automatically:
-1. Builds the API from `../node-api`
-2. Copies the built files to `src/api/local/`
-3. Starts the dev server with local API enabled
-
-**Option 2: Manual setup**:
-```bash
-# Build and copy API files
-npm run build:api
-
-# Start dev server with local API
-npm run dev:local
-```
-
-**Option 3: Build API separately**:
-```bash
-# From node-api directory
-cd ../node-api
-npm run build
-
-# Then start chat-app
-cd ../chat-app
-npm run dev:local
-```
-
-The local API files will be copied to `src/api/local/` directory. When `VITE_USE_LOCAL_API=true` is set, the app will load `./local/api.mjs` from the src directory instead of the npm package.
-
 ### Development Commands
 
 ```bash
-# Development server (uses npm package)
+# Development server
 npm run dev
-
-# Development server with local API
-npm run dev:local
-
-# Build API and start dev server
-npm run dev:with-api
 
 # Code linting
 npm run lint
 
-# Production builds
-npm run build              # Build with npm package
-npm run build:local       # Build with local API
+# Production build
+npm run build
 
 # Preview build
-npm run preview            # Preview with npm package
-npm run preview:local      # Preview with local API
+npm run preview
 ```
 
 ---
@@ -303,8 +248,6 @@ For local development, create a `.env.local` file:
 ```bash
 VITE_API_URL=http://localhost:3000
 VITE_DEFAULT_KEY=default-key
-VITE_USE_LOCAL_API=true
-VITE_LOCAL_API_PATH=./local/api.mjs
 VITE_CONSOLE_DEBUG=false
 VITE_ENABLE_UPLOAD=false
 VITE_ENABLE_FEEDBACK=false
@@ -364,33 +307,6 @@ npm run build
 ---
 
 ## ⚠️ Known Issues & Troubleshooting
-
-### Local API Not Loading
-
-If you see a 404 error for `api.mjs`:
-
-1. **Ensure API is built:**
-   ```bash
-   cd ../node-api
-   npm run build
-   ```
-
-2. **Copy files to src/api/local directory:**
-   ```bash
-   mkdir -p ../chat-app/src/api/local
-   cp dist/api.mjs ../chat-app/src/api/local/api.mjs
-   cp dist/api.mjs.map ../chat-app/src/api/local/api.mjs.map
-   cp dist/api.d.ts ../chat-app/src/api/local/api.d.ts
-   ```
-
-3. **Restart dev server with local API enabled:**
-   ```bash
-   npm run dev:local
-   ```
-
-4. **Check environment variable:**
-   - Ensure `VITE_USE_LOCAL_API=true` is set (or use `npm run dev:local`)
-   - The default path `./local/api.mjs` should work if files are in `src/api/local/`
 
 ### File Upload Issues
 

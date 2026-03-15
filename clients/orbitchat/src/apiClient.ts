@@ -2,9 +2,9 @@
  * API loader — all requests go through the Express proxy with X-Adapter-Name headers.
  */
 
-import { debugLog } from '../utils/debug';
-import { getAccessToken } from '../auth/tokenStore';
-import { getUserIdHeaderValue } from '../auth/userId';
+import { debugLog } from './utils/debug';
+import { getAccessToken } from './auth/tokenStore';
+import { getUserIdHeaderValue } from './auth/userId';
 
 // Type definitions for the API
 export interface StreamResponse {
@@ -216,6 +216,40 @@ async function buildErrorMessage(response: Response): Promise<string> {
   return baseMessage;
 }
 
+/**
+ * Parse a single SSE data line into a StreamResponse, or null if unparseable.
+ */
+function parseSseDataLine(line: string): StreamResponse | null {
+  if (!line.startsWith('data: ')) return null;
+
+  try {
+    const data = JSON.parse(line.substring(6));
+
+    // Dedicated request_id-only chunk
+    if (data.request_id && !data.response && !data.done) {
+      return {
+        text: '',
+        done: false,
+        request_id: data.request_id
+      };
+    }
+
+    return {
+      text: data.text || data.content || data.message || data.response || '',
+      done: data.done || false,
+      request_id: data.request_id,
+      audio: data.audio,
+      audioFormat: data.audio_format || data.audioFormat,
+      audio_chunk: data.audio_chunk,
+      chunk_index: data.chunk_index,
+      threading: data.threading
+    };
+  } catch {
+    // Skip invalid JSON
+    return null;
+  }
+}
+
 // Cache for loaded API
 let apiCache: ApiFunctions | null = null;
 
@@ -223,19 +257,22 @@ let apiCache: ApiFunctions | null = null;
  * Create API functions that route through the Express proxy
  */
 function createProxyApi(): ApiFunctions {
-  let sessionId: string | null = null;
-  let adapterName: string | null = null;
+  // Shared state used by the top-level configureApi/streamChat/stopChat helpers.
+  // ProxyApiClient instances do NOT mutate these — they capture their own copies.
+  let defaultSessionId: string | null = null;
+  let defaultAdapterName: string | null = null;
 
   const configureApi = (_apiUrl: string, sessId?: string | null, adapter?: string | null) => {
-    sessionId = sessId || null;
-    adapterName = adapter || null;
+    defaultSessionId = sessId || null;
+    defaultAdapterName = adapter || null;
   };
 
-  const createProxyClient = (): ApiClient => {
-    if (!adapterName) {
-      throw new Error('Adapter name is required');
-    }
-
+  /**
+   * Create a proxy client with the given adapter/session configuration.
+   * Each client captures its own adapterName and sessionId at creation time,
+   * so multiple clients can coexist without overwriting each other's state.
+   */
+  const createProxyClient = (clientAdapterName: string, clientSessionId: string | null): ApiClient => {
     return {
       async *streamChat(
         message: string,
@@ -272,8 +309,8 @@ function createProxyApi(): ApiFunctions {
           method: 'POST',
           headers: await buildHeaders({
             'Content-Type': 'application/json',
-            'X-Adapter-Name': adapterName!,
-            ...(sessionId ? { 'X-Session-ID': sessionId } : {}),
+            'X-Adapter-Name': clientAdapterName,
+            ...(clientSessionId ? { 'X-Session-ID': clientSessionId } : {}),
           }),
           body: JSON.stringify(requestBody),
         });
@@ -300,68 +337,16 @@ function createProxyApi(): ApiFunctions {
             buffer = lines.pop() || '';
 
             for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.substring(6));
-
-                  if (data.request_id && !data.response && !data.done) {
-                    yield {
-                      text: '',
-                      done: false,
-                      request_id: data.request_id
-                    };
-                    continue;
-                  }
-
-                  const responseData: StreamResponse = {
-                    text: data.text || data.content || data.message || data.response || '',
-                    done: data.done || false,
-                    audio: data.audio,
-                    audioFormat: data.audio_format || data.audioFormat,
-                    audio_chunk: data.audio_chunk,
-                    chunk_index: data.chunk_index,
-                    threading: data.threading
-                  };
-
-                  yield responseData;
-                } catch {
-                  // Skip invalid JSON
-                }
-              }
+              const parsed = parseSseDataLine(line);
+              if (parsed) yield parsed;
             }
           }
 
           // Parse remaining buffer
           if (buffer.trim()) {
-            const lines = buffer.split('\n');
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.substring(6));
-
-                  if (data.request_id && !data.response && !data.done) {
-                    yield {
-                      text: '',
-                      done: false,
-                      request_id: data.request_id
-                    };
-                    continue;
-                  }
-
-                  const responseData: StreamResponse = {
-                    text: data.text || data.content || data.message || data.response || '',
-                    done: data.done || false,
-                    audio: data.audio,
-                    audioFormat: data.audio_format || data.audioFormat,
-                    audio_chunk: data.audio_chunk,
-                    chunk_index: data.chunk_index,
-                    threading: data.threading
-                  };
-                  yield responseData;
-                } catch {
-                  // Skip invalid JSON
-                }
-              }
+            for (const line of buffer.split('\n')) {
+              const parsed = parseSseDataLine(line);
+              if (parsed) yield parsed;
             }
           }
         } else {
@@ -376,7 +361,7 @@ function createProxyApi(): ApiFunctions {
           method: 'POST',
           headers: await buildHeaders({
             'Content-Type': 'application/json',
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
             'X-Session-ID': sessId,
           }),
           body: JSON.stringify({ message_id: messageId, session_id: sessId }),
@@ -388,7 +373,7 @@ function createProxyApi(): ApiFunctions {
       async getThreadInfo(threadId: string) {
         const response = await fetch(`/api/threads/${threadId}`, {
           headers: await buildHeaders({
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
         });
         if (!response.ok) throw new Error(`Failed to get thread info: ${response.statusText}`);
@@ -399,7 +384,7 @@ function createProxyApi(): ApiFunctions {
         const response = await fetch(`/api/threads/${threadId}`, {
           method: 'DELETE',
           headers: await buildHeaders({
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
         });
         if (!response.ok) throw new Error(`Failed to delete thread: ${response.statusText}`);
@@ -407,10 +392,10 @@ function createProxyApi(): ApiFunctions {
       },
 
       async clearConversationHistory(sessId?: string) {
-        const response = await fetch(`/api/admin/chat-history/${sessId || sessionId}`, {
+        const response = await fetch(`/api/admin/chat-history/${sessId || clientSessionId}`, {
           method: 'DELETE',
           headers: await buildHeaders({
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
         });
         if (!response.ok) throw new Error(`Failed to clear history: ${response.statusText}`);
@@ -418,7 +403,7 @@ function createProxyApi(): ApiFunctions {
       },
 
       async getConversationHistory(sessId?: string, limit?: number) {
-        const targetSession = sessId || sessionId;
+        const targetSession = sessId || clientSessionId;
         if (!targetSession) {
           throw new Error('No session ID available for conversation history');
         }
@@ -428,7 +413,7 @@ function createProxyApi(): ApiFunctions {
             : '';
         const response = await fetch(`/api/admin/chat-history/${targetSession}${limitParam}`, {
           headers: await buildHeaders({
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
         });
         if (!response.ok) throw new Error(`Failed to load history: ${response.statusText}`);
@@ -436,19 +421,19 @@ function createProxyApi(): ApiFunctions {
       },
 
       async deleteConversationWithFiles(sessId?: string, fileIds?: string[]) {
-        const targetSession = sessId || sessionId;
+        const targetSession = sessId || clientSessionId;
         const fileIdsParam = fileIds && fileIds.length > 0 ? `?file_ids=${fileIds.join(',')}` : '';
         const response = await fetch(`/api/admin/conversations/${targetSession}${fileIdsParam}`, {
           method: 'DELETE',
           headers: await buildHeaders({
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
         });
         if (!response.ok) throw new Error(`Failed to delete conversation: ${response.statusText}`);
         return response.json();
       },
 
-      getSessionId: () => sessionId,
+      getSessionId: () => clientSessionId,
 
       async uploadFile(file: File) {
         const formData = new FormData();
@@ -456,7 +441,7 @@ function createProxyApi(): ApiFunctions {
         const response = await fetch('/api/files/upload', {
           method: 'POST',
           headers: await buildHeaders({
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
           body: formData,
         });
@@ -467,7 +452,7 @@ function createProxyApi(): ApiFunctions {
       async listFiles() {
         const response = await fetch('/api/files', {
           headers: await buildHeaders({
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
         });
         if (!response.ok) throw new Error(`Failed to list files: ${response.statusText}`);
@@ -478,7 +463,7 @@ function createProxyApi(): ApiFunctions {
       async getFileInfo(fileId: string) {
         const response = await fetch(`/api/files/${fileId}`, {
           headers: await buildHeaders({
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
         });
         if (!response.ok) throw new Error(`Failed to get file info: ${response.statusText}`);
@@ -490,7 +475,7 @@ function createProxyApi(): ApiFunctions {
           method: 'POST',
           headers: await buildHeaders({
             'Content-Type': 'application/json',
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
           body: JSON.stringify({ query, max_results: maxResults }),
         });
@@ -502,7 +487,7 @@ function createProxyApi(): ApiFunctions {
         const response = await fetch(`/api/files/${fileId}`, {
           method: 'DELETE',
           headers: await buildHeaders({
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
         });
         if (!response.ok) throw new Error(`Failed to delete file: ${response.statusText}`);
@@ -510,9 +495,9 @@ function createProxyApi(): ApiFunctions {
       },
 
       async validateApiKey() {
-        const response = await fetch(`/api/admin/api-keys/${adapterName}/status`, {
+        const response = await fetch(`/api/admin/api-keys/${clientAdapterName}/status`, {
           headers: await buildHeaders({
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
         });
         if (!response.ok) throw new Error(`Failed to validate API key: ${response.statusText}`);
@@ -542,7 +527,7 @@ function createProxyApi(): ApiFunctions {
         const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
         const requestInfo = async () => fetch(adapterInfoPath, {
           headers: await buildHeaders({
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
         });
 
@@ -560,11 +545,11 @@ function createProxyApi(): ApiFunctions {
           const statusLabel = `${response.status} ${response.statusText}`.trim();
           const friendlyMessage =
             response.status === 401
-              ? `Adapter info request was unauthorized for '${adapterName}'. Verify the adapter exists and you have access.`
-              : `Failed to load adapter info (${statusLabel}) for '${adapterName}'.`;
+              ? `Adapter info request was unauthorized for '${clientAdapterName}'. Verify the adapter exists and you have access.`
+              : `Failed to load adapter info (${statusLabel}) for '${clientAdapterName}'.`;
 
           console.warn('[ProxyApi] Adapter info request failed', {
-            adapter: adapterName,
+            adapter: clientAdapterName,
             status: response.status,
             statusText: response.statusText,
             details: errorText || undefined
@@ -580,7 +565,7 @@ function createProxyApi(): ApiFunctions {
           method: 'POST',
           headers: await buildHeaders({
             'Content-Type': 'application/json',
-            'X-Adapter-Name': adapterName!,
+            'X-Adapter-Name': clientAdapterName,
           }),
           body: JSON.stringify({ session_id: sessId, request_id: requestId }),
         });
@@ -609,7 +594,10 @@ function createProxyApi(): ApiFunctions {
       sourceLanguage?: string,
       targetLanguage?: string
     ): AsyncGenerator<StreamResponse> {
-      const client = createProxyClient();
+      if (!defaultAdapterName) {
+        throw new Error('Adapter name is required');
+      }
+      const client = createProxyClient(defaultAdapterName, defaultSessionId);
       yield* client.streamChat(
         message,
         stream,
@@ -625,16 +613,22 @@ function createProxyApi(): ApiFunctions {
       );
     },
     stopChat: async (sessionId: string, requestId: string): Promise<boolean> => {
-      const client = createProxyClient();
+      if (!defaultAdapterName) {
+        throw new Error('Adapter name is required');
+      }
+      const client = createProxyClient(defaultAdapterName, defaultSessionId);
       return client.stopChat!(sessionId, requestId);
     },
     ApiClient: class ProxyApiClient implements ApiClient {
       private client: ApiClient;
 
       constructor(config: { apiUrl: string; sessionId?: string | null; adapterName?: string | null }) {
-        adapterName = config.adapterName || null;
-        sessionId = config.sessionId || null;
-        this.client = createProxyClient();
+        const clientAdapter = config.adapterName || null;
+        const clientSession = config.sessionId || null;
+        if (!clientAdapter) {
+          throw new Error('Adapter name is required');
+        }
+        this.client = createProxyClient(clientAdapter, clientSession);
       }
 
       async *streamChat(...args: Parameters<ApiClient['streamChat']>): AsyncGenerator<StreamResponse> {

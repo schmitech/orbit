@@ -155,26 +155,34 @@ export function orbitchatConfigPlugin(): Plugin {
         });
       }
 
-      // Guest rate limiting
+      // Guest rate limiting — exempt file operations, adapter info, and history
+      // endpoints to avoid hitting limits during normal page load and uploads.
       const rlConfig = yamlConfig?.guestLimits?.rateLimit;
       if (rlConfig && rlConfig.enabled !== false) {
         const windowMs = rlConfig.windowMs || 60000;
-        const maxRequests = rlConfig.maxRequests || 30;
+        const maxRequests = rlConfig.maxRequests || 60;
         const chatWindowMs = rlConfig.chat?.windowMs || 60000;
         const chatMaxRequests = rlConfig.chat?.maxRequests || 10;
+        const retryAfterSeconds = Math.ceil(windowMs / 1000);
 
         const keyGenerator = (req: IncomingMessage) => (req as IncomingMessage & { ip?: string }).ip || req.socket?.remoteAddress || 'unknown';
+
+        const isExemptUrl = (url: string) =>
+          url.startsWith('/adapters') ||
+          url.startsWith('/files') ||
+          url.startsWith('/admin/adapters') ||
+          url.startsWith('/admin/chat-history');
 
         const apiLimiter = rateLimit({
           windowMs, max: maxRequests, keyGenerator,
           standardHeaders: 'draft-7', legacyHeaders: false,
           validate: { keyGeneratorIpFallback: false },
-          skip: (req) => req.method === 'OPTIONS' || (req.url ?? '').startsWith('/adapters'),
+          skip: (req) => req.method === 'OPTIONS' || isExemptUrl(req.url ?? ''),
           handler: (_, res) => {
-            (res as ServerResponse).writeHead(429, { 'Content-Type': 'application/json' });
+            (res as ServerResponse).writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': String(retryAfterSeconds) });
             (res as ServerResponse).end(JSON.stringify({
               error: 'Too many requests',
-              message: `Rate limit exceeded. Try again in ${Math.ceil(windowMs / 1000)} seconds.`,
+              message: `Rate limit exceeded. Try again in ${retryAfterSeconds} seconds.`,
               retryAfterMs: windowMs,
             }));
           },
@@ -185,10 +193,11 @@ export function orbitchatConfigPlugin(): Plugin {
           standardHeaders: 'draft-7', legacyHeaders: false,
           validate: { keyGeneratorIpFallback: false },
           handler: (_, res) => {
-            (res as ServerResponse).writeHead(429, { 'Content-Type': 'application/json' });
+            const chatRetryAfter = Math.ceil(chatWindowMs / 1000);
+            (res as ServerResponse).writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': String(chatRetryAfter) });
             (res as ServerResponse).end(JSON.stringify({
               error: 'Too many requests',
-              message: `Chat rate limit exceeded. Try again in ${Math.ceil(chatWindowMs / 1000)} seconds.`,
+              message: `Chat rate limit exceeded. Try again in ${chatRetryAfter} seconds.`,
               retryAfterMs: chatWindowMs,
             }));
           },

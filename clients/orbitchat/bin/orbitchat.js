@@ -10,7 +10,7 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { createProxyMiddleware } from 'http-proxy-middleware';
@@ -96,6 +96,7 @@ function deepMerge(target, source) {
   if (!isObject(target) || !isObject(source)) return source;
   const output = { ...target };
   Object.keys(source).forEach(key => {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return;
     if (isObject(target[key]) && isObject(source[key])) {
       output[key] = deepMerge(target[key], source[key]);
     } else if (source[key] !== undefined) {
@@ -280,17 +281,35 @@ function createServer(distPath, config, serverConfig = {}) {
     });
   }
 
-  // Guest rate limiting
+  // Guest rate limiting — only applies to unauthenticated requests.
+  // Exempt read-only endpoints, file operations, and adapter info to avoid
+  // hitting limits during normal page load and file upload workflows.
   if (serverConfig.rateLimit?.enabled !== false) {
     const rl = serverConfig.rateLimit || {};
+    const rateLimitWindowMs = rl.windowMs || 60000;
+    const retryAfterSeconds = Math.ceil(rateLimitWindowMs / 1000);
+
+    const isExemptPath = (req) =>
+      req.method === 'OPTIONS' ||
+      req.path === '/adapters' ||
+      req.path.startsWith('/files') ||
+      req.path.startsWith('/admin/adapters') ||
+      req.path.startsWith('/admin/chat-history');
+
     const apiLimiter = rateLimit({
-      windowMs: rl.windowMs || 60000, max: rl.maxRequests || 30,
-      skip: (req) => req.method === 'OPTIONS' || req.path === '/adapters',
-      handler: (req, res) => res.status(429).json({ error: 'Too many requests' }),
+      windowMs: rateLimitWindowMs, max: rl.maxRequests || 60,
+      skip: isExemptPath,
+      handler: (_req, res) => {
+        res.setHeader('Retry-After', retryAfterSeconds);
+        res.status(429).json({ error: 'Too many requests' });
+      },
     });
     const chatLimiter = rateLimit({
       windowMs: rl.chat?.windowMs || 60000, max: rl.chat?.maxRequests || 10,
-      handler: (req, res) => res.status(429).json({ error: 'Chat rate limit exceeded' }),
+      handler: (_req, res) => {
+        res.setHeader('Retry-After', Math.ceil((rl.chat?.windowMs || 60000) / 1000));
+        res.status(429).json({ error: 'Chat rate limit exceeded' });
+      },
     });
     app.use('/api', (req, res, next) => { if (req.headers.authorization) return next(); apiLimiter(req, res, next); });
     app.use('/api', (req, res, next) => {
@@ -401,12 +420,25 @@ function createServer(distPath, config, serverConfig = {}) {
   app.use(express.json());
   if (!apiOnly && distPath) {
     app.use(express.static(distPath, { index: false }));
-    app.get(/(.*)/, (req, res) => {
-      if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
-      const indexPath = path.join(distPath, 'index.html');
-      let content = fs.readFileSync(indexPath, 'utf8');
+
+    // Pre-build the index.html template once at startup instead of reading on every request
+    const indexPath = path.join(distPath, 'index.html');
+    let indexTemplate = null;
+    try {
+      indexTemplate = fs.readFileSync(indexPath, 'utf8');
+    } catch (err) {
+      console.error(`[orbitchat] Failed to read ${indexPath}:`, err.message);
+    }
+
+    // Escape </script> sequences in JSON to prevent XSS when injecting into HTML
+    const safeConfigJson = JSON.stringify(config).replace(/<\/(script)/gi, '<\\/$1');
+
+    // Pre-compute the transformed HTML
+    let cachedHtml = null;
+    if (indexTemplate) {
+      let content = indexTemplate;
       content = content.replace(/<script id="orbit-chat-config" type="application\/json">[\s\S]*?<\/script>/, '<!-- Config injected -->');
-      const configScript = `<script>window.ORBIT_CHAT_CONFIG = ${JSON.stringify(config)};</script>`;
+      const configScript = `<script>window.ORBIT_CHAT_CONFIG = ${safeConfigJson};</script>`;
       content = content.replace(/<head>/i, '<head>\n    ' + configScript);
       if (config.application?.name) content = content.replace(/<title>.*?<\/title>/i, `<title>${config.application.name}</title>`);
       if (config.application?.favicon?.trim()) {
@@ -417,8 +449,14 @@ function createServer(distPath, config, serverConfig = {}) {
           content = content.replace(/<head>/i, `<head>\n    ${iconTag}`);
         }
       }
+      cachedHtml = content;
+    }
+
+    app.get(/(.*)/, (req, res) => {
+      if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
+      if (!cachedHtml) return res.status(500).send('index.html not found');
       res.setHeader('Content-Type', 'text/html');
-      res.send(content);
+      res.send(cachedHtml);
     });
   }
   return app;
@@ -478,7 +516,15 @@ function main() {
 
   const server = app.listen(serverConfig.port, serverConfig.host, () => {
     console.debug(`🚀 ORBIT Chat is running at http://${serverConfig.host}:${serverConfig.port}`);
-    if (serverConfig.open) execSync(`open http://${serverConfig.host}:${serverConfig.port}`);
+    if (serverConfig.open) {
+      const url = `http://${serverConfig.host}:${serverConfig.port}`;
+      try {
+        // Use execFileSync to avoid shell injection — arguments are passed directly
+        execFileSync('open', [url], { stdio: 'ignore' });
+      } catch {
+        console.debug(`Open your browser at ${url}`);
+      }
+    }
   });
   // http-proxy may register multiple close listeners when routing across many adapters.
   // Raise the listener cap to avoid noisy false-positive MaxListeners warnings.

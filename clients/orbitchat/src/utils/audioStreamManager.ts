@@ -285,7 +285,9 @@ class AudioStreamManager {
 
     // Start playing if not already
     if (!this.isPlaying) {
-      this.playNextChunk();
+      this.playNextChunk().catch(err => {
+        debugError('[AudioStreamManager] Playback chain error:', err);
+      });
     }
   }
 
@@ -392,7 +394,9 @@ class AudioStreamManager {
       this.currentAudio = null;
 
       // Continue with next chunk
-      this.playNextChunk();
+      this.playNextChunk().catch(nextErr => {
+        debugError('[AudioStreamManager] Playback chain error:', nextErr);
+      });
 
     } catch (err) {
       if (this.suppressPlaybackErrors) {
@@ -409,7 +413,9 @@ class AudioStreamManager {
       });
       debugError(`[AudioStreamManager] Failed to play chunk ${chunk.chunkIndex}:`, err);
       // Try to continue with next chunk even if one fails
-      this.playNextChunk();
+      this.playNextChunk().catch(nextErr => {
+        debugError('[AudioStreamManager] Playback chain error after recovery:', nextErr);
+      });
     }
   }
 

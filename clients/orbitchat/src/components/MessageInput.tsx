@@ -620,27 +620,25 @@ export function MessageInput({
   const lastSyncedConversationRef = useRef<string | null>(null);
   const lastSyncedSignatureRef = useRef<string>('');
 
-  // Sync and poll file status when switching to a conversation
+  // Stable file signature derived from file IDs — avoids re-triggering when the
+  // attachedFiles array reference changes but the actual file set hasn't.
+  const convFiles = currentConversation?.attachedFiles || [];
+  const fileSignature = convFiles.length > 0
+    ? `${convFiles.length}:${convFiles.map(f => f.file_id).join('|')}`
+    : '';
+  const hasFilesStillProcessing = convFiles.some(f =>
+    !f.processing_status ||
+    f.processing_status === 'processing' ||
+    f.processing_status === 'uploading'
+  );
+
+  // Sync and poll file status when switching to a conversation or when files change
   useEffect(() => {
-    if (!currentConversationId || !currentConversation) {
+    if (!currentConversationId || !currentConversation?.adapterName) {
       return;
     }
 
-    if (!currentConversation.adapterName) {
-      return;
-    }
-
-    const convFiles = currentConversation.attachedFiles || [];
-    const hasFiles = convFiles.length > 0;
-    const processingFiles = convFiles.filter(f => 
-      !f.processing_status || 
-      f.processing_status === 'processing' || 
-      f.processing_status === 'uploading'
-    );
-
-    const fileSignature = hasFiles
-      ? `${convFiles.length}:${convFiles.map(f => f.file_id).join('|')}`
-      : '';
+    const hasFiles = fileSignature !== '';
 
     const shouldSyncOnChange =
       hasFiles &&
@@ -650,7 +648,7 @@ export function MessageInput({
       );
 
     if (shouldSyncOnChange) {
-      debugLog(`[MessageInput] Syncing ${convFiles.length} files for conversation ${currentConversationId}...`);
+      debugLog(`[MessageInput] Syncing files for conversation ${currentConversationId}...`);
       lastSyncedConversationRef.current = currentConversationId;
       lastSyncedSignatureRef.current = fileSignature;
       syncConversationFiles(currentConversationId).catch(error => {
@@ -663,26 +661,26 @@ export function MessageInput({
     }
 
     // Only poll if there are files still processing
-    if (processingFiles.length === 0) {
+    if (!hasFilesStillProcessing) {
       return;
     }
 
-    debugLog(`[MessageInput] Found ${processingFiles.length} files still processing, starting poll...`);
+    debugLog(`[MessageInput] Files still processing, starting poll...`);
 
     // Poll for file status updates every 3 seconds for files that are still processing
     const pollInterval = setInterval(async () => {
       const currentState = useChatStore.getState();
       const currentConv = currentState.conversations.find(conv => conv.id === currentConversationId);
-      
+
       if (!currentConv) {
         clearInterval(pollInterval);
         return;
       }
 
       const currentFiles = currentConv.attachedFiles || [];
-      const stillProcessing = currentFiles.filter(f => 
-        !f.processing_status || 
-        f.processing_status === 'processing' || 
+      const stillProcessing = currentFiles.filter(f =>
+        !f.processing_status ||
+        f.processing_status === 'processing' ||
         f.processing_status === 'uploading'
       );
 
@@ -703,7 +701,8 @@ export function MessageInput({
     return () => {
       clearInterval(pollInterval);
     };
-  }, [currentConversationId, currentConversation, syncConversationFiles]);
+    // Use stable fileSignature string instead of attachedFiles array reference.
+  }, [currentConversationId, currentConversation?.adapterName, fileSignature, hasFilesStillProcessing, syncConversationFiles]);
 
   useEffect(() => {
     setConversationUploadingState(prev => {

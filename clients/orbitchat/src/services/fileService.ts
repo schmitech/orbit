@@ -5,7 +5,7 @@
  * All requests go through the Express proxy with X-Adapter-Name headers.
  */
 
-import { getApi } from '../api/loader';
+import { getApi } from '../apiClient';
 import { FileAttachment } from '../types';
 import { debugLog, debugWarn, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
@@ -119,8 +119,8 @@ export class FileUploadService {
       const isValidType = allowedTypes.includes(file.type) ||
         /\.(pdf|txt|md|csv|json|html|docx|pptx|xlsx|py|java|sql|js|mjs|ts|tsx|cpp|cxx|cc|c|h|hpp|go|rs|rb|php|sh|bash|zsh|yaml|yml|xml|css|scss|sass|less|png|jpe?g|tiff?|wav|mp3|mp4|ogg|flac|webm|m4a|aac|vtt)$/i.test(file.name) ||
         // Handle cases where Excel files are detected as ZIP
-        (file.type === 'application/x-zip-compressed' || file.type === 'application/zip') &&
-        /\.xlsx$/i.test(file.name);
+        ((file.type === 'application/x-zip-compressed' || file.type === 'application/zip') &&
+        /\.xlsx$/i.test(file.name));
 
       if (!isValidType) {
         throw new Error(`File type not supported: ${file.type || 'unknown'}`);
@@ -241,20 +241,48 @@ export class FileUploadService {
     files: File[],
     onProgress?: (fileIndex: number, progress: FileUploadProgress) => void
   ): Promise<FileAttachment[]> {
-    const uploadPromises = files.map(async (file, index) => {
-      try {
-        return await this.uploadFile(file, progress => {
-          if (onProgress) {
-            onProgress(index, progress);
-          }
-        });
-      } catch (error: unknown) {
-        logError(`Failed to upload file ${file.name}:`, error);
-        throw error;
-      }
-    });
+    const MAX_CONCURRENT = 3;
+    const results: FileAttachment[] = [];
+    const errors: { index: number; file: string; error: unknown }[] = [];
 
-    return Promise.all(uploadPromises);
+    // Process files in batches to avoid exhausting browser connections
+    for (let i = 0; i < files.length; i += MAX_CONCURRENT) {
+      const batch = files.slice(i, i + MAX_CONCURRENT);
+      const batchResults = await Promise.allSettled(
+        batch.map(async (file, batchIndex) => {
+          const fileIndex = i + batchIndex;
+          return this.uploadFile(file, progress => {
+            if (onProgress) {
+              onProgress(fileIndex, progress);
+            }
+          });
+        })
+      );
+
+      for (let j = 0; j < batchResults.length; j++) {
+        const result = batchResults[j];
+        const fileIndex = i + j;
+        if (result.status === 'fulfilled') {
+          results.push(result.value);
+        } else {
+          logError(`Failed to upload file ${files[fileIndex].name}:`, result.reason);
+          errors.push({ index: fileIndex, file: files[fileIndex].name, error: result.reason });
+        }
+      }
+    }
+
+    // If all failed, throw. If some succeeded, return them and log errors.
+    if (results.length === 0 && errors.length > 0) {
+      const firstError = errors[0].error;
+      throw firstError instanceof Error ? firstError : new Error(`All ${errors.length} file uploads failed`);
+    }
+
+    if (errors.length > 0) {
+      debugWarn(`[FileUploadService] ${errors.length} of ${files.length} files failed to upload:`,
+        errors.map(e => e.file));
+    }
+
+    return results;
   }
 
   /**
@@ -412,6 +440,8 @@ export class FileUploadService {
         }
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
+
+        // Non-retryable: file was deleted
         if (
           errorMessage.includes('404') ||
           errorMessage.includes('File not found') ||
@@ -420,7 +450,18 @@ export class FileUploadService {
           throw new Error(`File ${fileId} was deleted during upload`);
         }
 
+        // Non-retryable: component unmounted
         if (errorMessage.includes('component unmounted')) {
+          throw error;
+        }
+
+        // Non-retryable: auth or server errors won't resolve by retrying
+        if (
+          errorMessage.includes('401') ||
+          errorMessage.includes('403') ||
+          errorMessage.includes('Authentication') ||
+          errorMessage.includes('Adapter not configured')
+        ) {
           throw error;
         }
 
