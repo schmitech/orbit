@@ -14,6 +14,8 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 | `responsive-design-agent.md` | Makes an existing React webapp fully responsive across mobile devices (iOS, Android) without breaking the desktop version |
 | `bug-detection-agent.md` | Finds existing bugs, latent defects, race conditions, edge cases, and fragile code that will break under real-world conditions |
 | `database-scalability-agent.md` | Database concurrency, connection pooling, Redis caching strategy, query optimization, and load resilience for high-traffic systems |
+| `system-design-agent.md` | Evaluates overall system architecture, boundaries, failure modes, scalability ceilings, coupling, and operational readiness |
+| `implementation-review-agent.md` | Reviews component-level implementation decisions — data structures, algorithms, patterns, state, error handling — and identifies better alternatives |
 
 ---
 
@@ -27,6 +29,8 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 - **Need to make a desktop app work on mobile?** → Use `responsive-design-agent.md`
 - **Hunting for bugs, edge cases, and things that will break in production?** → Use `bug-detection-agent.md`
 - **Need to handle thousands/millions of requests without melting the database?** → Use `database-scalability-agent.md`
+- **Evaluating the overall architecture for weaknesses and limitations?** → Use `system-design-agent.md`
+- **Want to challenge specific implementation decisions within components?** → Use `implementation-review-agent.md`
 - **Want the full picture?** → Combine agents in a single session (see below)
 
 ### 2. Start a new conversation with your AI assistant
@@ -107,6 +111,26 @@ Apply the following assessment framework to the attached codebase:
 [Paste or attach your code]
 ```
 
+### Single Agent — System Design Review
+
+```
+Apply the following assessment framework to the attached codebase:
+
+[Paste contents of system-design-agent.md here]
+
+[Paste or attach your code]
+```
+
+### Single Agent — Implementation Review
+
+```
+Apply the following assessment framework to the attached codebase:
+
+[Paste contents of implementation-review-agent.md here]
+
+[Paste or attach your code]
+```
+
 ### Combined — Full Review
 
 ```
@@ -146,6 +170,8 @@ Focus especially on [accessibility / responsive design / interaction feedback / 
 Focus especially on [navigation / forms / touch interactions / iOS Safari quirks / Android Chrome quirks].
 Focus especially on [async bugs / state management / null safety / edge cases / error handling gaps / race conditions].
 Focus especially on [connection pooling / Redis caching / query optimization / concurrency control / write throughput / read scaling].
+Focus especially on [failure modes / coupling / scalability ceilings / API contracts / data ownership / observability gaps].
+Focus especially on [data structures / algorithm efficiency / state management / error handling / async patterns / resource lifecycle].
 ```
 
 ### Scope Modifiers
@@ -161,6 +187,9 @@ Assume [high traffic / concurrent users / unreliable network / hostile user inpu
 The database is [Postgres / MySQL / MongoDB / etc.] with [Prisma / TypeORM / Sequelize / Drizzle / raw queries].
 Target load: [X requests per second / X concurrent users / X database size].
 Redis is used for [caching / sessions / job queues / rate limiting / pub-sub / all of the above].
+Architecture is [monolith / modular monolith / microservices / serverless / hybrid].
+Team size is [1-3 / 4-10 / 10+ developers]. Current traffic is [low / moderate / high / unknown].
+Review only [these specific files or modules]. Prioritize [performance / correctness / maintainability].
 ```
 
 ### Compliance Modifiers
@@ -283,6 +312,41 @@ Summary includes:
 - Connection pool and Redis memory sizing recommendations
 - Overall production readiness score at target load (1–10)
 - Phased optimization roadmap (immediate / pre-launch / at-scale)
+
+### System Design Agent
+
+For each shortcoming:
+- **Location** — file, module, or architectural boundary
+- **Issue** — what the weakness or limitation is
+- **Category** — Architectural Coherence / Separation of Concerns / API Design / Dependency & Coupling / Data Architecture / Failure & Resilience / Security Architecture / Observability / Scalability / Configuration / Testing / Documentation
+- **Severity** — Critical (systemic risk) / High (growth limiter) / Medium (suboptimal) / Low (improvement opportunity)
+- **Impact** — specific consequences if not addressed
+- **Recommendation** — architectural change with implementation detail
+
+Summary includes:
+- Architecture scorecard (1–10 per category): Modularity, Resilience, Scalability, Operational Readiness, Security, Developer Experience
+- Top 5 architectural risks
+- Single points of failure inventory
+- Scalability ceiling estimate
+- Strategic roadmap: immediate / short-term / medium-term / long-term
+- Overall system design maturity score (1–10)
+
+### Implementation Review Agent
+
+For each decision reviewed:
+- **Location** — file and line/section
+- **Current Implementation** — what was built and the decision made
+- **Shortcoming** — why the decision is suboptimal
+- **Consequence** — concrete impact if unchanged (performance, bugs, maintenance cost)
+- **Better Approach** — recommended alternative with refactored code
+- **Tradeoff Acknowledgment** — honest assessment of any advantages of the current approach
+
+Summary includes:
+- Findings by impact area (Data Structures, Algorithms, Functions, State, Error Handling, Async, Logic, Resources, Configuration, Naming & Abstraction)
+- Top 5 decisions to change first
+- Recurring implementation weakness patterns
+- Overall implementation quality score (1–10)
+- Effort estimates per fix: Quick Fix (< 1hr) / Moderate (1–4hr) / Significant (4hr+)
 
 ---
 
