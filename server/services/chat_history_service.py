@@ -9,7 +9,9 @@ Simplified version without Redis caching for better maintainability.
 
 import logging
 import asyncio
+import functools
 import hashlib
+import random
 from typing import Dict, Any, Optional, List, Tuple, Callable, TypeVar, Awaitable
 from datetime import datetime, timedelta, UTC
 
@@ -53,6 +55,7 @@ def with_retry(
         retry_on: Tuple of database exceptions to retry on
     """
     def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
+        @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> T:
             last_exception = None
             for attempt in range(max_attempts):
@@ -61,8 +64,8 @@ def with_retry(
                 except retry_on as e:
                     last_exception = e
                     if attempt < max_attempts - 1:
-                        # Calculate delay with exponential backoff and jitter
-                        delay = min(base_delay * (2 ** attempt) + (asyncio.get_event_loop().time() % 1), max_delay)
+                        # Calculate delay with exponential backoff and full jitter
+                        delay = min(random.uniform(0, base_delay * (2 ** attempt)), max_delay)
                         logger.warning(f"Retry attempt {attempt + 1}/{max_attempts} for {func.__name__} after {delay:.2f}s due to {type(e).__name__}")
                         await asyncio.sleep(delay)
                     else:
@@ -132,13 +135,14 @@ class ChatHistoryService:
 
         self._initialized = False
         
-        # Cleanup task handle
+        # Cleanup and backfill task handles
         self._cleanup_task = None
+        self._backfill_task = None
         
         # Tokenization configuration
         self.tokenizer_config = self.chat_history_config.get('tokenizer', 'character')
         self._tokenizer = None  # Lazy initialization
-        self._tokenization_queue = asyncio.Queue() if self.enabled else None
+        self._tokenization_queue = asyncio.Queue(maxsize=10000) if self.enabled else None
         self._tokenization_task = None
         
         # Calculate token budget for conversation history
@@ -175,11 +179,18 @@ class ChatHistoryService:
             
             # Extract context window size
             context_window = self._get_context_window_size(inference_provider, inference_config)
-            
-            # Reserve space for system prompts, current query, and response generation
-            # System prompt: ~200 tokens, current query: ~50 tokens, response buffer: ~100 tokens
-            reserved_tokens = 350
-            
+
+            # Reserve space for: output generation + system prompt + current query buffer
+            # max_tokens/num_predict: tokens reserved for the model's response
+            max_output_tokens = (
+                inference_config.get('max_tokens')
+                or inference_config.get('num_predict')
+                or 1024
+            )
+            # System prompt (~500 tokens) + current query buffer (~200 tokens)
+            overhead_tokens = 700
+            reserved_tokens = max_output_tokens + overhead_tokens
+
             # Calculate available tokens for conversation history
             available_tokens = max(0, context_window - reserved_tokens)
             
@@ -221,65 +232,59 @@ class ChatHistoryService:
         # Provider-specific context window parameter names
         # These map to the actual config parameters each provider uses
         context_params = {
-            'ollama': 'num_ctx',           # Ollama context window size
-            'llama_cpp': 'n_ctx',          # llama.cpp context window size
-            'openai': 'context_window',    # User-configurable context window override
-            'anthropic': 'context_window', # User-configurable context window override
-            'gemini': 'context_window',    # User-configurable context window override
-            'groq': 'context_window',      # User-configurable context window override
-            'deepseek': 'context_window',  # User-configurable context window override
-            'together': 'context_window',  # User-configurable context window override
-            'xai': 'context_window',       # User-configurable context window override
-            'vllm': 'context_window',      # User-configurable context window override
-            'azure': 'context_window',     # User-configurable context window override
-            'vertex': 'context_window',    # User-configurable context window override
-            'aws': 'context_window',       # User-configurable context window override
-            'huggingface': 'max_length',   # HuggingFace uses max_length for context
-            'mistral': 'context_window',   # User-configurable context window override
-            'openrouter': 'context_window' # User-configurable context window override
+            'ollama': 'num_ctx',
+            'ollama_cloud': 'num_ctx',
+            'ollama_remote': 'num_ctx',
+            'llama_cpp': 'n_ctx',
+            'bitnet': 'n_ctx',
+            'vllm': 'max_model_len',
+            'tensorrt': 'max_model_len',
+            'huggingface': 'max_length',
+            # All other providers use 'context_window' as their primary param
         }
+        # Most providers use 'context_window' — set it as the default
+        _default_context_param = 'context_window'
         
         # Alternative parameter names that might indicate context window size
         # These are fallback parameters if the primary one isn't found
-        alternative_params = {
-            'openai': ['max_context_length', 'context_length'],
-            'anthropic': ['max_context_length', 'context_length'], 
-            'gemini': ['max_context_length', 'context_length'],
-            'groq': ['max_context_length', 'context_length'],
-            'deepseek': ['max_context_length', 'context_length'],
-            'together': ['max_context_length', 'context_length'],
-            'xai': ['max_context_length', 'context_length'],
-            'vllm': ['max_context_length', 'context_length'],
-            'azure': ['max_context_length', 'context_length'],
-            'vertex': ['max_context_length', 'context_length'],
-            'aws': ['max_context_length', 'context_length'],
-            'mistral': ['max_context_length', 'context_length'],
-            'openrouter': ['max_context_length', 'context_length']
-        }
+        default_alternatives = ['max_context_length', 'context_length']
         
         # Default context window sizes for providers (conservative estimates)
         # Used only when no configuration parameter is found
         default_context_windows = {
-            'ollama': 8192,      # Typical Ollama default
-            'llama_cpp': 4096,   # Typical llama.cpp default
-            'openai': 32768,     # GPT-4 range (varies by model)
-            'anthropic': 200000, # Claude 3 range (varies by model)
-            'gemini': 32768,     # Gemini Pro range (varies by model)
-            'groq': 8192,        # Typical Llama models on Groq
-            'deepseek': 32768,   # DeepSeek models range
-            'together': 8192,    # Varies by model, conservative estimate
-            'xai': 8192,         # Grok models range
-            'vllm': 8192,        # Varies by model, conservative estimate
-            'azure': 32768,      # Azure OpenAI GPT-4 range
-            'vertex': 32768,     # Google Vertex AI Gemini range
-            'aws': 8192,         # AWS Bedrock varies by model
-            'huggingface': 2048, # Conservative for local HF models
-            'mistral': 8192,     # Mistral models range
-            'openrouter': 8192   # Varies by routed model
+            'ollama': 8192,
+            'ollama_cloud': 32768,
+            'ollama_remote': 8192,
+            'llama_cpp': 4096,
+            'openai': 128000,
+            'anthropic': 200000,
+            'gemini': 1000000,
+            'groq': 131072,
+            'deepseek': 65536,
+            'together': 32768,
+            'xai': 131072,
+            'vllm': 8192,
+            'tensorrt': 4096,
+            'shimmy': 65536,
+            'azure': 128000,
+            'vertex': 1000000,
+            'aws': 200000,
+            'huggingface': 2048,
+            'mistral': 32768,
+            'openrouter': 131072,
+            'cohere': 288000,
+            'watson': 8192,
+            'perplexity': 32768,
+            'fireworks': 4096,
+            'replicate': 4096,
+            'nvidia': 8192,
+            'bitnet': 2048,
+            'transformers': 4096,
+            'zai': 128000,
         }
         
         # First, try to read the primary context window parameter
-        param_name = context_params.get(provider)
+        param_name = context_params.get(provider, _default_context_param)
         if param_name and param_name in provider_config:
             context_window = provider_config[param_name]
             if isinstance(context_window, int) and context_window > 0:
@@ -292,7 +297,7 @@ class ChatHistoryService:
                 return context_window
         
         # Second, try alternative parameter names
-        alternatives = alternative_params.get(provider, [])
+        alternatives = default_alternatives
         for alt_param in alternatives:
             if alt_param in provider_config:
                 context_window = provider_config[alt_param]
@@ -348,7 +353,7 @@ class ChatHistoryService:
                 
             # Start batch backfill task for existing messages without token_count
             if self.enabled:
-                asyncio.create_task(self._backfill_token_counts())
+                self._backfill_task = asyncio.create_task(self._backfill_token_counts())
                 
             self._initialized = True
             logger.info("Chat history service initialized successfully")
@@ -505,19 +510,15 @@ class ChatHistoryService:
             
             batch_size = 100
             processed = 0  # Count of messages actually updated
-            offset = 0     # Monotonically increasing offset for pagination
-            
+
             while True:
-                # Fetch messages in batches (backend-agnostic approach)
-                # We'll filter in Python to avoid backend-specific query syntax
-                # Use offset (not processed) to ensure we scan all messages
+                # Fetch only messages without token_count (targeted query)
                 messages = await self.database_service.find_many(
                     self.collection_name,
-                    {},  # Fetch all messages, filter in Python
-                    limit=batch_size,
-                    skip=offset
+                    {"token_count": None},
+                    limit=batch_size
                 )
-                
+
                 if not messages:
                     # No more messages to process
                     if processed > 0:
@@ -526,22 +527,16 @@ class ChatHistoryService:
                             processed,
                         )
                     break
-                
-                # Process batch - only update messages without token_count
-                batch_processed = 0
+
+                # Process batch
                 for msg in messages:
                     message_id = msg.get("_id")
                     content = msg.get("content", "")
-                    token_count = msg.get("token_count")
-                    
-                    # Skip if token_count already exists and is not None
-                    if token_count is not None:
-                        continue
-                    
+
                     if message_id and content:
                         # Calculate actual token count
                         actual_token_count = await self._calculate_actual_tokens(content)
-                        
+
                         # Update message (wrap in $set for MongoDB/SQLite compatibility)
                         try:
                             await self.database_service.update_one(
@@ -550,13 +545,8 @@ class ChatHistoryService:
                                 {"$set": {"token_count": actual_token_count}}
                             )
                             processed += 1
-                            batch_processed += 1
                         except Exception as e:
                             logger.warning(f"Error updating token_count for message {message_id}: {str(e)}")
-                
-                # Always advance offset by batch size to scan all messages
-                # Don't break early - continue scanning even if current batch had no updates
-                offset += batch_size
                 
                 # Small delay between batches to avoid overwhelming the system
                 await asyncio.sleep(0.1)
@@ -707,22 +697,16 @@ class ChatHistoryService:
         if not self.enabled:
             return None, None
         
-        # Generate idempotency keys for both messages
-        timestamp = datetime.now(UTC)
-        user_key = f"{session_id}:user:{timestamp.isoformat()}"
-        assistant_key = f"{session_id}:assistant:{timestamp.isoformat()}"
-        
-        # Add user message
+        # Add user message (no idempotency key — dedup via content-based message_hash)
         user_msg_id = await self.add_message(
             session_id=session_id,
             role="user",
             content=user_message,
             user_id=user_id,
             api_key=api_key,
-            metadata=metadata,
-            idempotency_key=user_key
+            metadata=metadata
         )
-        
+
         # Only add assistant response if user message was added successfully
         assistant_msg_id = None
         if user_msg_id:
@@ -732,8 +716,7 @@ class ChatHistoryService:
                 content=assistant_response,
                 user_id=user_id,
                 api_key=api_key,
-                metadata=metadata,
-                idempotency_key=assistant_key
+                metadata=metadata
             )
         
         # Trigger cleanup if session exceeds token budget threshold
@@ -859,18 +842,16 @@ class ChatHistoryService:
                         token_count = self._estimate_token_count(content)
                     tokens_removed += token_count
 
-                # Delete messages in batches
+                # Delete messages in bulk
                 actual_deleted = 0
-                for msg_id in deleted_ids:
+                if deleted_ids:
                     try:
-                        deleted = await self.database_service.delete_one(
+                        actual_deleted = await self.database_service.delete_many(
                             self.collection_name,
-                            {"_id": msg_id}
+                            {"_id": {"$in": deleted_ids}}
                         )
-                        if deleted:
-                            actual_deleted += 1
                     except Exception as e:
-                        logger.warning(f"Error deleting message {msg_id}: {str(e)}")
+                        logger.warning(f"Error bulk-deleting messages: {str(e)}")
 
                 # Update cache atomically within the lock
                 if actual_deleted > 0:
@@ -1010,7 +991,7 @@ class ChatHistoryService:
                 limit=10000  # reasonable limit to prevent memory issues
             )
 
-            # Group messages by session_id in Python
+            # Group messages by session_id — only track metadata, not full messages
             sessions_dict = {}
             for msg in messages:
                 session_id = msg.get("session_id")
@@ -1019,32 +1000,31 @@ class ChatHistoryService:
 
                 if session_id not in sessions_dict:
                     sessions_dict[session_id] = {
-                        "messages": [],
+                        "message_count": 0,
                         "last_activity": msg.get("timestamp"),
                         "first_activity": msg.get("timestamp"),
                         "last_message": msg.get("content", ""),
                         "last_role": msg.get("role")
                     }
 
-                sessions_dict[session_id]["messages"].append(msg)
+                sessions_dict[session_id]["message_count"] += 1
                 # Update first_activity (since messages are sorted desc, last one we see is oldest)
                 sessions_dict[session_id]["first_activity"] = msg.get("timestamp")
 
-            # Convert to list and calculate stats
+            # Convert to list
             sessions_list = []
             for session_id, data in sessions_dict.items():
                 session_data = {
                     "session_id": session_id,
                     "last_activity": data["last_activity"],
                     "first_activity": data["first_activity"],
-                    "message_count": len(data["messages"]),
+                    "message_count": data["message_count"],
                     "duration_seconds": (
                         data["last_activity"] - data["first_activity"]
                     ).total_seconds() if data["last_activity"] and data["first_activity"] else 0
                 }
 
                 if include_summary:
-                    # Truncate message preview
                     preview = data.get("last_message", "")[:100]
                     if len(data.get("last_message", "")) > 100:
                         preview += "..."
@@ -1065,6 +1045,122 @@ class ChatHistoryService:
             logger.error(f"Error getting user sessions: {str(e)}")
             return []
     
+    async def _cascade_delete_session(
+        self,
+        session_id: str,
+        api_key: Optional[str] = None,
+        delete_files: bool = False
+    ) -> Dict[str, int]:
+        """
+        Delete threads, datasets, thread messages, and optionally files for a session.
+
+        Args:
+            session_id: Session identifier
+            api_key: API key (required if delete_files=True)
+            delete_files: Whether to also delete uploaded files from vector stores
+
+        Returns:
+            Dict with counts: threads_deleted, datasets_deleted, thread_messages_deleted, files_deleted
+        """
+        result = {
+            "threads_deleted": 0,
+            "datasets_deleted": 0,
+            "thread_messages_deleted": 0,
+            "files_deleted": 0,
+        }
+
+        try:
+            threads = await self.database_service.find_many(
+                "conversation_threads",
+                {"parent_session_id": session_id}
+            )
+
+            if not threads:
+                return result
+
+            # Extract and delete uploaded files BEFORE deleting datasets
+            if delete_files and api_key:
+                file_ids_to_delete = set()
+                for thread in threads:
+                    dataset_key = thread.get('dataset_key')
+                    if dataset_key:
+                        try:
+                            dataset = await self.thread_dataset_service.get_dataset(dataset_key)
+                            if dataset:
+                                _, raw_results = dataset
+                                for r in (raw_results or []):
+                                    if isinstance(r, dict):
+                                        fid = (r.get('metadata') or {}).get('file_id')
+                                        if fid:
+                                            file_ids_to_delete.add(fid)
+                                        fm = r.get('file_metadata')
+                                        if isinstance(fm, dict):
+                                            fid = fm.get('file_id')
+                                            if fid:
+                                                file_ids_to_delete.add(fid)
+                        except Exception as e:
+                            logger.warning("Failed to extract file_ids from dataset %s: %s", dataset_key, e)
+
+                if file_ids_to_delete:
+                    file_processing_service = None
+                    if hasattr(self, 'database_service') and hasattr(self.database_service, 'app_state'):
+                        file_processing_service = getattr(self.database_service.app_state, 'file_processing_service', None)
+
+                    if file_processing_service:
+                        for file_id in file_ids_to_delete:
+                            try:
+                                if await file_processing_service.delete_file(file_id, api_key):
+                                    result["files_deleted"] += 1
+                            except Exception as e:
+                                logger.warning("Error deleting file %s: %s", file_id, e)
+                    else:
+                        logger.warning(
+                            "FileProcessingService not available - files will not be deleted. "
+                            "This may leave orphaned chunks in vector stores."
+                        )
+
+            # Delete datasets and thread session messages
+            for thread in threads:
+                dataset_key = thread.get('dataset_key')
+                if dataset_key:
+                    try:
+                        if await self.thread_dataset_service.delete_dataset(dataset_key):
+                            result["datasets_deleted"] += 1
+                    except Exception:
+                        pass
+
+                thread_session_id = thread.get('thread_session_id')
+                if thread_session_id:
+                    try:
+                        deleted = await self.database_service.delete_many(
+                            self.collection_name,
+                            {"session_id": thread_session_id}
+                        )
+                        result["thread_messages_deleted"] += deleted
+                    except Exception as e:
+                        logger.warning("Failed to delete thread session %s: %s", thread_session_id, e)
+
+            # Delete thread records
+            result["threads_deleted"] = await self.database_service.delete_many(
+                "conversation_threads",
+                {"parent_session_id": session_id}
+            )
+
+            if result["threads_deleted"] > 0:
+                logger.debug(
+                    "Deleted %s threads, %s datasets, %s files, %s thread messages for session %s",
+                    result["threads_deleted"],
+                    result["datasets_deleted"],
+                    result["files_deleted"],
+                    result["thread_messages_deleted"],
+                    session_id,
+                )
+
+        except Exception as e:
+            logger.warning(f"Error deleting threads for session {session_id}: {str(e)}")
+
+        return result
+
     async def clear_session_history(self, session_id: str) -> bool:
         """
         Clear all history for a session
@@ -1079,68 +1175,17 @@ class ChatHistoryService:
             return False
 
         try:
-            # Delete from database
             deleted_count = await self.database_service.delete_many(
                 self.collection_name,
                 {"session_id": session_id}
             )
 
-            # Delete any associated threads (cascade delete)
-            try:
-                # First, get all threads for this session to clean up their datasets
-                threads = await self.database_service.find_many(
-                    "conversation_threads",
-                    {"parent_session_id": session_id}
-                )
-
-                datasets_deleted = 0
-                thread_sessions_deleted = 0
-                # Delete thread datasets using ThreadDatasetService (handles Redis/database)
-                if threads:
-                    for thread in threads:
-                        dataset_key = thread.get('dataset_key')
-                        if dataset_key:
-                            try:
-                                if await self.thread_dataset_service.delete_dataset(dataset_key):
-                                    datasets_deleted += 1
-                            except Exception:
-                                pass  # Dataset might not exist or already deleted
-
-                        # Thread replies live under their own session_id, so delete them too
-                        thread_session_id = thread.get('thread_session_id')
-                        if thread_session_id:
-                            try:
-                                deleted = await self.database_service.delete_many(
-                                    self.collection_name,
-                                    {"session_id": thread_session_id}
-                                )
-                                thread_sessions_deleted += deleted
-                            except Exception as thread_session_error:
-                                logger.warning(
-                                    "Failed to delete thread session %s: %s",
-                                    thread_session_id,
-                                    thread_session_error
-                                )
-
-                # Delete thread records
-                threads_deleted = await self.database_service.delete_many(
-                    "conversation_threads",
-                    {"parent_session_id": session_id}
-                )
-                if threads_deleted > 0:
-                    logger.debug(
-                        "Deleted %s associated threads (%s replies, %s datasets) for session %s",
-                        threads_deleted,
-                        thread_sessions_deleted,
-                        datasets_deleted,
-                        session_id,
-                    )
-            except Exception as thread_error:
-                logger.warning(f"Error deleting threads for session {session_id}: {str(thread_error)}")
+            await self._cascade_delete_session(session_id)
 
             # Clear from tracking
             self._active_sessions.pop(session_id, None)
             self._session_token_counts.pop(session_id, None)
+            self._session_locks.pop(session_id, None)
 
             logger.debug(
                 "Cleared history for session %s: %s messages",
@@ -1222,170 +1267,29 @@ class ChatHistoryService:
                 {"session_id": session_id}
             )
 
-            # Delete any associated threads (cascade delete)
-            threads_deleted = 0
-            thread_messages_deleted = 0
-            files_deleted = 0
-            try:
-                # First, get all threads for this session to clean up their datasets
-                threads = await self.database_service.find_many(
-                    "conversation_threads",
-                    {"parent_session_id": session_id}
-                )
-
-                # Extract and delete uploaded files from thread datasets BEFORE deleting the datasets
-                # This prevents orphaned chunks in vector stores (Qdrant, ChromaDB, etc.)
-                if threads:
-                    logger.debug(
-                        "Extracting file_ids from %s thread(s) for session %s",
-                        len(threads),
-                        session_id
-                    )
-                    file_ids_to_delete = set()  # Use set to avoid duplicates
-
-                    for thread in threads:
-                        dataset_key = thread.get('dataset_key')
-                        if dataset_key:
-                            try:
-                                # Get dataset to extract file_ids
-                                dataset = await self.thread_dataset_service.get_dataset(dataset_key)
-                                if dataset:
-                                    query_context, raw_results = dataset
-                                    logger.debug(
-                                        "Processing dataset %s with %s results",
-                                        dataset_key,
-                                        len(raw_results) if raw_results else 0
-                                    )
-
-                                    # Extract file_ids from raw_results metadata
-                                    for result in raw_results:
-                                        if isinstance(result, dict):
-                                            metadata = result.get('metadata', {})
-                                            file_id = metadata.get('file_id')
-                                            if file_id:
-                                                logger.debug("Found file_id in metadata: %s", file_id)
-                                                file_ids_to_delete.add(file_id)
-
-                                            # Also check file_metadata (nested structure)
-                                            file_metadata = result.get('file_metadata', {})
-                                            if file_metadata and isinstance(file_metadata, dict):
-                                                file_id = file_metadata.get('file_id')
-                                                if file_id:
-                                                    logger.debug("Found file_id in file_metadata: %s", file_id)
-                                                    file_ids_to_delete.add(file_id)
-                                else:
-                                    logger.debug("No dataset found for key %s", dataset_key)
-                            except Exception as extract_error:
-                                logger.warning(
-                                    "Failed to extract file_ids from dataset %s: %s",
-                                    dataset_key,
-                                    extract_error
-                                )
-
-                    # Delete files using FileProcessingService (handles vector store cleanup)
-                    if file_ids_to_delete:
-                        logger.debug(
-                            "Found %s unique file(s) to delete for session %s: %s",
-                            len(file_ids_to_delete),
-                            session_id,
-                            list(file_ids_to_delete)
-                        )
-                        logger.debug("Starting file deletion from vector stores and storage...")
-
-                        # Get file_processing_service from app_state if available
-                        file_processing_service = None
-                        if hasattr(self, 'database_service') and hasattr(self.database_service, 'app_state'):
-                            file_processing_service = getattr(self.database_service.app_state, 'file_processing_service', None)
-
-                        if file_processing_service:
-                            for file_id in file_ids_to_delete:
-                                try:
-                                    # Delete file and its chunks from vector store
-                                    deleted = await file_processing_service.delete_file(file_id, api_key)
-                                    if deleted:
-                                        files_deleted += 1
-                                        logger.debug("✓ Deleted file %s and its chunks from vector store", file_id)
-                                    else:
-                                        logger.warning("✗ Failed to delete file %s (may not exist)", file_id)
-                                except Exception as file_delete_error:
-                                    logger.warning(
-                                        "✗ Error deleting file %s: %s",
-                                        file_id,
-                                        file_delete_error
-                                    )
-                            logger.debug("Completed file deletion: %s/%s files successfully deleted", files_deleted, len(file_ids_to_delete))
-                        else:
-                            logger.warning(
-                                "FileProcessingService not available - files will not be deleted. "
-                                "This may leave orphaned chunks in vector stores."
-                            )
-                    else:
-                        logger.debug("No uploaded files found for session %s", session_id)
-
-                # Delete thread datasets using ThreadDatasetService (handles Redis/database)
-                datasets_deleted = 0
-                if threads:
-                    for thread in threads:
-                        dataset_key = thread.get('dataset_key')
-                        if dataset_key:
-                            try:
-                                result = await self.thread_dataset_service.delete_dataset(dataset_key)
-                                if result:
-                                    datasets_deleted += 1
-                            except Exception:
-                                pass  # Dataset might not exist or already deleted
-
-                        # Remove chat history rows that belong to the thread session itself
-                        thread_session_id = thread.get('thread_session_id')
-                        if thread_session_id:
-                            try:
-                                deleted = await self.database_service.delete_many(
-                                    self.collection_name,
-                                    {"session_id": thread_session_id}
-                                )
-                                thread_messages_deleted += deleted
-                            except Exception as thread_session_error:
-                                logger.warning(
-                                    "Failed to delete thread session history %s: %s",
-                                    thread_session_id,
-                                    thread_session_error
-                                )
-
-                # Delete thread records
-                threads_deleted = await self.database_service.delete_many(
-                    "conversation_threads",
-                    {"parent_session_id": session_id}
-                )
-                if threads_deleted > 0:
-                    logger.debug(
-                        "Deleted %s associated threads, %s datasets, %s files, and %s thread messages for session %s",
-                        threads_deleted,
-                        datasets_deleted,
-                        files_deleted,
-                        thread_messages_deleted,
-                        session_id,
-                    )
-            except Exception as thread_error:
-                logger.warning(f"Error deleting threads for session {session_id}: {str(thread_error)}")
+            cascade_result = await self._cascade_delete_session(
+                session_id, api_key=api_key, delete_files=True
+            )
 
             self._active_sessions.pop(session_id, None)
             self._session_token_counts.pop(session_id, None)
+            self._session_locks.pop(session_id, None)
 
             logger.debug(
                 "Cleared conversation history for session %s: %s messages deleted, %s threads deleted, %s files deleted",
                 session_id,
                 deleted_count,
-                threads_deleted,
-                files_deleted,
+                cascade_result["threads_deleted"],
+                cascade_result["files_deleted"],
             )
 
             return {
                 "success": True,
                 "session_id": session_id,
                 "deleted_count": deleted_count,
-                "deleted_threads": threads_deleted,
-                "deleted_files": files_deleted,
-                "deleted_thread_messages": thread_messages_deleted,
+                "deleted_threads": cascade_result["threads_deleted"],
+                "deleted_files": cascade_result["files_deleted"],
+                "deleted_thread_messages": cascade_result["thread_messages_deleted"],
                 "api_key_validated": True,
                 "adapter_name": adapter_name,
                 "timestamp": datetime.now(UTC).isoformat()
@@ -1500,61 +1404,31 @@ class ChatHistoryService:
     async def _get_rolling_window_token_count(self, session_id: str) -> int:
         """
         Get token count for messages that would be included in rolling window query.
-        
-        This calculates the tokens that would actually be included in context,
-        not the total tokens in the session. Uses the same logic as get_context_messages.
-        
+
+        Delegates to get_context_messages which returns both messages and token count.
+
         Args:
             session_id: Session identifier
-            
+
         Returns:
             Token count for messages that fit within token budget
         """
-        if not self.enabled:
-            return 0
-        
-        token_budget = self.max_token_budget
-        
-        try:
-            # Calculate intelligent fetch limit based on token budget
-            # Assume conservative minimum of 50 tokens per message
-            # Add 20% buffer to account for variation in message sizes
-            estimated_messages_needed = int((token_budget / 50) * 1.2)
-            # Cap at reasonable maximum to prevent excessive memory usage
-            fetch_limit = min(max(estimated_messages_needed, 20), 1000)
-            
-            # Fetch messages for session, ordered by timestamp DESC (newest first)
-            all_messages = await self.database_service.find_many(
-                self.collection_name,
-                {"session_id": session_id},
-                sort=[("timestamp", -1)],  # Newest first
-                limit=fetch_limit
-            )
-            
-            # Rolling window: accumulate messages from newest to oldest until token budget reached
-            accumulated_tokens = 0
-            
-            for msg in all_messages:
-                # Get token count (use actual if available, otherwise estimate)
-                token_count = msg.get("token_count")
-                if token_count is None:
-                    # Fallback to estimate if token_count not yet calculated
-                    content = msg.get("content", "")
-                    token_count = self._estimate_token_count(content)
-                
-                # Check if adding this message would exceed budget
-                if accumulated_tokens + token_count > token_budget:
-                    # Stop here - we've reached the token budget
-                    break
-                
-                accumulated_tokens += token_count
-            
-            return accumulated_tokens
-            
-        except Exception as e:
-            logger.error(f"Error getting rolling window token count: {str(e)}")
-            return 0
-    
+        _, accumulated_tokens = await self.get_context_messages(session_id)
+        return accumulated_tokens
+
+    async def get_session_token_usage(self, session_id: str) -> Tuple[int, int]:
+        """
+        Get current token usage and max budget for a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Tuple of (current_tokens, max_tokens)
+        """
+        current = await self._get_rolling_window_token_count(session_id)
+        return current, self.max_token_budget
+
     async def _cleanup_old_conversations(self) -> None:
         """Background task to clean up old conversations"""
         while True:
@@ -1615,27 +1489,27 @@ class ChatHistoryService:
         session_id: str,
         max_messages: Optional[int] = None,
         max_tokens: Optional[int] = None
-    ) -> List[Dict[str, str]]:
+    ) -> Tuple[List[Dict[str, str]], int]:
         """
         Get conversation messages formatted for LLM context using rolling window query.
-        
+
         This method uses a token-based rolling window approach:
         - Fetches messages from newest to oldest
         - Accumulates tokens until budget is reached
         - Returns messages in chronological order (oldest to newest)
         - No archiving needed - query naturally enforces token budget
-        
+
         Args:
             session_id: Session identifier
             max_messages: Maximum number of messages to include (deprecated, use max_tokens)
             max_tokens: Maximum token budget for context (defaults to max_token_budget)
-            
+
         Returns:
-            List of messages formatted for LLM context
+            Tuple of (messages formatted for LLM context, accumulated token count)
         """
         if not self.enabled:
-            return []
-        
+            return [], 0
+
         # Determine token budget
         token_budget = max_tokens or self.max_token_budget
 
@@ -1660,11 +1534,11 @@ class ChatHistoryService:
                 sort=[("timestamp", -1)],  # Newest first
                 limit=fetch_limit
             )
-            
+
             # Rolling window: accumulate messages from newest to oldest until token budget reached
             selected_messages = []
             accumulated_tokens = 0
-            
+
             for msg in all_messages:
                 # Get token count (use actual if available, otherwise estimate)
                 token_count = msg.get("token_count")
@@ -1672,19 +1546,19 @@ class ChatHistoryService:
                     # Fallback to estimate if token_count not yet calculated
                     content = msg.get("content", "")
                     token_count = self._estimate_token_count(content)
-                
+
                 # Check if adding this message would exceed budget
                 if accumulated_tokens + token_count > token_budget:
                     # Stop here - we've reached the token budget
                     break
-                
+
                 # Add message to selection
                 selected_messages.append(msg)
                 accumulated_tokens += token_count
-            
+
             # Reverse to get chronological order (oldest to newest)
             selected_messages.reverse()
-            
+
             logger.debug(
                 "Session %s: Selected %s messages using %s/%s tokens",
                 session_id,
@@ -1692,7 +1566,7 @@ class ChatHistoryService:
                 accumulated_tokens,
                 token_budget,
             )
-            
+
             # Format for LLM context
             context_messages = []
             for msg in selected_messages:
@@ -1702,12 +1576,12 @@ class ChatHistoryService:
                         "role": role,
                         "content": msg.get("content", "")
                     })
-            
-            return context_messages
-            
+
+            return context_messages, accumulated_tokens
+
         except Exception as e:
             logger.error(f"Error getting context messages: {str(e)}")
-            return []
+            return [], 0
     
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -1746,14 +1620,12 @@ class ChatHistoryService:
             - oldest_tracked_session: Timestamp of the oldest tracked session
         """
         try:
-            # Get today's message count using database service
+            # Get today's message count using efficient count query
             today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-            today_messages = await self.database_service.find_many(
+            today_count = await self.database_service.count(
                 self.collection_name,
-                {"timestamp": {"$gte": today_start}},
-                limit=100000  # Large limit to get count
+                {"timestamp": {"$gte": today_start}}
             )
-            today_count = len(today_messages)
 
             return {
                 "active_sessions": len(self._active_sessions),
@@ -1843,7 +1715,15 @@ class ChatHistoryService:
                 await self._tokenization_task
             except asyncio.CancelledError:
                 pass
-        
+
+        # Cancel backfill task
+        if self._backfill_task and not self._backfill_task.done():
+            self._backfill_task.cancel()
+            try:
+                await self._backfill_task
+            except asyncio.CancelledError:
+                pass
+
         # Clear tracking
         self._active_sessions.clear()
         self._session_token_counts.clear()

@@ -202,7 +202,7 @@ class TestConversationHistoryHandler:
         self, base_config, mock_adapter_manager, mock_chat_history_service
     ):
         """Test that no warning is returned when not approaching limit."""
-        mock_chat_history_service._get_rolling_window_token_count.return_value = 500
+        mock_chat_history_service.get_session_token_usage.return_value = (500, 4000)
 
         handler = ConversationHistoryHandler(
             config=base_config,

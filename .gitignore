@@ -70,3 +70,4 @@ results/
 *performance_results*
 .firecrawl_cache
 .claude
+*.yaml.bak

@@ -93,7 +93,7 @@ class ConversationHistoryHandler:
         try:
             # Get context messages from chat history using rolling window query
             # No need to check limits - rolling window query naturally enforces token budget
-            context_messages = await self.chat_history_service.get_context_messages(session_id)
+            context_messages, _ = await self.chat_history_service.get_context_messages(session_id)
 
             if context_messages:
                 logger.debug(f"Retrieved {len(context_messages)} context messages for session {session_id}")
@@ -182,9 +182,8 @@ class ConversationHistoryHandler:
         try:
             # Use token-based limits - calculate tokens that would actually be included
             # in the rolling window query, not total session tokens
-            current_tokens = await self.chat_history_service._get_rolling_window_token_count(session_id)
-            
-            max_tokens = getattr(self.chat_history_service, "max_token_budget", 0) or 0
+            current_tokens, max_tokens = await self.chat_history_service.get_session_token_usage(session_id)
+
             if max_tokens <= 0:
                 return None
             

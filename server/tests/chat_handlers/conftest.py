@@ -65,14 +65,15 @@ def mock_adapter_manager():
 def mock_chat_history_service():
     """Mock chat history service."""
     service = AsyncMock()
-    service.get_context_messages = AsyncMock(return_value=[
+    service.get_context_messages = AsyncMock(return_value=([
         {'role': 'user', 'content': 'Hello'},
         {'role': 'assistant', 'content': 'Hi there!'}
-    ])
+    ], 100))
     service.add_conversation_turn = AsyncMock()
     service._session_token_counts = {'session123': 3600}
     service.max_token_budget = 4000
     service._get_rolling_window_token_count = AsyncMock(return_value=3600)
+    service.get_session_token_usage = AsyncMock(return_value=(3600, 4000))
     return service
 
 

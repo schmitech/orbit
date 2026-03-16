@@ -652,6 +652,10 @@ class SQLiteService(DatabaseService):
                         # Convert regex to SQL LIKE pattern
                         pattern = op_value.replace('.*', '%').replace('.', '_')
                         params.append(f"%{pattern}%")
+            elif value is None:
+                # Handle None/NULL comparisons
+                quoted_key = f'"{key}"'
+                conditions.append(f"{quoted_key} IS NULL")
             else:
                 # Quote column name to handle reserved keywords
                 quoted_key = f'"{key}"'
@@ -1015,6 +1019,31 @@ class SQLiteService(DatabaseService):
 
         except Exception as e:
             logger.error(f"Error deleting documents from {collection_name}: {str(e)}")
+            return 0
+
+    async def count(self, collection_name: str, query: Dict[str, Any]) -> int:
+        """Count records matching a query."""
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            where_clause, params = self._convert_query_to_sql(collection_name, query)
+
+            sql = f"SELECT COUNT(*) as cnt FROM {collection_name}"
+            if where_clause:
+                sql += f" WHERE {where_clause}"
+
+            loop = asyncio.get_running_loop()
+            row = await loop.run_in_executor(
+                self.executor,
+                self._execute_sql_fetchone,
+                sql,
+                params
+            )
+            return row["cnt"] if row else 0
+
+        except Exception as e:
+            logger.error(f"Error counting records in {collection_name}: {str(e)}")
             return 0
 
     async def clear_collection(self, collection_name: str) -> int:

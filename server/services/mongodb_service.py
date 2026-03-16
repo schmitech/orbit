@@ -473,6 +473,19 @@ class MongoDBService(DatabaseService):
             logger.error(f"Error deleting documents from {collection_name}: {str(e)}")
             return 0
 
+    async def count(self, collection_name: str, query: Dict[str, Any]) -> int:
+        """Count documents matching a query."""
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            collection = self.get_collection(collection_name)
+            converted_query = self._convert_string_ids_to_objectid(query)
+            return await collection.count_documents(converted_query)
+        except Exception as e:
+            logger.error(f"Error counting documents in {collection_name}: {str(e)}")
+            return 0
+
     async def clear_collection(self, collection_name: str) -> int:
         """
         Delete ALL documents from a collection.

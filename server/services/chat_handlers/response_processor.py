@@ -18,6 +18,66 @@ logger = logging.getLogger(__name__)
 class ResponseProcessor:
     """Handles post-processing of chat responses."""
 
+    # Pre-compiled combined regex for "no results" detection (Finding #11)
+    _NO_RESULTS_PATTERNS = [
+        # === ENGLISH ===
+        r"couldn'?t find", r"could not find", r"didn'?t find", r"did not find",
+        r"unable to find", r"failed to find", r"no results?", r"no matching",
+        r"no data", r"no records?", r"no information", r"zero results?",
+        r"0 results?", r"not found", r"wasn'?t found", r"were not found",
+        r"weren'?t found",
+        r"sorry.{0,50}(couldn'?t|could not|no |unable|don'?t)",
+        r"unfortunately.{0,50}(no |couldn'?t|unable)",
+        r"apologize.{0,50}(couldn'?t|could not|no |unable)",
+        r"try (a |another )?(different|new|another)", r"rephrase", r"please try",
+        r"i (don'?t|do not) have (any )?(information|data|results?)",
+        r"(don'?t|doesn'?t|do not|does not) (have|contain|include)",
+        r"(outside|beyond|not within) (my|the) (scope|knowledge|data)",
+        r"not (available|accessible)",
+        r"(query|search|request) (returned|yielded|produced) (no|zero|0)",
+        r"(database|system|search) (has |contains? )?(no|zero)",
+        # === FRENCH ===
+        r"d[ée]sol[ée].{0,30}(pas|aucun|impossible)",
+        r"je n['']?ai (pas |rien )?trouv[ée]", r"aucun(e)? r[ée]sultat",
+        r"pas de r[ée]sultat", r"pas d['']?information",
+        r"impossible de (trouver|localiser)",
+        r"malheureusement.{0,30}(pas|aucun|impossible)",
+        r"essayez (une autre|diff[ée]rent)", r"reformulez",
+        r"je ne (peux|suis) pas",
+        # === SPANISH ===
+        r"lo siento.{0,30}(no |sin |imposible)",
+        r"no (encontr[ée]|pude|hay)", r"sin resultados?",
+        r"no hay (resultados?|datos|informaci[oó]n)",
+        r"lamentablemente.{0,30}(no |sin )",
+        r"intente (otra|con otra|de nuevo)", r"pruebe (con otra|de nuevo)",
+        r"no (disponible|accesible)", r"disculpa.{0,30}(no |sin )",
+        # === GERMAN ===
+        r"entschuldigung.{0,30}(keine|nicht|leider)",
+        r"leider.{0,30}(keine|nicht|konnte)",
+        r"keine (ergebnisse|daten|informationen)", r"nicht gefunden",
+        r"konnte.{0,20}nicht (finden|lokalisieren)",
+        r"versuchen sie.{0,20}(andere|neu)", r"nicht verf[üu]gbar",
+        # === ITALIAN ===
+        r"mi dispiace.{0,30}(non|nessun)", r"spiacente.{0,30}(non|nessun)",
+        r"nessun(a|o)? (risultat[oi]|dat[oi]|informazion[ei])",
+        r"non (ho trovato|trovato|disponibile)",
+        r"purtroppo.{0,30}(non|nessun)",
+        r"prova con.{0,20}(altra|altro|diversa)",
+        # === PORTUGUESE ===
+        r"desculpe.{0,30}(n[ãa]o|sem|nenhum)",
+        r"sinto muito.{0,30}(n[ãa]o|sem)",
+        r"n[ãa]o (encontrei|h[áa]|existe)", r"sem resultados?",
+        r"nenhum(a)? (resultado|dado|informa[çc][ãa]o)",
+        r"infelizmente.{0,30}(n[ãa]o|sem)",
+        r"tente (outra|novamente|de novo)", r"n[ãa]o dispon[ií]vel",
+        # === DUTCH ===
+        r"helaas.{0,30}(geen|niet|kon)",
+        r"geen (resultaten|gegevens|informatie)", r"niet gevonden",
+        r"kon.{0,20}niet vinden", r"probeer (een andere|opnieuw)",
+        r"niet beschikbaar",
+    ]
+    _no_results_regex = re.compile('|'.join(f'(?:{p})' for p in _NO_RESULTS_PATTERNS))
+
     def __init__(
         self,
         config: Dict[str, Any],
@@ -196,11 +256,7 @@ class ResponseProcessor:
         # Clean response text
         processed_response = self.format_response(response)
 
-        # Check for conversation limit warning
-        warning = await self.conversation_handler.check_limit_warning(session_id, adapter_name)
-        processed_response = self.inject_warning(processed_response, warning)
-
-        # Store conversation turn with retrieved_docs in metadata
+        # Store conversation turn with clean response (no warning text)
         # Always store for threading support, even if chat history is disabled for context retrieval
         assistant_message_id = None
         if session_id:
@@ -211,7 +267,7 @@ class ResponseProcessor:
                 "pipeline_processing_time": processing_time,
                 "original_query": message
             }
-            
+
             # Include retrieved_docs if available (for thread creation)
             if retrieved_docs:
                 metadata["retrieved_docs"] = retrieved_docs
@@ -221,9 +277,8 @@ class ResponseProcessor:
                     if first_doc_meta:
                         metadata["template_id"] = first_doc_meta.get('template_id')
                         metadata["parameters_used"] = first_doc_meta.get('parameters_used', {})
-            
-            # Store turn - this will store metadata even if chat history context is disabled
-            # The store_turn method checks should_enable for context retrieval, but we need metadata for threading
+
+            # Store turn with clean response - warning is only for display
             _, assistant_message_id = await self.conversation_handler.store_turn(
                 session_id=session_id,
                 user_message=message,
@@ -234,10 +289,14 @@ class ResponseProcessor:
                 metadata=metadata
             )
 
+        # Check for conversation limit warning and inject AFTER storage (display only)
+        warning = await self.conversation_handler.check_limit_warning(session_id, adapter_name)
+        displayed_response = self.inject_warning(processed_response, warning)
+
         # Log conversation
         await self.log_conversation(
             query=message,
-            response=processed_response,
+            response=displayed_response,
             client_ip=client_ip,
             backend=backend,
             api_key=api_key,
@@ -246,7 +305,7 @@ class ResponseProcessor:
             adapter_name=adapter_name
         )
 
-        return processed_response, assistant_message_id
+        return displayed_response, assistant_message_id
 
     def build_result(
         self,
@@ -480,102 +539,10 @@ class ResponseProcessor:
             logger.debug(f"Threading disabled: short response ({len(response_stripped)} chars) with {negative_count} negative indicators")
             return True
 
-        # Heuristic 2: Explicit "no results" patterns (regex-based, multilingual)
-        no_results_patterns = [
-            # === ENGLISH ===
-            r"couldn'?t find",
-            r"could not find",
-            r"didn'?t find",
-            r"did not find",
-            r"unable to find",
-            r"failed to find",
-            r"no results?",
-            r"no matching",
-            r"no data",
-            r"no records?",
-            r"no information",
-            r"zero results?",
-            r"0 results?",
-            r"not found",
-            r"wasn'?t found",
-            r"were not found",
-            r"weren'?t found",
-            r"sorry.{0,50}(couldn'?t|could not|no |unable|don'?t)",
-            r"unfortunately.{0,50}(no |couldn'?t|unable)",
-            r"apologize.{0,50}(couldn'?t|could not|no |unable)",
-            r"try (a |another )?(different|new|another)",
-            r"rephrase",
-            r"please try",
-            r"i (don'?t|do not) have (any )?(information|data|results?)",
-            r"(don'?t|doesn'?t|do not|does not) (have|contain|include)",
-            r"(outside|beyond|not within) (my|the) (scope|knowledge|data)",
-            r"not (available|accessible)",
-            r"(query|search|request) (returned|yielded|produced) (no|zero|0)",
-            r"(database|system|search) (has |contains? )?(no|zero)",
-
-            # === FRENCH ===
-            r"d[ée]sol[ée].{0,30}(pas|aucun|impossible)",
-            r"je n['']?ai (pas |rien )?trouv[ée]",
-            r"aucun(e)? r[ée]sultat",
-            r"pas de r[ée]sultat",
-            r"pas d['']?information",
-            r"impossible de (trouver|localiser)",
-            r"malheureusement.{0,30}(pas|aucun|impossible)",
-            r"essayez (une autre|diff[ée]rent)",
-            r"reformulez",
-            r"je ne (peux|suis) pas",
-
-            # === SPANISH ===
-            r"lo siento.{0,30}(no |sin |imposible)",
-            r"no (encontr[ée]|pude|hay)",
-            r"sin resultados?",
-            r"no hay (resultados?|datos|informaci[oó]n)",
-            r"lamentablemente.{0,30}(no |sin )",
-            r"intente (otra|con otra|de nuevo)",
-            r"pruebe (con otra|de nuevo)",
-            r"no (disponible|accesible)",
-            r"disculpa.{0,30}(no |sin )",
-
-            # === GERMAN ===
-            r"entschuldigung.{0,30}(keine|nicht|leider)",
-            r"leider.{0,30}(keine|nicht|konnte)",
-            r"keine (ergebnisse|daten|informationen)",
-            r"nicht gefunden",
-            r"konnte.{0,20}nicht (finden|lokalisieren)",
-            r"versuchen sie.{0,20}(andere|neu)",
-            r"nicht verf[üu]gbar",
-
-            # === ITALIAN ===
-            r"mi dispiace.{0,30}(non|nessun)",
-            r"spiacente.{0,30}(non|nessun)",
-            r"nessun(a|o)? (risultat[oi]|dat[oi]|informazion[ei])",
-            r"non (ho trovato|trovato|disponibile)",
-            r"purtroppo.{0,30}(non|nessun)",
-            r"prova con.{0,20}(altra|altro|diversa)",
-
-            # === PORTUGUESE ===
-            r"desculpe.{0,30}(n[ãa]o|sem|nenhum)",
-            r"sinto muito.{0,30}(n[ãa]o|sem)",
-            r"n[ãa]o (encontrei|h[áa]|existe)",
-            r"sem resultados?",
-            r"nenhum(a)? (resultado|dado|informa[çc][ãa]o)",
-            r"infelizmente.{0,30}(n[ãa]o|sem)",
-            r"tente (outra|novamente|de novo)",
-            r"n[ãa]o dispon[ií]vel",
-
-            # === DUTCH ===
-            r"helaas.{0,30}(geen|niet|kon)",
-            r"geen (resultaten|gegevens|informatie)",
-            r"niet gevonden",
-            r"kon.{0,20}niet vinden",
-            r"probeer (een andere|opnieuw)",
-            r"niet beschikbaar",
-        ]
-
-        for pattern in no_results_patterns:
-            if re.search(pattern, response_lower):
-                logger.debug(f"Threading disabled: matched pattern '{pattern}'")
-                return True
+        # Heuristic 2: Explicit "no results" patterns (single pre-compiled regex, multilingual)
+        if self._no_results_regex.search(response_lower):
+            logger.debug("Threading disabled: matched no-results pattern")
+            return True
 
         # Heuristic 3: Response starts with apologetic words (multilingual)
         apologetic_starters = [

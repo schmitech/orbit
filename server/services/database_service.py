@@ -224,6 +224,27 @@ class DatabaseService(ABC):
         """
         pass
 
+    async def count(
+        self,
+        collection_name: str,
+        query: Dict[str, Any]
+    ) -> int:
+        """
+        Count documents/records matching a query.
+
+        Default implementation fetches all matching documents and counts them.
+        Backends should override with a more efficient implementation.
+
+        Args:
+            collection_name: Name of the collection/table
+            query: Query criteria
+
+        Returns:
+            Number of matching documents/records
+        """
+        results = await self.find_many(collection_name, query, limit=100000)
+        return len(results)
+
     @abstractmethod
     async def execute_transaction(
         self,
