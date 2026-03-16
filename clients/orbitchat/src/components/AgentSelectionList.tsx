@@ -191,7 +191,8 @@ export function AgentSelectionList({
           )}
         </div>
       )}
-      <div className="w-full flex-shrink-0 lg:max-w-[calc(50%-0.375rem)]">
+      <div className="flex w-full flex-shrink-0 justify-center">
+        <div className="w-full max-w-xl lg:max-w-2xl">
         <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-200/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.94))] shadow-[0_10px_28px_rgba(15,23,42,0.05)] transition-all duration-200 focus-within:border-sky-300/90 focus-within:shadow-[0_0_0_1px_rgba(125,211,252,0.55),0_10px_28px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(37,39,49,0.95),rgba(29,31,39,0.92))] dark:shadow-[0_12px_30px_rgba(0,0,0,0.2)] dark:focus-within:border-sky-400/30 dark:focus-within:shadow-[0_0_0_1px_rgba(56,189,248,0.22),0_12px_30px_rgba(0,0,0,0.2)]">
           <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[linear-gradient(180deg,rgba(255,255,255,0.45),rgba(255,255,255,0))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0))]" />
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
@@ -215,6 +216,7 @@ export function AgentSelectionList({
               <X className="h-3.5 w-3.5" />
             </button>
           )}
+        </div>
         </div>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">

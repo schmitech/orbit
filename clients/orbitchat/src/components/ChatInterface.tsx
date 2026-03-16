@@ -110,7 +110,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     ? `relative isolate mx-auto w-full ${inputMaxWidthClass}`
     : prominentWidthClass;
   const emptyStateNotesPanelClass =
-    'relative overflow-hidden rounded-[2rem] border border-slate-300/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.9))] px-5 py-5 shadow-[0_12px_36px_rgba(15,23,42,0.05)] backdrop-blur-xl dark:border-white/6 dark:bg-[linear-gradient(180deg,rgba(35,36,44,0.92),rgba(26,27,35,0.9))] dark:shadow-[0_18px_48px_rgba(0,0,0,0.22)] md:px-7 md:py-6';
+    'relative px-5 py-5 md:px-7 md:py-6';
   const emptyStateNotesMarkdownClass = [
     adapterNotesMarkdownClass,
     'max-w-none text-[1.02rem] leading-8 text-[#434654] dark:text-[#d7dae3]',
@@ -431,11 +431,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     </div>
                   ) : shouldShowAdapterNotesPanel ? (
                     <div className={`${emptyStateStageClass} px-0 py-0`}>
-                      <div className="pointer-events-none absolute inset-x-12 top-0 -z-10 h-32 rounded-full bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.14),rgba(255,255,255,0))] blur-3xl dark:bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.14),rgba(15,23,42,0))]" />
-                      <div className="pointer-events-none absolute left-1/2 top-8 -z-10 h-44 w-full max-w-[36rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.18),rgba(255,255,255,0))] blur-3xl dark:bg-[radial-gradient(circle,rgba(59,130,246,0.06),rgba(15,23,42,0))]" />
-
                       <div className={emptyStateNotesPanelClass}>
-                        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.22),rgba(255,255,255,0))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0))]" />
                         <div className="relative text-left">
                           {currentConversation?.adapterInfo?.notes ? (
                             <MarkdownRenderer

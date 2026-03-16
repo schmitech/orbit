@@ -384,7 +384,7 @@ export function Message({
           <div className={replyIsAssistant ? 'min-w-0 w-full max-w-full' : 'min-w-0 max-w-[85%]'}>
             <div className={replyIsAssistant
               ? 'thread-markdown-wrapper overflow-x-visible text-sm text-[#353740] dark:text-[#ececf1]'
-              : 'thread-markdown-wrapper overflow-x-visible text-sm bg-blue-100 text-blue-900 dark:bg-blue-600 dark:text-white rounded-2xl rounded-tr-sm px-3 py-2'
+              : 'thread-markdown-wrapper overflow-x-visible text-sm rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 text-[#111827] dark:bg-[#303030] dark:text-[#f5f5f5]'
             }>
               {replyContent}
             </div>
