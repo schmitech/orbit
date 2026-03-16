@@ -233,7 +233,7 @@ textarea {
   font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: rgba(200, 220, 255, 0.6);
+  color: rgba(220, 232, 255, 0.82);
   text-decoration: none;
   border-radius: var(--radius-sm);
   transition: color var(--transition-fast), background var(--transition-fast);
@@ -2081,4 +2081,31 @@ code.plain-code {
   .monitoring-progress-bar {
     transition: none;
   }
+}
+
+/* ============================================================
+   Settings Tab
+   ============================================================ */
+
+/* Ace Editor wrapper */
+.settings-ace-wrap {
+  width: 100%;
+  height: 600px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.settings-ace-wrap .ace_editor {
+  border-radius: var(--radius-md);
+}
+
+.settings-banner {
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-3);
+  border-radius: var(--radius-md);
+  background: #fef3cd;
+  color: #664d03;
+  border: 1px solid #ffecb5;
+  font-size: var(--text-sm);
 }

@@ -59,6 +59,7 @@
     shutdown: "/admin/shutdown",
     adminExport: "/admin/export",
     login: "/admin/login",
+    config: "/admin/config",
   };
 
   // ------------------------------------------------------------------
@@ -527,6 +528,7 @@
     { id: "keys", label: "API Keys" },
     { id: "prompts", label: "Personas" },
     { id: "ops", label: "Ops" },
+    { id: "settings", label: "Settings" },
   ];
 
   function renderShell() {
@@ -630,6 +632,7 @@
       case "keys": renderKeys(c); break;
       case "prompts": renderPrompts(c); break;
       case "ops": renderOps(c); break;
+      case "settings": renderSettings(c); break;
     }
   }
 
@@ -2915,6 +2918,124 @@
     container.appendChild(logPanel);
 
     loadLogs(false);
+  }
+
+  // ==================================================================
+  // TAB: Settings (Ace Editor — YAML)
+  // ==================================================================
+  var settingsOriginal = "";
+  var settingsEditor = null; // Ace editor instance
+
+  function renderSettings(container) {
+    clear(container);
+
+    // Destroy previous editor instance
+    if (settingsEditor) { settingsEditor.destroy(); settingsEditor = null; }
+
+    var panel = el("div", { className: "panel", style: "max-width:100%" });
+    panel.appendChild(el("h2", null, "Settings"));
+    panel.appendChild(el("p", { className: "muted" },
+      "Edit the main config.yaml file. Imported files (adapters, inference, etc.) are not shown here. " +
+      "A server restart is required for most changes to take effect."
+    ));
+
+    var banner = el("div", { className: "settings-banner", style: "display:none" },
+      "Config saved. Go to the Ops tab to restart the server for changes to take effect."
+    );
+    panel.appendChild(banner);
+
+    var editorWrap = el("div", { id: "settings-ace-editor", className: "settings-ace-wrap" });
+    panel.appendChild(editorWrap);
+
+    var btnRow = el("div", { style: "display:flex;gap:var(--sp-3);margin-top:var(--sp-3)" });
+    var saveBtn = el("button", { className: "btn btn--primary", disabled: "true" }, "Save");
+    var reloadBtn = el("button", { className: "btn btn--neutral" }, "Reload from Disk");
+    btnRow.appendChild(saveBtn);
+    btnRow.appendChild(reloadBtn);
+    panel.appendChild(btnRow);
+    container.appendChild(panel);
+
+    // Configure Ace to find mode/theme/worker files from static dir
+    ace.config.set("basePath", "/static");
+    ace.config.set("modePath", "/static");
+    ace.config.set("themePath", "/static");
+    ace.config.set("workerPath", "/static");
+
+    // Initialize Ace editor
+    settingsEditor = ace.edit(editorWrap, {
+      mode: "ace/mode/yaml",
+      theme: "ace/theme/tomorrow",
+      fontSize: 15,
+      fontFamily: "var(--font-mono)",
+      showPrintMargin: false,
+      tabSize: 2,
+      useSoftTabs: true,
+      wrap: false,
+      showGutter: true,
+      highlightActiveLine: true,
+      highlightSelectedWord: true,
+      showFoldWidgets: true,
+      displayIndentGuides: true,
+      scrollPastEnd: 0.2,
+    });
+
+    // Enable Cmd-F / Ctrl-F search
+    ace.config.loadModule("ace/ext/searchbox", function () {});
+
+    // Dirty tracking
+    settingsEditor.session.on("change", function () {
+      saveBtn.disabled = settingsEditor.getValue() === settingsOriginal;
+    });
+
+    // Load config from server
+    async function loadConfig() {
+      try {
+        var data = await api("GET", ENDPOINTS.config);
+        settingsOriginal = data.content;
+        settingsEditor.setValue(data.content, -1); // -1 = move cursor to start
+        settingsEditor.getSession().getUndoManager().reset();
+        saveBtn.disabled = true;
+        banner.style.display = "none";
+      } catch (err) {
+        showError("Failed to load config: " + err.message);
+      }
+    }
+
+    // Save handler
+    saveBtn.addEventListener("click", async function () {
+      saveBtn.disabled = true;
+      try {
+        await api("PUT", ENDPOINTS.config, { content: settingsEditor.getValue() });
+        settingsOriginal = settingsEditor.getValue();
+        banner.style.display = "";
+        setTimeout(function () { banner.style.display = "none"; }, 5000);
+      } catch (err) {
+        showError("Save failed: " + err.message);
+        saveBtn.disabled = settingsEditor.getValue() === settingsOriginal;
+      }
+    });
+
+    // Reload handler
+    reloadBtn.addEventListener("click", function () {
+      var dirty = settingsEditor.getValue() !== settingsOriginal;
+      if (dirty) {
+        confirmAction({
+          title: "Reload Configuration",
+          message: "You have unsaved changes. Reload from disk and discard them?",
+          confirmLabel: "Discard & Reload",
+          isDanger: true,
+          loadingLabel: "Reloading…",
+          onConfirm: async function () {
+            await loadConfig();
+            showStatus("Config reloaded from disk");
+          },
+        });
+      } else {
+        loadConfig().then(function () { showStatus("Config reloaded from disk"); });
+      }
+    });
+
+    loadConfig();
   }
 
   // ------------------------------------------------------------------

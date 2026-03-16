@@ -10,6 +10,8 @@ This module contains all admin-related endpoints including:
 import logging
 import asyncio
 import uuid
+import yaml
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -1438,6 +1440,70 @@ async def get_server_info(
         "pid": os.getpid(),
         "version": "2.6.1",
         "status": "running"
+    }
+
+
+@admin_router.get("/config")
+async def get_config(
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Read the raw config.yaml file content.
+
+    Returns the raw file text so that comments, env var references,
+    and import directives are preserved.
+    """
+    config_path = Path(getattr(request.app.state, 'config_path', 'config/config.yaml'))
+    if not config_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Config file not found: {config_path}")
+    content = config_path.read_text(encoding='utf-8')
+    return {"content": content, "path": str(config_path.resolve())}
+
+
+@admin_router.put("/config")
+async def update_config(
+    request: Request,
+    authorized: bool = Depends(admin_auth_check),
+    body: dict = Body(...)
+):
+    """
+    Validate, back up, and write new config.yaml content.
+
+    Accepts {"content": "<yaml string>"}. Validates YAML syntax,
+    creates a .bak backup, then writes the new content. A server
+    restart is required for most changes to take effect.
+    """
+    content = body.get("content")
+    if content is None:
+        raise HTTPException(status_code=422, detail="Missing 'content' field")
+
+    # Validate YAML syntax
+    try:
+        yaml.safe_load(content)
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid YAML: {exc}")
+
+    config_path = Path(getattr(request.app.state, 'config_path', 'config/config.yaml'))
+    if not config_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Config file not found: {config_path}")
+
+    # Back up current file
+    backup_path = config_path.with_suffix('.yaml.bak')
+    shutil.copy2(config_path, backup_path)
+    logger.info("Config backup created at %s", backup_path)
+
+    # Write new content
+    config_path.write_text(content, encoding='utf-8')
+    logger.info("Config file updated at %s", config_path)
+
+    # Clear load_config LRU cache so next access picks up changes
+    from config.config_manager import load_config
+    load_config.cache_clear()
+
+    return {
+        "message": "Config saved. A server restart is required for changes to take effect.",
+        "backup": str(backup_path.resolve())
     }
 
 
