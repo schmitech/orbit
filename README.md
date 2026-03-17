@@ -42,6 +42,10 @@ ORBIT is a self-hosted gateway that eliminates vendor lock-in and integration gl
 
 ---
 
+**Real-world example:** [**PoliceStats.ca**](https://policestats.ca) uses ORBIT to power a public chat over Canadian municipal police open data. Users ask in plain language about auto theft, break-ins, crime by neighbourhood, and cross-city comparisons.
+
+---
+
 ### ⚡ Get Value in 60 Seconds
 
 **A) Try hosted API now**
