@@ -192,6 +192,14 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             else:
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config)
 
+            logger.debug(
+                f"[EmbeddingTrace] Adapter embedding client resolved: "
+                f"provider={embedding_provider}, "
+                f"service_class={self.embedding_client.__class__.__name__}, "
+                f"model={getattr(self.embedding_client, 'model', 'N/A')}, "
+                f"dimensions={getattr(self.embedding_client, 'dimensions', 'N/A')}"
+            )
+
             # Only initialize if not already initialized (singleton may be pre-initialized)
             if not self.embedding_client.initialized:
                 await self.embedding_client.initialize()
@@ -471,8 +479,20 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             if embedding_texts:
                 try:
                     logger.info(f"Generating embeddings for {len(embedding_texts)} templates in batch...")
+                    logger.debug(
+                        f"[EmbeddingTrace] embed_documents call: "
+                        f"provider={self._embedding_provider}, "
+                        f"service={self.embedding_client.__class__.__name__}, "
+                        f"model={getattr(self.embedding_client, 'model', 'N/A')}, "
+                        f"num_texts={len(embedding_texts)}"
+                    )
                     embeddings = await self.embedding_client.embed_documents(embedding_texts)
                     logger.info(f"Successfully generated {len(embeddings)} embeddings")
+                    if embeddings:
+                        logger.debug(
+                            f"[EmbeddingTrace] embed_documents result: "
+                            f"count={len(embeddings)}, dims={len(embeddings[0]) if embeddings[0] else 0}"
+                        )
                 except Exception as e:
                     logger.error(f"Failed to batch generate embeddings: {e}")
                     logger.info("Falling back to individual embedding generation...")
@@ -836,12 +856,19 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 return []
 
             # Get query embedding
+            logger.debug(
+                f"[EmbeddingTrace] embed_query call: "
+                f"provider={self._embedding_provider}, "
+                f"service={self.embedding_client.__class__.__name__}, "
+                f"model={getattr(self.embedding_client, 'model', 'N/A')}, "
+                f"query_preview={query[:80]!r}"
+            )
             query_embedding = await self.embedding_client.embed_query(query)
             if not query_embedding:
                 logger.error("Failed to get query embedding")
                 return []
-            
-            logger.debug(f"Query embedding generated with {len(query_embedding)} dimensions")
+
+            logger.debug(f"[EmbeddingTrace] embed_query result: {len(query_embedding)} dimensions")
             
             # Check dimension compatibility
             try:

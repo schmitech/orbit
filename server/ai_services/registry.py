@@ -42,6 +42,8 @@ def register_embedding_services() -> None:
         ("jina", "JinaEmbeddingService", "Jina"),
         ("llama_cpp", "LlamaCppEmbeddingService", "Llama.cpp"),
         ("openrouter", "OpenRouterEmbeddingService", "OpenRouter"),
+        ("gemini", "GeminiEmbeddingService", "Gemini"),
+        ("voyage", "VoyageEmbeddingService", "Voyage AI"),
     ]
 
     for provider_key, class_name, display_name in services:

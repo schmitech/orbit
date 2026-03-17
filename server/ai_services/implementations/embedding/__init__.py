@@ -10,6 +10,8 @@ Available providers:
     - LlamaCppEmbeddingService: Llama.cpp embeddings
     - SentenceTransformersEmbeddingService: Sentence Transformers embeddings
     - OpenRouterEmbeddingService: OpenRouter embeddings
+    - GeminiEmbeddingService: Gemini embeddings
+    - VoyageEmbeddingService: Voyage AI embeddings
 """
 
 import logging
@@ -27,6 +29,8 @@ _implementations = [
     ('llama_cpp_embedding_service', 'LlamaCppEmbeddingService'),
     ('sentence_transformers_embedding_service', 'SentenceTransformersEmbeddingService'),
     ('openrouter_embedding_service', 'OpenRouterEmbeddingService'),
+    ('gemini_embedding_service', 'GeminiEmbeddingService'),
+    ('voyage_embedding_service', 'VoyageEmbeddingService'),
 ]
 
 for module_name, class_name in _implementations:

@@ -57,6 +57,17 @@ embeddings:
     api_base: "https://api.mistral.ai/v1"
     model: "mistral-embed"
     dimensions: 1024
+  gemini:
+    api_key: ${GOOGLE_API_KEY}
+    model: "gemini-embedding-2-preview"
+    dimensions: 768 # 768, 1536 or 3072
+    batch_size: 10
+  voyage:
+    api_key: ${VOYAGE_API_KEY}
+    model: "voyage-3"
+    dimensions: 1024
+    batch_size: 10
+    # Other models: voyage-3-lite (512 dims), voyage-code-3 (1024 dims, code-optimized)
   openrouter:
     api_key: ${OPENROUTER_API_KEY}
     # Available models: https://openrouter.ai/models?output_modalities=embeddings

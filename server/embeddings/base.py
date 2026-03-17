@@ -174,7 +174,9 @@ class EmbeddingServiceFactory:
             'jina': 'JinaEmbeddingService',
             'llama_cpp': 'LlamaCppEmbeddingService',
             'sentence_transformers': 'SentenceTransformersEmbeddingService',
-            'openrouter': 'OpenRouterEmbeddingService'
+            'openrouter': 'OpenRouterEmbeddingService',
+            'gemini': 'GeminiEmbeddingService',
+            'voyage': 'VoyageEmbeddingService'
         }
 
         if provider_name not in class_name_map:
