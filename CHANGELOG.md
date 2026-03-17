@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.6.2] - 2026-03-17
+
+### Core System Updates
+- Admin: Added Settings tab with YAML config editor (view/edit config).yaml in browser via Ace Editor, GET/PUT /admin/config with validation.
+
+### Bug Fixes & Technical Improvements
+- Chat history service: Fixed warning text in history, metrics count query, bulk cleanup, cascade delete, tokenization/backfill/SQLite fixes, token budget for all providers, token usage API
+
 ## [2.6.1] - 2026-03-15
 
 ### Core System Updates
