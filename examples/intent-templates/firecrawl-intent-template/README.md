@@ -185,8 +185,6 @@ Wikipedia articles and documentation pages can be very large (50KB-500KB+). To h
 
 #### Recommended Enhancements
 
-See `docs/roadmap/adapters/firecrawl-content-chunking-plan.md` for detailed implementation plan.
-
 **Phase 1: Intelligent Chunking**
 ```yaml
 config:

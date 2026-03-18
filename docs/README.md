@@ -193,7 +193,6 @@ Contribute to ORBIT or extend its capabilities.
 | Resource | Description |
 |----------|-------------|
 | [Contributing Guide](../CONTRIBUTING.md) | How to contribute to ORBIT |
-| [Development Roadmap](roadmap/README.md) | Planned features and architecture designs |
 | [Testing PRs Locally](testing-prs-locally.md) | Guide for testing pull requests |
 | [SQLite Schema](sqlite-schema.md) | Database schema reference |
 | [Code of Conduct](../CODE_OF_CONDUCT.md) | Community guidelines |
