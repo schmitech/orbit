@@ -20,7 +20,7 @@ class HealthStatus(BaseModel):
 class ApiKeyCreate(BaseModel):
     """API key creation request model"""
     client_name: str
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=1000)
     system_prompt_id: Optional[str] = None
     adapter_name: str  # Required adapter name
     
@@ -43,6 +43,14 @@ class ApiKeyResponse(BaseModel):
     active: bool = True
     system_prompt_id: Optional[str] = None
     adapter_name: Optional[str] = None
+
+
+class ApiKeyUpdate(BaseModel):
+    """API key metadata update request model"""
+    client_name: str = Field(min_length=1, max_length=100)
+    adapter_name: str = Field(min_length=1)
+    system_prompt_id: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=1000)
 
 
 class ApiKeyDeactivate(BaseModel):

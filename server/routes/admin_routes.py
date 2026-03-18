@@ -21,7 +21,7 @@ import nh3
 
 from utils import is_true_value
 from models.schema import (
-    ApiKeyCreate, ApiKeyResponse,
+    ApiKeyCreate, ApiKeyResponse, ApiKeyUpdate,
     SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse,
     ApiKeyPromptAssociate, ChatHistoryClearResponse, AdapterReloadResponse,
     TemplateReloadResponse, ApiKeyQuota, ApiKeyQuotaUpdate, ApiKeyUsage,
@@ -450,6 +450,37 @@ async def rename_api_key(
     masked_new = f"***{new_api_key[-4:]}" if new_api_key else "***"
     logger.info(f"Renamed API key {api_key_id} to {masked_new}")
     return {"status": "success", "message": "API key renamed successfully", "new_api_key_masked": masked_new}
+
+
+@admin_router.put("/api-keys/{api_key_id}")
+async def update_api_key(
+    api_key_id: str,
+    data: ApiKeyUpdate,
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """Update editable API key metadata by record ID."""
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    check_service_availability(api_key_service, "API key service")
+
+    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
+    if not adapter_manager:
+        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+
+    success = await api_key_service.update_api_key_metadata(
+        api_key_id,
+        client_name=data.client_name,
+        adapter_name=data.adapter_name,
+        system_prompt_id=data.system_prompt_id,
+        notes=data.notes,
+        adapter_manager=adapter_manager
+    )
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update API key")
+
+    logger.info(f"Updated API key metadata for: {api_key_id}")
+    return {"status": "success", "message": "API key updated successfully"}
 
 
 @admin_router.post("/api-keys/{api_key_id}/deactivate")

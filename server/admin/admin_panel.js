@@ -1587,6 +1587,7 @@
     var right = el("div", { className: "stack" });
     var createPanel = el("div", { className: "panel" });
     var detailPanel = el("div", { className: "panel" });
+    var keySearchFilter = "";
     layout.appendChild(left);
     layout.appendChild(right);
     right.appendChild(createPanel);
@@ -1624,7 +1625,7 @@
         promptSelect.appendChild(el("option", { value: promptIdentifier(p) }, p.name + " (v" + (p.version || "1.0") + ")"));
       });
     }
-    var notesInput = el("textarea", { rows: "4", maxlength: "500" });
+    var notesInput = el("textarea", { rows: "4", maxlength: "1000" });
     var createBtn = el("button", { type: "button" }, "Create Key");
 
     createPanel.appendChild(el("h2", null, "Create API Key"));
@@ -1640,6 +1641,13 @@
       )
     );
     createPanel.appendChild(form);
+
+    var keySearchInput = el("input", {
+      type: "text",
+      placeholder: "Search API keys by client, adapter, persona, or last 4...",
+      "aria-label": "Search API keys"
+    });
+    left.appendChild(field("Search", keySearchInput));
 
     var tableWrap = el("div", null, skeleton());
     left.appendChild(tableWrap);
@@ -1665,11 +1673,32 @@
       }, "API key created");
     });
 
+    function applyKeyFilter() {
+      var keys = cachedKeys || [];
+      var filter = keySearchFilter;
+      var filteredKeys = !filter ? keys : keys.filter(function (key) {
+        return [
+          key.client_name,
+          key.adapter_name,
+          key.system_prompt_name,
+          key.api_key
+        ].some(function (value) {
+          return String(value || "").toLowerCase().includes(filter);
+        });
+      });
+      renderKeyTable(tableWrap, filteredKeys, detailPanel, !!keys.length && filteredKeys.length === 0);
+    }
+
+    keySearchInput.addEventListener("input", function (e) {
+      keySearchFilter = (e.target.value || "").trim().toLowerCase();
+      applyKeyFilter();
+    });
+
     async function loadKeys() {
       try {
         var keys = await api("GET", ENDPOINTS.apiKeys);
         cachedKeys = keys;
-        renderKeyTable(tableWrap, keys, detailPanel);
+        applyKeyFilter();
         if (selectedKey && selectedKey._id) {
           var refreshedSelection = keys.find(function (key) {
             return key._id === selectedKey._id;
@@ -1867,12 +1896,12 @@
     return frame;
   }
 
-  function renderKeyTable(wrap, keys, rightPanel) {
+  function renderKeyTable(wrap, keys, rightPanel, filteredEmpty) {
     clear(wrap);
     if (!keys || keys.length === 0) {
       wrap.appendChild(el("div", { className: "empty-state" },
         el("div", { className: "empty-state-icon" }, "\u{1F511}"),
-        el("p", null, "No API keys found")
+        el("p", null, filteredEmpty ? "No API keys match this search" : "No API keys found")
       ));
       return;
     }
@@ -1960,9 +1989,7 @@
 
     var summary = el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "Key:"), " ", keyField),
-      el("p", null, el("strong", null, "Client:"), " " + (key.client_name || "N/A")),
-      el("p", null, el("strong", null, "Adapter:"), " " + (key.adapter_name || "default")),
-      el("p", null, el("strong", null, "Persona:"), " " + (key.system_prompt_name || "None")),
+      el("p", null, el("strong", null, "Created:"), " " + (key.created_at ? new Date(key.created_at * 1000).toLocaleString() : "N/A")),
       el("p", null, el("strong", null, "Active:"), " ",
         el("span", { className: key.active !== false ? "status-active" : "status-inactive" },
           key.active !== false ? "Active" : "Inactive"
@@ -1970,6 +1997,63 @@
       )
     );
     panel.appendChild(summary);
+
+    panel.appendChild(el("h3", null, "Edit Details"));
+    var clientInput = el("input", { type: "text", maxlength: "100", value: key.client_name || "" });
+    var adapterSelect = el("select");
+    var availableAdapterNames = [];
+    if (cachedAdapters) {
+      cachedAdapters.forEach(function (a) {
+        var name = typeof a === "string" ? a : (a.name || a.adapter_name || "");
+        if (name && availableAdapterNames.indexOf(name) === -1) availableAdapterNames.push(name);
+      });
+    }
+    if (key.adapter_name && availableAdapterNames.indexOf(key.adapter_name) === -1) {
+      availableAdapterNames.push(key.adapter_name);
+    }
+    if (availableAdapterNames.length) {
+      availableAdapterNames.forEach(function (name) {
+        var option = el("option", { value: name }, name);
+        if (name === key.adapter_name) option.selected = true;
+        adapterSelect.appendChild(option);
+      });
+    } else {
+      adapterSelect.appendChild(el("option", { value: key.adapter_name || "" }, key.adapter_name || "No adapters available"));
+      adapterSelect.disabled = true;
+    }
+    var promptSelect = el("select", null, el("option", { value: "" }, "No persona"));
+    fillPromptSelect(promptSelect, cachedPrompts, key.system_prompt_id);
+    var notesInput = el("textarea", { rows: "4", maxlength: "1000" }, key.notes || "");
+    var saveBtn = el("button", { type: "button" }, "Save Details");
+    saveBtn.addEventListener("click", function () {
+      var clientName = clientInput.value.trim();
+      if (!clientName) {
+        showError("Client is required.");
+        return;
+      }
+      if (!adapterSelect.value) {
+        showError("Adapter is required.");
+        return;
+      }
+      withButton(saveBtn, async function () {
+        await api("PUT", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId), {
+          client_name: clientName,
+          adapter_name: adapterSelect.value,
+          system_prompt_id: promptSelect.value || null,
+          notes: notesInput.value.trim() || null
+        });
+        onRefresh();
+      }, "API key updated");
+    });
+    panel.appendChild(el("div", { className: "stack" },
+      el("div", { className: "admin-create-form-grid" },
+        field("Client", clientInput),
+        field("Adapter", adapterSelect),
+        field("Persona", promptSelect)
+      ),
+      field("Notes", notesInput),
+      saveBtn
+    ));
 
     // Test key
     var testBtn = el("button", { className: "secondary", type: "button" }, "Test Key");
@@ -2037,33 +2121,6 @@
         loadQuotaBtn.disabled = false;
       }
     });
-
-    // Associate persona
-    panel.appendChild(el("h3", null, "Associate Persona"));
-    var promptSelect = el("select", null, el("option", { value: "" }, "Loading personas..."));
-    var assocBtn = el("button", { type: "button" }, "Associate");
-    fillPromptSelect(promptSelect, cachedPrompts, key.system_prompt_id);
-    assocBtn.disabled = !cachedPrompts || !cachedPrompts.length;
-    if (!cachedPrompts) {
-      loadAdaptersAndPrompts().then(function () {
-        fillPromptSelect(promptSelect, cachedPrompts, key.system_prompt_id);
-        assocBtn.disabled = !cachedPrompts || !cachedPrompts.length;
-      });
-    }
-    assocBtn.addEventListener("click", function () {
-      var pid = promptSelect.value;
-      if (!pid) return;
-      withButton(assocBtn, async function () {
-        await api("POST", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/prompt", { prompt_id: pid });
-        key.system_prompt_id = pid;
-        var matchedPrompt = (cachedPrompts || []).find(function (prompt) {
-          return promptIdentifier(prompt) === pid;
-        });
-        key.system_prompt_name = matchedPrompt ? matchedPrompt.name : key.system_prompt_name;
-        onRefresh();
-      }, "Persona associated");
-    });
-    panel.appendChild(el("div", { className: "inline-form" }, field("Persona", promptSelect), assocBtn));
 
     // Delete
     panel.appendChild(el("h3", null, "Danger Zone"));
@@ -2237,9 +2294,14 @@
   async function renderPrompts(container) {
     var layout = el("div", { className: "split-layout" });
     var left = el("div", { className: "panel" });
-    var right = el("div", { className: "panel" });
+    var right = el("div", { className: "stack" });
+    var createPanel = el("div", { className: "panel" });
+    var detailPanel = el("div", { className: "panel" });
+    var promptSearchFilter = "";
     layout.appendChild(left);
     layout.appendChild(right);
+    right.appendChild(createPanel);
+    right.appendChild(detailPanel);
     container.appendChild(layout);
 
     left.appendChild(el("h2", null, "Personas"));
@@ -2264,8 +2326,9 @@
       });
     }
 
+    createPanel.appendChild(el("h2", null, "Create Persona"));
     var form = el("div", { className: "stack" },
-      el("div", { className: "inline-form" },
+      el("div", { className: "admin-create-form-grid" },
         field("Name", nameInput),
         field("Version", versionInput),
         field("API Key", createKeySelect)
@@ -2273,13 +2336,20 @@
       field("Persona", textArea),
       createBtn
     );
-    left.appendChild(form);
+    createPanel.appendChild(form);
+
+    var promptSearchInput = el("input", {
+      type: "text",
+      placeholder: "Search personas by name, version, or ID...",
+      "aria-label": "Search personas"
+    });
+    left.appendChild(field("Search", promptSearchInput));
 
     var tableWrap = el("div", null, skeleton());
     left.appendChild(tableWrap);
 
-    right.appendChild(el("h2", null, "Persona Details"));
-    right.appendChild(el("p", { className: "muted" }, "Select a persona to edit"));
+    detailPanel.appendChild(el("h2", null, "Persona Details"));
+    detailPanel.appendChild(el("p", { className: "muted" }, "Select a persona to edit"));
 
     createBtn.addEventListener("click", function () {
       var n = nameInput.value.trim();
@@ -2300,11 +2370,48 @@
       }, "Persona created");
     });
 
+    function applyPromptFilter() {
+      var prompts = cachedPrompts || [];
+      var filter = promptSearchFilter;
+      var filteredPrompts = !filter ? prompts : prompts.filter(function (prompt) {
+        return [
+          promptIdentifier(prompt),
+          prompt.name,
+          prompt.version
+        ].some(function (value) {
+          return String(value || "").toLowerCase().includes(filter);
+        });
+      });
+      renderPromptTable(tableWrap, filteredPrompts, detailPanel, !!prompts.length && filteredPrompts.length === 0);
+    }
+
+    promptSearchInput.addEventListener("input", function (e) {
+      promptSearchFilter = (e.target.value || "").trim().toLowerCase();
+      applyPromptFilter();
+    });
+
     async function loadPrompts() {
       try {
         var prompts = await api("GET", ENDPOINTS.prompts);
         cachedPrompts = prompts;
-        renderPromptTable(tableWrap, prompts, right);
+        applyPromptFilter();
+        if (selectedPrompt && promptIdentifier(selectedPrompt)) {
+          var refreshedSelection = prompts.find(function (prompt) {
+            return promptIdentifier(prompt) === promptIdentifier(selectedPrompt);
+          });
+          if (refreshedSelection) {
+            selectedPrompt = refreshedSelection;
+            renderPromptDetail(detailPanel, refreshedSelection, function () {
+              selectedPrompt = null;
+              renderTab();
+            });
+          } else {
+            selectedPrompt = null;
+            clear(detailPanel);
+            detailPanel.appendChild(el("h2", null, "Persona Details"));
+            detailPanel.appendChild(el("p", { className: "muted" }, "Select a persona to edit"));
+          }
+        }
       } catch (err) {
         clear(tableWrap);
         tableWrap.appendChild(el("p", { className: "muted" }, "Failed to load personas"));
@@ -2314,12 +2421,12 @@
     loadPrompts();
   }
 
-  function renderPromptTable(wrap, prompts, rightPanel) {
+  function renderPromptTable(wrap, prompts, rightPanel, filteredEmpty) {
     clear(wrap);
     if (!prompts || prompts.length === 0) {
       wrap.appendChild(el("div", { className: "empty-state" },
         el("div", { className: "empty-state-icon" }, "\u{1F4DD}"),
-        el("p", null, "No personas found")
+        el("p", null, filteredEmpty ? "No personas match this search" : "No personas found")
       ));
       return;
     }

@@ -612,6 +612,83 @@ class ApiKeyService:
         except Exception as e:
             logger.error(f"Error updating API key system prompt: {str(e)}")
             return False
+
+    async def update_api_key_metadata(
+        self,
+        api_key_or_id: str,
+        client_name: str,
+        adapter_name: str,
+        system_prompt_id: Optional[str] = None,
+        notes: Optional[str] = None,
+        adapter_manager=None
+    ) -> bool:
+        """Update editable metadata for an API key record."""
+        try:
+            key_doc = await self._resolve_key_doc(api_key_or_id)
+            doc_id = str(key_doc["_id"])
+
+            client_name = (client_name or "").strip()
+            adapter_name = (adapter_name or "").strip()
+            notes = notes.strip() if isinstance(notes, str) else notes
+            system_prompt_id = system_prompt_id.strip() if isinstance(system_prompt_id, str) else system_prompt_id
+
+            if not client_name:
+                raise HTTPException(status_code=422, detail="client_name must be provided")
+            if not adapter_name:
+                raise HTTPException(status_code=422, detail="adapter_name must be provided")
+
+            adapter_config = self._get_adapter_config(adapter_name, adapter_manager=adapter_manager)
+            if not adapter_config:
+                raise HTTPException(status_code=400, detail=f"Adapter '{adapter_name}' not found in configuration")
+
+            if system_prompt_id:
+                prompt_doc = await self.database.find_one("system_prompts", {"_id": system_prompt_id})
+                if not prompt_doc:
+                    raise HTTPException(status_code=404, detail="System prompt not found")
+
+                existing_links = await self.database.find_many(
+                    self.collection_name,
+                    {"system_prompt_id": system_prompt_id},
+                    limit=1000,
+                    skip=0
+                )
+                for linked_key in existing_links:
+                    linked_key_id = str(linked_key.get("_id")) if linked_key.get("_id") else None
+                    if linked_key_id and linked_key_id != doc_id:
+                        await self.database.update_one(
+                            self.collection_name,
+                            {"_id": linked_key_id},
+                            {"$set": {"system_prompt_id": None}}
+                        )
+
+            next_notes = notes or None
+            next_prompt_id = system_prompt_id or None
+            current_prompt_id = str(key_doc.get("system_prompt_id")) if key_doc.get("system_prompt_id") else None
+            current_notes = key_doc.get("notes") or None
+
+            if (
+                (key_doc.get("client_name") or "") == client_name and
+                (key_doc.get("adapter_name") or "") == adapter_name and
+                current_prompt_id == next_prompt_id and
+                current_notes == next_notes
+            ):
+                return True
+
+            return await self.database.update_one(
+                self.collection_name,
+                {"_id": doc_id},
+                {"$set": {
+                    "client_name": client_name,
+                    "adapter_name": adapter_name,
+                    "system_prompt_id": next_prompt_id,
+                    "notes": next_notes,
+                }}
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating API key metadata: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error updating API key metadata: {str(e)}")
     
     async def _resolve_key_doc(self, api_key_or_id: str) -> dict:
         """
