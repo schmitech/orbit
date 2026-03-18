@@ -233,6 +233,25 @@ class ValueExtractor:
         """Generic parameter extraction for common types without domain-specific logic"""
         param_name = param.get('name', '')
         param_type = param.get('type') or param.get('data_type', 'string')
+        semantic_type = str(param.get('semantic_type', '') or '').lower()
+        param_context = " ".join(
+            str(part).lower()
+            for part in (
+                param_name,
+                param.get('description', ''),
+                semantic_type,
+            )
+            if part
+        )
+
+        if param_type in {'integer', 'int'}:
+            year_value = self._extract_year_parameter(user_query, param_context)
+            if year_value is not None:
+                return year_value
+
+            numeric_value = self._extract_numeric_parameter(user_query, param_name)
+            if numeric_value is not None:
+                return numeric_value
 
         # Handle date parameters
         if param_type == 'date':
@@ -282,5 +301,54 @@ class ValueExtractor:
                 match = re.search(name_pattern, user_query)
                 if match:
                     return match.group(1)
+
+        return None
+
+    def _extract_year_parameter(self, user_query: str, param_context: str) -> Optional[int]:
+        """Extract a 4-digit year for year-like integer parameters."""
+        if "year" not in param_context:
+            return None
+
+        query_lower = user_query.lower()
+        current_year = datetime.now().year
+        relative_years = {
+            "this year": current_year,
+            "current year": current_year,
+            "last year": current_year - 1,
+            "previous year": current_year - 1,
+            "next year": current_year + 1,
+        }
+
+        for phrase, year in relative_years.items():
+            if phrase in query_lower:
+                return year
+
+        explicit_years = re.findall(r"\b(19\d{2}|20\d{2}|21\d{2})\b", user_query)
+        if explicit_years:
+            return int(explicit_years[-1])
+
+        return None
+
+    def _extract_numeric_parameter(self, user_query: str, param_name: str) -> Optional[int]:
+        """Extract a labeled integer value for generic numeric parameters."""
+        if not param_name:
+            return None
+
+        escaped_name = re.escape(param_name.replace("_", " "))
+        patterns = [
+            rf"\b{escaped_name}\b\s*[:=]?\s*(-?\d+)\b",
+            rf"\b{escaped_name}\b\s+(?:is|equals?|of)\s+(-?\d+)\b",
+            rf"\b(?:top|limit|first|last)\s+(-?\d+)\b" if param_name.lower() in {"limit", "top_n", "count", "size"} else None,
+        ]
+
+        for pattern in patterns:
+            if not pattern:
+                continue
+            match = re.search(pattern, user_query, re.IGNORECASE)
+            if match:
+                try:
+                    return int(match.group(1))
+                except (TypeError, ValueError):
+                    continue
 
         return None
