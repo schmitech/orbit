@@ -398,11 +398,20 @@ class IntentHTTPRetriever(BaseRetriever):
         """Check if the embedding client's underlying connection was closed."""
         if self.embedding_client is None:
             return True
-        uses_session_manager = hasattr(self.embedding_client, 'session_manager')
+
+        # Services that manage their own session (e.g. Voyage, OpenRouter)
+        # use self.session instead of self.client — check that first
+        if hasattr(self.embedding_client, 'session') and self.embedding_client.session is not None:
+            return False
+
+        # Services with a session_manager (e.g. Jina) handle their own lifecycle
+        if hasattr(self.embedding_client, 'session_manager'):
+            return False
+
+        # For SDK-based services, client=None means the connection was closed
         return (
             hasattr(self.embedding_client, 'client') and
-            self.embedding_client.client is None and
-            not uses_session_manager
+            self.embedding_client.client is None
         )
 
     async def _initialize_inference_client(self):
