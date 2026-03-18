@@ -167,8 +167,8 @@ See the full [Docker Guide](docker/README.md) for GPU mode, volumes, single-cont
 
 **Stable Release (Recommended for Production)**
 ```bash
-curl -L https://github.com/schmitech/orbit/releases/download/v2.6.2/orbit-2.6.2.tar.gz -o orbit-2.6.2.tar.gz
-tar -xzf orbit-2.6.2.tar.gz && cd orbit-2.6.2
+curl -L https://github.com/schmitech/orbit/releases/download/v2.6.3/orbit-2.6.3.tar.gz -o orbit-2.6.3.tar.gz
+tar -xzf orbit-2.6.3.tar.gz && cd orbit-2.6.3
 
 cp env.example .env && ./install/setup.sh
 source venv/bin/activate

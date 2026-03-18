@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.6.3] - 2026-03-18
+
+### Core System Updates
+- Admin: Search filters for API keys and personas, persona creation in right panel, editable API key metadata, notes length 1000 characters
+
+### Bug Fixes & Technical Improvements
+- Embedding client: Fixed closed detection in SQL/HTTP intent retriever bases so session-based providers (Voyage, OpenRouter) no longer trigger unnecessary reinitialization; check session/session_manager before client
+
 ## [2.6.2] - 2026-03-17
 
 ### Core System Updates
