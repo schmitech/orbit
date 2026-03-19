@@ -6,6 +6,7 @@ Available providers:
     - GeminiVisionService: Gemini vision (multimodal, OCR)
     - AnthropicVisionService: Anthropic Claude vision (multimodal analysis)
     - OllamaVisionService: Ollama vision (qwen3-vl, local multimodal)
+    - OllamaCloudVisionService: Ollama Cloud vision (managed multimodal)
     - VLLMVisionService: vLLM vision (LLaVA, local multimodal)
     - LlamaCppVisionService: Llama.cpp vision (LLaVA GGUF, local multimodal)
     - CohereVisionService: Cohere vision (command-r-plus, multimodal)
@@ -22,6 +23,7 @@ _implementations = [
     ('gemini_vision_service', 'GeminiVisionService'),
     ('anthropic_vision_service', 'AnthropicVisionService'),
     ('ollama_vision_service', 'OllamaVisionService'),
+    ('ollama_cloud_vision_service', 'OllamaCloudVisionService'),
     ('vllm_vision_service', 'VLLMVisionService'),
     ('llama_cpp_vision_service', 'LlamaCppVisionService'),
     ('cohere_vision_service', 'CohereVisionService'),

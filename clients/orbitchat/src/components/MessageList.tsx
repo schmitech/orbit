@@ -25,7 +25,7 @@ export function MessageList({
   onSendThreadMessage,
   sessionId,
   isLoading,
-  contentMaxWidthClass = 'max-w-[48rem]'
+  contentMaxWidthClass = 'max-w-[64rem]'
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);

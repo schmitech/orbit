@@ -239,6 +239,7 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
         ("gemini", "GeminiVisionService", "Gemini"),
         ("anthropic", "AnthropicVisionService", "Anthropic"),
         ("ollama", "OllamaVisionService", "Ollama"),
+        ("ollama_cloud", "OllamaCloudVisionService", "Ollama Cloud"),
         ("vllm", "VLLMVisionService", "vLLM"),
         ("llama_cpp", "LlamaCppVisionService", "Llama.cpp"),
         ("cohere", "CohereVisionService", "Cohere"),

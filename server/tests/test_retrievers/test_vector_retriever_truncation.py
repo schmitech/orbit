@@ -380,6 +380,23 @@ async def test_max_results_limits_vector_search(test_config, mock_datasource, mo
     assert results[0]["metadata"]["truncated"]
 
 
+@pytest.mark.asyncio
+async def test_close_does_not_close_shared_embedding_service(test_config, mock_datasource):
+    """Shared factory-managed embedding services must not be closed by one retriever."""
+    retriever = MockVectorRetriever(
+        config=test_config,
+        datasource=mock_datasource
+    )
+    retriever.using_new_embedding_service = True
+    retriever._owns_embeddings = False
+    retriever.embeddings = Mock()
+    retriever.embeddings.close = AsyncMock()
+
+    await retriever.close()
+
+    retriever.embeddings.close.assert_not_awaited()
+
+
 # Run tests
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

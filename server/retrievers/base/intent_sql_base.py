@@ -191,6 +191,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config, embedding_provider)
             else:
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config)
+            self._owns_embedding_client = False
 
             logger.debug(
                 f"[EmbeddingTrace] Adapter embedding client resolved: "
@@ -214,6 +215,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             try:
                 self._embedding_provider = 'ollama'
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config, 'ollama')
+                self._owns_embedding_client = False
                 # Only initialize if not already initialized (singleton may be pre-initialized)
                 if not self.embedding_client.initialized:
                     await self.embedding_client.initialize()
@@ -1188,7 +1190,7 @@ JSON:"""
         # Closing it here would break other adapters sharing the same datasource.
         
         # Close embedding client
-        if self.embedding_client:
+        if self.embedding_client and getattr(self, '_owns_embedding_client', False):
             try:
                 # Try aclose() first (httpx AsyncClient uses aclose)
                 aclose_method = getattr(self.embedding_client, 'aclose', None)

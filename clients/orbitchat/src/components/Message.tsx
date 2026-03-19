@@ -488,6 +488,34 @@ export function Message({
                 </>
               )}
 
+              {threadsEnabled && message.threadInfo && (
+                <>
+                  <div className="hidden md:block w-px h-4 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
+                  <button
+                    onClick={() => setIsThreadOpen(prev => !prev)}
+                    className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
+                  >
+                    <MessageSquare className="h-4 w-4 md:h-3.5 md:w-3.5" />
+                    <span>{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</span>
+                    {isThreadOpen
+                      ? <ChevronUp className="h-3 w-3" />
+                      : <ChevronDown className="h-3 w-3" />
+                    }
+                  </button>
+                  {canClearThread && (
+                    <button
+                      type="button"
+                      onClick={() => setShowClearThreadConfirmation(true)}
+                      className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
+                      title="Clear replies"
+                      aria-label="Clear replies"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </>
+              )}
+
               {copied && (
                 <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
                   <Check className="h-3.5 w-3.5" />
@@ -498,35 +526,8 @@ export function Message({
           </>
         )}
 
-        {threadsEnabled && message.threadInfo && (
-          <div className="thread-panel mt-3 md:mt-5 border-l-2 border-gray-200 pl-3 sm:pl-4 dark:border-[#3b3c49]">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => setIsThreadOpen(prev => !prev)}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition-colors hover:text-gray-700 dark:text-[#bfc2cd] dark:hover:text-white"
-              >
-                <MessageSquare className="h-3 w-3" />
-                <span>{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</span>
-                {isThreadOpen
-                  ? <ChevronUp className="h-3 w-3" />
-                  : <ChevronDown className="h-3 w-3" />
-                }
-              </button>
-              {canClearThread && (
-                <button
-                  type="button"
-                  onClick={() => setShowClearThreadConfirmation(true)}
-                  className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
-                  title="Clear replies"
-                  aria-label="Clear replies"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-
-            {isThreadOpen && (
-              <>
+        {threadsEnabled && message.threadInfo && isThreadOpen && (
+          <div className="thread-panel mt-3 md:mt-3 border-l-2 border-gray-200 pl-3 sm:pl-4 dark:border-[#3b3c49]">
                 <div
                   ref={threadRepliesRef}
                   className="thread-replies-scroll mt-2 space-y-2"
@@ -558,7 +559,7 @@ export function Message({
 
                 <div
                   ref={threadComposerRef}
-                  className="mt-1 pt-1 w-full max-w-3xl"
+                  className="mt-1 pt-1 w-full max-w-[64rem]"
                 >
                   <div className="flex items-center gap-2">
                     <label htmlFor={threadInputId} className="sr-only">
@@ -615,8 +616,6 @@ export function Message({
                     </button>
                   </div>
                 )}
-              </>
-            )}
           </div>
         )}
       </div>

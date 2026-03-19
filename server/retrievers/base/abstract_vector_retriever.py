@@ -58,6 +58,7 @@ class AbstractVectorRetriever(BaseRetriever):
 
         # Flag for new embedding service
         self.using_new_embedding_service = False
+        self._owns_embeddings = False
 
         # Vector database client will be obtained from datasource when needed
         self._vector_client = None
@@ -124,6 +125,8 @@ class AbstractVectorRetriever(BaseRetriever):
                 self.config, embedding_provider)
             # Store provider for potential re-initialization if cache cleanup closes the service
             self._embedding_provider = embedding_provider
+            # EmbeddingServiceFactory returns shared singleton instances.
+            self._owns_embeddings = False
             # Only initialize if not already initialized (singleton may be pre-initialized)
             if not self.embeddings.initialized:
                 await self.embeddings.initialize()
@@ -143,6 +146,7 @@ class AbstractVectorRetriever(BaseRetriever):
                 base_url=ollama_conf.get('base_url', 'http://localhost:11434')
             )
             self.using_new_embedding_service = False
+            self._owns_embeddings = True
     
     async def close(self) -> None:
         """Close any open services including embedding service and datasource."""
@@ -150,7 +154,7 @@ class AbstractVectorRetriever(BaseRetriever):
         await super().close()
 
         # Close embedding service if using new architecture
-        if self.using_new_embedding_service and self.embeddings:
+        if self._owns_embeddings and self.embeddings:
             await self.embeddings.close()
 
         # Close datasource

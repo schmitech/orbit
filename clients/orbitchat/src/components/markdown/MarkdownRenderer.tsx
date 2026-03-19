@@ -137,6 +137,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   }
 
   const components: Partial<Components> = {
+    table: ({ children, ...props }) => (
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table {...props}>{children}</table>
+      </div>
+    ),
     a: MarkdownLink,
     code: (props) => {
       const { className, children, ...rest } = props;

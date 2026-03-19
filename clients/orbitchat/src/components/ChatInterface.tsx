@@ -103,7 +103,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   });
 
   const chatMaxWidthClass = 'max-w-[96rem]';
-  const inputMaxWidthClass = 'max-w-[48rem]';
+  const inputMaxWidthClass = 'max-w-[64rem]';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const messageInputWidthClass = `mx-auto w-full ${inputMaxWidthClass}`;
   const emptyStateStageClass = shouldShowAdapterNotesPanel

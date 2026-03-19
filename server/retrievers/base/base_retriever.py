@@ -271,6 +271,7 @@ class VectorDBRetriever(BaseRetriever):
         
         # Flag for new embedding service
         self.using_new_embedding_service = False
+        self._owns_embeddings = False
     
     async def initialize(self) -> None:
         """Initialize required services including embeddings."""
@@ -299,6 +300,8 @@ class VectorDBRetriever(BaseRetriever):
             from embeddings.base import EmbeddingServiceFactory
             self.embeddings = EmbeddingServiceFactory.create_embedding_service(
                 self.config, embedding_provider)
+            # EmbeddingServiceFactory returns shared singleton instances.
+            self._owns_embeddings = False
             # Only initialize if not already initialized (singleton may be pre-initialized)
             if not self.embeddings.initialized:
                 await self.embeddings.initialize()
@@ -318,6 +321,7 @@ class VectorDBRetriever(BaseRetriever):
                 base_url=ollama_conf.get('base_url', 'http://localhost:11434')
             )
             self.using_new_embedding_service = False
+            self._owns_embeddings = True
         
         logger.debug(f"Initialized embeddings: {type(self.embeddings).__name__}")
         logger.debug(f"Using new embedding service: {self.using_new_embedding_service}")
@@ -328,7 +332,7 @@ class VectorDBRetriever(BaseRetriever):
         await super().close()
         
         # Close embedding service if using new architecture
-        if self.using_new_embedding_service and self.embeddings:
+        if self._owns_embeddings and self.embeddings:
             await self.embeddings.close()
     
     async def embed_query(self, query: str) -> List[float]:
