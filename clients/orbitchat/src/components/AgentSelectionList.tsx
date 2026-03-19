@@ -193,7 +193,7 @@ export function AgentSelectionList({
       )}
       <div className="flex w-full flex-shrink-0 justify-center">
         <div className="w-full max-w-xl lg:max-w-2xl">
-        <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-200/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.94))] shadow-[0_10px_28px_rgba(15,23,42,0.05)] transition-all duration-200 focus-within:border-sky-300/90 focus-within:shadow-[0_0_0_1px_rgba(125,211,252,0.55),0_10px_28px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(37,39,49,0.95),rgba(29,31,39,0.92))] dark:shadow-[0_12px_30px_rgba(0,0,0,0.2)] dark:focus-within:border-sky-400/30 dark:focus-within:shadow-[0_0_0_1px_rgba(56,189,248,0.22),0_12px_30px_rgba(0,0,0,0.2)]">
+        <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-300/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.94))] shadow-[0_10px_28px_rgba(15,23,42,0.05)] dark:border-white/20 dark:bg-[linear-gradient(180deg,rgba(37,39,49,0.95),rgba(29,31,39,0.92))] dark:shadow-[0_12px_30px_rgba(0,0,0,0.2)]">
           <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[linear-gradient(180deg,rgba(255,255,255,0.45),rgba(255,255,255,0))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0))]" />
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
@@ -204,7 +204,7 @@ export function AgentSelectionList({
             disabled={isLoading || !!error || adapters.length === 0}
             onChange={event => setSearchQuery(event.target.value)}
             onKeyDown={handleSearchKeyDown}
-            className="relative z-10 w-full bg-transparent py-3 pl-11 pr-11 text-sm font-medium text-slate-700 placeholder:font-normal placeholder:text-slate-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100 dark:placeholder:text-slate-500"
+            className="relative z-10 w-full bg-transparent py-3 pl-11 pr-11 text-sm font-medium text-slate-700 placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-0 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100 dark:placeholder:text-slate-400"
           />
           {searchQuery && (
             <button

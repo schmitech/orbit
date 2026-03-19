@@ -25,7 +25,7 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
         <div className="min-w-0">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[15px] font-semibold text-slate-900 dark:text-white md:text-base">
+              <p className="truncate text-[15px] font-semibold text-sky-900 dark:text-sky-300 md:text-base">
                 {adapter.name}
               </p>
 
@@ -33,7 +33,7 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
                 <div className="mt-1 text-sm leading-5 text-slate-600 dark:text-slate-300">
                   <MarkdownRenderer
                     content={description}
-                    className="prose prose-slate max-w-none text-inherit dark:prose-invert [&>*]:mb-0 [&>*]:mt-0 [&_p]:overflow-hidden [&_p]:text-ellipsis [&_p]:[display:-webkit-box] [&_p]:[-webkit-box-orient:vertical] [&_p]:[-webkit-line-clamp:2]"
+                    className="prose prose-slate max-w-none text-inherit dark:prose-invert [&>*]:mb-0 [&>*]:mt-0 [&_p]:overflow-hidden [&_p]:text-ellipsis [&_p]:[display:-webkit-box] [&_p]:[-webkit-box-orient:vertical] [&_p]:[-webkit-line-clamp:4]"
                     syntaxTheme={syntaxTheme}
                   />
                 </div>
@@ -47,7 +47,7 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
             <div className="hidden min-w-[132px] flex-shrink-0 flex-col items-end gap-3 self-stretch md:flex">
               {model ? (
                 <span
-                  className="max-w-full truncate rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 dark:bg-white/5 dark:text-slate-300"
+                  className="max-w-full truncate text-xs font-medium text-sky-800 dark:text-sky-300"
                   title={model}
                   aria-label={`Model: ${model}`}
                 >
@@ -68,7 +68,7 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
       <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-200 pt-2.5 text-xs text-slate-500 dark:border-white/10 dark:text-slate-400 md:hidden">
         {model ? (
           <span
-            className="inline-flex max-w-full truncate rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 dark:bg-white/5 dark:text-slate-300"
+            className="inline-flex max-w-full truncate text-xs font-medium text-sky-800 dark:text-sky-300"
             title={model}
             aria-label={`Model: ${model}`}
           >
