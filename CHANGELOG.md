@@ -1,12 +1,25 @@
 # Changelog
 
-## [2.6.3] - 2026-03-18
+## [2.6.3] - 2026-03-19
 
 ### Core System Updates
 - Admin: Search filters for API keys and personas, persona creation in right panel, editable API key metadata, notes length 1000 characters
+- Vision: Added `ollama_cloud` vision provider (qwen3.5) with config, service, and registry integration
+- Retriever lifecycle: Fixed premature close of shared embedding services (avoids stale clients and unnecessary reinitialization)
+
+### Chat-app & UI Improvements
+- orbitchat v3.5.6: Sidebar UX (time-grouped conversations, markdown previews, keyboard navigation, ARIA, search feedback, auto-scroll, filtering); layout width 48rem→64rem; consolidated thread/actions row; scrollable table containers; minor theme/styling polish
+- Charts: Premium ChartRenderer (custom tooltips, click-to-toggle legend, SVG gradients, animations, donut pie, skeleton/error states, ARIA); cross-model rendering fixes (series `dataKey`→`key`, xKey reconciliation, multi-line JSON); Anthropic system messages via top-level `system`; model-agnostic chart instructions and test prompt updates
 
 ### Bug Fixes & Technical Improvements
 - Embedding client: Fixed closed detection in SQL/HTTP intent retriever bases so session-based providers (Voyage, OpenRouter) no longer trigger unnecessary reinitialization; check session/session_manager before client
+- Intent SQL: Fixed year-like template parameter extraction (integer fallback) so explicit years bind correctly; regression test for domain extraction (e.g. Edmonton weekend vs weekday path)
+
+### API & Client Updates
+- orbitchat v3.5.6: Published NPM package
+
+### Documentation & Configuration
+- Removed outdated roadmap (items largely implemented)
 
 ## [2.6.2] - 2026-03-17
 
