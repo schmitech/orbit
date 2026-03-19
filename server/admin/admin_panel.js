@@ -1126,13 +1126,13 @@
       var dsType = parts[0] || "unknown";
       var connInfo = parts.slice(1).join(":") || "default";
       var badgeCls = refCount >= 5 ? "green" : refCount >= 3 ? "green" : refCount === 2 ? "amber" : "muted";
-      container.appendChild(el("div", { className: "monitoring-adapter-card" },
-        el("div", { style: "display:flex;justify-content:space-between;align-items:center" },
-          el("div", null,
-            el("p", { style: "font-weight:700;font-size:var(--text-sm)" }, dsType),
-            el("p", { style: "font-size:var(--text-xs);color:var(--ink-muted);font-family:var(--font-mono)" }, connInfo)
+      container.appendChild(el("div", { className: "monitoring-adapter-card monitoring-datasource-card" },
+        el("div", { className: "monitoring-ds-card-row" },
+          el("div", { className: "monitoring-ds-card-main" },
+            el("p", { className: "monitoring-ds-card-type" }, dsType),
+            el("p", { className: "monitoring-ds-card-path" }, connInfo)
           ),
-          el("span", { className: "monitoring-badge " + badgeCls }, refCount + " ref" + (refCount !== 1 ? "s" : ""))
+          el("span", { className: "monitoring-badge monitoring-ds-card-ref " + badgeCls }, refCount + " ref" + (refCount !== 1 ? "s" : ""))
         )
       ));
     });

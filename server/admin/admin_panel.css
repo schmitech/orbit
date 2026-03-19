@@ -1871,6 +1871,45 @@ code.plain-code {
   border-color: var(--brand-500);
 }
 
+/* Datasource pool cards — keep Ref badge inside card when paths are long */
+.monitoring-datasource-card {
+  min-width: 0;
+}
+
+.monitoring-ds-card-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.monitoring-ds-card-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.monitoring-ds-card-type {
+  margin: 0;
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+.monitoring-ds-card-path {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  line-height: 1.45;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.monitoring-ds-card-ref {
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
 .monitoring-summary-card {
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--radius-md);
