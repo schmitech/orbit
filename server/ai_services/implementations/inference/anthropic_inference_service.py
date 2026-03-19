@@ -41,6 +41,30 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
         self.max_tokens = self._get_max_tokens(default=1024)
         self.top_p = self._get_top_p(default=0.8)
 
+    @staticmethod
+    def _extract_system_message(messages):
+        """
+        Extract system messages from the messages list and return them separately.
+
+        The Anthropic Messages API requires system content as a top-level `system`
+        parameter, not as a message with role "system".
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+
+        Returns:
+            Tuple of (system_content_string_or_None, filtered_messages_list)
+        """
+        system_parts = []
+        filtered = []
+        for msg in messages:
+            if msg.get('role') == 'system':
+                system_parts.append(msg.get('content', ''))
+            else:
+                filtered.append(msg)
+        system_content = "\n\n".join(system_parts) if system_parts else None
+        return system_content, filtered
+
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate response using Anthropic.
@@ -63,19 +87,25 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
                 # Traditional format - convert to messages
                 messages = [{"role": "user", "content": prompt}]
 
+            # Anthropic requires system content as a top-level parameter
+            system_content, messages = self._extract_system_message(messages)
+
             # Build parameters using configured values
             # Note: Anthropic API doesn't allow both temperature and top_p
             # Prefer temperature if both are provided
             temperature = kwargs.pop('temperature', self.temperature)
             top_p = kwargs.pop('top_p', self.top_p)
-            
+
             params = {
                 "model": self.model,
                 "messages": messages,
                 "max_tokens": kwargs.pop('max_tokens', self.max_tokens),
                 **kwargs  # Any other parameters
             }
-            
+
+            if system_content:
+                params["system"] = system_content
+
             # Only include temperature or top_p, not both
             if temperature is not None:
                 params["temperature"] = temperature
@@ -112,19 +142,25 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
                 # Traditional format - convert to messages
                 messages = [{"role": "user", "content": prompt}]
 
+            # Anthropic requires system content as a top-level parameter
+            system_content, messages = self._extract_system_message(messages)
+
             # Build parameters using configured values
             # Note: Anthropic API doesn't allow both temperature and top_p
             # Prefer temperature if both are provided
             temperature = kwargs.pop('temperature', self.temperature)
             top_p = kwargs.pop('top_p', self.top_p)
-            
+
             params = {
                 "model": self.model,
                 "messages": messages,
                 "max_tokens": kwargs.pop('max_tokens', self.max_tokens),
                 **kwargs  # Any other parameters
             }
-            
+
+            if system_content:
+                params["system"] = system_content
+
             # Only include temperature or top_p, not both
             if temperature is not None:
                 params["temperature"] = temperature

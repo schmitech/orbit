@@ -567,8 +567,8 @@
 /* Graph containers */
 .markdown-content .graph-container {
   margin: 16px 0;
-  padding: 12px;
-  border-radius: 6px;
+  padding: 16px;
+  border-radius: 10px;
   background-color: var(--md-bg-secondary);
   border: 1px solid var(--md-border-color);
   display: flex;
@@ -577,18 +577,34 @@
   min-height: 100px;
   overflow-x: auto;
   overflow-y: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.markdown-content .graph-container:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.markdown-content .graph-container:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
 }
 
 .markdown-content.dark .graph-container,
 .dark .markdown-content .graph-container,
 [data-theme="dark"] .markdown-content .graph-container {
-  background-color: #202123;
-  border-color: #3c3f4a;
+  background-color: #1a1b1e;
+  border-color: #2d2f36;
+}
+
+.markdown-content.dark .graph-container:hover,
+.dark .markdown-content .graph-container:hover,
+[data-theme="dark"] .markdown-content .graph-container:hover {
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.2);
 }
 
 .markdown-content.light .graph-container,
 [data-theme="light"] .markdown-content .graph-container {
-  background-color: #f9fafb;
+  background-color: #fafbfc;
   border-color: #e5e7eb;
 }
 

@@ -21,7 +21,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { Formatter, NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import type {
   ChartConfig,
   ChartDataItem,
@@ -31,17 +30,24 @@ import type {
   ChartSeriesConfig,
 } from '../types';
 
-// Default color palette for charts
+// Premium color palette — WCAG AA-accessible against both light and dark backgrounds
 const DEFAULT_COLORS = [
-  '#3b82f6',
-  '#8b5cf6',
-  '#ec4899',
-  '#f59e0b',
-  '#10b981',
-  '#06b6d4',
-  '#6366f1',
-  '#ef4444',
+  '#6366f1', // indigo-500
+  '#06b6d4', // cyan-500
+  '#f59e0b', // amber-500
+  '#ec4899', // pink-500
+  '#10b981', // emerald-500
+  '#8b5cf6', // violet-500
+  '#f97316', // orange-500
+  '#14b8a6', // teal-500
+  '#e11d48', // rose-600
+  '#2563eb', // blue-600
 ];
+
+const ANIMATION_DEFAULTS = {
+  duration: 750,
+  easing: 'ease-out',
+} as const;
 
 const MONTH_ABBREVIATIONS: Record<string, string> = {
   january: 'Jan',
@@ -258,7 +264,12 @@ const parseChartConfig = (code: string, language: string): ChartConfig | null =>
   try {
     // Parse JSON format
     if (language === 'chart-json') {
-      return JSON.parse(code) as ChartConfig;
+      const parsed = JSON.parse(code) as ChartConfig;
+      // Normalize formatter from string shorthand (LLMs often output "formatter": "currency" instead of an object)
+      if (typeof parsed.formatter === 'string') {
+        parsed.formatter = { format: parsed.formatter as ChartFormatterConfig['format'] };
+      }
+      return parsed;
     }
 
     const lines = code.trim().split('\n');
@@ -328,18 +339,90 @@ const parseChartConfig = (code: string, language: string): ChartConfig | null =>
         config.dataKeys = headers.slice(1);
       }
 
+      // Parse config lines before the table, with multi-line JSON support
+      let tPendingKey: string | null = null;
+      let tPendingValue = '';
+      const tFlush = () => {
+        if (tPendingKey) {
+          applyConfigLine(config, tPendingKey, tPendingValue);
+          tPendingKey = null;
+          tPendingValue = '';
+        }
+      };
       for (const line of lines) {
-        if (line.includes('|')) break;
-        const [key, ...valueParts] = line.split(':');
-        if (!key || !valueParts.length) continue;
-        applyConfigLine(config, key, valueParts.join(':'));
+        if (line.includes('|')) { tFlush(); break; }
+        if (tPendingKey) {
+          tPendingValue += line.trim();
+          const opens = (tPendingValue.match(/[{[]/g) || []).length;
+          const closes = (tPendingValue.match(/[}\]]/g) || []).length;
+          if (opens > 0 && opens <= closes) tFlush();
+          continue;
+        }
+        const colonIdx = line.indexOf(':');
+        if (colonIdx === -1) continue;
+        const key = line.substring(0, colonIdx);
+        const value = line.substring(colonIdx + 1);
+        if (!key.trim()) continue;
+        const trimmedVal = value.trim();
+        if (trimmedVal.length > 0) {
+          const opens = (trimmedVal.match(/[{[]/g) || []).length;
+          const closes = (trimmedVal.match(/[}\]]/g) || []).length;
+          if (opens > 0 && opens > closes) {
+            tPendingKey = key;
+            tPendingValue = trimmedVal;
+            continue;
+          }
+        }
+        applyConfigLine(config, key, value);
       }
     } else {
+      // Parse key/value lines, accumulating multi-line JSON values.
+      // LLMs sometimes output data/series across multiple indented lines:
+      //   data: [
+      //     {"x":"A","y":1},
+      //     {"x":"B","y":2}
+      //   ]
+      let pendingKey: string | null = null;
+      let pendingValue = '';
+      const flushPending = () => {
+        if (pendingKey) {
+          applyConfigLine(config, pendingKey, pendingValue);
+          pendingKey = null;
+          pendingValue = '';
+        }
+      };
       for (const line of lines) {
-        const [key, ...valueParts] = line.split(':');
-        if (!key || !valueParts.length) continue;
-        applyConfigLine(config, key, valueParts.join(':'));
+        if (pendingKey) {
+          // We're accumulating a multi-line value
+          pendingValue += line.trim();
+          // Check if brackets/braces are balanced now
+          const opens = (pendingValue.match(/[{[]/g) || []).length;
+          const closes = (pendingValue.match(/[}\]]/g) || []).length;
+          if (opens > 0 && opens <= closes) {
+            flushPending();
+          }
+          continue;
+        }
+        const colonIdx = line.indexOf(':');
+        if (colonIdx === -1) continue;
+        const key = line.substring(0, colonIdx);
+        const value = line.substring(colonIdx + 1);
+        if (!key.trim()) continue;
+        // Detect start of a multi-line JSON value: value contains opening
+        // bracket/brace but brackets aren't balanced on this line
+        const trimmedVal = value.trim();
+        if (trimmedVal.length > 0) {
+          const opens = (trimmedVal.match(/[{[]/g) || []).length;
+          const closes = (trimmedVal.match(/[}\]]/g) || []).length;
+          if (opens > 0 && opens > closes) {
+            pendingKey = key;
+            pendingValue = trimmedVal;
+            continue;
+          }
+        }
+        applyConfigLine(config, key, value);
       }
+      flushPending();
 
       if (Array.isArray(config.data) && typeof config.data[0] === 'number') {
         // Handle array of numbers - convert to objects with name/value pairs
@@ -358,6 +441,27 @@ const parseChartConfig = (code: string, language: string): ChartConfig | null =>
     config.data = config.data ?? [];
     if (!config.colors || config.colors.length === 0) {
       config.colors = DEFAULT_COLORS;
+    }
+
+    // Reconcile xKey case with actual data keys — LLMs and table headers often
+    // differ in casing (e.g. config has "month" but table header produced "Month").
+    if (config.xKey && Array.isArray(config.data) && config.data.length > 0) {
+      const firstItem = config.data[0];
+      if (firstItem && typeof firstItem === 'object' && !(config.xKey in firstItem)) {
+        const lowerXKey = config.xKey.toLowerCase();
+        const match = Object.keys(firstItem).find((k) => k.toLowerCase() === lowerXKey);
+        if (match) {
+          config.xKey = match;
+        }
+      }
+    }
+
+    // Populate dataKeys from series when not already set (common in chart-json
+    // where series is provided but dataKeys is not)
+    if ((!config.dataKeys || config.dataKeys.length === 0) && config.series && config.series.length > 0) {
+      config.dataKeys = config.series
+        .map((s) => (s as Record<string, unknown>).key as string || (s as Record<string, unknown>).dataKey as string)
+        .filter(Boolean);
     }
 
     return config as ChartConfig;
@@ -432,9 +536,17 @@ const buildSeries = (config: ChartConfig, colors: string[]): NormalizedSeries[] 
       ? config.dataKeys.map((key) => ({ key }))
       : [{ key: 'value' }];
 
-  const baseSeries: ChartSeriesConfig[] = (config.series && config.series.length ? config.series : fallbackSeries).filter(
-    (series): series is ChartSeriesConfig => Boolean(series.key),
-  );
+  // Normalize dataKey → key: LLMs (especially GPT) often output the Recharts `dataKey`
+  // convention instead of our `key` property. Accept both.
+  const rawSeries = config.series && config.series.length ? config.series : fallbackSeries;
+  const baseSeries: ChartSeriesConfig[] = rawSeries
+    .map((series) => {
+      if (!series.key && (series as Record<string, unknown>).dataKey) {
+        return { ...series, key: (series as Record<string, unknown>).dataKey as string };
+      }
+      return series;
+    })
+    .filter((series): series is ChartSeriesConfig => Boolean(series.key));
 
   const defaultType: NormalizedSeries['type'] =
     config.type === 'line'
@@ -527,6 +639,122 @@ const renderYAxisLabel = (value: string | undefined, orientation: 'left' | 'righ
   );
 };
 
+// ---------------------------------------------------------------------------
+// Premium custom tooltip
+// ---------------------------------------------------------------------------
+const CustomChartTooltip: React.FC<{
+  active?: boolean;
+  payload?: Array<{ name: string; value: number; color: string; dataKey: string }>;
+  label?: string;
+  formatter?: ChartFormatterConfig;
+  labelFormatter?: (label: unknown) => string;
+}> = ({ active, payload, label, formatter, labelFormatter }) => {
+  if (!active || !payload?.length) return null;
+  const displayLabel = labelFormatter ? labelFormatter(label) : label;
+  return (
+    <div
+      role="tooltip"
+      style={{
+        background: 'var(--md-chart-tooltip-bg, #ffffff)',
+        border: '1px solid var(--md-chart-tooltip-border, #e5e7eb)',
+        borderRadius: '8px',
+        padding: '10px 14px',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04)',
+        color: 'var(--md-chart-tooltip-text, #1f2937)',
+        fontSize: '13px',
+        lineHeight: 1.5,
+        maxWidth: '300px',
+        pointerEvents: 'none' as const,
+      }}
+    >
+      {displayLabel != null && displayLabel !== '' && (
+        <div style={{ fontWeight: 600, marginBottom: '6px', borderBottom: '1px solid var(--md-chart-grid, #e5e7eb)', paddingBottom: '5px' }}>
+          {String(displayLabel)}
+        </div>
+      )}
+      {payload.map((entry, idx) => (
+        <div
+          key={idx}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            padding: '2px 0',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            <span
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: entry.color,
+                flexShrink: 0,
+                boxShadow: `0 0 0 2px ${entry.color}33`,
+              }}
+            />
+            <span style={{ opacity: 0.75, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {entry.name}
+            </span>
+          </span>
+          <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+            {String(formatValue(entry.value, formatter))}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Custom active dot for line / area hover
+// ---------------------------------------------------------------------------
+const CustomActiveDot: React.FC<{
+  cx?: number;
+  cy?: number;
+  fill?: string;
+  stroke?: string;
+}> = ({ cx, cy, fill, stroke }) => {
+  if (typeof cx !== 'number' || typeof cy !== 'number') return null;
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={7} fill={fill || stroke || '#6366f1'} fillOpacity={0.15} stroke="none" />
+      <circle cx={cx} cy={cy} r={4} fill="#fff" stroke={stroke || fill || '#6366f1'} strokeWidth={2} />
+    </g>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// SVG gradient definitions for area charts
+// ---------------------------------------------------------------------------
+const renderGradientDefs = (series: NormalizedSeries[]) => {
+  const areaSeries = series.filter((s) => s.type === 'area');
+  if (!areaSeries.length) return null;
+  return (
+    <defs>
+      {areaSeries.map((s) => (
+        <linearGradient key={`grad-${s.key}`} id={`gradient-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={s.color} stopOpacity={0.45} />
+          <stop offset="95%" stopColor={s.color} stopOpacity={0.03} />
+        </linearGradient>
+      ))}
+    </defs>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Generate accessible data summary for screen readers
+// ---------------------------------------------------------------------------
+const buildA11ySummary = (config: ChartConfig, series: NormalizedSeries[]): string => {
+  const parts: string[] = [];
+  parts.push(`${config.type} chart`);
+  if (config.title) parts.push(`titled "${config.title}"`);
+  parts.push(`with ${config.data.length} data point${config.data.length !== 1 ? 's' : ''}`);
+  if (series.length > 1) parts.push(`and ${series.length} series: ${series.map((s) => s.name).join(', ')}`);
+  return parts.join(' ');
+};
+
 // Heuristics to detect if chart data appears incomplete/streaming
 const isLikelyIncomplete = (code: string): boolean => {
   // Check for incomplete JSON structures
@@ -611,6 +839,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   const [isStreaming, setIsStreaming] = useState(false);
   const [isWaitingForData, setIsWaitingForData] = useState(false);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCodeRef = useRef<string>('');
   const lastUpdateTimeRef = useRef<number>(0);
@@ -768,68 +997,106 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
 
   if (error) {
     return (
-      <div className="graph-error">
-        <div className="graph-error-title">Chart Rendering Error</div>
-        <div className="graph-error-message">{error}</div>
-        <pre style={{ marginTop: '8px', fontSize: '0.8em', opacity: 0.7 }}>
-          <code>{code}</code>
-        </pre>
+      <div className="graph-error" role="alert">
+        <div className="graph-error-header">
+          <div className="graph-error-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 6v4m0 4h.01M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </div>
+          <div className="graph-error-content">
+            <div className="graph-error-title">Chart Rendering Error</div>
+            <div className="graph-error-message">{error}</div>
+          </div>
+        </div>
+        <details style={{ marginTop: '4px' }}>
+          <summary className="graph-error-toggle" style={{ cursor: 'pointer', listStyle: 'none', userSelect: 'none' }}>
+            Show raw source
+          </summary>
+          <div className="graph-error-details">
+            <pre><code>{code}</code></pre>
+          </div>
+        </details>
       </div>
     );
   }
 
   if (!config) {
     return (
-      <div className="graph-container chart-container">
+      <div className="graph-container chart-container" role="status" aria-label="Loading chart">
         <div style={{
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '40px 20px',
-          color: 'var(--md-text-secondary, #6b7280)',
-          minHeight: '200px',
+          alignItems: 'stretch',
+          width: '100%',
+          padding: '16px 20px',
+          minHeight: '220px',
+          gap: '12px',
         }}>
-          <svg
-            style={{
-              animation: 'spin 1s linear infinite',
-              marginBottom: '12px',
-              width: '32px',
-              height: '32px',
-              color: isWaitingForData ? '#3b82f6' : 'currentColor',
-            }}
-            viewBox="0 0 24 24"
-            fill="none"
-          >
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeLinecap="round" />
-          </svg>
-          <span style={{ fontWeight: 500 }}>
-            {isWaitingForData ? 'Receiving chart data...' : 'Loading chart...'}
-          </span>
-          {isWaitingForData && (
-            <span style={{ fontSize: '0.85em', marginTop: '4px', opacity: 0.7 }}>
-              Waiting for complete data from stream
+          {/* Skeleton title */}
+          <div style={{ height: '16px', width: '40%', borderRadius: '6px', background: 'var(--md-chart-grid, #e5e7eb)', opacity: 0.5, animation: 'chartPulse 1.5s ease-in-out infinite' }} />
+          {/* Skeleton chart area */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: '8px', padding: '16px 0 8px', minHeight: '140px' }}>
+            {[0.45, 0.7, 0.55, 0.85, 0.6, 0.4, 0.75].map((h, i) => (
+              <div
+                key={i}
+                style={{
+                  flex: 1,
+                  height: `${h * 100}%`,
+                  borderRadius: '4px 4px 0 0',
+                  background: 'var(--md-chart-grid, #e5e7eb)',
+                  opacity: 0.35,
+                  animation: `chartPulse 1.5s ease-in-out ${i * 0.1}s infinite`,
+                }}
+              />
+            ))}
+          </div>
+          {/* Skeleton axis */}
+          <div style={{ height: '1px', background: 'var(--md-chart-grid, #e5e7eb)', opacity: 0.4 }} />
+          {/* Status label */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--md-text-secondary, #6b7280)', fontSize: '13px' }}>
+            <svg style={{ animation: 'chartSpin 1s linear infinite', width: '14px', height: '14px', color: isWaitingForData ? '#6366f1' : 'currentColor' }} viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeLinecap="round" />
+            </svg>
+            <span style={{ fontWeight: 500 }}>
+              {isWaitingForData ? 'Receiving chart data\u2026' : 'Loading chart\u2026'}
             </span>
-          )}
+          </div>
         </div>
         <style>{`
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
+          @keyframes chartSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes chartPulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.45; } }
         `}</style>
       </div>
     );
   }
 
   const colors = config.colors && config.colors.length ? config.colors : DEFAULT_COLORS;
-  const derivedSeries = buildSeries(config, colors);
+  const allSeries = buildSeries(config, colors);
+  // Filter out hidden series for interactive legend toggle
+  const derivedSeries = allSeries.filter((s) => !hiddenSeries.has(s.key));
 
   const hasRightAxis = derivedSeries.some((series) => series.yAxisId === 'right');
   const showLegend = config.showLegend ?? (config.type === 'pie' || derivedSeries.length > 1);
   const showGrid = config.showGrid ?? true;
 
   const referenceLineElements = renderReferenceLines(config.referenceLines);
+  const gradientDefs = renderGradientDefs(derivedSeries);
+  const a11ySummary = buildA11ySummary(config, derivedSeries);
+
+  // Interactive legend click handler — toggles series visibility
+  const handleLegendClick = (dataKey: string) => {
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(dataKey)) {
+        next.delete(dataKey);
+      } else {
+        // Don't allow hiding ALL series
+        if (next.size < allSeries.length - 1) {
+          next.add(dataKey);
+        }
+      }
+      return next;
+    });
+  };
   const inferredLeftLabel = inferAxisLabel(derivedSeries, 'left');
   const inferredRightLabel = inferAxisLabel(derivedSeries, 'right');
   const leftAxisLabelText = config.yAxisLabel ?? inferredLeftLabel ?? 'Value';
@@ -842,9 +1109,6 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   const axisColor = CHART_THEME_VARS.axis;
   const gridColor = CHART_THEME_VARS.grid;
   const textColor = CHART_THEME_VARS.text;
-  const tooltipTextColor = CHART_THEME_VARS.tooltipText;
-  const tooltipBgColor = CHART_THEME_VARS.tooltipBg;
-  const tooltipBorderColor = CHART_THEME_VARS.tooltipBorder;
   const secondaryTextColor = CHART_THEME_VARS.secondaryText;
   const axisStylingProps = {
     tick: { fill: axisColor },
@@ -971,44 +1235,25 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   };
   const xAxisProps = isCategoryXAxis ? categoricalXAxisProps : numericXAxisProps;
 
-  const tooltipStyle = {
-    backgroundColor: tooltipBgColor,
-    border: `1px solid ${tooltipBorderColor}`,
-    borderRadius: '4px',
-    padding: '8px',
-    color: tooltipTextColor,
-  };
-
-  const tooltipLabelStyle = {
-    color: tooltipTextColor,
-    fontWeight: 600,
-    marginBottom: '4px',
-  };
-
-  const tooltipItemStyle = {
-    color: tooltipTextColor,
-  };
-
-  // Cursor style for hover highlight - semi-transparent for better UX
+  // Cursor style for hover highlight
   const tooltipCursor = {
     fill: gridColor,
-    fillOpacity: 0.3,
+    fillOpacity: 0.2,
+    strokeWidth: 0,
   };
 
-  const tooltipFormatter: Formatter<ValueType, NameType> = (value, name) => {
-    const safeName = (name ?? '') as NameType;
-    if (typeof value === 'number') {
-      const formatted = formatValue(value, config.formatter);
-      return [String(formatted ?? value), safeName];
-    }
-    if (Array.isArray(value)) {
-      return [value.join(', '), safeName];
-    }
-    if (typeof value === 'string') {
-      return [value, safeName];
-    }
-    return ['', safeName];
-  };
+  // Custom tooltip renderer using the premium CustomChartTooltip component
+  const renderCustomTooltip = (props: {
+    active?: boolean;
+    payload?: Array<{ name: string; value: number; color: string; dataKey: string }>;
+    label?: string;
+  }) => (
+    <CustomChartTooltip
+      {...props}
+      formatter={config.formatter}
+      labelFormatter={tooltipLabelFormatter}
+    />
+  );
 
   const axisTickFormatter = (value: unknown) => {
     if (typeof value !== 'number') return String(value ?? '');
@@ -1092,34 +1337,92 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     paddingTop: shouldRotateLabels ? Math.min(Math.max(estimatedTickLabelHeight - 50, 8), isCompactViewport ? 22 : 30) : 8,
     display: 'flex',
     justifyContent: 'center',
-    gap: useLegendVerticalLayout ? '8px' : (isCompactViewport ? '10px' : '16px'),
+    flexWrap: 'wrap',
+    gap: useLegendVerticalLayout ? '6px' : (isCompactViewport ? '8px' : '14px'),
     flexDirection: useLegendVerticalLayout ? 'column' : 'row',
     alignItems: useLegendVerticalLayout ? 'center' : undefined,
+  };
+
+  // Interactive legend content renderer — supports click-to-toggle series
+  const renderInteractiveLegend = (props: { payload?: Array<{ value: string; color: string; dataKey?: string }> }) => {
+    if (!props.payload) return null;
+    return (
+      <div style={legendWrapperStyle} role="list" aria-label="Chart legend">
+        {props.payload.map((entry, idx) => {
+          const key = entry.dataKey || entry.value;
+          const isHidden = hiddenSeries.has(key);
+          return (
+            <button
+              key={idx}
+              type="button"
+              role="listitem"
+              onClick={() => handleLegendClick(key)}
+              aria-pressed={!isHidden}
+              aria-label={`${isHidden ? 'Show' : 'Hide'} ${entry.value}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                background: 'none',
+                border: 'none',
+                padding: '3px 6px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                color: textColor,
+                opacity: isHidden ? 0.35 : 1,
+                textDecoration: isHidden ? 'line-through' : 'none',
+                transition: 'opacity 0.2s, background 0.15s',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--md-chart-grid, #f3f4f6)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
+            >
+              <span
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '2px',
+                  backgroundColor: entry.color,
+                  flexShrink: 0,
+                  opacity: isHidden ? 0.3 : 1,
+                  transition: 'opacity 0.2s',
+                }}
+              />
+              {entry.value}
+            </button>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
     <>
       <div
         className="graph-container chart-container"
+        role="figure"
+        aria-label={a11ySummary}
+        tabIndex={0}
         style={{ flexDirection: 'column', alignItems: 'stretch', position: 'relative' }}
       >
         {isStreaming && (
-          <div className="md-expandable-actions">
+          <div className="md-expandable-actions" aria-live="polite">
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                padding: '4px 8px',
-                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                borderRadius: '4px',
+                padding: '4px 10px',
+                backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                borderRadius: '6px',
                 fontSize: '12px',
-                color: '#3b82f6',
+                color: '#6366f1',
+                fontWeight: 500,
               }}
             >
               <svg
                 style={{
-                  animation: 'spin 1s linear infinite',
-                  marginRight: '4px',
+                  animation: 'chartSpin 1s linear infinite',
+                  marginRight: '6px',
                   width: '12px',
                   height: '12px'
                 }}
@@ -1128,9 +1431,9 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
               >
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeLinecap="round" />
               </svg>
-              Updating...
+              Updating\u2026
               <style>{`
-                @keyframes spin {
+                @keyframes chartSpin {
                   from { transform: rotate(0deg); }
                   to { transform: rotate(360deg); }
                 }
@@ -1170,7 +1473,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             <ResponsiveContainer width={intrinsicChartWidth} height={height}>
         {config.type === 'bar' && (
           <BarChart data={config.data} margin={chartMargin} barCategoryGap="20%">
-            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />}
+            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />}
             <XAxis
               dataKey={config.xKey || 'name'}
               label={xAxisLabel}
@@ -1197,15 +1500,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 {renderYAxisLabel(rightAxisLabelText, 'right')}
               </YAxis>
             )}
-            <Tooltip
-              contentStyle={tooltipStyle}
-              labelStyle={tooltipLabelStyle}
-              itemStyle={tooltipItemStyle}
-              formatter={tooltipFormatter}
-              labelFormatter={tooltipLabelFormatter}
-              cursor={tooltipCursor}
-            />
-            {showLegend && <Legend wrapperStyle={legendWrapperStyle} iconSize={10} iconType="square" />}
+            <Tooltip content={renderCustomTooltip} cursor={tooltipCursor} />
+            {showLegend && <Legend content={renderInteractiveLegend} />}
             {referenceLineElements}
             {derivedSeries.map((series) => (
               <Bar
@@ -1216,6 +1512,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 stackId={series.stackId}
                 yAxisId={series.yAxisId}
                 radius={[4, 4, 0, 0]}
+                animationDuration={ANIMATION_DEFAULTS.duration}
+                animationEasing={ANIMATION_DEFAULTS.easing}
               />
             ))}
           </BarChart>
@@ -1223,7 +1521,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
 
         {config.type === 'line' && (
           <LineChart data={config.data} margin={chartMargin}>
-            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />}
+            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />}
             <XAxis
               dataKey={config.xKey || 'name'}
               label={xAxisLabel}
@@ -1250,15 +1548,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 {renderYAxisLabel(rightAxisLabelText, 'right')}
               </YAxis>
             )}
-            <Tooltip
-              contentStyle={tooltipStyle}
-              labelStyle={tooltipLabelStyle}
-              itemStyle={tooltipItemStyle}
-              formatter={tooltipFormatter}
-              labelFormatter={tooltipLabelFormatter}
-              cursor={tooltipCursor}
-            />
-            {showLegend && <Legend wrapperStyle={legendWrapperStyle} iconSize={10} iconType="square" />}
+            <Tooltip content={renderCustomTooltip} cursor={{ stroke: gridColor, strokeDasharray: '4 4' }} />
+            {showLegend && <Legend content={renderInteractiveLegend} />}
             {referenceLineElements}
             {derivedSeries.map((series) => (
               <Line
@@ -1269,7 +1560,10 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 stroke={series.color}
                 yAxisId={series.yAxisId}
                 strokeWidth={series.strokeWidth}
-                dot={series.dot}
+                dot={series.dot ? { r: 3, strokeWidth: 2, fill: '#fff' } : false}
+                activeDot={<CustomActiveDot stroke={series.color} />}
+                animationDuration={ANIMATION_DEFAULTS.duration}
+                animationEasing={ANIMATION_DEFAULTS.easing}
               />
             ))}
           </LineChart>
@@ -1277,7 +1571,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
 
         {config.type === 'area' && (
           <AreaChart data={config.data} margin={chartMargin}>
-            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />}
+            {gradientDefs}
+            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />}
             <XAxis
               dataKey={config.xKey || 'name'}
               label={xAxisLabel}
@@ -1304,15 +1599,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 {renderYAxisLabel(rightAxisLabelText, 'right')}
               </YAxis>
             )}
-            <Tooltip
-              contentStyle={tooltipStyle}
-              labelStyle={tooltipLabelStyle}
-              itemStyle={tooltipItemStyle}
-              formatter={tooltipFormatter}
-              labelFormatter={tooltipLabelFormatter}
-              cursor={tooltipCursor}
-            />
-            {showLegend && <Legend wrapperStyle={legendWrapperStyle} iconSize={10} iconType="square" />}
+            <Tooltip content={renderCustomTooltip} cursor={{ stroke: gridColor, strokeDasharray: '4 4' }} />
+            {showLegend && <Legend content={renderInteractiveLegend} />}
             {referenceLineElements}
             {derivedSeries.map((series) => (
               <Area
@@ -1321,10 +1609,14 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 type="monotone"
                 dataKey={series.key}
                 stroke={series.color}
+                strokeWidth={2}
                 yAxisId={series.yAxisId}
-                fill={series.color}
-                fillOpacity={series.opacity}
+                fill={`url(#gradient-${series.key})`}
+                fillOpacity={1}
                 stackId={series.stackId}
+                activeDot={<CustomActiveDot stroke={series.color} />}
+                animationDuration={ANIMATION_DEFAULTS.duration}
+                animationEasing={ANIMATION_DEFAULTS.easing}
               />
             ))}
           </AreaChart>
@@ -1332,7 +1624,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
 
         {config.type === 'composed' && (
           <ComposedChart data={config.data} margin={chartMargin}>
-            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />}
+            {gradientDefs}
+            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />}
             <XAxis
               dataKey={config.xKey || 'name'}
               label={xAxisLabel}
@@ -1359,15 +1652,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 {renderYAxisLabel(rightAxisLabelText, 'right')}
               </YAxis>
             )}
-            <Tooltip
-              contentStyle={tooltipStyle}
-              labelStyle={tooltipLabelStyle}
-              itemStyle={tooltipItemStyle}
-              formatter={tooltipFormatter}
-              labelFormatter={tooltipLabelFormatter}
-              cursor={tooltipCursor}
-            />
-            {showLegend && <Legend wrapperStyle={legendWrapperStyle} iconSize={10} iconType="square" />}
+            <Tooltip content={renderCustomTooltip} cursor={tooltipCursor} />
+            {showLegend && <Legend content={renderInteractiveLegend} />}
             {referenceLineElements}
             {derivedSeries.map((series) => {
               switch (series.type) {
@@ -1381,7 +1667,10 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                       stroke={series.color}
                       yAxisId={series.yAxisId}
                       strokeWidth={series.strokeWidth}
-                      dot={series.dot}
+                      dot={series.dot ? { r: 3, strokeWidth: 2, fill: '#fff' } : false}
+                      activeDot={<CustomActiveDot stroke={series.color} />}
+                      animationDuration={ANIMATION_DEFAULTS.duration}
+                      animationEasing={ANIMATION_DEFAULTS.easing}
                     />
                   );
                 case 'area':
@@ -1392,10 +1681,14 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                       type="monotone"
                       dataKey={series.key}
                       stroke={series.color}
+                      strokeWidth={2}
                       yAxisId={series.yAxisId}
-                      fill={series.color}
-                      fillOpacity={series.opacity}
+                      fill={`url(#gradient-${series.key})`}
+                      fillOpacity={1}
                       stackId={series.stackId}
+                      activeDot={<CustomActiveDot stroke={series.color} />}
+                      animationDuration={ANIMATION_DEFAULTS.duration}
+                      animationEasing={ANIMATION_DEFAULTS.easing}
                     />
                   );
                 case 'scatter':
@@ -1406,6 +1699,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                       dataKey={series.key}
                       fill={series.color}
                       yAxisId={series.yAxisId}
+                      animationDuration={ANIMATION_DEFAULTS.duration}
+                      animationEasing={ANIMATION_DEFAULTS.easing}
                     />
                   );
                 default:
@@ -1418,6 +1713,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                       stackId={series.stackId}
                       yAxisId={series.yAxisId}
                       radius={[4, 4, 0, 0]}
+                      animationDuration={ANIMATION_DEFAULTS.duration}
+                      animationEasing={ANIMATION_DEFAULTS.easing}
                     />
                   );
               }
@@ -1429,23 +1726,25 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
           <PieChart>
             <Pie
               data={config.data}
-              dataKey={config.dataKeys?.[0] || 'value'}
+              dataKey={derivedSeries[0]?.key || config.dataKeys?.[0] || 'value'}
               nameKey={config.xKey || 'name'}
               cx="50%"
               cy="50%"
               outerRadius={height / 3}
-              label={{ fill: textColor }}
+              innerRadius={height / 6}
+              paddingAngle={2}
+              strokeWidth={0}
+              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              labelLine={{ stroke: axisColor, strokeWidth: 1 }}
+              animationDuration={ANIMATION_DEFAULTS.duration}
+              animationEasing={ANIMATION_DEFAULTS.easing}
             >
               {config.data.map((_: unknown, index: number) => (
                 <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
               ))}
             </Pie>
-            <Tooltip
-              contentStyle={tooltipStyle}
-              itemStyle={tooltipItemStyle}
-              formatter={tooltipFormatter}
-            />
-            {showLegend && <Legend wrapperStyle={legendWrapperStyle} iconSize={10} iconType="square" />}
+            <Tooltip content={renderCustomTooltip} />
+            {showLegend && <Legend content={renderInteractiveLegend} />}
           </PieChart>
         )}
 
@@ -1460,24 +1759,26 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
               tickFormatter={xAxisTickFormatter}
             />
             <YAxis
-              dataKey={config.dataKeys?.[0] || 'y'}
+              dataKey={derivedSeries[0]?.key || config.dataKeys?.[0] || 'y'}
               width={isCompactViewport ? 68 : 80}
               tickFormatter={axisTickFormatter}
               {...axisStylingProps}
             >
               {renderYAxisLabel(leftAxisLabelText, 'left')}
             </YAxis>
-            <Tooltip
-              contentStyle={tooltipStyle}
-              labelStyle={tooltipLabelStyle}
-              itemStyle={tooltipItemStyle}
-              formatter={tooltipFormatter}
-              labelFormatter={tooltipLabelFormatter}
-              cursor={tooltipCursor}
-            />
-            {showLegend && <Legend wrapperStyle={legendWrapperStyle} iconSize={10} iconType="square" />}
+            <Tooltip content={renderCustomTooltip} cursor={tooltipCursor} />
+            {showLegend && <Legend content={renderInteractiveLegend} />}
             {referenceLineElements}
-            <Scatter name="Data" data={config.data} fill={colors[0]} />
+            {derivedSeries.map((series) => (
+              <Scatter
+                key={series.key}
+                name={series.name}
+                data={config.data}
+                fill={series.color}
+                animationDuration={ANIMATION_DEFAULTS.duration}
+                animationEasing={ANIMATION_DEFAULTS.easing}
+              />
+            ))}
           </ScatterChart>
         )}
             </ResponsiveContainer>

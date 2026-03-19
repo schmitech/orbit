@@ -531,33 +531,70 @@ class LLMInferenceStep(PipelineStep):
             Chart instruction string for the markdown renderer with recharts support.
         """
         return (
-            "<CHART_FORMATTING>\n"
-            "Tables vs Charts: Use standard markdown tables for 'table' requests. "
-            "Use ```chart blocks only for 'chart'/'graph'/'visualization' requests.\n"
+            "--- CHART FORMATTING RULES ---\n"
+            "When the user asks for a chart, graph, or visualization, output a fenced code block with language `chart`.\n"
+            "When the user asks for a table, use a standard markdown table instead.\n"
             "\n"
-            "Chart format — simple:\n"
+            "FORMAT A — Simple (numeric array + labels):\n"
             "```chart\n"
             "type: bar\n"
             "title: Sales by Quarter\n"
             "data: [45000, 52000, 48000, 60000]\n"
             "labels: [Q1, Q2, Q3, Q4]\n"
-            "colors: [#3b82f6, #8b5cf6, #ec4899, #f59e0b]\n"
             "```\n"
             "\n"
-            "Chart format — table (for multi-series):\n"
+            "FORMAT B — Table (auto-detects series from columns):\n"
             "```chart\n"
             "type: line\n"
             "title: Revenue vs Expenses\n"
+            "showLegend: true\n"
             "| Month | Revenue | Expenses |\n"
             "|-------|---------|----------|\n"
             "| Jan   | 100000  | 80000    |\n"
+            "| Feb   | 112000  | 85000    |\n"
             "```\n"
             "\n"
-            "Types: bar, line, pie, area, scatter.\n"
-            "Rules:\n"
-            "- Every label must have a matching data value (no orphan labels).\n"
-            "- Every legend entry must have data in the chart (no orphan series).\n"
-            "- labels[] and data[] arrays must be the same length.\n"
-            "- Labels can contain spaces. Colors use hex codes.\n"
-            "</CHART_FORMATTING>\n"
+            "FORMAT C — Key/value with JSON data and series (for advanced charts):\n"
+            "```chart\n"
+            "type: composed\n"
+            "title: Revenue and Margin\n"
+            "xKey: month\n"
+            "yAxisLabel: Revenue\n"
+            "yAxisRightLabel: Margin\n"
+            "showLegend: true\n"
+            'data: [{"month":"Jan","revenue":120000,"margin":0.28},{"month":"Feb","revenue":134000,"margin":0.31}]\n'
+            'series: [{"key":"revenue","name":"Revenue","type":"bar","color":"#3b82f6","yAxisId":"left"},{"key":"margin","name":"Margin","type":"line","color":"#f59e0b","yAxisId":"right"}]\n'
+            "```\n"
+            "\n"
+            "CHART TYPES: bar, line, pie, area, scatter, composed\n"
+            "\n"
+            "SERIES OBJECT PROPERTIES:\n"
+            '  "key": (REQUIRED) the field name in each data object — must match a key in data. Do NOT use "dataKey", always use "key".\n'
+            '  "name": display label for the legend\n'
+            '  "type": "bar", "line", "area", or "scatter" (only needed for composed charts)\n'
+            '  "color": hex color, e.g. "#3b82f6"\n'
+            '  "yAxisId": "left" (default) or "right" for dual-axis charts\n'
+            '  "stackId": group name to stack bars/areas together\n'
+            '  "strokeWidth": line thickness (default 2)\n'
+            '  "dot": true/false — show data point dots on lines\n'
+            '  "opacity": 0-1 fill opacity for area/bar\n'
+            "\n"
+            "CONFIG OPTIONS (one per line, key: value):\n"
+            "  type, title, description, xKey, xAxisLabel, yAxisLabel, yAxisRightLabel,\n"
+            "  xAxisType (category or number), stacked (true/false), showLegend (true/false),\n"
+            "  showGrid (true/false), height (pixels), width (pixels),\n"
+            "  valueFormat (number/compact/currency/percent), valuePrefix, valueSuffix,\n"
+            "  valueDecimals, valueCurrency, colors (comma-separated hex codes)\n"
+            "\n"
+            "REFERENCE LINES (optional):\n"
+            '  referenceLines: [{"y":500,"label":"Target","color":"#ef4444"}]\n'
+            "\n"
+            "RULES:\n"
+            '1. In series arrays, always use "key" — never "dataKey".\n'
+            "2. Every item in labels[] must have a corresponding value in data[].\n"
+            "3. Every series must reference a field that exists in the data objects.\n"
+            "4. labels[] and data[] arrays must be the same length.\n"
+            "5. Use hex color codes (e.g. #3b82f6). Labels can contain spaces.\n"
+            "6. For pie charts, use xKey for the name field and a single series key for the value field.\n"
+            "--- END CHART FORMATTING RULES ---\n"
         )
