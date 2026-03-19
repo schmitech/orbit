@@ -333,11 +333,17 @@
     var cancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
     var confirmBtn = el("button", { className: isDanger ? "danger" : "", type: "button" }, confirmLabel || "Confirm");
     var defaultConfirmContent = confirmBtn.textContent;
+    var inlineErrorEl = el("div", {
+      className: "dialog-inline-error",
+      role: "alert",
+      "aria-live": "assertive",
+    });
     var bodyChildren = [
       el("h2", { id: titleId }, title),
       el("p", { id: descId }, message),
     ];
     if (extraContent) bodyChildren.push(extraContent);
+    bodyChildren.push(inlineErrorEl);
     bodyChildren.push(el("div", { className: "dialog-actions" }, cancelBtn, confirmBtn));
     var dialog = el("div", {
       className: "confirm-dialog",
@@ -359,6 +365,7 @@
     cancelBtn.addEventListener("click", close);
     confirmBtn.addEventListener("click", async function () {
       if (inFlight) return;
+      inlineErrorEl.textContent = "";
       inFlight = true;
       confirmBtn.disabled = true;
       cancelBtn.disabled = true;
@@ -377,7 +384,9 @@
         cancelBtn.disabled = false;
         clear(confirmBtn);
         confirmBtn.appendChild(document.createTextNode(defaultConfirmContent));
-        showError(err.message);
+        inlineErrorEl.textContent = err.message || "Something went wrong.";
+        var focusField = dialog.querySelector(".dialog-body input:not([type='hidden'])");
+        if (focusField && focusField.focus) focusField.focus();
       }
     });
     backdrop.addEventListener("click", function (e) {

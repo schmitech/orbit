@@ -1451,6 +1451,22 @@ code.plain-code {
   gap: var(--sp-3);
 }
 
+.dialog-inline-error:empty {
+  display: none;
+}
+
+.dialog-inline-error {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.5;
+  background: var(--danger-50);
+  color: var(--danger-text);
+  border: 1px solid #fecaca;
+}
+
 /* ============================================================
    Muted & Utility Text
    ============================================================ */

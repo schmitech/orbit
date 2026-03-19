@@ -287,6 +287,21 @@ class ValueExtractor:
                 if match:
                     return match.group(0)
 
+            # For location parameters (intersection, neighbourhood, hundred_block, street, block, address)
+            location_keywords = {'intersection', 'neighbourhood', 'neighborhood', 'hundred_block',
+                                 'street', 'block', 'address', 'location', 'area', 'ward', 'division'}
+            if param_name.lower() in location_keywords or any(kw in param_name.lower() for kw in location_keywords):
+                value = self._extract_location_parameter(user_query, param_name)
+                if value is not None:
+                    return value
+
+            # For type/category parameters (crime_type, occurrence_type, offence_category, etc.)
+            type_keywords = {'type', 'category', 'group', 'offence', 'offense'}
+            if any(kw in param_name.lower() for kw in type_keywords):
+                value = self._extract_type_parameter(user_query, param)
+                if value is not None:
+                    return value
+
             # For names (this is a simple heuristic)
             if 'name' in param_name.lower():
                 # Look for quoted names or proper nouns
@@ -304,13 +319,138 @@ class ValueExtractor:
 
         return None
 
+    # Common English stop words and function words that should never be extracted
+    # as parameter values. Domain-agnostic — no city names, crime terms, etc.
+    _STOP_WORDS = frozenset({
+        'a', 'an', 'the', 'it', 'its', 'this', 'that', 'these', 'those',
+        'is', 'are', 'was', 'were', 'be', 'been', 'being',
+        'have', 'has', 'had', 'do', 'does', 'did',
+        'will', 'would', 'shall', 'should', 'may', 'might', 'can', 'could',
+        'here', 'there', 'where', 'when', 'how', 'what', 'which', 'who',
+        'and', 'or', 'but', 'not', 'no', 'yes',
+        'i', 'me', 'my', 'we', 'us', 'you', 'your', 'he', 'she', 'they', 'them',
+        'all', 'some', 'any', 'each', 'every', 'both', 'most', 'many',
+        'data', 'show', 'tell', 'give', 'get', 'find', 'list',
+    })
+
+    def _extract_location_parameter(self, user_query: str, param_name: str) -> Optional[str]:
+        """Extract a location/place value from the query.
+
+        Domain-agnostic — works for any location-like parameter (intersection, neighbourhood,
+        region, campus, facility, etc.). Uses preposition patterns and proper-noun heuristics.
+        """
+        # Try quoted values first — always highest priority
+        quoted = re.search(r'"([^"]+)"', user_query)
+        if quoted:
+            return quoted.group(1)
+
+        # For area/region-like params, try "in <ProperNoun>" pattern first.
+        # This catches "in the West End", "in Kitsilano", "in Building A", etc.
+        area_keywords = {'neighbourhood', 'neighborhood', 'area', 'ward', 'region',
+                         'district', 'zone', 'campus', 'facility', 'site', 'borough'}
+        if any(kw in param_name.lower() for kw in area_keywords):
+            # "in <Location>" — stops before year refs, punctuation, or clause boundaries
+            in_pattern = (
+                r'\bin\s+(?:the\s+)?'
+                r'([A-Z][\w\s-]*?)'
+                r'(?:\s+(?:in|from|since|during)\s+\d{4}|[?!.]'
+                r'|\s+(?:over|this|last|getting|between)|$)'
+            )
+            match = re.search(in_pattern, user_query)
+            if match:
+                value = match.group(1).strip().rstrip(',')
+                if len(value) >= 2 and value.lower() not in self._STOP_WORDS:
+                    return value
+
+            # "Is <ProperNoun> safe/getting/improving/worse?" — subject-position extraction
+            subject_pattern = (
+                r'\b(?:Is|Are|Has|Does|Did|Will)\s+'
+                r'(?:the\s+)?([A-Z][\w\s-]+?)'
+                r'\s+(?:safe|dangerous|getting|improving|worse|better|growing|declining|increasing|decreasing)'
+            )
+            match = re.search(subject_pattern, user_query)
+            if match:
+                value = match.group(1).strip().rstrip(',')
+                if len(value) >= 2 and value.lower() not in self._STOP_WORDS:
+                    return value
+
+        # Preposition-based extraction — captures value after spatial/relational prepositions.
+        # Stops before year references, clause boundaries, or punctuation.
+        # Word boundary \b prevents matching inside words (e.g., "at" inside "What").
+        prep_pattern = (
+            r'\b(?:on|at|near|around|for|about|along)\s+'
+            r'((?:the\s+)?[A-Za-z0-9][\w\s/&\'-]*?)'
+            r'(?:\s+(?:in|from|since|during|between|for|this|last|over)\s+(?:\d{4}|the)|[?!.]|$)'
+        )
+        match = re.search(prep_pattern, user_query, re.IGNORECASE)
+        if match:
+            value = match.group(1).strip().rstrip(',')
+            if len(value) >= 2 and value.lower() not in self._STOP_WORDS:
+                return value
+
+        return None
+
+    def _extract_type_parameter(self, user_query: str, param: Dict) -> Optional[str]:
+        """Extract a categorical/type value from the query.
+
+        Domain-agnostic — works for any type/category parameter. First tries to match
+        example values from the parameter's description, then falls back to preposition
+        patterns like 'for <value>', 'about <value>'.
+        """
+        # Try quoted values first
+        quoted = re.search(r'"([^"]+)"', user_query)
+        if quoted:
+            return quoted.group(1)
+
+        # Extract example values from parameter description if available.
+        # Parses examples from patterns like "e.g., Value1, Value2" or "such as Value1, Value2"
+        description = param.get('description', '')
+        eg_match = re.search(r'(?:e\.g\.,?\s*|such as\s+|like\s+)(.+?)(?:\)|$)', description, re.IGNORECASE)
+        if eg_match:
+            examples = [ex.strip().strip('"\'') for ex in eg_match.group(1).split(',')]
+            # Sort by length descending to match longer phrases first
+            examples.sort(key=len, reverse=True)
+            query_lower = user_query.lower()
+            for example in examples:
+                if example.strip() and example.lower() in query_lower:
+                    return example
+
+        # Try preposition-based extraction as fallback
+        prep_pattern = (
+            r'\b(?:for|about|of|track|tracking)\s+'
+            r'((?:the\s+)?[A-Za-z][\w\s/$&\'-]*?)'
+            r'(?:\s+(?:in|from|since|during|between|over|per|by)\s+|\s+trends?|[?!.]|$)'
+        )
+        match = re.search(prep_pattern, user_query, re.IGNORECASE)
+        if match:
+            value = match.group(1).strip().rstrip(',')
+            if len(value) >= 3 and value.lower() not in self._STOP_WORDS:
+                return value
+
+        return None
+
     def _extract_year_parameter(self, user_query: str, param_context: str) -> Optional[int]:
-        """Extract a 4-digit year for year-like integer parameters."""
+        """Extract a 4-digit year for year-like integer parameters.
+
+        Handles multi-year queries (e.g., "compare 2023 vs 2024") by assigning the
+        appropriate year based on the parameter name — 'previous_year' gets the earlier
+        year, 'year' gets the later year. When only one year is mentioned and the param
+        is a 'previous/prior/baseline' variant, returns year - 1.
+        """
         if "year" not in param_context:
             return None
 
         query_lower = user_query.lower()
         current_year = datetime.now().year
+
+        # Determine if this parameter represents a "previous" or "baseline" year.
+        # Check only the param name (first token of context), not the description,
+        # to avoid false matches on words like "compare" in descriptions.
+        param_name_part = param_context.split()[0] if param_context else ''
+        previous_name_keywords = {'previous', 'prior', 'last', 'baseline', 'earlier', 'old', 'start', 'from'}
+        is_previous_param = any(kw in param_name_part for kw in previous_name_keywords)
+
+        # Check for relative year phrases
         relative_years = {
             "this year": current_year,
             "current year": current_year,
@@ -321,11 +461,27 @@ class ValueExtractor:
 
         for phrase, year in relative_years.items():
             if phrase in query_lower:
+                if is_previous_param and phrase in ("this year", "current year"):
+                    # "this year" for a previous_year param → return prior year
+                    return year - 1
                 return year
 
+        # Find all explicit years in the query
         explicit_years = re.findall(r"\b(19\d{2}|20\d{2}|21\d{2})\b", user_query)
         if explicit_years:
-            return int(explicit_years[-1])
+            years = sorted(set(int(y) for y in explicit_years))
+
+            if len(years) >= 2:
+                # Multiple years mentioned — assign based on param role
+                return years[0] if is_previous_param else years[-1]
+            else:
+                # Single year mentioned
+                year = years[0]
+                if is_previous_param:
+                    # For a "previous_year" param with only one year in query,
+                    # return year - 1 so it doesn't duplicate the primary year
+                    return year - 1
+                return year
 
         return None
 
