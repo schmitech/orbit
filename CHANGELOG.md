@@ -14,6 +14,11 @@
 ### Bug Fixes & Technical Improvements
 - Embedding client: Fixed closed detection in SQL/HTTP intent retriever bases so session-based providers (Voyage, OpenRouter) no longer trigger unnecessary reinitialization; check session/session_manager before client
 - Intent SQL: Fixed year-like template parameter extraction (integer fallback) so explicit years bind correctly; regression test for domain extraction (e.g. Edmonton weekend vs weekday path)
+- Language detection: Fixed French queries being overridden to English by ASCII bias heuristic — expanded French phrase/word patterns, hardened German word patterns to avoid false positives on English text, widened `NON_ENGLISH_DIACRITICS_PATTERN`, required min 2 pattern matches for ambiguous languages (de/nl/no/da/fi/id), and guarded both ASCII bias paths against non-English Latin text
+- Language instruction builder: Fixed `min_confidence` default mismatch (0.8→0.7) with detection config; trusted ensemble/pattern detection methods at confidence ≥ 0.5; stopped overriding non-English `threshold_fallback` results to English
+- Language detection fallback: When ensemble votes favor a non-English language but confidence/margin is below threshold, fallback now returns the best-voted language instead of hardcoded English when Latin word patterns confirm non-English text
+- Intent template matching: Added nl_example rescue pass in `_find_best_templates` — scans all templates for close Jaccard matches missed by the top-k vector search, preventing wrong-template selection when embeddings are tightly clustered
+- Parameter extraction: Fixed multilingual year parameter extraction — `_extract_year_parameter` now recognizes year-related parameter names in 13 languages (fr, es, pt, de, it, nl, pl/cs, ru, sv/no/da, fi, tr, hu) so explicit years like "en 2023" bind correctly instead of falling back to the template default
 
 ### API & Client Updates
 - orbitchat v3.5.6: Published NPM package
