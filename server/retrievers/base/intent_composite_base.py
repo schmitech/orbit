@@ -275,6 +275,8 @@ class CompositeIntentRetriever(BaseRetriever):
         """Check if the embedding client's underlying connection was closed."""
         if self.embedding_client is None:
             return True
+        if hasattr(self.embedding_client, '_genai_client'):
+            return False
         uses_session_manager = hasattr(self.embedding_client, 'session_manager')
         return (
             hasattr(self.embedding_client, 'client') and

@@ -321,12 +321,13 @@ return current
             if self._incr_script is None or self._script_registered_client is not current_client:
                 self._register_lua_script(redis_service)
 
-            if self._incr_script is None:
+            incr_script = self._incr_script
+            if incr_script is None:
                 logger.warning("Lua script not registered, allowing request")
                 return True, limit_per_minute, limit_per_minute, current_time + 60
 
             # Check minute limit using atomic Lua script
-            minute_count = await self._incr_script(
+            minute_count = await incr_script(
                 keys=[minute_key],
                 args=[60]  # TTL in seconds
             )
@@ -338,7 +339,7 @@ return current
                 return False, remaining, limit_per_minute, reset_time
 
             # Check hour limit using atomic Lua script
-            hour_count = await self._incr_script(
+            hour_count = await incr_script(
                 keys=[hour_key],
                 args=[3600]  # TTL in seconds
             )
@@ -505,4 +506,3 @@ return current
         self._add_rate_limit_headers(response, limit, remaining, reset_timestamp)
         
         return response
-

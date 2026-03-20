@@ -159,7 +159,7 @@ class TestDependencyCacheCleaner:
         result = await self.cleaner.clear_adapter_dependencies("test_adapter", adapter_config)
 
         self.embedding_cache.build_cache_key.assert_called_once_with('openai')
-        self.embedding_cache.remove.assert_called_once()
+        self.embedding_cache.remove.assert_called_once_with('openai:text-embedding-3-small', close_service=False)
         assert 'embedding:openai:text-embedding-3-small' in result
 
     @pytest.mark.asyncio

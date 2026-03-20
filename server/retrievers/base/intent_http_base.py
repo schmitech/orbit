@@ -401,6 +401,11 @@ class IntentHTTPRetriever(BaseRetriever):
         if self.embedding_client is None:
             return True
 
+        # Google/Gemini embedding services use a lazily-created _genai_client and
+        # inherit an unused ProviderAIService.client attribute that stays None.
+        if hasattr(self.embedding_client, '_genai_client'):
+            return False
+
         # Services that manage their own session (e.g. Voyage, OpenRouter)
         # use self.session instead of self.client — check that first
         if hasattr(self.embedding_client, 'session') and self.embedding_client.session is not None:

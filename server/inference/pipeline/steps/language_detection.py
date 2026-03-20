@@ -113,6 +113,13 @@ FRENCH_PHRASE_PATTERNS: List[Pattern] = [
     re.compile(r"\best[- ]?ce\s+que\b", re.IGNORECASE),
     re.compile(r"\bje\s+suis\b", re.IGNORECASE),
     re.compile(r"\bqu['']est[- ]?ce\b", re.IGNORECASE),
+    re.compile(r"\bcomment\s+(?:puis|allez|fait)\b", re.IGNORECASE),
+    re.compile(r"\bje\s+(?:veux|peux|voudrais)\b", re.IGNORECASE),
+    re.compile(r"\bdonne[- ]?moi\b", re.IGNORECASE),
+    re.compile(r"\bs['']il\s+vous\s+pla[iî]t\b", re.IGNORECASE),
+    re.compile(r"\bquels?\b", re.IGNORECASE),
+    re.compile(r"\bpourquoi\b", re.IGNORECASE),
+    re.compile(r"\bpouvez[- ]?vous\b", re.IGNORECASE),
 ]
 
 # Word patterns for Latin script languages (lang_code, patterns, base_confidence)
@@ -148,15 +155,20 @@ LATIN_WORD_PATTERNS: List[Tuple[str, List[Pattern], float]] = [
         re.compile(r'\bje\s+suis\b', re.IGNORECASE),
         re.compile(r'\bmerci\b', re.IGNORECASE),
         re.compile(r'[œæ]'),
+        re.compile(r'\bpourquoi\b', re.IGNORECASE),
+        re.compile(r'\bcomment\b', re.IGNORECASE),
+        re.compile(r'\bbonjour\b', re.IGNORECASE),
+        re.compile(r'\bvous\b', re.IGNORECASE),
+        re.compile(r'[éèêë]'),
     ], 0.9),
 
     # German
     ('de', [
         re.compile(r'[äöüß]'),
         re.compile(r'\bund\b', re.IGNORECASE),
-        re.compile(r'\bdas\b', re.IGNORECASE),
-        re.compile(r'\bist\b', re.IGNORECASE),
-        re.compile(r'\bich\b', re.IGNORECASE),
+        re.compile(r'\bnicht\b', re.IGNORECASE),
+        re.compile(r'\bauch\b', re.IGNORECASE),
+        re.compile(r'\beine?\b', re.IGNORECASE),
         re.compile(r'\bdanke\b', re.IGNORECASE),
         re.compile(r'\bbitte\b', re.IGNORECASE),
     ], 0.85),
@@ -295,7 +307,7 @@ ENGLISH_QUESTION_START_PATTERN = re.compile(
 )
 
 # Non-English diacritics for ASCII bias detection
-NON_ENGLISH_DIACRITICS_PATTERN = re.compile(r'[áéíóúñçãõàâêô]')
+NON_ENGLISH_DIACRITICS_PATTERN = re.compile(r'[áéíóúñçãõàâêôèëïüäößæøåšžčřůě]')
 
 # Text cleaning patterns
 URL_PATTERN = re.compile(r'https?://\S{1,200}|www\.\S{1,200}')
@@ -716,12 +728,23 @@ class LanguageDetectionStep(PipelineStep):
         english_marker_count = len(ENGLISH_MARKERS_PATTERN.findall(clean_text))
         spanish_marker_count = len(SPANISH_MARKERS_PATTERN.findall(clean_text))
 
+        # Check if any non-English Latin word patterns matched (min 2 for ambiguous langs)
+        _lower_text = clean_text.lower()
+        _ambiguous_langs = {'de', 'nl', 'no', 'da', 'fi', 'id'}
+        _non_en_latin_matched = False
+        for _lc, _pats, _bc in LATIN_WORD_PATTERNS:
+            _min_m = 2 if _lc in _ambiguous_langs else 1
+            _m = sum(1 for p in _pats if p.search(_lower_text))
+            if _m >= _min_m:
+                _non_en_latin_matched = True
+                break
+
         # Strong ASCII English heuristic
         if self.prefer_english_for_ascii:
             lower = clean_text.lower()
             if ascii_ratio > 0.98 and len(clean_text) <= 120:
                 if ENGLISH_QUESTION_START_PATTERN.search(lower) or re.search(r'\b(please|thanks)\b', lower, re.IGNORECASE):
-                    if spanish_marker_count == 0 and not NON_ENGLISH_DIACRITICS_PATTERN.search(lower):
+                    if spanish_marker_count == 0 and not NON_ENGLISH_DIACRITICS_PATTERN.search(lower) and not _non_en_latin_matched:
                         return DetectionResult(
                             language='en',
                             confidence=0.9,
@@ -809,9 +832,9 @@ class LanguageDetectionStep(PipelineStep):
                     raw_results={'reason': 'below_threshold_or_margin', 'votes': language_votes, 'raw': raw_results}
                 )
 
-            # Prefer English for high ASCII ratio
+            # Prefer English for high ASCII ratio, but not if non-English Latin patterns matched
             lower = clean_text.lower()
-            if self.prefer_english_for_ascii and ascii_ratio > 0.95 and spanish_marker_count == 0:
+            if self.prefer_english_for_ascii and ascii_ratio > 0.95 and spanish_marker_count == 0 and not _non_en_latin_matched:
                 if english_marker_count > 0 or ENGLISH_QUESTION_START_PATTERN.search(lower):
                     return DetectionResult(
                         language='en',
@@ -820,9 +843,11 @@ class LanguageDetectionStep(PipelineStep):
                         raw_results={'reason': 'below_threshold_or_margin', 'votes': language_votes, 'raw': raw_results}
                     )
 
-            # Fallback
+            # Fallback — if non-English Latin patterns matched, trust the best voted
+            # language instead of defaulting to English
+            fallback_lang = best_language if _non_en_latin_matched else self.fallback_language
             return DetectionResult(
-                language=self.fallback_language,
+                language=fallback_lang,
                 confidence=best_confidence,
                 method='threshold_fallback',
                 raw_results={'votes': language_votes, 'raw': raw_results}
@@ -884,9 +909,12 @@ class LanguageDetectionStep(PipelineStep):
         # Check Latin word patterns - collect ALL matches first
         pattern_matches: List[Tuple[str, int, float]] = []
 
+        # Languages with short common words that overlap English need min 2 matches
+        ambiguous_langs = {'de', 'nl', 'no', 'da', 'fi', 'id'}
         for lang_code, patterns, base_confidence in LATIN_WORD_PATTERNS:
             matches = sum(1 for pattern in patterns if pattern.search(text_lower))
-            if matches >= 1:
+            min_matches = 2 if lang_code in ambiguous_langs else 1
+            if matches >= min_matches:
                 # Calculate confidence based on match ratio
                 match_ratio = matches / len(patterns)
                 actual_confidence = min(base_confidence, base_confidence * match_ratio + 0.3)

@@ -180,6 +180,9 @@ class AbstractVectorRetriever(BaseRetriever):
 
         # Only check for closed client if using the new embedding service
         if self.using_new_embedding_service:
+            if hasattr(self.embeddings, '_genai_client'):
+                return True
+
             # Check if service uses client pattern (OpenAI, etc.) vs session_manager pattern (Ollama)
             # Ollama services have session_manager instead of client, so skip client check for them
             uses_session_manager = hasattr(self.embeddings, 'session_manager')

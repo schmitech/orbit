@@ -215,7 +215,10 @@ class DependencyCacheCleaner:
         cache_key = self.embedding_cache.build_cache_key(old_embedding_provider)
 
         if self.embedding_cache.contains(cache_key):
-            await self.embedding_cache.remove(cache_key)
+            # Embedding services are shared singletons across adapters. On adapter reload,
+            # evict the cache entry without closing the underlying client so active
+            # retrievers do not lose their shared embedding service mid-request.
+            await self.embedding_cache.remove(cache_key, close_service=False)
             cleared.append(f"embedding:{cache_key}")
 
         # Also clear the AIServiceFactory cache for this provider

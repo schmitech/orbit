@@ -87,12 +87,13 @@ class EmbeddingCacheManager:
         with self._cache_lock:
             self._cache[cache_key] = service
 
-    async def remove(self, cache_key: str) -> Optional[Any]:
+    async def remove(self, cache_key: str, close_service: bool = True) -> Optional[Any]:
         """
         Remove an embedding service from cache and clean up resources.
 
         Args:
             cache_key: Cache key for the service
+            close_service: Whether to close the removed service instance
 
         Returns:
             The removed service instance or None if not found
@@ -103,6 +104,9 @@ class EmbeddingCacheManager:
 
             service = self._cache.pop(cache_key)
             self._initializing.discard(cache_key)
+
+        if not close_service:
+            return service
 
         # Try to close the service if it has a close method
         try:
@@ -225,7 +229,7 @@ class EmbeddingCacheManager:
     async def clear(self) -> None:
         """Clear all cached embedding services and clean up resources."""
         for cache_key in list(self._cache.keys()):
-            await self.remove(cache_key)
+            await self.remove(cache_key, close_service=True)
 
         logger.info("Cleared all embedding services from cache")
 

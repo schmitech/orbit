@@ -345,6 +345,18 @@ class TestEmbeddingCacheManager:
         assert self.cache_manager.contains("key") is False
 
     @pytest.mark.asyncio
+    async def test_remove_without_closing_service(self):
+        """Test remove can evict a shared service without closing it."""
+        service = AsyncMock()
+        self.cache_manager.put("key", service)
+
+        result = await self.cache_manager.remove("key", close_service=False)
+
+        assert result is service
+        assert self.cache_manager.contains("key") is False
+        service.close.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_clear(self):
         """Test clear operation"""
         self.cache_manager.put("key1", Mock(spec=[]))

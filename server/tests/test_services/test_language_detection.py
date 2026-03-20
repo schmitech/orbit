@@ -287,7 +287,7 @@ class TestLatinLanguagePatterns:
 
     def test_german_markers(self, detector):
         """German with distinctive markers should be detected."""
-        result = detector._detect_by_script("Wie geht es Ihnen? Das ist schön.")
+        result = detector._detect_by_script("Ich möchte auch eine Frage stellen, bitte.")
         assert result.language == 'de'
         assert result.confidence >= 0.5  # Pattern detection gives moderate confidence
 
@@ -1068,6 +1068,72 @@ class TestRetrievalBoostIntegration:
             if result.language == 'en':
                 assert result.confidence >= 0.6, \
                     f"Clear English text '{text[:30]}...' got confidence {result.confidence}, expected >= 0.6"
+
+
+class TestGermanFalsePositiveRegression:
+    """Regression tests: English text must not be misclassified as German."""
+
+    @pytest.fixture
+    def detector(self):
+        container = MockContainer()
+        return LanguageDetectionStep(container)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("text", [
+        "Tell me about the data structure",
+        "Show me the dashboard statistics",
+        "What is the current status?",
+        "Can you list all the items?",
+        "How do I configure this setting?",
+    ])
+    async def test_english_not_detected_as_german(self, detector, text):
+        result = detector._detect_by_script(text)
+        assert result.language != 'de', \
+            f"English text '{text}' was misclassified as German (method={result.method})"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("text", [
+        "Tell me about the data structure",
+        "Show me the dashboard statistics",
+        "What is the current status?",
+    ])
+    async def test_english_ensemble_not_german(self, detector, text):
+        result = await detector._detect_language_ensemble_async(text)
+        assert result.language != 'de', \
+            f"English text '{text}' ensemble-detected as German (method={result.method})"
+
+
+class TestFrenchDetectionRegression:
+    """Regression tests: French text must be detected correctly and not overridden."""
+
+    @pytest.fixture
+    def detector(self):
+        container = MockContainer()
+        return LanguageDetectionStep(container)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("text", [
+        "Quel temps fait-il?",
+        "Donne-moi des informations",
+        "Comment faire pour exporter?",
+        "Pourquoi ce résultat?",
+        "Bonjour, pouvez-vous m'aider?",
+    ])
+    async def test_french_simple_questions_detected(self, detector, text):
+        result = detector._detect_by_script(text)
+        assert result.language == 'fr', \
+            f"French text '{text}' detected as '{result.language}' instead of 'fr' (method={result.method})"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("text", [
+        "Quel temps fait-il?",
+        "Donne-moi des informations",
+        "Pourquoi ce résultat?",
+    ])
+    async def test_french_not_overridden_to_english(self, detector, text):
+        result = await detector._detect_language_ensemble_async(text)
+        assert result.language != 'en', \
+            f"French text '{text}' was overridden to English (method={result.method})"
 
 
 # Run tests with: pytest server/tests/test_language_detection.py -v

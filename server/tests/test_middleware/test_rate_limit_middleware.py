@@ -661,3 +661,52 @@ class TestRateLimitMiddlewareRedisFailure:
         response = client.get("/test")
         assert response.status_code == 200
 
+
+class TestRateLimitMiddlewareConcurrencySafety:
+    """Regression tests for shared script state invalidation."""
+
+    @pytest.mark.asyncio
+    async def test_check_rate_limit_uses_local_script_reference(self):
+        """A concurrent invalidation of _incr_script should not break the current request."""
+        app = FastAPI()
+        config = {
+            'security': {
+                'rate_limiting': {
+                    'enabled': True,
+                    'ip_limits': {'requests_per_minute': 10, 'requests_per_hour': 100}
+                }
+            }
+        }
+        middleware = RateLimitMiddleware(app, config)
+
+        mock_service = Mock()
+        mock_service.enabled = True
+        mock_service.initialized = True
+        mock_service.client = Mock()
+
+        class ScriptThatInvalidatesMiddleware:
+            def __init__(self, target_middleware):
+                self._middleware = target_middleware
+                self._calls = 0
+
+            async def __call__(self, keys, args):
+                self._calls += 1
+                if self._calls == 1:
+                    # Simulate another request invalidating shared state mid-check.
+                    self._middleware._incr_script = None
+                return self._calls
+
+        script = ScriptThatInvalidatesMiddleware(middleware)
+        mock_service.client.register_script = Mock(return_value=script)
+
+        allowed, remaining, limit, _ = await middleware._check_rate_limit(
+            mock_service,
+            identifier="127.0.0.1",
+            limit_per_minute=10,
+            limit_per_hour=100,
+            prefix="ip"
+        )
+
+        assert allowed is True
+        assert remaining == 9
+        assert limit == 10

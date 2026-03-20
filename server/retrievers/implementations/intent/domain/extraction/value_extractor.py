@@ -437,7 +437,22 @@ class ValueExtractor:
         year, 'year' gets the later year. When only one year is mentioned and the param
         is a 'previous/prior/baseline' variant, returns year - 1.
         """
-        if "year" not in param_context:
+        year_keywords = {
+            "year",                   # English
+            "annee", "année",         # French
+            "ano",                    # Portuguese
+            "año",                    # Spanish
+            "jahr",                   # German
+            "anno",                   # Italian
+            "jaar",                   # Dutch
+            "rok",                    # Polish / Czech
+            "год", "god",             # Russian (cyrillic + transliterated)
+            "år",                     # Swedish / Norwegian / Danish
+            "vuosi",                  # Finnish
+            "yıl",                    # Turkish
+            "éve",                    # Hungarian
+        }
+        if not any(kw in param_context for kw in year_keywords):
             return None
 
         query_lower = user_query.lower()

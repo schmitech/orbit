@@ -289,6 +289,11 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         if self.embedding_client is None:
             return True
 
+        # Google/Gemini embedding services use a lazily-created _genai_client and
+        # inherit an unused ProviderAIService.client attribute that stays None.
+        if hasattr(self.embedding_client, '_genai_client'):
+            return False
+
         # Services that manage their own session (e.g. Voyage, OpenRouter)
         # use self.session instead of self.client — check that first
         if hasattr(self.embedding_client, 'session') and self.embedding_client.session is not None:
@@ -934,14 +939,68 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 else:
                     logger.warning(f"Template {template_id} not found in adapter")
             
+            # nl_example exact-match rescue: scan all templates for close matches
+            # that the vector search may have missed due to tight max_templates
+            templates = self._rescue_by_nl_example(query, templates)
+
             logger.debug(f"Found {len(templates)} matching templates for query")
             return templates
-            
+
         except Exception as e:
             logger.error(f"Error finding templates: {e}")
             logger.error(traceback.format_exc())
             return []
-    
+
+    def _rescue_by_nl_example(self, query: str, templates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Inject templates with a very close nl_example match that vector search missed."""
+        try:
+            existing_ids = {t['template'].get('id') for t in templates}
+            query_lower = query.lower().strip()
+            query_words = set(query_lower.split())
+
+            all_templates = self.domain_adapter.get_all_templates()
+            if not all_templates:
+                return templates
+
+            for tmpl in all_templates:
+                tmpl_id = tmpl.get('id')
+                if tmpl_id in existing_ids:
+                    continue
+
+                best_sim = 0.0
+                for example in tmpl.get('nl_examples', []):
+                    example_lower = example.lower().strip()
+                    # Exact match
+                    if example_lower == query_lower:
+                        best_sim = 1.0
+                        break
+                    # Jaccard word similarity
+                    example_words = set(example_lower.split())
+                    union = query_words | example_words
+                    if union:
+                        sim = len(query_words & example_words) / len(union)
+                        best_sim = max(best_sim, sim)
+
+                if best_sim >= 0.6:
+                    # Inject with a similarity score derived from the nl_example match
+                    injected_score = min(0.95, 0.8 + best_sim * 0.15)
+                    templates.append({
+                        'template': tmpl,
+                        'similarity': injected_score,
+                        'embedding_text': '',
+                        '_rescued_by_nl_example': True,
+                    })
+                    logger.debug(
+                        f"Rescued template '{tmpl_id}' via nl_example match "
+                        f"(sim={best_sim:.2f}, injected_score={injected_score:.2f})"
+                    )
+                    existing_ids.add(tmpl_id)
+
+        except Exception as e:
+            logger.debug(f"nl_example rescue scan failed: {e}")
+
+        return templates
+
     async def _extract_parameters(self, query: str, template: Dict[str, Any]) -> Dict[str, Any]:
         """Extract parameters from the query using LLM."""
         try:

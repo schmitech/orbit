@@ -460,7 +460,7 @@ class LLMInferenceStep(PipelineStep):
         detected_language = getattr(context, 'detected_language', None)
         detection_meta = getattr(context, 'language_detection_meta', {}) or {}
         # Config thresholds
-        min_conf = lang_detect_config.get('min_confidence', 0.8)
+        min_conf = lang_detect_config.get('min_confidence', 0.7)
         prefer_ascii_en = lang_detect_config.get('prefer_english_for_ascii', True)
         
         if not detected_language:
@@ -499,8 +499,15 @@ class LLMInferenceStep(PipelineStep):
         msg = context.message or ""
         ascii_ratio = (sum(1 for c in msg if ord(c) < 128) / len(msg)) if msg else 1.0
 
-        low_conf_or_heuristic = confidence < min_conf or method in (
-            'threshold_fallback', 'heuristic_ascii_bias', 'all_backends_failed', 'length_fallback'
+        # Trust ensemble/pattern methods with confidence >= 0.5 even if below min_conf
+        trusted_method = method in (
+            'ensemble_voting', 'word_pattern_detection', 'phrase_pattern_detection'
+        ) and confidence >= 0.5
+        # Also trust threshold_fallback when it returns a non-English language —
+        # the detection system chose it over English deliberately
+        trusted_non_en_fallback = method == 'threshold_fallback' and detected_language != 'en'
+        low_conf_or_heuristic = (confidence < min_conf and not trusted_method and not trusted_non_en_fallback) or method in (
+            'heuristic_ascii_bias', 'all_backends_failed', 'length_fallback'
         )
         if prefer_ascii_en and ascii_ratio > 0.95 and low_conf_or_heuristic:
             return "\nIMPORTANT: The user's message appears to be in English or ambiguous. Default to English and respond entirely in English. Do not include translations or any non-English text."
