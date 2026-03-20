@@ -72,6 +72,53 @@ Language tag: `chart`
 
 Language tag: `chart-json`
 
+**Format E — numeric x-axis with calendar years (time series):**
+
+Use `xAxisType: number` when the x-values are years **stored as numbers** (not strings like `"2017"`). The client renders year ticks **without** a thousands separator (`2017`, `2023`), while ordinary large counts on the y-axis still use grouping (`50,000`) when applicable.
+
+```
+type: line
+title: Reported incidents by year
+xKey: Year
+xAxisType: number
+xAxisLabel: Year
+yAxisLabel: Incidents
+showGrid: true
+| Year | Incidents |
+|------|-----------|
+| 2017 | 45230     |
+| 2018 | 46810     |
+| 2019 | 48190     |
+| 2020 | 49340     |
+| 2021 | 50120     |
+```
+
+Language tag: `chart` or `chart-table`
+
+Equivalent `chart-json` (strict JSON — note numeric `year` values):
+
+```json
+{
+  "type": "line",
+  "title": "Reported incidents by year",
+  "xKey": "year",
+  "xAxisType": "number",
+  "xAxisLabel": "Year",
+  "yAxisLabel": "Incidents",
+  "showGrid": true,
+  "data": [
+    { "year": 2017, "incidents": 45230 },
+    { "year": 2018, "incidents": 46810 },
+    { "year": 2019, "incidents": 48190 },
+    { "year": 2020, "incidents": 49340 },
+    { "year": 2021, "incidents": 50120 }
+  ],
+  "series": [{ "key": "incidents", "name": "Incidents" }]
+}
+```
+
+Language tag: `chart-json`
+
 ## Series Object — IMPORTANT
 
 Every object in a `series` array must use `"key"` for the data field name. Never use `"dataKey"`. This is required.
@@ -94,7 +141,7 @@ One per line in `key: value` format:
 - `title`, `description` — chart title and subtitle.
 - `xKey` — field name for x-axis values.
 - `xAxisLabel`, `yAxisLabel`, `yAxisRightLabel` — axis labels.
-- `xAxisType` — `category` (default) or `number`.
+- `xAxisType` — `category` (default) or `number`. Use `number` for numeric x-scales (e.g. years as integers — see Format E); year axis ticks render as `2017`, not `2,017`.
 - `stacked` — `true` or `false`.
 - `showLegend` — `true` or `false`.
 - `showGrid` — `true` or `false`.

@@ -21,6 +21,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import type { DefaultLegendContentProps, TooltipContentProps } from 'recharts';
 import type {
   ChartConfig,
   ChartDataItem,
@@ -260,11 +261,114 @@ const applyConfigLine = (config: PartialChartConfig, key: string, rawValue: stri
   }
 };
 
+/** Chart key/value lines (type:, title:, …) — may contain `|` inside the value; must not count as table rows. */
+const isChartKeyValueLine = (line: string) => /^\s*[\w.-]+\s*:\s/.test(line);
+
+/** Markdown table rows only (leading `|`). Excludes `title: A | B` style config lines. */
+const getChartMarkdownTableLines = (lines: string[]): string[] =>
+  lines.filter((line) => {
+    const t = line.trim();
+    return t.startsWith('|') && t.includes('|') && !isChartKeyValueLine(line);
+  });
+
+// Heuristics to detect if chart data appears incomplete/streaming
+const isLikelyIncomplete = (code: string): boolean => {
+  // Check for incomplete JSON structures
+  const openBraces = (code.match(/\{/g) || []).length;
+  const closeBraces = (code.match(/\}/g) || []).length;
+  const openBrackets = (code.match(/\[/g) || []).length;
+  const closeBrackets = (code.match(/\]/g) || []).length;
+
+  if (openBraces !== closeBraces || openBrackets !== closeBrackets) {
+    return true;
+  }
+
+  const lines = code.split('\n');
+  const tableLines = getChartMarkdownTableLines(lines);
+
+  if (tableLines.length > 0) {
+    // Check for table with header but no data rows yet
+    // A valid table needs: header row, separator row (---|---), and at least one data row
+    // More lenient separator detection - any line with mostly dashes and pipes
+    const isSeparatorLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed.includes('|')) return false;
+      // Count dashes vs other chars (excluding pipes and spaces); models often emit en/em dashes
+      const withoutPipesAndSpaces = trimmed.replace(/[|\s]/g, '');
+      const dashCount = (withoutPipesAndSpaces.match(/[-\u2013\u2014\u2015]/g) || []).length;
+      // If more than 50% are dashes (and has some dashes), it's likely a separator
+      return dashCount > 0 && dashCount >= withoutPipesAndSpaces.length * 0.5;
+    };
+
+    const separatorLines = tableLines.filter(isSeparatorLine);
+    const nonSeparatorLines = tableLines.filter((line) => !isSeparatorLine(line));
+
+    // If we have table content but no separator row yet, it's incomplete
+    if (nonSeparatorLines.length > 0 && separatorLines.length === 0) {
+      return true;
+    }
+
+    // If we have header + separator but no data rows, it's incomplete
+    if (separatorLines.length > 0 && nonSeparatorLines.length <= 1) {
+      return true;
+    }
+
+    // Check if last line ends with | but has fewer columns (incomplete row being typed)
+    const lastTableLine = tableLines[tableLines.length - 1].trim();
+    if (lastTableLine && !isSeparatorLine(lastTableLine)) {
+      const headerLine = nonSeparatorLines[0];
+      if (headerLine) {
+        const headerCols = headerLine.split('|').filter((s) => s.trim()).length;
+        const lastRowCols = lastTableLine.split('|').filter((s) => s.trim()).length;
+
+        // If last row has fewer columns than header, it's incomplete
+        if (lastRowCols > 0 && lastRowCols < headerCols) {
+          return true;
+        }
+      }
+    }
+  }
+
+  // Check for trailing incomplete key-value pairs (key: with nothing after)
+  const lastNonEmptyLine = lines.filter((l) => l.trim()).pop() || '';
+  if (lastNonEmptyLine.match(/^\w+:\s*$/) && !lastNonEmptyLine.includes('|')) {
+    return true;
+  }
+
+  // Check if the last line looks like it's mid-typing (ends with partial content)
+  // e.g., "| January | 156 |" when more columns are expected
+  if (lastNonEmptyLine.endsWith('|') && tableLines.length > 0) {
+    // Could be mid-row, check if it's likely incomplete
+    const pipeCount = (lastNonEmptyLine.match(/\|/g) || []).length;
+    const headerPipes = tableLines[0] ? (tableLines[0].match(/\|/g) || []).length : 0;
+    if (pipeCount > 0 && pipeCount < headerPipes) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 const parseChartConfig = (code: string, language: string): ChartConfig | null => {
   try {
-    // Parse JSON format
+    // Parse JSON format (strict JSON only — trailing commas / comments / single-quoted keys will throw)
     if (language === 'chart-json') {
-      const parsed = JSON.parse(code) as ChartConfig;
+      let parsed: ChartConfig;
+      try {
+        parsed = JSON.parse(code) as ChartConfig;
+      } catch (jsonErr) {
+        // Streaming sends partial chart-json; braces often balance late, so still log only when structure looks complete.
+        if (isLikelyIncomplete(code)) {
+          return null;
+        }
+        const hint =
+          jsonErr instanceof Error ? jsonErr.message : String(jsonErr);
+        console.warn(
+          '[ChartRenderer] chart-json is not valid JSON (fix the fence body or use `chart` / `chart-table`).',
+          hint
+        );
+        return null;
+      }
       // Normalize formatter from string shorthand (LLMs often output "formatter": "currency" instead of an object)
       if (typeof parsed.formatter === 'string') {
         parsed.formatter = { format: parsed.formatter as ChartFormatterConfig['format'] };
@@ -275,18 +379,17 @@ const parseChartConfig = (code: string, language: string): ChartConfig | null =>
     const lines = code.trim().split('\n');
     const config: PartialChartConfig = { colors: DEFAULT_COLORS };
 
-    // Check if it's table format
-    const hasTable = lines.some((line) => line.includes('|'));
+    // Table rows = GFM-style lines starting with `|` (not `title: A | B` config lines)
+    const tableLines = getChartMarkdownTableLines(lines);
+    const hasTable = tableLines.length > 0;
 
     if (hasTable) {
-      const tableLines = lines.filter((line) => line.includes('|'));
-
       // More robust separator detection
       const isSeparatorLine = (line: string) => {
         const trimmed = line.trim();
         if (!trimmed.includes('|')) return false;
         const withoutPipesAndSpaces = trimmed.replace(/[|\s]/g, '');
-        const dashCount = (withoutPipesAndSpaces.match(/-/g) || []).length;
+        const dashCount = (withoutPipesAndSpaces.match(/[-\u2013\u2014\u2015]/g) || []).length;
         return dashCount > 0 && dashCount >= withoutPipesAndSpaces.length * 0.5;
       };
 
@@ -350,7 +453,11 @@ const parseChartConfig = (code: string, language: string): ChartConfig | null =>
         }
       };
       for (const line of lines) {
-        if (line.includes('|')) { tFlush(); break; }
+        const row = line.trim();
+        if (row.startsWith('|')) {
+          tFlush();
+          break;
+        }
         if (tPendingKey) {
           tPendingValue += line.trim();
           const opens = (tPendingValue.match(/[{[]/g) || []).length;
@@ -460,7 +567,10 @@ const parseChartConfig = (code: string, language: string): ChartConfig | null =>
     // where series is provided but dataKeys is not)
     if ((!config.dataKeys || config.dataKeys.length === 0) && config.series && config.series.length > 0) {
       config.dataKeys = config.series
-        .map((s) => (s as Record<string, unknown>).key as string || (s as Record<string, unknown>).dataKey as string)
+        .map((s) => {
+          const r = s as unknown as Record<string, unknown>;
+          return (r.key as string) || (r.dataKey as string);
+        })
         .filter(Boolean);
     }
 
@@ -480,6 +590,30 @@ const inferXAxisTypeFromData = (data: ChartDataItem[], xKey?: string): 'category
   if (!values.length) return 'category';
   const allNumbers = values.every((value) => typeof value === 'number' && !Number.isNaN(value));
   return allNumbers ? 'number' : 'category';
+};
+
+/** Integers in this range are formatted without grouping so years read as 2017, not 2,017. */
+const CALENDAR_YEAR_TICK_MIN = 1800;
+const CALENDAR_YEAR_TICK_MAX = 2300;
+
+const isLikelyCalendarYearTick = (value: number): boolean =>
+  Number.isFinite(value) &&
+  Number.isInteger(value) &&
+  value >= CALENDAR_YEAR_TICK_MIN &&
+  value <= CALENDAR_YEAR_TICK_MAX;
+
+/** Axis ticks only — keeps thousands separators for counts (e.g. 20,000) on Y. */
+const formatNumericAxisTick = (value: unknown, formatter?: ChartFormatterConfig): string => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return String(value ?? '');
+  }
+  if (isLikelyCalendarYearTick(value)) {
+    return new Intl.NumberFormat(undefined, {
+      useGrouping: false,
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+  return String(formatValue(value, formatter));
 };
 
 const formatValue = (value: unknown, formatter?: ChartFormatterConfig) => {
@@ -541,8 +675,9 @@ const buildSeries = (config: ChartConfig, colors: string[]): NormalizedSeries[] 
   const rawSeries = config.series && config.series.length ? config.series : fallbackSeries;
   const baseSeries: ChartSeriesConfig[] = rawSeries
     .map((series) => {
-      if (!series.key && (series as Record<string, unknown>).dataKey) {
-        return { ...series, key: (series as Record<string, unknown>).dataKey as string };
+      const r = series as unknown as Record<string, unknown>;
+      if (!series.key && r.dataKey) {
+        return { ...series, key: r.dataKey as string };
       }
       return series;
     })
@@ -642,13 +777,18 @@ const renderYAxisLabel = (value: string | undefined, orientation: 'left' | 'righ
 // ---------------------------------------------------------------------------
 // Premium custom tooltip
 // ---------------------------------------------------------------------------
-const CustomChartTooltip: React.FC<{
-  active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string; dataKey: string }>;
-  label?: string;
+type CustomChartTooltipProps = Pick<TooltipContentProps, 'active' | 'payload' | 'label'> & {
   formatter?: ChartFormatterConfig;
   labelFormatter?: (label: unknown) => string;
-}> = ({ active, payload, label, formatter, labelFormatter }) => {
+};
+
+const CustomChartTooltip: React.FC<CustomChartTooltipProps> = ({
+  active,
+  payload,
+  label,
+  formatter,
+  labelFormatter,
+}) => {
   if (!active || !payload?.length) return null;
   const displayLabel = labelFormatter ? labelFormatter(label) : label;
   return (
@@ -689,13 +829,13 @@ const CustomChartTooltip: React.FC<{
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                backgroundColor: entry.color,
+                backgroundColor: entry.color ?? '#6366f1',
                 flexShrink: 0,
-                boxShadow: `0 0 0 2px ${entry.color}33`,
+                boxShadow: `0 0 0 2px ${(entry.color ?? '#6366f1')}33`,
               }}
             />
             <span style={{ opacity: 0.75, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {entry.name}
+              {entry.name != null ? String(entry.name) : ''}
             </span>
           </span>
           <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
@@ -755,84 +895,6 @@ const buildA11ySummary = (config: ChartConfig, series: NormalizedSeries[]): stri
   return parts.join(' ');
 };
 
-// Heuristics to detect if chart data appears incomplete/streaming
-const isLikelyIncomplete = (code: string): boolean => {
-  // Check for incomplete JSON structures
-  const openBraces = (code.match(/\{/g) || []).length;
-  const closeBraces = (code.match(/\}/g) || []).length;
-  const openBrackets = (code.match(/\[/g) || []).length;
-  const closeBrackets = (code.match(/\]/g) || []).length;
-
-  if (openBraces !== closeBraces || openBrackets !== closeBrackets) {
-    return true;
-  }
-
-  const lines = code.split('\n');
-  const tableLines = lines.filter(line => line.trim().includes('|'));
-
-  if (tableLines.length > 0) {
-    // Check for table with header but no data rows yet
-    // A valid table needs: header row, separator row (---|---), and at least one data row
-    // More lenient separator detection - any line with mostly dashes and pipes
-    const isSeparatorLine = (line: string) => {
-      const trimmed = line.trim();
-      if (!trimmed.includes('|')) return false;
-      // Count dashes vs other chars (excluding pipes and spaces)
-      const withoutPipesAndSpaces = trimmed.replace(/[|\s]/g, '');
-      const dashCount = (withoutPipesAndSpaces.match(/-/g) || []).length;
-      // If more than 50% are dashes (and has some dashes), it's likely a separator
-      return dashCount > 0 && dashCount >= withoutPipesAndSpaces.length * 0.5;
-    };
-
-    const separatorLines = tableLines.filter(isSeparatorLine);
-    const nonSeparatorLines = tableLines.filter(line => !isSeparatorLine(line));
-
-    // If we have table content but no separator row yet, it's incomplete
-    if (nonSeparatorLines.length > 0 && separatorLines.length === 0) {
-      return true;
-    }
-
-    // If we have header + separator but no data rows, it's incomplete
-    if (separatorLines.length > 0 && nonSeparatorLines.length <= 1) {
-      return true;
-    }
-
-    // Check if last line ends with | but has fewer columns (incomplete row being typed)
-    const lastTableLine = tableLines[tableLines.length - 1].trim();
-    if (lastTableLine && !isSeparatorLine(lastTableLine)) {
-      const headerLine = nonSeparatorLines[0];
-      if (headerLine) {
-        const headerCols = headerLine.split('|').filter(s => s.trim()).length;
-        const lastRowCols = lastTableLine.split('|').filter(s => s.trim()).length;
-
-        // If last row has fewer columns than header, it's incomplete
-        if (lastRowCols > 0 && lastRowCols < headerCols) {
-          return true;
-        }
-      }
-    }
-  }
-
-  // Check for trailing incomplete key-value pairs (key: with nothing after)
-  const lastNonEmptyLine = lines.filter(l => l.trim()).pop() || '';
-  if (lastNonEmptyLine.match(/^\w+:\s*$/) && !lastNonEmptyLine.includes('|')) {
-    return true;
-  }
-
-  // Check if the last line looks like it's mid-typing (ends with partial content)
-  // e.g., "| January | 156 |" when more columns are expected
-  if (lastNonEmptyLine.endsWith('|') && tableLines.length > 0) {
-    // Could be mid-row, check if it's likely incomplete
-    const pipeCount = (lastNonEmptyLine.match(/\|/g) || []).length;
-    const headerPipes = tableLines[0] ? (tableLines[0].match(/\|/g) || []).length : 0;
-    if (pipeCount > 0 && pipeCount < headerPipes) {
-      return true;
-    }
-  }
-
-  return false;
-};
-
 export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) => {
   const [error, setError] = useState<string | null>(null);
   const [config, setConfig] = useState<ChartConfig | null>(null);
@@ -874,6 +936,17 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
         setIsStreaming(true);
         setError(null);
         setConfig(null);
+        if (streamingTimeoutRef.current) {
+          clearTimeout(streamingTimeoutRef.current);
+        }
+        streamingTimeoutRef.current = setTimeout(() => {
+          const currentParsed = parseChartConfig(lastCodeRef.current, language);
+          if (!currentParsed) {
+            setError('Failed to parse chart configuration');
+            setIsStreaming(false);
+            setIsWaitingForData(false);
+          }
+        }, 5000);
       } else {
         setConfig(null);
         setError('Failed to parse chart configuration');
@@ -921,6 +994,17 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
         setIsStreaming(true);
         setError(null);
         setConfig(null);
+        if (streamingTimeoutRef.current) {
+          clearTimeout(streamingTimeoutRef.current);
+        }
+        streamingTimeoutRef.current = setTimeout(() => {
+          const current = parseChartConfig(lastCodeRef.current, language);
+          if (!current?.type) {
+            setError('Chart type is required (bar, line, pie, area, scatter, composed)');
+            setIsStreaming(false);
+            setIsWaitingForData(false);
+          }
+        }, 5000);
       } else {
         setConfig(null);
         setError('Chart type is required (bar, line, pie, area, scatter, composed)');
@@ -951,8 +1035,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
       // Use longer debounce (400ms) to handle LLM streaming variability
       debounceTimerRef.current = setTimeout(() => {
         setIsStreaming(false);
-        // Re-parse in case code changed during debounce
-        const finalParsed = parseChartConfig(code, language);
+        const latest = lastCodeRef.current;
+        const finalParsed = parseChartConfig(latest, language);
         if (finalParsed && Array.isArray(finalParsed.data) && finalParsed.data.length > 0) {
           setError(null);
           setConfig(finalParsed);
@@ -1243,23 +1327,17 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   };
 
   // Custom tooltip renderer using the premium CustomChartTooltip component
-  const renderCustomTooltip = (props: {
-    active?: boolean;
-    payload?: Array<{ name: string; value: number; color: string; dataKey: string }>;
-    label?: string;
-  }) => (
+  const renderCustomTooltip = (props: TooltipContentProps) => (
     <CustomChartTooltip
-      {...props}
+      active={props.active}
+      payload={props.payload}
+      label={props.label}
       formatter={config.formatter}
       labelFormatter={tooltipLabelFormatter}
     />
   );
 
-  const axisTickFormatter = (value: unknown) => {
-    if (typeof value !== 'number') return String(value ?? '');
-    const formatted = formatValue(value, config.formatter);
-    return String(formatted ?? '');
-  };
+  const axisTickFormatter = (value: unknown) => formatNumericAxisTick(value, config.formatter);
 
   const formatCategoryLabel = (value: unknown) => {
     if (typeof value !== 'string') return String(value ?? '');
@@ -1283,7 +1361,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   };
 
   const xAxisTickFormatter = (value: unknown) => {
-    if (!isCategoryXAxis) return axisTickFormatter(value);
+    if (!isCategoryXAxis) return formatNumericAxisTick(value, config.formatter);
     const formatted = formatCategoryLabel(value);
     return shouldTruncateLabels ? truncateLabel(formatted, maxLabelLength) : formatted;
   };
@@ -1344,12 +1422,12 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   };
 
   // Interactive legend content renderer — supports click-to-toggle series
-  const renderInteractiveLegend = (props: { payload?: Array<{ value: string; color: string; dataKey?: string }> }) => {
+  const renderInteractiveLegend = (props: DefaultLegendContentProps) => {
     if (!props.payload) return null;
     return (
       <div style={legendWrapperStyle} role="list" aria-label="Chart legend">
         {props.payload.map((entry, idx) => {
-          const key = entry.dataKey || entry.value;
+          const key = String(entry.dataKey ?? entry.value ?? idx);
           const isHidden = hiddenSeries.has(key);
           return (
             <button
@@ -1358,7 +1436,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
               role="listitem"
               onClick={() => handleLegendClick(key)}
               aria-pressed={!isHidden}
-              aria-label={`${isHidden ? 'Show' : 'Hide'} ${entry.value}`}
+              aria-label={`${isHidden ? 'Show' : 'Hide'} ${entry.value ?? ''}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -1382,7 +1460,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                   width: '10px',
                   height: '10px',
                   borderRadius: '2px',
-                  backgroundColor: entry.color,
+                  backgroundColor: entry.color ?? '#6366f1',
                   flexShrink: 0,
                   opacity: isHidden ? 0.3 : 1,
                   transition: 'opacity 0.2s',
@@ -1734,7 +1812,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
               innerRadius={height / 6}
               paddingAngle={2}
               strokeWidth={0}
-              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              label={({ name, percent }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
               labelLine={{ stroke: axisColor, strokeWidth: 1 }}
               animationDuration={ANIMATION_DEFAULTS.duration}
               animationEasing={ANIMATION_DEFAULTS.easing}
