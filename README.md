@@ -191,7 +191,7 @@ source venv/bin/activate
 *   [Documentation](docs/) – Full architecture and setup guides.
 *   [GitHub Issues](https://github.com/schmitech/orbit/issues) – Bug reports and feature requests.
 *   [Discussions](https://github.com/schmitech/orbit/discussions) – Community help and roadmap.
-*   [Enterprise Services](https://schmitech.ai/en/orbit) – Backed by Schmitech for onboarding, deployment, and production support.
+*   [Enterprise Services](https://schmitech.ai/) – Backed by Schmitech for onboarding, deployment, and production support.
 *   [Good First Issues](https://github.com/schmitech/orbit/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22) – Starter tasks for new contributors.
 *   [Help Wanted](https://github.com/schmitech/orbit/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22help%20wanted%22) – High-impact tasks where contributions are needed.
 
