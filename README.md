@@ -36,7 +36,7 @@ ORBIT is a self-hosted gateway that unifies LLMs, files, databases, and APIs beh
 </p>
 
 <p align="center">
-  Officially backed by <a href="https://schmitech.ai/en/orbit">Schmitech</a>, the ORBIT service provider for enterprise deployment and support.
+  Officially backed by <a href="https://schmitech.ai/">Schmitech</a>, the ORBIT service provider for enterprise deployment and support.
 </p>
 
 ---
@@ -172,7 +172,7 @@ source venv/bin/activate
 *   Active roadmap and Q&A: [Discussions](https://github.com/schmitech/orbit/discussions)
 *   Feature requests and bugs: [Issues](https://github.com/schmitech/orbit/issues)
 *   Technical writeups: [Cookbook](docs/cookbook/) – recipes and how-tos
-*   Enterprise services: [Official ORBIT provider (Schmitech)](https://schmitech.ai/en/orbit)
+*   Enterprise services: [Official ORBIT provider (Schmitech)](https://schmitech.ai/)
 
 ---
 
