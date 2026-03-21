@@ -16,12 +16,11 @@
   </a>
 </p>
 
-# ORBIT: Enterprise AI Gateway
-**Open Retrieval-Based Inference Toolkit**
+# ORBIT: Open Retrieval-Based Inference Toolkit
 
-**Connect 20+ LLM providers and enterprise data through one governed API.**
+**Connect 20+ LLM providers with your data through one API.**
 
-ORBIT is a self-hosted gateway that eliminates vendor lock-in and integration glue code. It unifies LLMs, databases, APIs, and voice engines behind one OpenAI-compatible interface and MCP endpoint, letting teams standardize on one integration surface while keeping security, compliance, and operational controls consistent.
+ORBIT is a self-hosted gateway that unifies LLMs, files, databases, and APIs behind one MCP endpoint, letting teams standardize on one integration surface while keeping security, compliance, and operational controls under their watch.
 
 [**Try the Sandbox**](https://orbitsandbox.dev/) | [**API Reference**](https://orbit.schmitech.ai/redoc) | [**Docker Guide**](docker/README.md)
 
@@ -29,7 +28,7 @@ ORBIT is a self-hosted gateway that eliminates vendor lock-in and integration gl
   <a href="https://orbitsandbox.dev/">Try It Yourself!</a>
 </p>
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/1f9dfbf4-4b59-4d0c-87b6-527ea67c97c7" controls muted playsinline width="900"></video>
+  <video src="https://github.com/user-attachments/assets/89c46b0f-4222-42f2-a685-73102f8f3084" controls muted playsinline width="900"></video>
 </p>
 
 <p align="center">
@@ -88,16 +87,6 @@ docker run -d --name orbit-basic -p 3000:3000 schmitech/orbit:basic
 ```
 
 If Ollama runs on your host (e.g. port 11434), add `-e OLLAMA_HOST=host.docker.internal:11434` so the container can reach it. The image includes simple-chat only; for the full stack (Ollama + models), use option B or the [Docker Guide](docker/README.md).
-
----
-
-### 🖥️ Admin Panel
-
-ORBIT ships with a built-in admin panel for managing users, API keys, personas, and live server monitoring — all from your browser at `/admin`.
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/57ddaca1-2587-449b-a273-4d70e51f1172" controls muted playsinline width="800"></video>
-</p>
 
 ---
 
