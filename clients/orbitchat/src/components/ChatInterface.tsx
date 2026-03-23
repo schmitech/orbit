@@ -27,7 +27,7 @@ const MOBILE_INPUT_WRAPPER_CLASSES =
   'shrink-0 sticky bottom-[calc(var(--app-footer-height,0px)+0.25rem)] z-10 -mx-4 mt-auto overflow-visible bg-transparent pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:bg-transparent md:bottom-[calc(var(--app-footer-height,0px)+0.5rem)] md:z-10 md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:bg-transparent md:[&>div]:rounded-none md:[&>div]:px-0';
 
 const MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES =
-  'shrink-0 mt-3 overflow-visible bg-transparent pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:bg-transparent md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:bg-transparent md:[&>div]:rounded-none md:[&>div]:px-0';
+  'shrink-0 mt-0 overflow-visible bg-transparent pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:bg-transparent md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:bg-transparent md:[&>div]:rounded-none md:[&>div]:px-0';
 
 const MOBILE_HEADER_CLASSES =
   'relative z-20 shrink-0 -mx-4 px-4 pt-2 pb-2 bg-white border-b border-slate-200 dark:border-[#3b3d49] dark:bg-[#1e1f29] md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
@@ -113,10 +113,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     'relative px-5 py-5 md:px-7 md:py-6';
   const emptyStateNotesMarkdownClass = [
     adapterNotesMarkdownClass,
-    'max-w-none text-[1.02rem] leading-8 text-[#434654] dark:text-[#d7dae3]',
+    'max-w-none text-[0.98rem] leading-8 text-[#434654] dark:text-[#d7dae3]',
     '[&_h1]:text-[2rem] [&_h1]:font-semibold [&_h1]:tracking-[-0.03em] [&_h1]:text-[#17191f] dark:[&_h1]:text-white',
     '[&_h2]:text-[1.35rem] [&_h2]:font-semibold [&_h2]:tracking-[-0.02em] [&_h2]:text-[#20232b] dark:[&_h2]:text-white',
-    '[&_p]:max-w-[58ch] [&_ul]:max-w-[56ch] [&_ol]:max-w-[56ch] [&_li]:leading-8'
+    '[&_p]:max-w-[88ch] [&_ul]:max-w-[86ch] [&_ol]:max-w-[86ch] [&_li]:leading-8'
   ].join(' ');
   const emptyStateInputWrapperClass = shouldShowAdapterNotesPanel
     ? MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES
@@ -148,7 +148,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const emptyStateTopSpacingClass = shouldShowAgentSelectionList
     ? 'pt-0 md:pt-0'
     : shouldShowAdapterNotesPanel
-      ? 'pt-5 md:pt-0'
+      ? 'pt-3 md:pt-0'
       : 'pt-4 md:pt-6';
 
   useEffect(() => {
@@ -381,7 +381,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
           {showEmptyState ? (
             <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
-              <div className={`flex-1 flex flex-col justify-between ${shouldShowAgentSelectionList ? 'md:justify-start min-h-0 overflow-hidden' : shouldShowAdapterNotesPanel ? 'md:justify-start md:pt-8 md:gap-6 overflow-y-auto' : 'md:justify-start md:flex-none'}`}>
+              <div className={`flex-1 flex flex-col justify-between ${shouldShowAgentSelectionList ? 'md:justify-start min-h-0 overflow-hidden' : shouldShowAdapterNotesPanel ? 'md:justify-start md:pt-4 md:gap-6 overflow-y-auto' : 'md:justify-start md:flex-none'}`}>
                 <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex flex-col' : 'space-y-6'}`}>
                   {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
                     <div className={prominentWidthClass}>
