@@ -21,6 +21,10 @@
   let selectedUser = null;
   let selectedKey = null;
   let selectedPrompt = null;
+  let selectedAdapterEntry = null; // { name, filename, ... }
+  let adapterEditor = null;        // Ace editor instance for Adapters tab
+  let adapterOriginal = "";        // Dirty tracking baseline
+  let cachedAdapterFiles = null;   // Cached adapter file listing
   let messageCounter = 0;
   let opsLogPollTimer = null;
 
@@ -60,6 +64,7 @@
     adminExport: "/admin/export",
     login: "/admin/login",
     config: "/admin/config",
+    adapterConfigs: "/admin/adapters/config",
   };
 
   // ------------------------------------------------------------------
@@ -536,6 +541,7 @@
     { id: "users", label: "Users" },
     { id: "keys", label: "API Keys" },
     { id: "prompts", label: "Personas" },
+    { id: "adapters", label: "Adapters" },
     { id: "ops", label: "Ops" },
     { id: "settings", label: "Settings" },
   ];
@@ -617,6 +623,10 @@
       disconnectMetricsWs();
       destroyOverviewCharts();
     }
+    // Destroy adapter editor when leaving adapters tab
+    if (activeTab === "adapters" && id !== "adapters") {
+      if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
+    }
     activeTab = id;
     document.querySelectorAll(".topbar-nav-link").forEach(function (b) {
       var isActive = b.dataset.tab === id;
@@ -640,6 +650,7 @@
       case "users": renderUsers(c); break;
       case "keys": renderKeys(c); break;
       case "prompts": renderPrompts(c); break;
+      case "adapters": renderAdapters(c); break;
       case "ops": renderOps(c); break;
       case "settings": renderSettings(c); break;
     }
@@ -2621,110 +2632,10 @@
   // TAB: Ops
   // ==================================================================
   function renderOps(container) {
-    if (!cachedAdapterCapabilities) {
-      clear(container);
-      container.appendChild(el("div", { className: "panel" }, el("h2", null, "Ops"), skeleton()));
-      loadAdapterCapabilities().then(function () {
-        if (document.body.contains(container)) renderOps(container);
-      });
-      return;
-    }
-
     clear(container);
 
-    // --- Action bar: Reload + Server Control in a compact row ---
+    // --- Action bar: Server control ---
     var actionBar = el("div", { className: "ops-action-bar" });
-
-    // Reload section
-    var filterSelect = el("select", null, el("option", { value: "" }, "All adapters"));
-    if (cachedAdapterCapabilities && cachedAdapterCapabilities.length) {
-      cachedAdapterCapabilities.forEach(function (adapterInfo) {
-        filterSelect.appendChild(el("option", { value: adapterInfo.name }, adapterInfo.name));
-      });
-    }
-    var reloadHint = el("p", { className: "muted" }, "Template reload applies only to cached adapters that support template libraries.");
-
-    function selectedAdapterCapability() {
-      if (!filterSelect.value) return null;
-      return (cachedAdapterCapabilities || []).find(function (adapterInfo) {
-        return adapterInfo.name === filterSelect.value;
-      }) || null;
-    }
-
-    function syncReloadControls() {
-      var selectedAdapter = selectedAdapterCapability();
-      reloadAdaptersBtn.textContent = selectedAdapter ? "Reload Adapter" : "Reload Adapters";
-      if (!selectedAdapter) {
-        reloadTemplatesBtn.disabled = false;
-        reloadHint.textContent = "Template reload applies only to cached adapters that support template libraries.";
-        return;
-      }
-      var templatesAvailable = !!selectedAdapter.supports_template_reload;
-      reloadTemplatesBtn.disabled = !templatesAvailable;
-      if (!selectedAdapter.cached) {
-        reloadHint.textContent = "Template reload is unavailable because this adapter is not currently cached.";
-      } else if (!templatesAvailable) {
-        reloadHint.textContent = "Template reload is unavailable for this adapter type.";
-      } else {
-        reloadHint.textContent = "Reload templates only for " + selectedAdapter.name + ".";
-      }
-    }
-
-    var reloadAdaptersBtn = el("button", { className: "secondary", type: "button" }, "Reload Adapters");
-    reloadAdaptersBtn.addEventListener("click", function () {
-      confirmAction({
-        title: "Reload Adapters",
-        message: "Reload adapter configuration" + (filterSelect.value ? " for " + filterSelect.value : "") + "?",
-        confirmLabel: "Reload",
-        loadingLabel: filterSelect.value ? "Reloading Adapter..." : "Reloading Adapters...",
-        onConfirm: async function () {
-          reloadAdaptersBtn.disabled = true;
-          try {
-            var path = ENDPOINTS.reloadAdapters;
-            var f = filterSelect.value;
-            path += "/async";
-            if (f) path += "?adapter_name=" + encodeURIComponent(f);
-            var started = await api("POST", path);
-            var job = await waitForAdminJob(started.job_id, started.message);
-            var result = job.result || {};
-            await loadAdapterCapabilities();
-            syncReloadControls();
-            showStatus("Adapters reloaded: " + (result.message || "OK"));
-          } finally {
-            reloadAdaptersBtn.disabled = false;
-          }
-        }
-      });
-    });
-
-    var reloadTemplatesBtn = el("button", { className: "secondary", type: "button" }, "Reload Templates");
-    reloadTemplatesBtn.addEventListener("click", function () {
-      confirmAction({
-        title: "Reload Templates",
-        message: "Reload templates" + (filterSelect.value ? " for " + filterSelect.value : "") + "?",
-        confirmLabel: "Reload",
-        loadingLabel: filterSelect.value ? "Reloading Templates..." : "Reloading Templates...",
-        onConfirm: async function () {
-          reloadTemplatesBtn.disabled = true;
-          try {
-            var path = ENDPOINTS.reloadTemplates;
-            var f = filterSelect.value;
-            path += "/async";
-            if (f) path += "?adapter_name=" + encodeURIComponent(f);
-            var started = await api("POST", path);
-            var job = await waitForAdminJob(started.job_id, started.message);
-            var result = job.result || {};
-            await loadAdapterCapabilities();
-            syncReloadControls();
-            showStatus("Templates reloaded: " + (result.message || "OK"));
-          } finally {
-            reloadTemplatesBtn.disabled = false;
-          }
-        }
-      });
-    });
-    filterSelect.addEventListener("change", syncReloadControls);
-    syncReloadControls();
 
     // Server control
     var restartBtn = el("button", { className: "secondary", type: "button" }, "Restart Server");
@@ -2776,14 +2687,9 @@
       });
     });
 
-    actionBar.appendChild(filterSelect);
-    actionBar.appendChild(reloadAdaptersBtn);
-    actionBar.appendChild(reloadTemplatesBtn);
-    actionBar.appendChild(el("div", { className: "ops-action-divider" }));
     actionBar.appendChild(restartBtn);
     actionBar.appendChild(shutdownBtn);
     container.appendChild(actionBar);
-    container.appendChild(reloadHint);
 
     // --- Log viewer: full-width terminal-style panel ---
     var logLevelFilter = "all";
@@ -3034,6 +2940,384 @@
     container.appendChild(logPanel);
 
     loadLogs(false);
+  }
+
+  // ==================================================================
+  // TAB: Adapters
+  // ==================================================================
+
+  async function loadAdapterFiles() {
+    try {
+      var data = await api("GET", ENDPOINTS.adapterConfigs);
+      cachedAdapterFiles = data.files || [];
+    } catch (_) {
+      cachedAdapterFiles = [];
+    }
+    return cachedAdapterFiles;
+  }
+
+  function renderAdapters(container) {
+    clear(container);
+
+    // Destroy previous editor
+    if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
+
+    // Lazy-load adapter file listing
+    if (!cachedAdapterFiles) {
+      container.appendChild(skeleton());
+      loadAdapterFiles().then(function () {
+        if (activeTab === "adapters") renderAdapters(container);
+      });
+      return;
+    }
+
+    var layout = el("div", { className: "split-layout" });
+    container.appendChild(layout);
+
+    // ----- Left panel: adapter list -----
+    var leftPanel = el("div", { className: "panel" });
+    layout.appendChild(leftPanel);
+
+    var leftHeader = el("div", { style: "display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-3)" });
+    leftHeader.appendChild(el("h2", { style: "margin:0" }, "Adapters"));
+    var searchInput = el("input", { type: "text", placeholder: "Search adapters\u2026", style: "flex:1;min-width:0" });
+    leftHeader.appendChild(searchInput);
+    leftPanel.appendChild(leftHeader);
+
+    var table = el("table");
+    var thead = el("thead", null,
+      el("tr", null,
+        el("th", null, "Name"),
+        el("th", null, "Type"),
+        el("th", { style: "width:70px;text-align:center" }, "Enabled")
+      )
+    );
+    table.appendChild(thead);
+    var tbody = el("tbody");
+    table.appendChild(tbody);
+    leftPanel.appendChild(table);
+
+    // Flatten adapters from imported files only
+    var allAdapters = [];
+    (cachedAdapterFiles || []).forEach(function (f) {
+      if (!f.imported) return; // Only show imported adapter files
+      (f.adapters || []).forEach(function (a) {
+        allAdapters.push({
+          name: a.name,
+          enabled: a.enabled !== false,
+          type: a.type || "",
+          adapter: a.adapter || "",
+          datasource: a.datasource || "",
+          inference_provider: a.inference_provider || "",
+          model: a.model || "",
+          embedding_provider: a.embedding_provider || "",
+          filename: f.filename,
+        });
+      });
+    });
+
+    function makeToggle(a) {
+      var track = el("button", {
+        type: "button",
+        className: "adapter-toggle" + (a.enabled ? " on" : ""),
+        "aria-label": (a.enabled ? "Disable" : "Enable") + " adapter " + a.name,
+        "aria-pressed": String(a.enabled),
+      });
+      var knob = el("span", { className: "adapter-toggle-knob" });
+      track.appendChild(knob);
+
+      track.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var newState = !a.enabled;
+        track.disabled = true;
+        api("PATCH", ENDPOINTS.adapterConfigs + "/entry/" + encodeURIComponent(a.name) + "/toggle", { enabled: newState })
+          .then(function () {
+            a.enabled = newState;
+            track.classList.toggle("on", newState);
+            track.setAttribute("aria-pressed", String(newState));
+            track.setAttribute("aria-label", (newState ? "Disable" : "Enable") + " adapter " + a.name);
+            // Update cached data
+            (cachedAdapterFiles || []).forEach(function (f) {
+              (f.adapters || []).forEach(function (ca) {
+                if (ca.name === a.name) ca.enabled = newState;
+              });
+            });
+            showStatus("Adapter '" + a.name + "' " + (newState ? "enabled" : "disabled") + ". Reload to apply.");
+          })
+          .catch(function (err) { showError("Toggle failed: " + err.message); })
+          .finally(function () { track.disabled = false; });
+      });
+      return track;
+    }
+
+    function renderAdapterRows(filter) {
+      clear(tbody);
+      var lc = (filter || "").toLowerCase();
+      var count = 0;
+      allAdapters.forEach(function (a) {
+        if (lc && a.name.toLowerCase().indexOf(lc) === -1 && a.adapter.toLowerCase().indexOf(lc) === -1) return;
+        count++;
+
+        var row = el("tr", { className: "selectable-row", tabindex: "0" },
+          el("td", null, a.name),
+          el("td", null, a.adapter || a.type),
+          el("td", { className: "adapter-toggle-cell" }, makeToggle(a))
+        );
+
+        if (selectedAdapterEntry && selectedAdapterEntry.name === a.name) {
+          row.classList.add("selected-row");
+          row.setAttribute("aria-selected", "true");
+        }
+
+        row.addEventListener("click", function () { selectAdapter(a); markSelectedRow(tbody, row); });
+        row.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectAdapter(a); markSelectedRow(tbody, row); }
+        });
+        tbody.appendChild(row);
+      });
+      if (count === 0) {
+        tbody.appendChild(el("tr", null, el("td", { colSpan: "3", className: "empty-state" }, "No adapters found")));
+      }
+    }
+
+    searchInput.addEventListener("input", function () { renderAdapterRows(searchInput.value); });
+    renderAdapterRows("");
+
+    // ----- Right panel: editor + actions -----
+    var rightPanel = el("div", { className: "stack" });
+    layout.appendChild(rightPanel);
+
+    var detailPanel = el("div", { className: "panel" });
+    rightPanel.appendChild(detailPanel);
+
+    function renderEmptyDetail() {
+      clear(detailPanel);
+      detailPanel.appendChild(el("div", { className: "empty-state" },
+        el("p", null, "Select an adapter to view and edit its configuration.")
+      ));
+    }
+
+    function selectAdapter(a) {
+      // If dirty and switching to a different adapter, confirm discard
+      if (adapterEditor && selectedAdapterEntry && selectedAdapterEntry.name !== a.name) {
+        var currentContent = adapterEditor.getValue();
+        if (currentContent !== adapterOriginal) {
+          confirmAction({
+            title: "Unsaved Changes",
+            message: "You have unsaved changes to '" + selectedAdapterEntry.name + "'. Discard them?",
+            confirmLabel: "Discard",
+            isDanger: true,
+            onConfirm: function () {
+              selectedAdapterEntry = a;
+              renderDetail(a);
+            }
+          });
+          return;
+        }
+      }
+      selectedAdapterEntry = a;
+      renderDetail(a);
+    }
+
+    function renderDetail(a) {
+      clear(detailPanel);
+      if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
+
+      // Header
+      var headerRow = el("div", { style: "display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-2)" });
+      headerRow.appendChild(el("h3", { style: "margin:0" }, a.name));
+      headerRow.appendChild(el("span", { className: "monitoring-badge " + (a.enabled ? "green" : "muted") },
+        a.enabled ? "enabled" : "disabled"
+      ));
+      headerRow.appendChild(el("span", { className: "adapter-file-badge" }, a.filename));
+      detailPanel.appendChild(headerRow);
+
+      // Info chips
+      var chips = el("div", { className: "adapter-info-chips" });
+      if (a.adapter) chips.appendChild(makeChip("adapter", a.adapter));
+      if (a.type) chips.appendChild(makeChip("type", a.type));
+      if (a.datasource) chips.appendChild(makeChip("datasource", a.datasource));
+      if (a.inference_provider) chips.appendChild(makeChip("inference", a.inference_provider));
+      if (a.model) chips.appendChild(makeChip("model", a.model));
+      if (a.embedding_provider) chips.appendChild(makeChip("embedding", a.embedding_provider));
+      if (chips.children.length) detailPanel.appendChild(chips);
+
+      // Banner for save feedback
+      var banner = el("div", { className: "settings-banner", style: "display:none", role: "status" });
+      detailPanel.appendChild(banner);
+
+      // Ace editor
+      var editorWrap = el("div", { className: "adapter-ace-wrap" });
+      detailPanel.appendChild(editorWrap);
+
+      // Buttons
+      var saveBtn = el("button", { className: "btn btn--primary", disabled: "true" }, "Save");
+      var reloadDiskBtn = el("button", { className: "btn btn--neutral" }, "Reload from Disk");
+      var reloadAdapterBtn = el("button", { className: "btn btn--neutral" }, "Reload Adapter");
+      var reloadTemplatesBtn = el("button", { className: "btn btn--neutral" }, "Reload Templates");
+
+      var btnRow = el("div", { style: "display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-3)" });
+      btnRow.appendChild(saveBtn);
+      btnRow.appendChild(reloadDiskBtn);
+      btnRow.appendChild(el("span", { className: "ops-action-divider" }));
+      btnRow.appendChild(reloadAdapterBtn);
+      btnRow.appendChild(reloadTemplatesBtn);
+      detailPanel.appendChild(btnRow);
+
+      // Initialise Ace
+      ace.config.set("basePath", "/static");
+      ace.config.set("modePath", "/static");
+      ace.config.set("themePath", "/static");
+      ace.config.set("workerPath", "/static");
+
+      adapterEditor = ace.edit(editorWrap, {
+        mode: "ace/mode/yaml",
+        theme: "ace/theme/tomorrow",
+        fontSize: 15,
+        fontFamily: "var(--font-mono)",
+        showPrintMargin: false,
+        tabSize: 2,
+        useSoftTabs: true,
+        wrap: false,
+        showGutter: true,
+        highlightActiveLine: true,
+        highlightSelectedWord: true,
+        showFoldWidgets: true,
+        displayIndentGuides: true,
+        scrollPastEnd: 0.2,
+      });
+      ace.config.loadModule("ace/ext/searchbox", function () {});
+
+      // Dirty tracking
+      adapterEditor.session.on("change", function () {
+        saveBtn.disabled = adapterEditor.getValue() === adapterOriginal;
+      });
+
+      // Load single adapter entry content
+      async function loadEntry() {
+        try {
+          var data = await api("GET", ENDPOINTS.adapterConfigs + "/entry/" + encodeURIComponent(a.name));
+          adapterOriginal = data.content;
+          adapterEditor.setValue(data.content, -1);
+          adapterEditor.getSession().getUndoManager().reset();
+          saveBtn.disabled = true;
+          banner.style.display = "none";
+        } catch (err) {
+          showError("Failed to load adapter '" + a.name + "': " + err.message);
+        }
+      }
+
+      // Save handler — saves just this adapter's block back into its file
+      saveBtn.addEventListener("click", async function () {
+        saveBtn.disabled = true;
+        try {
+          await api("PUT", ENDPOINTS.adapterConfigs + "/entry/" + encodeURIComponent(a.name), { content: adapterEditor.getValue() });
+          adapterOriginal = adapterEditor.getValue();
+          // Refresh adapter list
+          await loadAdapterFiles();
+          renderAdapterRows(searchInput.value);
+          // Show banner
+          clear(banner);
+          var reloadNowBtn = el("button", { className: "btn btn--neutral", style: "margin-left:var(--sp-3);padding:var(--sp-1) var(--sp-2);font-size:var(--text-xs)" }, "Reload Now");
+          reloadNowBtn.addEventListener("click", function () {
+            doReloadAdapter();
+          });
+          banner.appendChild(el("span", null, "Saved. Reload adapter to apply changes. "));
+          banner.appendChild(reloadNowBtn);
+          banner.style.display = "";
+          showStatus("Adapter '" + a.name + "' saved");
+        } catch (err) {
+          showError("Save failed: " + err.message);
+          saveBtn.disabled = adapterEditor.getValue() === adapterOriginal;
+        }
+      });
+
+      // Reload from disk
+      reloadDiskBtn.addEventListener("click", function () {
+        var dirty = adapterEditor.getValue() !== adapterOriginal;
+        if (dirty) {
+          confirmAction({
+            title: "Reload from Disk",
+            message: "Discard unsaved changes and reload '" + a.name + "' from disk?",
+            confirmLabel: "Discard & Reload",
+            isDanger: true,
+            onConfirm: async function () {
+              await loadEntry();
+              showStatus("Reloaded from disk");
+            }
+          });
+        } else {
+          loadEntry().then(function () { showStatus("Reloaded from disk"); });
+        }
+      });
+
+      // Reload adapter (hot-swap via existing endpoint)
+      async function doReloadAdapter() {
+        withButton(reloadAdapterBtn, async function () {
+          var path = ENDPOINTS.reloadAdapters + "/async?adapter_name=" + encodeURIComponent(a.name);
+          var started = await api("POST", path);
+          var job = await waitForAdminJob(started.job_id, "Reloading adapter\u2026");
+          await loadAdapterCapabilities();
+          banner.style.display = "none";
+          showStatus("Adapter '" + a.name + "' reloaded");
+        });
+      }
+      reloadAdapterBtn.addEventListener("click", function () {
+        confirmAction({
+          title: "Reload Adapter",
+          message: "Reload adapter '" + a.name + "' from the current config on disk?",
+          confirmLabel: "Reload",
+          loadingLabel: "Reloading\u2026",
+          onConfirm: doReloadAdapter,
+        });
+      });
+
+      // Reload templates
+      reloadTemplatesBtn.addEventListener("click", function () {
+        var cap = (cachedAdapterCapabilities || []).find(function (c) { return c.name === a.name; });
+        if (cap && !cap.supports_template_reload) {
+          showError("This adapter does not support template reloading.");
+          return;
+        }
+        if (cap && !cap.cached) {
+          showError("Adapter must be cached (loaded) before templates can be reloaded. Send a query to it first.");
+          return;
+        }
+        confirmAction({
+          title: "Reload Templates",
+          message: "Reload templates for adapter '" + a.name + "'?",
+          confirmLabel: "Reload",
+          loadingLabel: "Reloading\u2026",
+          onConfirm: async function () {
+            var path = ENDPOINTS.reloadTemplates + "/async?adapter_name=" + encodeURIComponent(a.name);
+            var started = await api("POST", path);
+            await waitForAdminJob(started.job_id, "Reloading templates\u2026");
+            showStatus("Templates reloaded for '" + a.name + "'");
+          }
+        });
+      });
+
+      loadEntry();
+    }
+
+    function makeChip(label, value) {
+      return el("span", { className: "adapter-chip" },
+        el("span", { className: "chip-label" }, label + ":"),
+        " " + value
+      );
+    }
+
+    // Restore selection if we had one
+    if (selectedAdapterEntry) {
+      var match = allAdapters.find(function (a) { return a.name === selectedAdapterEntry.name; });
+      if (match) {
+        renderDetail(match);
+      } else {
+        renderEmptyDetail();
+      }
+    } else {
+      renderEmptyDetail();
+    }
   }
 
   // ==================================================================

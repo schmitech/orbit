@@ -586,6 +586,293 @@ async def get_adapter_capabilities(
         raise HTTPException(status_code=500, detail=f"Failed to get adapter capabilities: {str(e)}")
 
 
+# ---------------------------------------------------------------------------
+# Adapter config file management
+# ---------------------------------------------------------------------------
+
+def _get_adapters_dir(request: Request) -> Path:
+    """Resolve the adapters config directory from app state."""
+    config_path = Path(getattr(request.app.state, 'config_path', 'config/config.yaml'))
+    return config_path.parent / "adapters"
+
+
+def _validate_adapter_filename(filename: str) -> None:
+    """Reject path-traversal attempts."""
+    if "/" in filename or "\\" in filename or ".." in filename or not filename.endswith(".yaml"):
+        raise HTTPException(status_code=400, detail="Invalid adapter filename")
+
+
+def _find_adapter_block(lines: list[str], adapter_name: str) -> tuple[int, int]:
+    """Find start/end line indices of a single adapter entry in YAML content.
+
+    Returns (start, end) where lines[start:end] is the adapter block.
+    """
+    start = None
+    start_indent = 0
+    for i, line in enumerate(lines):
+        stripped = line.lstrip()
+        if not stripped.startswith("- name:"):
+            continue
+        name_val = stripped[len("- name:"):].strip().strip('"').strip("'")
+        if name_val == adapter_name:
+            start = i
+            start_indent = len(line) - len(stripped)
+            break
+
+    if start is None:
+        return -1, -1
+
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        stripped = lines[i].lstrip()
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            continue
+        current_indent = len(lines[i]) - len(stripped)
+        if stripped.startswith("- ") and current_indent <= start_indent:
+            end = i
+            break
+        if current_indent < start_indent:
+            end = i
+            break
+
+    while end > start + 1 and lines[end - 1].strip() == "":
+        end -= 1
+
+    return start, end
+
+
+def _find_adapter_file(adapters_dir: Path, adapter_name: str):
+    """Locate which .yaml file contains an adapter by name. Returns (path, content)."""
+    for yaml_file in sorted(adapters_dir.glob("*.yaml")):
+        content = yaml_file.read_text(encoding="utf-8")
+        try:
+            parsed = yaml.safe_load(content) or {}
+            for a in parsed.get("adapters", []):
+                if isinstance(a, dict) and a.get("name") == adapter_name:
+                    return yaml_file, content
+        except yaml.YAMLError:
+            continue
+    return None, ""
+
+
+def _backup_and_write(file_path: Path, new_content: str) -> str:
+    """Create .bak backup and write new content. Returns backup path string."""
+    backup_path = file_path.with_suffix(".yaml.bak")
+    shutil.copy2(file_path, backup_path)
+    logger.info("Adapter config backup created at %s", backup_path)
+    file_path.write_text(new_content, encoding="utf-8")
+    logger.info("Adapter config updated: %s", file_path)
+    from config.config_manager import load_config
+    load_config.cache_clear()
+    return str(backup_path.resolve())
+
+
+@admin_router.get("/adapters/config")
+async def list_adapter_configs(
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """List all adapter config files with a summary of each adapter entry."""
+    adapters_dir = _get_adapters_dir(request)
+    if not adapters_dir.is_dir():
+        return {"files": [], "imports": [], "adapters_yaml": ""}
+
+    # Read adapters.yaml to get current imports
+    adapters_yaml_path = adapters_dir.parent / "adapters.yaml"
+    adapters_yaml_content = ""
+    current_imports = []
+    if adapters_yaml_path.is_file():
+        adapters_yaml_content = adapters_yaml_path.read_text(encoding="utf-8")
+        try:
+            parsed = yaml.safe_load(adapters_yaml_content) or {}
+            raw_imports = parsed.get("import", [])
+            if isinstance(raw_imports, str):
+                raw_imports = [raw_imports]
+            current_imports = [str(i) for i in (raw_imports or [])]
+        except yaml.YAMLError:
+            pass
+
+    files = []
+    for yaml_file in sorted(adapters_dir.glob("*.yaml")):
+        entry = {
+            "filename": yaml_file.name,
+            "path": f"adapters/{yaml_file.name}",
+            "imported": f"adapters/{yaml_file.name}" in current_imports,
+            "adapters": [],
+        }
+        try:
+            parsed = yaml.safe_load(yaml_file.read_text(encoding="utf-8")) or {}
+            for adapter in parsed.get("adapters", []):
+                if isinstance(adapter, dict):
+                    entry["adapters"].append({
+                        "name": adapter.get("name", ""),
+                        "enabled": adapter.get("enabled", True),
+                        "type": adapter.get("type", ""),
+                        "adapter": adapter.get("adapter", ""),
+                        "datasource": adapter.get("datasource", ""),
+                        "inference_provider": adapter.get("inference_provider", ""),
+                        "model": adapter.get("model", ""),
+                        "embedding_provider": adapter.get("embedding_provider", ""),
+                    })
+        except Exception:
+            pass  # File might have invalid YAML — show it anyway with empty adapters
+        files.append(entry)
+
+    return {"files": files, "imports": current_imports, "adapters_yaml": adapters_yaml_content}
+
+
+@admin_router.get("/adapters/config/entry/{adapter_name}")
+async def get_adapter_entry(
+    adapter_name: str,
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """Return just the YAML block for a single adapter (preserves comments)."""
+    adapters_dir = _get_adapters_dir(request)
+    file_path, content = _find_adapter_file(adapters_dir, adapter_name)
+    if not file_path:
+        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found in any config file")
+
+    lines = content.split("\n")
+    start, end = _find_adapter_block(lines, adapter_name)
+    if start < 0:
+        raise HTTPException(status_code=404, detail=f"Adapter block '{adapter_name}' not found")
+
+    block = "\n".join(lines[start:end])
+    return {"content": block, "filename": file_path.name, "adapter_name": adapter_name}
+
+
+@admin_router.put("/adapters/config/entry/{adapter_name}")
+async def save_adapter_entry(
+    adapter_name: str,
+    request: Request,
+    authorized: bool = Depends(admin_auth_check),
+    body: dict = Body(...)
+):
+    """Replace a single adapter's YAML block in its source file."""
+    new_block = body.get("content")
+    if new_block is None:
+        raise HTTPException(status_code=422, detail="Missing 'content' field")
+
+    try:
+        yaml.safe_load(new_block)
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid YAML: {exc}")
+
+    adapters_dir = _get_adapters_dir(request)
+    file_path, content = _find_adapter_file(adapters_dir, adapter_name)
+    if not file_path:
+        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found in any config file")
+
+    lines = content.split("\n")
+    start, end = _find_adapter_block(lines, adapter_name)
+    if start < 0:
+        raise HTTPException(status_code=404, detail=f"Adapter block '{adapter_name}' not found")
+
+    new_lines = lines[:start] + new_block.split("\n") + lines[end:]
+    new_content = "\n".join(new_lines)
+    backup = _backup_and_write(file_path, new_content)
+    return {
+        "message": f"Adapter '{adapter_name}' saved. Use 'Reload Adapter' to apply changes.",
+        "backup": backup,
+    }
+
+
+@admin_router.patch("/adapters/config/entry/{adapter_name}/toggle")
+async def toggle_adapter_enabled(
+    adapter_name: str,
+    request: Request,
+    authorized: bool = Depends(admin_auth_check),
+    body: dict = Body(...)
+):
+    """Toggle the enabled field of a single adapter in its YAML file."""
+    enabled = body.get("enabled")
+    if enabled is None:
+        raise HTTPException(status_code=422, detail="Missing 'enabled' field")
+
+    adapters_dir = _get_adapters_dir(request)
+    file_path, content = _find_adapter_file(adapters_dir, adapter_name)
+    if not file_path:
+        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found in any config file")
+
+    lines = content.split("\n")
+    start, end = _find_adapter_block(lines, adapter_name)
+    if start < 0:
+        raise HTTPException(status_code=404, detail=f"Adapter block '{adapter_name}' not found")
+
+    enabled_str = "true" if enabled else "false"
+    found_enabled = False
+    for i in range(start, end):
+        stripped = lines[i].lstrip()
+        if stripped.startswith("enabled:"):
+            indent = lines[i][:len(lines[i]) - len(stripped)]
+            lines[i] = f"{indent}enabled: {enabled_str}"
+            found_enabled = True
+            break
+
+    if not found_enabled:
+        name_line = lines[start]
+        indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
+        lines.insert(start + 1, f"{indent}enabled: {enabled_str}")
+
+    new_content = "\n".join(lines)
+    backup = _backup_and_write(file_path, new_content)
+
+    state = "enabled" if enabled else "disabled"
+    return {
+        "message": f"Adapter '{adapter_name}' {state}. Use 'Reload Adapter' to apply changes.",
+        "enabled": enabled,
+        "backup": backup,
+    }
+
+
+@admin_router.get("/adapters/config/{filename}")
+async def get_adapter_config_file(
+    filename: str,
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """Read the raw YAML content of a specific adapter config file."""
+    _validate_adapter_filename(filename)
+    file_path = _get_adapters_dir(request) / filename
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Adapter file not found: {filename}")
+    content = file_path.read_text(encoding="utf-8")
+    return {"content": content, "filename": filename}
+
+
+@admin_router.put("/adapters/config/{filename}")
+async def save_adapter_config_file(
+    filename: str,
+    request: Request,
+    authorized: bool = Depends(admin_auth_check),
+    body: dict = Body(...)
+):
+    """Validate, back up, and write an adapter config file."""
+    _validate_adapter_filename(filename)
+
+    content = body.get("content")
+    if content is None:
+        raise HTTPException(status_code=422, detail="Missing 'content' field")
+
+    try:
+        yaml.safe_load(content)
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid YAML: {exc}")
+
+    file_path = _get_adapters_dir(request) / filename
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Adapter file not found: {filename}")
+
+    backup = _backup_and_write(file_path, content)
+    return {
+        "message": f"Adapter config '{filename}' saved. Use 'Reload Adapter' to apply changes.",
+        "backup": backup,
+    }
+
+
 @admin_router.post("/api-keys/{api_key_id}/prompt")
 async def associate_prompt_with_api_key(
     api_key_id: str,

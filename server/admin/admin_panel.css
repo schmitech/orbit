@@ -2164,3 +2164,117 @@ code.plain-code {
   border: 1px solid #ffecb5;
   font-size: var(--text-sm);
 }
+
+/* ------------------------------------------------------------------ */
+/* Adapters tab                                                       */
+/* ------------------------------------------------------------------ */
+.adapter-info-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.adapter-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-xs);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+}
+
+.adapter-chip .chip-label {
+  color: var(--ink-muted);
+  margin-right: 0.3em;
+  font-weight: 500;
+}
+
+.adapter-file-badge {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+}
+
+.adapter-ace-wrap {
+  width: 100%;
+  height: 500px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.adapter-ace-wrap .ace_editor {
+  border-radius: var(--radius-md);
+}
+
+.adapter-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 42px;
+  min-width: 42px;
+  height: 24px;
+  min-height: 24px;
+  padding: 2px;
+  border: 1px solid #c8d3e2;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg, #dfe6f1 0%, #cfd8e6 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.65), 0 1px 2px rgba(15, 29, 51, 0.08);
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.adapter-toggle.on {
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+  border-color: #149245;
+}
+
+.adapter-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.adapter-toggle:hover:not(:disabled) {
+  background: linear-gradient(180deg, #d6deea 0%, #c4cfde 100%);
+  border-color: #b7c3d5;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.7), 0 2px 4px rgba(15, 29, 51, 0.12);
+  transform: none;
+}
+
+.adapter-toggle.on:hover:not(:disabled) {
+  background: linear-gradient(180deg, #20ba59 0%, #15803d 100%);
+  border-color: #117238;
+}
+
+.adapter-toggle:active:not(:disabled) {
+  transform: none;
+  box-shadow: inset 0 1px 2px rgba(15, 29, 51, 0.14);
+}
+
+.adapter-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.24), inset 0 1px 1px rgba(255, 255, 255, 0.7);
+}
+
+.adapter-toggle-knob {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffffff 0%, #f3f6fb 100%);
+  box-shadow: 0 1px 3px rgba(15, 29, 51, 0.24);
+  transition: transform 150ms ease;
+}
+
+.adapter-toggle.on .adapter-toggle-knob {
+  transform: translateX(18px);
+}
+
+.adapter-toggle-cell {
+  text-align: center;
+  vertical-align: middle;
+}
