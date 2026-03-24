@@ -178,7 +178,7 @@ source venv/bin/activate
 
 ### 🧩 Supported Integrations
 
-**Inference:** OpenAI, Anthropic, Google Gemini, Groq, DeepSeek, Mistral, AWS Bedrock, Azure, Together, Ollama, vLLM, llama.cpp.
+**Inference:** OpenAI, Anthropic, Google Gemini, Cohere, Groq, DeepSeek, Mistral, AWS Bedrock, Azure, Together, Ollama, vLLM, llama.cpp.
 
 **Data Adapters:** PostgreSQL, MySQL, MongoDB, Elasticsearch, DuckDB, Chroma, Qdrant, Pinecone, Milvus, Weaviate.
 
