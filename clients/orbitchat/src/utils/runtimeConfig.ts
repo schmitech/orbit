@@ -127,6 +127,7 @@ export interface RuntimeConfig {
     apiUrl?: string;
     description?: string;
     notes?: string;
+    inputPlaceholder?: string;
   }>;
 }
 
@@ -346,6 +347,17 @@ export function getApplicationDescription(): string {
 
 export function getDefaultInputPlaceholder(): string {
   return runtimeConfig.application.inputPlaceholder;
+}
+
+export function getAdapterInputPlaceholder(adapterId?: string | null): string | null {
+  const normalizedId = adapterId?.trim();
+  if (!normalizedId) {
+    return null;
+  }
+
+  const adapter = runtimeConfig.adapters.find((item) => item?.id?.trim() === normalizedId);
+  const placeholder = adapter?.inputPlaceholder?.trim();
+  return placeholder || null;
 }
 
 export function getConsoleDebug(): boolean {

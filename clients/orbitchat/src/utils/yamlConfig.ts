@@ -119,9 +119,11 @@ export interface OrbitChatYamlConfig {
     referrerPolicy?: string;
   }>;
   adapters?: Array<{
+    id?: string;
     name: string;
     apiUrl?: string;
     description?: string;
     notes?: string;
+    inputPlaceholder?: string;
   }>;
 }

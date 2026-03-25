@@ -17,6 +17,7 @@ export interface Adapter {
   description?: string; // Short description for dropdown previews
   notes?: string; // Longer markdown notes/description when available
   model?: string; // Optional model label from /api/adapters
+  inputPlaceholder?: string;
 }
 
 export interface AdaptersResponse {
@@ -44,6 +45,7 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
     summary?: unknown;
     notes?: unknown;
     model?: unknown;
+    inputPlaceholder?: unknown;
   };
 
   const name = toTrimmedString(candidate.name);
@@ -59,6 +61,7 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
 
   const apiUrl = toTrimmedString(candidate.apiUrl);
   const model = toTrimmedString(candidate.model);
+  const inputPlaceholder = toTrimmedString(candidate.inputPlaceholder);
   const notes = typeof candidate.notes === 'string' ? candidate.notes.trim() : undefined;
   let description =
     toTrimmedString(candidate.description) ||
@@ -81,6 +84,9 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
   }
   if (model) {
     normalized.model = model;
+  }
+  if (inputPlaceholder) {
+    normalized.inputPlaceholder = inputPlaceholder;
   }
 
   return normalized;

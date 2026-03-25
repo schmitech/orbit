@@ -23,11 +23,12 @@ interface AdapterConfig {
   description?: string;
   notes?: string;
   model?: string;
+  inputPlaceholder?: string;
 }
 
 interface YamlConfig {
   guestLimits?: { rateLimit?: { enabled?: boolean; windowMs?: number; maxRequests?: number; chat?: { windowMs?: number; maxRequests?: number } } };
-  adapters?: Array<{ id: string; name: string; apiUrl?: string; description?: string; notes?: string; model?: string }>;
+  adapters?: Array<{ id: string; name: string; apiUrl?: string; description?: string; notes?: string; model?: string; inputPlaceholder?: string }>;
 }
 
 function loadYamlFile(configPath: string): YamlConfig | null {
@@ -68,6 +69,7 @@ function loadAdaptersForProxy(yamlAdapters: YamlConfig['adapters'], env: Record<
         description: ya.description,
         notes: ya.notes,
         model: ya.model,
+        inputPlaceholder: ya.inputPlaceholder,
       };
     }
   }
@@ -262,6 +264,7 @@ export function orbitchatConfigPlugin(): Plugin {
           description: adapterMap[id]?.description,
           notes: adapterMap[id]?.notes,
           model: adapterMap[id]?.model || null,
+          inputPlaceholder: adapterMap[id]?.inputPlaceholder,
         }));
 
       // Serve /api/adapters

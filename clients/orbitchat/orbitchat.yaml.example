@@ -169,6 +169,7 @@ adapters:
     name: "Simple Chat"
     apiUrl: "http://localhost:3000"
     description: "Basic chat interface using the default conversational agent."
+    inputPlaceholder: "Simple chat, ask anything..."
   - id: "chat-with-files"
     name: "Chat With Files"
     apiUrl: "http://localhost:3000"

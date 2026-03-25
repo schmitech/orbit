@@ -206,7 +206,8 @@ function loadAdaptersForProxy(yamlAdapters) {
         name: ya.name,
         description: ya.description,
         notes: ya.notes,
-        model: ya.model
+        model: ya.model,
+        inputPlaceholder: ya.inputPlaceholder
       };
     }
   }
@@ -362,7 +363,8 @@ function createServer(distPath, config, serverConfig = {}) {
         name: adapterMap[id].name || id,
         description: adapterMap[id].description,
         notes: adapterMap[id].notes,
-        model: adapterMap[id].model || null
+        model: adapterMap[id].model || null,
+        inputPlaceholder: adapterMap[id].inputPlaceholder
       }));
 
     app.get('/api/adapters', (req, res) => {
