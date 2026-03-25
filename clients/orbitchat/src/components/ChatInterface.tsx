@@ -10,6 +10,7 @@ import {
   getDefaultInputPlaceholder,
   getIsAuthConfigured,
   getEnableHeader,
+  getAdapterDisplayName,
 } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
@@ -26,11 +27,8 @@ const MOBILE_FRAME_CLASSES =
 const MOBILE_INPUT_WRAPPER_CLASSES =
   'shrink-0 sticky bottom-[calc(var(--app-footer-height,0px)+0.25rem)] z-10 -mx-4 mt-auto overflow-visible bg-transparent pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:bg-transparent md:bottom-[calc(var(--app-footer-height,0px)+0.5rem)] md:z-10 md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:bg-transparent md:[&>div]:rounded-none md:[&>div]:px-0';
 
-const MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES =
-  'shrink-0 mt-0 overflow-visible bg-transparent pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-none backdrop-blur-0 transition-all duration-200 dark:bg-transparent md:mx-0 md:mt-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:pb-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0 [&>div]:bg-transparent md:[&>div]:rounded-none md:[&>div]:px-0';
-
 const MOBILE_HEADER_CLASSES =
-  'relative z-20 shrink-0 -mx-4 px-4 pt-2 pb-2 bg-white border-b border-slate-200 dark:border-[#3b3d49] dark:bg-[#1e1f29] md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
+  'relative z-20 shrink-0 -mx-4 px-4 pt-2 pb-2 bg-transparent border-b border-transparent dark:border-transparent dark:bg-transparent md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
 
 interface ChatInterfaceProps {
   onOpenSettings: () => void;
@@ -60,14 +58,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const forcedThemeClass =
     theme.mode === 'dark' ? 'dark' : theme.mode === 'light' ? 'light' : '';
   const syntaxTheme: 'dark' | 'light' = isDark ? 'dark' : 'light';
-  const adapterNotesMarkdownClass = [
-    'message-markdown w-full min-w-0',
-    'prose prose-slate dark:prose-invert max-w-none md:prose-lg',
-    '[&>:first-child]:mt-0 [&>:last-child]:mb-0',
-    forcedThemeClass
-  ]
-    .filter(Boolean)
-    .join(' ');
   const introDescriptionMarkdownClass = [
     'application-description prose prose-slate dark:prose-invert max-w-none text-sm md:text-base leading-relaxed',
     'text-[#4a4c5a] dark:text-[#bfc2cd]',
@@ -91,7 +81,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     hasAdapterConfigurationError,
     isAgentSelectionVisible,
     isConfiguringAdapter,
-    shouldShowAdapterNotesPanel,
     shouldShowAgentSelectionList
   } = useChatAgentSelection({
     currentConversation,
@@ -106,21 +95,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const inputMaxWidthClass = 'max-w-[64rem]';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const messageInputWidthClass = `mx-auto w-full ${inputMaxWidthClass}`;
-  const emptyStateStageClass = shouldShowAdapterNotesPanel
-    ? `relative isolate mx-auto w-full ${inputMaxWidthClass}`
-    : prominentWidthClass;
-  const emptyStateNotesPanelClass =
-    'relative px-5 py-5 md:px-7 md:py-6';
-  const emptyStateNotesMarkdownClass = [
-    adapterNotesMarkdownClass,
-    'max-w-none text-[0.98rem] leading-8 text-[#434654] dark:text-[#d7dae3]',
-    '[&_h1]:text-[2rem] [&_h1]:font-semibold [&_h1]:tracking-[-0.03em] [&_h1]:text-[#17191f] dark:[&_h1]:text-white',
-    '[&_h2]:text-[1.35rem] [&_h2]:font-semibold [&_h2]:tracking-[-0.02em] [&_h2]:text-[#20232b] dark:[&_h2]:text-white',
-    '[&_p]:max-w-[88ch] [&_ul]:max-w-[86ch] [&_ol]:max-w-[86ch] [&_li]:leading-8'
-  ].join(' ');
-  const emptyStateInputWrapperClass = shouldShowAdapterNotesPanel
-    ? MOBILE_INPUT_WRAPPER_NON_STICKY_CLASSES
-    : MOBILE_INPUT_WRAPPER_CLASSES;
   const canStartNewConversation = canCreateNewConversation();
   const canChangeAgent = !!currentConversation?.adapterName && (currentConversation?.messages.length || 0) === 0;
   const newConversationTooltip = canStartNewConversation
@@ -129,13 +103,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     ? 'Guest conversation limit reached. Sign in for more conversations.'
     : 'Finish your current conversation before starting a new one.';
   const showHeaderMetadata = !!(currentConversation && !shouldShowAgentSelectionList);
-  const showBodyHeading = showEmptyState && !shouldShowAgentSelectionList;
-  const bodyHeadingText =
-    currentConversation?.adapterName && !shouldShowAgentSelectionList
-      ? currentConversation.adapterName
-      : shouldShowAgentSelectionList
-        ? applicationName
-        : '';
   const headerBorderClass = shouldShowAgentSelectionList
     ? 'border-transparent dark:border-transparent md:border-transparent md:dark:border-transparent'
     : '';
@@ -147,9 +114,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const effectiveHeaderClasses = headerClasses;
   const emptyStateTopSpacingClass = shouldShowAgentSelectionList
     ? 'pt-0 md:pt-0'
-    : shouldShowAdapterNotesPanel
-      ? 'pt-3 md:pt-0'
-      : 'pt-4 md:pt-6';
+    : 'pt-4 md:pt-6';
 
   useEffect(() => {
     let removeGestureListeners: (() => void) | null = null;
@@ -336,7 +301,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   </div>
                 )}
               </div>
-              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto md:justify-end md:gap-3">
+              <div className="flex w-full flex-wrap items-center gap-2 my-2 md:my-0 sm:w-auto md:justify-end md:gap-3">
                 {!shouldShowAgentSelectionList && !getEnableHeader() && (
                   <AuthStatus />
                 )}
@@ -381,27 +346,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
           {showEmptyState ? (
             <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
-              <div className={`flex-1 flex flex-col justify-between ${shouldShowAgentSelectionList ? 'md:justify-start min-h-0 overflow-hidden' : shouldShowAdapterNotesPanel ? 'md:justify-start md:pt-4 md:gap-6 overflow-y-auto' : 'md:justify-start md:flex-none'}`}>
-                <div className={`w-full ${shouldShowAgentSelectionList ? 'flex flex-col min-h-0 overflow-hidden flex-1' : shouldShowAdapterNotesPanel ? 'flex flex-col' : 'space-y-6'}`}>
-                  {showBodyHeading && !shouldShowAdapterNotesPanel && bodyHeadingText && (
-                    <div className={prominentWidthClass}>
-                      <MarkdownRenderer
-                        content={bodyHeadingText}
-                        className="prose prose-slate dark:prose-invert max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0 text-2xl font-semibold text-[#11111b] dark:text-white [&_p]:text-2xl [&_p]:font-semibold [&_p]:leading-tight [&_p]:m-0"
-                        syntaxTheme={syntaxTheme}
-                      />
-                      {bodyHeadingText === applicationName && hasIntroDescription && shouldShowAgentSelectionList && (
-                        <div className="mt-2">
-                          <MarkdownRenderer
-                            content={applicationDescription}
-                            className={introDescriptionMarkdownClass}
-                            syntaxTheme={syntaxTheme}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {shouldShowAgentSelectionList ? (
+              {shouldShowAgentSelectionList ? (
+                <div className="flex-1 flex flex-col md:justify-start min-h-0 overflow-hidden">
+                  <div className="w-full flex flex-col min-h-0 overflow-hidden flex-1">
                     <div className="flex flex-col min-h-0 flex-1 gap-3 md:gap-6 overflow-y-auto md:overflow-hidden">
                       <div className={`${prominentWidthClass} flex-shrink-0 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between`}>
                         <div className="flex-1">
@@ -429,53 +376,28 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         className={`${prominentWidthClass} md:flex-1 md:min-h-0 md:overflow-hidden`}
                       />
                     </div>
-                  ) : shouldShowAdapterNotesPanel ? (
-                    <div className={`${emptyStateStageClass} px-0 py-0`}>
-                      <div className={emptyStateNotesPanelClass}>
-                        <div className="relative text-left">
-                          {currentConversation?.adapterInfo?.notes ? (
-                            <MarkdownRenderer
-                              content={currentConversation.adapterInfo.notes}
-                              className={emptyStateNotesMarkdownClass}
-                              syntaxTheme={syntaxTheme}
-                            />
-                          ) : adapterNotesError ? (
-                            <p className="text-sm text-red-600 dark:text-red-400">
-                              {adapterNotesError}
-                            </p>
-                          ) : isConfiguringAdapter ? (
-                            <p className="text-sm text-gray-600 dark:text-[#bfc2cd]">
-                              Configuring your agent… hang tight for just a moment.
-                            </p>
-                          ) : (
-                            <p className="text-sm text-gray-600 dark:text-[#bfc2cd]">
-                              Fetching agent overview… this only takes a moment.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className={`${prominentWidthClass} mb-2`}>
-                      {currentConversation?.adapterInfo?.notes ? (
-                        <div className="text-base text-gray-600 dark:text-[#bfc2cd] leading-relaxed">
-                          <MarkdownRenderer
-                            content={currentConversation.adapterInfo.notes}
-                            className={adapterNotesMarkdownClass}
-                            syntaxTheme={syntaxTheme}
-                          />
-                        </div>
-                      ) : (
-                        <h2 className="text-xl md:text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
-                          How can I assist you today?
-                        </h2>
-                      )}
-                    </div>
-                  )}
+                  </div>
                 </div>
-                {!shouldShowAgentSelectionList && (
-                  <div className={emptyStateInputWrapperClass}>
-                    <div className={messageInputWidthClass}>
+              ) : (
+                <div className="flex flex-1 flex-col items-center min-h-0 pt-[8vh] md:pt-[12vh]">
+                  <div className="mx-auto w-full max-w-[48rem] flex flex-col items-center gap-6 px-4">
+                    {adapterNotesError ? (
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {adapterNotesError}
+                      </p>
+                    ) : isConfiguringAdapter ? (
+                      <p className="text-sm text-gray-500 dark:text-[#bfc2cd]">
+                        Configuring your agent…
+                      </p>
+                    ) : currentConversation?.adapterName ? (
+                      <h2
+                        className="text-xl md:text-2xl font-semibold text-[#353740] dark:text-[#ececf1] text-center tracking-tight"
+                        style={{ fontFamily: '-apple-system, "SF Pro Display", BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}
+                      >
+                        {getAdapterDisplayName(currentConversation.adapterName) || currentConversation.adapterName}
+                      </h2>
+                    ) : null}
+                    <div className="w-full">
                       <MessageInput
                         onSend={handleSendMessage}
                         disabled={
@@ -485,15 +407,14 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                           hasAdapterConfigurationError
                         }
                         autoFocusEnabled
-                        suppressMobileAutoFocus={shouldShowAdapterNotesPanel}
                         placeholder={defaultInputPlaceholder}
                         maxWidthClass={inputMaxWidthClass}
-                        isCentered={shouldShowAdapterNotesPanel}
+                        adapterNotes={currentConversation?.adapterInfo?.notes}
                       />
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex flex-1 flex-col min-h-0">
@@ -528,6 +449,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     placeholder="Start a new topic..."
                     maxWidthClass={inputMaxWidthClass}
                     isCentered={false}
+                    adapterNotes={currentConversation?.adapterInfo?.notes}
                   />
                 </div>
               </div>

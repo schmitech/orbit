@@ -349,6 +349,17 @@ export function getDefaultInputPlaceholder(): string {
   return runtimeConfig.application.inputPlaceholder;
 }
 
+export function getAdapterDisplayName(adapterId?: string | null): string | null {
+  const normalizedId = adapterId?.trim();
+  if (!normalizedId) {
+    return null;
+  }
+
+  const adapter = runtimeConfig.adapters.find((item) => item?.id?.trim() === normalizedId);
+  const name = adapter?.name?.trim();
+  return name || null;
+}
+
 export function getAdapterInputPlaceholder(adapterId?: string | null): string | null {
   const normalizedId = adapterId?.trim();
   if (!normalizedId) {

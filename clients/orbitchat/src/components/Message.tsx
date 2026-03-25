@@ -461,6 +461,7 @@ export function Message({
                     <span>Follow up</span>
                   </button>
                 )}
+
               </div>
 
 
@@ -523,6 +524,7 @@ export function Message({
                 </div>
               )}
             </div>
+
           </>
         )}
 

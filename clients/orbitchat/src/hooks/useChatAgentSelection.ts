@@ -425,7 +425,6 @@ export function useChatAgentSelection({
     isAgentSelectionVisible,
     isConfiguringAdapter,
     setIsAgentSelectionVisible,
-    shouldShowAdapterNotesPanel: showEmptyState && !isAgentSelectionVisible && !!currentConversation?.adapterName,
     shouldShowAgentSelectionList: showEmptyState && isAgentSelectionVisible
   };
 }

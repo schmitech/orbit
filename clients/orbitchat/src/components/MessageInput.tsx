@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
-import { ArrowUp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square } from 'lucide-react';
+import { ArrowUp, HelpCircle, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useVoice } from '../hooks/useVoice';
 import { useAutocomplete } from '../hooks/useAutocomplete';
 import { FileUpload } from './FileUpload';
@@ -15,6 +16,9 @@ import { playSoundEffect } from '../utils/soundEffects';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { useLoginPromptStore } from '../stores/loginPromptStore';
+import { MarkdownRenderer } from './markdown';
+import { useTheme } from '../contexts/ThemeContext';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[], threadId?: string) => void;
@@ -31,6 +35,10 @@ interface MessageInputProps {
    * Optional max width utility class for non-centered layouts.
    */
   maxWidthClass?: string;
+  /**
+   * Adapter notes/description content shown via a help icon modal.
+   */
+  adapterNotes?: string | null;
 }
 
 const MIME_EXTENSION_MAP: Record<string, string> = {
@@ -142,11 +150,13 @@ export function MessageInput({
   autoFocusEnabled = true,
   suppressMobileAutoFocus = false,
   isCentered = false,
-  maxWidthClass = 'max-w-5xl'
+  maxWidthClass = 'max-w-5xl',
+  adapterNotes
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [showAgentInfo, setShowAgentInfo] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<FileAttachment[]>([]);
   const [conversationUploadingState, setConversationUploadingState] = useState<Record<string, boolean>>({});
@@ -168,6 +178,7 @@ export function MessageInput({
     isDeleting: false
   });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const agentInfoModalRef = useRef<HTMLDivElement>(null);
   const uploadPanelRef = useRef<HTMLDivElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
   const voiceMessageRef = useRef('');
@@ -175,6 +186,10 @@ export function MessageInput({
   const lastProcessedVoiceCompletionRef = useRef(0);
   const lastConversationIdRef = useRef<string | null>(null);
   const { settings, updateSettings } = useSettings();
+  const { theme, isDark } = useTheme();
+  const agentInfoForcedThemeClass = theme.mode === 'dark' ? 'dark' : theme.mode === 'light' ? 'light' : '';
+  const agentInfoSyntaxTheme: 'dark' | 'light' = isDark ? 'dark' : 'light';
+  useFocusTrap(agentInfoModalRef, { enabled: showAgentInfo, onEscape: () => setShowAgentInfo(false) });
   const setConversationUploading = useCallback((conversationId: string | null, uploading: boolean) => {
     if (!conversationId) {
       return;
@@ -1188,6 +1203,7 @@ export function MessageInput({
   const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
 
   return (
+    <>
     <div className={`bg-transparent px-2 py-1.5 md:bg-transparent md:px-0 md:pt-4 md:pb-2 md:dark:bg-transparent sm:px-4 ${containerAlignmentClasses}`}>
       <div className={`mx-auto w-full ${contentMaxWidth}`}>
         {voiceError && audioInputEnabled && (
@@ -1496,6 +1512,18 @@ export function MessageInput({
                 </>
               )}
 
+              {adapterNotes && (
+                <button
+                  type="button"
+                  onClick={() => setShowAgentInfo(true)}
+                  className="flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]"
+                  title="About this agent"
+                  aria-label="About this agent"
+                >
+                  <HelpCircle className="h-5 w-5 md:h-4 md:w-4" />
+                </button>
+              )}
+
               {(hasProcessingFiles || isUploading) && (
                 <div className="flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center">
                   <Loader2 className="h-5 w-5 md:h-4 md:w-4 animate-spin text-gray-500 dark:text-[#bfc2cd]" />
@@ -1674,5 +1702,55 @@ export function MessageInput({
         </div>
       </div>
     </div>
+
+    {showAgentInfo && adapterNotes && typeof document !== 'undefined' && createPortal(
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm animate-fadeIn">
+        <div
+          ref={agentInfoModalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="agent-info-title"
+          tabIndex={-1}
+          className="w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl bg-white shadow-2xl transform animate-fadeIn dark:bg-gray-800"
+        >
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+                <HelpCircle className="w-5 h-5 text-blue-500" />
+              </div>
+              <h2 id="agent-info-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                About this agent
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAgentInfo(false)}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+            </button>
+          </div>
+          <div className="p-6">
+            <MarkdownRenderer
+              content={adapterNotes}
+              className={`message-markdown w-full min-w-0 prose prose-slate dark:prose-invert max-w-none text-sm leading-relaxed text-[#434654] dark:text-[#d7dae3] [&>:first-child]:mt-0 [&>:last-child]:mb-0 ${agentInfoForcedThemeClass}`}
+              syntaxTheme={agentInfoSyntaxTheme}
+            />
+          </div>
+          <div className="flex items-center justify-end p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => setShowAgentInfo(false)}
+              className="px-4 py-3 md:py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium shadow-sm hover:shadow-md"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   );
 }
