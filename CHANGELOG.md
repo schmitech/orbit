@@ -13,6 +13,11 @@
 - Minor UX: More space for agent notes
 
 ### Bug Fixes & Technical Improvements
+- Vector store score consistency: Fixed similarity score formulas across all vector store backends so `confidence_threshold` behaves identically regardless of backend — ChromaDB used `1 - d/2` instead of `1 - d` (inflating scores ~15-25%), FAISS applied a cosine formula to L2 distances, and Milvus returned raw L2 distances as scores; all stores now return true cosine similarity in [0, 1]
+- Per-example template embedding: Replaced single-blob embedding strategy (all nl_examples concatenated into one vector per template) with per-example indexing — each `nl_example` gets its own vector with lightweight context (description + primary entity), widening the score spread from ~0.55-0.67 to ~0.20-0.95+, eliminating both false positives on short queries and missed exact matches at reasonable thresholds
+- Template search dedup: `_find_best_templates` now strips `::exN` vector ID suffixes and deduplicates by base template, keeping the highest-scoring example per template
+- Template rescue fix: `_rescue_by_nl_example` now always runs even when vector search returns zero results, preventing missed exact nl_example matches when threshold filters everything
+- Test coverage: Added 27 unit tests for score conversion formulas (Chroma, FAISS, Milvus, Weaviate cross-consistency), per-example embedding text generation, and deduplication logic
 - Language detection: Pipeline identification, multilingual intent domain parameters, and embedding client close behavior
 - Database cleanup script: Extended to additional tables
 
