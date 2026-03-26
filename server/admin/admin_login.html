@@ -42,23 +42,11 @@
             box-shadow: 0 30px 80px -48px rgba(14, 165, 233, 0.45);
             backdrop-filter: blur(16px);
         }
-        .login-kicker {
-            margin: 0 0 12px;
-            font-size: 0.78rem;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            color: var(--muted);
-        }
         h1 {
-            margin: 0 0 10px;
+            margin: 0 0 24px;
             font-size: 2rem;
             line-height: 1.1;
-        }
-        .login-copy {
-            margin: 0 0 24px;
-            color: var(--muted);
-            font-size: 0.95rem;
-            line-height: 1.5;
+            text-align: center;
         }
         .login-alert {
             margin-bottom: 18px;
@@ -145,9 +133,7 @@
 </head>
 <body>
     <main class="login-shell">
-        <p class="login-kicker">Admin Access</p>
         <h1>Sign in to ORBIT</h1>
-        <p class="login-copy">Use an admin account to access live monitoring, exports, and telemetry controls.</p>
         {{ERROR_BLOCK}}
         <form method="post" action="/admin/login">
             <input type="hidden" name="next" value="{{NEXT_PATH}}">
