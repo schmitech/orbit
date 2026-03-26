@@ -190,10 +190,10 @@ class ChromaRetriever(AbstractVectorRetriever):
                 distances = results['distances'][0] if results['distances'] else [0.0] * len(documents)
                 
                 for doc, metadata, distance in zip(documents, metadatas, distances):
-                    # With cosine similarity, Chroma returns distances where:
-                    # 0 = identical vectors, 2 = opposite vectors
-                    # Convert to similarity score (0-1) like Qdrant
-                    similarity_score = 1.0 - (distance / 2.0) if distance <= 2 else 0.0
+                    # ChromaDB cosine distance = 1 - cosine_similarity
+                    # Distance range: [0, 2], convert back to cosine similarity
+                    # Clamp to [0, 1] for consistency with Qdrant
+                    similarity_score = max(0.0, 1.0 - distance)
                     
                     search_results.append({
                         'document': doc,
@@ -225,29 +225,17 @@ class ChromaRetriever(AbstractVectorRetriever):
     def calculate_similarity_from_distance(self, distance: float) -> float:
         """
         Convert ChromaDB cosine distance to similarity score.
-        With cosine similarity metric, ChromaDB returns distances where:
-        - 0 = identical vectors (similarity = 1)
-        - 1 = orthogonal vectors (similarity = 0)
-        - 2 = opposite vectors (similarity = -1)
-        
-        We normalize this to 0-1 range where 1 = most similar.
-        
+        ChromaDB cosine distance = 1 - cosine_similarity, range [0, 2].
+
         Args:
             distance: Cosine distance from ChromaDB (0-2)
-            
+
         Returns:
-            Similarity score between 0 and 1
+            Cosine similarity score clamped to [0, 1]
         """
-        # Convert cosine distance to similarity score
-        # Distance range [0, 2] maps to similarity [1, -1]
-        # We normalize to [0, 1] for consistency with Qdrant
-        if distance <= 0:
-            return 1.0
-        elif distance >= 2:
-            return 0.0
-        else:
-            # Linear conversion: distance 0->1, distance 2->0
-            return 1.0 - (distance / 2.0)
+        # Direct conversion: cosine_similarity = 1 - distance
+        # Clamp to [0, 1] for consistency with Qdrant
+        return max(0.0, min(1.0, 1.0 - distance))
 
 # Register the retriever with the factory
 RetrieverFactory.register_retriever('chroma', ChromaRetriever) 

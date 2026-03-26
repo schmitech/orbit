@@ -208,7 +208,7 @@ class FaissStore(BaseVectorStore):
 
                 results.append({
                     "id": str_id,
-                    "score": max(0, 1.0 - (distances[0][i] / 2.0)),  # Normalize L2 distance to [0, 1]
+                    "score": 1.0 / (1.0 + distances[0][i]),  # L2 distance to similarity: [0, inf) -> (0, 1]
                     "metadata": metadata,
                     "text": text,
                     "content": text

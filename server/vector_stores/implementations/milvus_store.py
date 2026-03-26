@@ -85,7 +85,7 @@ class MilvusStore(BaseVectorStore):
                 payload = {k: v for k, v in hit['entity'].items() if k not in ['id', 'vector']}
                 results.append({
                     "id": hit['entity']['id'],
-                    "score": hit['distance'],
+                    "score": 1.0 / (1.0 + hit['distance']),  # L2 distance to similarity: [0, inf) -> (0, 1]
                     "metadata": payload
                 })
             return results

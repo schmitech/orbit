@@ -81,22 +81,11 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
     def convert_score_to_confidence(self, score: float) -> float:
         """
         Convert ChromaDB cosine distance to confidence value.
-        
-        With cosine similarity metric, ChromaDB returns distances where:
-        - 0 = identical vectors (similarity = 1)
-        - 1 = orthogonal vectors (similarity = 0) 
-        - 2 = opposite vectors (similarity = -1)
-        
-        Convert to similarity score between 0 and 1 to match Qdrant.
+
+        ChromaDB cosine distance = 1 - cosine_similarity, range [0, 2].
+        Convert back to cosine similarity clamped to [0, 1] for consistency with Qdrant.
         """
-        # Direct conversion from cosine distance to similarity
-        if score <= 0:
-            return 1.0
-        elif score >= 2:
-            return 0.0
-        else:
-            # Linear conversion: distance 0->1, distance 2->0
-            return 1.0 - (score / 2.0)
+        return max(0.0, min(1.0, 1.0 - score))
     
     async def query_vector_database(self, 
                                   query_embedding: List[float], 

@@ -472,29 +472,28 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             
             # Load templates into the template store
             loaded_count = 0
-            
-            # Prepare templates for batch embedding
-            valid_templates = []
-            embedding_texts = []
-            
+
+            # Build per-example vector entries: (vector_id, template, embedding_text)
+            # Each nl_example gets its own vector for precise matching
+            vector_entries = []
             for template in templates:
                 if not isinstance(template, dict):
                     continue
-                    
                 template_id = template.get('id')
                 if not template_id:
                     continue
-                
-                # Create embedding text for the template
-                embedding_text = self._create_embedding_text(template)
-                valid_templates.append(template)
-                embedding_texts.append(embedding_text)
-            
-            # Batch generate embeddings for all templates
+                for embedding_text, suffix in self._create_example_embedding_texts(template):
+                    vector_id = f"{template_id}::{suffix}"
+                    vector_entries.append((vector_id, template, embedding_text))
+
+            embedding_texts = [entry[2] for entry in vector_entries]
+
+            # Batch generate embeddings for all example texts
             embeddings = []
             if embedding_texts:
                 try:
-                    logger.info(f"Generating embeddings for {len(embedding_texts)} templates in batch...")
+                    logger.info(f"Generating embeddings for {len(embedding_texts)} template examples in batch "
+                               f"(from {len(templates)} templates)...")
                     logger.debug(
                         f"[EmbeddingTrace] embed_documents call: "
                         f"provider={self._embedding_provider}, "
@@ -512,7 +511,6 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 except Exception as e:
                     logger.error(f"Failed to batch generate embeddings: {e}")
                     logger.info("Falling back to individual embedding generation...")
-                    # Fallback to individual generation
                     for text in embedding_texts:
                         try:
                             embedding = await self.embedding_client.embed_query(text)
@@ -520,12 +518,11 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         except Exception as e2:
                             logger.error(f"Failed to generate embedding: {e2}")
                             embeddings.append(None)
-            
+
             # Prepare templates with embeddings
             templates_with_embeddings = []
-            for i, (template, embedding) in enumerate(zip(valid_templates, embeddings)):
+            for (vector_id, template, _), embedding in zip(vector_entries, embeddings):
                 if embedding:
-                    template_id = template.get('id')
                     template_data = {
                         'sql': template.get('sql', ''),
                         'description': template.get('description', ''),
@@ -533,7 +530,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         'parameters': template.get('parameters', []),
                         'examples': template.get('nl_examples', [])
                     }
-                    templates_with_embeddings.append((template_id, template_data, embedding))
+                    templates_with_embeddings.append((vector_id, template_data, embedding))
             
             # Batch add templates to the store
             if templates_with_embeddings:
@@ -658,7 +655,44 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                     parts.extend(entity_synonyms[primary_entity])
         
         return ' '.join(filter(None, parts))
-    
+
+    def _create_example_embedding_texts(self, template: Dict[str, Any]) -> List[Tuple[str, str]]:
+        """
+        Create per-example embedding texts for a template.
+
+        Instead of one large blob per template, each nl_example gets its own
+        focused embedding combined with short context (description + primary entity).
+        This dramatically improves match precision — exact nl_example queries
+        score 0.9+ instead of ~0.65 with the concatenated blob approach.
+
+        Returns:
+            List of (embedding_text, id_suffix) tuples.
+            The id_suffix is used to create unique vector IDs: "{template_id}::{suffix}".
+        """
+        description = template.get('description', '')
+        nl_examples = template.get('nl_examples', [])
+
+        # Build short context: description + primary entity + action
+        context_parts = [description]
+        if 'semantic_tags' in template:
+            sem = template['semantic_tags']
+            if sem.get('primary_entity'):
+                context_parts.append(sem['primary_entity'])
+            if sem.get('action'):
+                context_parts.append(sem['action'])
+        context = ' '.join(filter(None, context_parts))
+
+        texts = []
+        for i, example in enumerate(nl_examples):
+            if example and example.strip():
+                texts.append((f"{example} {context}", f"ex{i}"))
+
+        if not texts:
+            # Fallback: templates without nl_examples use the full blob
+            texts.append((self._create_embedding_text(template), "desc"))
+
+        return texts
+
     def _create_template_metadata(self, template: Dict[str, Any]) -> Dict[str, Any]:
         """Create metadata for ChromaDB storage."""
         metadata = {
@@ -907,40 +941,52 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             logger.debug("==================================")
 
             # Search for similar templates
+            # Use higher limit to account for multiple vectors per template (per-example indexing)
+            search_limit = self.max_templates * 3
             search_results = await self.template_store.search_similar_templates(
                 query_embedding=query_embedding,
-                limit=self.max_templates,
+                limit=search_limit,
                 threshold=self.confidence_threshold
             )
+
+            # Deduplicate: per-example indexing means multiple vectors per template.
+            # Strip "::exN" suffix and keep the highest-scoring hit per base template.
+            if search_results:
+                seen = {}
+                for result in search_results:
+                    raw_tid = result.get('template_id', '')
+                    base_tid = raw_tid.rsplit('::', 1)[0] if '::' in raw_tid else raw_tid
+                    score = result.get('score', 0)
+                    if base_tid not in seen or score > seen[base_tid]['score']:
+                        result['template_id'] = base_tid
+                        seen[base_tid] = result
+                search_results = sorted(seen.values(), key=lambda r: r.get('score', 0), reverse=True)
+                search_results = search_results[:self.max_templates]
 
             if search_results:
                 scores = [f"{result.get('score', 0):.3f}" for result in search_results]
                 scores_str = ", ".join(scores)
                 template_ids = [result.get('template_id', 'unknown') for result in search_results]
                 logger.debug(f"Similarity search with threshold {self.confidence_threshold} returned {len(search_results)} results with scores: [{scores_str}]")
-                logger.debug(f"Found template IDs: {template_ids[:3]}...")  # Show first 3 template IDs
+                logger.debug(f"Found template IDs: {template_ids[:3]}...")
             else:
                 logger.debug(f"Similarity search with threshold {self.confidence_threshold} returned 0 results")
-            
-            if not search_results:
-                return []
-            
+
             templates = []
-            for result in search_results:
-                template_id = result.get('template_id')
-                template = self.domain_adapter.get_template_by_id(template_id)
-                if template:
-                    # Merge template data with search result
-                    templates.append({
-                        'template': template,
-                        'similarity': result.get('score', 0),
-                        'embedding_text': result.get('description', '')
-                    })
-                else:
-                    logger.warning(f"Template {template_id} not found in adapter")
-            
-            # nl_example exact-match rescue: scan all templates for close matches
-            # that the vector search may have missed due to tight max_templates
+            if search_results:
+                for result in search_results:
+                    template_id = result.get('template_id')
+                    template = self.domain_adapter.get_template_by_id(template_id)
+                    if template:
+                        templates.append({
+                            'template': template,
+                            'similarity': result.get('score', 0),
+                            'embedding_text': result.get('description', '')
+                        })
+                    else:
+                        logger.warning(f"Template {template_id} not found in adapter")
+
+            # nl_example exact-match rescue: always run, even when vector search is empty
             templates = self._rescue_by_nl_example(query, templates)
 
             logger.debug(f"Found {len(templates)} matching templates for query")

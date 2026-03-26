@@ -234,9 +234,10 @@ class ChromaStore(BaseVectorStore):
                     
                     # Convert distance to similarity score based on metric
                     if distance_function == 'cosine':
-                        # Cosine distance range: [0, 2], where 0 is identical
-                        # Convert to similarity: [0, 1], where 1 is identical
-                        score = max(0, 1.0 - (distance / 2.0))
+                        # ChromaDB cosine distance = 1 - cosine_similarity
+                        # Distance range: [0, 2], Similarity range: [-1, 1]
+                        # Clamp to [0, 1] for consistency with Qdrant
+                        score = max(0.0, 1.0 - distance)
                     elif distance_function == 'l2':
                         # L2 distance: [0, inf), use exponential decay
                         score = 1.0 / (1.0 + distance)
