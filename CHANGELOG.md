@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.6.4] - 2026-03-26
+
+### Core System Updates
+- Admin: Adapters tab with searchable list, per-adapter Ace YAML editor, enable/disable toggles, and read/write/list endpoints aligned with reload-adapters and reload-templates
+- Chat feedback: Thumbs up/down wired to feedback API and database with idempotent create/remove/switch on main replies and thread replies; responses always return `assistant_message_id` for feedback
+- Config: `adapters[].inputPlaceholder` from `orbitchat.yaml` through runtime metadata to `MessageInput`, with precedence so multimodal/file-upload adapters can override the generic placeholder
+
+### Chat-app & UI Improvements
+- orbitchat v3.6.1: Input-first empty state (centered input, adapter display name, adapter notes in help modal); transparent mobile header; `getAdapterDisplayName()` helper; chat feedback buttons enabled
+- Admin login: Simplified copy and layout (centered sign-in; removed kicker and long feature blurb)
+- Minor UX: More space for agent notes
+
+### Bug Fixes & Technical Improvements
+- Language detection: Pipeline identification, multilingual intent domain parameters, and embedding client close behavior
+- Database cleanup script: Extended to additional tables
+
 ## [2.6.3] - 2026-03-19
 
 ### Core System Updates
