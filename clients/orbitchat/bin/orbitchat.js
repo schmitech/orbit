@@ -387,7 +387,7 @@ function createServer(distPath, config, serverConfig = {}) {
         return adapters[adapterName]?.apiUrl;
       },
       changeOrigin: true,
-      pathRewrite: (p) => p.startsWith('/files') || p.startsWith('/threads') ? '/api' + p : p,
+      pathRewrite: (p) => p.startsWith('/files') || p.startsWith('/threads') || p.startsWith('/feedback') ? '/api' + p : p,
       on: {
         proxyReq: (proxyReq, reqIncoming) => {
           const adapterName = reqIncoming.headers['x-adapter-name'];

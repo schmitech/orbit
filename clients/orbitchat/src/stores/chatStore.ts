@@ -302,6 +302,8 @@ interface ExtendedChatState extends ChatState {
   syncConversationsWithBackend: () => Promise<void>;
   stopStreaming: () => Promise<void>;
   clearCurrentConversationAdapter: () => void;
+  submitFeedback: (conversationMessageId: string, feedbackType: 'up' | 'down') => Promise<void>;
+  loadFeedbackForConversation: (sessionId: string) => Promise<void>;
 }
 
 // API configuration state
@@ -567,8 +569,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       // Files are only loaded when explicitly uploaded to a conversation
       // This ensures full segregation - files from one conversation don't appear in others
       // await get().syncConversationFiles(id);
+
+      // Load feedback state for this conversation (non-blocking)
+      get().loadFeedbackForConversation(conversation.sessionId).catch(() => {});
     }
-    
+
     // Save to localStorage
     debouncedSaveToLocalStorage(get);
   },
@@ -1266,7 +1271,25 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 databaseMessageId: threadingInfo.message_id
               });
             }
-            
+
+            // Always capture assistant_message_id for feedback support (even without threading)
+            if (response.assistant_message_id) {
+              set(state => ({
+                conversations: state.conversations.map(conv => {
+                  if (conv.id !== streamingConversationId) return conv;
+                  return {
+                    ...conv,
+                    messages: conv.messages.map(msg =>
+                      msg.id === assistantMessageId && !msg.databaseMessageId
+                        ? { ...msg, databaseMessageId: response.assistant_message_id }
+                        : msg
+                    ),
+                    updatedAt: new Date()
+                  };
+                })
+              }));
+            }
+
             break;
           }
         }
@@ -1714,6 +1737,25 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 })
               }));
             }
+
+            // Always capture assistant_message_id for feedback support (even without threading)
+            if (response.assistant_message_id) {
+              set(state => ({
+                conversations: state.conversations.map(conv => {
+                  if (conv.id !== regeneratingConversationId) return conv;
+                  return {
+                    ...conv,
+                    messages: conv.messages.map(msg =>
+                      msg.id === newAssistantMessageId && !msg.databaseMessageId
+                        ? { ...msg, databaseMessageId: response.assistant_message_id }
+                        : msg
+                    ),
+                    updatedAt: new Date()
+                  };
+                })
+              }));
+            }
+
             break;
           }
         }
@@ -2271,6 +2313,118 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }));
 
     debouncedSaveToLocalStorage(get);
+  },
+
+  submitFeedback: async (conversationMessageId: string, feedbackType: 'up' | 'down') => {
+    const state = get();
+    const conversation = state.conversations.find(c => c.id === state.currentConversationId);
+    if (!conversation) return;
+
+    const message = conversation.messages.find(m => m.id === conversationMessageId);
+    if (!message?.databaseMessageId) {
+      debugWarn('[chatStore] Cannot submit feedback: no databaseMessageId on message');
+      return;
+    }
+
+    if (!conversation.adapterName) return;
+
+    try {
+      const conversationApiUrl = resolveApiUrl(conversation.apiUrl || getApiUrl());
+      const api = await getApi();
+      const apiClient = new api.ApiClient({
+        apiUrl: conversationApiUrl,
+        sessionId: conversation.sessionId,
+        adapterName: conversation.adapterName
+      });
+
+      const result = await apiClient.submitFeedback!(
+        message.databaseMessageId,
+        conversation.sessionId,
+        feedbackType
+      );
+
+      // Update the message's feedback state from the server response
+      const newFeedbackType = result.feedback_type as 'up' | 'down' | null;
+      set(s => ({
+        conversations: s.conversations.map(conv => {
+          if (conv.id !== state.currentConversationId) return conv;
+          return {
+            ...conv,
+            messages: conv.messages.map(msg =>
+              msg.id === conversationMessageId
+                ? { ...msg, feedback: newFeedbackType }
+                : msg
+            ),
+            updatedAt: new Date()
+          };
+        })
+      }));
+
+      debouncedSaveToLocalStorage(get);
+    } catch (error) {
+      debugError('[chatStore] Failed to submit feedback:', error);
+    }
+  },
+
+  loadFeedbackForConversation: async (sessionId: string) => {
+    const state = get();
+    const conversation = state.conversations.find(c => c.sessionId === sessionId);
+    if (!conversation?.adapterName) return;
+
+    try {
+      const conversationApiUrl = resolveApiUrl(conversation.apiUrl || getApiUrl());
+      const api = await getApi();
+      const apiClient = new api.ApiClient({
+        apiUrl: conversationApiUrl,
+        sessionId: conversation.sessionId,
+        adapterName: conversation.adapterName
+      });
+
+      // Collect all session IDs: main conversation + any thread sessions
+      const sessionIds = new Set<string>([sessionId]);
+      for (const msg of conversation.messages) {
+        if (msg.threadInfo?.thread_session_id) {
+          sessionIds.add(msg.threadInfo.thread_session_id);
+        }
+      }
+
+      // Fetch feedback for all sessions in parallel
+      const feedbackResults = await Promise.all(
+        Array.from(sessionIds).map(sid =>
+          apiClient.getSessionFeedback!(sid).catch(() => ({ feedbacks: [] }))
+        )
+      );
+
+      // Build a combined map of message_id -> feedback_type
+      const feedbackMap = new Map<string, 'up' | 'down'>();
+      for (const result of feedbackResults) {
+        if (result?.feedbacks) {
+          for (const fb of result.feedbacks) {
+            feedbackMap.set(fb.message_id, fb.feedback_type as 'up' | 'down');
+          }
+        }
+      }
+
+      if (feedbackMap.size === 0) return;
+
+      // Apply feedback to matching messages (both main and thread messages)
+      set(s => ({
+        conversations: s.conversations.map(conv => {
+          if (conv.sessionId !== sessionId) return conv;
+          return {
+            ...conv,
+            messages: conv.messages.map(msg => {
+              if (msg.databaseMessageId && feedbackMap.has(msg.databaseMessageId)) {
+                return { ...msg, feedback: feedbackMap.get(msg.databaseMessageId)! };
+              }
+              return msg;
+            })
+          };
+        })
+      }));
+    } catch (error) {
+      debugError('[chatStore] Failed to load feedback:', error);
+    }
   }
 }));
 

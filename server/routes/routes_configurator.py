@@ -85,7 +85,10 @@ class RouteConfigurator:
         
         # Configure thread endpoints
         self._configure_thread_endpoints(app, dependencies)
-        
+
+        # Configure feedback endpoints
+        self._configure_feedback_endpoints(app, dependencies)
+
         # Include admin router
         self._include_admin_routes(app)
         
@@ -99,6 +102,7 @@ class RouteConfigurator:
             'get_api_key_service': self._create_api_key_service_dependency(),
             'get_prompt_service': self._create_prompt_service_dependency(),
             'get_thread_service': self._create_thread_service_dependency(),
+            'get_feedback_service': self._create_feedback_service_dependency(),
             'get_autocomplete_service': self._create_autocomplete_service_dependency(),
             'validate_session_id': self._create_session_validator(),
             'get_user_id': self._create_user_id_extractor(),
@@ -158,6 +162,21 @@ class RouteConfigurator:
                 request.app.state.thread_service = thread_service
             return request.app.state.thread_service
         return get_thread_service
+
+    def _create_feedback_service_dependency(self):
+        """Create feedback service dependency."""
+        async def get_feedback_service(request: Request):
+            if not hasattr(request.app.state, 'feedback_service'):
+                from services.feedback_service import FeedbackService
+                database_service = getattr(request.app.state, 'database_service', None)
+                feedback_service = FeedbackService(
+                    request.app.state.config,
+                    database_service=database_service
+                )
+                await feedback_service.initialize()
+                request.app.state.feedback_service = feedback_service
+            return request.app.state.feedback_service
+        return get_feedback_service
 
     def _create_autocomplete_service_dependency(self):
         """Create autocomplete service dependency."""
@@ -824,6 +843,58 @@ class RouteConfigurator:
                 raise HTTPException(status_code=404, detail="Thread not found")
             return {"status": "success", "message": "Thread deleted", "thread_id": thread_id}
     
+    def _configure_feedback_endpoints(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
+        """Configure feedback endpoints."""
+
+        class FeedbackRequest(BaseModel):
+            message_id: str
+            session_id: str
+            feedback_type: str  # 'up' or 'down'
+
+        @app.post("/api/feedback", operation_id="submit_feedback")
+        async def submit_feedback(
+            request_body: FeedbackRequest,
+            request: Request,
+            feedback_service = Depends(dependencies['get_feedback_service']),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
+            user_id: Optional[str] = Depends(dependencies['get_user_id'])
+        ):
+            """Submit or toggle feedback for a chat response."""
+            adapter_name, _ = api_key_result
+
+            if request_body.feedback_type not in ('up', 'down'):
+                raise HTTPException(status_code=400, detail="feedback_type must be 'up' or 'down'")
+
+            try:
+                result = await feedback_service.submit_feedback(
+                    message_id=request_body.message_id,
+                    session_id=request_body.session_id,
+                    feedback_type=request_body.feedback_type,
+                    user_id=user_id,
+                    adapter_name=adapter_name
+                )
+                return result
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except Exception as e:
+                logger.error(f"Failed to submit feedback: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to submit feedback: {str(e)}")
+
+        @app.get("/api/feedback/{session_id}", operation_id="get_session_feedback")
+        async def get_session_feedback(
+            session_id: str,
+            request: Request,
+            feedback_service = Depends(dependencies['get_feedback_service']),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
+        ):
+            """Get all feedback for a session."""
+            try:
+                feedbacks = await feedback_service.get_session_feedback(session_id)
+                return {"feedbacks": feedbacks}
+            except Exception as e:
+                logger.error(f"Failed to get session feedback: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to get feedback: {str(e)}")
+
     def _include_admin_routes(self, app: FastAPI) -> None:
         """Include admin routes, auth routes, and health routes."""
         from routes.admin_routes import admin_router

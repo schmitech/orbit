@@ -22,6 +22,7 @@ import { AppConfig } from '../utils/config';
 import { useTheme } from '../contexts/ThemeContext';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { useLoginPromptStore } from '../stores/loginPromptStore';
+import { useChatStore } from '../stores/chatStore';
 
 interface MessageProps {
   message: MessageType;
@@ -36,6 +37,46 @@ interface MessageProps {
 
 const EMPTY_THREAD_REPLIES: MessageType[] = [];
 
+function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
+  const [isLoading, setIsLoading] = useState(false);
+  const submitFeedbackAction = useChatStore(state => state.submitFeedback);
+
+  const handleClick = async (type: 'up' | 'down') => {
+    if (!reply.databaseMessageId || isLoading) return;
+    setIsLoading(true);
+    try {
+      await submitFeedbackAction(reply.id, type);
+    } catch (error) {
+      debugError('Failed to submit thread reply feedback:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-0.5 mt-0.5">
+      <button
+        onClick={() => handleClick('up')}
+        disabled={isLoading}
+        className={`rounded-md p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-[#6e6e80] hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
+        title="Good response"
+        aria-label="Good response"
+      >
+        <ThumbsUp className="h-3.5 w-3.5" />
+      </button>
+      <button
+        onClick={() => handleClick('down')}
+        disabled={isLoading}
+        className={`rounded-md p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-[#6e6e80] hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
+        title="Poor response"
+        aria-label="Poor response"
+      >
+        <ThumbsDown className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 export function Message({
   message,
   onRegenerate,
@@ -47,7 +88,7 @@ export function Message({
   isThreadSendDisabled
 }: MessageProps) {
   const [copied, setCopied] = useState(false);
-  const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
+  const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
   const [threadInput, setThreadInput] = useState('');
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
@@ -192,8 +233,18 @@ export function Message({
     }
   };
 
-  const handleFeedback = (type: 'up' | 'down') => {
-    setFeedback(feedback === type ? null : type);
+  const submitFeedback = useChatStore(state => state.submitFeedback);
+
+  const handleFeedback = async (type: 'up' | 'down') => {
+    if (!message.databaseMessageId || isFeedbackLoading) return;
+    setIsFeedbackLoading(true);
+    try {
+      await submitFeedback(message.id, type);
+    } catch (error) {
+      debugError('Failed to submit feedback:', error);
+    } finally {
+      setIsFeedbackLoading(false);
+    }
   };
 
   const handleThreadSubmit = async () => {
@@ -388,6 +439,9 @@ export function Message({
             }>
               {replyContent}
             </div>
+            {replyIsAssistant && !reply.isStreaming && getEnableFeedbackButtons() && (
+              <ThreadReplyFeedback reply={reply} />
+            )}
           </div>
         </div>
       );
@@ -471,7 +525,8 @@ export function Message({
                 <div className="flex items-center gap-0.5">
                   <button
                     onClick={() => handleFeedback('up')}
-                    className={`rounded-md p-2.5 md:p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
+                    disabled={isFeedbackLoading}
+                    className={`rounded-md p-2.5 md:p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${isFeedbackLoading ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
                     title="Good response"
                     aria-label="Good response"
                   >
@@ -479,7 +534,8 @@ export function Message({
                   </button>
                   <button
                     onClick={() => handleFeedback('down')}
-                    className={`rounded-md p-2.5 md:p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
+                    disabled={isFeedbackLoading}
+                    className={`rounded-md p-2.5 md:p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${isFeedbackLoading ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
                     title="Poor response"
                     aria-label="Poor response"
                   >

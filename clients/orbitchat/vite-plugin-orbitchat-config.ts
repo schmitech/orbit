@@ -314,7 +314,7 @@ export function orbitchatConfigPlugin(): Plugin {
         const proxy = createProxyMiddleware({
           target: adapter.apiUrl,
           changeOrigin: true,
-          pathRewrite: (reqPath: string) => reqPath.startsWith('/files') || reqPath.startsWith('/threads') ? '/api' + reqPath : reqPath,
+          pathRewrite: (reqPath: string) => reqPath.startsWith('/files') || reqPath.startsWith('/threads') || reqPath.startsWith('/feedback') ? '/api' + reqPath : reqPath,
           headers: { 'X-API-Key': adapter.apiKey },
           on: {
             proxyReq: (proxyReq: ClientRequest, reqIncoming: IncomingMessage) => {

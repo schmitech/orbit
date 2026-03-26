@@ -15,6 +15,7 @@ export interface StreamResponse {
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
   audio_chunk?: string;  // Optional streaming audio chunk (base64-encoded)
   chunk_index?: number;  // Index of the audio chunk for ordering
+  assistant_message_id?: string;  // Database message ID for feedback
   threading?: {  // Optional threading metadata
     supports_threading: boolean;
     message_id: string;
@@ -69,6 +70,14 @@ export interface ApiClient {
     expires_at: string;
   }>;
   deleteThread?(threadId: string): Promise<{ status: string; message: string; thread_id: string }>;
+  submitFeedback?(messageId: string, sessionId: string, feedbackType: 'up' | 'down'): Promise<{
+    message_id: string;
+    feedback_type: string | null;
+    action: string;
+  }>;
+  getSessionFeedback?(sessionId: string): Promise<{
+    feedbacks: Array<{ message_id: string; feedback_type: string }>;
+  }>;
   clearConversationHistory?(sessionId?: string): Promise<{
     status: string;
     message: string;
@@ -242,6 +251,7 @@ function parseSseDataLine(line: string): StreamResponse | null {
       audioFormat: data.audio_format || data.audioFormat,
       audio_chunk: data.audio_chunk,
       chunk_index: data.chunk_index,
+      assistant_message_id: data.assistant_message_id,
       threading: data.threading
     };
   } catch {
@@ -388,6 +398,30 @@ function createProxyApi(): ApiFunctions {
           }),
         });
         if (!response.ok) throw new Error(`Failed to delete thread: ${response.statusText}`);
+        return response.json();
+      },
+
+      async submitFeedback(messageId: string, sessionId: string, feedbackType: 'up' | 'down') {
+        const response = await fetch('/api/feedback', {
+          method: 'POST',
+          headers: await buildHeaders({
+            'Content-Type': 'application/json',
+            'X-Adapter-Name': clientAdapterName,
+            'X-Session-ID': sessionId,
+          }),
+          body: JSON.stringify({ message_id: messageId, session_id: sessionId, feedback_type: feedbackType }),
+        });
+        if (!response.ok) throw new Error(`Failed to submit feedback: ${response.statusText}`);
+        return response.json();
+      },
+
+      async getSessionFeedback(sessionId: string) {
+        const response = await fetch(`/api/feedback/${sessionId}`, {
+          headers: await buildHeaders({
+            'X-Adapter-Name': clientAdapterName,
+          }),
+        });
+        if (!response.ok) throw new Error(`Failed to get feedback: ${response.statusText}`);
         return response.json();
       },
 
@@ -638,6 +672,8 @@ function createProxyApi(): ApiFunctions {
       get createThread() { return this.client.createThread?.bind(this.client); }
       get getThreadInfo() { return this.client.getThreadInfo?.bind(this.client); }
       get deleteThread() { return this.client.deleteThread?.bind(this.client); }
+      get submitFeedback() { return this.client.submitFeedback?.bind(this.client); }
+      get getSessionFeedback() { return this.client.getSessionFeedback?.bind(this.client); }
       get clearConversationHistory() { return this.client.clearConversationHistory?.bind(this.client); }
       get getConversationHistory() { return this.client.getConversationHistory?.bind(this.client); }
       get deleteConversationWithFiles() { return this.client.deleteConversationWithFiles?.bind(this.client); }

@@ -29,7 +29,8 @@ export interface Message {
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
   threadInfo?: ThreadInfo;
   supportsThreading?: boolean;
-  databaseMessageId?: string;  // Database message ID from server (used for thread creation)
+  databaseMessageId?: string;  // Database message ID from server (used for thread creation and feedback)
+  feedback?: 'up' | 'down' | null;  // Persisted feedback state
   threadId?: string; // Thread identifier when message belongs to a thread
   parentMessageId?: string; // Parent message ID when message belongs to a thread
   isThreadMessage?: boolean; // Marks messages that should be rendered as thread replies

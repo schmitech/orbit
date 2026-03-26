@@ -525,7 +525,8 @@ class StreamingHandler:
         state: StreamingState,
         audio_data: Optional[bytes] = None,
         audio_format_str: Optional[str] = None,
-        threading_metadata: Optional[Dict[str, Any]] = None
+        threading_metadata: Optional[Dict[str, Any]] = None,
+        assistant_message_id: Optional[str] = None
     ) -> str:
         """
         Build the final done chunk with all metadata.
@@ -547,6 +548,10 @@ class StreamingHandler:
         if state.sentence_detector and state.audio_chunks_sent > 0:
             done_chunk["total_audio_chunks"] = state.audio_chunks_sent
         
+        # Include assistant message ID for feedback support
+        if assistant_message_id:
+            done_chunk["assistant_message_id"] = assistant_message_id
+
         # Include threading metadata if available
         if threading_metadata:
             done_chunk["threading"] = threading_metadata

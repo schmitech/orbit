@@ -255,6 +255,18 @@ class SQLiteService(DatabaseService):
                     user_id TEXT,
                     adapter_name TEXT
                 )
+            ''',
+            'feedback': '''
+                CREATE TABLE IF NOT EXISTS feedback (
+                    id TEXT PRIMARY KEY,
+                    message_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    user_id TEXT,
+                    feedback_type TEXT NOT NULL,
+                    adapter_name TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
             '''
         }
 
@@ -300,6 +312,12 @@ class SQLiteService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_blocked ON audit_logs(blocked)',
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_backend ON audit_logs(backend)',
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_adapter_name ON audit_logs(adapter_name)',
+            ],
+            'feedback': [
+                'CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_message_session ON feedback(message_id, session_id)',
+                'CREATE INDEX IF NOT EXISTS idx_feedback_session ON feedback(session_id)',
+                'CREATE INDEX IF NOT EXISTS idx_feedback_type ON feedback(feedback_type)',
+                'CREATE INDEX IF NOT EXISTS idx_feedback_adapter ON feedback(adapter_name)',
             ],
         }
 

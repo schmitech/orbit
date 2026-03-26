@@ -348,6 +348,10 @@ class ResponseProcessor:
             }
         }
 
+        # Always include assistant message ID for feedback support
+        if assistant_message_id:
+            result["assistant_message_id"] = assistant_message_id
+
         # Add threading metadata if adapter supports it and has meaningful results
         # Only enable threading when there are actual sources/results to thread on
         # Filter out zero-confidence placeholder documents (e.g., "no matching templates found")

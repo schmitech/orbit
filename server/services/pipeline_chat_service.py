@@ -718,6 +718,7 @@ class PipelineChatService:
             state=final_state,
             audio_data=audio_data,
             audio_format_str=audio_format_str,
-            threading_metadata=threading_metadata
+            threading_metadata=threading_metadata,
+            assistant_message_id=assistant_message_id
         )
         yield done_chunk

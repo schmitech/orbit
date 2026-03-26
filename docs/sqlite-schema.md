@@ -15,6 +15,7 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 - `uploaded_files` - Uploaded file metadata for file adapter workflows
 - `file_chunks` - Chunk metadata for processed uploaded files
 - `audit_logs` - Audit trail records for conversation logging and compliance
+- `feedback` - User feedback (thumbs up/down) on chat responses
 
 ## Database File Location
 
@@ -385,6 +386,41 @@ When `storage_backend` is set to `"database"`, the audit service uses the same b
 
 **Response Compression:**
 When `compress_responses: true`, the response field is stored as base64-encoded gzip data. This typically reduces storage by 70-90% for LLM responses. The `response_compressed` field indicates whether decompression is needed when reading. Set to `false` during development/testing to see plain text responses in the database.
+
+---
+
+### feedback
+
+Stores user feedback (thumbs up/down) on chat responses.
+
+```sql
+CREATE TABLE IF NOT EXISTS feedback (
+    id TEXT PRIMARY KEY,
+    message_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    user_id TEXT,
+    feedback_type TEXT NOT NULL,
+    adapter_name TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Unique feedback ID (UUID)
+- `message_id` (TEXT): Database message ID of the assistant response (references chat_history.id)
+- `session_id` (TEXT): Session identifier
+- `user_id` (TEXT): Optional user ID (when auth is enabled)
+- `feedback_type` (TEXT): Feedback value ("up" or "down")
+- `adapter_name` (TEXT): Adapter that generated the response
+- `created_at` (TEXT): ISO format timestamp of feedback creation
+- `updated_at` (TEXT): ISO format timestamp of last update
+
+**Indexes:**
+- `idx_feedback_message_session` (UNIQUE) on `(message_id, session_id)` - one feedback per message per session
+- `idx_feedback_session` on `session_id`
+- `idx_feedback_type` on `feedback_type`
+- `idx_feedback_adapter` on `adapter_name`
 
 ---
 
