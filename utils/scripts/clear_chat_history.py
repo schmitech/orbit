@@ -6,9 +6,12 @@ in an Orbit SQLite database. Use it to reset conversation state without
 dropping the schema (e.g. for a fresh chat or debugging).
 
 What gets cleared (in dependency order):
-  1. file_chunks  (references uploaded_files)
-  2. uploaded_files
-  3. chat_history
+  1. feedback              (references chat_history)
+  2. conversation_threads  (references chat_history)
+  3. file_chunks           (references uploaded_files)
+  4. uploaded_files
+  5. chat_history
+  6. audit_logs
 
 Usage
 -----
@@ -34,7 +37,7 @@ import sqlite3
 DEFAULT_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'orbit.db')
 
 def main():
-    parser = argparse.ArgumentParser(description='Clear chat_history, file_chunks, and uploaded_files in orbit.db')
+    parser = argparse.ArgumentParser(description='Clear chat_history, feedback, conversation_threads, audit_logs, file_chunks, and uploaded_files in orbit.db')
     parser.add_argument(
         '-d', '--db',
         default=DEFAULT_DB,
@@ -50,33 +53,57 @@ def main():
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
 
-    # 1. file_chunks first (references uploaded_files.id)
+    # 1. feedback (references chat_history.id)
+    cur.execute('SELECT COUNT(*) FROM feedback')
+    fb_before = cur.fetchone()[0]
+    cur.execute('DELETE FROM feedback')
+
+    # 2. conversation_threads (references chat_history.id)
+    cur.execute('SELECT COUNT(*) FROM conversation_threads')
+    ct_before = cur.fetchone()[0]
+    cur.execute('DELETE FROM conversation_threads')
+
+    # 3. file_chunks (references uploaded_files.id)
     cur.execute('SELECT COUNT(*) FROM file_chunks')
     fc_before = cur.fetchone()[0]
     cur.execute('DELETE FROM file_chunks')
 
-    # 2. uploaded_files
+    # 4. uploaded_files
     cur.execute('SELECT COUNT(*) FROM uploaded_files')
     uf_before = cur.fetchone()[0]
     cur.execute('DELETE FROM uploaded_files')
 
-    # 3. chat_history
+    # 5. chat_history
     cur.execute('SELECT COUNT(*) FROM chat_history')
     ch_before = cur.fetchone()[0]
     cur.execute('DELETE FROM chat_history')
 
+    # 6. audit_logs
+    cur.execute('SELECT COUNT(*) FROM audit_logs')
+    al_before = cur.fetchone()[0]
+    cur.execute('DELETE FROM audit_logs')
+
     conn.commit()
 
+    cur.execute('SELECT COUNT(*) FROM feedback')
+    fb_after = cur.fetchone()[0]
+    cur.execute('SELECT COUNT(*) FROM conversation_threads')
+    ct_after = cur.fetchone()[0]
     cur.execute('SELECT COUNT(*) FROM file_chunks')
     fc_after = cur.fetchone()[0]
     cur.execute('SELECT COUNT(*) FROM uploaded_files')
     uf_after = cur.fetchone()[0]
     cur.execute('SELECT COUNT(*) FROM chat_history')
     ch_after = cur.fetchone()[0]
+    cur.execute('SELECT COUNT(*) FROM audit_logs')
+    al_after = cur.fetchone()[0]
 
+    print(f'feedback: {fb_before} -> {fb_after}.')
+    print(f'conversation_threads: {ct_before} -> {ct_after}.')
     print(f'file_chunks: {fc_before} -> {fc_after}.')
     print(f'uploaded_files: {uf_before} -> {uf_after}.')
     print(f'chat_history: {ch_before} -> {ch_after}.')
+    print(f'audit_logs: {al_before} -> {al_after}.')
 
     conn.close()
     print('Done.')
