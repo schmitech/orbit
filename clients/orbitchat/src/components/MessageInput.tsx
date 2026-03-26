@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
-import { ArrowUp, HelpCircle, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square } from 'lucide-react';
+import { ArrowUp, CircleHelp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useVoice } from '../hooks/useVoice';
 import { useAutocomplete } from '../hooks/useAutocomplete';
@@ -1520,7 +1520,7 @@ export function MessageInput({
                   title="About this agent"
                   aria-label="About this agent"
                 >
-                  <HelpCircle className="h-5 w-5 md:h-4 md:w-4" />
+                  <CircleHelp className="h-5 w-5" />
                 </button>
               )}
 
@@ -1716,7 +1716,7 @@ export function MessageInput({
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
-                <HelpCircle className="w-5 h-5 text-blue-500" />
+                <CircleHelp className="w-5 h-5 text-blue-500" />
               </div>
               <h2 id="agent-info-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 About this agent

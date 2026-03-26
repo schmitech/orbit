@@ -9,8 +9,6 @@ import { AdapterSelector } from './AdapterSelector';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { GitHubStatsBanner } from './GitHubStatsBanner';
 import { AppFooter } from './AppFooter';
-import { MarkdownRenderer } from './markdown';
-import { useTheme } from '../contexts/ThemeContext';
 
 interface SidebarProps {
   onRequestClose?: () => void;
@@ -62,20 +60,6 @@ function groupConversationsByTime(conversations: Conversation[]): TimeGroup[] {
 }
 
 // ---------------------------------------------------------------------------
-// Message preview helper
-// ---------------------------------------------------------------------------
-
-function getLastMessagePreview(conversation: Conversation): string | null {
-  const msgs = conversation.messages;
-  if (msgs.length === 0) return null;
-  const last = msgs[msgs.length - 1];
-  const content = last.content?.trim();
-  if (!content) return null;
-  // Cap at 300 chars to avoid rendering huge markdown in a tiny card
-  return content.length > 300 ? content.slice(0, 300) : content;
-}
-
-// ---------------------------------------------------------------------------
 // Sidebar Component
 // ---------------------------------------------------------------------------
 
@@ -92,8 +76,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
     clearError
   } = useChatStore();
 
-  const { isDark } = useTheme();
-  const syntaxTheme: 'dark' | 'light' = isDark ? 'dark' : 'light';
   const currentConversation = conversations.find((conv) => conv.id === currentConversationId);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -304,7 +286,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   const renderConversationCard = (conversation: Conversation) => {
     const isActive = currentConversationId === conversation.id;
     const agentLabel = getConversationAgentLabel(conversation);
-    const preview = getLastMessagePreview(conversation);
 
     return (
       <div
@@ -371,44 +352,29 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
               </div>
             </div>
 
-            {/* Message preview */}
-            {preview && (
-              <div className="overflow-hidden text-[12px] leading-relaxed text-gray-500 dark:text-[#8b8fa3] [&_*]:!text-[12px] [&_*]:!leading-relaxed [&_*]:!text-inherit [&_table]:!text-[10px] [&_th]:!px-1.5 [&_th]:!py-0.5 [&_td]:!px-1.5 [&_td]:!py-0.5 [&_th]:!min-w-0 [&_td]:!min-w-0 [&_pre]:!text-[10px] [&_pre]:!p-1.5 [&_p]:!my-0 [&_h1]:!text-[12px] [&_h2]:!text-[12px] [&_h3]:!text-[12px] [&_ul]:!my-0 [&_ol]:!my-0 [&_li]:!my-0" style={{ maxHeight: '4.5em' }}>
-                <MarkdownRenderer
-                  content={preview}
-                  className="prose prose-slate max-w-none text-inherit dark:prose-invert [&>*]:mb-0 [&>*]:mt-0"
-                  syntaxTheme={syntaxTheme}
-                  enableCharts={false}
-                  enableMermaid={false}
-                  enableGraphs={false}
-                  enableMusic={false}
-                />
-              </div>
-            )}
-
-            {/* Meta row */}
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-[#6e7490]">
-              <span className="min-w-0 flex-1 truncate tabular-nums leading-none">
-                {formatConversationTimestamp(conversation.updatedAt)}
-              </span>
-              <span className="inline-flex shrink-0 items-center gap-0.5 font-medium text-gray-400 dark:text-[#6e7490] leading-none">
-                <MessageSquare className="h-3 w-3" />
-                {conversation.messages.length}
-              </span>
-              {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
-                <span className="inline-flex shrink-0 items-center gap-0.5 font-medium text-gray-400 dark:text-[#6e7490] leading-none">
-                  <Paperclip className="h-3 w-3" />
-                  {conversation.attachedFiles.length}
+            <div className="space-y-2 pt-0.5">
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-[#9aa1bc]">
+                <span className="min-w-0 flex-1 truncate text-[11px] leading-none">
+                  {agentLabel || '\u00A0'}
                 </span>
-              )}
-            </div>
+                <span className="inline-flex shrink-0 items-center gap-0.5 font-medium text-gray-400 dark:text-[#9aa1bc] leading-none">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  {conversation.messages.length}
+                </span>
+                {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
+                  <span className="inline-flex shrink-0 items-center gap-0.5 font-medium text-gray-400 dark:text-[#9aa1bc] leading-none">
+                    <Paperclip className="h-3.5 w-3.5" />
+                    {conversation.attachedFiles.length}
+                  </span>
+                )}
+              </div>
 
-            {/* Agent name */}
-            {agentLabel && (
-              <span className="truncate text-[11px] text-gray-400 dark:text-[#6e7490]">
-                {agentLabel}
-              </span>
-            )}
+              <div className="text-[11px] text-gray-400 dark:text-[#9aa1bc]">
+                <span className="block truncate tabular-nums leading-none">
+                  {formatConversationTimestamp(conversation.updatedAt)}
+                </span>
+              </div>
+            </div>
           </div>
         )}
       </div>

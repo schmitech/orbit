@@ -39,13 +39,36 @@ const EMPTY_THREAD_REPLIES: MessageType[] = [];
 
 function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
   const [isLoading, setIsLoading] = useState(false);
+  const [showAcknowledgement, setShowAcknowledgement] = useState(false);
+  const acknowledgementTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const submitFeedbackAction = useChatStore(state => state.submitFeedback);
+
+  useEffect(() => {
+    return () => {
+      if (acknowledgementTimeoutRef.current) {
+        clearTimeout(acknowledgementTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleClick = async (type: 'up' | 'down') => {
     if (!reply.databaseMessageId || isLoading) return;
+    const shouldShowAcknowledgement = reply.feedback !== type;
     setIsLoading(true);
     try {
       await submitFeedbackAction(reply.id, type);
+      if (shouldShowAcknowledgement) {
+        setShowAcknowledgement(true);
+        if (acknowledgementTimeoutRef.current) {
+          clearTimeout(acknowledgementTimeoutRef.current);
+        }
+        acknowledgementTimeoutRef.current = setTimeout(() => {
+          setShowAcknowledgement(false);
+          acknowledgementTimeoutRef.current = null;
+        }, 2000);
+      } else {
+        setShowAcknowledgement(false);
+      }
     } catch (error) {
       debugError('Failed to submit thread reply feedback:', error);
     } finally {
@@ -73,6 +96,12 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
       >
         <ThumbsDown className="h-3.5 w-3.5" />
       </button>
+      {showAcknowledgement && (
+        <span className="ml-1 inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 animate-fadeIn dark:bg-emerald-500/15 dark:text-emerald-300">
+          <Check className="h-3 w-3" />
+          Thanks!
+        </span>
+      )}
     </div>
   );
 }
@@ -89,6 +118,7 @@ export function Message({
 }: MessageProps) {
   const [copied, setCopied] = useState(false);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
+  const [showFeedbackAcknowledgement, setShowFeedbackAcknowledgement] = useState(false);
   const [threadInput, setThreadInput] = useState('');
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
@@ -101,8 +131,11 @@ export function Message({
   const pendingThreadFocusRef = useRef(false);
   const prevThreadReplyCountRef = useRef(0);
   const prevThreadContentRef = useRef<string>('');
+  const prevThreadStreamingRef = useRef(false);
   const shouldAutoScrollThreadRef = useRef(true);
   const prevIsSendingThreadMessageRef = useRef(false);
+  const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const feedbackAcknowledgementTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isAssistant = message.role === 'assistant';
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
@@ -170,6 +203,17 @@ export function Message({
     }
   }, [threadReplyCount]);
 
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+      if (feedbackAcknowledgementTimeoutRef.current) {
+        clearTimeout(feedbackAcknowledgementTimeoutRef.current);
+      }
+    };
+  }, []);
+
 
   const scrollThreadRepliesToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -193,11 +237,15 @@ export function Message({
     const currentContent = lastReply?.content || '';
     const contentChanged = currentContent !== prevThreadContentRef.current;
     const isStreaming = lastReply?.isStreaming ?? false;
+    const streamingJustFinished = prevThreadStreamingRef.current && !isStreaming;
 
     if (hasNewReply) {
       scrollThreadRepliesToBottom();
       shouldAutoScrollThreadRef.current = true;
     } else if (isStreaming && contentChanged) {
+      scrollThreadRepliesToBottom();
+      shouldAutoScrollThreadRef.current = true;
+    } else if (streamingJustFinished) {
       scrollThreadRepliesToBottom();
       shouldAutoScrollThreadRef.current = true;
     } else if (shouldAutoScrollThreadRef.current && contentChanged) {
@@ -206,6 +254,7 @@ export function Message({
 
     prevThreadReplyCountRef.current = replyCount;
     prevThreadContentRef.current = currentContent;
+    prevThreadStreamingRef.current = isStreaming;
   }, [isThreadOpen, threadReplies, scrollThreadRepliesToBottom]);
 
   // Ensure a thread opens at its latest reply.
@@ -227,7 +276,13 @@ export function Message({
     try {
       await navigator.clipboard.writeText(message.content);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+      copiedTimeoutRef.current = setTimeout(() => {
+        setCopied(false);
+        copiedTimeoutRef.current = null;
+      }, 2000);
     } catch (error) {
       debugError('Failed to copy text:', error);
     }
@@ -237,9 +292,22 @@ export function Message({
 
   const handleFeedback = async (type: 'up' | 'down') => {
     if (!message.databaseMessageId || isFeedbackLoading) return;
+    const shouldShowAcknowledgement = message.feedback !== type;
     setIsFeedbackLoading(true);
     try {
       await submitFeedback(message.id, type);
+      if (shouldShowAcknowledgement) {
+        setShowFeedbackAcknowledgement(true);
+        if (feedbackAcknowledgementTimeoutRef.current) {
+          clearTimeout(feedbackAcknowledgementTimeoutRef.current);
+        }
+        feedbackAcknowledgementTimeoutRef.current = setTimeout(() => {
+          setShowFeedbackAcknowledgement(false);
+          feedbackAcknowledgementTimeoutRef.current = null;
+        }, 2000);
+      } else {
+        setShowFeedbackAcknowledgement(false);
+      }
     } catch (error) {
       debugError('Failed to submit feedback:', error);
     } finally {
@@ -476,7 +544,7 @@ export function Message({
         {isAssistant && !message.isStreaming && (
           <>
             <div className="flex flex-wrap items-center gap-1 md:gap-1 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
-              <div className="flex items-center gap-1 md:gap-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-1 md:gap-1">
                 <button
                   onClick={copyToClipboard}
                   className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
@@ -521,8 +589,8 @@ export function Message({
 
               {getEnableFeedbackButtons() && (
                 <>
-                <div className="hidden md:block w-px h-4 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
-                <div className="flex items-center gap-0.5">
+                <div className="hidden md:block w-px h-4 shrink-0 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
+                <div className="flex shrink-0 items-center gap-0.5">
                   <button
                     onClick={() => handleFeedback('up')}
                     disabled={isFeedbackLoading}
@@ -547,13 +615,13 @@ export function Message({
 
               {threadsEnabled && message.threadInfo && (
                 <>
-                  <div className="hidden md:block w-px h-4 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
+                  <div className="hidden md:block w-px h-4 shrink-0 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
                   <button
                     onClick={() => setIsThreadOpen(prev => !prev)}
-                    className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
+                    className="inline-flex min-w-0 items-center gap-1.5 rounded-md px-3.5 py-2.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
                   >
                     <MessageSquare className="h-4 w-4 md:h-3.5 md:w-3.5" />
-                    <span>{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</span>
+                    <span className="truncate">{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</span>
                     {isThreadOpen
                       ? <ChevronUp className="h-3 w-3" />
                       : <ChevronDown className="h-3 w-3" />
@@ -579,6 +647,13 @@ export function Message({
                   <span>Copied</span>
                 </div>
               )}
+
+              {showFeedbackAcknowledgement && (
+                <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Thanks For The Feedback</span>
+                </div>
+              )}
             </div>
 
           </>
@@ -588,7 +663,7 @@ export function Message({
           <div className="thread-panel mt-3 md:mt-3 border-l-2 border-gray-200 pl-3 sm:pl-4 dark:border-[#3b3c49]">
                 <div
                   ref={threadRepliesRef}
-                  className="thread-replies-scroll mt-2 space-y-2"
+                  className="thread-replies-scroll mt-2 space-y-2 pb-3"
                   onScroll={() => {
                     if (!threadRepliesRef.current) return;
                     const { scrollTop, scrollHeight, clientHeight } = threadRepliesRef.current;
@@ -617,9 +692,9 @@ export function Message({
 
                 <div
                   ref={threadComposerRef}
-                  className="mt-1 pt-1 w-full max-w-[64rem]"
+                  className="mt-1 w-full max-w-[64rem] bg-transparent pt-1"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 bg-transparent">
                     <label htmlFor={threadInputId} className="sr-only">
                       Reply in thread
                     </label>
