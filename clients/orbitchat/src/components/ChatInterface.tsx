@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useLayoutEffect } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
@@ -20,6 +20,7 @@ import { AgentSelectionList } from './AgentSelectionList';
 import { AuthStatus } from './AuthStatus';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { useChatAgentSelection } from '../hooks/useChatAgentSelection';
+import { useAgentHomeNav } from '../hooks/useAgentHomeNav';
 
 const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-transparent px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-none backdrop-blur-0 dark:border-[#2f303d] dark:bg-transparent md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
@@ -74,10 +75,13 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const applicationDescription = getApplicationDescription().trim();
   const hasIntroDescription = applicationDescription.length > 0;
 
+  const { registerGoHome } = useAgentHomeNav();
+
   const {
     adapterNotesError,
     handleAgentCardSelection,
     handleChangeAgent,
+    goToAgentSelectionHome,
     hasAdapterConfigurationError,
     isAgentSelectionVisible,
     isConfiguringAdapter,
@@ -90,6 +94,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     clearError,
     clearCurrentConversationAdapter
   });
+
+  useLayoutEffect(() => {
+    registerGoHome(() => goToAgentSelectionHome());
+    return () => registerGoHome(null);
+  }, [registerGoHome, goToAgentSelectionHome]);
 
   const chatMaxWidthClass = 'max-w-[96rem]';
   const inputMaxWidthClass = 'max-w-[64rem]';
@@ -378,25 +387,25 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-1 flex-col items-center min-h-0 pt-[8vh] md:pt-[12vh]">
-                  <div className="mx-auto w-full max-w-[48rem] flex flex-col items-center gap-6 px-4">
+                <div className="flex flex-1 w-full min-h-0 flex-col pt-[8vh] md:pt-[12vh]">
+                  <div className="mx-auto flex w-full max-w-[48rem] flex-col items-center gap-6">
                     {adapterNotesError ? (
-                      <p className="text-sm text-red-600 dark:text-red-400">
+                      <p className="w-full text-center text-sm text-red-600 dark:text-red-400">
                         {adapterNotesError}
                       </p>
                     ) : isConfiguringAdapter ? (
-                      <p className="text-sm text-gray-500 dark:text-[#bfc2cd]">
+                      <p className="w-full text-center text-sm text-gray-500 dark:text-[#bfc2cd]">
                         Configuring your agent…
                       </p>
                     ) : currentConversation?.adapterName ? (
                       <h2
-                        className="text-xl md:text-2xl font-semibold text-[#353740] dark:text-[#ececf1] text-center tracking-tight"
+                        className="w-full text-center text-xl font-semibold tracking-tight text-[#353740] dark:text-[#ececf1] md:text-2xl"
                         style={{ fontFamily: '-apple-system, "SF Pro Display", BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}
                       >
                         {getAdapterDisplayName(currentConversation.adapterName) || currentConversation.adapterName}
                       </h2>
                     ) : null}
-                    <div className="w-full">
+                    <div className="w-full min-w-0">
                       <MessageInput
                         onSend={handleSendMessage}
                         disabled={
@@ -407,7 +416,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         }
                         autoFocusEnabled
                         placeholder={defaultInputPlaceholder}
-                        maxWidthClass={inputMaxWidthClass}
+                        isCentered
+                        maxWidthClass="max-w-full"
                         adapterNotes={currentConversation?.adapterInfo?.notes}
                       />
                     </div>

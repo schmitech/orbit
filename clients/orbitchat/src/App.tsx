@@ -10,6 +10,7 @@ import { OutOfServicePage } from './components/OutOfServicePage';
 import { AuthGate } from './components/AuthGate';
 import { LoginPromptModal } from './components/LoginPromptModal';
 import { AppHeader } from './components/AppHeader';
+import { AgentHomeNavProvider } from './contexts/AgentHomeNavProvider';
 
 function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -27,21 +28,22 @@ function App() {
     <ThemeProvider>
       <SettingsProvider>
         <AuthGate>
-          <div className="h-dvh flex flex-col bg-white dark:bg-[#212121] text-slate-900 dark:text-slate-100">
-            <div className="flex-1 flex flex-col md:flex-row md:pl-4 min-h-0">
-              <div className="hidden md:flex md:h-full">
-                <Sidebar onOpenSettings={() => setIsSettingsOpen(true)} />
-              </div>
-              <div className="flex-1 flex flex-col w-full min-h-0">
-                <AppHeader />
-                <div className="flex-1 flex justify-center w-full min-h-0">
-                  <ChatInterface
-                    onOpenSettings={() => setIsSettingsOpen(true)}
-                    onOpenSidebar={() => setIsMobileSidebarOpen(true)}
-                  />
+          <AgentHomeNavProvider>
+            <div className="h-dvh flex flex-col bg-white dark:bg-[#212121] text-slate-900 dark:text-slate-100">
+              <div className="flex-1 flex flex-col md:flex-row md:pl-4 min-h-0">
+                <div className="hidden md:flex md:h-full">
+                  <Sidebar onOpenSettings={() => setIsSettingsOpen(true)} />
+                </div>
+                <div className="flex-1 flex flex-col w-full min-h-0">
+                  <AppHeader />
+                  <div className="flex-1 flex justify-center w-full min-h-0">
+                    <ChatInterface
+                      onOpenSettings={() => setIsSettingsOpen(true)}
+                      onOpenSidebar={() => setIsMobileSidebarOpen(true)}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
             <LoginPromptModal />
             <Settings
               isOpen={isSettingsOpen}
@@ -73,7 +75,8 @@ function App() {
                 </div>
               </div>
             )}
-          </div>
+            </div>
+          </AgentHomeNavProvider>
         </AuthGate>
       </SettingsProvider>
     </ThemeProvider>

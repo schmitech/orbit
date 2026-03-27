@@ -26,7 +26,9 @@ export function AppFooter({ placement = 'default', compact = false }: AppFooterP
   const navLinks = getFooterNavLinks();
   const borderClass = showBorder ? 'border-t border-slate-200/80 dark:border-[#333645]' : '';
   const paddingClass = compact
-    ? 'pt-2 pb-2'
+    ? placement === 'sidebar'
+      ? 'pt-4 pb-2'
+      : 'pt-2 pb-2'
     : topPadding === 'normal'
       ? 'pt-3 pb-3'
       : 'pt-5 pb-3';
@@ -39,12 +41,12 @@ export function AppFooter({ placement = 'default', compact = false }: AppFooterP
   const innerRailClass = placement === 'sidebar' ? 'w-full' : 'mx-auto w-full max-w-7xl';
   const linkBaseClass =
     compact
-      ? 'inline-flex min-h-7 items-center rounded px-1.5 text-[11px] font-medium transition-colors hover:bg-slate-100 hover:text-blue-700 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-[#2b2d39] dark:hover:text-blue-300'
-      : 'inline-flex min-h-10 items-center rounded-md px-2.5 text-xs font-medium transition-colors hover:bg-slate-100 hover:text-blue-700 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-[#2b2d39] dark:hover:text-blue-300 sm:text-sm';
+      ? 'inline-flex min-h-8 items-center rounded px-1.5 text-xs font-medium transition-colors hover:bg-slate-100 hover:text-blue-700 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-[#2b2d39] dark:hover:text-blue-300'
+      : 'inline-flex min-h-10 items-center rounded-md px-2.5 text-sm font-medium transition-colors hover:bg-slate-100 hover:text-blue-700 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-[#2b2d39] dark:hover:text-blue-300 sm:text-base';
 
   return (
     <footer
-      className={`shrink-0 bg-white dark:bg-[#212121] ${compact ? 'text-xs' : 'text-sm'} ${paddingClass} ${borderClass}`.trim()}
+      className={`shrink-0 bg-white dark:bg-[#212121] text-sm ${paddingClass} ${borderClass}`.trim()}
       style={{
         backgroundColor: bgColor || undefined,
         color: textColor || undefined,
@@ -54,7 +56,13 @@ export function AppFooter({ placement = 'default', compact = false }: AppFooterP
         <div className={innerRailClass}>
           <div className={containerClass}>
             {text && (
-              <p className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-700 dark:text-slate-200`}>{text}</p>
+              <p
+                className={`${compact ? 'text-xs leading-snug' : 'text-sm'} text-slate-700 dark:text-slate-200 ${
+                  placement === 'sidebar' ? 'pt-0.5' : ''
+                }`.trim()}
+              >
+                {text}
+              </p>
             )}
             {navLinks.length > 0 && (
               <nav aria-label="Footer links">

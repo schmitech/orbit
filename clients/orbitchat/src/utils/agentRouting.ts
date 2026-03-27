@@ -127,6 +127,9 @@ export const replaceAgentSlug = (slug: string | null): void => {
   window.history.replaceState(window.history.state, '', `${nextPath}${search}${hash}`);
 };
 
+/** App root path (no agent segment), respects `import.meta.env.BASE_URL` / `<base href>`. */
+export const getAppHomePath = (): string => buildPath(null);
+
 export const resolveAdapterNameFromSlug = async (slug: string): Promise<string | null> => {
   const cleaned = slug.trim().toLowerCase();
   if (!cleaned) {

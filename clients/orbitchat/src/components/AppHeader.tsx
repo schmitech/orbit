@@ -10,12 +10,16 @@ import {
   getHeaderShowBorder,
   getHeaderNavLinks,
 } from '../utils/runtimeConfig';
+import { getAppHomePath } from '../utils/agentRouting';
 import { AuthStatus } from './AuthStatus';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAgentHomeNav } from '../hooks/useAgentHomeNav';
 import { useEffect, useRef } from 'react';
 
 export function AppHeader() {
+  const { goHome } = useAgentHomeNav();
   const { isDark } = useTheme();
+  const homeHref = getAppHomePath();
   const warnedMissingLogoRef = useRef(false);
 
   const logoUrlDefault = getHeaderLogoUrl();
@@ -56,8 +60,12 @@ export function AppHeader() {
         <div className="flex min-w-0 flex-1 items-center justify-center md:justify-start">
           {logoUrl && (
             <a
-              href="/"
+              href={homeHref}
               aria-label="Go to home page"
+              onClick={(event) => {
+                event.preventDefault();
+                goHome();
+              }}
               className="inline-flex items-center rounded-sm px-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-blue-300 dark:focus-visible:ring-offset-[#212121] md:-ml-1"
             >
               <img

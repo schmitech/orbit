@@ -239,6 +239,35 @@ export function useChatAgentSelection({
     setIsAgentSelectionVisible(true);
   }, [clearCurrentConversationAdapter]);
 
+  const goToAgentSelectionHome = useCallback(() => {
+    initialPathSlugRef.current = null;
+
+    const state = useChatStore.getState();
+    const conv = state.currentConversationId
+      ? state.conversations.find(c => c.id === state.currentConversationId)
+      : null;
+    const hasContent = !!conv && (
+      conv.messages.length > 0 || (conv.attachedFiles?.length || 0) > 0
+    );
+
+    if (hasContent) {
+      try {
+        createConversation();
+      } catch (error) {
+        debugWarn(
+          'Cannot go home (new conversation):',
+          error instanceof Error ? error.message : 'Unknown error'
+        );
+        return;
+      }
+    } else if (conv?.adapterName) {
+      clearCurrentConversationAdapter();
+    }
+
+    replaceAgentSlug(null);
+    setIsAgentSelectionVisible(true);
+  }, [clearCurrentConversationAdapter, createConversation]);
+
   useEffect(() => {
     if (currentConversation?.adapterLoadError) {
       setAdapterNotesError(currentConversation.adapterLoadError);
@@ -421,6 +450,7 @@ export function useChatAgentSelection({
     adapterNotesError,
     handleAgentCardSelection,
     handleChangeAgent,
+    goToAgentSelectionHome,
     hasAdapterConfigurationError: !!adapterNotesError,
     isAgentSelectionVisible,
     isConfiguringAdapter,
