@@ -28,9 +28,23 @@ ORBIT is a self-hosted gateway that unifies LLMs, files, databases, and APIs beh
   <a href="https://orbit.schmitech.ai/redoc"><strong>API Reference</strong></a>
   &nbsp;|&nbsp;
   <a href="docker/README.md"><strong>Docker Guide</strong></a>
+  &nbsp;|&nbsp;
+  <a href="docs/cookbook/"><strong>Cookbook</strong></a>
 </p>
 
 **ORBIT in Production:** [PoliceStats.ca](https://policestats.ca) uses ORBIT to power a public chat over Canadian municipal police open data. Users ask in plain language about auto theft, break-ins, crime by neighbourhood, and cross-city comparisons.
+
+If you or someone you know is using ORBIT in production, please [let us know](https://schmitech.ai/en/contact) and we will add the project here.
+
+If you find ORBIT useful, please **[star the repo](https://github.com/schmitech/orbit)**—you'll see new releases in your feed and make the project easier for others to discover.
+
+---
+
+### 🧩 Supported Integrations
+
+**Inference:** OpenAI, Anthropic, Google Gemini, Cohere, Groq, DeepSeek, Mistral, AWS Bedrock, Azure, Together, Ollama, vLLM, llama.cpp.
+
+**Data Adapters:** PostgreSQL, MySQL, MongoDB, Elasticsearch, DuckDB, Chroma, Qdrant, Pinecone, Milvus, Weaviate.
 
 ---
 
@@ -159,36 +173,12 @@ The admin panel is at **`http://localhost:3000/admin`** by default (match **`API
 
 ---
 
-### 📈 Project Momentum
-
-*   Frequent releases: [Releases](https://github.com/schmitech/orbit/releases)
-*   Active roadmap and Q&A: [Discussions](https://github.com/schmitech/orbit/discussions)
-*   Feature requests and bugs: [Issues](https://github.com/schmitech/orbit/issues)
-*   Technical writeups: [Cookbook](docs/cookbook/) – recipes and how-tos
-*   Enterprise services: [Official ORBIT provider (Schmitech)](https://schmitech.ai/)
-
----
-
-### 🧩 Supported Integrations
-
-**Inference:** OpenAI, Anthropic, Google Gemini, Cohere, Groq, DeepSeek, Mistral, AWS Bedrock, Azure, Together, Ollama, vLLM, llama.cpp.
-
-**Data Adapters:** PostgreSQL, MySQL, MongoDB, Elasticsearch, DuckDB, Chroma, Qdrant, Pinecone, Milvus, Weaviate.
-
----
-
 ### 📚 Resources & Support
 
 *   [Step-by-Step Tutorial](docs/tutorial.md) – Learn how to chat with your own data in minutes.
 *   [Cookbook](docs/cookbook/) – Recipes and how-tos for configuration and real-world use cases.
 *   [Documentation](docs/) – Full architecture and setup guides.
 *   [GitHub Issues](https://github.com/schmitech/orbit/issues) – Bug reports and feature requests.
-*   [Discussions](https://github.com/schmitech/orbit/discussions) – Community help and roadmap.
-*   [Enterprise Services](https://schmitech.ai/) – Backed by Schmitech for onboarding, deployment, and production support.
-*   [Good First Issues](https://github.com/schmitech/orbit/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22) – Starter tasks for new contributors.
-*   [Help Wanted](https://github.com/schmitech/orbit/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22help%20wanted%22) – High-impact tasks where contributions are needed.
-
-> ⭐ **Help ORBIT grow:** [Star the repo](https://github.com/schmitech/orbit) to support the project and get notified of new adapters!
 
 ## 📄 License
 
