@@ -27,9 +27,6 @@ ORBIT is a self-hosted gateway that unifies LLMs, files, databases, and APIs beh
 <p align="center">
   <a href="https://orbitsandbox.dev/">Try It Yourself!</a>
 </p>
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/89c46b0f-4222-42f2-a685-73102f8f3084" controls muted playsinline width="900"></video>
-</p>
 
 <p align="center">
   <a href="https://github.com/schmitech/orbit">Star ORBIT on GitHub</a> to follow new adapters, releases, and production features.
@@ -76,6 +73,8 @@ curl -X POST http://localhost:3000/v1/chat \
     "stream": false
   }'
 ```
+
+**Admin panel:** When ORBIT is listening on port 3000, open [http://localhost:3000/admin](http://localhost:3000/admin) (or `https://<your-host>/admin` in production). Sign in with username **`admin`** and the password from **`ORBIT_DEFAULT_ADMIN_PASSWORD`** (`env.example` defaults to **`admin123`**). Change that password before exposing the server.
 
 For GPU acceleration (NVIDIA): `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d`
 
@@ -148,7 +147,7 @@ If Ollama runs on your host (e.g. port 11434), add `-e OLLAMA_HOST=host.docker.i
 git clone https://github.com/schmitech/orbit.git && cd orbit/docker
 docker compose up -d
 ```
-This starts ORBIT + Ollama with SmolLM2, auto-pulls models, and exposes the API on port 3000. Connect [orbitchat](https://www.npmjs.com/package/orbitchat) from your host: `ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' npx orbitchat`
+This starts ORBIT + Ollama with SmolLM2, auto-pulls models, and exposes the API on port 3000. The web admin UI is at **`/admin`** on the same host (e.g. [http://localhost:3000/admin](http://localhost:3000/admin))—use **`admin`** and **`ORBIT_DEFAULT_ADMIN_PASSWORD`** (see `env.example`). Connect [orbitchat](https://www.npmjs.com/package/orbitchat) from your host: `ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' npx orbitchat`
 
 **Pre-built image only** (server + your own Ollama): `docker pull schmitech/orbit:basic` then `docker run -d --name orbit-basic -p 3000:3000 -e OLLAMA_HOST=host.docker.internal:11434 schmitech/orbit:basic` if Ollama runs on the host.
 
@@ -163,6 +162,8 @@ cp env.example .env && ./install/setup.sh
 source venv/bin/activate
 ./bin/orbit.sh start && cat ./logs/orbit.log
 ```
+
+The admin panel is at **`http://localhost:3000/admin`** by default (match **`API_SERVER_URL`** in `.env` if you changed the bind address). Sign in as **`admin`** with **`ORBIT_DEFAULT_ADMIN_PASSWORD`** from `env.example`.
 
 ---
 
