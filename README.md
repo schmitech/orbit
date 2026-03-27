@@ -22,27 +22,19 @@
 
 ORBIT is a self-hosted gateway that unifies LLMs, files, databases, and APIs behind one MCP endpoint, letting teams standardize on one integration surface while keeping security, compliance, and operational controls under their watch.
 
-[**Try the Sandbox**](https://orbitsandbox.dev/) | [**API Reference**](https://orbit.schmitech.ai/redoc) | [**Docker Guide**](docker/README.md)
-
 <p align="center">
-  <a href="https://orbitsandbox.dev/">Try It Yourself!</a>
+  <a href="https://orbitsandbox.dev/"><strong>Try the Sandbox</strong></a>
+  &nbsp;|&nbsp;
+  <a href="https://orbit.schmitech.ai/redoc"><strong>API Reference</strong></a>
+  &nbsp;|&nbsp;
+  <a href="docker/README.md"><strong>Docker Guide</strong></a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/schmitech/orbit">Star ORBIT on GitHub</a> to follow new adapters, releases, and production features.
-</p>
-
-<p align="center">
-  Officially backed by <a href="https://schmitech.ai/">Schmitech</a>, the ORBIT service provider for enterprise deployment and support.
-</p>
+**ORBIT in Production:** [PoliceStats.ca](https://policestats.ca) uses ORBIT to power a public chat over Canadian municipal police open data. Users ask in plain language about auto theft, break-ins, crime by neighbourhood, and cross-city comparisons.
 
 ---
 
-**Real-world example:** [**PoliceStats.ca**](https://policestats.ca) uses ORBIT to power a public chat over Canadian municipal police open data. Users ask in plain language about auto theft, break-ins, crime by neighbourhood, and cross-city comparisons.
-
----
-
-### ⚡ Get Value in 60 Seconds
+### Quick start
 
 **A) Try hosted API now**
 
