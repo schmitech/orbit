@@ -195,6 +195,17 @@ if ascii_ratio > 0.98 and len(text) <= 120:
 
 This prevents "How do I export code?" from being classified as Portuguese.
 
+The same ASCII bias also applies to short English search-style noun phrases when they
+contain common English content markers and no stronger non-English signal:
+
+```python
+if ascii_ratio > 0.98 and len(text) <= 120:
+    if looks_like_english_query and no_non_english_latin_patterns:
+        return English with 0.9 confidence
+```
+
+This prevents queries like "Car crime statistics Vancouver" from being classified as French.
+
 ### Configurable Nudges
 
 ```yaml

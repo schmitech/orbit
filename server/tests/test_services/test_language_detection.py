@@ -351,6 +351,13 @@ class TestEnglishDetection:
         assert result.language == 'en'
         assert result.language != 'es'
 
+    @pytest.mark.asyncio
+    async def test_english_search_query_not_misclassified_as_french(self, detector):
+        """Short English search-style queries should remain English."""
+        result = await detector._detect_language_ensemble_async("Car crime statistics Vancouver")
+        assert result.language == 'en'
+        assert result.language != 'fr'
+
 
 class TestMultiLanguageScenarios:
     """Tests for multi-language and edge case scenarios."""

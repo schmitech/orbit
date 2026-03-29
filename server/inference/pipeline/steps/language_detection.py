@@ -306,6 +306,16 @@ ENGLISH_QUESTION_START_PATTERN = re.compile(
     re.IGNORECASE
 )
 
+# English search-query/content markers for short ASCII noun phrases
+ENGLISH_QUERY_MARKERS_PATTERN = re.compile(
+    r"\b("
+    r"crime|statistics?|stats?|weather|forecast|population|salary|salaries|"
+    r"tax|taxes|price|prices|cost|costs|rate|rates|report|reports|news|"
+    r"map|maps|housing|rent|rents|income|jobs|traffic|data"
+    r")\b",
+    re.IGNORECASE
+)
+
 # Non-English diacritics for ASCII bias detection
 NON_ENGLISH_DIACRITICS_PATTERN = re.compile(r'[áéíóúñçãõàâêôèëïüäößæøåšžčřůě]')
 
@@ -727,6 +737,7 @@ class LanguageDetectionStep(PipelineStep):
         ascii_ratio = self._ascii_ratio(clean_text)
         english_marker_count = len(ENGLISH_MARKERS_PATTERN.findall(clean_text))
         spanish_marker_count = len(SPANISH_MARKERS_PATTERN.findall(clean_text))
+        ascii_word_tokens = re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", clean_text)
 
         # Check if any non-English Latin word patterns matched (min 2 for ambiguous langs)
         _lower_text = clean_text.lower()
@@ -739,17 +750,33 @@ class LanguageDetectionStep(PipelineStep):
                 _non_en_latin_matched = True
                 break
 
+        english_query_like = (
+            ascii_ratio > 0.98
+            and len(clean_text) <= 120
+            and len(ascii_word_tokens) >= 3
+            and ENGLISH_QUERY_MARKERS_PATTERN.search(_lower_text) is not None
+            and spanish_marker_count == 0
+            and not NON_ENGLISH_DIACRITICS_PATTERN.search(_lower_text)
+            and not _non_en_latin_matched
+        )
+
         # Strong ASCII English heuristic
         if self.prefer_english_for_ascii:
             lower = clean_text.lower()
             if ascii_ratio > 0.98 and len(clean_text) <= 120:
-                if ENGLISH_QUESTION_START_PATTERN.search(lower) or re.search(r'\b(please|thanks)\b', lower, re.IGNORECASE):
+                if (
+                    ENGLISH_QUESTION_START_PATTERN.search(lower)
+                    or re.search(r'\b(please|thanks)\b', lower, re.IGNORECASE)
+                    or english_query_like
+                ):
                     if spanish_marker_count == 0 and not NON_ENGLISH_DIACRITICS_PATTERN.search(lower) and not _non_en_latin_matched:
                         return DetectionResult(
                             language='en',
                             confidence=0.9,
                             method='heuristic_ascii_bias',
-                            raw_results={'reason': 'english_question_heuristic'}
+                            raw_results={
+                                'reason': 'english_query_heuristic' if english_query_like else 'english_question_heuristic'
+                            }
                         )
 
         # Weighted voting with per-backend normalization
@@ -778,7 +805,7 @@ class LanguageDetectionStep(PipelineStep):
         en_boost = self.heuristic_nudges.get('en_boost', 0.2)
         es_penalty = self.heuristic_nudges.get('es_penalty', 0.1)
 
-        if self.prefer_english_for_ascii and ascii_ratio > 0.95 and english_marker_count > 0 and spanish_marker_count == 0:
+        if self.prefer_english_for_ascii and ascii_ratio > 0.95 and (english_marker_count > 0 or english_query_like) and spanish_marker_count == 0:
             language_votes['en'] = language_votes.get('en', 0) + en_boost
             if 'es' in language_votes:
                 language_votes['es'] = max(0, language_votes['es'] - es_penalty)
@@ -835,12 +862,17 @@ class LanguageDetectionStep(PipelineStep):
             # Prefer English for high ASCII ratio, but not if non-English Latin patterns matched
             lower = clean_text.lower()
             if self.prefer_english_for_ascii and ascii_ratio > 0.95 and spanish_marker_count == 0 and not _non_en_latin_matched:
-                if english_marker_count > 0 or ENGLISH_QUESTION_START_PATTERN.search(lower):
+                if english_marker_count > 0 or ENGLISH_QUESTION_START_PATTERN.search(lower) or english_query_like:
                     return DetectionResult(
                         language='en',
                         confidence=0.75,
                         method='heuristic_ascii_bias',
-                        raw_results={'reason': 'below_threshold_or_margin', 'votes': language_votes, 'raw': raw_results}
+                        raw_results={
+                            'reason': 'below_threshold_or_margin',
+                            'votes': language_votes,
+                            'raw': raw_results,
+                            'english_query_like': english_query_like,
+                        }
                     )
 
             # Fallback — if non-English Latin patterns matched, trust the best voted
@@ -1057,4 +1089,3 @@ class LanguageDetectionStep(PipelineStep):
         except Exception:
             logger.debug("pycld2 detection failed", exc_info=True)
         return None
-
