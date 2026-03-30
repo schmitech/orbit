@@ -102,6 +102,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
   const chatMaxWidthClass = 'max-w-[96rem]';
   const inputMaxWidthClass = 'max-w-[64rem]';
+  const emptyStateInputMaxWidthClass = 'max-w-[56rem]';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const canStartNewConversation = canCreateNewConversation();
   const canChangeAgent = !!currentConversation?.adapterName && (currentConversation?.messages.length || 0) === 0;
@@ -388,7 +389,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 </div>
               ) : (
                 <div className="flex flex-1 w-full min-h-0 flex-col pt-[8vh] md:pt-[12vh]">
-                  <div className="mx-auto flex w-full max-w-[48rem] flex-col items-center gap-6">
+                  <div className={`mx-auto flex w-full ${emptyStateInputMaxWidthClass} flex-col items-center gap-6`}>
                     {adapterNotesError ? (
                       <p className="w-full text-center text-sm text-red-600 dark:text-red-400">
                         {adapterNotesError}
@@ -417,7 +418,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         autoFocusEnabled
                         placeholder={defaultInputPlaceholder}
                         isCentered
-                        maxWidthClass="max-w-full"
+                        maxWidthClass={emptyStateInputMaxWidthClass}
                         adapterNotes={currentConversation?.adapterInfo?.notes}
                       />
                     </div>

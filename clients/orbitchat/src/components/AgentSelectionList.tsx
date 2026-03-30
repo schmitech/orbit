@@ -25,6 +25,7 @@ export function AgentSelectionList({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [canScrollDown, setCanScrollDown] = useState(false);
 
@@ -37,25 +38,88 @@ export function AgentSelectionList({
     setCanScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 20);
   }, []);
 
-  const focusFirstAgentCard = () => {
-    const cardButtons = scrollContainerRef.current?.querySelectorAll<HTMLButtonElement>('button[data-agent-card="true"]');
-    const firstCard = cardButtons?.[0] ?? null;
-    if (!firstCard) {
+  const isDesktopViewport = () =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
+
+  const getAgentCardButtons = () =>
+    Array.from(scrollContainerRef.current?.querySelectorAll<HTMLButtonElement>('button[data-agent-card="true"]') ?? []);
+
+  const focusAgentCardAtIndex = (index: number) => {
+    const cardButtons = getAgentCardButtons();
+    const targetCard = cardButtons[index] ?? null;
+    if (!targetCard) {
       return;
     }
-    firstCard.focus();
-    firstCard.scrollIntoView({ block: 'nearest' });
+    targetCard.focus();
+    targetCard.scrollIntoView({ block: 'nearest' });
+  };
+
+  const focusFirstAgentCard = () => {
+    focusAgentCardAtIndex(0);
+  };
+
+  const focusLastAgentCard = () => {
+    const cardButtons = getAgentCardButtons();
+    if (cardButtons.length === 0) {
+      return;
+    }
+    focusAgentCardAtIndex(cardButtons.length - 1);
   };
 
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    const canFocusCards = !isLoading && !error && filteredAdapters.length > 0;
+    const canFocusCards = !isLoading && !error && filteredAdapters.length > 0 && isDesktopViewport();
     if (!canFocusCards) {
       return;
     }
     if (event.key === 'Tab' && !event.shiftKey) {
       event.preventDefault();
       focusFirstAgentCard();
+      return;
     }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusFirstAgentCard();
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusLastAgentCard();
+    }
+  };
+
+  const handleCardListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!isFilteringAgents || !isDesktopViewport()) {
+      return;
+    }
+
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    if (!(activeElement instanceof HTMLButtonElement) || activeElement.dataset.agentCard !== 'true') {
+      return;
+    }
+
+    const cardButtons = getAgentCardButtons();
+    const currentIndex = cardButtons.indexOf(activeElement);
+    if (currentIndex === -1) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (event.key === 'ArrowDown') {
+      focusAgentCardAtIndex((currentIndex + 1) % cardButtons.length);
+      return;
+    }
+
+    if (currentIndex === 0) {
+      searchInputRef.current?.focus();
+      return;
+    }
+
+    focusAgentCardAtIndex(currentIndex - 1);
   };
 
   const filteredAdapters = useMemo(() => {
@@ -70,6 +134,7 @@ export function AgentSelectionList({
       return nameMatches || descriptionMatches || modelMatches;
     });
   }, [adapters, searchQuery]);
+  const isFilteringAgents = searchQuery.trim().length > 0;
 
   useEffect(() => {
     const el = scrollContainerRef.current;
@@ -109,6 +174,13 @@ export function AgentSelectionList({
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (isLoading || error || adapters.length === 0) {
+      return;
+    }
+    searchInputRef.current?.focus();
+  }, [isLoading, error, adapters.length]);
 
   const renderContent = () => {
     if (isLoading) {
@@ -152,13 +224,22 @@ export function AgentSelectionList({
       <div className="relative flex flex-col h-full min-h-0">
         <div
           ref={scrollContainerRef}
+          onKeyDown={handleCardListKeyDown}
           className="flex-1 min-h-0 overflow-y-auto pr-1 pb-2"
         >
-          <div className="grid gap-3 lg:grid-cols-2">
-            {filteredAdapters.map(adapter => (
-              <AgentCard key={adapter.id} adapter={adapter} onSelect={selected => onAdapterSelect(selected.id)} />
-            ))}
-          </div>
+          {isFilteringAgents ? (
+            <div className="mx-auto flex w-full max-w-xl flex-col gap-3 lg:max-w-2xl">
+              {filteredAdapters.map(adapter => (
+                <AgentCard key={adapter.id} adapter={adapter} onSelect={selected => onAdapterSelect(selected.id)} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {filteredAdapters.map(adapter => (
+                <AgentCard key={adapter.id} adapter={adapter} onSelect={selected => onAdapterSelect(selected.id)} />
+              ))}
+            </div>
+          )}
         </div>
         {canScrollDown && (
           <div
@@ -197,6 +278,7 @@ export function AgentSelectionList({
           <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[linear-gradient(180deg,rgba(255,255,255,0.45),rgba(255,255,255,0))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0))]" />
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="Search agents"
             value={searchQuery}

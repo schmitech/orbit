@@ -543,7 +543,7 @@ export function Message({
 
         {isAssistant && !message.isStreaming && (
           <>
-            <div className="flex flex-wrap items-center gap-1 md:gap-1 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
+            <div className="py-1.5 md:py-2 flex flex-wrap items-center gap-1 md:gap-1 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
               <div className="flex min-w-0 flex-wrap items-center gap-1 md:gap-1">
                 <button
                   onClick={copyToClipboard}
@@ -575,12 +575,12 @@ export function Message({
                       setIsThreadOpen(true);
                       onStartThread(message.id, sessionId);
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
-                    title="Follow up on this answer"
-                    aria-label="Follow up on this answer"
+                    className={`inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-blue-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 dark:hover:border-blue-400/50 dark:hover:bg-blue-500/20 dark:hover:text-blue-100 md:px-3 md:py-1.5 ${isDark ? 'animate-follow-up-pulse-dark' : 'animate-follow-up-pulse-light'}`}
+                    title="Continue this discussion with the current answer's context"
+                    aria-label="Continue this discussion with the current answer's context"
                   >
                     <MessageSquare className="h-4 w-4 md:h-3.5 md:w-3.5" />
-                    <span>Follow up</span>
+                    <span>Continue Discussion</span>
                   </button>
                 )}
 
@@ -590,7 +590,7 @@ export function Message({
               {getEnableFeedbackButtons() && (
                 <>
                 <div className="hidden md:block w-px h-4 shrink-0 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
-                <div className="flex shrink-0 items-center gap-0.5">
+                <div className="relative flex shrink-0 items-center gap-0.5">
                   <button
                     onClick={() => handleFeedback('up')}
                     disabled={isFeedbackLoading}
@@ -609,6 +609,15 @@ export function Message({
                   >
                     <ThumbsDown className="h-3.5 w-3.5" />
                   </button>
+                  {showFeedbackAcknowledgement && (
+                    <div className="absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
+                      <div className="absolute left-0 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-emerald-500 dark:bg-emerald-600" />
+                      <div className="relative flex items-center gap-1.5">
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Thanks!</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 </>
               )}
@@ -645,13 +654,6 @@ export function Message({
                 <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
                   <Check className="h-3.5 w-3.5" />
                   <span>Copied</span>
-                </div>
-              )}
-
-              {showFeedbackAcknowledgement && (
-                <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
-                  <Check className="h-3.5 w-3.5" />
-                  <span>Thanks!</span>
                 </div>
               )}
             </div>
