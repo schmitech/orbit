@@ -50,20 +50,7 @@ If you find ORBIT useful, please **[star the repo](https://github.com/schmitech/
 
 ### Quick start
 
-**A) Try hosted API now**
-
-```bash
-curl -X POST https://orbit.schmitech.ai/v1/chat \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: default-key' \
-  -H 'X-Session-ID: test-session' \
-  -d '{
-    "messages": [{"role": "user", "content": "What is ORBIT?"}],
-    "stream": false
-  }'
-```
-
-**B) Run ORBIT locally with Docker Compose** (recommended — includes Ollama)
+Run ORBIT locally with Docker Compose:
 
 ```bash
 git clone https://github.com/schmitech/orbit.git && cd orbit/docker
