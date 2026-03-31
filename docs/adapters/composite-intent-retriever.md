@@ -126,17 +126,18 @@ When multi-stage selection is enabled, the retriever uses a three-stage scoring 
 
 ### 2. Template Matching
 
-Each child intent adapter maintains its own template store (vector database collection) containing embeddings of its templates. The composite retriever:
+Each child intent adapter maintains its own template store (vector database collection) containing embeddings of its templates. Child adapters using per-example indexing (all SQL/DuckDB intent adapters) store multiple vectors per template — one per `nl_example` — with IDs like `template_id::ex0`, `template_id::ex1`. The composite retriever handles this transparently:
 
-- Queries each template store with the same query embedding
-- Collects up to `max_templates_per_source` matches from each source
+- Queries each template store with the same query embedding (over-fetching by 3x to account for per-example duplicates)
+- **Deduplicates per-example vectors**: strips `::exN` suffixes and keeps only the highest-scoring hit per base template
+- Trims to `max_templates_per_source` deduplicated matches per source
 - Filters matches below the `confidence_threshold`
 - Sorts all matches by similarity score (highest first)
 - Selects the top match for routing
 
 ### 3. Routing Decision
 
-The routing decision is deterministic: the template with the highest similarity score wins. In case of ties, the first adapter in the configuration order is preferred.
+The routing decision is deterministic: the template with the highest similarity score (or combined score when multi-stage is enabled) wins. In case of ties, the configured `tie_breaker` strategy is used (default: `"embedding"` — the raw embedding score breaks the tie).
 
 ## Multi-Stage Selection
 
@@ -161,6 +162,7 @@ As the number of templates grows across multiple business domains, embedding sim
 - Uses configured reranker (Anthropic, OpenAI, Cohere, etc.)
 - Compares query against template descriptions and nl_examples
 - Better semantic understanding than embedding alone
+- Only the top N candidates (default: 10) are sent to the reranker; candidates beyond N use their embedding score as a proxy to avoid a score cliff at the cutoff boundary
 - Score range: 0.0 - 1.0
 
 #### Stage 3: String Similarity (Optional)
@@ -621,10 +623,12 @@ If a child adapter's template search exceeds this timeout, it's skipped and the 
 
 ### Template Store Size
 
-The composite retriever only fetches `max_templates_per_source` templates from each child. This keeps memory usage bounded even with many child adapters:
+The composite retriever over-fetches `max_templates_per_source × 3` vectors from each child to account for per-example deduplication, then trims to `max_templates_per_source` unique templates per source. This keeps memory usage bounded even with many child adapters:
 
 ```
-Total templates fetched = num_child_adapters × max_templates_per_source
+Vectors fetched per source = max_templates_per_source × 3
+Unique templates per source = max_templates_per_source (after dedup)
+Total unique templates = num_child_adapters × max_templates_per_source
 ```
 
 ## Limitations

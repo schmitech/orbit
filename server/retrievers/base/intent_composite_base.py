@@ -143,7 +143,7 @@ class CompositeIntentRetriever(BaseRetriever):
         # Check if multi-stage is enabled (either reranking or string similarity)
         self.multistage_enabled = self.reranking_enabled or self.string_similarity_enabled
 
-        # Validate weights sum to approximately 1.0 if both are enabled
+        # Validate weights sum to approximately 1.0 for enabled stages
         if self.multistage_enabled:
             total_weight = self.embedding_weight
             if self.reranking_enabled:
@@ -152,9 +152,18 @@ class CompositeIntentRetriever(BaseRetriever):
                 total_weight += self.string_similarity_weight
 
             if abs(total_weight - 1.0) > 0.01:
-                logger.warning(
-                    f"Composite retrieval weights sum to {total_weight:.2f}, not 1.0. "
-                    f"Scores will be normalized but may not reflect intended weighting."
+                # Weights don't sum to 1.0 for the active subset — this is expected
+                # when the defaults are tuned for all-three-enabled mode. The scoring
+                # code normalizes automatically, preserving the intended ratio.
+                enabled = ['embedding']
+                if self.reranking_enabled:
+                    enabled.append('reranking')
+                if self.string_similarity_enabled:
+                    enabled.append('string_similarity')
+                logger.info(
+                    f"Composite retrieval active weights ({', '.join(enabled)}) sum to "
+                    f"{total_weight:.2f}. Scores will be normalized to 1.0 "
+                    f"(ratio preserved)."
                 )
     
     def _get_datasource_name(self) -> str:
@@ -440,7 +449,7 @@ class CompositeIntentRetriever(BaseRetriever):
             return {}
 
         # Check cache first
-        cache_key = f"{query}:{','.join(sorted(c.template_id for c in candidates))}"
+        cache_key = f"{query}:{','.join(sorted(f'{c.source_adapter}:{c.template_id}' for c in candidates))}"
         if self.cache_rerank_results and cache_key in self._rerank_cache:
             cached_time, cached_results = self._rerank_cache[cache_key]
             if time.time() - cached_time < self.rerank_cache_ttl:
@@ -561,8 +570,15 @@ class CompositeIntentRetriever(BaseRetriever):
             # Embedding score (already normalized 0-1)
             emb_score = match.similarity_score
 
-            # Rerank score
-            rerank_score = rerank_scores.get(match.template_id, 0.0) if self.reranking_enabled else 0.0
+            # Rerank score — for candidates not sent to the reranker, use
+            # their embedding score as a proxy to avoid a cliff effect where
+            # position top_candidates vs top_candidates+1 causes a massive
+            # score discontinuity (reranked=real_score vs not_reranked=0.0).
+            if self.reranking_enabled:
+                rerank_result = rerank_scores.get(match.template_id)
+                rerank_score = rerank_result if rerank_result is not None else match.similarity_score
+            else:
+                rerank_score = 0.0
             match.rerank_score = rerank_score
 
             # String similarity score
@@ -609,8 +625,15 @@ class CompositeIntentRetriever(BaseRetriever):
                 'combined_score': combined
             }
 
-        # Sort by combined score (descending)
-        matches.sort(key=lambda m: m.combined_score or 0.0, reverse=True)
+        # Sort by combined score (descending), with tie-breaker
+        def _sort_key(m):
+            score = m.combined_score or 0.0
+            if self.tie_breaker == 'rerank':
+                return (score, m.rerank_score or 0.0)
+            # Default tie-breaker: embedding score
+            return (score, m.similarity_score)
+
+        matches.sort(key=_sort_key, reverse=True)
 
         # Log top matches for debugging
         if matches and logger.isEnabledFor(logging.DEBUG):
@@ -627,43 +650,60 @@ class CompositeIntentRetriever(BaseRetriever):
         return matches
     
     async def _search_single_template_store(
-        self, 
-        adapter_name: str, 
-        adapter: Any, 
+        self,
+        adapter_name: str,
+        adapter: Any,
         query_embedding: List[float]
     ) -> List[TemplateMatch]:
         """
         Search a single child adapter's template store.
-        
+
         Args:
             adapter_name: Name of the child adapter
             adapter: The child adapter instance
             query_embedding: Pre-computed query embedding
-            
+
         Returns:
             List of TemplateMatch objects from this adapter
         """
         matches = []
-        
+
         try:
-            # Search the adapter's template store
+            # Over-fetch to account for per-example deduplication
             search_results = await adapter.template_store.search_similar_templates(
                 query_embedding=query_embedding,
-                limit=self.max_templates_per_source,
+                limit=self.max_templates_per_source * 3,
                 threshold=self.confidence_threshold
             )
-            
+
             if not search_results:
                 logger.debug(f"No template matches from adapter '{adapter_name}'")
                 return matches
-            
-            # Convert results to TemplateMatch objects
+
+            # Deduplicate per-example vectors: per-example indexing stores
+            # multiple vectors per template with IDs like "template_id::ex0".
+            # Strip the "::exN" suffix and keep the highest-scoring hit per
+            # base template, mirroring IntentSQLRetriever._find_best_templates.
+            seen: Dict[str, Dict[str, Any]] = {}
             for result in search_results:
+                raw_tid = result.get('template_id', '')
+                base_tid = raw_tid.rsplit('::', 1)[0] if '::' in raw_tid else raw_tid
+                score = result.get('score', 0)
+                if base_tid not in seen or score > seen[base_tid].get('score', 0):
+                    result_copy = dict(result)
+                    result_copy['template_id'] = base_tid
+                    seen[base_tid] = result_copy
+
+            deduped = sorted(seen.values(), key=lambda r: r.get('score', 0), reverse=True)
+            deduped = deduped[:self.max_templates_per_source]
+
+            # Convert results to TemplateMatch objects
+            for result in deduped:
                 template_id = result.get('template_id')
-                
+
                 # Get full template data from the adapter's domain adapter
                 template_data = adapter.domain_adapter.get_template_by_id(template_id)
-                
+
                 if template_data:
                     matches.append(TemplateMatch(
                         template_id=template_id,
@@ -672,12 +712,16 @@ class CompositeIntentRetriever(BaseRetriever):
                         template_data=template_data,
                         embedding_text=result.get('description', '')
                     ))
-            
+                else:
+                    logger.warning(
+                        f"Template '{template_id}' not found in adapter '{adapter_name}' domain adapter"
+                    )
+
             logger.debug(f"Found {len(matches)} template matches from adapter '{adapter_name}'")
-            
+
         except Exception as e:
             logger.error(f"Error searching template store for adapter '{adapter_name}': {e}")
-        
+
         return matches
     
     async def _search_all_template_stores(self, query: str) -> List[TemplateMatch]:

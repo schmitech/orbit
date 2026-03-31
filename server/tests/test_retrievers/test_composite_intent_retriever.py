@@ -21,27 +21,45 @@ from retrievers.base.intent_composite_base import CompositeIntentRetriever, Temp
 
 
 class MockTemplateStore:
-    """Mock template store for testing."""
-    
-    def __init__(self, templates: List[Dict[str, Any]]):
+    """Mock template store for testing.
+
+    When per_example_indexing=True (the default, matching real IntentSQLRetriever
+    behavior), search results return template IDs with "::exN" suffixes to simulate
+    per-example vector indexing. The composite retriever must deduplicate these.
+    """
+
+    def __init__(self, templates: List[Dict[str, Any]], per_example_indexing: bool = True):
         self.templates = templates
-    
+        self.per_example_indexing = per_example_indexing
+
     async def search_similar_templates(
-        self, 
-        query_embedding: List[float], 
+        self,
+        query_embedding: List[float],
         limit: int = 5,
         threshold: float = 0.0
     ) -> List[Dict[str, Any]]:
-        """Return mock search results."""
+        """Return mock search results with per-example IDs when enabled."""
         results = []
         for template in self.templates:
             score = template.get('mock_score', 0.5)
             if score >= threshold:
-                results.append({
-                    'template_id': template['id'],
-                    'score': score,
-                    'description': template.get('description', '')
-                })
+                if self.per_example_indexing:
+                    nl_examples = template.get('nl_examples', ['default'])
+                    for i, _ in enumerate(nl_examples):
+                        # Each nl_example gets its own vector with slight score variation
+                        example_score = max(0.0, score - i * 0.03)
+                        if example_score >= threshold:
+                            results.append({
+                                'template_id': f"{template['id']}::ex{i}",
+                                'score': example_score,
+                                'description': template.get('description', '')
+                            })
+                else:
+                    results.append({
+                        'template_id': template['id'],
+                        'score': score,
+                        'description': template.get('description', '')
+                    })
         # Sort by score descending
         results.sort(key=lambda x: x['score'], reverse=True)
         return results[:limit]
@@ -1047,6 +1065,107 @@ class TestTemplateMatchDataclass:
         assert match.string_similarity_score == 0.78
         assert match.combined_score == 0.89
         assert match.scoring_details == {'test': 'value'}
+
+
+class TestPerExampleDeduplication:
+    """Test that per-example template IDs (::exN suffix) are deduplicated correctly.
+
+    This is critical: child adapters using IntentSQLRetriever store multiple
+    vectors per template (one per nl_example) with IDs like "tmpl::ex0", "tmpl::ex1".
+    The composite must strip these suffixes and keep only the highest score per base
+    template, otherwise domain_adapter.get_template_by_id() returns None and
+    matches are silently dropped.
+    """
+
+    @pytest.mark.asyncio
+    async def test_dedup_strips_suffix_and_keeps_highest_score(
+        self, composite_retriever, mock_child_adapters
+    ):
+        """Test that ::exN suffixed IDs are deduplicated to base template IDs."""
+        composite_retriever._child_adapters = mock_child_adapters
+        composite_retriever.embedding_client = MockEmbeddingClient()
+
+        query_embedding = await composite_retriever.embedding_client.embed_query("test")
+
+        # Search a single adapter — templates have per-example indexing enabled
+        matches = await composite_retriever._search_single_template_store(
+            'intent-duckdb-ev',
+            mock_child_adapters['intent-duckdb-ev'],
+            query_embedding
+        )
+
+        # Should get deduplicated results (base template IDs, not ::exN)
+        template_ids = [m.template_id for m in matches]
+        for tid in template_ids:
+            assert '::' not in tid, f"Template ID '{tid}' still has ::exN suffix"
+
+        # Each base template should appear at most once
+        assert len(template_ids) == len(set(template_ids)), "Duplicate base template IDs found"
+
+    @pytest.mark.asyncio
+    async def test_dedup_preserves_best_score_per_template(
+        self, composite_retriever, mock_child_adapters
+    ):
+        """Test that deduplication keeps the highest score for each base template."""
+        composite_retriever._child_adapters = mock_child_adapters
+        composite_retriever.embedding_client = MockEmbeddingClient()
+
+        query_embedding = await composite_retriever.embedding_client.embed_query("test")
+
+        matches = await composite_retriever._search_single_template_store(
+            'intent-duckdb-ev',
+            mock_child_adapters['intent-duckdb-ev'],
+            query_embedding
+        )
+
+        # The ev_count_by_make template has mock_score=0.9 and 3 nl_examples
+        # After dedup, we should get score 0.9 (the highest from ::ex0)
+        ev_match = next((m for m in matches if m.template_id == 'ev_count_by_make'), None)
+        assert ev_match is not None, "ev_count_by_make should be found after dedup"
+        assert ev_match.similarity_score == 0.9
+
+    @pytest.mark.asyncio
+    async def test_dedup_resolves_template_data_with_base_id(
+        self, composite_retriever, mock_child_adapters
+    ):
+        """Test that domain_adapter.get_template_by_id receives the base ID, not ::exN."""
+        composite_retriever._child_adapters = mock_child_adapters
+        composite_retriever.embedding_client = MockEmbeddingClient()
+
+        query_embedding = await composite_retriever.embedding_client.embed_query("test")
+
+        matches = await composite_retriever._search_single_template_store(
+            'intent-duckdb-ev',
+            mock_child_adapters['intent-duckdb-ev'],
+            query_embedding
+        )
+
+        # All matches should have non-empty template_data (proving get_template_by_id succeeded)
+        for match in matches:
+            assert match.template_data, f"template_data is empty for {match.template_id}"
+            assert 'description' in match.template_data or 'id' in match.template_data
+
+    @pytest.mark.asyncio
+    async def test_full_routing_with_per_example_indexing(
+        self, composite_retriever, mock_child_adapters
+    ):
+        """End-to-end test: composite routes correctly despite per-example indexing."""
+        composite_retriever._child_adapters = mock_child_adapters
+        composite_retriever.embedding_client = MockEmbeddingClient()
+
+        results = await composite_retriever.get_relevant_context("test query")
+
+        assert len(results) >= 1
+
+        # Should NOT get a "no_matching_template" error
+        metadata = results[0].get('metadata', {})
+        assert metadata.get('error') != 'no_matching_template', \
+            "Composite failed to match any templates — per-example dedup may be broken"
+
+        # Should have composite routing metadata
+        routing = metadata.get('composite_routing', {})
+        assert routing.get('selected_adapter') is not None
+        assert routing.get('total_matches_found', 0) > 0
 
 
 class TestMultiStageQueryRouting:
