@@ -32,6 +32,22 @@ ORBIT is a self-hosted gateway that unifies LLMs, files, databases, and APIs beh
   <a href="docs/cookbook/"><strong>Cookbook</strong></a>
 </p>
 
+### Sandbox demos ([orbitsandbox.dev](https://orbitsandbox.dev/))
+
+The public sandbox hosts one chat workspace per adapter. Each URL path is the adapter **`name`** from the bundled configs (`config/adapters/intent.yaml`, `hr.yaml`, `passthrough.yaml`, `multimodal.yaml`). Templates, domain definitions, and sample databases for these demos are in [`examples/`](examples/) in this repository.
+
+| Sandbox | Datasource | What it shows |
+| :--- | :--- | :--- |
+| [intent-sql-sqlite-hr](https://orbitsandbox.dev/intent-sql-sqlite-hr) | SQLite | Reporting and lookups on a sample HR database |
+| [intent-duckdb-analytics](https://orbitsandbox.dev/intent-duckdb-analytics) | DuckDB | Analytics questions on a sample DuckDB warehouse |
+| [intent-duckdb-ev-population](https://orbitsandbox.dev/intent-duckdb-ev-population) | DuckDB | Large-scale EV registration–style stats (Washington sample data) |
+| [intent-http-jsonplaceholder](https://orbitsandbox.dev/intent-http-jsonplaceholder) | HTTP (JSON) | REST-style JSON APIs (JSONPlaceholder demo) |
+| [intent-http-paris-opendata](https://orbitsandbox.dev/intent-http-paris-opendata) | HTTP (JSON) | Paris open data — events and city datasets |
+| [intent-mongodb-mflix](https://orbitsandbox.dev/intent-mongodb-mflix) | MongoDB | NL queries over the sample MFlix movies database |
+| [intent-graphql-spacex](https://orbitsandbox.dev/intent-graphql-spacex) | GraphQL | Natural language against a public GraphQL API (SpaceX) |
+| [simple-chat](https://orbitsandbox.dev/simple-chat) | Passthrough | Pure conversation — no retrieval layer |
+| [simple-chat-with-files](https://orbitsandbox.dev/chat-with-files) | Multimodal | Upload documents or images; answers use RAG over your files |
+
 **ORBIT in Production:** [PoliceStats.ca](https://policestats.ca) uses ORBIT to power a public chat over Canadian municipal police open data. Users ask in plain language about auto theft, break-ins, crime by neighbourhood, and cross-city comparisons.
 
 If you or someone you know is using ORBIT in production, please [let us know](https://schmitech.ai/en/contact) and we will add the project here.
