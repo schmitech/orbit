@@ -32,21 +32,21 @@ ORBIT is a self-hosted gateway that unifies LLMs, files, databases, and APIs beh
   <a href="docs/cookbook/"><strong>Cookbook</strong></a>
 </p>
 
-### Sandbox demos ([orbitsandbox.dev](https://orbitsandbox.dev/))
+### Sandbox demos (<a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer">orbitsandbox.dev</a>)
 
 The public sandbox hosts one chat workspace per adapter. Each URL path is the adapter **`name`** from the bundled configs (`config/adapters/intent.yaml`, `hr.yaml`, `passthrough.yaml`, `multimodal.yaml`). Templates, domain definitions, and sample databases for these demos are in [`examples/`](examples/) in this repository.
 
 | Sandbox | Datasource | What it shows |
 | :--- | :--- | :--- |
-| [intent-sql-sqlite-hr](https://orbitsandbox.dev/intent-sql-sqlite-hr) | SQLite | Reporting and lookups on a sample HR database |
-| [intent-duckdb-analytics](https://orbitsandbox.dev/intent-duckdb-analytics) | DuckDB | Analytics questions on a sample DuckDB warehouse |
-| [intent-duckdb-ev-population](https://orbitsandbox.dev/intent-duckdb-ev-population) | DuckDB | Large-scale EV registration–style stats (Washington sample data) |
-| [intent-http-jsonplaceholder](https://orbitsandbox.dev/intent-http-jsonplaceholder) | HTTP (JSON) | REST-style JSON APIs (JSONPlaceholder demo) |
-| [intent-http-paris-opendata](https://orbitsandbox.dev/intent-http-paris-opendata) | HTTP (JSON) | Paris open data — events and city datasets |
-| [intent-mongodb-mflix](https://orbitsandbox.dev/intent-mongodb-mflix) | MongoDB | NL queries over the sample MFlix movies database |
-| [intent-graphql-spacex](https://orbitsandbox.dev/intent-graphql-spacex) | GraphQL | Natural language against a public GraphQL API (SpaceX) |
-| [simple-chat](https://orbitsandbox.dev/simple-chat) | Passthrough | Pure conversation — no retrieval layer |
-| [simple-chat-with-files](https://orbitsandbox.dev/chat-with-files) | Multimodal | Upload documents or images; answers use RAG over your files |
+| <a href="https://orbitsandbox.dev/intent-sql-sqlite-hr" target="_blank" rel="noopener noreferrer">intent-sql-sqlite-hr</a> | SQLite | Reporting and lookups on a sample HR database |
+| <a href="https://orbitsandbox.dev/intent-duckdb-analytics" target="_blank" rel="noopener noreferrer">intent-duckdb-analytics</a> | DuckDB | Analytics questions on a sample DuckDB warehouse |
+| <a href="https://orbitsandbox.dev/intent-duckdb-ev-population" target="_blank" rel="noopener noreferrer">intent-duckdb-ev-population</a> | DuckDB | Large-scale EV registration–style stats (Washington sample data) |
+| <a href="https://orbitsandbox.dev/intent-http-jsonplaceholder" target="_blank" rel="noopener noreferrer">intent-http-jsonplaceholder</a> | HTTP (JSON) | REST-style JSON APIs (JSONPlaceholder demo) |
+| <a href="https://orbitsandbox.dev/intent-http-paris-opendata" target="_blank" rel="noopener noreferrer">intent-http-paris-opendata</a> | HTTP (JSON) | Paris open data — events and city datasets |
+| <a href="https://orbitsandbox.dev/intent-mongodb-mflix" target="_blank" rel="noopener noreferrer">intent-mongodb-mflix</a> | MongoDB | NL queries over the sample MFlix movies database |
+| <a href="https://orbitsandbox.dev/intent-graphql-spacex" target="_blank" rel="noopener noreferrer">intent-graphql-spacex</a> | GraphQL | Natural language against a public GraphQL API (SpaceX) |
+| <a href="https://orbitsandbox.dev/simple-chat" target="_blank" rel="noopener noreferrer">simple-chat</a> | Passthrough | Pure conversation — no retrieval layer |
+| <a href="https://orbitsandbox.dev/chat-with-files" target="_blank" rel="noopener noreferrer">simple-chat-with-files</a> | Multimodal | Upload documents or images; answers use RAG over your files |
 
 **ORBIT in Production:** [PoliceStats.ca](https://policestats.ca) uses ORBIT to power a public chat over Canadian municipal police open data. Users ask in plain language about auto theft, break-ins, crime by neighbourhood, and cross-city comparisons.
 
