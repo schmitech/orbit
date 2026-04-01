@@ -353,11 +353,124 @@ The CLI uses a simplified authentication state management approach:
 
 ### Managing Stored Credentials
 
+#### Retrieve Bearer Token
+
+After logging in with `orbit login`, the bearer token is stored in the system keychain (or file fallback). To retrieve it for use with admin API endpoints, scripts, or tools like `test_template_query.py`:
+
+##### macOS
+
+Tokens are stored in macOS Keychain via the `security` command:
+
+```bash
+# Print the raw bearer token value
+security find-generic-password -s "orbit-cli" -a "auth-token" -w
+```
+
+Inline usage:
+```bash
+TOKEN=$(security find-generic-password -s "orbit-cli" -a "auth-token" -w)
+```
+
+##### Ubuntu / Debian Linux
+
+Tokens are stored via GNOME Keyring (Secret Service API). Requires `libsecret-tools`:
+
+```bash
+# Install if needed
+sudo apt-get install libsecret-tools
+
+# Retrieve the token
+secret-tool lookup service "orbit-cli" account "auth-token"
+```
+
+Inline usage:
+```bash
+TOKEN=$(secret-tool lookup service "orbit-cli" account "auth-token")
+```
+
+> **Note:** On headless servers without a desktop session, GNOME Keyring may not be running. In this case ORBIT falls back to file storage (see below).
+
+##### KDE Linux
+
+Tokens are stored in KDE Wallet:
+
+```bash
+kwallet-query kdewallet -f "orbit-cli" -r "auth-token"
+```
+
+##### Amazon Linux / AWS EC2 / Headless Servers
+
+Headless environments typically don't have a keyring daemon. ORBIT automatically falls back to file-based storage at `~/.orbit/.env`. Retrieve the token:
+
+```bash
+# If stored in plain text (auth.credential_storage: file)
+grep 'API_ADMIN_TOKEN=' ~/.orbit/.env | cut -d'=' -f2
+
+# If stored as base64 fallback (default when keyring is unavailable)
+grep 'API_ADMIN_TOKEN_B64=' ~/.orbit/.env | cut -d'=' -f2 | base64 --decode
+```
+
+Inline usage:
+```bash
+# Plain text storage
+TOKEN=$(grep 'API_ADMIN_TOKEN=' ~/.orbit/.env | cut -d'=' -f2)
+
+# Base64 fallback storage
+TOKEN=$(grep 'API_ADMIN_TOKEN_B64=' ~/.orbit/.env | cut -d'=' -f2 | base64 --decode)
+```
+
+> **Tip:** To force file storage instead of keyring on any platform, set `auth.credential_storage: file` in your config or run `orbit config set auth.credential_storage file`.
+
+##### Windows
+
+Tokens are stored in Windows Credential Manager via the `keyring` Python library:
+
+```powershell
+# Using Python directly
+python -c "import keyring; print(keyring.get_password('orbit-cli', 'auth-token'))"
+```
+
+Or via PowerShell with the `CredentialManager` module:
+```powershell
+# Install module if needed
+Install-Module -Name CredentialManager
+
+# Retrieve the token
+(Get-StoredCredential -Target "orbit-cli:auth-token").Password
+```
+
+If keyring is not installed, check the fallback file:
+```powershell
+Get-Content "$env:USERPROFILE\.orbit\.env" | Select-String "API_ADMIN_TOKEN"
+```
+
+##### Using the Token
+
+Once retrieved, the token works the same on all platforms:
+
+```bash
+# With the template diagnostics CLI tool
+python server/tools/test_template_query.py \
+  --query "salary stats" \
+  --adapter intent-sql-sqlite-hr \
+  --api-key "$TOKEN"
+
+# With curl
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/admin/adapters/info
+```
+
+##### Verifying Storage Method
+
+To check which storage method is active:
+```bash
+orbit config show --key auth.credential_storage
+```
+
 #### View Stored Credentials
 
 **macOS:**
 ```bash
-# View auth token entry
+# View auth token entry (full metadata)
 security find-generic-password -s "orbit-cli" -a "auth-token"
 
 # View server URL entry

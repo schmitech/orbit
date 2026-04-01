@@ -24,13 +24,13 @@ from models.schema import (
     ApiKeyCreate, ApiKeyResponse, ApiKeyUpdate,
     SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse,
     ApiKeyPromptAssociate, ChatHistoryClearResponse, AdapterReloadResponse,
-    TemplateReloadResponse, ApiKeyQuota, ApiKeyQuotaUpdate, ApiKeyUsage,
-    ApiKeyQuotaResponse
+    TemplateReloadResponse, TemplateTestRequest, ApiKeyQuota, ApiKeyQuotaUpdate,
+    ApiKeyUsage, ApiKeyQuotaResponse
 )
 from config.config_manager import reload_adapters_config
 
 # Import auth dependencies
-from routes.auth_dependencies import check_admin_or_api_key
+from routes.auth_dependencies import check_admin_or_api_key, require_admin
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -1608,6 +1608,61 @@ async def reload_templates_async(
       "job_id": job["job_id"],
       "message": "Template reload started in background"
     }
+
+
+@admin_router.post("/adapters/{adapter_name}/test-query")
+async def test_adapter_query(
+    adapter_name: str,
+    body: TemplateTestRequest,
+    request: Request,
+    admin_user: dict = Depends(require_admin)
+):
+    """
+    Test a natural language query against an intent adapter's templates
+    without running the full LLM inference pipeline.
+
+    Returns detailed diagnostics: template matching scores, parameter extraction,
+    rendered query, and raw datasource results.
+    """
+    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    if not adapter_manager:
+        raise HTTPException(status_code=503, detail="Adapter manager is not available")
+
+    try:
+        adapter = await adapter_manager.get_adapter(adapter_name)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found: {e}")
+
+    if adapter is None:
+        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found")
+
+    # Verify adapter is an intent or composite retriever
+    from retrievers.base.intent_sql_base import IntentSQLRetriever
+    from retrievers.base.intent_http_base import IntentHTTPRetriever
+    from retrievers.base.intent_composite_base import CompositeIntentRetriever
+
+    if not isinstance(adapter, (IntentSQLRetriever, IntentHTTPRetriever, CompositeIntentRetriever)):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Adapter '{adapter_name}' is type '{type(adapter).__name__}', not an intent retriever. "
+                   f"test-query only works with intent-based adapters."
+        )
+
+    from utils.template_diagnostics import diagnose_template_query
+
+    try:
+        result = await diagnose_template_query(
+            retriever=adapter,
+            query=body.query,
+            max_templates=body.max_templates,
+            execute=body.execute,
+            include_all_candidates=body.include_all_candidates,
+            verbose=body.verbose,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Template test-query failed for '{adapter_name}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Test query failed: {e}")
 
 
 @admin_router.get("/jobs/{job_id}")

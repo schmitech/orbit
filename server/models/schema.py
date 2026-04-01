@@ -146,6 +146,15 @@ class TemplateReloadResponse(BaseModel):
     timestamp: str
 
 
+class TemplateTestRequest(BaseModel):
+    """Request model for testing an intent retriever template"""
+    query: str = Field(description="Natural language query to test against the adapter's templates")
+    max_templates: int = Field(default=5, description="Maximum template candidates to return")
+    execute: bool = Field(default=True, description="Whether to execute the query against the datasource")
+    include_all_candidates: bool = Field(default=False, description="Include full details for all candidates")
+    verbose: bool = Field(default=False, description="Include extended diagnostics (vector store, inventory, domain, semantic analysis)")
+
+
 class MCPMessage(BaseModel):
     """MCP protocol message model"""
     id: str = Field(description="Unique identifier for the message")
