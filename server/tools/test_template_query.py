@@ -12,24 +12,32 @@ Usage:
         --server-url http://localhost:3000 \\
         --api-key <admin-api-key-or-bearer-token>
 
+    # Pick a random nl_example from a template ID (no need to type a query)
+    python server/tools/test_template_query.py \\
+        --template-id search_employees_by_name \\
+        --templates-file examples/intent-templates/sql-intent-template/examples/sqlite/hr/hr-templates.yaml \\
+        --adapter intent-sql-sqlite-hr \\
+        --server-url http://localhost:3000 --api-key <token>
+
     # Verbose mode (vector store info, template inventory, domain config, semantic analysis)
     python server/tools/test_template_query.py \\
         --query "salary stats" --adapter intent-sql-sqlite-hr \\
-        --server-url http://localhost:3000 --api-key <key> --verbose
+        --server-url http://localhost:3000 --api-key <token> --verbose
 
     # Skip query execution (template matching only)
     python server/tools/test_template_query.py \\
         --query "salary stats" --adapter intent-sql-sqlite-hr \\
-        --server-url http://localhost:3000 --api-key <key> --no-execute
+        --server-url http://localhost:3000 --api-key <token> --no-execute
 
     # Raw JSON output
     python server/tools/test_template_query.py \\
         --query "salary stats" --adapter intent-sql-sqlite-hr \\
-        --server-url http://localhost:3000 --api-key <key> --output json
+        --server-url http://localhost:3000 --api-key <token> --output json
 """
 
 import argparse
 import json
+import random
 import sys
 
 try:
@@ -37,6 +45,11 @@ try:
 except ImportError:
     print("Error: httpx is required. Install with: pip install httpx", file=sys.stderr)
     sys.exit(1)
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 
 # ANSI color codes
@@ -366,19 +379,78 @@ def print_pretty(data: dict) -> None:
     print(f"\n{C.BOLD}{'=' * 70}{C.RESET}\n")
 
 
+def _pick_random_example(templates_file: str, template_id: str) -> str:
+    """Load a templates YAML file and pick a random nl_example from the given template ID."""
+    if yaml is None:
+        print("Error: PyYAML is required for --template-id. Install with: pip install pyyaml",
+              file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        with open(templates_file, 'r') as f:
+            data = yaml.safe_load(f)
+    except FileNotFoundError:
+        print(f"Error: Templates file not found: {templates_file}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error loading templates file: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Templates can be a list or nested under a 'templates' key
+    templates = data if isinstance(data, list) else data.get('templates', [])
+    if not templates:
+        print(f"Error: No templates found in {templates_file}", file=sys.stderr)
+        sys.exit(1)
+
+    # Find the template by ID
+    match = None
+    available_ids = []
+    for tmpl in templates:
+        tid = tmpl.get('id', '')
+        available_ids.append(tid)
+        if tid == template_id:
+            match = tmpl
+            break
+
+    if not match:
+        print(f"Error: Template '{template_id}' not found in {templates_file}", file=sys.stderr)
+        print(f"Available IDs: {', '.join(available_ids)}", file=sys.stderr)
+        sys.exit(1)
+
+    examples = match.get('nl_examples', [])
+    if not examples:
+        print(f"Error: Template '{template_id}' has no nl_examples", file=sys.stderr)
+        sys.exit(1)
+
+    chosen = random.choice(examples)
+    return chosen
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Test intent retriever templates without the full LLM pipeline.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s --query "salary stats" --adapter intent-sql-sqlite-hr --api-key <key>
-  %(prog)s --query "top movies" --adapter intent-mongodb-mflix --api-key <key> --no-execute
-  %(prog)s --query "events in Paris" --adapter composite-full-explorer --api-key <key> --verbose
-  %(prog)s --query "salary stats" --adapter intent-sql-sqlite-hr --api-key <key> --output json
+  # Explicit query
+  %(prog)s --query "salary stats" --adapter intent-sql-sqlite-hr --api-key <token>
+
+  # Random nl_example from a template
+  %(prog)s --template-id search_employees_by_name \\
+    --templates-file examples/intent-templates/sql-intent-template/examples/sqlite/hr/hr-templates.yaml \\
+    --adapter intent-sql-sqlite-hr --api-key <token>
+
+  %(prog)s -q "top movies" -a intent-mongodb-mflix -k <token> --no-execute
+  %(prog)s -q "events in Paris" -a composite-full-explorer -k <token> --verbose
+  %(prog)s -q "salary stats" -a intent-sql-sqlite-hr -k <token> --output json
         """,
     )
-    parser.add_argument("--query", "-q", required=True, help="Natural language query to test")
+    parser.add_argument("--query", "-q", default=None,
+                        help="Natural language query to test (or use --template-id to pick one automatically)")
+    parser.add_argument("--template-id", default=None,
+                        help="Pick a random nl_example from this template ID (requires --templates-file)")
+    parser.add_argument("--templates-file", default=None,
+                        help="Path to the templates YAML file (used with --template-id)")
     parser.add_argument("--adapter", "-a", required=True, help="Adapter name to test against")
     parser.add_argument("--server-url", "-s", default="http://localhost:3000",
                         help="ORBIT server URL (default: http://localhost:3000)")
@@ -400,6 +472,19 @@ Examples:
 
     args = parser.parse_args()
 
+    # Resolve query: explicit --query or random pick from --template-id
+    if args.template_id:
+        if not args.templates_file:
+            parser.error("--templates-file is required when using --template-id")
+        query = _pick_random_example(args.templates_file, args.template_id)
+        if not args.no_color and sys.stdout.isatty():
+            print(f"\033[2mPicked random example from '{args.template_id}': \033[0m{query}",
+                  file=sys.stderr)
+    elif args.query:
+        query = args.query
+    else:
+        parser.error("either --query or --template-id (with --templates-file) is required")
+
     if args.no_color or not sys.stdout.isatty():
         _no_color()
 
@@ -414,7 +499,7 @@ Examples:
         headers["X-API-Key"] = args.api_key
 
     payload = {
-        "query": args.query,
+        "query": query,
         "max_templates": args.max_templates,
         "execute": not args.no_execute,
         "include_all_candidates": args.all_candidates,

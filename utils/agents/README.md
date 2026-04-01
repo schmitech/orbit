@@ -16,6 +16,7 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 | `database-scalability-agent.md` | Database concurrency, connection pooling, Redis caching strategy, query optimization, and load resilience for high-traffic systems |
 | `system-design-agent.md` | Evaluates overall system architecture, boundaries, failure modes, scalability ceilings, coupling, and operational readiness |
 | `implementation-review-agent.md` | Reviews component-level implementation decisions — data structures, algorithms, patterns, state, error handling — and identifies better alternatives |
+| `template-tuning-agent.md` | Audits intent retriever template YAML files for reranker collisions, nl_example ambiguity, missing semantic tags, and parameter extraction issues |
 
 ---
 
@@ -31,6 +32,7 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 - **Need to handle thousands/millions of requests without melting the database?** → Use `database-scalability-agent.md`
 - **Evaluating the overall architecture for weaknesses and limitations?** → Use `system-design-agent.md`
 - **Want to challenge specific implementation decisions within components?** → Use `implementation-review-agent.md`
+- **Intent templates misrouting queries or parameters not extracting?** → Use `template-tuning-agent.md`
 - **Want the full picture?** → Combine agents in a single session (see below)
 
 ### 2. Start a new conversation with your AI assistant
