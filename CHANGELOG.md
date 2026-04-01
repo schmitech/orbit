@@ -20,6 +20,10 @@
 - Test coverage: Added 27 unit tests for score conversion formulas (Chroma, FAISS, Milvus, Weaviate cross-consistency), per-example embedding text generation, and deduplication logic
 - Language detection: Pipeline identification, multilingual intent domain parameters, and embedding client close behavior
 - Database cleanup script: Extended to additional tables
+- Composite retriever: The composite retriever silently dropped all template matches from child adapters using per-example indexing.
+- Fix English detection for ASCII search queries: add an English query heuristic for short ASCII noun-phrase searches.
+- Core consistency fix: ChromaDB, FAISS, and Milvus vector stores returned inflated or incorrect similarity scores, causing confidence_threshold to behave differently depending on the backend
+- Fix embedding client closed detection in composite retriever: apply the same fix from 2.6.3 so session-based providers (Voyage, OpenRouter) no longer trigger unnecessary reinitialization on every query
 
 ## [2.6.3] - 2026-03-19
 
