@@ -459,6 +459,33 @@ python server/tools/test_template_query.py \
 curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/admin/adapters/info
 ```
 
+##### Cross-Platform Helper Script
+
+A convenience script at `utils/scripts/get-auth-token.sh` auto-detects the platform and credential storage method:
+
+```bash
+# Print the token (with platform detection info on stderr)
+./utils/scripts/get-auth-token.sh
+
+# Quiet mode - token only, no status messages
+./utils/scripts/get-auth-token.sh --quiet
+
+# Export as shell variable
+eval "$(./utils/scripts/get-auth-token.sh --export)"
+echo $ORBIT_TOKEN
+
+# Use directly with tools
+python server/tools/test_template_query.py \
+  --query "salary stats" --adapter intent-sql-sqlite-hr \
+  --api-key "$(./utils/scripts/get-auth-token.sh --quiet)"
+```
+
+The script tries these methods in order based on detected platform:
+- **macOS**: Keychain → Python keyring → file fallback
+- **Linux**: GNOME Keyring → KDE Wallet → Python keyring → file fallback
+- **AWS/cloud/headless**: Python keyring → file fallback
+- **Windows (Git Bash)**: Python keyring → file fallback
+
 ##### Verifying Storage Method
 
 To check which storage method is active:

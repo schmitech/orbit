@@ -183,7 +183,15 @@ security find-generic-password -s "orbit-cli" -a "auth-token" -w
 secret-tool lookup service "orbit-cli" account "auth-token"
 ```
 
-**Inline usage (macOS):**
+**Cross-platform helper script** (auto-detects platform):
+```bash
+python server/tools/test_template_query.py \
+  --query "salary stats" \
+  --adapter intent-sql-sqlite-hr \
+  --api-key "$(./utils/scripts/get-auth-token.sh --quiet)"
+```
+
+**macOS inline:**
 ```bash
 python server/tools/test_template_query.py \
   --query "salary stats" \
