@@ -100,7 +100,7 @@ The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer
 | HR Database | SQLite | <a href="https://orbitsandbox.dev/intent-sql-sqlite-hr" target="_blank">intent-sql-sqlite-hr</a> |
 | EV Population Stats | DuckDB | <a href="https://orbitsandbox.dev/intent-duckdb-ev-population" target="_blank">intent-duckdb-ev-population</a> |
 | SpaceX GraphQL | GraphQL | <a href="https://orbitsandbox.dev/intent-graphql-spacex" target="_blank">intent-graphql-spacex</a> |
-| File Upload Chat | Multimodal | <a href="https://orbitsandbox.dev/chat-with-files" target="_blank">chat-with-files</a> |
+| File Upload Chat | Files | <a href="https://orbitsandbox.dev/chat-with-files" target="_blank">chat-with-files</a> |
 
 <details>
 <summary>All sandbox demos</summary>
@@ -114,8 +114,8 @@ The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer
 | Paris Open Data | HTTP (JSON) | <a href="https://orbitsandbox.dev/intent-http-paris-opendata" target="_blank">intent-http-paris-opendata</a> |
 | MFlix Movies | MongoDB | <a href="https://orbitsandbox.dev/intent-mongodb-mflix" target="_blank">intent-mongodb-mflix</a> |
 | SpaceX GraphQL | GraphQL | <a href="https://orbitsandbox.dev/intent-graphql-spacex" target="_blank">intent-graphql-spacex</a> |
-| Simple Chat | Passthrough | <a href="https://orbitsandbox.dev/simple-chat" target="_blank">simple-chat</a> |
-| File Upload Chat | Multimodal | <a href="https://orbitsandbox.dev/chat-with-files" target="_blank">chat-with-files</a> |
+| Simple Chat | LLM | <a href="https://orbitsandbox.dev/simple-chat" target="_blank">simple-chat</a> |
+| File Upload Chat | Files | <a href="https://orbitsandbox.dev/chat-with-files" target="_blank">chat-with-files</a> |
 
 </details>
 
