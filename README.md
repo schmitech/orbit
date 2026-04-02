@@ -2,6 +2,9 @@
   <a href="https://github.com/schmitech/orbit">
     <img src="docs/images/orbit-logo-transparent.png" alt="ORBIT Logo" width="500"/>
   </a>
+
+  <h3>One API for 20+ LLM providers, your databases, and your files.</h3>
+  <p>Self-hosted. Open-source. Production-ready.</p>
 </div>
 
 <br/>
@@ -16,14 +19,8 @@
   </a>
 </p>
 
-# ORBIT: Open Retrieval-Based Inference Toolkit
-
-**Connect 20+ LLM providers with your data through one API.**
-
-ORBIT is a self-hosted gateway that unifies LLMs, files, databases, and APIs behind one MCP endpoint, letting teams standardize on one integration surface while keeping security, compliance, and operational controls under their watch.
-
 <p align="center">
-  <a href="https://orbitsandbox.dev/"><strong>Try the Sandbox</strong></a>
+  <a href="https://orbitsandbox.dev/"><strong>Live Sandbox</strong></a>
   &nbsp;|&nbsp;
   <a href="https://orbit.schmitech.ai/redoc"><strong>API Reference</strong></a>
   &nbsp;|&nbsp;
@@ -32,47 +29,18 @@ ORBIT is a self-hosted gateway that unifies LLMs, files, databases, and APIs beh
   <a href="docs/cookbook/"><strong>Cookbook</strong></a>
 </p>
 
-### Sandbox demos (<a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer">orbitsandbox.dev</a>)
-
-The public sandbox hosts one chat workspace per adapter. Each URL path is the adapter **`name`** from the bundled configs (`config/adapters/intent.yaml`, `hr.yaml`, `passthrough.yaml`, `multimodal.yaml`). Templates, domain definitions, and sample databases for these demos are in [`examples/`](examples/) in this repository.
-
-| Sandbox | Datasource | What it shows |
-| :--- | :--- | :--- |
-| <a href="https://orbitsandbox.dev/intent-sql-sqlite-hr" target="_blank" rel="noopener noreferrer">intent-sql-sqlite-hr</a> | SQLite | Reporting and lookups on a sample HR database |
-| <a href="https://orbitsandbox.dev/intent-duckdb-analytics" target="_blank" rel="noopener noreferrer">intent-duckdb-analytics</a> | DuckDB | Analytics questions on a sample DuckDB warehouse |
-| <a href="https://orbitsandbox.dev/intent-duckdb-ev-population" target="_blank" rel="noopener noreferrer">intent-duckdb-ev-population</a> | DuckDB | Large-scale EV registration–style stats (Washington sample data) |
-| <a href="https://orbitsandbox.dev/intent-http-jsonplaceholder" target="_blank" rel="noopener noreferrer">intent-http-jsonplaceholder</a> | HTTP (JSON) | REST-style JSON APIs (JSONPlaceholder demo) |
-| <a href="https://orbitsandbox.dev/intent-http-paris-opendata" target="_blank" rel="noopener noreferrer">intent-http-paris-opendata</a> | HTTP (JSON) | Paris open data — events and city datasets |
-| <a href="https://orbitsandbox.dev/intent-mongodb-mflix" target="_blank" rel="noopener noreferrer">intent-mongodb-mflix</a> | MongoDB | NL queries over the sample MFlix movies database |
-| <a href="https://orbitsandbox.dev/intent-graphql-spacex" target="_blank" rel="noopener noreferrer">intent-graphql-spacex</a> | GraphQL | Natural language against a public GraphQL API (SpaceX) |
-| <a href="https://orbitsandbox.dev/simple-chat" target="_blank" rel="noopener noreferrer">simple-chat</a> | Passthrough | Pure conversation — no retrieval layer |
-| <a href="https://orbitsandbox.dev/chat-with-files" target="_blank" rel="noopener noreferrer">simple-chat-with-files</a> | Multimodal | Upload documents or images; answers use RAG over your files |
-
-**ORBIT in Production:** [PoliceStats.ca](https://policestats.ca) uses ORBIT to power a public chat over Canadian municipal police open data. Users ask in plain language about auto theft, break-ins, crime by neighbourhood, and cross-city comparisons.
-
-If you or someone you know is using ORBIT in production, please [let us know](https://schmitech.ai/en/contact) and we will add the project here.
-
-If you find ORBIT useful, please **[star the repo](https://github.com/schmitech/orbit)**—you'll see new releases in your feed and make the project easier for others to discover.
-
 ---
 
-### 🧩 Supported Integrations
-
-**Inference:** OpenAI, Anthropic, Google Gemini, Cohere, Groq, DeepSeek, Mistral, AWS Bedrock, Azure, Together, Ollama, vLLM, llama.cpp.
-
-**Data Adapters:** PostgreSQL, MySQL, MongoDB, Elasticsearch, DuckDB, Chroma, Qdrant, Pinecone, Milvus, Weaviate.
-
----
-
-### Quick start
-
-Run ORBIT locally with Docker Compose:
+### Get running in 60 seconds
 
 ```bash
 git clone https://github.com/schmitech/orbit.git && cd orbit/docker
 docker compose up -d
+```
 
-# Wait for services to start, then test
+Then test it:
+
+```bash
 curl -X POST http://localhost:3000/v1/chat \
   -H 'Content-Type: application/json' \
   -H 'X-API-Key: default-key' \
@@ -83,86 +51,130 @@ curl -X POST http://localhost:3000/v1/chat \
   }'
 ```
 
-**Admin panel:** When ORBIT is listening on port 3000, open [http://localhost:3000/admin](http://localhost:3000/admin) (or `https://<your-host>/admin` in production). Sign in with username **`admin`** and the password from **`ORBIT_DEFAULT_ADMIN_PASSWORD`** (`env.example` defaults to **`admin123`**). Change that password before exposing the server.
+That's it. ORBIT is listening on port 3000 with an admin panel at [localhost:3000/admin](http://localhost:3000/admin) (default login: `admin` / `admin123`).
 
-For GPU acceleration (NVIDIA): `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d`
+For GPU acceleration: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d`
 
-**C) Run ORBIT from the pre-built image** (server only; point it at your own Ollama)
+---
+
+### What can you build with ORBIT?
+
+- **Ask your database questions in any language** — Connect Postgres, MySQL, MongoDB, DuckDB, or Elasticsearch and query them with natural language. Built-in language detection responds in the user's language automatically.
+- **Switch LLM providers without changing code** — Swap between OpenAI, Anthropic, Gemini, Groq, Ollama, vLLM, and more with a config change.
+- **Build voice agents** — Full-duplex speech-to-speech with interruption handling via PersonaPlex.
+- **Power agentic workflows** — MCP-compatible, so AI agents can use ORBIT as a tool.
+- **Upload files and get answers** — RAG over PDFs, images, and documents out of the box.
+- **Add guardrails and content moderation** — Built-in safety layer with OpenAI, Anthropic, or local (Llama Guard) moderators to filter harmful content before it reaches users.
+- **Go from text to speech and back** — Plug in STT (Whisper, Google, Gemini) and TTS (OpenAI, ElevenLabs, Coqui) providers for voice-enabled applications.
+- **Keep everything private** — Self-host on your own infrastructure with RBAC, rate limiting, and audit logging.
+
+---
+
+### Supported integrations
+
+**LLM Providers:** OpenAI, Anthropic, Google Gemini, Cohere, Groq, DeepSeek, Mistral, AWS Bedrock, Azure, Together, Ollama, vLLM, llama.cpp
+
+**Data Sources:** PostgreSQL, MySQL, MongoDB, Elasticsearch, DuckDB, SQLite, HTTP/REST APIs, GraphQL
+
+**Vector Stores:** Chroma, Qdrant, Pinecone, Milvus, Weaviate
+
+---
+
+### Why ORBIT?
+
+| Without ORBIT | With ORBIT |
+| :--- | :--- |
+| One SDK per provider, rewrites when you switch | One OpenAI-compatible API across all providers |
+| Separate pipelines for retrieval and inference | Unified model + retrieval + tooling gateway |
+| Fragile glue scripts between data sources and LLMs | Production-ready connectors with policy controls |
+| No visibility into what models are doing | Built-in RBAC, rate limiting, and audit logging |
+
+---
+
+### Try it live
+
+The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer">public sandbox</a> hosts one chat workspace per adapter. Pick a demo to see ORBIT in action:
+
+| Demo | Data Source | Try it |
+| :--- | :--- | :--- |
+| HR Database | SQLite | <a href="https://orbitsandbox.dev/intent-sql-sqlite-hr" target="_blank">intent-sql-sqlite-hr</a> |
+| EV Population Stats | DuckDB | <a href="https://orbitsandbox.dev/intent-duckdb-ev-population" target="_blank">intent-duckdb-ev-population</a> |
+| SpaceX GraphQL | GraphQL | <a href="https://orbitsandbox.dev/intent-graphql-spacex" target="_blank">intent-graphql-spacex</a> |
+| File Upload Chat | Multimodal | <a href="https://orbitsandbox.dev/chat-with-files" target="_blank">chat-with-files</a> |
+
+<details>
+<summary>All sandbox demos</summary>
+
+| Demo | Data Source | Try it |
+| :--- | :--- | :--- |
+| HR Database | SQLite | <a href="https://orbitsandbox.dev/intent-sql-sqlite-hr" target="_blank">intent-sql-sqlite-hr</a> |
+| DuckDB Analytics | DuckDB | <a href="https://orbitsandbox.dev/intent-duckdb-analytics" target="_blank">intent-duckdb-analytics</a> |
+| EV Population Stats | DuckDB | <a href="https://orbitsandbox.dev/intent-duckdb-ev-population" target="_blank">intent-duckdb-ev-population</a> |
+| JSONPlaceholder REST | HTTP (JSON) | <a href="https://orbitsandbox.dev/intent-http-jsonplaceholder" target="_blank">intent-http-jsonplaceholder</a> |
+| Paris Open Data | HTTP (JSON) | <a href="https://orbitsandbox.dev/intent-http-paris-opendata" target="_blank">intent-http-paris-opendata</a> |
+| MFlix Movies | MongoDB | <a href="https://orbitsandbox.dev/intent-mongodb-mflix" target="_blank">intent-mongodb-mflix</a> |
+| SpaceX GraphQL | GraphQL | <a href="https://orbitsandbox.dev/intent-graphql-spacex" target="_blank">intent-graphql-spacex</a> |
+| Simple Chat | Passthrough | <a href="https://orbitsandbox.dev/simple-chat" target="_blank">simple-chat</a> |
+| File Upload Chat | Multimodal | <a href="https://orbitsandbox.dev/chat-with-files" target="_blank">chat-with-files</a> |
+
+</details>
+
+---
+
+### Built with ORBIT
+
+- **[PoliceStats.ca](https://policestats.ca)** — Public chat over Canadian municipal police open data. Users ask about auto theft, break-ins, crime by neighbourhood, and cross-city comparisons.
+
+Using ORBIT in production? [Let us know](https://schmitech.ai/en/contact) and we'll add your project here.
+
+---
+
+### Clients
+
+| Client | Description |
+| :--- | :--- |
+| **[Web Chat](clients/orbitchat/)** | React UI |
+| **CLI** | `pip install schmitech-orbit-client` |
+| **[Mobile](clients/orbit-mobile/)** | iOS & Android (Expo) |
+| **[Node SDK](clients/node-api/)** | Or use any OpenAI-compatible SDK |
+
+---
+
+### Deployment options
+
+<details>
+<summary><strong>Docker Compose (fastest path)</strong></summary>
+
+```bash
+git clone https://github.com/schmitech/orbit.git && cd orbit/docker
+docker compose up -d
+```
+
+Starts ORBIT + Ollama with SmolLM2, auto-pulls models, and exposes the API on port 3000. The web admin UI is at `/admin` on the same host. Connect [orbitchat](https://www.npmjs.com/package/orbitchat) from your host:
+
+```bash
+ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' npx orbitchat
+```
+
+See the full [Docker Guide](docker/README.md) for GPU mode, volumes, and configuration.
+
+</details>
+
+<details>
+<summary><strong>Pre-built image (server only)</strong></summary>
 
 ```bash
 docker pull schmitech/orbit:basic
 docker run -d --name orbit-basic -p 3000:3000 schmitech/orbit:basic
 ```
 
-If Ollama runs on your host (e.g. port 11434), add `-e OLLAMA_HOST=host.docker.internal:11434` so the container can reach it. The image includes simple-chat only; for the full stack (Ollama + models), use option B or the [Docker Guide](docker/README.md).
+If Ollama runs on your host, add `-e OLLAMA_HOST=host.docker.internal:11434` so the container can reach it. Includes simple-chat only.
 
----
+</details>
 
-### 🚀 Key Capabilities
+<details>
+<summary><strong>From release tarball (production)</strong></summary>
 
-*   **Unified API:** Switch OpenAI, Anthropic, Gemini, Groq, or local models (Ollama/vLLM) by config.
-*   **Agentic AI & MCP:** Compatible with **Model Context Protocol (MCP)** for tool-enabled agent workflows.
-*   **Native RAG:** Connect Postgres, MongoDB, Elasticsearch, or Pinecone for natural-language data access.
-*   **Voice-First:** Real-time, full-duplex speech-to-speech with interruption handling via PersonaPlex.
-*   **Governance Built In:** RBAC, rate limiting, audit logging, and circuit breakers.
-*   **Privacy First:** Self-host on your own infrastructure for full data control.
-
----
-
-### 🆚 Why Enterprise Teams Choose ORBIT
-
-| If you use... | You often get... | ORBIT gives you... |
-| :--- | :--- | :--- |
-| Single-provider SDKs | Vendor lock-in and provider-specific rewrites | One OpenAI-compatible API across providers |
-| Basic LLM proxy only | Model routing, but no data connectivity | Unified model + retrieval + tooling gateway |
-| RAG-only framework | Strong retrieval, weak multi-provider inference control | Native RAG with multi-provider and policy controls |
-| In-house glue scripts | Fragile integrations and high ops cost | A production-ready gateway with RBAC, limits, and logs |
-
----
-
-### 🏢 Enterprise Readiness
-
-*   **Deployment Flexibility:** Run ORBIT in your own environment for strict data-boundary requirements.
-*   **Operational Control:** Standardize access, traffic policies, and audit trails behind one gateway.
-*   **Architecture Fit:** Integrates with existing data systems, identity patterns, and model providers.
-*   **Service Backing:** [Schmitech](https://schmitech.ai/) provides enterprise onboarding, deployment support, and ongoing operations guidance.
-
----
-
-### 🎯 Common Use Cases
-
-*   **Enterprise RAG:** Query SQL, NoSQL, and vector stores with one natural-language API.
-*   **Provider Failover:** Route between Ollama, vLLM, OpenAI, Anthropic, Gemini, Groq, etc. without rewrites.
-*   **Voice Agents:** Build full-duplex speech-to-speech experiences with interruption handling.
-*   **MCP Tooling Layer:** Expose data and actions to agentic apps through MCP compatibility.
-
----
-
-### 🛠️ One Gateway, Many Clients
-
-| Client | Link | Description |
-| :--- | :--- | :--- |
-| **Web Chat** | [ORBIT Chat](clients/orbitchat/) | React UI. |
-| **CLI** | `pip install schmitech-orbit-client` | Chat directly from your terminal. |
-| **Mobile** | [ORBIT Mobile](clients/orbit-mobile/) | iOS & Android app built with Expo. |
-| **SDKs** | [Node SDK](clients/node-api/) | Or use any standard OpenAI-compatible SDK. |
-
----
-
-### 📦 Deployment
-
-**Docker Compose (Fastest Path)**
-```bash
-git clone https://github.com/schmitech/orbit.git && cd orbit/docker
-docker compose up -d
-```
-This starts ORBIT + Ollama with SmolLM2, auto-pulls models, and exposes the API on port 3000. The web admin UI is at **`/admin`** on the same host (e.g. [http://localhost:3000/admin](http://localhost:3000/admin))—use **`admin`** and **`ORBIT_DEFAULT_ADMIN_PASSWORD`** (see `env.example`). Connect [orbitchat](https://www.npmjs.com/package/orbitchat) from your host: `ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' npx orbitchat`
-
-**Pre-built image only** (server + your own Ollama): `docker pull schmitech/orbit:basic` then `docker run -d --name orbit-basic -p 3000:3000 -e OLLAMA_HOST=host.docker.internal:11434 schmitech/orbit:basic` if Ollama runs on the host.
-
-See the full [Docker Guide](docker/README.md) for GPU mode, volumes, single-container run, and configuration.
-
-**Stable Release (Recommended for Production)**
 ```bash
 curl -L https://github.com/schmitech/orbit/releases/download/v2.6.4/orbit-2.6.4.tar.gz -o orbit-2.6.4.tar.gz
 tar -xzf orbit-2.6.4.tar.gz && cd orbit-2.6.4
@@ -172,17 +184,27 @@ source venv/bin/activate
 ./bin/orbit.sh start && cat ./logs/orbit.log
 ```
 
-The admin panel is at **`http://localhost:3000/admin`** by default (match **`API_SERVER_URL`** in `.env` if you changed the bind address). Sign in as **`admin`** with **`ORBIT_DEFAULT_ADMIN_PASSWORD`** from `env.example`.
+</details>
 
 ---
 
-### 📚 Resources & Support
+### Resources
 
-*   [Step-by-Step Tutorial](docs/tutorial.md) – Learn how to chat with your own data in minutes.
-*   [Cookbook](docs/cookbook/) – Recipes and how-tos for configuration and real-world use cases.
-*   [Documentation](docs/) – Full architecture and setup guides.
-*   [GitHub Issues](https://github.com/schmitech/orbit/issues) – Bug reports and feature requests.
+- [Step-by-Step Tutorial](docs/tutorial.md) — Chat with your own data in minutes
+- [Cookbook](docs/cookbook/) — Recipes for real-world use cases
+- [Documentation](docs/) — Full architecture and setup guides
+- [GitHub Issues](https://github.com/schmitech/orbit/issues) — Bug reports and feature requests
 
-## 📄 License
+---
 
-Apache 2.0 – see [LICENSE](LICENSE).
+### Contributing
+
+Contributions are welcome! Check the [issues](https://github.com/schmitech/orbit/issues) for good first tasks, or open a new one to discuss your idea.
+
+If you find ORBIT useful, a **[star](https://github.com/schmitech/orbit)** helps others discover the project.
+
+---
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE).
