@@ -109,6 +109,10 @@ function deepMerge(target, source) {
 // ---- Defaults ----
 
 const DEFAULTS = {
+  agentMode: {
+    mode: 'multi',
+    defaultAdapterId: '',
+  },
   application: {
     name: 'ORBIT Chat',
     description: "Explore ideas with ORBIT's AI copilots, share context, and build together.",

@@ -4,7 +4,7 @@ import { Message, Conversation, ChatState, FileAttachment, AdapterInfo } from '.
 import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { getDefaultKey, getDefaultAdapterName, getApiUrl, resolveApiUrl, DEFAULT_API_URL, getIsAuthConfigured } from '../utils/runtimeConfig';
+import { getConfiguredSingleAdapterId, getDefaultKey, getDefaultAdapterName, getApiUrl, getIsSingleAdapterMode, resolveApiUrl, DEFAULT_API_URL, getIsAuthConfigured } from '../utils/runtimeConfig';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { getIsAuthenticated } from '../auth/authState';
@@ -13,6 +13,12 @@ import { useLoginPromptStore } from './loginPromptStore';
 // Default adapter name from runtime configuration
 // getDefaultAdapterName() resolves "default-key" to the first real adapter name from config
 const DEFAULT_ADAPTER = getDefaultAdapterName() || getDefaultKey();
+const getInitialConversationAdapterId = (): string | undefined => {
+  if (!getIsSingleAdapterMode()) {
+    return undefined;
+  }
+  return getConfiguredSingleAdapterId() || undefined;
+};
 
 // Streaming content buffer for batching rapid updates
 // This prevents "Maximum update depth exceeded" errors when rendering complex content like mermaid
@@ -67,7 +73,7 @@ const buildDefaultConversation = (conversationId: string, sessionId: string, api
     createdAt: new Date(),
     updatedAt: new Date(),
     apiUrl,
-    adapterName: undefined,
+    adapterName: getInitialConversationAdapterId(),
     adapterLoadError: null
   };
 };
@@ -490,7 +496,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       createdAt: new Date(),
       updatedAt: new Date(),
       apiUrl: defaultApiUrl,
-      adapterName: undefined,
+      adapterName: getInitialConversationAdapterId(),
       adapterLoadError: null
     };
 
@@ -658,18 +664,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       if (filtered.length === 0) {
         const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const defaultSessionId = generateUniqueSessionId();
-        const defaultApiUrl = getApiUrl();
-        const defaultConversation: Conversation = {
-          id: defaultConversationId,
-          sessionId: defaultSessionId,
-          title: 'New Chat',
-          messages: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          apiUrl: defaultApiUrl,
-          adapterName: undefined,
-          adapterLoadError: null
-        };
+        const defaultConversation = buildDefaultConversation(
+          defaultConversationId,
+          defaultSessionId,
+          getApiUrl()
+        );
 
         debugLog('Waiting for user to select an adapter after deleting all conversations.');
 
@@ -751,17 +750,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     // Create a new default conversation after deleting all
     const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const defaultSessionId = generateUniqueSessionId();
-    const defaultApiUrl = getApiUrl();
-    const defaultConversation: Conversation = {
-      id: defaultConversationId,
-      sessionId: defaultSessionId,
-      title: 'New Chat',
-      messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      apiUrl: defaultApiUrl,
-      adapterLoadError: null
-    };
+    const defaultConversation = buildDefaultConversation(
+      defaultConversationId,
+      defaultSessionId,
+      getApiUrl()
+    );
 
     debugLog('Default conversation will wait for adapter selection.');
 

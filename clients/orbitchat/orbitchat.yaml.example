@@ -1,6 +1,14 @@
 # OrbitChat Configuration
 # All non-secret settings. Secrets (auth credentials, adapter API keys) go in .env
 
+# ---- Agent Mode ----
+# "multi" keeps the current agent selection UI and slug-based routing.
+# "single" always uses one fixed adapter, hides agent selection, disables "Change Agent",
+# and keeps the app rooted at "/" without adapter slugs.
+agentMode:
+  mode: "multi" # "multi" | "single"
+  defaultAdapterId: "" # Required when mode is "single"
+
 # ---- Application ----
 application:
   name: "ORBIT Chat"

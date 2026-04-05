@@ -4,7 +4,7 @@ import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { debugError } from '../utils/debug';
-import { getApiUrl, getHeaderNavLinks } from '../utils/runtimeConfig';
+import { getApiUrl, getHeaderNavLinks, getIsSingleAdapterMode } from '../utils/runtimeConfig';
 import { AdapterSelector } from './AdapterSelector';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { GitHubStatsBanner } from './GitHubStatsBanner';
@@ -64,6 +64,7 @@ function groupConversationsByTime(conversations: Conversation[]): TimeGroup[] {
 // ---------------------------------------------------------------------------
 
 export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
+  const isSingleAdapterMode = getIsSingleAdapterMode();
   const {
     conversations,
     currentConversationId,
@@ -388,7 +389,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   return (
     <>
       {/* API Configuration Modal */}
-      {showConfig && (
+      {!isSingleAdapterMode && showConfig && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div
             ref={configDialogRef}

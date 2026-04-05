@@ -30,6 +30,10 @@ export interface StartupScript {
 }
 
 export interface RuntimeConfig {
+  agentMode: {
+    mode: 'single' | 'multi';
+    defaultAdapterId: string;
+  };
   application: {
     name: string;
     description: string;
@@ -139,6 +143,10 @@ declare global {
 
 /** Default values — single source of truth for the entire app */
 export const DEFAULTS: RuntimeConfig = {
+  agentMode: {
+    mode: 'multi',
+    defaultAdapterId: '',
+  },
   application: {
     name: 'ORBIT Chat',
     description: "Explore ideas with ORBIT's AI copilots, share context, and build together.",
@@ -268,6 +276,10 @@ function normalizeOutOfServiceMessage(value: unknown): string | null {
   return trimmed;
 }
 
+function normalizeAgentMode(value: unknown): 'single' | 'multi' {
+  return value === 'single' ? 'single' : 'multi';
+}
+
 /**
  * Build the runtime config by merging sources.
  *
@@ -296,6 +308,10 @@ function buildRuntimeConfig(): RuntimeConfig {
 
   // Normalize outOfServiceMessage
   merged.outOfServiceMessage = normalizeOutOfServiceMessage(merged.outOfServiceMessage);
+  merged.agentMode.mode = normalizeAgentMode(merged.agentMode.mode);
+  merged.agentMode.defaultAdapterId = typeof merged.agentMode.defaultAdapterId === 'string'
+    ? merged.agentMode.defaultAdapterId.trim()
+    : '';
 
   if (merged.auth.enabled && !merged.header.enabled) {
     console.warn('[runtimeConfig] Auth is enabled but header is disabled. Auth UI is expected to be shown from the header, so enable header.enabled to expose sign-in controls.');
@@ -335,6 +351,28 @@ export function getDefaultKey(): string {
     return adapters[0].id;
   }
   return 'default-key';
+}
+
+export function getAgentMode(): 'single' | 'multi' {
+  return runtimeConfig.agentMode.mode;
+}
+
+export function getIsSingleAdapterMode(): boolean {
+  return getAgentMode() === 'single';
+}
+
+export function getConfiguredSingleAdapterId(): string | null {
+  if (!getIsSingleAdapterMode()) {
+    return null;
+  }
+
+  const configuredId = runtimeConfig.agentMode.defaultAdapterId;
+  if (!configuredId) {
+    return null;
+  }
+
+  const adapterExists = runtimeConfig.adapters.some((adapter) => adapter?.id?.trim() === configuredId);
+  return adapterExists ? configuredId : null;
 }
 
 export function getApplicationName(): string {
@@ -421,6 +459,11 @@ export function getVoiceRecognitionLanguage(): string {
  * Picks the first adapter in the configured adapters list.
  */
 export function getDefaultAdapterName(): string | null {
+  const singleAdapterId = getConfiguredSingleAdapterId();
+  if (singleAdapterId) {
+    return singleAdapterId;
+  }
+
   const adapters = runtimeConfig.adapters;
   if (Array.isArray(adapters) && adapters.length > 0) {
     for (const adapter of adapters) {

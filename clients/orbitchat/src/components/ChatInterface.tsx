@@ -85,6 +85,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     hasAdapterConfigurationError,
     isAgentSelectionVisible,
     isConfiguringAdapter,
+    isSingleAdapterMode,
     shouldShowAgentSelectionList
   } = useChatAgentSelection({
     currentConversation,
@@ -314,7 +315,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 {!shouldShowAgentSelectionList && !getEnableHeader() && (
                   <AuthStatus />
                 )}
-                {!shouldShowAgentSelectionList && !!currentConversation?.adapterName && (
+                {!isSingleAdapterMode && !shouldShowAgentSelectionList && !!currentConversation?.adapterName && (
                   <button
                     type="button"
                     onClick={() => {
@@ -394,10 +395,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       <p className="w-full text-center text-sm text-red-600 dark:text-red-400">
                         {adapterNotesError}
                       </p>
-                    ) : isConfiguringAdapter ? (
-                      <p className="w-full text-center text-sm text-gray-500 dark:text-[#bfc2cd]">
-                        Configuring your agent…
-                      </p>
                     ) : currentConversation?.adapterName ? (
                       <h2
                         className="w-full text-center text-xl font-semibold tracking-tight text-[#353740] dark:text-[#ececf1] md:text-2xl"
@@ -405,6 +402,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       >
                         {getAdapterDisplayName(currentConversation.adapterName) || currentConversation.adapterName}
                       </h2>
+                    ) : isConfiguringAdapter ? (
+                      <p className="w-full text-center text-sm text-gray-500 dark:text-[#bfc2cd]">
+                        Configuring your agent…
+                      </p>
                     ) : null}
                     <div className="w-full min-w-0">
                       <MessageInput

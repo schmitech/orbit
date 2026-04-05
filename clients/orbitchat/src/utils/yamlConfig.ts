@@ -8,6 +8,10 @@ import type { NavLink } from './runtimeConfig';
 
 /** Shape of orbitchat.yaml */
 export interface OrbitChatYamlConfig {
+  agentMode?: {
+    mode?: 'single' | 'multi';
+    defaultAdapterId?: string;
+  };
   server?: {
     trustProxy?: boolean | number | string | string[];
   };
