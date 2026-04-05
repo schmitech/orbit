@@ -153,7 +153,7 @@ class FileProcessorRegistry:
     
     def get_processor(self, mime_type: str) -> Optional[FileProcessor]:
         """
-        Get processor for a given MIME type.
+        Get the first processor for a given MIME type.
 
         Args:
             mime_type: MIME type to find processor for
@@ -161,19 +161,33 @@ class FileProcessorRegistry:
         Returns:
             Processor instance or None if not found
         """
+        processors = self.get_processors(mime_type)
+        return processors[0] if processors else None
+
+    def get_processors(self, mime_type: str) -> List[FileProcessor]:
+        """
+        Get all processors that support a given MIME type, in priority order.
+
+        Args:
+            mime_type: MIME type to find processors for
+
+        Returns:
+            List of matching processor instances (highest priority first)
+        """
+        matching = []
         for processor in self._processors:
             if processor.supports_mime_type(mime_type):
-                processor_name = processor.__class__.__name__
-                if processor_name == "DoclingProcessor":
-                    logger.debug(f"[ProcessorRegistry] Selected DoclingProcessor for MIME type '{mime_type}'")
-                elif processor_name == "MarkItDownProcessor":
-                    logger.debug(f"[ProcessorRegistry] Selected MarkItDownProcessor for MIME type '{mime_type}'")
-                else:
-                    logger.debug(f"[ProcessorRegistry] Selected {processor_name} for MIME type '{mime_type}'")
-                return processor
+                matching.append(processor)
 
-        logger.warning(f"[ProcessorRegistry] No processor found for MIME type '{mime_type}'")
-        return None
+        if matching:
+            logger.debug(
+                f"[ProcessorRegistry] Found {len(matching)} processor(s) for MIME type '{mime_type}': "
+                f"{', '.join(p.__class__.__name__ for p in matching)}"
+            )
+        else:
+            logger.warning(f"[ProcessorRegistry] No processor found for MIME type '{mime_type}'")
+
+        return matching
     
     def list_supported_types(self) -> List[str]:
         """List all supported MIME types."""

@@ -724,23 +724,34 @@ class FileProcessingService:
                 file_data, filename, mime_type, api_key=api_key
             )
 
-        processor = self.processor_registry.get_processor(mime_type)
+        processors = self.processor_registry.get_processors(mime_type)
 
-        if not processor:
+        if not processors:
             raise ValueError(f"No processor available for MIME type: {mime_type}")
 
-        if logger.isEnabledFor(logging.DEBUG):
+        # Try each processor in priority order, falling back on failure
+        last_error = None
+        for processor in processors:
             processor_name = processor.__class__.__name__
-            logger.debug(f"Processing file '{filename}' (MIME: {mime_type}) with {processor_name}")
+            try:
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"Processing file '{filename}' (MIME: {mime_type}) with {processor_name}")
 
-        text = await processor.extract_text(file_data, filename)
-        metadata = await processor.extract_metadata(file_data, filename)
+                text = await processor.extract_text(file_data, filename)
+                metadata = await processor.extract_metadata(file_data, filename)
 
-        if logger.isEnabledFor(logging.DEBUG):
-            processor_name = processor.__class__.__name__
-            logger.debug(f"Extraction complete for '{filename}': {len(text)} chars extracted by {processor_name}")
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"Extraction complete for '{filename}': {len(text)} chars extracted by {processor_name}")
 
-        return text, metadata
+                return text, metadata
+            except Exception as e:
+                last_error = e
+                if len(processors) > 1:
+                    logger.warning(f"{processor_name} failed for '{filename}', trying next processor: {e}")
+                else:
+                    raise
+
+        raise last_error
     
     async def _extract_image_content(
         self,

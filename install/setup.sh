@@ -514,6 +514,14 @@ install_torch_package() {
         print_message "red" "Error: Failed to install PyTorch (${backend})."
         exit 1
     fi
+
+    if [ -n "${TORCHVISION_SPEC:-}" ]; then
+        print_message "yellow" "Installing torchvision (matching PyTorch wheel index)..."
+        if ! run_pip_install "${extra_args[@]}" "$TORCHVISION_SPEC"; then
+            print_message "red" "Error: Failed to install torchvision (${backend})."
+            exit 1
+        fi
+    fi
 }
 
 install_vllm_package() {
@@ -546,6 +554,7 @@ PYTHON_CMD=""
 TORCH_BACKEND="auto"
 RESOLVED_TORCH_BACKEND=""
 TORCH_SPEC=""
+TORCHVISION_SPEC=""
 VLLM_SPEC=""
 NEEDS_TORCH=false
 NEEDS_VLLM=false
@@ -998,7 +1007,7 @@ if [ "$PYTHON_MINOR_VERSION" -ge "13" ] && [ "$OS_TYPE" = "Darwin" ]; then
     print_message "yellow" "   Skipping torch-dependent packages (torch, docling, sentence-transformers)."
     print_message "yellow" "   Use Python 3.12 for full ML/AI support on macOS.\n"
     # Remove torch-dependent packages from requirements
-    grep -v -E "^(torch|docling|sentence-transformers)" "$TEMP_REQUIREMENTS" > "${TEMP_REQUIREMENTS}.tmp" && mv "${TEMP_REQUIREMENTS}.tmp" "$TEMP_REQUIREMENTS"
+    grep -v -E "^(torch|torchvision|docling|sentence-transformers)" "$TEMP_REQUIREMENTS" > "${TEMP_REQUIREMENTS}.tmp" && mv "${TEMP_REQUIREMENTS}.tmp" "$TEMP_REQUIREMENTS"
 elif [ "$PYTHON_MINOR_VERSION" -ge "13" ]; then
     print_message "blue" "\nPython 3.13+ on Linux detected - PyTorch should install normally."
 fi
@@ -1008,6 +1017,12 @@ if grep -q -E "^torch([[:space:]=]|$)" "$TEMP_REQUIREMENTS"; then
     NEEDS_TORCH=true
     TORCH_SPEC=$(grep -m 1 -E "^torch([[:space:]=]|$)" "$TEMP_REQUIREMENTS" | tr -d '\r')
     grep -v -E "^torch([[:space:]=]|$)" "$TEMP_REQUIREMENTS" > "${TEMP_REQUIREMENTS}.tmp" && mv "${TEMP_REQUIREMENTS}.tmp" "$TEMP_REQUIREMENTS"
+fi
+
+if grep -q -E "^torchvision([[:space:]=]|$)" "$TEMP_REQUIREMENTS"; then
+    NEEDS_TORCH=true
+    TORCHVISION_SPEC=$(grep -m 1 -E "^torchvision([[:space:]=]|$)" "$TEMP_REQUIREMENTS" | tr -d '\r')
+    grep -v -E "^torchvision([[:space:]=]|$)" "$TEMP_REQUIREMENTS" > "${TEMP_REQUIREMENTS}.tmp" && mv "${TEMP_REQUIREMENTS}.tmp" "$TEMP_REQUIREMENTS"
 fi
 
 if grep -q -E "^vllm([[:space:]=]|$)" "$TEMP_REQUIREMENTS"; then
