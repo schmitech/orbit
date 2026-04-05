@@ -61,8 +61,10 @@ class StreamingHandler:
         # With sentence batching (3 sentences), we need longer timeout for the combined text
         self.audio_timeout = 45.0  # 45 second timeout for batched sentences
 
-        # Sentence batching for TTS (reduces number of API calls)
-        self.sentence_batch_size = 3  # Batch up to 3 sentences together
+        # Sentence batching for TTS
+        # batch_size=1 gives fastest time-to-first-audio (each sentence fires immediately)
+        # Increase to 2-3 to reduce API calls at the cost of higher latency
+        self.sentence_batch_size = 1
         self._pending_sentences = []  # Accumulator for sentence batching
         
         # Parallel audio generation settings
@@ -87,6 +89,10 @@ class StreamingHandler:
         """
         Generate audio for a single sentence with timeout.
 
+        Uses provider-level streaming (with_streaming_response) when available
+        so that audio bytes are collected as they arrive from the TTS API,
+        reducing overall latency.
+
         Args:
             sentence: The sentence text
             adapter_name: Adapter for audio provider lookup
@@ -98,17 +104,26 @@ class StreamingHandler:
             Audio chunk dictionary or None if generation fails
         """
         try:
-            audio_data, audio_format_str = await asyncio.wait_for(
-                self.audio_handler.generate_audio(
+            # Collect audio via streaming to get faster first-byte from API
+            audio_chunks = []
+            audio_format_str = None
+
+            async def _stream_collect():
+                nonlocal audio_format_str
+                async for chunk_bytes, fmt in self.audio_handler.generate_audio_streaming(
                     text=sentence.strip(),
                     adapter_name=adapter_name,
                     tts_voice=tts_voice,
                     language=language
-                ),
-                timeout=self.audio_timeout
-            )
+                ):
+                    audio_chunks.append(chunk_bytes)
+                    if audio_format_str is None:
+                        audio_format_str = fmt
 
-            if audio_data:
+            await asyncio.wait_for(_stream_collect(), timeout=self.audio_timeout)
+
+            if audio_chunks:
+                audio_data = b"".join(audio_chunks)
                 # Use faster base64 encoding in executor to avoid blocking
                 loop = asyncio.get_event_loop()
                 audio_base64 = await loop.run_in_executor(

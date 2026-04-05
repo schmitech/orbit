@@ -251,6 +251,87 @@ class TestOpenAIAudioService:
         service._handle_openai_error.assert_called_once()
 
 
+    @pytest.mark.asyncio
+    async def test_text_to_speech_streaming(self, service):
+        """Test streaming text-to-speech yields chunks."""
+        mock_client = MagicMock()
+
+        # Simulate with_streaming_response context manager yielding chunks
+        mock_stream_response = MagicMock()
+
+        async def mock_iter_bytes(chunk_size=4096):
+            yield b"chunk1"
+            yield b"chunk2"
+            yield b"chunk3"
+
+        mock_stream_response.iter_bytes = mock_iter_bytes
+
+        class AsyncCM:
+            async def __aenter__(self):
+                return mock_stream_response
+            async def __aexit__(self, *args):
+                pass
+
+        mock_client.audio.speech.with_streaming_response.create = MagicMock(
+            return_value=AsyncCM()
+        )
+        service.client = mock_client
+        service.initialized = True
+
+        chunks = []
+        async for chunk in service.text_to_speech_streaming("Hello, world!"):
+            chunks.append(chunk)
+
+        assert chunks == [b"chunk1", b"chunk2", b"chunk3"]
+
+    @pytest.mark.asyncio
+    async def test_text_to_speech_streaming_invalid_format(self, service):
+        """Test streaming TTS with invalid format raises ValueError."""
+        service.initialized = True
+
+        with pytest.raises(ValueError, match="Unsupported audio format"):
+            async for _ in service.text_to_speech_streaming("Test", format="invalid"):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_text_to_speech_with_instructions(self, service):
+        """Test TTS with instructions for gpt-4o-mini-tts model."""
+        mock_client = MagicMock()
+        mock_audio_response = MagicMock()
+        mock_audio_response.aread = AsyncMock(return_value=b"audio")
+        mock_audio_response.read = MagicMock()
+        mock_client.audio.speech.create = AsyncMock(return_value=mock_audio_response)
+
+        service.client = mock_client
+        service.initialized = True
+        service.tts_model = "gpt-4o-mini-tts"
+        service.tts_instructions = "Speak cheerfully."
+
+        await service.text_to_speech("Hello!")
+
+        call_kwargs = mock_client.audio.speech.create.call_args[1]
+        assert call_kwargs["instructions"] == "Speak cheerfully."
+
+    @pytest.mark.asyncio
+    async def test_text_to_speech_instructions_not_set_for_non_gpt4o(self, service):
+        """Test that instructions are NOT sent for non-gpt-4o models."""
+        mock_client = MagicMock()
+        mock_audio_response = MagicMock()
+        mock_audio_response.aread = AsyncMock(return_value=b"audio")
+        mock_audio_response.read = MagicMock()
+        mock_client.audio.speech.create = AsyncMock(return_value=mock_audio_response)
+
+        service.client = mock_client
+        service.initialized = True
+        service.tts_model = "tts-1"
+        service.tts_instructions = "Speak cheerfully."
+
+        await service.text_to_speech("Hello!")
+
+        call_kwargs = mock_client.audio.speech.create.call_args[1]
+        assert "instructions" not in call_kwargs
+
+
 class TestOpenAIAudioServiceConfiguration:
     """Test OpenAI audio service configuration."""
 

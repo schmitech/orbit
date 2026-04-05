@@ -21,7 +21,11 @@ tts_providers:
     # TTS configuration
     tts_model: "gpt-4o-mini-tts"  # OpenAI TTS model: tts-1, tts-1-hd, gpt-4o-mini-tts
     tts_voice: "coral"  # Voice options: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse
-    tts_format: "mp3"  # Output format: mp3, opus, aac, flac
+    tts_format: "mp3"  # Output format: mp3, opus, aac, flac, pcm, wav
+    # For streaming use pcm or wav for fastest time-to-first-byte
+    # tts_format: "pcm"
+    # Voice instructions (gpt-4o-mini-tts only) — controls tone, emotion, pacing
+    # tts_instructions: "Speak in a cheerful and positive tone."
     # Timeout configuration
     timeout:
       connect: 15000   # 15 seconds (increased for slow networks)

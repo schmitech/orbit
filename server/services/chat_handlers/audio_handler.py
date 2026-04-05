@@ -525,6 +525,58 @@ class AudioHandler:
 
         return None, None
 
+    async def generate_audio_streaming(
+        self,
+        text: str,
+        adapter_name: str,
+        tts_voice: Optional[str] = None,
+        language: Optional[str] = None
+    ):
+        """
+        Generate audio from text, yielding chunks as they arrive.
+
+        Falls back to non-streaming generate_audio if the provider does not
+        support streaming (i.e. only has the default single-yield fallback).
+
+        Yields:
+            Tuple of (audio_chunk_bytes, audio_format_str)
+        """
+        # Apply text length limit
+        processed_text = self._truncate_text(text)
+        if processed_text is None:
+            return
+
+        # Sanitize content for TTS
+        if self.sanitize_content:
+            processed_text = self._sanitize_for_tts(processed_text)
+            if not processed_text or not processed_text.strip():
+                logger.debug("No speakable text remaining after sanitization")
+                return
+
+        # Get audio provider and service
+        provider = self._get_audio_provider(adapter_name)
+        if not provider:
+            logger.warning("No audio provider configured")
+            return
+
+        audio_service = await self._get_audio_service(provider)
+        if not audio_service:
+            return
+
+        audio_format = self._get_audio_format(provider)
+
+        try:
+            self._log_gpu_memory("before streaming audio generation")
+            async for chunk in audio_service.text_to_speech_streaming(
+                text=processed_text,
+                voice=tts_voice,
+                format=None  # Use default format
+            ):
+                yield chunk, audio_format
+            self._log_gpu_memory("after streaming audio generation")
+        except Exception as e:
+            logger.error(f"Error in streaming audio generation: {str(e)}", exc_info=True)
+
     async def cleanup(self):
         """
         Clean up audio services and release GPU resources.

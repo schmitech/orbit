@@ -7,7 +7,7 @@ regardless of the underlying provider.
 """
 
 from abc import abstractmethod
-from typing import Dict, Any, Optional, Union
+from typing import AsyncIterator, Dict, Any, Optional, Union
 
 from ..base import ProviderAIService, ServiceType
 
@@ -75,6 +75,35 @@ class AudioService(ProviderAIService):
             ...     f.write(audio)
         """
         pass
+
+    async def text_to_speech_streaming(
+        self,
+        text: str,
+        voice: Optional[str] = None,
+        format: Optional[str] = None,
+        **kwargs
+    ) -> AsyncIterator[bytes]:
+        """
+        Stream text-to-speech audio in chunks as they are generated.
+
+        Providers that support chunked transfer encoding (e.g. OpenAI) should
+        override this to yield audio bytes incrementally, enabling playback
+        before the full file is generated.
+
+        The default implementation falls back to text_to_speech and yields
+        the complete audio as a single chunk.
+
+        Args:
+            text: Text to convert to speech
+            voice: Optional voice identifier (provider-specific)
+            format: Optional audio format — pcm or wav recommended for streaming
+            **kwargs: Additional provider-specific parameters
+
+        Yields:
+            Audio data chunks as bytes
+        """
+        audio = await self.text_to_speech(text, voice=voice, format=format, **kwargs)
+        yield audio
 
     @abstractmethod
     async def speech_to_text(

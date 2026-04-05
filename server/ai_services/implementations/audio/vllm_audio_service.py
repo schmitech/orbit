@@ -8,7 +8,7 @@ Compare with: server/ai_services/implementations/vllm_inference_service.py
 """
 
 import logging
-from typing import Dict, Any, Optional, Union, List
+from typing import AsyncIterator, Dict, Any, Optional, Union, List
 from io import BytesIO
 import base64
 import asyncio
@@ -633,6 +633,129 @@ class VLLMAudioService(AudioService):
         except Exception as e:
             logger.error(f"vLLM TTS error: {str(e)}")
             raise
+
+    async def text_to_speech_streaming(
+        self,
+        text: str,
+        voice: Optional[str] = None,
+        format: Optional[str] = None,
+        **kwargs
+    ) -> AsyncIterator[bytes]:
+        """
+        Stream TTS audio by decoding SNAC frames incrementally.
+
+        Uses stream=True on the vLLM completions API to receive audio tokens
+        as they are generated. Every 7 tokens form one SNAC frame that can
+        be decoded to PCM audio independently, so we yield audio as soon as
+        enough tokens accumulate.
+
+        Args:
+            text: Text to convert to speech
+            voice: Optional voice identifier
+            format: Optional audio format (wav wraps PCM in a header)
+
+        Yields:
+            Audio data chunks as bytes (raw PCM or WAV)
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        if not SNAC_AVAILABLE:
+            # Fall back to non-streaming if SNAC isn't available for incremental decode
+            audio = await self.text_to_speech(text, voice=voice, format=format, **kwargs)
+            yield audio
+            return
+
+        # Ensure SNAC is loaded
+        if not self._snac_initialized:
+            if not self._initialize_snac():
+                audio = await self.text_to_speech(text, voice=voice, format=format, **kwargs)
+                yield audio
+                return
+
+        # Resolve voice (same logic as text_to_speech)
+        ORPHEUS_VOICES = {'tara', 'leah', 'jess', 'leo', 'dan', 'mia', 'zac', 'zoe'}
+        OPENAI_VOICES = {'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'}
+        if voice and voice.lower() in ORPHEUS_VOICES:
+            tts_voice = voice.lower()
+        elif voice and voice.lower() in OPENAI_VOICES:
+            tts_voice = self.tts_voice
+        elif voice and voice.lower() not in ORPHEUS_VOICES:
+            tts_voice = self.tts_voice
+        else:
+            tts_voice = self.tts_voice
+
+        audio_format = format or self.tts_format
+
+        # Build prompt (same as text_to_speech)
+        text_prompt = f"{tts_voice}: {text}"
+        START_AUDIO_TOKEN = "<custom_token_3>"
+        END_AUDIO_TOKENS = "<|eot_id|><custom_token_4><custom_token_5><custom_token_1>"
+        prompt = f"{START_AUDIO_TOKEN}{text_prompt}{END_AUDIO_TOKENS}"
+
+        # How many frames to buffer before decoding and yielding
+        # More frames = fewer yields but higher latency; fewer = more responsive
+        frames_per_yield = kwargs.get('frames_per_yield', 10)
+        tokens_per_yield = frames_per_yield * 7
+
+        token_pattern = re.compile(r'<custom_token_\d+>')
+        accumulated_tokens: List[str] = []
+        yielded_wav_header = False
+
+        async with self._request_semaphore:
+            stream = await self.client.completions.create(
+                model=self.tts_model,
+                prompt=prompt,
+                temperature=kwargs.get('temperature', self.temperature),
+                top_p=kwargs.get('top_p', self.top_p),
+                max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                stream=True,
+                extra_body={
+                    "repetition_penalty": kwargs.get('repetition_penalty', self.repetition_penalty),
+                    "skip_special_tokens": False,
+                },
+            )
+
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                token_text = chunk.choices[0].text or ""
+                found = token_pattern.findall(token_text)
+                accumulated_tokens.extend(found)
+
+                # Decode and yield when we have enough frames
+                if len(accumulated_tokens) >= tokens_per_yield:
+                    # Decode complete frames only
+                    num_frames = len(accumulated_tokens) // 7
+                    decode_count = num_frames * 7
+                    to_decode = accumulated_tokens[:decode_count]
+                    accumulated_tokens = accumulated_tokens[decode_count:]
+
+                    try:
+                        pcm_bytes = self._convert_tokens_to_audio(to_decode)
+                        if audio_format.lower() in ('wav', 'wave') and not yielded_wav_header:
+                            # First chunk: wrap in WAV so the client can detect format
+                            yield self._wrap_in_wav(pcm_bytes)
+                            yielded_wav_header = True
+                        else:
+                            # Subsequent chunks: raw PCM (client appends to stream)
+                            yield pcm_bytes
+                    except Exception as e:
+                        logger.warning(f"Failed to decode streaming audio frame: {e}")
+
+        # Flush remaining tokens
+        if len(accumulated_tokens) >= 7:
+            num_frames = len(accumulated_tokens) // 7
+            decode_count = num_frames * 7
+            to_decode = accumulated_tokens[:decode_count]
+            try:
+                pcm_bytes = self._convert_tokens_to_audio(to_decode)
+                if audio_format.lower() in ('wav', 'wave') and not yielded_wav_header:
+                    yield self._wrap_in_wav(pcm_bytes)
+                else:
+                    yield pcm_bytes
+            except Exception as e:
+                logger.warning(f"Failed to decode final audio tokens: {e}")
 
     def _construct_tts_prompt(self, text: str, voice: str) -> str:
         """

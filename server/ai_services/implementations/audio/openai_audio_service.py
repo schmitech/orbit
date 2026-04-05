@@ -5,7 +5,7 @@ This implementation provides audio capabilities using OpenAI's Whisper API
 for speech-to-text and TTS-1 API for text-to-speech.
 """
 
-from typing import Dict, Any, Optional, Union
+from typing import AsyncIterator, Dict, Any, Optional, Union
 from io import BytesIO
 import wave
 
@@ -36,6 +36,8 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
         self.tts_model = provider_config.get('tts_model', 'tts-1')
         self.tts_voice = provider_config.get('tts_voice', 'alloy')
         self.tts_format = provider_config.get('tts_format', 'mp3')
+        # Instructions for gpt-4o-mini-tts voice control (tone, emotion, pacing)
+        self.tts_instructions = provider_config.get('tts_instructions', None)
 
     async def text_to_speech(
         self,
@@ -59,14 +61,23 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
             if not self._validate_audio_format(tts_format):
                 raise ValueError(f"Unsupported audio format: {tts_format}")
 
-            # Call OpenAI TTS API
-            response = await self.client.audio.speech.create(
+            # Extract instructions before spreading kwargs (avoid leaking to non-gpt-4o models)
+            instructions = kwargs.pop('instructions', None) or self.tts_instructions
+
+            # Build request params
+            tts_params = dict(
                 model=self.tts_model,
                 voice=tts_voice,
                 input=text,
                 response_format=tts_format,
                 **kwargs
             )
+            # gpt-4o-mini-tts supports an instructions param for tone/emotion control
+            if instructions and 'gpt-4o' in self.tts_model:
+                tts_params['instructions'] = instructions
+
+            # Call OpenAI TTS API
+            response = await self.client.audio.speech.create(**tts_params)
 
             # Read audio data from HttpxBinaryResponseContent
             # The response object has a .read() method or .content attribute
@@ -88,6 +99,47 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
         except Exception as e:
             self._handle_openai_error(e, "text-to-speech")
             raise
+
+    async def text_to_speech_streaming(
+        self,
+        text: str,
+        voice: Optional[str] = None,
+        format: Optional[str] = None,
+        **kwargs
+    ) -> AsyncIterator[bytes]:
+        """
+        Stream TTS audio in chunks using OpenAI's chunked transfer encoding.
+
+        Uses with_streaming_response so audio playback can begin before the
+        full file is generated.  For lowest latency, use format='pcm' or 'wav'.
+
+        Yields:
+            Audio data chunks as bytes
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        tts_voice = voice or self.tts_voice
+        tts_format = format or self.tts_format
+
+        if not self._validate_audio_format(tts_format):
+            raise ValueError(f"Unsupported audio format: {tts_format}")
+
+        tts_params = dict(
+            model=self.tts_model,
+            voice=tts_voice,
+            input=text,
+            response_format=tts_format,
+        )
+        instructions = kwargs.pop('instructions', None) or self.tts_instructions
+        if instructions and 'gpt-4o' in self.tts_model:
+            tts_params['instructions'] = instructions
+
+        async with self.client.audio.speech.with_streaming_response.create(
+            **tts_params
+        ) as response:
+            async for chunk in response.iter_bytes(chunk_size=4096):
+                yield chunk
 
     def _wrap_in_wav(self, pcm_bytes: bytes, sample_rate: int = 24000) -> bytes:
         """

@@ -5,7 +5,7 @@ This implementation provides high-quality text-to-speech using ElevenLabs API.
 ElevenLabs is known for natural-sounding voices and multilingual support.
 """
 
-from typing import Dict, Any, Optional, Union
+from typing import AsyncIterator, Dict, Any, Optional, Union
 import aiohttp
 import logging
 
@@ -173,6 +173,60 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
         except Exception as e:
             logger.error(f"ElevenLabs TTS error: {str(e)}")
             raise
+
+    async def text_to_speech_streaming(
+        self,
+        text: str,
+        voice: Optional[str] = None,
+        format: Optional[str] = None,
+        **kwargs
+    ) -> AsyncIterator[bytes]:
+        """
+        Stream TTS audio in chunks using ElevenLabs streaming endpoint.
+
+        ElevenLabs returns audio via chunked transfer encoding, so we can
+        yield bytes as they arrive for lower time-to-first-audio.
+
+        Yields:
+            Audio data chunks as bytes
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        voice_id = voice or self.tts_voice
+        model = kwargs.get('model', self.tts_model)
+
+        voice_settings = {
+            "stability": kwargs.get('stability', self.tts_stability),
+            "similarity_boost": kwargs.get('similarity_boost', self.tts_similarity_boost),
+        }
+        if 'v2' in model.lower():
+            voice_settings["style"] = kwargs.get('style', self.tts_style)
+            voice_settings["use_speaker_boost"] = kwargs.get(
+                'use_speaker_boost', self.tts_use_speaker_boost
+            )
+
+        payload = {
+            "text": text,
+            "model_id": model,
+            "voice_settings": voice_settings,
+        }
+
+        output_format = format or self.tts_format
+
+        # Use the dedicated /stream endpoint for chunked delivery
+        url = f"{self.api_base}/text-to-speech/{voice_id}/stream"
+        params = {"output_format": output_format}
+
+        async with self._session.post(url, json=payload, params=params) as response:
+            if response.status != 200:
+                error_text = await response.text()
+                raise Exception(
+                    f"ElevenLabs streaming API error ({response.status}): {error_text}"
+                )
+
+            async for chunk in response.content.iter_chunked(4096):
+                yield chunk
 
     async def speech_to_text(
         self,

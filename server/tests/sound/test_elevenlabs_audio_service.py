@@ -172,6 +172,63 @@ class TestElevenLabsAudioService:
         assert call_args[1]['json']['voice_settings']['style'] == 0.5
 
     @pytest.mark.asyncio
+    async def test_text_to_speech_streaming(self, service):
+        """Test streaming text-to-speech yields chunks."""
+        mock_session = MagicMock()
+        mock_response = MagicMock(spec=ClientResponse)
+        mock_response.status = 200
+
+        # Mock async chunked reading
+        async def mock_iter_chunked(chunk_size):
+            yield b"chunk1"
+            yield b"chunk2"
+
+        mock_response.content = MagicMock()
+        mock_response.content.iter_chunked = mock_iter_chunked
+
+        class AsyncContextManager:
+            async def __aenter__(self):
+                return mock_response
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                return None
+
+        mock_session.post = MagicMock(return_value=AsyncContextManager())
+        service._session = mock_session
+        service.initialized = True
+
+        chunks = []
+        async for chunk in service.text_to_speech_streaming("Hello, world!"):
+            chunks.append(chunk)
+
+        assert chunks == [b"chunk1", b"chunk2"]
+
+        # Verify it uses the /stream endpoint
+        call_args = mock_session.post.call_args
+        assert "/stream" in call_args[0][0]
+
+    @pytest.mark.asyncio
+    async def test_text_to_speech_streaming_api_error(self, service):
+        """Test streaming TTS with API error."""
+        mock_session = MagicMock()
+        mock_response = MagicMock(spec=ClientResponse)
+        mock_response.status = 400
+        mock_response.text = AsyncMock(return_value="Bad Request")
+
+        class AsyncContextManager:
+            async def __aenter__(self):
+                return mock_response
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                return None
+
+        mock_session.post = MagicMock(return_value=AsyncContextManager())
+        service._session = mock_session
+        service.initialized = True
+
+        with pytest.raises(Exception, match="ElevenLabs streaming API error"):
+            async for _ in service.text_to_speech_streaming("Test"):
+                pass
+
+    @pytest.mark.asyncio
     async def test_text_to_speech_api_error(self, service):
         """Test TTS with API error."""
         mock_session = MagicMock()
