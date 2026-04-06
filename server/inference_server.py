@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
-from fastapi_mcp import FastApiMCP
+from fastmcp import FastMCP
 
 from config.config_manager import load_config
 from config.resolver import ConfigResolver
@@ -139,13 +139,9 @@ class InferenceServer:
         self.route_configurator.configure_routes(self.app)
 
         # Initialize MCP server
-        logger.info("Initializing MCP server with fastapi-mcp")
-        self.mcp_server = FastApiMCP(
-            self.app,
-            name="ORBIT",
-            description="ORBIT MCP Server"
-        )
-        self.mcp_server.mount_http(mount_path="/mcp")
+        logger.info("Initializing MCP server with fastmcp")
+        self.mcp_server = FastMCP.from_fastapi(self.app, name="ORBIT")
+        self.app.mount("/mcp", self.mcp_server.http_app())
         
         logger.info("InferenceServer initialized")
 

@@ -403,7 +403,7 @@ class RouteConfigurator:
             """
             Process a chat request and return a response.
             This endpoint is now a standard RESTful endpoint.
-            The fastapi-mcp library will expose it as an MCP tool.
+            The fastmcp library will expose it as an MCP tool.
             """
             adapter_name, system_prompt_id = api_key_result
             client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")

@@ -4,7 +4,7 @@ OpenClaw is a popular self-hosted AI assistant that supports the Model Context P
 
 ## How ORBIT Exposes MCP
 
-ORBIT’s server uses [fastapi-mcp](https://github.com/jlowin/fastmcp) to expose the MCP protocol over HTTP. The MCP server is initialized at startup and mounted at `/mcp` on the same FastAPI app that serves the chat and health endpoints.
+ORBIT’s server uses [fastmcp](https://github.com/jlowin/fastmcp) to expose the MCP protocol over HTTP. The MCP server is initialized at startup and mounted at `/mcp` on the same FastAPI app that serves the chat and health endpoints.
 
 ```mermaid
 flowchart LR
@@ -21,18 +21,14 @@ flowchart LR
 
 Relevant code in the server:
 
-- **Initialization** (`server/inference_server.py`): After middleware and routes are configured, the app creates a `FastApiMCP` instance and mounts it at `/mcp`:
+- **Initialization** (`server/inference_server.py`): After middleware and routes are configured, the app creates a `FastMCP` instance from the FastAPI app and mounts it at `/mcp`:
 
 ```python
-self.mcp_server = FastApiMCP(
-    self.app,
-    name="ORBIT",
-    description="ORBIT MCP Server"
-)
-self.mcp_server.mount_http(mount_path="/mcp")
+self.mcp_server = FastMCP.from_fastapi(self.app, name="ORBIT")
+self.app.mount("/mcp", self.mcp_server.http_app())
 ```
 
-- **Transport**: `mount_http()` implements the MCP Streamable HTTP specification. Clients that support Streamable HTTP can connect to `http(s)://ORBIT_HOST:PORT/mcp`.
+- **Transport**: `http_app()` implements the MCP Streamable HTTP specification. Clients that support Streamable HTTP can connect to `http(s)://ORBIT_HOST:PORT/mcp`.
 - **Authentication**: The same API key used for `/v1/chat` applies to MCP: ORBIT’s chat endpoint (exposed as an MCP tool) validates the `X-API-Key` header. When configuring OpenClaw (or any MCP client) to talk to ORBIT, you must pass this key if your ORBIT instance has API keys enabled.
 
 References: [Server setup](../server.md) (MCP Protocol Chat), [ORBIT flow diagrams](../orbit-flow-diagrams.md).
@@ -50,7 +46,7 @@ References: [Server setup](../server.md) (MCP Protocol Chat), [ORBIT flow diagra
 Ensure ORBIT is up and the MCP mount is active. The server logs should show something like:
 
 ```
-Initializing MCP server with fastapi-mcp
+Initializing MCP server with fastmcp
 ```
 
 The MCP endpoint is:
@@ -169,7 +165,7 @@ Agents that don’t list `orbit` won’t see ORBIT’s tools.
 
 ## Summary
 
-- ORBIT exposes MCP at **`/mcp`** via fastapi-mcp’s `mount_http()` (see `server/inference_server.py`).
+- ORBIT exposes MCP at **`/mcp`** via fastmcp’s `http_app()` (see `server/inference_server.py`).
 - OpenClaw can use ORBIT as an MCP server by pointing it at `ORBIT_BASE_URL/mcp` when your OpenClaw version supports HTTP/URL MCP.
 - Use an ORBIT API key (and send it as `X-API-Key`) so ORBIT can route requests to the correct adapter.
 - Restrict which agents see ORBIT by configuring per-agent `mcpServers` in `openclaw.json`.
