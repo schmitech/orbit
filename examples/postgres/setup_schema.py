@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""
+Database schema setup script for PostgreSQL customer-order tables.
+This script creates the necessary tables for the customer-order.py script.
+"""
+
+import psycopg2
+import os
+import sys
+from env_utils import get_postgres_config, print_postgres_config
+
+def setup_schema():
+    """Set up the database schema by executing the SQL file"""
+    connection = None
+    try:
+        config = get_postgres_config()
+        print_postgres_config(config)
+        
+        # Connect to database
+        connection = psycopg2.connect(**config)
+        print("✅ Connected successfully!")
+        
+        # Read the SQL file
+        sql_file_path = os.path.join(os.path.dirname(__file__), 'customer-order.sql')
+        
+        if not os.path.exists(sql_file_path):
+            print(f"❌ SQL file not found: {sql_file_path}")
+            return False
+        
+        print(f"📄 Reading schema from: {sql_file_path}")
+        
+        with open(sql_file_path, 'r') as file:
+            sql_content = file.read()
+        
+        # Execute the SQL
+        cursor = connection.cursor()
+        
+        # Execute the entire SQL content
+        # The SQL file already contains DROP TABLE IF EXISTS statements
+        print("🔨 Setting up database schema (dropping and recreating tables)...")
+        cursor.execute(sql_content)
+        
+        connection.commit()
+        print("✅ Schema setup completed successfully!")
+        
+        # Verify tables were created
+        cursor.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name IN ('customers', 'orders')
+            ORDER BY table_name
+        """)
+        
+        tables = cursor.fetchall()
+        print(f"📋 Created tables: {[table[0] for table in tables]}")
+        
+        cursor.close()
+        return True
+        
+    except psycopg2.Error as e:
+        print(f"❌ Database error: {e}")
+        if connection:
+            connection.rollback()
+        return False
+        
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        if connection:
+            connection.rollback()
+        return False
+        
+    finally:
+        if connection:
+            connection.close()
+            print("🔒 Connection closed.")
+
+def verify_schema():
+    """Verify that the schema is properly set up"""
+    connection = None
+    try:
+        config = get_postgres_config()
+        connection = psycopg2.connect(**config)
+        cursor = connection.cursor()
+        
+        # Check columns
+        cursor.execute("""
+            SELECT table_name, column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name IN ('customers', 'orders')
+            ORDER BY table_name, ordinal_position
+        """)
+        
+        columns = cursor.fetchall()
+        
+        print("\n📋 Database Schema Verification:")
+        print("-" * 50)
+        
+        current_table = None
+        for table, column, data_type in columns:
+            if table != current_table:
+                print(f"\n📊 Table: {table}")
+                current_table = table
+            print(f"  - {column}: {data_type}")
+        
+        cursor.close()
+        return True
+        
+    except Exception as e:
+        print(f"❌ Verification error: {e}")
+        return False
+        
+    finally:
+        if connection:
+            connection.close()
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--verify":
+        success = verify_schema()
+    else:
+        success = setup_schema()
+        if success:
+            print("\n🔍 Verifying schema...")
+            verify_schema()
+    
+    sys.exit(0 if success else 1) 
