@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.6.5] - 2026-04-06
+
+### Core System Updates
+- PostgreSQL: Migrated from `psycopg2-binary` to `psycopg[binary,pool]` 3.3.3 across datasources, retrievers, vector stores, and examples (`ConnectionPool`, `dict_row`, `row_factory`); isolated the postgres sample adapter into its own module; fixed customer-order SQL templates and sql-intent parsing; added customer-orders sample data utilities
+- MCP: Replaced unmaintained `fastapi-mcp` with `fastmcp` (`FastMCP.from_fastapi()` + mount); `/mcp` path and Streamable HTTP transport unchanged
+- Intent debugging: `POST /admin/adapters/{adapter_name}/test-query` and `server/tools/test_template_query.py` to exercise intent templates (scores, reranking, parameter trace, rendered SQL, raw results); `--verbose` for vector health, template inventory, and domain config
+- Admin: Bearer-token helper script for multi-platform admin auth
+- Examples: Removed hosted API sample; expanded math persona example; sandbox sample use-case table and content refresh
+
+### Chat-app & UI Improvements
+- Config: Single-adapter (`agentMode`) — fixed adapter bypasses agent selection, slug routing, and “Change Agent”; empty-state title shows adapter name immediately (including after clearing conversations)
+- Sandbox docs: Sample links open in a new tab
+- Chat UX: Agent search and thread follow-up polish (Continue Discussion, filtered search centering and keyboard use, empty states and inputs)
+- Voice: Lower time-to-first-audio (sentence batch size 3→1); streaming TTS path for OpenAI, ElevenLabs, and vLLM (with tests and gpt-4o-mini-tts instructions handling)
+
+### Bug Fixes & Technical Improvements
+- Install & files: Dependency resolution and upgrades (e.g. environs/langchain, PyTorch/torchvision for Docling, Intel macOS torch constraints); file pipeline falls through to the next processor when Docling fails so MarkItDown/native can still handle uploads
+- Utilities: Template/query tooling — optional `template-id` to pick queries from a specific template entry
+
+### Documentation & Configuration
+- Docs and live-sample datasource column tweaks
+
 ## [2.6.4] - 2026-03-26
 
 ### Core System Updates
