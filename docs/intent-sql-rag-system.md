@@ -312,48 +312,6 @@ A comprehensive validation suite that ensures RAG system responses match actual 
 - Ensure accurate comparison between RAG and direct SQL results
 - Handle different query types (customer, orders, analytics, etc.)
 
-**Test Runner (`run_validation_tests.sh`)**
-- Easy-to-use script for running validation tests
-- Supports different test categories and sample sizes
-- Provides clear pass/fail results with detailed analysis
-
-#### Validation Features:
-- **Accuracy Testing**: Verify RAG results match SQL results
-- **Count Validation**: Check result count consistency (within tolerance)
-- **Template Verification**: Ensure correct template selection
-- **Parameter Testing**: Validate parameter extraction accuracy
-- **Performance Monitoring**: Track query execution times
-- **Error Analysis**: Detailed debugging for failed queries
-
-#### Usage:
-```bash
-# Basic validation tests
-python validate_rag_results.py
-
-# Category-specific testing
-./run_validation_tests.sh customer
-./run_validation_tests.sh orders
-./run_validation_tests.sh analytics
-
-# Comprehensive testing
-./run_validation_tests.sh full
-
-# Debug mode
-python validate_rag_results.py --debug --custom "Your query here"
-```
-
-#### Validation Results:
-```
-✅ PASS | RAG:15 SQL:14 | 0.45s | Show orders from customer 123...
-❌ FAIL | RAG:0  SQL:25 | 0.32s | Find orders over $500...
-
-📊 Validation Summary:
-   Total queries: 8
-   Passed: 7 (87.5%)  
-   Failed: 1 (12.5%)
-   Average time: 0.43s per query
-```
-
 ## Extending to New Domains
 
 ### Step 1: Define Your Domain Configuration
