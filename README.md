@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/schmitech/orbit">
-    <img src="docs/images/orbit-logo-transparent.png" alt="ORBIT Logo" width="400"/>
+    <img src="docs/images/orbit-logo-github.png" alt="ORBIT Logo" width="250"/>
   </a>
 
   <h3>One API for 20+ LLM providers, your databases, and your files.</h3>
