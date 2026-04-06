@@ -38,7 +38,7 @@ templates:
       qualifiers: ["monthly", "growth"]
     approved: true
 
-  - id: daily_sales_summary # FIXME
+  - id: daily_sales_summary
     version: "1.0.0"
     description: "Daily sales summary and performance metrics"
     nl_examples:
@@ -114,7 +114,7 @@ templates:
       qualifiers: ["daily", "performance"]
     approved: true
 
-  - id: customer_order_frequency_analysis # FIXME
+  - id: customer_order_frequency_analysis
     version: "1.0.0"
     description: "Analyze how frequently customers place orders"
     nl_examples:
@@ -198,7 +198,7 @@ templates:
       qualifiers: ["time_periods", "busiest"]
     approved: true
 
-  - id: revenue_by_customer_segment # FIXME
+  - id: revenue_by_customer_segment
     version: "1.0.0"
     description: "Analyze revenue contribution by customer segments"
     nl_examples:
@@ -351,7 +351,7 @@ templates:
       qualifiers: ["average", "trends"]
     approved: true
 
-  - id: customer_lifetime_value_distribution # FIXME
+  - id: customer_lifetime_value_distribution
     version: "1.0.0"
     description: "Show distribution of customer lifetime values"
     nl_examples:
@@ -363,16 +363,16 @@ templates:
     parameters: []
     sql_template: |
       WITH customer_values AS (
-        SELECT 
+        SELECT
           c.id,
           c.name,
-          SUM(o.total) as lifetime_value
+          COALESCE(SUM(o.total), 0) as lifetime_value
         FROM customers c
         LEFT JOIN orders o ON c.id = o.customer_id AND o.status != 'cancelled'
         GROUP BY c.id, c.name
       )
-      SELECT 
-        CASE 
+      SELECT
+        CASE
           WHEN lifetime_value = 0 THEN '$0 (No Orders)'
           WHEN lifetime_value < 100 THEN '$1-$99'
           WHEN lifetime_value < 500 THEN '$100-$499'

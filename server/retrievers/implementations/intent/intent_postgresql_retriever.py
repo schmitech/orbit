@@ -152,7 +152,8 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
             cursor = self.connection.cursor()
             cursor.execute(query, params)
             
-            if query.strip().upper().startswith("SELECT"):
+            query_upper = query.strip().upper()
+            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
                 return cursor.fetchall()
             else:
                 self.connection.commit()

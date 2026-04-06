@@ -113,7 +113,8 @@ class MySQLRetriever(BaseSQLDatabaseRetriever):
                 cursor.execute(query)
             
             # Handle different query types
-            if query.strip().upper().startswith("SELECT"):
+            query_upper = query.strip().upper()
+            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
                 results = cursor.fetchall()
                 return results
             else:

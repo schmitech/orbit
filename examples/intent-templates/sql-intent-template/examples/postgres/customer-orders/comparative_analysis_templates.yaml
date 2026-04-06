@@ -124,7 +124,7 @@ templates:
       qualifiers: ["period_comparison", "growth"]
     approved: true
 
-  - id: compare_customer_segments_performance # FIXME
+  - id: compare_customer_segments_performance
     version: "1.0.0"
     description: "Compare performance between different customer segments"
     nl_examples:
@@ -186,7 +186,7 @@ templates:
       qualifiers: ["segment_comparison", "performance"]
     approved: true
 
-  - id: geographic_performance_comparison # FIXME
+  - id: geographic_performance_comparison
     version: "1.0.0"
     description: "Compare sales performance between different geographic regions"
     nl_examples:
@@ -362,13 +362,23 @@ templates:
         default: 30
     sql_template: |
       WITH input_params AS (
-        SELECT 
-          CASE 
+        SELECT
+          CASE
             WHEN %(comparison_date)s ~ '^\d{4}-\d{2}-\d{2}$' THEN to_date(%(comparison_date)s, 'YYYY-MM-DD')
             WHEN %(comparison_date)s ~ '^\d{2}/\d{2}/\d{4}$' THEN to_date(%(comparison_date)s, 'MM/DD/YYYY')
             WHEN %(comparison_date)s ~ '^\d{2}-\d{2}-\d{4}$' THEN to_date(%(comparison_date)s, 'MM-DD-YYYY')
-            WHEN %(comparison_date)s ~ '^[A-Za-z]+ \d{1,2}, \d{4}$' THEN to_date(%(comparison_date)s, 'Month DD, YYYY')
-            WHEN %(comparison_date)s ~ '^[A-Za-z]+ \d{1,2}$' THEN to_date(%(comparison_date)s || ' ' || EXTRACT(YEAR FROM CURRENT_DATE)::text, 'Month DD YYYY')
+            WHEN %(comparison_date)s ~ '^[A-Za-z]+ \d{1,2}[a-z]{0,2}(,? \d{4})?$' THEN
+              to_date(
+                REGEXP_REPLACE(
+                  REGEXP_REPLACE(%(comparison_date)s, '(st|nd|rd|th)', '', 'gi'),
+                  ',', '', 'g'
+                ) ||
+                CASE
+                  WHEN %(comparison_date)s ~ '\d{4}' THEN ''
+                  ELSE ' ' || EXTRACT(YEAR FROM CURRENT_DATE)::text
+                END,
+                'Month DD YYYY'
+              )
             ELSE NULL
           END as comparison_date,
           COALESCE(%(days_before)s, 30)::int as days_before,
@@ -455,7 +465,7 @@ templates:
       qualifiers: ["weekly", "trends"]
     approved: true
 
-  - id: high_vs_low_value_order_comparison # FIXME
+  - id: high_vs_low_value_order_comparison
     version: "1.0.0"
     description: "Compare characteristics of high value vs low value orders"
     nl_examples:

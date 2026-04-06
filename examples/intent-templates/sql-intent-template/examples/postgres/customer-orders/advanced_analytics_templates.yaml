@@ -80,7 +80,7 @@ templates:
       qualifiers: ["retention", "repeat_behavior"]
     approved: true
 
-  - id: customer_churn_risk_analysis # FIXME
+  - id: customer_churn_risk_analysis
     version: "1.0.0"
     description: "Identify customers at risk of churning based on order patterns"
     nl_examples:
@@ -203,7 +203,7 @@ templates:
       qualifiers: ["churn_risk", "at_risk"]
     approved: true
 
-  - id: purchase_pattern_analysis # FIXME
+  - id: purchase_pattern_analysis
     version: "1.0.0"
     description: "Analyze customer purchase patterns and buying habits"
     nl_examples:
@@ -297,7 +297,7 @@ templates:
       qualifiers: ["purchase_patterns", "buying_habits"]
     approved: true
 
-  - id: order_value_distribution_analysis # FIXME
+  - id: order_value_distribution_analysis
     version: "1.0.0"
     description: "Analyze the distribution of order values and identify patterns"
     nl_examples:
@@ -315,14 +315,12 @@ templates:
         default: 90
     sql_template: |
       WITH order_stats AS (
-        SELECT 
-          total,
-          NTILE(10) OVER (ORDER BY total) as decile
-        FROM orders 
+        SELECT total
+        FROM orders
         WHERE order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND status != 'cancelled'
       )
-      SELECT 
+      SELECT
         CASE 
           WHEN total < 25 THEN 'Micro ($0-$24)'
           WHEN total < 50 THEN 'Small ($25-$49)'
@@ -385,9 +383,8 @@ templates:
         c.city,
         COUNT(o.id) as total_orders,
         SUM(o.total) as total_revenue,
-        AVG(o.total) as avg_order_value,
+        ROUND(AVG(o.total), 2) as avg_order_value,
         COUNT(DISTINCT o.customer_id) as unique_customers,
-        ROUND(AVG(o.total), 2) as avg_order_size,
         ROUND(SUM(o.total) / COUNT(DISTINCT o.customer_id), 2) as revenue_per_customer,
         RANK() OVER (ORDER BY SUM(o.total) DESC) as revenue_rank
       FROM customers c
@@ -408,7 +405,7 @@ templates:
       qualifiers: ["geographical", "regional"]
     approved: true
 
-  - id: customer_acquisition_analysis # FIXME
+  - id: customer_acquisition_analysis
     version: "1.0.0"
     description: "Analyze customer acquisition trends and new customer behavior"
     nl_examples:
@@ -488,9 +485,9 @@ templates:
         required: false
         default: 90
     sql_template: |
-      SELECT 
-        EXTRACT(HOUR FROM order_date) as hour_of_day,
-        TO_CHAR(order_date, 'Day') as day_of_week,
+      SELECT
+        EXTRACT(HOUR FROM created_at) as hour_of_day,
+        TO_CHAR(created_at, 'Day') as day_of_week,
         COUNT(*) as order_count,
         SUM(total) as total_revenue,
         AVG(total) as avg_order_value,
@@ -498,7 +495,7 @@ templates:
       FROM orders
       WHERE order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
         AND status != 'cancelled'
-      GROUP BY EXTRACT(HOUR FROM order_date), TO_CHAR(order_date, 'Day')
+      GROUP BY EXTRACT(HOUR FROM created_at), TO_CHAR(created_at, 'Day')
       ORDER BY order_count DESC
     result_format: "table"
     tags: ["time", "day", "hour", "when", "placed", "timing", "peak", "busiest", "patterns"]

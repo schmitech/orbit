@@ -183,7 +183,8 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
                     # No placeholders, execute without params
                     cursor.execute(query)
 
-            if query.strip().upper().startswith("SELECT"):
+            query_upper = query.strip().upper()
+            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
                 # Convert Row objects to dictionaries
                 rows = cursor.fetchall()
                 return [dict(row) for row in rows]

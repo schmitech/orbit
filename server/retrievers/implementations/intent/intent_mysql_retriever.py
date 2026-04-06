@@ -98,7 +98,8 @@ class IntentMySQLRetriever(IntentSQLRetriever):
             else:
                 cursor.execute(query)
             
-            if query.strip().upper().startswith("SELECT"):
+            query_upper = query.strip().upper()
+            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
                 return cursor.fetchall()
             else:
                 if not self.autocommit:
