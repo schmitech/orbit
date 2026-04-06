@@ -1,0 +1,65 @@
+# Intent Retriever Adapters
+# These adapters use intent classification to generate queries from natural language
+# Supports SQL, DuckDB, PostgreSQL, Elasticsearch, MongoDB, HTTP APIs, and Firecrawl
+
+adapters:
+  - name: "intent-sql-postgres"
+    enabled: true
+    type: "retriever"
+    datasource: "postgres"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
+    inference_provider: "ollama_cloud"
+    model: "gemma4:31b"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+    # reranker_provider: "cohere"
+
+    # Capabilities: Standard intent retriever
+    # Note: Intent adapters use the same capabilities as QA adapters (always retrieve, standard formatting)
+    capabilities:
+      retrieval_behavior: "always"       # Always retrieves matching intents/templates
+      formatting_style: "standard"       # Standard format with citations and confidence scores
+      supports_file_ids: false           # Does not support file filtering
+      supports_session_tracking: false   # Does not need session tracking
+      requires_api_key_validation: false # API key used for access control only
+      supports_autocomplete: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+      optional_parameters:
+        - "api_key"
+
+    config:
+      # Path to the domain definition file
+      domain_config_path: "examples/intent-templates/sql-intent-template/examples/postgres/customer-orders/customer_order_domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/sql-intent-template/examples/postgres/customer-orders/customer_orders_templates.yaml"
+        - "examples/intent-templates/sql-intent-template/examples/postgres/customer-orders/business_intelligence_templates.yaml"
+        - "examples/intent-templates/sql-intent-template/examples/postgres/customer-orders/advanced_analytics_templates.yaml"
+        - "examples/intent-templates/sql-intent-template/examples/postgres/customer-orders/comparative_analysis_templates.yaml"
+      # Name for the vector store collection for templates
+      # reranker_top_n: 40      # Optional: limit reranked results (overrides return_results)
+      template_collection_name: "intent_query_templates"
+      # Store configuration - references stores.yaml
+      store_name: "chroma"
+      confidence_threshold: 0.5
+      # Maximum templates to consider
+      max_templates: 5
+      # Return top N results
+      return_results: 100
+
+      # Template loading settings
+      reload_templates_on_start: true  # Whether to reload templates on startup
+      force_reload_templates: true  # Force reload even if templates exist in storage
+
+      # Unified retriever features
+      use_connection_pool: true  # Enable connection pooling
+      pool_size: 10  # Connection pool size (match DB worker count)
+      connection_timeout: 5  # Fail fast under load (seconds)
+      statement_timeout: 10000  # Kill runaway queries after 10s (ms)
+
+      # Query monitoring (automatically provided by new base)
+      enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds
