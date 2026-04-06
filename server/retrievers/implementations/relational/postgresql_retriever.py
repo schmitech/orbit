@@ -5,8 +5,8 @@ Significantly reduced code duplication.
 
 import logging
 from typing import Dict, Any, List, Optional
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg
+from psycopg.rows import dict_row
 
 from retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
 from retrievers.base.base_retriever import RetrieverFactory
@@ -48,14 +48,14 @@ class PostgreSQLRetriever(BaseSQLDatabaseRetriever):
     async def create_connection(self) -> Any:
         """Create PostgreSQL connection."""
         try:
-            connection = psycopg2.connect(
+            connection = psycopg.connect(
                 host=self.connection_params['host'],
                 port=self.connection_params['port'],
-                database=self.connection_params['database'],
+                dbname=self.connection_params['database'],
                 user=self.connection_params['username'],
                 password=self.connection_params['password'],
                 sslmode=self.sslmode,
-                cursor_factory=RealDictCursor
+                row_factory=dict_row
             )
             
             # Test connection
@@ -70,7 +70,7 @@ class PostgreSQLRetriever(BaseSQLDatabaseRetriever):
             return connection
             
         except ImportError:
-            logger.error("psycopg2 not available. Install with: pip install psycopg2-binary")
+            logger.error("psycopg not available. Install with: pip install 'psycopg[binary]'")
             raise
         except Exception as e:
             logger.error(f"Failed to connect to PostgreSQL: {e}")

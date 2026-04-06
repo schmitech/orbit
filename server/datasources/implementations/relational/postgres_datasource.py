@@ -21,9 +21,9 @@ class PostgreSQLDatasource(BaseDatasource):
         postgres_config = self.config.get('datasources', {}).get('postgres', {})
 
         try:
-            import psycopg2
-            import psycopg2.pool
-            from psycopg2.extras import RealDictCursor
+            import psycopg
+            from psycopg.rows import dict_row
+            from psycopg_pool import ConnectionPool
 
             # Extract connection parameters
             host = postgres_config.get('host', 'localhost')
@@ -43,19 +43,24 @@ class PostgreSQLDatasource(BaseDatasource):
             logger.info(f"Initializing PostgreSQL connection pool to {host}:{port}/{database} "
                         f"(pool_size={pool_size}, min={min_pool_size})")
 
-            # Create thread-safe connection pool
-            self._pool = psycopg2.pool.ThreadedConnectionPool(
-                minconn=min_pool_size,
-                maxconn=pool_size,
+            # Build conninfo string for the pool
+            conninfo = psycopg.conninfo.make_conninfo(
                 host=host,
                 port=port,
-                database=database,
+                dbname=database,
                 user=username,
                 password=password,
                 sslmode=sslmode,
-                cursor_factory=RealDictCursor,
                 connect_timeout=connection_timeout,
                 options=f'-c statement_timeout={statement_timeout}'
+            )
+
+            # Create connection pool
+            self._pool = ConnectionPool(
+                conninfo=conninfo,
+                min_size=min_pool_size,
+                max_size=pool_size,
+                kwargs={"row_factory": dict_row},
             )
 
             self._validate_on_borrow = validate_on_borrow
@@ -78,7 +83,7 @@ class PostgreSQLDatasource(BaseDatasource):
         except ImportError as e:
             self._client = None
             self._initialized = False
-            raise RuntimeError("psycopg2 is required for PostgreSQLDatasource") from e
+            raise RuntimeError("psycopg is required for PostgreSQLDatasource") from e
         except Exception as e:
             logger.error(f"Failed to connect to PostgreSQL database: {str(e)}")
             logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
@@ -98,9 +103,9 @@ class PostgreSQLDatasource(BaseDatasource):
                 cursor.fetchone()
                 cursor.close()
             except Exception:
-                # Connection is stale, get a new one
+                # Connection is stale, close it and get a new one
                 try:
-                    self._pool.putconn(conn, close=True)
+                    conn.close()
                 except Exception:
                     pass
                 conn = self._pool.getconn()
@@ -155,7 +160,7 @@ class PostgreSQLDatasource(BaseDatasource):
                 except Exception:
                     pass
                 self._client = None
-            self._pool.closeall()
+            self._pool.close()
             self._pool = None
             logger.info("PostgreSQL connection pool closed")
         elif self._client:

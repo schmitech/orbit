@@ -37,8 +37,8 @@ Flags:
 """
 
 import argparse
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg
+from psycopg.rows import dict_row
 from faker import Faker
 import random
 from datetime import datetime, timedelta
@@ -251,7 +251,7 @@ def get_connection():
     """Create and return a database connection."""
     config = get_postgres_config()
     print_postgres_config(config)
-    return psycopg2.connect(**config)
+    return psycopg.connect(**config)
 
 
 def insert_customers(conn, count=100):
@@ -324,7 +324,7 @@ def insert_customers(conn, count=100):
             if inserted_count % 100 == 0:
                 print(f"  Progress: {inserted_count}/{count} customers inserted")
                 
-        except psycopg2.IntegrityError as e:
+        except psycopg.IntegrityError as e:
             conn.rollback()
             if "customers_email_key" in str(e) or "customers_pkey" in str(e):
                 continue
@@ -545,7 +545,7 @@ def insert_orders(conn, customer_ids, count=500, batch_size=100, commit_every=10
 
 def query_recent_activity(conn, customer_id):
     """Query recent customer activity (matching the retriever query)."""
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    cursor = conn.cursor(row_factory=dict_row)
     
     query = """
         SELECT c.name, o.order_date, o.total, o.created_at
@@ -565,7 +565,7 @@ def query_recent_activity(conn, customer_id):
 
 def query_customer_summary(conn, customer_id=None):
     """Query customer summary with order statistics."""
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    cursor = conn.cursor(row_factory=dict_row)
     
     if customer_id:
         query = """
@@ -796,7 +796,7 @@ def main():
                 
         conn.close()
         
-    except psycopg2.Error as e:
+    except psycopg.Error as e:
         print(f"Database error: {e}")
         exit(1)
     except Exception as e:

@@ -11,8 +11,8 @@ Usage:
     python test_query.py --stress           # Run stress tests with large datasets
 """
 
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg
+from psycopg.rows import dict_row
 from dotenv import load_dotenv, find_dotenv
 import os
 import sys
@@ -38,7 +38,7 @@ def get_db_config():
     return {
         'host': os.getenv('DATASOURCE_POSTGRES_HOST', 'localhost'),
         'port': int(os.getenv('DATASOURCE_POSTGRES_PORT', '5432')),
-        'database': os.getenv('DATASOURCE_POSTGRES_DATABASE', 'orbit'),
+        'dbname': os.getenv('DATASOURCE_POSTGRES_DATABASE', 'orbit'),
         'user': os.getenv('DATASOURCE_POSTGRES_USERNAME', 'postgres'),
         'password': os.getenv('DATASOURCE_POSTGRES_PASSWORD', 'postgres'),
         'sslmode': os.getenv('DATASOURCE_POSTGRES_SSL_MODE', 'require')
@@ -136,8 +136,8 @@ def test_query(params, description, show_query=True, show_details=True):
     
     try:
         config = get_db_config()
-        connection = psycopg2.connect(**config)
-        cursor = connection.cursor(cursor_factory=RealDictCursor)
+        connection = psycopg.connect(**config)
+        cursor = connection.cursor(row_factory=dict_row)
         
         query, query_params = build_query(params)
         
@@ -245,8 +245,8 @@ def show_available_data():
     connection = None
     try:
         config = get_db_config()
-        connection = psycopg2.connect(**config)
-        cursor = connection.cursor(cursor_factory=RealDictCursor)
+        connection = psycopg.connect(**config)
+        cursor = connection.cursor(row_factory=dict_row)
         
         print("\n📊 Available Data Summary:")
         print("=" * 50)

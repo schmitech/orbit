@@ -4,7 +4,7 @@ Database schema setup script for PostgreSQL customer-order tables.
 This script creates the necessary tables for the customer-order.py script.
 """
 
-import psycopg2
+import psycopg
 import os
 import sys
 from env_utils import get_postgres_config, print_postgres_config
@@ -17,7 +17,7 @@ def setup_schema():
         print_postgres_config(config)
         
         # Connect to database
-        connection = psycopg2.connect(**config)
+        connection = psycopg.connect(**config)
         print("✅ Connected successfully!")
         
         # Read the SQL file
@@ -58,7 +58,7 @@ def setup_schema():
         cursor.close()
         return True
         
-    except psycopg2.Error as e:
+    except psycopg.Error as e:
         print(f"❌ Database error: {e}")
         if connection:
             connection.rollback()
@@ -80,7 +80,7 @@ def verify_schema():
     connection = None
     try:
         config = get_postgres_config()
-        connection = psycopg2.connect(**config)
+        connection = psycopg.connect(**config)
         cursor = connection.cursor()
         
         # Check columns

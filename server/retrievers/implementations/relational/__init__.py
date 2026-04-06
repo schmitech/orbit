@@ -6,11 +6,11 @@ from .sqlite_retriever import SQLiteRetriever
 
 logger = logging.getLogger(__name__)
 
-try:  # Optional dependency: psycopg2
+try:  # Optional dependency: psycopg
     from .postgresql_retriever import PostgreSQLRetriever
 except ModuleNotFoundError:  # pragma: no cover - optional import guard
     PostgreSQLRetriever = None
-    logger.debug("psycopg2 not installed; PostgreSQLRetriever unavailable")
+    logger.debug("psycopg not installed; PostgreSQLRetriever unavailable")
 
 try:  # Optional dependency: mysqlclient or mysql-connector
     from .mysql_retriever import MySQLRetriever

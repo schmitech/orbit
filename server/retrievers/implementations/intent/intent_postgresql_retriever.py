@@ -7,17 +7,17 @@ import logging
 from typing import Dict, Any, List, Optional
 
 try:
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
-    from psycopg2 import pool
-    _OperationalError = psycopg2.OperationalError
+    import psycopg
+    from psycopg.rows import dict_row
+    import psycopg_pool
+    _OperationalError = psycopg.OperationalError
 except ImportError:  # pragma: no cover - optional dependency for tests
-    psycopg2 = None
-    RealDictCursor = None
-    pool = None
+    psycopg = None
+    dict_row = None
+    psycopg_pool = None
 
     class _OperationalError(Exception):
-        """Fallback when psycopg2 is unavailable."""
+        """Fallback when psycopg is unavailable."""
 
 from retrievers.base.intent_sql_base import IntentSQLRetriever
 from retrievers.base.base_retriever import RetrieverFactory
@@ -59,42 +59,47 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
     async def create_connection(self) -> Any:
         """Create PostgreSQL connection or connection pool."""
         try:
-            if psycopg2 is None:
-                raise ImportError("psycopg2 not available. Install with: pip install psycopg2-binary")
+            if psycopg is None:
+                raise ImportError("psycopg not available. Install with: pip install 'psycopg[binary,pool]'")
 
             if self.use_connection_pool and not self.connection_pool:
-                # Create thread-safe connection pool
-                self.connection_pool = psycopg2.pool.ThreadedConnectionPool(
-                    2,  # minconn
-                    self.pool_size,  # maxconn
+                # Build conninfo string for the pool
+                conninfo = psycopg.conninfo.make_conninfo(
                     host=self.connection_params['host'],
                     port=self.connection_params['port'],
-                    database=self.connection_params['database'],
+                    dbname=self.connection_params['database'],
                     user=self.connection_params['username'],
                     password=self.connection_params['password'],
                     sslmode=self.sslmode,
-                    cursor_factory=RealDictCursor,
                     connect_timeout=self.connection_timeout,
                     options=f'-c statement_timeout={self.statement_timeout}'
                 )
-                
+
+                # Create connection pool
+                self.connection_pool = psycopg_pool.ConnectionPool(
+                    conninfo=conninfo,
+                    min_size=2,
+                    max_size=self.pool_size,
+                    kwargs={"row_factory": dict_row},
+                )
+
                 logger.debug(f"Created PostgreSQL connection pool with size {self.pool_size}")
-                
+
                 # Get a connection from the pool
                 connection = self.connection_pool.getconn()
             else:
                 # Create single connection
-                connection = psycopg2.connect(
+                connection = psycopg.connect(
                     host=self.connection_params['host'],
                     port=self.connection_params['port'],
-                    database=self.connection_params['database'],
+                    dbname=self.connection_params['database'],
                     user=self.connection_params['username'],
                     password=self.connection_params['password'],
                     sslmode=self.sslmode,
-                    cursor_factory=RealDictCursor,
+                    row_factory=dict_row,
                     connect_timeout=self.connection_timeout
                 )
-                
+
                 # Set autocommit to False to manage transactions properly
                 connection.autocommit = False
             
@@ -110,7 +115,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
             return connection
             
         except ImportError:
-            logger.error("psycopg2 not available. Install with: pip install psycopg2-binary")
+            logger.error("psycopg not available. Install with: pip install 'psycopg[binary,pool]'")
             raise
         except Exception as e:
             logger.error(f"Failed to connect to PostgreSQL: {e}")
@@ -174,7 +179,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
         
         # Close the pool if needed
         if self.connection_pool:
-            self.connection_pool.closeall()
+            self.connection_pool.close()
             self.connection_pool = None
             logger.debug("Closed PostgreSQL connection pool")
 

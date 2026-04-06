@@ -9,11 +9,11 @@ from .domain import DomainConfig
 
 logger = logging.getLogger(__name__)
 
-try:  # Optional dependency on psycopg2
+try:  # Optional dependency on psycopg
     from .intent_postgresql_retriever import IntentPostgreSQLRetriever
 except ModuleNotFoundError:  # pragma: no cover - optional import guard
     IntentPostgreSQLRetriever = None
-    logger.debug("psycopg2 not installed; IntentPostgreSQLRetriever unavailable")
+    logger.debug("psycopg not installed; IntentPostgreSQLRetriever unavailable")
 
 # Conditionally import MySQL retriever only if mysql.connector is available
 try:

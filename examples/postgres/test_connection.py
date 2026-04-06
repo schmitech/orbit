@@ -1,5 +1,5 @@
-import psycopg2
-from psycopg2 import OperationalError, Error
+import psycopg
+from psycopg import OperationalError, Error
 from dotenv import load_dotenv, find_dotenv
 import os
 import sys
@@ -47,7 +47,7 @@ def test_connection():
         print(f"SSL Mode: {config['sslmode']}")
         
         # Connect with SSL for AWS RDS and timeout
-        connection = psycopg2.connect(
+        connection = psycopg.connect(
             user=config['user'],
             password=config['password'],
             host=config['host'],
@@ -133,7 +133,7 @@ def test_ssl_modes():
     for ssl_mode in ssl_modes:
         print(f"\n📡 Testing SSL mode: {ssl_mode}")
         try:
-            connection = psycopg2.connect(
+            connection = psycopg.connect(
                 user=config['user'],
                 password=config['password'],
                 host=config['host'],

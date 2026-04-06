@@ -3,10 +3,10 @@ from typing import Dict, Any, Optional, List
 import json
 
 try:
-    import psycopg2
-    from pgvector.psycopg2 import register_vector
+    import psycopg
+    from pgvector.psycopg import register_vector
 except ImportError:
-    raise ImportError("pgvector not installed. Please install with 'pip install pgvector psycopg2-binary'")
+    raise ImportError("pgvector not installed. Please install with 'pip install pgvector psycopg[binary]'")
 
 from ..base.base_vector_store import BaseVectorStore
 from ..base.base_store import StoreConfig, StoreStatus
@@ -25,7 +25,7 @@ class PgvectorStore(BaseVectorStore):
             return True
         self.status = StoreStatus.CONNECTING
         try:
-            self._conn = psycopg2.connect(self.connection_string)
+            self._conn = psycopg.connect(self.connection_string)
             register_vector(self._conn)
             self._cursor = self._conn.cursor()
             self.status = StoreStatus.CONNECTED

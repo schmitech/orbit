@@ -137,8 +137,8 @@ class SQLTypeConversionMixin:
         elif isinstance(value, memoryview):
             # Handle binary data
             return value.tobytes().decode('utf-8', errors='ignore')
-        elif hasattr(value, '__class__') and value.__class__.__name__ == 'RealDictRow':
-            # Handle psycopg2 RealDictRow
+        elif hasattr(value, '__class__') and value.__class__.__name__ in ('RealDictRow', 'DictRow'):
+            # Handle psycopg2 RealDictRow / psycopg3 DictRow
             return dict(value)
         else:
             return value

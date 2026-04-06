@@ -21,13 +21,13 @@ class SupabaseDatasource(BaseDatasource):
         supabase_config = self.config.get('datasources', {}).get('supabase', {})
         
         try:
-            import psycopg2
-            from psycopg2.extras import RealDictCursor
+            import psycopg
+            from psycopg.rows import dict_row
         except ImportError as e:
             self._client = None
             self._initialized = False
-            raise RuntimeError("psycopg2 is required for SupabaseDatasource") from e
-        
+            raise RuntimeError("psycopg is required for SupabaseDatasource") from e
+
         # Extract connection parameters
         host = supabase_config.get('host', 'localhost')
         port = supabase_config.get('port', 5432)
@@ -35,19 +35,19 @@ class SupabaseDatasource(BaseDatasource):
         username = supabase_config.get('username', 'postgres')
         password = supabase_config.get('password', '')
         sslmode = supabase_config.get('sslmode', 'require')  # Supabase requires SSL
-        
+
         try:
             logger.info(f"Initializing Supabase connection to {host}:{port}/{database}")
-            
+
             # Create connection
-            self._client = psycopg2.connect(
+            self._client = psycopg.connect(
                 host=host,
                 port=port,
-                database=database,
+                dbname=database,
                 user=username,
                 password=password,
                 sslmode=sslmode,
-                cursor_factory=RealDictCursor  # Use dict cursor by default
+                row_factory=dict_row
             )
             
             # Test the connection
