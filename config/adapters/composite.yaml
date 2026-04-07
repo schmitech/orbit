@@ -45,8 +45,8 @@ adapters:
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
     # Shared embedding provider for consistent similarity scoring across sources
-    embedding_provider: "openrouter"
-    embedding_model: "openai/text-embedding-3-small"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
     capabilities:
       retrieval_behavior: "always"
       formatting_style: "standard"
@@ -60,11 +60,11 @@ adapters:
       # These must be names of other enabled intent adapters defined in intent.yaml
       child_adapters:
         - "intent-sql-sqlite-hr"
-        - "intent-duckdb-ev-population"
+        - "intent-sql-postgres"
         - "intent-duckdb-analytics"
 
       # Minimum confidence score to consider a template match
-      confidence_threshold: 0.4
+      confidence_threshold: 0.5
 
       # Maximum templates to retrieve from each child adapter
       max_templates_per_source: 3
@@ -82,7 +82,7 @@ adapters:
   # Example: Full Multi-Database Explorer
   # Routes queries across SQL, DuckDB, MongoDB, and HTTP sources
   - name: "composite-full-explorer"
-    enabled: true
+    enabled: false
     type: "retriever"
     adapter: "composite"
     implementation: "retrievers.implementations.composite.CompositeIntentRetriever"

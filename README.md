@@ -65,6 +65,7 @@ The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer
 | :--- | :--- | :--- |
 | Simple Chat | LLM | <a href="https://orbitsandbox.dev/simple-chat" target="_blank">simple-chat</a> |
 | Multimodal Chat | LLM + Files | <a href="https://orbitsandbox.dev/chat-with-files" target="_blank">chat-with-files</a> |
+| Multi-Source Chat | SQLite + PostgreSQL + DuckDB | <a href="https://orbitsandbox.dev/multi-source-chat" target="_blank">composite-multi-source-explorer</a> |
 | Customer Orders | PostgreSQL | <a href="https://orbitsandbox.dev/intent-sql-postgres" target="_blank">intent-sql-postgres</a> |
 | HR Database | SQLite | <a href="https://orbitsandbox.dev/intent-sql-sqlite-hr" target="_blank">intent-sql-sqlite-hr</a> |
 | DuckDB Analytics | DuckDB | <a href="https://orbitsandbox.dev/intent-duckdb-analytics" target="_blank">intent-duckdb-analytics</a> |
