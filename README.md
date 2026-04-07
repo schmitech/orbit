@@ -57,6 +57,27 @@ For GPU acceleration: `docker compose -f docker-compose.yml -f docker-compose.gp
 
 ---
 
+### Try it live
+
+The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer">public sandbox</a> hosts one chat workspace per adapter. Pick a demo to see ORBIT in action.
+
+| Demo | Data Source | Try it |
+| :--- | :--- | :--- |
+| Simple Chat | LLM | <a href="https://orbitsandbox.dev/simple-chat" target="_blank">simple-chat</a> |
+| Multimodal Chat | LLM + Files | <a href="https://orbitsandbox.dev/chat-with-files" target="_blank">chat-with-files</a> |
+| Customer Orders | PostgreSQL | <a href="https://orbitsandbox.dev/intent-sql-postgres" target="_blank">intent-sql-postgres</a> |
+| HR Database | SQLite | <a href="https://orbitsandbox.dev/intent-sql-sqlite-hr" target="_blank">intent-sql-sqlite-hr</a> |
+| DuckDB Analytics | DuckDB | <a href="https://orbitsandbox.dev/intent-duckdb-analytics" target="_blank">intent-duckdb-analytics</a> |
+| EV Population Stats | DuckDB | <a href="https://orbitsandbox.dev/intent-duckdb-ev-population" target="_blank">intent-duckdb-ev-population</a> |
+| JSONPlaceholder REST API | HTTP (JSON) | <a href="https://orbitsandbox.dev/intent-http-jsonplaceholder" target="_blank">intent-http-jsonplaceholder</a> |
+| Paris Open Data API | HTTP (JSON) | <a href="https://orbitsandbox.dev/intent-http-paris-opendata" target="_blank">intent-http-paris-opendata</a> |
+| MFlix Sample Collection | MongoDB | <a href="https://orbitsandbox.dev/intent-mongodb-mflix" target="_blank">intent-mongodb-mflix</a> |
+| SpaceX GraphQL | GraphQL | <a href="https://orbitsandbox.dev/intent-graphql-spacex" target="_blank">intent-graphql-spacex</a> |
+
+Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/) and [`examples/intent-templates/`](examples/intent-templates/).
+
+---
+
 ### What can you build with ORBIT?
 
 - **Ask your database questions in any language** — Connect Postgres, MySQL, MongoDB, DuckDB, or Elasticsearch and query them with natural language. Built-in language detection responds in the user's language automatically.
@@ -91,30 +112,9 @@ For GPU acceleration: `docker compose -f docker-compose.yml -f docker-compose.gp
 
 ---
 
-### Try it live
-
-The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer">public sandbox</a> hosts one chat workspace per adapter. Pick a demo to see ORBIT in action.
-
-| Demo | Data Source | Try it |
-| :--- | :--- | :--- |
-| Simple Chat | LLM | <a href="https://orbitsandbox.dev/simple-chat" target="_blank">simple-chat</a> |
-| Multimodal Chat | LLM + Files | <a href="https://orbitsandbox.dev/chat-with-files" target="_blank">chat-with-files</a> |
-| Customer Orders | PostgreSQL | <a href="https://orbitsandbox.dev/intent-sql-postgres" target="_blank">intent-sql-postgres</a> |
-| HR Database | SQLite | <a href="https://orbitsandbox.dev/intent-sql-sqlite-hr" target="_blank">intent-sql-sqlite-hr</a> |
-| DuckDB Analytics | DuckDB | <a href="https://orbitsandbox.dev/intent-duckdb-analytics" target="_blank">intent-duckdb-analytics</a> |
-| EV Population Stats | DuckDB | <a href="https://orbitsandbox.dev/intent-duckdb-ev-population" target="_blank">intent-duckdb-ev-population</a> |
-| JSONPlaceholder REST API | HTTP (JSON) | <a href="https://orbitsandbox.dev/intent-http-jsonplaceholder" target="_blank">intent-http-jsonplaceholder</a> |
-| Paris Open Data API | HTTP (JSON) | <a href="https://orbitsandbox.dev/intent-http-paris-opendata" target="_blank">intent-http-paris-opendata</a> |
-| MFlix Sample Collection | MongoDB | <a href="https://orbitsandbox.dev/intent-mongodb-mflix" target="_blank">intent-mongodb-mflix</a> |
-| SpaceX GraphQL | GraphQL | <a href="https://orbitsandbox.dev/intent-graphql-spacex" target="_blank">intent-graphql-spacex</a> |
-
-Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/) and [`examples/intent-templates/`](examples/intent-templates/).
-
----
-
 ### Built with ORBIT
 
-- **[PoliceStats.ca](https://policestats.ca)** — Public chat over Canadian municipal police open data. Users ask about auto theft, break-ins, crime by neighbourhood, and cross-city comparisons.
+- **[PoliceStats.ca](https://policestats.ca)** — Explore Canadian Crime Statistics with AI. Ask about auto theft, break-ins, neighbourhood crime patterns, and cross-city comparisons, with answers grounded in source data citations.
 
 Using ORBIT in production? [Let us know](https://schmitech.ai/en/contact) and we'll add your project here.
 
