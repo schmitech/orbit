@@ -475,13 +475,12 @@ adapters:
       # Realtime session (see OpenAI Realtime session.update)
       realtime_model: "gpt-realtime"
       realtime_voice: "marin"
-      realtime_instructions: "You are a helpful voice assistant. Be concise and natural for spoken replies."
       enable_input_transcription: true
       input_transcription_model: "whisper-1"
       # Server VAD (turn detection) — higher silence avoids cutting you off mid-thought
       vad_prefix_padding_ms: 300
-      vad_silence_duration_ms: 700
-      vad_threshold: 0.5
+      vad_silence_duration_ms: 1000
+      vad_threshold: 0.65
       # When true, server VAD can cancel the model reply if it thinks you started speaking (can sound "cut off")
       realtime_interrupt_response: false
       openai_connection_timeout_seconds: 60

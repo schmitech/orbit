@@ -727,18 +727,20 @@ async function connect() {
     setStatus('connecting', `Connecting to ${adapterName}...`);
   }
 
-  const normalizedAdapterName = adapterName.trim();
-  if (!normalizedAdapterName) {
-    setStatus('error', 'Adapter name is empty');
-    return;
-  }
-
   const params = new URLSearchParams();
   if (apiKey) {
     params.set('api_key', apiKey);
   }
   const qs = params.toString() ? `?${params.toString()}` : '';
-  const wsUrl = `${stripTrailingSlash(baseUrl)}/ws/voice/${encodeURIComponent(normalizedAdapterName)}${qs}`;
+  let wsUrl = `${stripTrailingSlash(baseUrl)}/ws/voice${qs}`;
+  if (!apiKey) {
+    const normalizedAdapterName = adapterName.trim();
+    if (!normalizedAdapterName) {
+      setStatus('error', 'Adapter name is empty');
+      return;
+    }
+    wsUrl = `${stripTrailingSlash(baseUrl)}/ws/voice/${encodeURIComponent(normalizedAdapterName)}${qs}`;
+  }
 
   setStatus('connecting', statusMessage);
   clearTranscript();

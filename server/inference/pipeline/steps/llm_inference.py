@@ -8,6 +8,7 @@ import logging
 from collections import OrderedDict
 from typing import AsyncGenerator
 from ..base import PipelineStep, ProcessingContext
+from ..prompt_builder import PromptInstructionBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,17 @@ class LLMInferenceStep(PipelineStep):
         super().__init__(container)
         self._prompt_cache: OrderedDict[str, str] = OrderedDict()  # LRU cache for system prompts (max 100)
         self._prompt_cache_max_size = 100
+
+    def _create_prompt_builder(self) -> PromptInstructionBuilder:
+        """Create a shared prompt builder backed by the pipeline services."""
+        return PromptInstructionBuilder(
+            config=self.container.get_or_none('config') or {},
+            prompt_service=self.container.get_or_none('prompt_service'),
+            clock_service=self.container.get_or_none('clock_service'),
+            prompt_cache=self._prompt_cache,
+            prompt_cache_max_size=self._prompt_cache_max_size,
+            builder_logger=self.logger,
+        )
     
     def should_execute(self, context: ProcessingContext) -> bool:
         """
@@ -245,42 +257,7 @@ class LLMInferenceStep(PipelineStep):
         Returns:
             System message content
         """
-        parts = []
-
-        # Get base system prompt
-        system_prompt = await self._get_system_prompt(context)
-        parts.append(system_prompt)
-
-        # Add time instruction if available
-        time_instruction = self._build_time_instruction(context)
-        if time_instruction:
-            parts.append(time_instruction)
-
-        # Add language instruction if needed
-        language_instruction = self._build_language_instruction(context)
-        if language_instruction:
-            parts.append(language_instruction)
-
-        # Add chart instruction
-        chart_instruction = self._build_chart_instruction()
-        if chart_instruction:
-            parts.append(chart_instruction)
-
-        # Add context content wrapped in <context> tags
-        if context.formatted_context:
-            is_file_or_multimodal = context.adapter_name and ('file' in context.adapter_name.lower() or 'multimodal' in context.adapter_name.lower())
-
-            if is_file_or_multimodal:
-                parts.append(f"\n<context>\n## UPLOADED FILE CONTENT\n\n{context.formatted_context}\n</context>")
-                parts.append("\nAnswer using the uploaded file content in <context>. If the answer is not there, say so.")
-            else:
-                # Fix: non-file adapters with formatted_context now get it injected
-                parts.append(f"\n<context>\n{context.formatted_context}\n</context>")
-                parts.append("\nPrioritize the <context> section when answering. If the answer is not there, say so.")
-        else:
-            parts.append("\nAnswer based on the system prompt. Maintain your persona.")
-
-        return "\n".join(parts)
+        return await self._create_prompt_builder().build_system_message_content(context)
 
     async def _build_traditional_prompt(self, context: ProcessingContext) -> str:
         """
@@ -360,20 +337,7 @@ class LLMInferenceStep(PipelineStep):
         Returns:
             Formatted time instruction string, or empty string if disabled
         """
-        if not self.container.has('clock_service'):
-            return ""
-
-        clock_service = self.container.get('clock_service')
-        if not clock_service or not clock_service.enabled:
-            return ""
-
-        # Get timezone and format from context (per-adapter overrides)
-        timezone = getattr(context, 'timezone', None)
-        time_format = getattr(context, 'time_format', None)
-
-        # Use the clock service's get_time_instruction method which handles
-        # the instruction template and formatting
-        return clock_service.get_time_instruction(timezone, time_format)
+        return self._create_prompt_builder().build_time_instruction(context)
     
     async def _get_system_prompt(self, context: ProcessingContext) -> str:
         """
@@ -388,33 +352,7 @@ class LLMInferenceStep(PipelineStep):
         Returns:
             The system prompt string
         """
-        if not context.system_prompt_id:
-            return "You are a helpful assistant."
-
-        # Check in-memory cache first (for cases where prompt_service is unavailable)
-        cache_key = f"prompt:{context.system_prompt_id}"
-        if cache_key in self._prompt_cache:
-            self._prompt_cache.move_to_end(cache_key)
-            logger.debug(f"Using in-memory cached system prompt for {context.system_prompt_id}")
-            return self._prompt_cache[cache_key]
-
-        # Fetch from prompt service (which has its own Redis caching)
-        if self.container.has('prompt_service'):
-            try:
-                prompt_service = self.container.get('prompt_service')
-                # This call already uses Redis caching internally
-                prompt_doc = await prompt_service.get_prompt_by_id(context.system_prompt_id)
-                if prompt_doc:
-                    prompt_text = prompt_doc.get('prompt', '')
-                    # Only cache in memory as a fallback (LRU eviction)
-                    self._prompt_cache[cache_key] = prompt_text
-                    if len(self._prompt_cache) > self._prompt_cache_max_size:
-                        self._prompt_cache.popitem(last=False)
-                    return prompt_text
-            except Exception as e:
-                logger.warning(f"Failed to retrieve system prompt: {str(e)}")
-
-        return "You are a helpful assistant."
+        return await self._create_prompt_builder().get_system_prompt(context)
     
     def _format_conversation_history(self, context_messages: list) -> str:
         """
@@ -448,87 +386,7 @@ class LLMInferenceStep(PipelineStep):
         Returns:
             Language instruction string or empty string
         """
-        config = self.container.get_or_none('config') or {}
-        lang_detect_config = config.get('language_detection', {})
-        language_detection_enabled = lang_detect_config.get('enabled', False)
-        
-        if not language_detection_enabled:
-            if self.logger.isEnabledFor(logging.DEBUG):
-                logger.debug("Language detection disabled - no instruction added")
-            return ""
-        
-        detected_language = getattr(context, 'detected_language', None)
-        detection_meta = getattr(context, 'language_detection_meta', {}) or {}
-        # Config thresholds
-        min_conf = lang_detect_config.get('min_confidence', 0.7)
-        prefer_ascii_en = lang_detect_config.get('prefer_english_for_ascii', True)
-        
-        if not detected_language:
-            # No detection available, prefer safe default to English for ASCII-only messages
-            msg = context.message or ""
-            ascii_ratio = (sum(1 for c in msg if ord(c) < 128) / len(msg)) if msg else 1.0
-            if prefer_ascii_en and ascii_ratio > 0.95:
-                return "\nIMPORTANT: Reply entirely in English. Do not include any other language."
-            return "\nIMPORTANT: Reply in the same language the user is using. Always match the user's language. Do not provide translations or explanations in other languages."
-        
-        # Language-specific instructions for better consistency
-        language_names = {
-            'en': 'English',
-            'es': 'Spanish',
-            'fr': 'French',
-            'de': 'German',
-            'it': 'Italian',
-            'pt': 'Portuguese',
-            'nl': 'Dutch',
-            'ru': 'Russian',
-            'zh': 'Chinese',
-            'ja': 'Japanese',
-            'ko': 'Korean',
-            'ar': 'Arabic',
-            'hi': 'Hindi',
-            'th': 'Thai',
-            'el': 'Greek',
-            'he': 'Hebrew'
-        }
-        
-        language_name = language_names.get(detected_language, detected_language.upper())
-
-        # If detection is low-confidence or heuristic, default to a safe English instruction for ASCII text
-        method = detection_meta.get('method', '')
-        confidence = float(detection_meta.get('confidence', 0.0))
-        msg = context.message or ""
-        ascii_ratio = (sum(1 for c in msg if ord(c) < 128) / len(msg)) if msg else 1.0
-
-        # Trust ensemble/pattern methods with confidence >= 0.5 even if below min_conf
-        trusted_method = method in (
-            'ensemble_voting', 'word_pattern_detection', 'phrase_pattern_detection'
-        ) and confidence >= 0.5
-        # Also trust threshold_fallback when it returns a non-English language —
-        # the detection system chose it over English deliberately
-        trusted_non_en_fallback = method == 'threshold_fallback' and detected_language != 'en'
-        low_conf_or_heuristic = (confidence < min_conf and not trusted_method and not trusted_non_en_fallback) or method in (
-            'heuristic_ascii_bias', 'all_backends_failed', 'length_fallback'
-        )
-        if prefer_ascii_en and ascii_ratio > 0.95 and low_conf_or_heuristic:
-            return "\nIMPORTANT: The user's message appears to be in English or ambiguous. Default to English and respond entirely in English. Do not include translations or any non-English text."
-        
-        # More specific instruction based on detected language
-        # If detection says English, enforce English strongly
-        if detected_language == 'en':
-            return "\nIMPORTANT: Respond entirely in English. Do not include any non-English words or translations."
-
-        # For non-English detection with high confidence, instruct to respond in detected language
-        # BUT add safety check for low confidence or when user seems to be writing English
-        if confidence >= 0.85 and method not in ('threshold_fallback', 'heuristic_ascii_bias', 'sticky_previous'):
-            instruction = f"\nIMPORTANT: The user is writing in {language_name}. You must respond entirely in {language_name}. Do not include translations, explanations in other languages, or bilingual responses. Write naturally as a native {language_name} speaker would."
-        else:
-            # For low confidence non-English detection, let the model decide based on actual content
-            instruction = "\nIMPORTANT: Match the language of the user's message. If the user is writing in English, respond in English. If they're writing in another language, respond in that same language."
-        
-        if self.logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Using language instruction for %s (%s)", language_name, detected_language)
-        
-        return instruction
+        return self._create_prompt_builder().build_language_instruction(context)
     
     def _build_chart_instruction(self) -> str:
         """
@@ -537,71 +395,4 @@ class LLMInferenceStep(PipelineStep):
         Returns:
             Chart instruction string for the markdown renderer with recharts support.
         """
-        return (
-            "--- CHART FORMATTING RULES ---\n"
-            "When the user asks for a chart, graph, or visualization, output a fenced code block with language `chart`.\n"
-            "When the user asks for a table, use a standard markdown table instead.\n"
-            "\n"
-            "FORMAT A — Simple (numeric array + labels):\n"
-            "```chart\n"
-            "type: bar\n"
-            "title: Sales by Quarter\n"
-            "data: [45000, 52000, 48000, 60000]\n"
-            "labels: [Q1, Q2, Q3, Q4]\n"
-            "```\n"
-            "\n"
-            "FORMAT B — Table (auto-detects series from columns):\n"
-            "```chart\n"
-            "type: line\n"
-            "title: Revenue vs Expenses\n"
-            "showLegend: true\n"
-            "| Month | Revenue | Expenses |\n"
-            "|-------|---------|----------|\n"
-            "| Jan   | 100000  | 80000    |\n"
-            "| Feb   | 112000  | 85000    |\n"
-            "```\n"
-            "\n"
-            "FORMAT C — Key/value with JSON data and series (for advanced charts):\n"
-            "```chart\n"
-            "type: composed\n"
-            "title: Revenue and Margin\n"
-            "xKey: month\n"
-            "yAxisLabel: Revenue\n"
-            "yAxisRightLabel: Margin\n"
-            "showLegend: true\n"
-            'data: [{"month":"Jan","revenue":120000,"margin":0.28},{"month":"Feb","revenue":134000,"margin":0.31}]\n'
-            'series: [{"key":"revenue","name":"Revenue","type":"bar","color":"#3b82f6","yAxisId":"left"},{"key":"margin","name":"Margin","type":"line","color":"#f59e0b","yAxisId":"right"}]\n'
-            "```\n"
-            "\n"
-            "CHART TYPES: bar, line, pie, area, scatter, composed\n"
-            "\n"
-            "SERIES OBJECT PROPERTIES:\n"
-            '  "key": (REQUIRED) the field name in each data object — must match a key in data. Do NOT use "dataKey", always use "key".\n'
-            '  "name": display label for the legend\n'
-            '  "type": "bar", "line", "area", or "scatter" (only needed for composed charts)\n'
-            '  "color": hex color, e.g. "#3b82f6"\n'
-            '  "yAxisId": "left" (default) or "right" for dual-axis charts\n'
-            '  "stackId": group name to stack bars/areas together\n'
-            '  "strokeWidth": line thickness (default 2)\n'
-            '  "dot": true/false — show data point dots on lines\n'
-            '  "opacity": 0-1 fill opacity for area/bar\n'
-            "\n"
-            "CONFIG OPTIONS (one per line, key: value):\n"
-            "  type, title, description, xKey, xAxisLabel, yAxisLabel, yAxisRightLabel,\n"
-            "  xAxisType (category or number), stacked (true/false), showLegend (true/false),\n"
-            "  showGrid (true/false), height (pixels), width (pixels),\n"
-            "  valueFormat (number/compact/currency/percent), valuePrefix, valueSuffix,\n"
-            "  valueDecimals, valueCurrency, colors (comma-separated hex codes)\n"
-            "\n"
-            "REFERENCE LINES (optional):\n"
-            '  referenceLines: [{"y":500,"label":"Target","color":"#ef4444"}]\n'
-            "\n"
-            "RULES:\n"
-            '1. In series arrays, always use "key" — never "dataKey".\n'
-            "2. Every item in labels[] must have a corresponding value in data[].\n"
-            "3. Every series must reference a field that exists in the data objects.\n"
-            "4. labels[] and data[] arrays must be the same length.\n"
-            "5. Use hex color codes (e.g. #3b82f6). Labels can contain spaces.\n"
-            "6. For pie charts, use xKey for the name field and a single series key for the value field.\n"
-            "--- END CHART FORMATTING RULES ---\n"
-        )
+        return self._create_prompt_builder().build_chart_instruction()

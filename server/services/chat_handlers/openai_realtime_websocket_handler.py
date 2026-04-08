@@ -17,6 +17,8 @@ import uuid
 from typing import Any, Dict, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
+from inference.pipeline.base import ProcessingContext
+from inference.pipeline.prompt_builder import PromptInstructionBuilder
 from starlette.websockets import WebSocketState
 
 logger = logging.getLogger(__name__)
@@ -70,6 +72,9 @@ class OpenAIRealtimeWebSocketHandler:
         config: Dict[str, Any],
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
+        prompt_service: Optional[Any] = None,
+        system_prompt_id: Optional[str] = None,
+        clock_service: Optional[Any] = None,
     ):
         self.websocket = websocket
         self.adapter_name = adapter_name
@@ -77,14 +82,13 @@ class OpenAIRealtimeWebSocketHandler:
         self.config = config
         self.orbit_session_id = session_id or str(uuid.uuid4())
         self.user_id = user_id
+        self.prompt_service = prompt_service
+        self.system_prompt_id = system_prompt_id
+        self.clock_service = clock_service
 
         cfg = adapter_config.get("config") or {}
         self._realtime_model = cfg.get("realtime_model", "gpt-realtime")
         self._voice = cfg.get("realtime_voice", "marin")
-        self._instructions = cfg.get(
-            "realtime_instructions",
-            "You are a helpful voice assistant. Keep replies concise for voice.",
-        )
         self._enable_input_transcription = cfg.get("enable_input_transcription", True)
         self._transcription_model = cfg.get("input_transcription_model", "whisper-1")
         self._vad_silence_ms = int(cfg.get("vad_silence_duration_ms", 500))
@@ -102,8 +106,53 @@ class OpenAIRealtimeWebSocketHandler:
         self._openai_task: Optional[asyncio.Task] = None
         self._chunk_index = 0
 
-    def _build_session_update(self) -> Dict[str, Any]:
+    async def _resolve_realtime_instructions(self) -> str:
+        cfg = self.adapter_config.get("config") or {}
+        context = ProcessingContext(
+            adapter_name=self.adapter_name,
+            system_prompt_id=self.system_prompt_id,
+            timezone=cfg.get("timezone"),
+            time_format=cfg.get("time_format"),
+        )
+        builder = PromptInstructionBuilder(
+            config=self.config,
+            prompt_service=self.prompt_service,
+            clock_service=self.clock_service,
+            builder_logger=logger,
+        )
+        base_system_prompt = await builder.get_system_prompt(context)
+        prompt_preview = " ".join(base_system_prompt.split())[:160]
+
+        if self.system_prompt_id:
+            if base_system_prompt == builder.DEFAULT_SYSTEM_PROMPT:
+                logger.warning(
+                    "OpenAI Realtime prompt fallback in use for adapter '%s' "
+                    "(system_prompt_id=%s, prompt_service_available=%s)",
+                    self.adapter_name,
+                    self.system_prompt_id,
+                    bool(self.prompt_service),
+                )
+            else:
+                logger.info(
+                    "OpenAI Realtime loaded system prompt for adapter '%s' "
+                    "(system_prompt_id=%s, preview=%r)",
+                    self.adapter_name,
+                    self.system_prompt_id,
+                    prompt_preview,
+                )
+        else:
+            logger.info(
+                "OpenAI Realtime has no system_prompt_id for adapter '%s'; using default prompt "
+                "(preview=%r)",
+                self.adapter_name,
+                prompt_preview,
+            )
+
+        return await builder.build_system_message_content(context)
+
+    async def _build_session_update(self) -> Dict[str, Any]:
         pcm_format = {"type": "audio/pcm", "rate": 24000}
+        instructions = await self._resolve_realtime_instructions()
         audio: Dict[str, Any] = {
             "input": {
                 "format": pcm_format,
@@ -129,7 +178,7 @@ class OpenAIRealtimeWebSocketHandler:
             "session": {
                 "type": "realtime",
                 "model": self._realtime_model,
-                "instructions": self._instructions,
+                "instructions": instructions,
                 "audio": audio,
             },
         }
@@ -188,7 +237,7 @@ class OpenAIRealtimeWebSocketHandler:
             self._http_session = None
             return False
 
-        await self._openai_ws.send_str(json.dumps(self._build_session_update()))
+        await self._openai_ws.send_str(json.dumps(await self._build_session_update()))
         return True
 
     async def _client_loop(self) -> None:
@@ -247,6 +296,7 @@ class OpenAIRealtimeWebSocketHandler:
             if text:
                 await self._send_client({"type": "transcription", "text": text})
         elif etype == "response.done":
+            logger.debug("OpenAI Realtime: response.done")
             await self._send_client(
                 {"type": "done", "session_id": self.orbit_session_id}
             )
@@ -258,7 +308,7 @@ class OpenAIRealtimeWebSocketHandler:
         elif etype in ("session.created", "session.updated", "input_audio_buffer.speech_started"):
             logger.debug("OpenAI Realtime: %s", etype)
         elif etype == "input_audio_buffer.speech_stopped":
-            logger.debug("OpenAI Realtime: speech_stopped")
+            logger.debug("OpenAI Realtime: input_audio_buffer.speech_stopped")
 
     async def _openai_loop(self) -> None:
         assert self._openai_ws is not None

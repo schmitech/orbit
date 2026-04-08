@@ -111,6 +111,67 @@ async def validate_adapter(adapter_name: str, request: Request) -> Dict[str, Any
     return adapter_config
 
 
+async def _resolve_voice_adapter_from_api_key(
+    websocket: WebSocket,
+    requested_adapter_name: Optional[str],
+    api_key: Optional[str],
+) -> tuple[str, Optional[str]]:
+    """
+    Resolve adapter and system prompt from API key when available.
+
+    Voice websocket behavior should match the standard pipeline behavior:
+    when an API key is present, the adapter associated with that key is the
+    source of truth and any explicit adapter path acts only as a fallback.
+    """
+    if api_key:
+        logger.info(
+            "Voice websocket received api_key for adapter '%s' (length=%s)",
+            requested_adapter_name or "<auto>",
+            len(api_key),
+        )
+    else:
+        logger.info(
+            "Voice websocket received no api_key for adapter '%s'",
+            requested_adapter_name or "<auto>",
+        )
+
+    if not api_key:
+        if not requested_adapter_name:
+            raise HTTPException(status_code=401, detail="API key required when adapter is not specified")
+        return requested_adapter_name, None
+
+    api_key_service = getattr(websocket.app.state, 'api_key_service', None)
+    if not api_key_service:
+        logger.warning(
+            "api_key_service unavailable while resolving prompt for adapter '%s'",
+            requested_adapter_name or "<auto>",
+        )
+        if requested_adapter_name:
+            return requested_adapter_name, None
+        raise HTTPException(status_code=503, detail="API key service is not available")
+
+    adapter_manager = getattr(websocket.app.state, 'adapter_manager', None)
+    resolved_adapter_name, system_prompt_id = await api_key_service.get_adapter_for_api_key(
+        api_key,
+        adapter_manager=adapter_manager,
+    )
+    logger.info(
+        "API key resolution for voice websocket: requested_adapter=%s, resolved_adapter=%s, system_prompt_id=%s",
+        requested_adapter_name,
+        resolved_adapter_name,
+        system_prompt_id,
+    )
+    if requested_adapter_name and requested_adapter_name != resolved_adapter_name:
+        logger.info(
+            "Overriding requested voice adapter '%s' with API-key adapter '%s'",
+            requested_adapter_name,
+            resolved_adapter_name,
+        )
+    if system_prompt_id:
+        logger.info("API key has system_prompt_id: %s", system_prompt_id)
+    return resolved_adapter_name, str(system_prompt_id) if system_prompt_id else None
+
+
 async def _create_personaplex_handler(
     websocket: WebSocket,
     adapter_name: str,
@@ -178,10 +239,9 @@ async def _create_personaplex_handler(
     return handler
 
 
-@router.websocket("/ws/voice/{adapter_name}")
-async def websocket_voice(
+async def _handle_voice_websocket(
     websocket: WebSocket,
-    adapter_name: str,
+    adapter_name: Optional[str],
     session_id: Optional[str] = Query(None, description="Session ID for conversation history"),
     user_id: Optional[str] = Query(None, description="User ID for tracking"),
     api_key: Optional[str] = Query(None, description="API key for authentication")
@@ -211,6 +271,12 @@ async def websocket_voice(
     handler = None
 
     try:
+        adapter_name, system_prompt_id = await _resolve_voice_adapter_from_api_key(
+            websocket,
+            adapter_name,
+            api_key,
+        )
+
         # Validate adapter before accepting connection
         adapter_config = await validate_adapter(adapter_name, websocket)
 
@@ -230,21 +296,6 @@ async def websocket_voice(
             # For now, we accept any non-empty API key
             logger.info(f"API key provided for adapter: {adapter_name}")
 
-        # Extract system_prompt_id from API key if provided
-        system_prompt_id = None
-        if api_key:
-            api_key_service = getattr(websocket.app.state, 'api_key_service', None)
-            if api_key_service:
-                try:
-                    adapter_manager = getattr(websocket.app.state, 'adapter_manager', None)
-                    is_valid, _, system_prompt_id = await api_key_service.validate_api_key(
-                        api_key, adapter_manager=adapter_manager
-                    )
-                    if system_prompt_id:
-                        logger.info(f"API key has system_prompt_id: {system_prompt_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to validate API key for prompt lookup: {e}")
-
         # Check adapter type to determine handler
         adapter_type = adapter_config.get('type', '')
 
@@ -260,12 +311,14 @@ async def websocket_voice(
                 session_id=session_id,
                 user_id=user_id,
                 prompt_service=prompt_service,
-                system_prompt_id=str(system_prompt_id) if system_prompt_id else None
+                system_prompt_id=system_prompt_id
             )
         elif adapter_type == 'openai_realtime':
             from services.chat_handlers.openai_realtime_websocket_handler import (
                 OpenAIRealtimeWebSocketHandler,
             )
+            prompt_service = getattr(websocket.app.state, 'prompt_service', None)
+            clock_service = getattr(websocket.app.state, 'clock_service', None)
 
             handler = OpenAIRealtimeWebSocketHandler(
                 websocket=websocket,
@@ -274,6 +327,9 @@ async def websocket_voice(
                 config=config,
                 session_id=session_id,
                 user_id=user_id,
+                prompt_service=prompt_service,
+                system_prompt_id=system_prompt_id,
+                clock_service=clock_service,
             )
         else:
             # Use standard voice handler for cascade (STT -> LLM -> TTS)
@@ -326,6 +382,41 @@ async def websocket_voice(
                 await handler.cleanup()
             except Exception as e:
                 logger.error(f"Error during handler cleanup: {str(e)}")
+
+
+@router.websocket("/ws/voice")
+async def websocket_voice_auto(
+    websocket: WebSocket,
+    session_id: Optional[str] = Query(None, description="Session ID for conversation history"),
+    user_id: Optional[str] = Query(None, description="User ID for tracking"),
+    api_key: Optional[str] = Query(None, description="API key for authentication")
+):
+    """WebSocket endpoint that resolves the adapter from the API key."""
+    await _handle_voice_websocket(
+        websocket=websocket,
+        adapter_name=None,
+        session_id=session_id,
+        user_id=user_id,
+        api_key=api_key,
+    )
+
+
+@router.websocket("/ws/voice/{adapter_name}")
+async def websocket_voice(
+    websocket: WebSocket,
+    adapter_name: str,
+    session_id: Optional[str] = Query(None, description="Session ID for conversation history"),
+    user_id: Optional[str] = Query(None, description="User ID for tracking"),
+    api_key: Optional[str] = Query(None, description="API key for authentication")
+):
+    """WebSocket endpoint for real-time voice conversations with explicit adapter path."""
+    await _handle_voice_websocket(
+        websocket=websocket,
+        adapter_name=adapter_name,
+        session_id=session_id,
+        user_id=user_id,
+        api_key=api_key,
+    )
 
 
 @router.get("/voice/status")
