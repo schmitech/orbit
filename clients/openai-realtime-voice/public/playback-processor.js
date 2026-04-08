@@ -3,11 +3,10 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     super();
     this.inputSampleRate = 24000; // Default expected input rate
     
-    // Buffer settings (in Input Samples)
-    // 200ms initial buffer for smoother playback, still low-latency
-    this.bufferThresholdMs = 200; 
-    this.maxBufferThresholdMs = 600;
-    this.targetBufferMs = 350;
+    // Buffer settings (in Input Samples) — defaults; main thread can override via config
+    this.bufferThresholdMs = 280;
+    this.maxBufferThresholdMs = 1200;
+    this.targetBufferMs = 520;
     
     this.updateThresholds();
     
@@ -20,8 +19,17 @@ class PlaybackProcessor extends AudioWorkletProcessor {
         if (e.data.type === 'config') {
             if (e.data.inputSampleRate) {
                 this.inputSampleRate = e.data.inputSampleRate;
-                this.updateThresholds();
             }
+            if (typeof e.data.bufferThresholdMs === 'number') {
+                this.bufferThresholdMs = e.data.bufferThresholdMs;
+            }
+            if (typeof e.data.targetBufferMs === 'number') {
+                this.targetBufferMs = e.data.targetBufferMs;
+            }
+            if (typeof e.data.maxBufferThresholdMs === 'number') {
+                this.maxBufferThresholdMs = e.data.maxBufferThresholdMs;
+            }
+            this.updateThresholds();
         } else if (e.data.type === 'audio') {
             this.frames.push(e.data.data);
             this.checkBuffer();
@@ -37,7 +45,7 @@ class PlaybackProcessor extends AudioWorkletProcessor {
   updateThresholds() {
      this.minStartSamples = Math.floor(this.bufferThresholdMs * this.inputSampleRate / 1000);
      this.targetBufferSamples = Math.floor(this.targetBufferMs * this.inputSampleRate / 1000);
-     this.maxBufferSamples = Math.floor(this.maxBufferThresholdMs * this.inputSampleRate / 1000); 
+     this.maxBufferSamples = Math.floor(this.maxBufferThresholdMs * this.inputSampleRate / 1000);
   }
   
   currentInputSamples() {

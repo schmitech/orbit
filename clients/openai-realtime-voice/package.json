@@ -1,9 +1,9 @@
 {
-  "name": "orbit-personaplex-voice",
+  "name": "orbit-openai-realtime-voice",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Full-duplex voice client for ORBIT PersonaPlex adapter",
+  "description": "Voice test client for ORBIT OpenAI Realtime adapter (WebSocket)",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

@@ -124,6 +124,17 @@ def register_adapters():
 
     logger.info("Registered PersonaPlex speech-to-speech adapter")
 
+    # OpenAI Realtime voice WebSocket: same passthrough stack as voice-chat; Realtime is handled in voice_routes
+    ADAPTER_REGISTRY.register(
+        adapter_type="openai_realtime",
+        datasource="none",
+        adapter_name="conversational",
+        factory_func=_create_conversational_adapter,
+        config={}
+    )
+
+    logger.info("Registered OpenAI Realtime conversational adapter")
+
 
 # Register adapters when module is imported
 register_adapters()

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ORBIT OpenAI Realtime Voice</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      color-scheme: dark;
+    }
+
+    body {
+      font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: radial-gradient(circle at 20% 20%, #2a1810 0%, #0c0806 55%, #050302 100%);
+      min-height: 100vh;
+      color: #fef3c7;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 10% auto auto 55%;
+      width: 320px;
+      height: 320px;
+      background: radial-gradient(circle, rgba(251, 146, 60, 0.35) 0%, transparent 70%);
+      filter: blur(60px);
+      opacity: 0.75;
+      pointer-events: none;
+    }
+
+    .app-shell {
+      width: min(440px, 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 1.6rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    h1 {
+      font-size: 2rem;
+      text-align: center;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #fde68a;
+    }
+
+    #appTitleText {
+      display: block;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .tagline {
+      display: block;
+      font-size: 0.95rem;
+      font-weight: 400;
+      color: #fdba74;
+      margin-top: 0.35rem;
+    }
+
+    .card {
+      background: rgba(20, 12, 8, 0.88);
+      border-radius: 28px;
+      padding: 28px;
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow:
+        0 10px 40px rgba(12, 6, 4, 0.65),
+        inset 0 0 0 1px rgba(251, 191, 36, 0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .settings {
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .char-counter {
+      font-size: 0.75rem;
+      color: #a8a29e;
+      text-align: right;
+      width: 100%;
+    }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #a8a29e;
+      margin-bottom: 0.35rem;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid rgba(180, 130, 90, 0.25);
+      border-radius: 18px;
+      background: rgba(8, 5, 4, 0.9);
+      color: inherit;
+      font-size: 1rem;
+      padding: 0.85rem 1.1rem;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #fb923c;
+      box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.2);
+    }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      background: rgba(120, 80, 50, 0.2);
+      font-size: 0.85rem;
+      align-self: center;
+      border: 1px solid rgba(251, 191, 36, 0.2);
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #57534e;
+      transition: background 0.3s ease;
+    }
+
+    .status-dot.connecting {
+      background: #fbbf24;
+      animation: pulse 1s infinite;
+    }
+
+    .status-dot.connected {
+      background: #4ade80;
+    }
+
+    .status-dot.error {
+      background: #f87171;
+    }
+
+    .wave-panel {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0 0.5rem;
+    }
+
+    canvas {
+      width: 100%;
+      height: 220px;
+      border-radius: 32px;
+      background: radial-gradient(circle, rgba(40, 20, 12, 0.95) 0%, rgba(12, 8, 6, 0.9) 100%);
+      border: 1px solid rgba(180, 120, 70, 0.2);
+      box-shadow:
+        inset 0 0 50px rgba(8, 4, 2, 0.9),
+        0 20px 45px rgba(8, 4, 2, 0.45);
+    }
+
+    .transcript-panel {
+      max-height: 140px;
+      overflow-y: auto;
+      border-radius: 16px;
+      padding: 0.75rem 1rem;
+      background: rgba(6, 4, 3, 0.75);
+      border: 1px solid rgba(180, 120, 70, 0.15);
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: #d6d3d1;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .transcript-panel:empty::before {
+      content: 'Transcripts appear here (user ASR + assistant text).';
+      color: #78716c;
+    }
+
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    #connectBtn {
+      border: none;
+      border-radius: 22px;
+      padding: 1rem 1.2rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, #fbbf24, #f97316 55%, #ea580c 100%);
+      color: #1c0a02;
+      transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 10px 25px rgba(234, 88, 12, 0.35);
+    }
+
+    #connectBtn.connected {
+      background: linear-gradient(135deg, #fb7185, #ef4444);
+      box-shadow: 0 10px 25px rgba(239, 68, 68, 0.35);
+    }
+
+    #connectBtn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      filter: brightness(1.05);
+    }
+
+    #connectBtn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    #connectBtn:disabled {
+      cursor: not-allowed;
+      filter: grayscale(0.4);
+      opacity: 0.8;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <h1>
+      <span id="appTitleText">OpenAI Realtime Voice</span>
+      <span class="tagline">Connect, allow the mic, then speak. PCM16 · 24 kHz · OpenAI Realtime.</span>
+    </h1>
+
+    <div class="card">
+      <div class="settings" id="settingsPanel">
+        <div class="field">
+          <label for="serverUrl">Server URL (WebSocket base)</label>
+          <input type="text" id="serverUrl" maxlength="120" placeholder="ws://localhost:3000">
+          <div class="char-counter" data-counter="serverUrl">120 characters left</div>
+        </div>
+        <div class="field">
+          <label for="adapterName">Adapter name</label>
+          <input type="text" id="adapterName" maxlength="120" placeholder="open-ai-real-time-voice-chat">
+          <div class="char-counter" data-counter="adapterName">120 characters left</div>
+        </div>
+        <div class="field">
+          <label for="apiKey">API key (optional)</label>
+          <input type="text" id="apiKey" maxlength="120" placeholder="Leave empty if server allows anonymous voice">
+          <div class="char-counter" data-counter="apiKey">120 characters left</div>
+        </div>
+      </div>
+
+      <div class="wave-panel">
+        <canvas id="responseCanvas" width="320" height="220"></canvas>
+      </div>
+
+      <pre class="transcript-panel" id="transcript" aria-live="polite"></pre>
+
+      <div class="status-chip">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Disconnected</span>
+      </div>
+
+      <div class="actions">
+        <button id="connectBtn" type="button">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

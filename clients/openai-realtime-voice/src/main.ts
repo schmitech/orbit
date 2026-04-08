@@ -1,14 +1,12 @@
 /**
- * ORBIT PersonaPlex Voice Client
+ * ORBIT OpenAI Realtime Voice Client
  *
- * A simple full-duplex voice client for the ORBIT PersonaPlex adapter.
- * Uses Web Audio API for microphone capture and audio playback,
- * and WebSocket for real-time bidirectional audio streaming.
+ * Tests the `open-ai-real-time-voice-chat` adapter: WebSocket bridge to OpenAI Realtime.
+ * Wire format is PCM16 mono 24 kHz (base64), per OpenAI Realtime session config.
  *
- * Protocol (ORBIT PersonaPlex JSON):
- * - Client sends: {"type": "audio_chunk", "data": "<base64_pcm>", "format": "pcm"}
- * - Server sends: {"type": "audio_chunk", "data": "<base64_pcm>", "format": "pcm", ...}
- * - Server sends: {"type": "transcription", "text": "...", "partial": true}
+ * Protocol (ORBIT JSON, same shape as real-time-voice-chat):
+ * - Client sends: {"type": "audio_chunk", "data": "<base64_pcm16_le>", "format": "pcm"}
+ * - Server sends: {"type": "audio_chunk", "data": "<base64_pcm16_le>", "format": "pcm", ...}
  */
 
 // ============================================================================
@@ -24,51 +22,40 @@ interface ConnectedMessage extends OrbitMessage {
   type: 'connected';
   adapter: string;
   session_id: string;
-  mode: string;
+  mode?: string;
   audio_format: string;
-  sample_rate: number;
-  capabilities: {
-    full_duplex: boolean;
-    interruption: boolean;
-    backchannels: boolean;
-  };
+  sample_rate?: number;
+  realtime_model?: string;
 }
 
 interface AudioChunkMessage extends OrbitMessage {
   type: 'audio_chunk';
-  data: string;  // base64
+  data: string;  // base64 pcm16
   format: string;
-  sample_rate: number;
-  chunk_index: number;
+  sample_rate?: number;
+  chunk_index?: number;
 }
 
-interface AdapterInfoResponse {
-  client_name?: string;
-  adapter_name?: string;
-  model?: string | null;
-  notes?: string | null;
-  isFileSupported?: boolean;
-}
+const DEFAULT_ADAPTER = 'open-ai-real-time-voice-chat';
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-const STREAM_SAMPLE_RATE = 24000;  // ORBIT PersonaPlex expects 24kHz PCM
-const CAPTURE_SAMPLE_RATE = 48000; // Capture at 48kHz for smoother macOS audio
+const STREAM_SAMPLE_RATE = 24000;  // OpenAI Realtime pcm16 @ 24 kHz
+const CAPTURE_SAMPLE_RATE = 48000;
 
-// Environment variables (loaded from .env.local via Vite)
 const DEFAULT_SERVER_URL = (import.meta.env.VITE_ORBIT_SERVER_URL || 'ws://localhost:3000').trim();
 const API_BASE_OVERRIDE = (import.meta.env.VITE_ORBIT_API_URL || '').trim();
-const DEFAULT_ADAPTER_NAME = (import.meta.env.VITE_ADAPTER_NAME || '').trim();
-const DEFAULT_API_KEY = (import.meta.env.VITE_API_KEY || 'personaplex').trim();
-const DEFAULT_APP_TITLE = (import.meta.env.VITE_APP_TITLE || 'ORBIT PersonaPlex Voice').trim();
+const DEFAULT_ADAPTER_NAME = (import.meta.env.VITE_ADAPTER_NAME || DEFAULT_ADAPTER).trim();
+const DEFAULT_API_KEY = (import.meta.env.VITE_API_KEY || '').trim();
+const DEFAULT_APP_TITLE = (import.meta.env.VITE_APP_TITLE || 'ORBIT OpenAI Realtime Voice').trim();
 
 const ENV_CONFIG = {
   serverUrl: DEFAULT_SERVER_URL || 'ws://localhost:3000',
   apiBaseUrlOverride: API_BASE_OVERRIDE.length > 0 ? API_BASE_OVERRIDE : null,
   adapterName: DEFAULT_ADAPTER_NAME,
-  apiKey: DEFAULT_API_KEY || '',
+  apiKey: DEFAULT_API_KEY,
   appTitle: DEFAULT_APP_TITLE,
   displaySettings: String(import.meta.env.VITE_DISPLAY_SETTINGS).toLowerCase() === 'true'
 };
@@ -111,32 +98,116 @@ function getApiBaseUrl(serverUrl: string): string {
   return convertWebsocketToHttpUrl(serverUrl);
 }
 
-async function fetchAdapterInfo(apiBaseUrl: string, apiKey: string): Promise<AdapterInfoResponse> {
-  const response = await fetch(`${stripTrailingSlash(apiBaseUrl)}/admin/api-keys/info`, {
+interface ApiKeyStatusResponse {
+  exists?: boolean;
+  active?: boolean;
+  adapter_name?: string | null;
+  client_name?: string | null;
+  message?: string;
+}
+
+interface AdapterInfoResponse {
+  client_name?: string;
+  adapter_name?: string;
+}
+
+/** Same endpoints as @schmitech/chatbot-api (no npm dependency for this demo app). */
+async function validateOrbitApiKey(
+  apiBase: string,
+  apiKey: string
+): Promise<ApiKeyStatusResponse> {
+  const url = `${apiBase}/admin/api-keys/${apiKey}/status`;
+  const res = await fetch(url, {
     method: 'GET',
-    headers: {
-      'X-API-Key': apiKey,
-      'Content-Type': 'application/json'
-    }
+    headers: { 'X-API-Key': apiKey }
   });
-
-  if (!response.ok) {
-    let message = `Request failed with status ${response.status}`;
+  const text = await res.text();
+  if (!res.ok) {
+    let detail = text || `HTTP ${res.status}`;
     try {
-      const errorBody = await response.json() as { detail?: unknown };
-      if (typeof errorBody.detail === 'string' && errorBody.detail.trim()) {
-        message = errorBody.detail;
-      }
+      const j = JSON.parse(text) as { detail?: string; message?: string };
+      detail = j.detail || j.message || detail;
     } catch {
-      const text = await response.text();
-      if (text.trim()) {
-        message = text.trim();
-      }
+      /* use text */
     }
-    throw new Error(message);
+    throw new Error(detail);
   }
+  return JSON.parse(text) as ApiKeyStatusResponse;
+}
 
-  return await response.json() as AdapterInfoResponse;
+async function fetchAdapterInfo(apiBase: string, apiKey: string): Promise<AdapterInfoResponse> {
+  const res = await fetch(`${apiBase}/admin/adapters/info`, {
+    method: 'GET',
+    headers: { 'X-API-Key': apiKey }
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  return JSON.parse(text) as AdapterInfoResponse;
+}
+
+// ============================================================================
+// PCM16 <-> base64 (OpenAI Realtime wire format)
+// ============================================================================
+
+function float32ToPcm16Base64(samples: Float32Array): string {
+  const out = new Uint8Array(samples.length * 2);
+  const view = new DataView(out.buffer);
+  for (let i = 0; i < samples.length; i++) {
+    let s = samples[i] ?? 0;
+    if (s > 1) s = 1;
+    if (s < -1) s = -1;
+    const v = s < 0 ? s * 0x8000 : s * 0x7fff;
+    view.setInt16(i * 2, Math.round(v), true);
+  }
+  let binary = '';
+  for (let i = 0; i < out.length; i++) {
+    binary += String.fromCharCode(out[i]!);
+  }
+  return btoa(binary);
+}
+
+/** Decode base64 PCM16 LE mono to float32 [-1, 1] for Web Audio playback */
+/**
+ * Merge streaming base64 PCM16 chunks so odd byte counts do not misalign int16 frames.
+ */
+let pcmByteRemainder = new Uint8Array(0);
+
+function resetPcmReceiveState() {
+  pcmByteRemainder = new Uint8Array(0);
+}
+
+/** Decode merged PCM16 LE bytes to float32 in [-1, 1]. */
+function pcm16LeBytesToFloat32(bytes: Uint8Array): Float32Array {
+  const sampleCount = Math.floor(bytes.length / 2);
+  const out = new Float32Array(sampleCount);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, sampleCount * 2);
+  for (let i = 0; i < sampleCount; i++) {
+    out[i] = view.getInt16(i * 2, true) / 32768.0;
+  }
+  return out;
+}
+
+/**
+ * Turn the next base64 chunk into float32 samples (24 kHz semantics from the API).
+ * Carries a byte across chunk boundaries when needed.
+ */
+function feedPcm16Base64ToFloat32Stream(base64: string): Float32Array {
+  const binary = atob(base64);
+  const incoming = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    incoming[i] = binary.charCodeAt(i);
+  }
+  const merged = new Uint8Array(pcmByteRemainder.length + incoming.length);
+  merged.set(pcmByteRemainder, 0);
+  merged.set(incoming, pcmByteRemainder.length);
+  const alignedBytes = Math.floor(merged.length / 2) * 2;
+  pcmByteRemainder = merged.subarray(alignedBytes);
+  if (alignedBytes === 0) {
+    return new Float32Array(0);
+  }
+  return pcm16LeBytesToFloat32(merged.subarray(0, alignedBytes));
 }
 
 // ============================================================================
@@ -162,35 +233,39 @@ let playbackSuppressed = false;
 
 const serverUrlInput = document.getElementById('serverUrl') as HTMLInputElement | null;
 const apiKeyInput = document.getElementById('apiKey') as HTMLInputElement | null;
+const adapterInput = document.getElementById('adapterName') as HTMLInputElement | null;
 const settingsPanel = document.getElementById('settingsPanel') as HTMLDivElement | null;
 const titleText = document.getElementById('appTitleText') as HTMLSpanElement | null;
-const serverUrlCounter = document.querySelector('[data-counter=\"serverUrl\"]') as HTMLDivElement | null;
-const apiKeyCounter = document.querySelector('[data-counter=\"apiKey\"]') as HTMLDivElement | null;
+const serverUrlCounter = document.querySelector('[data-counter="serverUrl"]') as HTMLDivElement | null;
+const apiKeyCounter = document.querySelector('[data-counter="apiKey"]') as HTMLDivElement | null;
+const adapterCounter = document.querySelector('[data-counter="adapterName"]') as HTMLDivElement | null;
 const connectBtn = document.getElementById('connectBtn') as HTMLButtonElement;
 const statusDot = document.getElementById('statusDot') as HTMLDivElement;
 const statusText = document.getElementById('statusText') as HTMLSpanElement;
 const responseCanvas = document.getElementById('responseCanvas') as HTMLCanvasElement;
+const transcriptEl = document.getElementById('transcript') as HTMLPreElement | null;
 
 const INPUT_LIMITS = {
   serverUrl: 120,
-  apiKey: 120
+  apiKey: 120,
+  adapterName: 120
 } as const;
 
-const OUTBOUND_TARGET_SAMPLES = Math.floor(STREAM_SAMPLE_RATE * 0.05); // ~50ms
+const OUTBOUND_TARGET_SAMPLES = Math.floor(STREAM_SAMPLE_RATE * 0.05);
 const OUTBOUND_FLUSH_INTERVAL_MS = 40;
 
 let outboundChunks: Float32Array[] = [];
 let outboundSampleCount = 0;
 let outboundFlushTimer: number | null = null;
+
+/** AudioContext.outputSampleRate — playback worklet input must match this (step=1). */
 let playbackNativeSampleRate = STREAM_SAMPLE_RATE;
-let pcmByteRemainder = new Uint8Array(0);
 
 // ============================================================================
 // UI Updates
 // ============================================================================
 
 function setStatus(status: 'disconnected' | 'connecting' | 'initializing' | 'connected' | 'error', text: string) {
-  // Map 'initializing' to 'connecting' for CSS class (same visual style)
   const cssClass = status === 'initializing' ? 'connecting' : status;
   statusDot.className = 'status-dot ' + cssClass;
   statusText.textContent = text;
@@ -211,9 +286,22 @@ function setStatus(status: 'disconnected' | 'connecting' | 'initializing' | 'con
   }
 }
 
+function appendTranscriptLine(prefix: string, text: string) {
+  if (!transcriptEl) return;
+  const line = `[${prefix}] ${text}\n`;
+  transcriptEl.textContent += line;
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+function clearTranscript() {
+  if (transcriptEl) transcriptEl.textContent = '';
+}
+
 function updateCharCounter(field: keyof typeof INPUT_LIMITS) {
-  const input = field === 'serverUrl' ? serverUrlInput : apiKeyInput;
-  const counter = field === 'serverUrl' ? serverUrlCounter : apiKeyCounter;
+  const input =
+    field === 'serverUrl' ? serverUrlInput : field === 'apiKey' ? apiKeyInput : adapterInput;
+  const counter =
+    field === 'serverUrl' ? serverUrlCounter : field === 'apiKey' ? apiKeyCounter : adapterCounter;
   if (!input || !counter) return;
   const max = INPUT_LIMITS[field];
   const remaining = Math.max(0, max - input.value.length);
@@ -221,7 +309,8 @@ function updateCharCounter(field: keyof typeof INPUT_LIMITS) {
 }
 
 function bindCharCounter(field: keyof typeof INPUT_LIMITS) {
-  const input = field === 'serverUrl' ? serverUrlInput : apiKeyInput;
+  const input =
+    field === 'serverUrl' ? serverUrlInput : field === 'apiKey' ? apiKeyInput : adapterInput;
   if (!input) return;
   input.maxLength = INPUT_LIMITS[field];
   input.addEventListener('input', () => updateCharCounter(field));
@@ -235,37 +324,6 @@ function resetOutboundQueue() {
     clearTimeout(outboundFlushTimer);
     outboundFlushTimer = null;
   }
-}
-
-function resetPcmReceiveState() {
-  pcmByteRemainder = new Uint8Array(0);
-}
-
-function pcm16LeBytesToFloat32(bytes: Uint8Array): Float32Array {
-  const sampleCount = Math.floor(bytes.length / 2);
-  const out = new Float32Array(sampleCount);
-  const view = new DataView(bytes.buffer, bytes.byteOffset, sampleCount * 2);
-  for (let i = 0; i < sampleCount; i++) {
-    out[i] = view.getInt16(i * 2, true) / 32768.0;
-  }
-  return out;
-}
-
-function feedPcm16Base64ToFloat32Stream(base64: string): Float32Array {
-  const binary = atob(base64);
-  const incoming = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    incoming[i] = binary.charCodeAt(i);
-  }
-  const merged = new Uint8Array(pcmByteRemainder.length + incoming.length);
-  merged.set(pcmByteRemainder, 0);
-  merged.set(incoming, pcmByteRemainder.length);
-  const alignedBytes = Math.floor(merged.length / 2) * 2;
-  pcmByteRemainder = merged.subarray(alignedBytes);
-  if (alignedBytes === 0) {
-    return new Float32Array(0);
-  }
-  return pcm16LeBytesToFloat32(merged.subarray(0, alignedBytes));
 }
 
 function scheduleOutboundFlush() {
@@ -293,13 +351,12 @@ function flushOutboundQueue(force = false) {
 
   resetOutboundQueue();
 
-  const base64 = float32ToBase64(merged);
-  const message = {
+  const base64 = float32ToPcm16Base64(merged);
+  socket.send(JSON.stringify({
     type: 'audio_chunk',
     data: base64,
     format: 'pcm'
-  };
-  socket.send(JSON.stringify(message));
+  }));
 }
 
 function queueOutboundChunk(chunk: Float32Array) {
@@ -315,7 +372,7 @@ function queueOutboundChunk(chunk: Float32Array) {
 }
 
 // ============================================================================
-// Audio Visualization
+// Audio Visualization (same as PersonaPlex client)
 // ============================================================================
 
 function getWaveformData(analyser: AnalyserNode | null): Uint8Array | null {
@@ -334,8 +391,8 @@ function sampleWaveformValue(waveform: Uint8Array, index: number, totalSamples: 
   const baseIndex = Math.floor(position);
   const nextIndex = Math.min(baseIndex + 1, waveform.length - 1);
   const frac = position - baseIndex;
-  const baseValue = (waveform[baseIndex] - 128) / 128;
-  const nextValue = (waveform[nextIndex] - 128) / 128;
+  const baseValue = (waveform[baseIndex]! - 128) / 128;
+  const nextValue = (waveform[nextIndex]! - 128) / 128;
   return baseValue + (nextValue - baseValue) * frac;
 }
 
@@ -356,12 +413,12 @@ function drawResponseWave() {
   }
 
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = 'rgba(2, 6, 23, 0.4)';
+  ctx.fillStyle = 'rgba(15, 10, 5, 0.45)';
   ctx.fillRect(0, 0, width, height);
 
   const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, 'rgba(52, 211, 153, 0.85)');
-  gradient.addColorStop(1, 'rgba(56, 189, 248, 0.85)');
+  gradient.addColorStop(0, 'rgba(251, 191, 36, 0.9)');
+  gradient.addColorStop(1, 'rgba(249, 115, 22, 0.85)');
 
   const captureWaveform = captureAnalyser && isConnected ? getWaveformData(captureAnalyser) : null;
   const responseWaveform = responseAnalyser && isConnected ? getWaveformData(responseAnalyser) : null;
@@ -399,14 +456,14 @@ function drawResponseWave() {
   if (dataPoints.length === 0) return;
 
   ctx.beginPath();
-  ctx.moveTo(dataPoints[0].x, dataPoints[0].y);
+  ctx.moveTo(dataPoints[0]!.x, dataPoints[0]!.y);
   for (let i = 1; i < dataPoints.length; i++) {
-    ctx.lineTo(dataPoints[i].x, dataPoints[i].y);
+    ctx.lineTo(dataPoints[i]!.x, dataPoints[i]!.y);
   }
 
   ctx.lineWidth = 4;
   ctx.strokeStyle = gradient;
-  ctx.shadowColor = 'rgba(56, 189, 248, 0.35)';
+  ctx.shadowColor = 'rgba(251, 146, 60, 0.4)';
   ctx.shadowBlur = 20;
   ctx.stroke();
   ctx.shadowBlur = 0;
@@ -414,7 +471,7 @@ function drawResponseWave() {
   ctx.lineTo(width, height);
   ctx.lineTo(0, height);
   ctx.closePath();
-  ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+  ctx.fillStyle = 'rgba(251, 146, 60, 0.1)';
   ctx.fill();
 
   ctx.beginPath();
@@ -438,25 +495,20 @@ function startWaveAnimation() {
 }
 
 // ============================================================================
-// Audio Capture (Microphone) & Playback Setup
+// Audio Capture & Playback
 // ============================================================================
 
 async function startAudio() {
   try {
-    // Create audio context
     audioContext = new AudioContext({
       sampleRate: CAPTURE_SAMPLE_RATE,
       latencyHint: 'balanced'
     });
     playbackNativeSampleRate = audioContext.sampleRate;
 
-    // Load AudioWorklet modules
     await audioContext.audioWorklet.addModule('/audio-processor.js');
     await audioContext.audioWorklet.addModule('/playback-processor.js');
 
-    // --- Setup Microphone Capture ---
-    
-    // Request microphone access
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         sampleRate: CAPTURE_SAMPLE_RATE,
@@ -467,13 +519,10 @@ async function startAudio() {
       }
     });
 
-    // Create audio source from microphone
     captureSource = audioContext.createMediaStreamSource(mediaStream);
 
-    // Create AudioWorkletNode for capturing audio data
     audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor');
 
-    // Handle audio data from the capture worklet
     audioWorkletNode.port.onmessage = (event) => {
       if (!isConnected || !socket || socket.readyState !== WebSocket.OPEN) return;
 
@@ -490,28 +539,26 @@ async function startAudio() {
     };
 
     captureSource.connect(audioWorkletNode);
-    // AudioWorklet doesn't need to connect to destination for capture-only
 
     captureAnalyser = audioContext.createAnalyser();
     captureAnalyser.fftSize = 512;
     captureAnalyser.smoothingTimeConstant = 0.8;
     captureSource.connect(captureAnalyser);
 
-    // --- Setup Audio Playback ---
-
-    // Create analyser for visualization (AI response)
     responseAnalyser = audioContext.createAnalyser();
     responseAnalyser.fftSize = 512;
     responseAnalyser.smoothingTimeConstant = 0.8;
 
-    // Create Playback Worklet
     playbackWorkletNode = new AudioWorkletNode(audioContext, 'playback-processor');
-    playbackWorkletNode.port.postMessage({ 
-      type: 'config', 
-      inputSampleRate: playbackNativeSampleRate 
+    playbackWorkletNode.port.postMessage({
+      type: 'config',
+      // Feed samples already resampled to the context rate so the worklet runs at 1:1 (no fractional stepping).
+      inputSampleRate: playbackNativeSampleRate,
+      bufferThresholdMs: 300,
+      targetBufferMs: 520,
+      maxBufferThresholdMs: 1200
     });
-    
-    // Connect Playback -> Analyser -> Destination
+
     playbackWorkletNode.connect(responseAnalyser);
     responseAnalyser.connect(audioContext.destination);
 
@@ -529,7 +576,7 @@ function stopAudio() {
     audioWorkletNode.port.close();
     audioWorkletNode = null;
   }
-  
+
   if (playbackWorkletNode) {
     playbackWorkletNode.disconnect();
     playbackWorkletNode.port.close();
@@ -554,12 +601,7 @@ function stopAudio() {
   responseAnalyser = null;
 }
 
-// ============================================================================
-// Audio Playback
-// ============================================================================
-
 function queueAudioForPlayback(pcmData: Float32Array) {
-  // Send data to the playback worklet
   if (playbackWorkletNode && pcmData.length > 0) {
     playbackWorkletNode.port.postMessage({
       type: 'audio',
@@ -569,14 +611,50 @@ function queueAudioForPlayback(pcmData: Float32Array) {
 }
 
 function stopAllAudio() {
-  // Reset the playback worklet buffer
   if (playbackWorkletNode) {
     playbackWorkletNode.port.postMessage({ type: 'reset' });
   }
 }
 
+function resampleBuffer(buffer: Float32Array, inputRate: number, targetRate: number): Float32Array {
+  if (inputRate === targetRate) {
+    return buffer;
+  }
+
+  const ratio = inputRate / targetRate;
+
+  if (ratio > 1) {
+    const newLength = Math.floor(buffer.length / ratio);
+    const result = new Float32Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+      const start = Math.floor(i * ratio);
+      const end = Math.min(Math.floor((i + 1) * ratio), buffer.length);
+      let sum = 0;
+      let count = 0;
+      for (let j = start; j < end; j++) {
+        sum += buffer[j] ?? 0;
+        count++;
+      }
+      result[i] = count > 0 ? sum / count : 0;
+    }
+    return result;
+  } else {
+    const newLength = Math.floor(buffer.length / ratio);
+    const result = new Float32Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+      const position = i * ratio;
+      const index = Math.floor(position);
+      const frac = position - index;
+      const s0 = buffer[index] ?? 0;
+      const s1 = buffer[index + 1] ?? s0;
+      result[i] = s0 + (s1 - s0) * frac;
+    }
+    return result;
+  }
+}
+
 // ============================================================================
-// WebSocket Connection
+// WebSocket
 // ============================================================================
 
 function getServerUrl() {
@@ -593,17 +671,20 @@ function getApiKey() {
   return ENV_CONFIG.apiKey.trim();
 }
 
+function getAdapterNameField() {
+  if (ENV_CONFIG.displaySettings && adapterInput) {
+    const v = adapterInput.value.trim();
+    return v || DEFAULT_ADAPTER;
+  }
+  return ENV_CONFIG.adapterName.trim() || DEFAULT_ADAPTER;
+}
+
 async function connect() {
   const baseUrl = getServerUrl();
-  const apiKey = getApiKey().trim();
+  const apiKey = getApiKey();
 
   if (!baseUrl) {
     setStatus('error', 'Please enter server URL');
-    return;
-  }
-
-  if (!apiKey) {
-    setStatus('error', 'Please enter API key');
     return;
   }
 
@@ -613,49 +694,59 @@ async function connect() {
     return;
   }
 
-  setStatus('connecting', 'Validating API key...');
-
-  let adapterName = ENV_CONFIG.adapterName.trim();
+  let adapterName = getAdapterNameField();
   let statusMessage = 'Connecting...';
 
-  try {
-    const adapterInfo = await fetchAdapterInfo(apiBaseUrl, apiKey);
+  if (apiKey) {
+    setStatus('connecting', 'Validating API key...');
+    try {
+      const validation = await validateOrbitApiKey(apiBaseUrl, apiKey);
 
-    if (adapterInfo.adapter_name && adapterInfo.adapter_name.trim().length > 0) {
-      adapterName = adapterInfo.adapter_name.trim();
-    } else if (!adapterName) {
-      throw new Error('API key is valid but no adapter is assigned to it.');
-    }
+      if (validation.adapter_name && validation.adapter_name.trim().length > 0) {
+        adapterName = validation.adapter_name.trim();
+      }
 
-    const friendlyTarget = adapterInfo.client_name || adapterInfo.adapter_name || adapterName;
-    if (friendlyTarget) {
-      statusMessage = `Connecting to ${friendlyTarget}...`;
+      const friendlyTarget = validation.client_name || validation.adapter_name || adapterName;
+      if (friendlyTarget) {
+        statusMessage = `Connecting to ${friendlyTarget}...`;
+      }
+
+      try {
+        const adapterInfo = await fetchAdapterInfo(apiBaseUrl, apiKey);
+        const label = adapterInfo.client_name || adapterInfo.adapter_name || adapterName;
+        statusMessage = `Connecting to ${label}...`;
+      } catch (infoError) {
+        console.warn('Failed to fetch adapter info', infoError);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to validate API key';
+      setStatus('error', message);
+      return;
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to validate API key';
-    setStatus('error', message);
-    return;
+  } else {
+    setStatus('connecting', `Connecting to ${adapterName}...`);
   }
 
   const normalizedAdapterName = adapterName.trim();
   if (!normalizedAdapterName) {
-    setStatus('error', 'Unable to determine adapter for this API key');
+    setStatus('error', 'Adapter name is empty');
     return;
   }
 
-  // Build WebSocket URL
-  const query = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : '';
-  const wsUrl = `${baseUrl}/ws/voice/${encodeURIComponent(normalizedAdapterName)}${query}`;
+  const params = new URLSearchParams();
+  if (apiKey) {
+    params.set('api_key', apiKey);
+  }
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const wsUrl = `${stripTrailingSlash(baseUrl)}/ws/voice/${encodeURIComponent(normalizedAdapterName)}${qs}`;
 
   setStatus('connecting', statusMessage);
+  clearTranscript();
 
   socket = new WebSocket(wsUrl);
 
   socket.onopen = async () => {
-    // WebSocket is open, but don't set isConnected yet - wait for 'connected' message
-    // Server may be initializing PersonaPlex (can take 10+ seconds for large prompts)
-
-    // Start audio capture so we're ready when PersonaPlex is initialized
+    resetPcmReceiveState();
     const audioStarted = await startAudio();
     if (!audioStarted) {
       disconnect();
@@ -663,8 +754,6 @@ async function connect() {
     }
 
     resetOutboundQueue();
-    // Note: isConnected stays false until we receive 'connected' message
-    // This prevents sending audio before PersonaPlex is ready
     idleWavePhase = 0;
     startWaveAnimation();
   };
@@ -673,8 +762,8 @@ async function connect() {
     try {
       const message: OrbitMessage = JSON.parse(event.data);
       handleMessage(message);
-    } catch (error) {
-      // Silently ignore parse errors
+    } catch {
+      /* ignore */
     }
   };
 
@@ -687,21 +776,10 @@ async function connect() {
   };
 }
 
-function sendInterrupt() {
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    return;
-  }
-  playbackSuppressed = true;
-  socket.send(JSON.stringify({ type: 'interrupt', reason: 'user_request' }));
-  stopAllAudio();
-}
-
 function disconnect() {
   if (socket) {
-    // Send end message
     if (socket.readyState === WebSocket.OPEN) {
-      sendInterrupt();
-      socket.send(JSON.stringify({ type: 'end' }));
+      socket.send(JSON.stringify({ type: 'interrupt' }));
     }
     socket.close();
     socket = null;
@@ -716,9 +794,9 @@ function handleDisconnect() {
   resetOutboundQueue();
   resetPcmReceiveState();
   stopAudio();
-  
+
   if (audioContext) {
-    audioContext.close();
+    void audioContext.close();
     audioContext = null;
   }
 
@@ -727,23 +805,14 @@ function handleDisconnect() {
 
 function handleMessage(message: OrbitMessage) {
   switch (message.type) {
-    case 'status': {
-      // Server is still initializing (e.g., waiting for PersonaPlex handshake)
-      const statusMsg = message.status as string || 'initializing';
-      const statusText = message.message as string || 'Initializing...';
-      if (statusMsg === 'initializing') {
-        setStatus('initializing', statusText);
-      }
-      break;
-    }
-
     case 'connected': {
       const connMsg = message as ConnectedMessage;
-      const adapterLabel = connMsg.adapter ? `Connected to ${connMsg.adapter}` : 'Connected';
-      // NOW we're ready to send/receive audio
+      const model = connMsg.realtime_model ? ` (${connMsg.realtime_model})` : '';
+      const adapterLabel = connMsg.adapter ? `Connected — ${connMsg.adapter}${model}` : 'Connected';
       isConnected = true;
       playbackSuppressed = false;
       setStatus('connected', adapterLabel);
+      appendTranscriptLine('system', adapterLabel);
       break;
     }
 
@@ -755,9 +824,7 @@ function handleMessage(message: OrbitMessage) {
             ? audioMsg.sample_rate
             : STREAM_SAMPLE_RATE;
         const atApiRate = feedPcm16Base64ToFloat32Stream(audioMsg.data);
-        if (atApiRate.length === 0) {
-          break;
-        }
+        if (atApiRate.length === 0) break;
         const atDeviceRate = resampleBuffer(atApiRate, apiRate, playbackNativeSampleRate);
         queueAudioForPlayback(atDeviceRate);
       }
@@ -765,104 +832,71 @@ function handleMessage(message: OrbitMessage) {
     }
 
     case 'transcription': {
-      // Transcriptions are intentionally hidden in the simplified UI
+      const t = typeof message.text === 'string' ? message.text : '';
+      if (t) appendTranscriptLine('you', t);
+      break;
+    }
+
+    case 'assistant_transcript_delta': {
+      const d = typeof message.delta === 'string' ? message.delta : '';
+      if (d && transcriptEl) {
+        transcriptEl.textContent += d;
+        transcriptEl.scrollTop = transcriptEl.scrollHeight;
+      }
       break;
     }
 
     case 'interrupted': {
       playbackSuppressed = false;
       stopAllAudio();
+      appendTranscriptLine('system', 'Interrupted');
+      break;
+    }
+
+    case 'done': {
+      appendTranscriptLine('system', 'Turn complete');
+      if (transcriptEl) transcriptEl.textContent += '\n';
       break;
     }
 
     case 'pong': {
-      // Heartbeat response
       break;
     }
 
     case 'error': {
       isConnected = false;
-      setStatus('error', `Error: ${message.message}`);
+      const msg = typeof message.message === 'string' ? message.message : 'Error';
+      setStatus('error', `Error: ${msg}`);
+      appendTranscriptLine('error', msg);
       break;
     }
+
+    default:
+      break;
   }
 }
 
 // ============================================================================
-// Utility Functions
-// ============================================================================
-
-function float32ToBase64(float32Array: Float32Array): string {
-  const bytes = new Uint8Array(float32Array.buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-function resampleBuffer(buffer: Float32Array, inputRate: number, targetRate: number): Float32Array {
-  if (inputRate === targetRate) {
-    return buffer;
-  }
-
-  const ratio = inputRate / targetRate;
-
-  if (ratio > 1) {
-    // Downsample with simple averaging
-    const newLength = Math.floor(buffer.length / ratio);
-    const result = new Float32Array(newLength);
-    for (let i = 0; i < newLength; i++) {
-      const start = Math.floor(i * ratio);
-      const end = Math.min(Math.floor((i + 1) * ratio), buffer.length);
-      let sum = 0;
-      let count = 0;
-      for (let j = start; j < end; j++) {
-        sum += buffer[j];
-        count++;
-      }
-      result[i] = count > 0 ? sum / count : 0;
-    }
-    return result;
-  } else {
-    // Upsample with linear interpolation
-    const newLength = Math.floor(buffer.length / ratio);
-    const result = new Float32Array(newLength);
-    for (let i = 0; i < newLength; i++) {
-      const position = i * ratio;
-      const index = Math.floor(position);
-      const frac = position - index;
-      const s0 = buffer[index] ?? 0;
-      const s1 = buffer[index + 1] ?? s0;
-      result[i] = s0 + (s1 - s0) * frac;
-    }
-    return result;
-  }
-}
-
-// ============================================================================
-// Event Listeners
+// Events
 // ============================================================================
 
 connectBtn.addEventListener('click', () => {
   if (isConnected) {
     disconnect();
   } else {
-    connect().catch((error) => {
+    void connect().catch((error) => {
       console.error('Failed to establish connection', error);
       setStatus('error', error instanceof Error ? error.message : 'Failed to connect');
     });
   }
 });
 
-// Keep connection alive with ping
 setInterval(() => {
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: 'ping' }));
   }
 }, 5000);
 
-// Initialize from environment variables
 if (ENV_CONFIG.displaySettings) {
   if (serverUrlInput) {
     serverUrlInput.value = ENV_CONFIG.serverUrl;
@@ -872,6 +906,10 @@ if (ENV_CONFIG.displaySettings) {
     apiKeyInput.value = ENV_CONFIG.apiKey;
     bindCharCounter('apiKey');
   }
+  if (adapterInput) {
+    adapterInput.value = ENV_CONFIG.adapterName;
+    bindCharCounter('adapterName');
+  }
 } else if (settingsPanel) {
   settingsPanel.remove();
 }
@@ -880,6 +918,5 @@ if (titleText) {
   titleText.textContent = ENV_CONFIG.appTitle;
 }
 
-// Initialize the wave visualizer
 drawResponseWave();
 startWaveAnimation();

@@ -1,10 +1,13 @@
 # Audio Transcription Adapters
 # Specialized adapters for transcribing audio files
+#
+# To load these adapters, include this file from config/adapters.yaml import list, e.g.:
+#   - "adapters/audio.yaml"
 
 adapters:
   # Audio transcription adapter - specialized for transcribing audio files
   - name: "audio-transcription"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "none"
     adapter: "file"
@@ -64,7 +67,7 @@ adapters:
 
 # Voice chat adapter - accepts audio input and returns audio responses
   - name: "voice-chat"
-    enabled: true
+    enabled: false
     type: "passthrough"
     datasource: "none"
     adapter: "conversational"
@@ -386,7 +389,7 @@ adapters:
   # Enables phone call-like conversations with AI using mixed audio providers
   # Best for: Interactive voice assistants, customer service bots, voice-controlled apps
   - name: "real-time-voice-chat"
-    enabled: true
+    enabled: false
     type: "passthrough"
     datasource: "none"
     adapter: "conversational"
@@ -444,3 +447,43 @@ adapters:
       # Connection settings
       max_connection_duration_seconds: 3600  # 1 hour max session
       ping_interval_seconds: 30         # WebSocket keepalive ping interval
+
+  # OpenAI Realtime API (GA WebSocket) — speech-to-speech via wss://api.openai.com/v1/realtime
+  # Requires OPENAI_API_KEY. Test separately: ws://<host>:<port>/ws/voice/open-ai-real-time-voice-chat
+  # Client: same protocol as real-time-voice-chat (PCM16 mono 24kHz base64 audio_chunk).
+  # Docs: https://developers.openai.com/api/docs/guides/realtime
+  - name: "open-ai-real-time-voice-chat"
+    enabled: false
+    type: "openai_realtime"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      supports_interruption: true
+      supports_realtime_audio: true
+      optional_parameters:
+        - "session_id"
+        - "user_id"
+
+    config:
+      # Realtime session (see OpenAI Realtime session.update)
+      realtime_model: "gpt-realtime"
+      realtime_voice: "marin"
+      realtime_instructions: "You are a helpful voice assistant. Be concise and natural for spoken replies."
+      enable_input_transcription: true
+      input_transcription_model: "whisper-1"
+      # Server VAD (turn detection) — higher silence avoids cutting you off mid-thought
+      vad_prefix_padding_ms: 300
+      vad_silence_duration_ms: 700
+      vad_threshold: 0.5
+      # When true, server VAD can cancel the model reply if it thinks you started speaking (can sound "cut off")
+      realtime_interrupt_response: false
+      openai_connection_timeout_seconds: 60
+      # Set true only if you still use the Realtime beta interface (adds OpenAI-Beta: realtime=v1)
+      use_realtime_beta_header: false

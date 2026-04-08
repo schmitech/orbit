@@ -3,12 +3,14 @@ Voice Routes
 
 WebSocket endpoints for real-time voice conversations with AI.
 
-Supports two handler types:
+Supports handler types:
 - VoiceWebSocketHandler: Traditional cascade (STT -> LLM -> TTS)
 - PersonaPlexWebSocketHandler: Full-duplex speech-to-speech (PersonaPlex)
+- OpenAIRealtimeWebSocketHandler: OpenAI Realtime API WebSocket (speech-to-speech)
 
 Handler selection is automatic based on adapter type:
 - type: "speech_to_speech" -> PersonaPlexWebSocketHandler
+- type: "openai_realtime" -> OpenAIRealtimeWebSocketHandler
 - other types -> VoiceWebSocketHandler
 """
 
@@ -80,11 +82,11 @@ async def validate_adapter(adapter_name: str, request: Request) -> Dict[str, Any
     # Check adapter type
     adapter_type = adapter_config.get('type', '')
 
-    # For speech_to_speech adapters (PersonaPlex), audio_provider is not required
-    if adapter_type == 'speech_to_speech':
+    # For speech_to_speech (PersonaPlex) and openai_realtime, stt/tts are not used here
+    if adapter_type in ('speech_to_speech', 'openai_realtime'):
         logger.info(
             f"Adapter validation successful: {adapter_name}, "
-            f"type: speech_to_speech (full-duplex)"
+            f"type: {adapter_type} (full-duplex / Realtime bridge)"
         )
         return adapter_config
 
@@ -260,6 +262,19 @@ async def websocket_voice(
                 prompt_service=prompt_service,
                 system_prompt_id=str(system_prompt_id) if system_prompt_id else None
             )
+        elif adapter_type == 'openai_realtime':
+            from services.chat_handlers.openai_realtime_websocket_handler import (
+                OpenAIRealtimeWebSocketHandler,
+            )
+
+            handler = OpenAIRealtimeWebSocketHandler(
+                websocket=websocket,
+                adapter_name=adapter_name,
+                adapter_config=adapter_config,
+                config=config,
+                session_id=session_id,
+                user_id=user_id,
+            )
         else:
             # Use standard voice handler for cascade (STT -> LLM -> TTS)
             handler = VoiceWebSocketHandler(
@@ -277,7 +292,7 @@ async def websocket_voice(
             # Accept connection
             await handler.accept_connection()
 
-        # Run message loop
+        # Run message loop (PersonaPlex + OpenAI Realtime accept inside run())
         await handler.run()
 
     except HTTPException as e:
@@ -356,7 +371,7 @@ async def voice_status(request: Request):
             capabilities = adapter_config.get('capabilities', {})
             if capabilities.get('supports_realtime_audio', False):
                 adapter_type = adapter_config.get('type', 'passthrough')
-                is_full_duplex = adapter_type == 'speech_to_speech'
+                is_full_duplex = adapter_type in ('speech_to_speech', 'openai_realtime')
 
                 adapter_info = {
                     "name": adapter_name,
@@ -365,7 +380,11 @@ async def voice_status(request: Request):
                     "full_duplex": is_full_duplex
                 }
 
-                if is_full_duplex:
+                if adapter_type == 'openai_realtime':
+                    adapter_info["mode"] = "openai_realtime"
+                    rcfg = (adapter_config.get('config') or {})
+                    adapter_info["realtime_model"] = rcfg.get('realtime_model', 'gpt-realtime')
+                elif is_full_duplex:
                     # PersonaPlex adapters
                     adapter_info["mode"] = "speech_to_speech"
                     persona = adapter_config.get('persona', {})

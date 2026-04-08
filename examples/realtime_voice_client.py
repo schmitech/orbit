@@ -17,6 +17,9 @@ Basic Usage:
     # Connect with custom adapter
     python realtime_voice_client.py --adapter real-time-voice-chat
 
+    # OpenAI Realtime (speech-to-speech); requires OPENAI_API_KEY on the server
+    python realtime_voice_client.py --adapter open-ai-real-time-voice-chat
+
     # Connect with API key (if required by adapter configuration)
     python realtime_voice_client.py --api-key your_api_key_here
 
