@@ -13,9 +13,10 @@ Features:
 - Configurable via config.yaml
 """
 
+import asyncio
+import json
 import logging
 import time
-import json
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
@@ -309,6 +310,7 @@ class AutocompleteService:
 
         # In-memory cache fallback: adapter_name -> (timestamp, nl_examples)
         self._memory_cache: Dict[str, tuple] = {}
+        self._adapter_fetch_locks: Dict[str, asyncio.Lock] = {}
 
         # Check if Redis is available when Redis caching is requested
         redis_available = redis_service is not None and getattr(redis_service, 'enabled', False)
@@ -430,6 +432,8 @@ class AutocompleteService:
             return []
 
         try:
+            effective_limit = max(1, min(limit, self.max_suggestions))
+
             # Get nl_examples for the adapter (from cache or fresh)
             examples = await self._get_adapter_nl_examples(adapter_name)
 
@@ -442,7 +446,7 @@ class AutocompleteService:
             )
 
             # Filter and rank suggestions
-            suggestions = self._filter_and_rank(examples, query, limit)
+            suggestions = self._filter_and_rank(examples, query, effective_limit)
 
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
@@ -476,21 +480,38 @@ class AutocompleteService:
 
         logger.debug(f"[Autocomplete] Cache miss for {adapter_name}, fetching from adapter")
 
-        # Stampede protection: only one request fetches fresh data per adapter
+        fetch_lock = self._adapter_fetch_locks.setdefault(adapter_name, asyncio.Lock())
+        async with fetch_lock:
+            cached = await self._get_cached_examples(adapter_name)
+            if cached is not None:
+                logger.debug(
+                    f"[Autocomplete] Cache filled while waiting: {len(cached)} examples "
+                    f"for {adapter_name}"
+                )
+                return cached
+
+            return await self._fetch_adapter_examples(adapter_name)
+
+    async def _fetch_adapter_examples(self, adapter_name: str) -> List[str]:
+        """Fetch and cache adapter examples with best-effort distributed coordination."""
+        examples: List[str] = []
+        lock_key: Optional[str] = None
+        distributed_lock_acquired = False
+
         if self.use_redis_cache and self.redis_service and getattr(self.redis_service, 'client', None):
             lock_key = f"lock:{self.redis_key_prefix}{adapter_name}"
             try:
-                lock_acquired = await self.redis_service.client.set(lock_key, "1", nx=True, ex=10)
-            except Exception:
-                lock_acquired = True
-            if not lock_acquired:
-                import asyncio
-                await asyncio.sleep(0.2)
-                cached = await self._get_cached_examples(adapter_name)
+                distributed_lock_acquired = bool(
+                    await self.redis_service.client.set(lock_key, "1", nx=True, ex=10)
+                )
+            except Exception as e:
+                logger.warning(f"Redis lock acquisition error for {adapter_name}: {e}")
+                distributed_lock_acquired = True
+
+            if not distributed_lock_acquired:
+                cached = await self._wait_for_cached_examples(adapter_name)
                 if cached is not None:
                     return cached
-
-        examples = []
 
         try:
             if not self.adapter_manager:
@@ -544,8 +565,31 @@ class AutocompleteService:
 
         except Exception as e:
             logger.warning(f"[Autocomplete] Error fetching nl_examples for {adapter_name}: {e}")
+        finally:
+            if distributed_lock_acquired and lock_key:
+                try:
+                    await self.redis_service.delete(lock_key)
+                except Exception as e:
+                    logger.warning(f"Redis lock release error for {adapter_name}: {e}")
 
         return examples
+
+    async def _wait_for_cached_examples(
+        self,
+        adapter_name: str,
+        attempts: int = 10,
+        interval_seconds: float = 0.1
+    ) -> Optional[List[str]]:
+        """Wait briefly for another process to populate the cache."""
+        for _ in range(attempts):
+            await asyncio.sleep(interval_seconds)
+            cached = await self._get_cached_examples(adapter_name)
+            if cached is not None:
+                logger.debug(
+                    f"[Autocomplete] Cache populated remotely for {adapter_name}"
+                )
+                return cached
+        return None
 
     def _extract_examples_from_adapter(self, adapter) -> List[str]:
         """
@@ -571,13 +615,19 @@ class AutocompleteService:
             )
             for template in templates:
                 nl_examples = template.get('nl_examples', [])
+                template_id = template.get('id', '<unknown>')
                 if isinstance(nl_examples, list):
-                    examples.extend(nl_examples)
+                    examples.extend(
+                        self._sanitize_examples(
+                            nl_examples,
+                            source=f"adapter template {template_id}"
+                        )
+                    )
             logger.debug(f"[Autocomplete] Extracted {len(examples)} nl_examples from templates")
         else:
             logger.debug("[Autocomplete] No domain_adapter or get_all_templates method found")
 
-        return examples
+        return self._deduplicate_preserving_order(examples)
 
     async def _get_composite_examples(self, adapter) -> List[str]:
         """
@@ -618,24 +668,77 @@ class AutocompleteService:
         # Include nl_examples from cross-adapter templates if present
         cross_adapter_templates = getattr(adapter, '_cross_adapter_templates', {})
         if cross_adapter_templates:
-            for template_data in cross_adapter_templates.values():
+            for template_name, template_data in cross_adapter_templates.items():
                 nl_examples = template_data.get('nl_examples', [])
                 if isinstance(nl_examples, list):
-                    all_examples.extend(nl_examples)
+                    all_examples.extend(
+                        self._sanitize_examples(
+                            nl_examples,
+                            source=f"cross-adapter template {template_name}"
+                        )
+                    )
             logger.debug(
                 f"[Autocomplete] Added nl_examples from {len(cross_adapter_templates)} "
                 f"cross-adapter templates"
             )
 
         # Deduplicate while preserving order
-        seen = set()
-        unique_examples = []
-        for ex in all_examples:
-            if ex not in seen:
-                seen.add(ex)
-                unique_examples.append(ex)
+        return self._deduplicate_preserving_order(all_examples)
 
+    def _sanitize_examples(self, examples: List[Any], source: str) -> List[str]:
+        """Normalize template examples and discard malformed entries."""
+        sanitized: List[str] = []
+        for example in examples:
+            if not isinstance(example, str):
+                logger.warning(
+                    f"[Autocomplete] Ignoring non-string nl_example from {source}: "
+                    f"{type(example).__name__}"
+                )
+                continue
+
+            normalized = " ".join(example.split())
+            if not normalized:
+                continue
+            sanitized.append(normalized)
+
+        return sanitized
+
+    def _deduplicate_preserving_order(self, examples: List[str]) -> List[str]:
+        """Deduplicate strings while preserving the original order."""
+        seen = set()
+        unique_examples: List[str] = []
+        for example in examples:
+            if example in seen:
+                continue
+            seen.add(example)
+            unique_examples.append(example)
         return unique_examples
+
+    def _score_candidate_relevance(self, example_lower: str, query_lower: str) -> float:
+        """Cheap heuristic used to shortlist fuzzy candidates before expensive scoring."""
+        if not query_lower:
+            return 0.0
+
+        score = 0.0
+        if example_lower.startswith(query_lower):
+            score += 200.0
+
+        position = example_lower.find(query_lower)
+        if position != -1:
+            score += 100.0 - min(position, 100)
+
+        words = example_lower.split()
+        for word in words:
+            if word.startswith(query_lower):
+                score += 80.0
+                break
+            if query_lower.startswith(word):
+                score += 40.0
+
+        if query_lower in example_lower:
+            score += 20.0
+
+        return score
 
     def _filter_and_rank(
         self,
@@ -666,7 +769,18 @@ class AutocompleteService:
         scored_examples = []
 
         # Limit candidates for fuzzy matching (performance guard)
-        candidates = examples[:self.max_candidates] if self.fuzzy_enabled else examples
+        candidates = examples
+        if self.fuzzy_enabled and len(examples) > self.max_candidates:
+            candidates = [
+                example for _, example in sorted(
+                    (
+                        (self._score_candidate_relevance(example.lower(), query_lower), example)
+                        for example in examples
+                    ),
+                    key=lambda item: item[0],
+                    reverse=True
+                )[:self.max_candidates]
+            ]
         if len(candidates) < len(examples):
             logger.debug(
                 f"[Autocomplete] Limited candidates to {len(candidates)} "

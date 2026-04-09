@@ -94,7 +94,7 @@ GET /v1/autocomplete?q={query}&limit={limit}
 **Headers:**
 | Header | Required | Description |
 |--------|----------|-------------|
-| `X-API-Key` | Yes | API key identifying the adapter |
+| `X-API-Key` | Yes | API key used by the server to resolve the active adapter |
 
 **Response:**
 ```json
@@ -115,7 +115,7 @@ GET /v1/autocomplete?q={query}&limit={limit}
 
 ### 3. Client Integration
 
-#### useAutocomplete Hook (`clients/chat-app/src/hooks/useAutocomplete.ts`)
+#### useAutocomplete Hook (`clients/orbitchat/src/hooks/useAutocomplete.ts`)
 
 React hook for fetching and managing autocomplete suggestions.
 
@@ -143,7 +143,7 @@ function useAutocomplete(
 ): UseAutocompleteResult
 ```
 
-#### MessageInput Component (`clients/chat-app/src/components/MessageInput.tsx`)
+#### MessageInput Component (`clients/orbitchat/src/components/MessageInput.tsx`)
 
 Integrates autocomplete dropdown with keyboard navigation.
 
@@ -186,11 +186,11 @@ autocomplete:
 
   # Query matching settings
   min_query_length: 3  # Minimum characters before fetching
-  max_suggestions: 5   # Maximum suggestions returned
+  max_suggestions: 10  # Server-side ceiling for returned suggestions
 
   # Caching configuration
   cache:
-    use_redis: true           # Use Redis (falls back to memory if unavailable)
+    use_redis: false          # Use Redis when available; otherwise use memory cache
     ttl_seconds: 1800         # 30 minutes cache TTL
     redis_key_prefix: "autocomplete:"
 
@@ -199,7 +199,7 @@ autocomplete:
     enabled: true             # Enable fuzzy/approximate matching
     algorithm: "jaro_winkler" # Options: substring, levenshtein, jaro_winkler
     threshold: 0.75           # Minimum similarity score (0.0-1.0)
-    max_candidates: 100       # Performance guard for fuzzy matching
+    max_candidates: 250       # Fuzzy ranking shortlist after cheap relevance prefilter
 ```
 
 ### Client Configuration
@@ -334,8 +334,8 @@ score -= len(example) * 0.05
 | Setting | Value | Purpose |
 |---------|-------|---------|
 | `min_query_length` | 3 | Prevent noisy short queries |
-| `max_suggestions` | 5 | Limit response size |
-| `max_candidates` | 100 | Limit fuzzy comparison count |
+| `max_suggestions` | 10 | Server-side response ceiling |
+| `max_candidates` | 250 | Limit fuzzy comparison shortlist |
 
 ### Debouncing
 
@@ -379,8 +379,8 @@ logging:
 ```
 🔍 Autocomplete: enabled
   Min query length: 3 chars
-  Max suggestions: 5
-  Cache: Redis (TTL: 1800s)
+  Max suggestions: 10
+  Cache: Memory (TTL: 1800s)
   Fuzzy matching: jaro_winkler (threshold: 0.75)
 ```
 

@@ -5,6 +5,7 @@ import { debugLog, debugWarn } from '../utils/debug';
 const DEBOUNCE_DELAY = 300;  // 300ms debounce
 const MIN_QUERY_LENGTH = 3;
 const MAX_SUGGESTIONS = 5;
+const UNSUPPORTED_ADAPTER_TTL_MS = 60_000;
 
 export interface AutocompleteSuggestion {
   text: string;
@@ -14,6 +15,7 @@ export interface UseAutocompleteOptions {
   enabled?: boolean;
   apiUrl?: string | null;
   adapterName?: string | null;
+  sessionId?: string | null;
   adapterSupportsAutocomplete?: boolean | null;
   /**
    * Optional ref to refocus after accepting a suggestion (helps on mobile/touch).
@@ -53,6 +55,7 @@ export function useAutocomplete(
   const {
     enabled = getEnableAutocomplete(),
     adapterName,
+    sessionId,
     adapterSupportsAutocomplete,
     inputRef
   } = options;
@@ -68,7 +71,7 @@ export function useAutocomplete(
   const latestRequestIdRef = useRef(0);
   const suggestionsRef = useRef<AutocompleteSuggestion[]>([]);
   const lastNonEmptySuggestionsRef = useRef<AutocompleteSuggestion[]>([]);
-  const unsupportedAdaptersRef = useRef<Set<string>>(new Set());
+  const unsupportedAdaptersRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     suggestionsRef.current = suggestions;
@@ -90,7 +93,22 @@ export function useAutocomplete(
     return { text: normalized };
   }, []);
 
-  const getFallbackSuggestions = useCallback((searchQuery: string): AutocompleteSuggestion[] => {
+  const isAdapterTemporarilySuppressed = useCallback((name: string): boolean => {
+    const expiresAt = unsupportedAdaptersRef.current.get(name);
+    if (!expiresAt) {
+      return false;
+    }
+    if (expiresAt <= Date.now()) {
+      unsupportedAdaptersRef.current.delete(name);
+      return false;
+    }
+    return true;
+  }, []);
+
+  const getFallbackSuggestions = useCallback((
+    searchQuery: string,
+    allowStaleReuse: boolean = true
+  ): AutocompleteSuggestion[] => {
     const normalizedQuery = searchQuery.toLowerCase().trim();
     const source = lastNonEmptySuggestionsRef.current.length > 0
       ? lastNonEmptySuggestionsRef.current
@@ -106,6 +124,10 @@ export function useAutocomplete(
 
     if (matching.length > 0) {
       return matching.slice(0, MAX_SUGGESTIONS);
+    }
+
+    if (!allowStaleReuse) {
+      return [];
     }
 
     // Keep the previous visible suggestions to avoid flash-hide during
@@ -134,7 +156,7 @@ export function useAutocomplete(
       return;
     }
 
-    if (adapterSupportsAutocomplete === false || unsupportedAdaptersRef.current.has(adapterName)) {
+    if (adapterSupportsAutocomplete === false || isAdapterTemporarilySuppressed(adapterName)) {
       setSuggestions([]);
       lastNonEmptySuggestionsRef.current = [];
       if (loadingTimeoutRef.current) {
@@ -168,6 +190,9 @@ export function useAutocomplete(
       const headers: Record<string, string> = {
         'X-Adapter-Name': adapterName
       };
+      if (sessionId) {
+        headers['X-Session-ID'] = sessionId;
+      }
 
       const params = new URLSearchParams();
       params.set('q', searchQuery);
@@ -183,7 +208,10 @@ export function useAutocomplete(
       if (!response.ok) {
         debugWarn('[useAutocomplete] Request failed:', response.status);
         if ([404, 405, 501].includes(response.status)) {
-          unsupportedAdaptersRef.current.add(adapterName);
+          unsupportedAdaptersRef.current.set(
+            adapterName,
+            Date.now() + UNSUPPORTED_ADAPTER_TTL_MS
+          );
           setSuggestions([]);
           lastNonEmptySuggestionsRef.current = [];
         } else {
@@ -213,9 +241,9 @@ export function useAutocomplete(
       }
 
       // Prevent transient flicker when backend returns no results for a fast-follow query:
-      // keep previous relevant suggestions if they still match the current prefix.
+      // keep previous suggestions only when they still match the current query.
       if (normalized.length === 0) {
-        setSuggestions(getFallbackSuggestions(searchQuery));
+        setSuggestions(getFallbackSuggestions(searchQuery, false));
       } else {
         setSuggestions(normalized);
         lastNonEmptySuggestionsRef.current = normalized;
@@ -242,7 +270,15 @@ export function useAutocomplete(
         setIsLoading(false);
       }
     }
-  }, [enabled, adapterName, adapterSupportsAutocomplete, sanitizeSuggestionText, getFallbackSuggestions]);
+  }, [
+    enabled,
+    adapterName,
+    sessionId,
+    adapterSupportsAutocomplete,
+    sanitizeSuggestionText,
+    getFallbackSuggestions,
+    isAdapterTemporarilySuppressed
+  ]);
 
   // Debounced effect
   useEffect(() => {
@@ -264,7 +300,7 @@ export function useAutocomplete(
       !enabled ||
       query.length < MIN_QUERY_LENGTH ||
       adapterSupportsAutocomplete === false ||
-      (adapterName ? unsupportedAdaptersRef.current.has(adapterName) : false)
+      (adapterName ? isAdapterTemporarilySuppressed(adapterName) : false)
     ) {
       setSuggestions([]);
       cleanupActiveRequests();
@@ -289,7 +325,7 @@ export function useAutocomplete(
         clearTimeout(debounceTimeoutRef.current);
       }
     };
-  }, [query, fetchSuggestions, enabled, adapterName, adapterSupportsAutocomplete]);
+  }, [query, fetchSuggestions, enabled, adapterName, adapterSupportsAutocomplete, isAdapterTemporarilySuppressed]);
 
   // Cleanup on unmount
   useEffect(() => {

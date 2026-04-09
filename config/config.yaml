@@ -333,13 +333,13 @@ autocomplete:
 
   # Query matching settings
   min_query_length: 3  # Minimum characters before fetching suggestions
-  max_suggestions: 500   # Maximum suggestions returned per request
+  max_suggestions: 10   # Server-side ceiling; endpoint and UI request smaller values within this cap
 
   # Caching configuration
   cache:
     # Use Redis for distributed caching (recommended for multi-instance deployments)
     # Falls back to in-memory cache if Redis is unavailable
-    use_redis: true
+    use_redis: false
     ttl_seconds: 1800  # 30 minutes - templates rarely change
     redis_key_prefix: "autocomplete:"
 
@@ -355,8 +355,8 @@ autocomplete:
     # Higher = stricter matching, fewer results
     # Recommended: 0.7 for levenshtein, 0.8 for jaro_winkler
     threshold: 0.75
-    # Maximum candidates to evaluate with fuzzy matching (performance guard)
-    max_candidates: 1000
+    # Maximum candidates to fuzzy-rank after cheap relevance prefiltering
+    max_candidates: 250
 
 # Composite Intent Retriever template selection configuration
 # Improves template selection accuracy when routing queries across multiple intent adapters
@@ -427,6 +427,7 @@ files:
     # Docling processor configuration
     # Set to false to disable docling processor and prevent outbound connections to HuggingFace at startup
     # When disabled, docling will not be initialized until actually needed (lazy initialization)
+    # PDF layout uses RT-DETR (PyTorch + torchvision). Intel macOS only gets PyPI torch up to 2.2.x; use files profile / setup.sh for matching pins.
     # Default: true (enabled)
     docling_enabled: true
 
@@ -608,7 +609,7 @@ security:
 
   # Rate limiting configuration (requires Redis to be enabled)
   rate_limiting:
-    enabled: true                    # Master switch (requires Redis to be enabled)
+    enabled: false                    # Master switch (requires Redis to be enabled)
 
     # Proxy header trust configuration
     # SECURITY: Only enable trust_proxy_headers when behind a trusted reverse proxy
@@ -650,7 +651,7 @@ security:
   # Throttling configuration (executes BEFORE rate limiting)
   # Delays requests progressively instead of rejecting them
   throttling:
-    enabled: true                    # Master switch for throttling
+    enabled: false                    # Master switch for throttling
 
     # Default quotas for API keys (can be overridden per-key)
     default_quotas:

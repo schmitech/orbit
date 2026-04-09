@@ -1,0 +1,57 @@
+adapters:
+  - name: "intent-duckdb-analytics"
+    enabled: true
+    type: "retriever"
+    datasource: "duckdb"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
+    database: "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics.duckdb"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true  # Enable autocomplete from template nl_examples
+      requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+    config:
+      # Path to the domain definition file
+      domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics_templates.yaml"
+
+      # Name for the vector store collection for templates
+      template_collection_name: "duckdb_analytics_templates"
+      # Store configuration - references stores.yaml
+      store_name: "chroma"
+      confidence_threshold: 0.4
+
+      # Maximum templates to consider
+      max_templates: 5
+
+      # Return top N results
+      return_results: 100
+
+      # Template loading settings
+      reload_templates_on_start: false  # Whether to reload templates on startup
+      force_reload_templates: false  # Force reload even if templates exist in storage
+
+      # DuckDB-specific configuration
+      # Database path is configured in datasources.yaml (defaults to examples/duckdb/analytics.duckdb)
+      # Can override here if needed:
+      # database: "path/to/custom.duckdb"  # Optional: override datasource default
+      read_only: true  # Allow concurrent reads from multiple processes (no writes needed for intent queries)
+      access_mode: "READ_ONLY"  # Multiple processes can read simultaneously (see https://duckdb.org/docs/stable/connect/concurrency)
+      threads: null  # Use default thread count
+
+      # Query monitoring (automatically provided by unified base)
+      enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds

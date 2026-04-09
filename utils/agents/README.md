@@ -16,7 +16,7 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 | `database-scalability-agent.md` | Database concurrency, connection pooling, Redis caching strategy, query optimization, and load resilience for high-traffic systems |
 | `system-design-agent.md` | Evaluates overall system architecture, boundaries, failure modes, scalability ceilings, coupling, and operational readiness |
 | `implementation-review-agent.md` | Reviews component-level implementation decisions — data structures, algorithms, patterns, state, error handling — and identifies better alternatives |
-| `template-tuning-agent.md` | Audits intent retriever template YAML files for reranker collisions, nl_example ambiguity, missing semantic tags, and parameter extraction issues |
+| `nasa-coding-rules-agent.md` | Enforces NASA/JPL's "Power of Ten" coding discipline — linear control flow, bounded loops, resource ownership, explicit assumptions, zero warnings, tests first |
 
 ---
 
@@ -32,7 +32,7 @@ A pair of reusable prompt frameworks for conducting thorough code reviews and se
 - **Need to handle thousands/millions of requests without melting the database?** → Use `database-scalability-agent.md`
 - **Evaluating the overall architecture for weaknesses and limitations?** → Use `system-design-agent.md`
 - **Want to challenge specific implementation decisions within components?** → Use `implementation-review-agent.md`
-- **Intent templates misrouting queries or parameters not extracting?** → Use `template-tuning-agent.md`
+- **Want NASA-grade coding discipline enforced on every line?** → Use `nasa-coding-rules-agent.md`
 - **Want the full picture?** → Combine agents in a single session (see below)
 
 ### 2. Start a new conversation with your AI assistant
@@ -133,6 +133,18 @@ Apply the following assessment framework to the attached codebase:
 [Paste or attach your code]
 ```
 
+### Single Agent — NASA Coding Rules
+
+```
+Apply the following assessment framework to the attached codebase:
+
+[Paste contents of nasa-coding-rules-agent.md here]
+
+[Paste or attach your code]
+```
+
+**Note:** The NASA agent works in two modes. For **reviewing** existing code, use the instruction above. For **generating** new code, paste the agent prompt as a system instruction at the start of your session — all code the AI produces will follow the twelve rules automatically.
+
 ### Combined — Full Review
 
 ```
@@ -174,6 +186,7 @@ Focus especially on [async bugs / state management / null safety / edge cases / 
 Focus especially on [connection pooling / Redis caching / query optimization / concurrency control / write throughput / read scaling].
 Focus especially on [failure modes / coupling / scalability ceilings / API contracts / data ownership / observability gaps].
 Focus especially on [data structures / algorithm efficiency / state management / error handling / async patterns / resource lifecycle].
+Focus especially on [control flow / resource cleanup / error handling / assumptions / side effects / abstraction depth].
 ```
 
 ### Scope Modifiers
@@ -192,6 +205,7 @@ Redis is used for [caching / sessions / job queues / rate limiting / pub-sub / a
 Architecture is [monolith / modular monolith / microservices / serverless / hybrid].
 Team size is [1-3 / 4-10 / 10+ developers]. Current traffic is [low / moderate / high / unknown].
 Review only [these specific files or modules]. Prioritize [performance / correctness / maintainability].
+This code is [safety-critical / financial / user-facing / internal tooling]. Strictness level: [maximum / high / pragmatic].
 ```
 
 ### Compliance Modifiers
@@ -349,6 +363,23 @@ Summary includes:
 - Recurring implementation weakness patterns
 - Overall implementation quality score (1–10)
 - Effort estimates per fix: Quick Fix (< 1hr) / Moderate (1–4hr) / Significant (4hr+)
+
+### NASA Coding Rules Agent
+
+When reviewing, for each violation:
+- **Rule Violated** — rule number and name
+- **Location** — file and line/section
+- **Violation** — what specifically breaks the rule
+- **Risk** — what will go wrong if not fixed
+- **Fix** — corrected code
+
+Summary includes:
+- Violations by rule number
+- Top 3 most critical violations
+- Recurring patterns of systemic rule violations
+- Overall compliance score (1–10)
+
+When generating code, all twelve rules are applied silently — the output is compliant by default.
 
 ---
 

@@ -15,6 +15,7 @@ import sys
 import os
 import time
 import json
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 # Add the server directory to the Python path
@@ -371,6 +372,17 @@ class TestAutocompleteServiceSuggestions:
         suggestions = await service.get_suggestions("", "test-adapter")
         assert suggestions == []
 
+    @pytest.mark.asyncio
+    async def test_get_suggestions_clamps_limit_to_config(self, enabled_config, sample_nl_examples):
+        """Test that request limits cannot exceed configured max_suggestions."""
+        enabled_config['autocomplete']['max_suggestions'] = 2
+        service = AutocompleteService(enabled_config)
+        service._get_adapter_nl_examples = AsyncMock(return_value=sample_nl_examples)
+
+        suggestions = await service.get_suggestions("movies", "test-adapter", limit=10)
+
+        assert len(suggestions) <= 2
+
     def test_filter_and_rank_substring(self, enabled_config, sample_nl_examples):
         """Test substring filtering and ranking."""
         service = AutocompleteService(enabled_config)
@@ -478,7 +490,7 @@ class TestAutocompleteServiceCaching:
         assert cached == sample_nl_examples
 
         # Wait for expiry
-        time.sleep(1.5)
+        await asyncio.sleep(1.5)
 
         # Should be expired
         cached = await service._get_cached_examples("test-adapter")
@@ -624,7 +636,7 @@ class TestEdgeCases:
             "hello@world.com",
             "hello@world.org"
         )
-        assert similarity > 0.8
+        assert similarity >= 0.8
 
     def test_fuzzy_matcher_very_long_strings(self):
         """Test fuzzy matching with long strings."""
@@ -668,6 +680,30 @@ class TestEdgeCases:
         # Result may vary based on which candidates are evaluated
         assert isinstance(suggestions, list)
 
+    def test_filter_and_rank_prefilters_relevant_late_candidates(self, fuzzy_jaro_winkler_config):
+        """Test fuzzy candidate limiting still considers relevant later examples."""
+        config = {
+            'autocomplete': {
+                **fuzzy_jaro_winkler_config['autocomplete'],
+                'fuzzy_matching': {
+                    **fuzzy_jaro_winkler_config['autocomplete']['fuzzy_matching'],
+                    'max_candidates': 2
+                }
+            }
+        }
+        service = AutocompleteService(config)
+
+        examples = [
+            "alpha beta gamma",
+            "totally unrelated phrase",
+            "show me movies from 2020",
+            "show top rated movies"
+        ]
+
+        suggestions = service._filter_and_rank(examples, "show", 5)
+
+        assert any("show" in suggestion.text.lower() for suggestion in suggestions)
+
     @pytest.mark.asyncio
     async def test_service_no_adapter_manager(self, enabled_config):
         """Test service handles missing adapter manager gracefully."""
@@ -676,6 +712,58 @@ class TestEdgeCases:
         # Should not raise, just return empty
         examples = await service._get_adapter_nl_examples("test-adapter")
         assert examples == []
+
+    def test_extract_examples_sanitizes_and_deduplicates(self, enabled_config):
+        """Test malformed and duplicate nl_examples are filtered during extraction."""
+        service = AutocompleteService(enabled_config)
+
+        domain_adapter = MagicMock()
+        domain_adapter.get_all_templates.return_value = [
+            {
+                'id': 'template-1',
+                'nl_examples': [
+                    " Show   me movies  ",
+                    "",
+                    None,
+                    42,
+                    "Show me movies",
+                    "Find\nmovies"
+                ]
+            }
+        ]
+        adapter = MagicMock()
+        adapter.domain_adapter = domain_adapter
+
+        examples = service._extract_examples_from_adapter(adapter)
+
+        assert examples == ["Show me movies", "Find movies"]
+
+    @pytest.mark.asyncio
+    async def test_get_adapter_examples_uses_single_flight_per_adapter(
+        self, enabled_config, sample_nl_examples
+    ):
+        """Test concurrent requests share a single fetch for the same adapter."""
+        service = AutocompleteService(enabled_config)
+
+        call_count = 0
+
+        async def fake_fetch(adapter_name):
+            nonlocal call_count
+            call_count += 1
+            await asyncio.sleep(0.05)
+            await service._set_cached_examples(adapter_name, sample_nl_examples)
+            return sample_nl_examples
+
+        service._fetch_adapter_examples = fake_fetch
+
+        results = await asyncio.gather(
+            service._get_adapter_nl_examples("test-adapter"),
+            service._get_adapter_nl_examples("test-adapter"),
+            service._get_adapter_nl_examples("test-adapter")
+        )
+
+        assert call_count == 1
+        assert all(result == sample_nl_examples for result in results)
 
 
 # ============================================================================

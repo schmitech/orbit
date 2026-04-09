@@ -276,6 +276,7 @@ export function MessageInput({
     enabled: autocompleteEnabled && !isListening,
     apiUrl: currentConversation?.apiUrl,
     adapterName: currentConversation?.adapterName,
+    sessionId: currentConversation?.sessionId,
     adapterSupportsAutocomplete,
     inputRef: textareaRef
   });
