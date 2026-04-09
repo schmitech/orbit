@@ -5,6 +5,7 @@ This base class provides functionality to:
 - Search across template stores of multiple child intent adapters
 - Find the best matching template across all sources
 - Route query execution to the child adapter that owns the best match
+- Cross-adapter templates for multi-domain queries (e.g., cross-city comparisons)
 
 Multi-Stage Selection (v2):
 - Stage 1: Embedding-based retrieval for initial candidates
@@ -17,6 +18,9 @@ import logging
 import traceback
 import asyncio
 import time
+import os
+import yaml
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, field
 
@@ -104,7 +108,30 @@ class CompositeIntentRetriever(BaseRetriever):
         self._rerank_cache: Dict[str, Tuple[float, List[Dict]]] = {}  # query -> (timestamp, results)
         self._max_rerank_cache_size = 1000
 
+        # Cross-adapter template configuration
+        cross_adapter_config = self.composite_config.get('cross_adapter_templates', {})
+        self.cross_adapter_enabled = cross_adapter_config.get('enabled', False)
+        self.cross_adapter_template_paths: List[str] = cross_adapter_config.get('template_library_path', [])
+        if isinstance(self.cross_adapter_template_paths, str):
+            self.cross_adapter_template_paths = [self.cross_adapter_template_paths]
+        self.cross_adapter_collection_name = cross_adapter_config.get(
+            'template_collection_name', 'composite_cross_adapter_templates'
+        )
+        self.cross_adapter_store_name = cross_adapter_config.get('store_name', 'chroma')
+
+        # Cross-adapter execution configuration
+        cross_exec_config = self.composite_config.get('cross_adapter_execution', {})
+        self.cross_adapter_timeout = cross_exec_config.get('timeout_per_adapter', 10.0)
+        self.cross_adapter_partial_results = cross_exec_config.get('partial_results', True)
+        self.cross_adapter_default_merge_strategy = cross_exec_config.get('default_merge_strategy', 'side_by_side')
+
+        # Cross-adapter template store and cache (populated during initialization)
+        self._cross_adapter_template_store = None
+        self._cross_adapter_templates: Dict[str, Dict[str, Any]] = {}
+
         logger.info(f"CompositeIntentRetriever configured with {len(self.child_adapter_names)} child adapters: {self.child_adapter_names}")
+        if self.cross_adapter_enabled:
+            logger.info(f"Cross-adapter templates enabled with {len(self.cross_adapter_template_paths)} template path(s)")
         if self.multistage_enabled:
             logger.info(f"Multi-stage selection enabled: reranking={self.reranking_enabled}, string_similarity={self.string_similarity_enabled}")
 
@@ -183,7 +210,11 @@ class CompositeIntentRetriever(BaseRetriever):
             
             # Resolve and cache child adapters
             await self._resolve_child_adapters()
-            
+
+            # Initialize cross-adapter templates if enabled
+            if self.cross_adapter_enabled:
+                await self._initialize_cross_adapter_templates()
+
             logger.info(f"CompositeIntentRetriever initialization complete with {len(self._child_adapters)} active child adapters")
             
         except Exception as e:
@@ -336,6 +367,414 @@ class CompositeIntentRetriever(BaseRetriever):
             raise ValueError(f"No valid child adapters could be resolved from: {self.child_adapter_names}")
 
         logger.info(f"Resolved {len(self._child_adapters)} child adapters: {list(self._child_adapters.keys())}")
+
+    async def _initialize_cross_adapter_templates(self) -> None:
+        """
+        Initialize cross-adapter templates: load from YAML, embed nl_examples,
+        and store in a dedicated TemplateEmbeddingStore.
+        """
+        try:
+            # Load templates from YAML files
+            all_templates = []
+            for path in self.cross_adapter_template_paths:
+                loaded = self._load_cross_adapter_yaml(path)
+                if loaded:
+                    all_templates.extend(loaded)
+
+            if not all_templates:
+                logger.warning("No cross-adapter templates loaded, disabling cross-adapter search")
+                self.cross_adapter_enabled = False
+                return
+
+            # Validate target_adapters reference valid child adapters
+            valid_templates = []
+            for template in all_templates:
+                target_adapters = template.get('target_adapters', [])
+                valid_targets = []
+                for target in target_adapters:
+                    adapter_name = target.get('adapter', '')
+                    if adapter_name in self._child_adapters or adapter_name in self.child_adapter_names:
+                        valid_targets.append(target)
+                    else:
+                        logger.warning(
+                            f"Cross-adapter template '{template.get('id')}' references unknown adapter '{adapter_name}', skipping target"
+                        )
+                if len(valid_targets) >= 2:
+                    template['target_adapters'] = valid_targets
+                    valid_templates.append(template)
+                else:
+                    logger.warning(
+                        f"Cross-adapter template '{template.get('id')}' has fewer than 2 valid target adapters, skipping"
+                    )
+
+            if not valid_templates:
+                logger.warning("No valid cross-adapter templates after validation")
+                self.cross_adapter_enabled = False
+                return
+
+            # Create template embedding store
+            from vector_stores.services.template_embedding_store import TemplateEmbeddingStore
+
+            self._cross_adapter_template_store = TemplateEmbeddingStore(
+                store_name=f"cross_adapter_{self.cross_adapter_store_name}",
+                store_type=self.cross_adapter_store_name,
+                collection_name=self.cross_adapter_collection_name,
+                config={}
+            )
+            await self._cross_adapter_template_store.initialize()
+
+            # Embed all nl_examples (per-example embedding, same pattern as child adapters)
+            vector_entries = []  # (vector_id, template_data, embedding_text)
+            for template in valid_templates:
+                template_id = template.get('id', '')
+                description = template.get('description', '')
+                nl_examples = template.get('nl_examples', [])
+
+                for i, example in enumerate(nl_examples):
+                    if example and example.strip():
+                        embedding_text = f"{example} {description}"
+                        vector_id = f"{template_id}::ex{i}"
+                        vector_entries.append((vector_id, template, embedding_text))
+
+                # Store template in cache for later lookup
+                self._cross_adapter_templates[template_id] = template
+
+            if not vector_entries:
+                logger.warning("No cross-adapter template examples to embed")
+                self.cross_adapter_enabled = False
+                return
+
+            # Batch embed all texts
+            embedding_texts = [entry[2] for entry in vector_entries]
+            embeddings = await self.embedding_client.embed_documents(embedding_texts)
+
+            if not embeddings or len(embeddings) != len(vector_entries):
+                logger.error("Failed to embed cross-adapter templates")
+                self.cross_adapter_enabled = False
+                return
+
+            # Batch add to template store
+            batch = []
+            for (vector_id, template, _), embedding in zip(vector_entries, embeddings):
+                template_data = {
+                    'template_id': vector_id,
+                    'description': template.get('description', ''),
+                    'category': 'cross_adapter',
+                    'nl_examples': template.get('nl_examples', [])
+                }
+                batch.append((vector_id, template_data, embedding))
+
+            await self._cross_adapter_template_store.batch_add_templates(batch)
+
+            logger.info(
+                f"Initialized {len(self._cross_adapter_templates)} cross-adapter templates "
+                f"with {len(vector_entries)} example embeddings"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to initialize cross-adapter templates: {e}")
+            logger.error(traceback.format_exc())
+            self.cross_adapter_enabled = False
+
+    def _load_cross_adapter_yaml(self, path: str) -> Optional[List[Dict[str, Any]]]:
+        """Load cross-adapter templates from a YAML file."""
+        try:
+            if not os.path.isabs(path):
+                project_root = Path(__file__).parent.parent.parent.parent
+                full_path = project_root / path
+            else:
+                full_path = Path(path)
+
+            if not full_path.exists():
+                logger.warning(f"Cross-adapter template file not found: {full_path}")
+                return None
+
+            with open(full_path, 'r') as f:
+                data = yaml.safe_load(f)
+
+            templates = data.get('templates', [])
+            if not isinstance(templates, list):
+                logger.warning(f"Expected 'templates' list in {full_path}")
+                return None
+
+            # Mark all templates as cross-adapter
+            for t in templates:
+                t['cross_adapter'] = True
+
+            logger.info(f"Loaded {len(templates)} cross-adapter templates from {full_path}")
+            return templates
+
+        except Exception as e:
+            logger.error(f"Error loading cross-adapter templates from {path}: {e}")
+            return None
+
+    async def _search_cross_adapter_templates(
+        self,
+        query_embedding: List[float]
+    ) -> List[TemplateMatch]:
+        """
+        Search cross-adapter template store for matching templates.
+
+        Args:
+            query_embedding: Pre-computed query embedding
+
+        Returns:
+            List of TemplateMatch objects from cross-adapter templates
+        """
+        if not self.cross_adapter_enabled or not self._cross_adapter_template_store:
+            return []
+
+        matches = []
+        try:
+            search_results = await self._cross_adapter_template_store.search_similar_templates(
+                query_embedding=query_embedding,
+                limit=self.max_templates_per_source * 3,
+                threshold=self.confidence_threshold
+            )
+
+            if not search_results:
+                return matches
+
+            # Deduplicate per-example vectors (same pattern as child adapter search)
+            seen: Dict[str, Dict[str, Any]] = {}
+            for result in search_results:
+                raw_tid = result.get('template_id', '')
+                base_tid = raw_tid.rsplit('::', 1)[0] if '::' in raw_tid else raw_tid
+                score = result.get('score', 0)
+                if base_tid not in seen or score > seen[base_tid].get('score', 0):
+                    result_copy = dict(result)
+                    result_copy['template_id'] = base_tid
+                    seen[base_tid] = result_copy
+
+            deduped = sorted(seen.values(), key=lambda r: r.get('score', 0), reverse=True)
+            deduped = deduped[:self.max_templates_per_source]
+
+            for result in deduped:
+                template_id = result.get('template_id')
+                template_data = self._cross_adapter_templates.get(template_id)
+
+                if template_data:
+                    matches.append(TemplateMatch(
+                        template_id=template_id,
+                        source_adapter="__cross_adapter__",
+                        similarity_score=result.get('score', 0.0),
+                        template_data=template_data,
+                        embedding_text=result.get('description', '')
+                    ))
+
+            logger.debug(f"Found {len(matches)} cross-adapter template matches")
+
+        except Exception as e:
+            logger.error(f"Error searching cross-adapter templates: {e}")
+
+        return matches
+
+    async def _execute_cross_adapter_query(
+        self,
+        query: str,
+        best_match: TemplateMatch,
+        api_key: Optional[str] = None,
+        **kwargs
+    ) -> List[Dict[str, Any]]:
+        """
+        Execute a cross-adapter query by routing to multiple child adapters in parallel.
+
+        Args:
+            query: The user's query
+            best_match: The matched cross-adapter template
+            api_key: Optional API key
+            **kwargs: Additional parameters
+
+        Returns:
+            Merged results from all target adapters
+        """
+        template_data = best_match.template_data
+        target_adapters = template_data.get('target_adapters', [])
+        merge_strategy = template_data.get('merge_strategy', self.cross_adapter_default_merge_strategy)
+        partial_results = template_data.get('partial_results', self.cross_adapter_partial_results)
+        timeout = template_data.get('timeout_per_adapter', self.cross_adapter_timeout)
+
+        logger.info(
+            f"Executing cross-adapter query across {len(target_adapters)} adapters "
+            f"(strategy={merge_strategy}, template={best_match.template_id})"
+        )
+
+        # Execute queries in parallel across target adapters
+        async def query_adapter(target: Dict[str, Any]) -> Tuple[str, str, Optional[List[Dict[str, Any]]], Optional[str]]:
+            """Returns (adapter_name, label, results, error)"""
+            adapter_name = target['adapter']
+            label = target.get('label', adapter_name)
+            adapter = self._child_adapters.get(adapter_name)
+
+            if not adapter:
+                return (adapter_name, label, None, f"Adapter '{adapter_name}' not found")
+
+            try:
+                results = await asyncio.wait_for(
+                    adapter.get_relevant_context(
+                        query=query,
+                        api_key=api_key,
+                        **kwargs
+                    ),
+                    timeout=timeout
+                )
+                return (adapter_name, label, results, None)
+            except asyncio.TimeoutError:
+                return (adapter_name, label, None, f"Timeout after {timeout}s")
+            except Exception as e:
+                return (adapter_name, label, None, str(e))
+
+        tasks = [query_adapter(target) for target in target_adapters]
+        adapter_results = await asyncio.gather(*tasks)
+
+        # Collect successful and failed results
+        successful_results: List[Tuple[str, str, List[Dict[str, Any]]]] = []
+        failed_adapters: List[Dict[str, str]] = []
+
+        for adapter_name, label, results, error in adapter_results:
+            if error:
+                logger.warning(f"Cross-adapter query failed for '{adapter_name}': {error}")
+                failed_adapters.append({'adapter': adapter_name, 'label': label, 'error': error})
+            elif results:
+                successful_results.append((adapter_name, label, results))
+
+        if not successful_results:
+            return [{
+                "content": "Cross-adapter query failed: no adapters returned results.",
+                "metadata": {
+                    "source": "composite_intent",
+                    "error": "cross_adapter_all_failed",
+                    "failed_adapters": failed_adapters,
+                    "template_id": best_match.template_id
+                },
+                "confidence": 0.0
+            }]
+
+        if not partial_results and failed_adapters:
+            return [{
+                "content": "Cross-adapter query incomplete: some adapters failed and partial_results is disabled.",
+                "metadata": {
+                    "source": "composite_intent",
+                    "error": "cross_adapter_partial_failure",
+                    "failed_adapters": failed_adapters,
+                    "successful_adapters": [r[0] for r in successful_results],
+                    "template_id": best_match.template_id
+                },
+                "confidence": 0.0
+            }]
+
+        # Merge results
+        merged = self._merge_cross_adapter_results(
+            successful_results, merge_strategy, best_match, failed_adapters
+        )
+
+        return merged
+
+    def _merge_cross_adapter_results(
+        self,
+        successful_results: List[Tuple[str, str, List[Dict[str, Any]]]],
+        merge_strategy: str,
+        best_match: TemplateMatch,
+        failed_adapters: List[Dict[str, str]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Merge results from multiple adapters according to the merge strategy.
+
+        Args:
+            successful_results: List of (adapter_name, label, results) tuples
+            merge_strategy: How to merge ('side_by_side' or 'labeled_concat')
+            best_match: The matched cross-adapter template
+            failed_adapters: List of adapters that failed
+
+        Returns:
+            Merged result list
+        """
+        routing_metadata = {
+            'cross_adapter': True,
+            'template_id': best_match.template_id,
+            'merge_strategy': merge_strategy,
+            'similarity_score': best_match.similarity_score,
+            'target_adapters': [r[0] for r in successful_results],
+            'successful_adapters': [r[0] for r in successful_results],
+            'failed_adapters': failed_adapters,
+            'total_sources': len(successful_results)
+        }
+
+        if best_match.combined_score is not None:
+            routing_metadata['combined_score'] = best_match.combined_score
+
+        if merge_strategy == 'labeled_concat':
+            return self._merge_labeled_concat(successful_results, routing_metadata)
+        else:
+            # Default: side_by_side
+            return self._merge_side_by_side(successful_results, routing_metadata)
+
+    def _merge_side_by_side(
+        self,
+        successful_results: List[Tuple[str, str, List[Dict[str, Any]]]],
+        routing_metadata: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Side-by-side merge: each adapter's results are kept as separate items,
+        annotated with source label. The LLM presentation layer handles comparison formatting.
+        """
+        merged = []
+        for adapter_name, label, results in successful_results:
+            for result in results:
+                enriched = dict(result)
+                metadata = enriched.get('metadata', {})
+                metadata['composite_routing'] = routing_metadata.copy()
+                metadata['cross_adapter_source'] = {
+                    'adapter': adapter_name,
+                    'label': label
+                }
+                enriched['metadata'] = metadata
+                merged.append(enriched)
+
+        return merged
+
+    def _merge_labeled_concat(
+        self,
+        successful_results: List[Tuple[str, str, List[Dict[str, Any]]]],
+        routing_metadata: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Labeled concatenation: all result content is concatenated with source labels prepended.
+        Each adapter's content is clearly marked with its label for comparison.
+        """
+        content_parts = []
+        all_metadata = {}
+
+        for adapter_name, label, results in successful_results:
+            for result in results:
+                content = result.get('content', result.get('raw_document', ''))
+                if content:
+                    content_parts.append(f"--- {label} ---\n{content}")
+
+                # Collect metadata from each source
+                result_meta = result.get('metadata', {})
+                all_metadata[adapter_name] = {
+                    'label': label,
+                    'template_id': result_meta.get('template_id'),
+                    'confidence': result.get('confidence', result_meta.get('confidence', 0))
+                }
+
+        merged_content = "\n\n".join(content_parts)
+
+        return [{
+            "content": merged_content,
+            "metadata": {
+                "source": "composite_intent_cross_adapter",
+                "composite_routing": routing_metadata,
+                "source_details": all_metadata
+            },
+            "confidence": min(
+                (r.get('confidence', r.get('metadata', {}).get('confidence', 0.5))
+                 for results in [res[2] for res in successful_results]
+                 for r in results),
+                default=0.5
+            )
+        }]
 
     async def _initialize_reranker(self) -> None:
         """Lazily initialize the reranking service."""
@@ -791,11 +1230,18 @@ class CompositeIntentRetriever(BaseRetriever):
                 )
                 all_matches.extend(matches)
         
+        # Search cross-adapter templates if enabled
+        if self.cross_adapter_enabled:
+            cross_matches = await self._search_cross_adapter_templates(query_embedding)
+            all_matches.extend(cross_matches)
+            if cross_matches:
+                logger.debug(f"Found {len(cross_matches)} cross-adapter template matches")
+
         # Sort all matches by similarity score (highest first)
         all_matches.sort(key=lambda m: m.similarity_score, reverse=True)
-        
+
         logger.debug(f"Found {len(all_matches)} total template matches across {len(self._child_adapters)} adapters")
-        
+
         return all_matches
     
     def _select_best_match(self, matches: List[TemplateMatch]) -> Optional[TemplateMatch]:
@@ -921,6 +1367,20 @@ class CompositeIntentRetriever(BaseRetriever):
                     "confidence": 0.0
                 }]
 
+            # Check if this is a cross-adapter template match
+            if best_match.template_data.get('cross_adapter'):
+                logger.debug(
+                    f"Cross-adapter template matched: '{best_match.template_id}' "
+                    f"(score={best_match.similarity_score:.3f})"
+                )
+                results = await self._execute_cross_adapter_query(
+                    query=query,
+                    best_match=best_match,
+                    api_key=api_key,
+                    **kwargs
+                )
+                return results
+
             # Get the child adapter that owns the best match
             source_adapter = self._child_adapters.get(best_match.source_adapter)
 
@@ -1011,6 +1471,19 @@ class CompositeIntentRetriever(BaseRetriever):
                 errors.append(f"embedding: {e}")
                 logger.warning(f"Error closing embedding client: {e}")
         
+        # Close cross-adapter template store if initialized
+        if self._cross_adapter_template_store:
+            try:
+                close_method = getattr(self._cross_adapter_template_store, 'close', None)
+                if close_method and callable(close_method):
+                    if asyncio.iscoroutinefunction(close_method):
+                        await close_method()
+                    else:
+                        close_method()
+            except Exception as e:
+                errors.append(f"cross_adapter_store: {e}")
+                logger.warning(f"Error closing cross-adapter template store: {e}")
+
         # Note: We do NOT close child adapters here as they are managed
         # by the adapter manager and may be shared with other consumers
         

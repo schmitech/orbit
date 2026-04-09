@@ -105,14 +105,15 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
     async def initialize(self) -> None:
         """
         Initialize the composite retriever.
-        
+
         This method:
         1. Initializes the embedding client for query embedding
         2. Resolves all child adapter references via the adapter manager
         3. Validates that child adapters have required template stores
+        4. Initializes cross-adapter templates if enabled
         """
         await super().initialize()
-        
+
         if self.verbose:
             logger.info("Verbose mode enabled for composite retriever")
             for name, adapter in self._child_adapters.items():
@@ -121,6 +122,8 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                     logger.info(f"  Child adapter '{name}': {stats.get('total_templates', 0)} templates")
                 except Exception as e:
                     logger.warning(f"  Child adapter '{name}': Could not get stats - {e}")
+            if self.cross_adapter_enabled:
+                logger.info(f"  Cross-adapter templates: {len(self._cross_adapter_templates)} templates loaded")
     
     async def get_relevant_context(
         self, 
@@ -162,21 +165,34 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                 metadata = result.get('metadata', {})
                 routing = metadata.get('composite_routing', {})
                 if routing:
-                    logger.info(f"[Composite] Routed to: {routing.get('selected_adapter')}")
-                    logger.info(f"[Composite] Template: {routing.get('template_id')}")
-                    logger.info(f"[Composite] Total matches: {routing.get('total_matches_found', 0)}")
-
-                    # Log multi-stage scoring details if available
-                    multistage = routing.get('multistage_scoring', {})
-                    if multistage.get('enabled'):
-                        logger.info(f"[Composite] Combined Score: {multistage.get('combined_score', 0):.3f}")
-                        logger.info(f"[Composite]   - Embedding: {multistage.get('embedding_score', 0):.3f}")
-                        if multistage.get('rerank_score') is not None:
-                            logger.info(f"[Composite]   - Rerank: {multistage.get('rerank_score', 0):.3f}")
-                        if multistage.get('string_similarity_score') is not None:
-                            logger.info(f"[Composite]   - String Similarity: {multistage.get('string_similarity_score', 0):.3f}")
-                    else:
+                    if routing.get('cross_adapter'):
+                        # Cross-adapter routing log
+                        logger.info(f"[Composite] CROSS-ADAPTER query matched template: {routing.get('template_id')}")
+                        logger.info(f"[Composite] Merge strategy: {routing.get('merge_strategy')}")
+                        logger.info(f"[Composite] Target adapters: {routing.get('target_adapters', [])}")
+                        logger.info(f"[Composite] Successful: {routing.get('successful_adapters', [])}")
+                        if routing.get('failed_adapters'):
+                            logger.info(f"[Composite] Failed: {routing.get('failed_adapters')}")
                         logger.info(f"[Composite] Score: {routing.get('similarity_score', 0):.3f}")
+                        source = metadata.get('cross_adapter_source', {})
+                        if source:
+                            logger.info(f"[Composite]   Source: {source.get('label')} ({source.get('adapter')})")
+                    else:
+                        logger.info(f"[Composite] Routed to: {routing.get('selected_adapter')}")
+                        logger.info(f"[Composite] Template: {routing.get('template_id')}")
+                        logger.info(f"[Composite] Total matches: {routing.get('total_matches_found', 0)}")
+
+                        # Log multi-stage scoring details if available
+                        multistage = routing.get('multistage_scoring', {})
+                        if multistage.get('enabled'):
+                            logger.info(f"[Composite] Combined Score: {multistage.get('combined_score', 0):.3f}")
+                            logger.info(f"[Composite]   - Embedding: {multistage.get('embedding_score', 0):.3f}")
+                            if multistage.get('rerank_score') is not None:
+                                logger.info(f"[Composite]   - Rerank: {multistage.get('rerank_score', 0):.3f}")
+                            if multistage.get('string_similarity_score') is not None:
+                                logger.info(f"[Composite]   - String Similarity: {multistage.get('string_similarity_score', 0):.3f}")
+                        else:
+                            logger.info(f"[Composite] Score: {routing.get('similarity_score', 0):.3f}")
 
         return results
     
@@ -235,6 +251,25 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
             except Exception as e:
                 stats["child_adapters"][name] = {"error": str(e)}
 
+        # Cross-adapter template statistics
+        stats["cross_adapter_templates"] = {
+            "enabled": self.cross_adapter_enabled,
+            "template_count": len(self._cross_adapter_templates),
+            "templates": {
+                tid: {
+                    "description": tdata.get('description', ''),
+                    "target_adapters": [t.get('label', t.get('adapter')) for t in tdata.get('target_adapters', [])],
+                    "merge_strategy": tdata.get('merge_strategy', self.cross_adapter_default_merge_strategy)
+                }
+                for tid, tdata in self._cross_adapter_templates.items()
+            } if self.cross_adapter_enabled else {},
+            "execution_config": {
+                "timeout_per_adapter": self.cross_adapter_timeout,
+                "partial_results": self.cross_adapter_partial_results,
+                "default_merge_strategy": self.cross_adapter_default_merge_strategy
+            }
+        }
+
         return stats
     
     async def test_routing(self, query: str) -> Dict[str, Any]:
@@ -271,8 +306,17 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                     "source_adapter": match.source_adapter,
                     "embedding_score": match.similarity_score,
                     "description": match.template_data.get('description', ''),
-                    "nl_examples": match.template_data.get('nl_examples', [])[:3]  # First 3 examples
+                    "nl_examples": match.template_data.get('nl_examples', [])[:3],  # First 3 examples
+                    "cross_adapter": match.template_data.get('cross_adapter', False)
                 }
+                if match.template_data.get('cross_adapter'):
+                    match_info["target_adapters"] = [
+                        t.get('label', t.get('adapter'))
+                        for t in match.template_data.get('target_adapters', [])
+                    ]
+                    match_info["merge_strategy"] = match.template_data.get(
+                        'merge_strategy', self.cross_adapter_default_merge_strategy
+                    )
 
                 # Add multi-stage scores if available
                 if self.multistage_enabled:
@@ -304,8 +348,14 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                     "embedding_score": best_match.similarity_score,
                     "rerank_score": best_match.rerank_score if self.multistage_enabled else None,
                     "string_similarity_score": best_match.string_similarity_score if self.multistage_enabled else None,
-                    "reason": reason
+                    "reason": reason,
+                    "cross_adapter": best_match.template_data.get('cross_adapter', False)
                 }
+                if best_match.template_data.get('cross_adapter'):
+                    routing_decision["target_adapters"] = [
+                        t.get('label', t.get('adapter'))
+                        for t in best_match.template_data.get('target_adapters', [])
+                    ]
             else:
                 routing_decision = {
                     "would_route_to": None,

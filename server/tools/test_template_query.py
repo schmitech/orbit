@@ -155,9 +155,25 @@ def print_pretty(data: dict) -> None:
     routing = data.get("composite_routing")
     if routing:
         print(f"\n{C.BOLD}  Composite Routing{C.RESET}")
-        print(f"    Searched: {', '.join(routing.get('child_adapters_searched', []))}")
-        print(f"    {C.GREEN}Selected adapter:{C.RESET} {routing.get('selected_adapter', '?')}")
-        print(f"    Multistage: {routing.get('multistage_enabled', False)}")
+        if routing.get('cross_adapter'):
+            print(f"    {C.MAGENTA}Cross-adapter query{C.RESET}")
+            print(f"    Template:  {routing.get('template_id', '?')}")
+            print(f"    Strategy:  {routing.get('merge_strategy', '?')}")
+            print(f"    Targets:   {', '.join(routing.get('target_adapters', []))}")
+            successful = routing.get('successful_adapters', [])
+            failed = routing.get('failed_adapters', [])
+            if successful:
+                print(f"    {C.GREEN}Successful:{C.RESET} {', '.join(successful)}")
+            if failed:
+                for fa in failed:
+                    print(f"    {C.RED}Failed:{C.RESET} {fa.get('adapter', '?')} - {fa.get('error', '?')}")
+            score = routing.get('combined_score') or routing.get('similarity_score')
+            if score:
+                print(f"    Score:     {score:.4f}")
+        else:
+            print(f"    Searched: {', '.join(routing.get('child_adapters_searched', []))}")
+            print(f"    {C.GREEN}Selected adapter:{C.RESET} {routing.get('selected_adapter', '?')}")
+            print(f"    Multistage: {routing.get('multistage_enabled', False)}")
 
     # Template search
     search = data.get("template_search")

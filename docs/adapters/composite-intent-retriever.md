@@ -13,6 +13,7 @@ This enables powerful multi-source data exploration where users can ask question
 - **Cross-Source Template Matching**: Searches templates from all configured child adapters in parallel
 - **Multi-Stage Selection**: Optional reranking and string similarity scoring for improved accuracy at scale
 - **Best-Match Routing**: Routes queries to the single adapter with the highest-scoring template match
+- **Cross-Adapter Templates**: Dedicated templates for multi-source queries (e.g., "compare sales analytics with order data") that route to multiple child adapters in parallel and merge results
 - **Shared Embedding**: Uses a single embedding client for consistent similarity scoring across sources
 - **Transparent Metadata**: Enriches results with routing metadata showing which source was selected
 - **Configurable Behavior**: Supports parallel/sequential search, timeouts, and confidence thresholds
@@ -34,34 +35,46 @@ This enables powerful multi-source data exploration where users can ask question
                                     |
               Generate Query Embedding (once)
                                     |
-         +-------------+------------+-------------+
-         |             |            |             |
-         v             v            v             v
-   +-----------+ +-----------+ +-----------+ +-----------+
-   | Template  | | Template  | | Template  | | Template  |
-   | Store 1   | | Store 2   | | Store 3   | | Store N   |
-   | (SQLite)  | | (DuckDB)  | | (MongoDB) | | (HTTP)    |
-   +-----------+ +-----------+ +-----------+ +-----------+
-         |             |            |             |
-         +-------------+------------+-------------+
-                       |
-                       v
+         +-------------+------------+-------------+------------+
+         |             |            |             |            |
+         v             v            v             v            v
+   +-----------+ +-----------+ +-----------+ +-----------+ +-----------+
+   | Template  | | Template  | | Template  | | Template  | | Cross-    |
+   | Store 1   | | Store 2   | | Store 3   | | Store N   | | Adapter   |
+   | (SQLite)  | | (DuckDB)  | | (MongoDB) | | (HTTP)    | | Templates |
+   +-----------+ +-----------+ +-----------+ +-----------+ +-----------+
+         |             |            |             |            |
+         +-------------+------------+-------------+------------+
+                                    |
+                                    v
+                           +------------------+
+                           | Rank All Matches |
+                           | Select Best One  |
+                           +------------------+
+                                    |
+                        +-----------+-----------+
+                        |                       |
+                  cross_adapter?           single adapter
+                        |                       |
+                        v                       v
+              +------------------+     +------------------+
+              | Route to ALL     |     | Route to Winning |
+              | Target Adapters  |     | Child Adapter    |
+              | (parallel)       |     +------------------+
+              +------------------+              |
+                        |                       v
+                        v              +------------------+
+              +------------------+     |    Results       |
+              |  Merge Results   |     | (with routing    |
+              | (side_by_side or |     |  metadata)       |
+              |  labeled_concat) |     +------------------+
               +------------------+
-              | Rank All Matches |
-              | Select Best One  |
+                        |
+                        v
               +------------------+
-                       |
-                       v
-              +------------------+
-              | Route to Winning |
-              | Child Adapter    |
-              +------------------+
-                       |
-                       v
-              +------------------+
-              |    Results       |
-              | (with routing    |
-              |  metadata)       |
+              |  Merged Results  |
+              | (with cross-     |
+              |  adapter meta)   |
               +------------------+
 ```
 
@@ -116,13 +129,15 @@ When multi-stage selection is enabled, the retriever uses a three-stage scoring 
 
 1. **Embedding Generation**: The composite retriever generates a query embedding using its configured embedding provider. This single embedding is reused for all template searches to ensure consistent scoring.
 
-2. **Parallel Template Search**: The retriever searches each child adapter's template store in parallel (configurable), collecting all matching templates with their similarity scores.
+2. **Parallel Template Search**: The retriever searches each child adapter's template store in parallel (configurable), collecting all matching templates with their similarity scores. If cross-adapter templates are enabled, their template store is also searched and results are merged into the same candidate list.
 
-3. **Best Match Selection**: All templates from all sources are ranked by similarity score. The template with the highest score that meets the confidence threshold is selected.
+3. **Best Match Selection**: All templates from all sources (including cross-adapter templates) are ranked by similarity score. The template with the highest score that meets the confidence threshold is selected.
 
-4. **Query Routing**: The original query is forwarded to the child adapter that owns the selected template. That adapter performs parameter extraction, query execution, and result formatting.
+4. **Query Routing**: 
+   - **Single-adapter match**: The original query is forwarded to the child adapter that owns the selected template. That adapter performs parameter extraction, query execution, and result formatting.
+   - **Cross-adapter match**: The query is sent to all target adapters defined in the cross-adapter template in parallel. Results from each adapter are merged according to the template's merge strategy.
 
-5. **Result Enrichment**: The results from the child adapter are enriched with composite routing metadata before being returned.
+5. **Result Enrichment**: The results are enriched with composite routing metadata before being returned. Cross-adapter results include additional metadata identifying which adapters succeeded or failed.
 
 ### 2. Template Matching
 
@@ -245,6 +260,172 @@ composite_retrieval:
 - For <50 templates: Embedding-only may suffice
 - For 50-200 templates: Enable string similarity
 - For 200+ templates: Enable both reranking and string similarity
+
+## Cross-Adapter Templates
+
+Cross-adapter templates enable multi-source queries -- queries that need data from more than one child adapter. For example, "compare sales analytics with order data" requires results from both the analytics adapter and the orders adapter.
+
+### How Cross-Adapter Templates Work
+
+1. Cross-adapter templates are defined in separate YAML files and owned by the composite retriever (not by any child adapter).
+2. During initialization, the composite retriever embeds the `nl_examples` from cross-adapter templates into a dedicated vector store collection.
+3. At query time, cross-adapter templates compete in the same scoring pipeline as child adapter templates. The best overall match wins.
+4. If a cross-adapter template wins, the composite retriever routes the query to **all target adapters** in parallel and merges the results.
+5. If a regular child adapter template wins, the existing single-adapter routing path is used (unchanged).
+
+### Cross-Adapter Template Format
+
+```yaml
+templates:
+  - id: compare_sales_and_orders
+    description: Compare sales analytics data with order records from different databases
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-analytics"
+        label: "Sales Analytics"
+      - adapter: "intent-sql-postgres"
+        label: "Orders"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare sales analytics with order data"
+      - "show me both sales trends and recent orders"
+      - "how do analytics sales compare with actual orders"
+    tags:
+      - comparison
+      - cross-source
+      - sales
+      - orders
+```
+
+#### Template Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique template identifier |
+| `description` | string | Yes | Human-readable description (also used for embedding context) |
+| `cross_adapter` | bool | Yes | Must be `true` |
+| `target_adapters` | list | Yes | Child adapters to query (minimum 2). Each entry has `adapter` (name) and `label` (display name) |
+| `merge_strategy` | string | No | How to merge results: `side_by_side` (default) or `labeled_concat` |
+| `partial_results` | bool | No | Return results even if some target adapters fail (default: `true`) |
+| `nl_examples` | list | Yes | Natural language examples for vector matching |
+| `timeout_per_adapter` | float | No | Per-adapter timeout override (seconds) |
+| `tags` | list | No | Categorization tags |
+
+### Merge Strategies
+
+#### `side_by_side` (default)
+
+Each target adapter's results are returned as separate items in the result list, each annotated with the adapter label in metadata. The LLM presentation layer handles comparison formatting.
+
+Best for: queries where each source returns structurally different data.
+
+#### `labeled_concat`
+
+All result content is concatenated into a single result item with source labels prepended (e.g., `--- Sales Analytics ---\n...`). Metadata includes details from each source.
+
+Best for: queries where sources return similar data and a unified view is preferred.
+
+### Cross-Adapter Configuration
+
+Add to the composite adapter's `config` section:
+
+```yaml
+config:
+  child_adapters:
+    - "intent-sql-sqlite-hr"
+    - "intent-sql-postgres"
+    - "intent-duckdb-analytics"
+
+  # Cross-adapter template configuration
+  cross_adapter_templates:
+    enabled: true
+    template_library_path:
+      - "path/to/cross_adapter_templates.yaml"
+    template_collection_name: "composite_cross_adapter_templates"
+    store_name: "chroma"
+
+  # Cross-adapter execution settings
+  cross_adapter_execution:
+    timeout_per_adapter: 10.0       # Timeout per child adapter query (seconds)
+    partial_results: true            # Return results even if some adapters fail
+    default_merge_strategy: "side_by_side"  # Default merge strategy
+```
+
+#### Configuration Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cross_adapter_templates.enabled` | bool | `false` | Enable cross-adapter template matching |
+| `cross_adapter_templates.template_library_path` | list | `[]` | Paths to cross-adapter template YAML files |
+| `cross_adapter_templates.template_collection_name` | string | `composite_cross_adapter_templates` | Vector store collection name |
+| `cross_adapter_templates.store_name` | string | `chroma` | Vector store type |
+| `cross_adapter_execution.timeout_per_adapter` | float | `10.0` | Timeout per adapter in seconds |
+| `cross_adapter_execution.partial_results` | bool | `true` | Return partial results on adapter failure |
+| `cross_adapter_execution.default_merge_strategy` | string | `side_by_side` | Default merge strategy |
+
+### Cross-Adapter Response Format
+
+```json
+{
+  "content": "Results from the sales analytics adapter...",
+  "metadata": {
+    "composite_routing": {
+      "cross_adapter": true,
+      "template_id": "compare_sales_and_orders",
+      "merge_strategy": "side_by_side",
+      "similarity_score": 0.87,
+      "target_adapters": [
+        "intent-duckdb-analytics",
+        "intent-sql-postgres"
+      ],
+      "successful_adapters": [
+        "intent-duckdb-analytics",
+        "intent-sql-postgres"
+      ],
+      "failed_adapters": [],
+      "total_sources": 2
+    },
+    "cross_adapter_source": {
+      "adapter": "intent-duckdb-analytics",
+      "label": "Sales Analytics"
+    }
+  }
+}
+```
+
+With `side_by_side`, each result item includes a `cross_adapter_source` field identifying which adapter produced it. With `labeled_concat`, a single result item is returned with all content concatenated and a `source_details` map in metadata.
+
+### Cross-Adapter Routing Metadata Fields
+
+| Field | Description |
+|-------|-------------|
+| `cross_adapter` | `true` when a cross-adapter template was matched |
+| `template_id` | ID of the cross-adapter template |
+| `merge_strategy` | Merge strategy used (`side_by_side` or `labeled_concat`) |
+| `similarity_score` | Embedding similarity score of the cross-adapter template |
+| `target_adapters` | List of child adapter names that were queried |
+| `successful_adapters` | Adapters that returned results successfully |
+| `failed_adapters` | Adapters that failed (with error details) |
+| `total_sources` | Number of adapters that returned results |
+
+### Partial Failure Handling
+
+When `partial_results` is `true` (default), the composite retriever returns results from successful adapters even if some fail. Failed adapters are listed in `failed_adapters` with error details.
+
+When `partial_results` is `false`, any adapter failure causes the entire cross-adapter query to return an error.
+
+### Verbose Logging for Cross-Adapter Queries
+
+With `verbose: true`, cross-adapter routing produces logs like:
+
+```
+[Composite] CROSS-ADAPTER query matched template: compare_sales_and_orders
+[Composite] Merge strategy: side_by_side
+[Composite] Target adapters: ['intent-duckdb-analytics', 'intent-sql-postgres']
+[Composite] Successful: ['intent-duckdb-analytics', 'intent-sql-postgres']
+[Composite] Score: 0.870
+```
 
 ## Configuration
 
@@ -433,19 +614,7 @@ User queries are automatically routed to the appropriate database:
 - "What's the revenue trend for Q4?" → Analytics database  
 - "Find movies starring Tom Hanks" → Movie catalog
 
-### 2. Government Open Data Portal
-
-Aggregate queries across multiple public datasets:
-
-```yaml
-config:
-  child_adapters:
-    - "intent-duckdb-open-gov-travel-expenses"
-    - "intent-duckdb-open-gov-contracts"
-    - "intent-duckdb-ottawa-police-auto-theft"
-```
-
-### 3. Hybrid SQL and API Sources
+### 2. Hybrid SQL and API Sources
 
 Combine traditional databases with external APIs:
 
@@ -456,6 +625,31 @@ config:
     - "intent-http-pricing-api"         # External pricing API
     - "intent-mongodb-orders"           # Order history
 ```
+
+### 3. Cross-Source Comparison with Cross-Adapter Templates
+
+Compare data across multiple sources using cross-adapter templates:
+
+```yaml
+config:
+  child_adapters:
+    - "intent-sql-sqlite-hr"        # HR employee data
+    - "intent-sql-postgres"         # Customer orders
+    - "intent-duckdb-analytics"     # Sales analytics
+
+  cross_adapter_templates:
+    enabled: true
+    template_library_path:
+      - "examples/intent-templates/cross-adapter-template/cross_adapter_templates.yaml"
+    template_collection_name: "composite_cross_adapter_templates"
+    store_name: "chroma"
+```
+
+User queries are routed appropriately:
+- "Show me all employees" --> single adapter (HR)
+- "What's the revenue trend for Q4?" --> single adapter (Analytics)
+- "Compare sales analytics with order data" --> cross-adapter (Analytics + Orders in parallel)
+- "Show me data from all sources" --> cross-adapter (HR + Analytics + Orders in parallel)
 
 ## Debugging and Testing
 
@@ -633,13 +827,15 @@ Total unique templates = num_child_adapters × max_templates_per_source
 
 ## Limitations
 
-1. **Single Source Execution**: Only the best-matching source executes the query. Results are not merged from multiple sources.
+1. **Single Source Execution (default)**: Without cross-adapter templates, only the best-matching source executes the query. Enable cross-adapter templates for multi-source queries.
 
 2. **Shared Embedding Requirement**: All child adapters should ideally use the same embedding model, or the similarity scores may not be directly comparable.
 
 3. **Child Adapter Initialization**: Child adapters must be fully initialized before the composite retriever can use them. The composite does not initialize child adapters.
 
-4. **No Cross-Source Joins**: The composite retriever cannot join data across sources. Each query goes to exactly one source.
+4. **No Cross-Source Joins**: The composite retriever cannot join data across sources at the SQL level. Cross-adapter templates execute independent queries per source and merge the results, but do not perform relational joins across databases.
+
+5. **Cross-Adapter Template Authoring**: Cross-adapter templates must be authored manually, specifying which target adapters to query. There is no automatic detection of multi-source queries without a matching cross-adapter template.
 
 ## Implementation Details
 
@@ -655,11 +851,12 @@ BaseRetriever
 
 | File | Purpose |
 |------|---------|
-| `server/retrievers/base/intent_composite_base.py` | Base class with core routing logic and multi-stage scoring |
+| `server/retrievers/base/intent_composite_base.py` | Base class with core routing logic, multi-stage scoring, and cross-adapter template support |
 | `server/retrievers/implementations/composite/composite_intent_retriever.py` | Full implementation with debug methods |
 | `server/utils/string_similarity.py` | String similarity utilities (Jaro-Winkler, Levenshtein) |
-| `config/adapters/composite.yaml` | Example adapter configurations |
+| `config/adapters/composite.yaml` | Example adapter configurations (including cross-adapter template config) |
 | `config/config.yaml` (composite_retrieval section) | Global multi-stage selection settings |
+| `examples/intent-templates/cross-adapter-template/` | Example cross-adapter template definitions |
 
 ### Data Structures
 

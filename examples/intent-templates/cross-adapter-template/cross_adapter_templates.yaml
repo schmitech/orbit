@@ -1,0 +1,206 @@
+# Cross-adapter templates for multi-source comparison queries.
+# These templates are owned by the composite retriever and trigger
+# parallel execution across multiple child adapters, merging results.
+#
+# Used with the composite-multi-source-explorer adapter which spans:
+#   - intent-sql-sqlite-hr (employees, departments, salaries)
+#   - intent-sql-postgres (orders, customers, products, shipping)
+#   - intent-duckdb-analytics (sales, revenue, profitability, trends)
+
+templates:
+  # ============================================================
+  # Sales & Orders Cross-Source Comparisons
+  # ============================================================
+  - id: compare_sales_and_orders
+    description: Compare sales analytics data with order records from different databases
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-analytics"
+        label: "Sales Analytics"
+      - adapter: "intent-sql-postgres"
+        label: "Orders"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare sales analytics with order data"
+      - "show me both sales trends and recent orders"
+      - "how do analytics sales compare with actual orders"
+      - "sales analytics vs order records"
+      - "show me sales and orders side by side"
+      - "correlate sales data with order information"
+    tags:
+      - comparison
+      - cross-source
+      - sales
+      - orders
+
+  - id: compare_top_customers_across_sources
+    description: Compare top customers from sales analytics and order databases
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-analytics"
+        label: "Sales Analytics"
+      - adapter: "intent-sql-postgres"
+        label: "Orders"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare top customers across sales and orders"
+      - "show me top customers from both databases"
+      - "who are our best customers in analytics vs orders"
+      - "customer revenue comparison across data sources"
+      - "top buyers in sales analytics and order system"
+      - "compare customer spending across both systems"
+    tags:
+      - comparison
+      - cross-source
+      - customers
+
+  - id: compare_revenue_and_orders_by_region
+    description: Compare revenue by region from analytics with orders by customer city
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-analytics"
+        label: "Sales Analytics"
+      - adapter: "intent-sql-postgres"
+        label: "Orders"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare revenue by region with orders by city"
+      - "regional sales vs order locations"
+      - "show me geographic breakdown from both sales and orders"
+      - "how do regional sales compare with order geography"
+      - "compare sales regions with customer locations"
+    tags:
+      - comparison
+      - cross-source
+      - geographic
+      - revenue
+
+  # ============================================================
+  # HR & Sales Cross-Source Comparisons
+  # ============================================================
+  - id: compare_hr_and_sales
+    description: Compare HR employee and salary data with sales performance metrics
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-sql-sqlite-hr"
+        label: "HR"
+      - adapter: "intent-duckdb-analytics"
+        label: "Sales Analytics"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare HR data with sales performance"
+      - "show me employee info alongside sales metrics"
+      - "how do department sizes relate to sales"
+      - "HR and sales data side by side"
+      - "compare employee counts with sales figures"
+      - "show me staffing levels and sales performance together"
+    tags:
+      - comparison
+      - cross-source
+      - hr
+      - sales
+
+  - id: compare_salaries_and_revenue
+    description: Compare department salary costs with revenue and profitability data
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-sql-sqlite-hr"
+        label: "HR"
+      - adapter: "intent-duckdb-analytics"
+        label: "Sales Analytics"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare salaries with revenue"
+      - "salary costs vs sales revenue"
+      - "how do salaries compare to profitability"
+      - "show me compensation alongside revenue numbers"
+      - "department salary costs and sales performance"
+      - "compare what we pay employees with what we earn"
+    tags:
+      - comparison
+      - cross-source
+      - salaries
+      - revenue
+
+  # ============================================================
+  # HR & Orders Cross-Source Comparisons
+  # ============================================================
+  - id: compare_hr_and_orders
+    description: Compare HR employee data with customer order information
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-sql-sqlite-hr"
+        label: "HR"
+      - adapter: "intent-sql-postgres"
+        label: "Orders"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare HR data with order information"
+      - "show me employee data alongside orders"
+      - "how does staffing relate to order volume"
+      - "HR and orders data side by side"
+      - "compare employees with customer orders"
+      - "show me department headcount and order counts together"
+    tags:
+      - comparison
+      - cross-source
+      - hr
+      - orders
+
+  # ============================================================
+  # All Three Sources Combined
+  # ============================================================
+  - id: compare_all_sources
+    description: Compare data across HR, sales analytics, and order databases
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-sql-sqlite-hr"
+        label: "HR"
+      - adapter: "intent-duckdb-analytics"
+        label: "Sales Analytics"
+      - adapter: "intent-sql-postgres"
+        label: "Orders"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "show me data from all sources"
+      - "compare HR, sales, and orders data"
+      - "give me a summary across all databases"
+      - "show me everything from all three data sources"
+      - "compare information across HR, analytics, and orders"
+      - "cross-database summary of employees, sales, and orders"
+    tags:
+      - comparison
+      - cross-source
+      - all-sources
+
+  - id: compare_counts_all_sources
+    description: Compare record counts and summary statistics across all data sources
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-sql-sqlite-hr"
+        label: "HR"
+      - adapter: "intent-duckdb-analytics"
+        label: "Sales Analytics"
+      - adapter: "intent-sql-postgres"
+        label: "Orders"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "how many records in each database"
+      - "count totals across all sources"
+      - "show me the size of each dataset"
+      - "how much data do we have in each system"
+      - "compare record counts across HR, sales, and orders"
+      - "what is the volume of data in each source"
+    tags:
+      - comparison
+      - cross-source
+      - counts
+      - summary

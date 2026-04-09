@@ -615,6 +615,18 @@ class AutocompleteService:
             except Exception as e:
                 logger.warning(f"Error getting examples from child adapter {child_name}: {e}")
 
+        # Include nl_examples from cross-adapter templates if present
+        cross_adapter_templates = getattr(adapter, '_cross_adapter_templates', {})
+        if cross_adapter_templates:
+            for template_data in cross_adapter_templates.values():
+                nl_examples = template_data.get('nl_examples', [])
+                if isinstance(nl_examples, list):
+                    all_examples.extend(nl_examples)
+            logger.debug(
+                f"[Autocomplete] Added nl_examples from {len(cross_adapter_templates)} "
+                f"cross-adapter templates"
+            )
+
         # Deduplicate while preserving order
         seen = set()
         unique_examples = []
