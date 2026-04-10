@@ -36,8 +36,15 @@
   let lastAdapters = {};
   let adapterSearchFilter = "";
   let adapterStateFilter = "all";
+  let lastDatasourcePool = null;
+  let datasourceSearchFilter = "";
+  let lastThreadPools = {};
+  let threadPoolSearchFilter = "";
   let overviewCharts = {};
   let monitoringThresholds = { cpu: 90, memory: 85, error_rate: 5, response_time_ms: 5000 };
+  let overviewAdapterPaginator = null;
+  let overviewDatasourcePaginator = null;
+  let overviewThreadPoolPaginator = null;
 
   // ------------------------------------------------------------------
   // API endpoint paths
@@ -165,6 +172,7 @@
   var ICON_EYE_OFF = ["M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94", "M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19", "M14.12 14.12a3 3 0 1 1-4.24-4.24", "M1 1l22 22"];
   var ICON_COPY = ["M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2", "M8 2h8a1 1 0 0 1 1 1v1H7V3a1 1 0 0 1 1-1z"];
   var ICON_CHECK = ["M20 6L9 17l-5-5"];
+  var ICON_PLUS = ["M12 5v14", "M5 12h14"];
 
   function passwordField(labelText, input, hintText) {
     input.type = "password";
@@ -211,7 +219,7 @@
 
   function createPaginator(opts) {
     var pageSize = opts.pageSize || ITEMS_PER_PAGE;
-    var onPageChange = opts.onPageChange;
+    var onPageChange = opts.onPageChange || function () {};
     var allItems = [];
     var currentPage = 1;
     var totalPages = 1;
@@ -295,9 +303,9 @@
       onPageChange(getSlice(), currentPage, totalPages);
     }
 
-    function setData(items) {
+    function setData(items, preservePage) {
       allItems = items || [];
-      currentPage = 1;
+      if (!preservePage) currentPage = 1;
       computePages();
       renderControls();
       onPageChange(getSlice(), currentPage, totalPages);
@@ -319,6 +327,10 @@
 
     return {
       setData: setData,
+      setItems: setData,
+      setPageChangeHandler: function (handler) {
+        onPageChange = handler || function () {};
+      },
       getControlsEl: function () { return barEl; },
       goToPage: goToPage,
       ensureItemVisible: ensureItemVisible,
@@ -1091,13 +1103,56 @@
     );
   }
 
-  function monitoringSummaryCard(label, value, hint) {
+  function monitoringSummaryCard(label, value, hint, extraClass) {
     var children = [
       el("p", { className: "label" }, label),
       el("p", { className: "value" }, value)
     ];
     if (hint) children.push(el("p", { className: "hint" }, hint));
-    return el("div", { className: "monitoring-summary-card" }, children);
+    return el("div", { className: "monitoring-summary-card" + (extraClass ? " " + extraClass : "") }, children);
+  }
+
+  function monitoringStateTone(state) {
+    var normalized = (state || "unknown").toLowerCase();
+    if (normalized === "closed" || normalized === "connected" || normalized === "healthy") return "green";
+    if (normalized === "half_open" || normalized === "warning" || normalized === "degraded") return "amber";
+    if (normalized === "open" || normalized === "error" || normalized === "disconnected") return "red";
+    return "muted";
+  }
+
+  function monitoringStatusCell(label, tone) {
+    return el("span", { className: "monitoring-status-cell" },
+      el("span", { className: "monitoring-status-icon " + (tone || "muted"), "aria-hidden": "true" }),
+      el("span", { className: "monitoring-status-label" }, label)
+    );
+  }
+
+  function renderMonitoringTable(container, columns, rows, emptyMessage, paginator) {
+    clear(container);
+    if (!rows.length) {
+      container.appendChild(el("p", { style: "color:var(--ink-muted);font-size:var(--text-sm)" }, emptyMessage));
+      if (paginator) paginator.setItems([]);
+      return;
+    }
+    var table = el("table", { className: "monitoring-table" });
+    table.appendChild(el("thead", null, el("tr", null, columns.map(function (column) {
+      return el("th", column.attrs || null, column.label);
+    }))));
+    var tbody = el("tbody");
+    table.appendChild(tbody);
+    container.appendChild(table);
+    function renderPage(pageRows) {
+      clear(tbody);
+      pageRows.forEach(function (row) {
+        tbody.appendChild(el("tr", null, row));
+      });
+    }
+    if (paginator) {
+      paginator.setPageChangeHandler(renderPage);
+      paginator.setItems(rows, true);
+    } else {
+      renderPage(rows);
+    }
   }
 
   function updateMonitoringPipeline(steps, summary) {
@@ -1167,7 +1222,7 @@
       { label: "Half-open", key: "half_open", hint: "Testing" },
       { label: "Closed", key: "closed", hint: "Healthy" }
     ].forEach(function (c) {
-      summaryEl.appendChild(monitoringSummaryCard(c.label, String(counts[c.key] || 0), c.hint));
+      summaryEl.appendChild(monitoringSummaryCard(c.label, String(counts[c.key] || 0), c.hint, "monitoring-summary-card-compact"));
     });
 
     var stateOrder = { open: 0, half_open: 1, closed: 2, unknown: 3 };
@@ -1188,65 +1243,66 @@
       container.appendChild(el("p", { style: "color:var(--ink-muted);font-size:var(--text-sm)" }, "No adapters match the current filters."));
       return;
     }
-    var badgeMap = { closed: "green", open: "red", half_open: "amber", unknown: "muted" };
-    filtered.forEach(function (pair) {
+    var rows = filtered.map(function (pair) {
       var name = pair[0], status = pair[1];
       var state = (status && status.state || "unknown").toLowerCase();
       var failures = (status && status.failure_count) || 0;
       var reqs = (status && (status.request_count || status.success_count)) || 0;
       var latency = status && status.average_latency_ms;
       var latencyStr = typeof latency === "number" ? formatNum(latency, latency >= 100 ? 0 : 1) + " ms" : "\u2014";
-      container.appendChild(el("div", { className: "monitoring-adapter-card" },
-        el("div", { style: "display:flex;justify-content:space-between;align-items:start;gap:var(--sp-2)" },
-          el("div", { style: "min-width:0" },
-            el("p", { style: "font-weight:700;font-size:var(--text-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap", title: name }, name),
-            el("p", { style: "font-size:var(--text-xs);color:var(--ink-muted)" }, "Failures: " + formatNum(failures))
-          ),
-          el("span", { className: "monitoring-badge " + (badgeMap[state] || "muted") }, state.replace("_", " "))
-        ),
-        el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2);font-size:var(--text-xs);color:var(--ink-muted)" },
-          monitoringStatCell("Requests", formatNum(reqs)),
-          monitoringStatCell("Latency", latencyStr)
-        )
-      ));
+      return [
+        el("td", null, el("div", { className: "monitoring-table-primary", title: name }, name)),
+        el("td", null, monitoringStatusCell(state.replace("_", " "), monitoringStateTone(state))),
+        el("td", { style: "text-align:right;font-weight:600" }, formatNum(reqs)),
+        el("td", { style: "text-align:right;font-weight:600" }, formatNum(failures)),
+        el("td", { style: "text-align:right;font-weight:600" }, latencyStr)
+      ];
     });
+    renderMonitoringTable(container, [
+      { label: "Adapter" },
+      { label: "State" },
+      { label: "Requests", attrs: { style: "text-align:right" } },
+      { label: "Failures", attrs: { style: "text-align:right" } },
+      { label: "Avg Latency", attrs: { style: "text-align:right" } }
+    ], rows, "No adapters match the current filters.", overviewAdapterPaginator);
   }
 
   function updateMonitoringThreadPools(pools) {
+    lastThreadPools = pools || {};
     var section = document.getElementById("mon-threadpool-section");
     if (!section) return;
-    var entries = Object.entries(pools || {});
+    var entries = Object.entries(lastThreadPools);
     if (!entries.length) { section.style.display = "none"; return; }
     section.style.display = "";
     var container = document.getElementById("mon-threadpool-list");
     if (!container) return;
-    clear(container);
-    entries.forEach(function (pair) {
+    var filtered = entries.filter(function (pair) {
+      if (!threadPoolSearchFilter) return true;
+      return pair[0].toLowerCase().includes(threadPoolSearchFilter);
+    }).sort(function (a, b) {
+      return a[0].localeCompare(b[0]);
+    });
+    var rows = filtered.map(function (pair) {
       var name = pair[0], pool = pair[1];
       var util = pool.max_workers > 0 ? clampPercentage((pool.active_threads / pool.max_workers) * 100) : 0;
       var isIdle = pool.active_threads === 0 && pool.queued_tasks === 0;
-      var barColor = isIdle ? "muted" : util >= 90 ? "red" : util >= 75 ? "amber" : "green";
-      var badgeCls = isIdle ? "muted" : util >= 90 ? "red" : util >= 75 ? "amber" : "green";
-      var card = el("div", { className: "thread-pool-card" },
-        el("div", { style: "display:flex;justify-content:space-between;align-items:center" },
-          el("h4", null, name),
-          el("span", { className: "monitoring-badge " + badgeCls }, util.toFixed(1) + "%")
-        ),
-        el("div", { className: "monitoring-stats-row" },
-          el("span", { className: "stats-label" }, "Active Threads"),
-          el("span", { className: "stats-value" }, pool.active_threads + " / " + pool.max_workers)
-        ),
-        el("div", { className: "monitoring-stats-row" },
-          el("span", { className: "stats-label" }, "Queued Tasks"),
-          el("span", { className: "stats-value" }, String(pool.queued_tasks === "N/A" ? "0" : pool.queued_tasks))
-        ),
-        el("div", { className: "monitoring-progress-track" },
-          el("div", { id: "tp-bar-" + name, className: "monitoring-progress-bar " + barColor, style: "width:" + Math.max(util, 2).toFixed(1) + "%" })
-        ),
-        isIdle ? el("div", { style: "font-size:var(--text-xs);color:var(--ink-muted);margin-top:var(--sp-1)" }, "Pool idle \u2014 threads spawn on demand") : null
-      );
-      container.appendChild(card);
+      var tone = isIdle ? "muted" : util >= 90 ? "red" : util >= 75 ? "amber" : "green";
+      var statusLabel = isIdle ? "Idle" : util >= 90 ? "Busy" : util >= 75 ? "Active" : "Healthy";
+      return [
+        el("td", null, el("div", { className: "monitoring-table-primary", title: name }, name)),
+        el("td", null, monitoringStatusCell(statusLabel, tone)),
+        el("td", { style: "text-align:right;font-weight:600" }, pool.active_threads + " / " + pool.max_workers),
+        el("td", { style: "text-align:right;font-weight:600" }, String(pool.queued_tasks === "N/A" ? "0" : pool.queued_tasks)),
+        el("td", { style: "text-align:right;font-weight:600" }, util.toFixed(1) + "%")
+      ];
     });
+    renderMonitoringTable(container, [
+      { label: "Pool" },
+      { label: "Status" },
+      { label: "Active Threads", attrs: { style: "text-align:right" } },
+      { label: "Queued", attrs: { style: "text-align:right" } },
+      { label: "Utilization", attrs: { style: "text-align:right" } }
+    ], rows, "No thread pools match the current filter.", overviewThreadPoolPaginator);
   }
 
   function updateMonitoringRedisHealth(data) {
@@ -1271,6 +1327,7 @@
   }
 
   function updateMonitoringDatasourcePool(data) {
+    lastDatasourcePool = data || null;
     var section = document.getElementById("mon-datasource-section");
     if (!section) return;
     if (!data || !(data.total_cached_datasources > 0)) { section.style.display = "none"; return; }
@@ -1281,23 +1338,30 @@
     setText("mon-ds-efficiency", formatNum(Math.max(0, eff), 1) + "%");
     var container = document.getElementById("mon-ds-list");
     if (!container || !data.datasource_keys) return;
-    clear(container);
-    data.datasource_keys.forEach(function (key) {
+    var filteredKeys = data.datasource_keys.filter(function (key) {
+      if (!datasourceSearchFilter) return true;
+      return key.toLowerCase().includes(datasourceSearchFilter);
+    }).sort();
+    var rows = filteredKeys.map(function (key) {
       var refCount = (data.reference_counts && data.reference_counts[key]) || 0;
       var parts = key.split(":");
       var dsType = parts[0] || "unknown";
       var connInfo = parts.slice(1).join(":") || "default";
-      var badgeCls = refCount >= 5 ? "green" : refCount >= 3 ? "green" : refCount === 2 ? "amber" : "muted";
-      container.appendChild(el("div", { className: "monitoring-adapter-card monitoring-datasource-card" },
-        el("div", { className: "monitoring-ds-card-row" },
-          el("div", { className: "monitoring-ds-card-main" },
-            el("p", { className: "monitoring-ds-card-type" }, dsType),
-            el("p", { className: "monitoring-ds-card-path" }, connInfo)
-          ),
-          el("span", { className: "monitoring-badge monitoring-ds-card-ref " + badgeCls }, refCount + " ref" + (refCount !== 1 ? "s" : ""))
-        )
-      ));
+      var statusTone = refCount >= 3 ? "green" : refCount === 2 ? "amber" : "muted";
+      var statusLabel = refCount >= 3 ? "Shared" : refCount === 2 ? "Warm" : "Idle";
+      return [
+        el("td", null, el("div", { className: "monitoring-table-primary" }, dsType)),
+        el("td", null, el("code", { className: "monitoring-table-code", title: connInfo }, connInfo)),
+        el("td", { style: "text-align:right;font-weight:600" }, refCount),
+        el("td", null, monitoringStatusCell(statusLabel, statusTone))
+      ];
     });
+    renderMonitoringTable(container, [
+      { label: "Datasource" },
+      { label: "Connection" },
+      { label: "References", attrs: { style: "text-align:right" } },
+      { label: "Status" }
+    ], rows, "No datasource pool entries match the current filter.", overviewDatasourcePaginator);
   }
 
   function updateMonitoringConnections(conn) {
@@ -1307,6 +1371,10 @@
 
   // --- Render Overview ---
   async function renderOverview(container) {
+    overviewAdapterPaginator = createPaginator({ pageSize: ITEMS_PER_PAGE, onPageChange: function () {} });
+    overviewDatasourcePaginator = createPaginator({ pageSize: ITEMS_PER_PAGE, onPageChange: function () {} });
+    overviewThreadPoolPaginator = createPaginator({ pageSize: ITEMS_PER_PAGE, onPageChange: function () {} });
+
     // 1. Toolbar
     var toolbar = el("div", { className: "monitoring-toolbar" },
       el("div", { className: "monitoring-toolbar-left" },
@@ -1394,6 +1462,7 @@
     var searchInput = el("input", { type: "text", placeholder: "Search adapters...", "aria-label": "Search adapters" });
     searchInput.addEventListener("input", function (e) {
       adapterSearchFilter = (e.target.value || "").trim().toLowerCase();
+      if (overviewAdapterPaginator) overviewAdapterPaginator.goToPage(1);
       if (lastMetricsSnapshot) renderMonitoringAdapterList(lastAdapters);
     });
     searchWrap.appendChild(searchInput);
@@ -1402,6 +1471,7 @@
       var btn = el("button", { className: "state-filter" + (state === adapterStateFilter ? " active" : ""), "aria-pressed": state === adapterStateFilter ? "true" : "false" }, state === "all" ? "All" : state.replace("_", " "));
       btn.addEventListener("click", function () {
         adapterStateFilter = state;
+        if (overviewAdapterPaginator) overviewAdapterPaginator.goToPage(1);
         adapterToolbar.querySelectorAll(".state-filter").forEach(function (b) {
           var isActive = b === btn;
           b.classList.toggle("active", isActive);
@@ -1416,19 +1486,32 @@
       el("h3", null, "Adapter Health"),
       adapterToolbar,
       el("div", { id: "mon-adapter-summary", style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:var(--sp-2);margin:var(--sp-3) 0" }),
-      el("div", { id: "mon-adapter-list", className: "adapter-health-grid" })
+      el("div", { id: "mon-adapter-list", className: "table-wrap monitoring-table-wrap" }),
+      overviewAdapterPaginator.getControlsEl()
     );
     container.appendChild(adapterSection);
 
     // 8. Datasource Pool
+    var dsToolbar = el("div", { className: "monitoring-table-toolbar" });
+    var dsSearchWrap = el("div", { className: "monitoring-search-field" });
+    var dsSearchInput = el("input", { type: "text", placeholder: "Search datasource pool...", "aria-label": "Search datasource pool" });
+    dsSearchInput.addEventListener("input", function (e) {
+      datasourceSearchFilter = (e.target.value || "").trim().toLowerCase();
+      if (overviewDatasourcePaginator) overviewDatasourcePaginator.goToPage(1);
+      if (lastDatasourcePool) updateMonitoringDatasourcePool(lastDatasourcePool);
+    });
+    dsSearchWrap.appendChild(dsSearchInput);
+    dsToolbar.appendChild(dsSearchWrap);
     var dsSection = el("div", { id: "mon-datasource-section", className: "monitoring-section", style: "display:none" },
       el("h3", null, "Datasource Pool"),
       el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:var(--sp-2);margin-bottom:var(--sp-3)" },
-        el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Cached"), el("p", { id: "mon-ds-total", className: "value" }, "0")),
-        el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "References"), el("p", { id: "mon-ds-refs", className: "value" }, "0")),
-        el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Reuse Rate"), el("p", { id: "mon-ds-efficiency", className: "value" }, "0%"))
+        el("div", { className: "monitoring-summary-card monitoring-summary-card-compact" }, el("p", { className: "label" }, "Cached"), el("p", { id: "mon-ds-total", className: "value" }, "0")),
+        el("div", { className: "monitoring-summary-card monitoring-summary-card-compact" }, el("p", { className: "label" }, "References"), el("p", { id: "mon-ds-refs", className: "value" }, "0")),
+        el("div", { className: "monitoring-summary-card monitoring-summary-card-compact" }, el("p", { className: "label" }, "Reuse Rate"), el("p", { id: "mon-ds-efficiency", className: "value" }, "0%"))
       ),
-      el("div", { id: "mon-ds-list", className: "adapter-health-grid" })
+      dsToolbar,
+      el("div", { id: "mon-ds-list", className: "table-wrap monitoring-table-wrap" }),
+      overviewDatasourcePaginator.getControlsEl()
     );
     container.appendChild(dsSection);
 
@@ -1446,9 +1529,21 @@
     container.appendChild(redisSection);
 
     // 10. Thread Pools
+    var threadToolbar = el("div", { className: "monitoring-table-toolbar" });
+    var threadSearchWrap = el("div", { className: "monitoring-search-field" });
+    var threadSearchInput = el("input", { type: "text", placeholder: "Search thread pools...", "aria-label": "Search thread pools" });
+    threadSearchInput.addEventListener("input", function (e) {
+      threadPoolSearchFilter = (e.target.value || "").trim().toLowerCase();
+      if (overviewThreadPoolPaginator) overviewThreadPoolPaginator.goToPage(1);
+      updateMonitoringThreadPools(lastThreadPools);
+    });
+    threadSearchWrap.appendChild(threadSearchInput);
+    threadToolbar.appendChild(threadSearchWrap);
     var threadSection = el("div", { id: "mon-threadpool-section", className: "monitoring-section", style: "display:none" },
       el("h3", null, "Thread Pools"),
-      el("div", { id: "mon-threadpool-list", className: "thread-pool-grid" })
+      threadToolbar,
+      el("div", { id: "mon-threadpool-list", className: "table-wrap monitoring-table-wrap" }),
+      overviewThreadPoolPaginator.getControlsEl()
     );
     container.appendChild(threadSection);
 
@@ -1755,12 +1850,12 @@
   async function renderKeys(container) {
     var layout = el("div", { className: "tab-stacked-layout" });
     var listPanel = el("div", { className: "panel" });
-    var createPanel = el("div", { className: "panel" });
+    var createPanel = el("div", { className: "panel", style: "display:none" });
     var detailPanel = el("div", { className: "panel" });
     var keySearchFilter = "";
     layout.appendChild(listPanel);
-    layout.appendChild(createPanel);
     layout.appendChild(detailPanel);
+    layout.appendChild(createPanel);
     container.appendChild(layout);
 
     listPanel.appendChild(el("h2", null, "API Keys"));
@@ -1796,10 +1891,21 @@
     }
     var notesInput = el("textarea", { rows: "4", maxlength: "1000" });
     var createBtn = el("button", { type: "button" }, "Create Key");
-
-    createPanel.appendChild(el("h2", null, "Create API Key"));
+    function openCreatePanel() {
+      createPanel.style.display = "";
+      createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    function closeCreatePanel() {
+      createPanel.style.display = "none";
+    }
+    var createPanelToggle = el("button", { className: "secondary", type: "button" }, "Close");
+    createPanelToggle.addEventListener("click", closeCreatePanel);
+    createPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "New API Key"),
+      createPanelToggle
+    ));
     var form = el("div", { className: "admin-create-form" },
-      el("div", { className: "admin-create-form-grid" },
+      el("div", { className: "admin-create-form-grid api-key-create-grid" },
         field("Client", clientInput),
         field("Adapter", adapterSelect),
         field("Persona", promptSelect)
@@ -1813,7 +1919,7 @@
 
     var keySearchInput = el("input", {
       type: "text",
-      placeholder: "Search API keys by client, adapter, persona, or last 4...",
+      placeholder: "Search API keys",
       "aria-label": "Search API keys"
     });
     listPanel.appendChild(field("Search", keySearchInput));
@@ -1829,6 +1935,13 @@
       }
     });
     listPanel.appendChild(keyPaginator.getControlsEl());
+    var createLaunchBtn = el("button", {
+      className: "secondary create-launch-btn",
+      type: "button",
+      "aria-label": "Create API key"
+    }, svgIcon(ICON_PLUS), el("span", null, "Create API Key"));
+    createLaunchBtn.addEventListener("click", openCreatePanel);
+    listPanel.appendChild(el("div", { className: "create-launch-row" }, createLaunchBtn));
 
     detailPanel.appendChild(el("h2", null, "Key Details"));
     detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
@@ -1846,7 +1959,9 @@
         if (notesInput.value.trim()) body.notes = notesInput.value.trim();
         await api("POST", ENDPOINTS.apiKeys, body);
         clientInput.value = "";
+        promptSelect.value = "";
         notesInput.value = "";
+        closeCreatePanel();
         loadKeys();
       }, "API key created");
     });
@@ -1978,8 +2093,7 @@
     clear(select);
     select.appendChild(el("option", { value: "" }, keys && keys.length ? "Select an API key" : "No API keys available"));
     (keys || []).forEach(function (key) {
-      var keyVal = key.api_key || key.key || "";
-      var label = (key.client_name || "Unnamed key") + " (" + maskSecret(keyVal) + ")";
+      var label = key.client_name || "Unnamed key";
       var option = el("option", { value: key._id || "" }, label);
       if (selectedKeyId && key._id === selectedKeyId) option.selected = true;
       select.appendChild(option);
@@ -2150,7 +2264,7 @@
     clear(panel);
     var keyId = key._id || "";
     var keyVal = key.api_key || key.key || "";
-    panel.appendChild(el("h2", null, "Key: " + (key.client_name || keyVal)));
+    panel.appendChild(el("h2", { className: "detail-title" }, key.client_name || "API Key Details"));
     var revealSecret = false;
     var keyCode = el("code", null, maskSecret(keyVal));
     var revealBtn = el("button", {
@@ -2183,9 +2297,14 @@
       });
     });
     var keyField = el("div", { className: "secret-field" }, keyCode, revealBtn, copyBtn);
+    var notesInput = el("textarea", { rows: "4", maxlength: "1000" }, key.notes || "");
+    var notesPreview = createMarkdownPreview(notesInput);
 
     var summary = el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "Key:"), " ", keyField),
+      el("p", null, el("strong", null, "Client:"), " " + (key.client_name || "N/A")),
+      el("p", null, el("strong", null, "Adapter:"), " " + (key.adapter_name || "default")),
+      el("p", null, el("strong", null, "Persona:"), " " + (key.system_prompt_name || "None")),
       el("p", null, el("strong", null, "Created:"), " " + (key.created_at ? new Date(key.created_at * 1000).toLocaleString() : "N/A")),
       el("p", null, el("strong", null, "Active:"), " ",
         el("span", { className: key.active !== false ? "status-active" : "status-inactive" },
@@ -2194,8 +2313,10 @@
       )
     );
     panel.appendChild(summary);
-
-    panel.appendChild(el("h3", null, "Edit Details"));
+    panel.appendChild(el("div", { className: "stack", style: "margin-top:var(--sp-3)" },
+      el("h3", null, "Notes"),
+      notesPreview
+    ));
     var clientInput = el("input", { type: "text", maxlength: "100", value: key.client_name || "" });
     var adapterSelect = el("select");
     var availableAdapterNames = [];
@@ -2220,8 +2341,64 @@
     }
     var promptSelect = el("select", null, el("option", { value: "" }, "No persona"));
     fillPromptSelect(promptSelect, cachedPrompts, key.system_prompt_id);
-    var notesInput = el("textarea", { rows: "4", maxlength: "1000" }, key.notes || "");
     var saveBtn = el("button", { type: "button" }, "Save Details");
+    var originalClientName = key.client_name || "";
+    var originalAdapterName = key.adapter_name || "";
+    var originalPromptId = key.system_prompt_id || "";
+    var originalNotes = key.notes || "";
+    var editForm = el("div", { style: "display:none" },
+      el("div", { className: "admin-create-form" },
+        el("div", { className: "admin-create-form-grid api-key-create-grid" },
+          field("Client", clientInput),
+          field("Adapter", adapterSelect),
+          field("Persona", promptSelect)
+        ),
+        field("Notes", notesInput)
+      )
+    );
+    var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Details");
+    var cancelBtn = el("button", { className: "secondary", type: "button", style: "display:none" }, "Cancel");
+    saveBtn.style.display = "none";
+    function keyDetailsChanged() {
+      return clientInput.value.trim() !== originalClientName ||
+        adapterSelect.value !== originalAdapterName ||
+        (promptSelect.value || "") !== originalPromptId ||
+        notesInput.value !== originalNotes;
+    }
+    function syncKeySaveState() {
+      saveBtn.disabled = !keyDetailsChanged();
+    }
+    function setKeyEditMode(editing) {
+      clientInput.readOnly = !editing;
+      clientInput.setAttribute("aria-readonly", editing ? "false" : "true");
+      if (editing) clientInput.removeAttribute("readonly");
+      else clientInput.setAttribute("readonly", "true");
+      adapterSelect.disabled = !editing;
+      promptSelect.disabled = !editing;
+      notesInput.readOnly = !editing;
+      notesInput.setAttribute("aria-readonly", editing ? "false" : "true");
+      if (editing) notesInput.removeAttribute("readonly");
+      else notesInput.setAttribute("readonly", "true");
+      editForm.style.display = editing ? "block" : "none";
+      editToggle.style.display = editing ? "none" : "inline-flex";
+      cancelBtn.style.display = editing ? "inline-flex" : "none";
+      saveBtn.style.display = editing ? "inline-flex" : "none";
+      syncKeySaveState();
+    }
+    editToggle.addEventListener("click", function () {
+      setKeyEditMode(true);
+    });
+    cancelBtn.addEventListener("click", function () {
+      clientInput.value = originalClientName;
+      adapterSelect.value = originalAdapterName;
+      promptSelect.value = originalPromptId;
+      notesInput.value = originalNotes;
+      setKeyEditMode(false);
+    });
+    clientInput.addEventListener("input", syncKeySaveState);
+    adapterSelect.addEventListener("change", syncKeySaveState);
+    promptSelect.addEventListener("change", syncKeySaveState);
+    notesInput.addEventListener("input", syncKeySaveState);
     saveBtn.addEventListener("click", function () {
       var clientName = clientInput.value.trim();
       if (!clientName) {
@@ -2243,14 +2420,10 @@
       }, "API key updated");
     });
     panel.appendChild(el("div", { className: "stack" },
-      el("div", { className: "admin-create-form-grid" },
-        field("Client", clientInput),
-        field("Adapter", adapterSelect),
-        field("Persona", promptSelect)
-      ),
-      field("Notes", notesInput),
-      saveBtn
+      el("div", { className: "inline-form detail-action-row" }, editToggle, cancelBtn, saveBtn),
+      editForm
     ));
+    setKeyEditMode(false);
 
     // Test key
     var testBtn = el("button", { className: "secondary", type: "button" }, "Test Key");
@@ -2362,25 +2535,6 @@
       el("p", null, "Deleting a key immediately revokes access for downstream clients."),
       dangerActions
     ));
-
-    // Raw status
-    panel.appendChild(el("h3", null, "Raw Status"));
-    var rawWrap = el("div");
-    var rawBtn = el("button", { className: "secondary", type: "button" }, "Load Status");
-    rawWrap.appendChild(rawBtn);
-    rawBtn.addEventListener("click", async function () {
-      rawBtn.disabled = true;
-      try {
-        var status = await api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/status");
-        clear(rawWrap);
-        rawWrap.appendChild(el("pre", null, JSON.stringify(status, null, 2)));
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        rawBtn.disabled = false;
-      }
-    });
-    panel.appendChild(rawWrap);
   }
 
   function renderQuotaDetail(wrap, keyId, quota) {
@@ -2491,18 +2645,18 @@
   async function renderPrompts(container) {
     var layout = el("div", { className: "tab-stacked-layout" });
     var listPanel = el("div", { className: "panel" });
-    var createPanel = el("div", { className: "panel" });
-    var detailPanel = el("div", { className: "panel" });
+    var createPanel = el("div", { className: "panel", style: "display:none" });
+    var detailPanel = el("div", { className: "panel", style: "display:none" });
     var promptSearchFilter = "";
     layout.appendChild(listPanel);
-    layout.appendChild(createPanel);
     layout.appendChild(detailPanel);
+    layout.appendChild(createPanel);
     container.appendChild(layout);
 
     listPanel.appendChild(el("h2", null, "Personas"));
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "100" });
-    var versionInput = el("input", { type: "text", value: "1.0", maxlength: "100" });
+    var versionInput = el("input", { type: "text", value: "1.0", maxlength: "25" });
     var textArea = el("textarea", { rows: "5", required: "true", maxlength: "50000" });
     var createKeySelect = el("select", null, el("option", { value: "" }, "Loading API keys..."));
     var createBtn = el("button", { type: "button" }, "Create Persona");
@@ -2521,21 +2675,34 @@
       });
     }
 
-    createPanel.appendChild(el("h2", null, "Create Persona"));
-    var form = el("div", { className: "stack" },
-      el("div", { className: "admin-create-form-grid" },
+    function openCreatePanel() {
+      createPanel.style.display = "";
+      if (!selectedPrompt) detailPanel.style.display = "none";
+      createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    function closeCreatePanel() {
+      createPanel.style.display = "none";
+    }
+    var createPanelToggle = el("button", { className: "secondary", type: "button" }, "Close");
+    createPanelToggle.addEventListener("click", closeCreatePanel);
+    createPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "New Persona"),
+      createPanelToggle
+    ));
+    var form = el("div", { className: "admin-create-form" },
+      el("div", { className: "admin-create-form-grid persona-create-grid" },
         field("Name", nameInput),
         field("Version", versionInput),
         field("API Key", createKeySelect)
       ),
       field("Persona", textArea),
-      createBtn
+      el("div", { className: "admin-create-form-actions" }, createBtn)
     );
     createPanel.appendChild(form);
 
     var promptSearchInput = el("input", {
       type: "text",
-      placeholder: "Search personas by name, version, or ID...",
+      placeholder: "Search personas",
       "aria-label": "Search personas"
     });
     listPanel.appendChild(field("Search", promptSearchInput));
@@ -2547,13 +2714,17 @@
     var promptPaginator = createPaginator({
       pageSize: ITEMS_PER_PAGE,
       onPageChange: function (pageItems) {
-        renderPromptTable(tableWrap, pageItems, detailPanel, promptFilteredEmpty);
+        renderPromptTable(tableWrap, pageItems, detailPanel, promptFilteredEmpty, refreshPrompts);
       }
     });
     listPanel.appendChild(promptPaginator.getControlsEl());
-
-    detailPanel.appendChild(el("h2", null, "Persona Details"));
-    detailPanel.appendChild(el("p", { className: "muted" }, "Select a persona to edit"));
+    var createLaunchBtn = el("button", {
+      className: "secondary create-launch-btn",
+      type: "button",
+      "aria-label": "Create persona"
+    }, svgIcon(ICON_PLUS), el("span", null, "Create Persona"));
+    createLaunchBtn.addEventListener("click", openCreatePanel);
+    listPanel.appendChild(el("div", { className: "create-launch-row" }, createLaunchBtn));
 
     createBtn.addEventListener("click", function () {
       var n = nameInput.value.trim();
@@ -2570,7 +2741,8 @@
         textArea.value = "";
         versionInput.value = "1.0";
         createKeySelect.value = "";
-        loadPrompts();
+        closeCreatePanel();
+        refreshPrompts(createdPrompt ? promptIdentifier(createdPrompt) : null, createdPrompt || null);
       }, "Persona created");
     });
 
@@ -2595,39 +2767,48 @@
       applyPromptFilter();
     });
 
-    async function loadPrompts() {
+    async function refreshPrompts(selectedPromptId, preferredPrompt) {
       try {
         var prompts = await api("GET", ENDPOINTS.prompts);
+        if (preferredPrompt && promptIdentifier(preferredPrompt)) {
+          prompts = (prompts || []).map(function (prompt) {
+            return promptIdentifier(prompt) === promptIdentifier(preferredPrompt)
+              ? Object.assign({}, prompt, preferredPrompt)
+              : prompt;
+          });
+        }
         cachedPrompts = prompts;
         applyPromptFilter();
-        if (selectedPrompt && promptIdentifier(selectedPrompt)) {
+        var activePromptId = selectedPromptId || (selectedPrompt && promptIdentifier(selectedPrompt));
+        if (activePromptId) {
           var refreshedSelection = prompts.find(function (prompt) {
-            return promptIdentifier(prompt) === promptIdentifier(selectedPrompt);
+            return promptIdentifier(prompt) === activePromptId;
           });
           if (refreshedSelection) {
+            if (preferredPrompt && promptIdentifier(preferredPrompt) === activePromptId) {
+              refreshedSelection = Object.assign({}, refreshedSelection, preferredPrompt);
+            }
             selectedPrompt = refreshedSelection;
-            promptPaginator.ensureItemVisible(function (p) { return promptIdentifier(p) === promptIdentifier(selectedPrompt); });
-            renderPromptDetail(detailPanel, refreshedSelection, function () {
-              selectedPrompt = null;
-              renderTab();
+            promptPaginator.ensureItemVisible(function (p) { return promptIdentifier(p) === activePromptId; });
+            renderPromptDetail(detailPanel, refreshedSelection, function (nextSelectedPromptId, nextPreferredPrompt) {
+              refreshPrompts(nextSelectedPromptId || activePromptId, nextPreferredPrompt || null);
             });
-          } else {
-            selectedPrompt = null;
-            clear(detailPanel);
-            detailPanel.appendChild(el("h2", null, "Persona Details"));
-            detailPanel.appendChild(el("p", { className: "muted" }, "Select a persona to edit"));
+            return;
           }
         }
+        selectedPrompt = null;
+        clear(detailPanel);
+        detailPanel.style.display = "none";
       } catch (err) {
         clear(tableWrap);
         tableWrap.appendChild(el("p", { className: "muted" }, "Failed to load personas"));
       }
     }
 
-    loadPrompts();
+    refreshPrompts();
   }
 
-  function renderPromptTable(wrap, prompts, rightPanel, filteredEmpty) {
+  function renderPromptTable(wrap, prompts, rightPanel, filteredEmpty, refreshPrompts) {
     clear(wrap);
     if (!prompts || prompts.length === 0) {
       wrap.appendChild(el("div", { className: "empty-state" },
@@ -2660,9 +2841,8 @@
       tr.addEventListener("click", function () {
         selectedPrompt = p;
         markSelectedRow(tbody, tr);
-        renderPromptDetail(rightPanel, p, function () {
-          selectedPrompt = null;
-          renderTab();
+        renderPromptDetail(rightPanel, p, function (nextSelectedPromptId, nextPreferredPrompt) {
+          refreshPrompts(nextSelectedPromptId || promptIdentifier(p), nextPreferredPrompt || null);
         });
       });
       tr.addEventListener("keydown", function (e) {
@@ -2680,48 +2860,68 @@
 
   function renderPromptDetail(panel, prompt, onRefresh) {
     clear(panel);
+    panel.style.display = "";
     var promptId = promptIdentifier(prompt);
-    panel.appendChild(el("h2", null, "Edit: " + prompt.name));
+    panel.appendChild(el("h2", null, prompt.name));
 
     var summary = el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "Name:"), " " + prompt.name),
-      el("p", null, el("strong", null, "ID:"), " ", el("code", { className: "plain-code" }, promptId))
+      el("p", null, el("strong", null, "ID:"), " ", el("code", { className: "plain-code" }, promptId)),
+      el("p", null, el("strong", null, "Version:"), " " + (prompt.version || "1.0"))
     );
     panel.appendChild(summary);
 
     // Edit
+    var originalName = prompt.name || "";
     var originalVersion = prompt.version || "1.0";
     var originalPromptText = prompt.prompt || "";
     var isEditingPrompt = false;
-    var vInput = el("input", { type: "text", value: prompt.version || "1.0", maxlength: "100", readonly: "true", "aria-readonly": "true" });
+    var nameInput = el("input", { type: "text", value: prompt.name || "", maxlength: "100", readonly: "true", "aria-readonly": "true" });
+    var vInput = el("input", { type: "text", value: prompt.version || "1.0", maxlength: "25", readonly: "true", "aria-readonly": "true" });
     var tArea = el("textarea", { rows: "8", maxlength: "50000", readonly: "true", "aria-readonly": "true" }, prompt.prompt || "");
     var saveBtn = el("button", { type: "button" }, "Save Changes");
+    saveBtn.style.display = "none";
     saveBtn.addEventListener("click", function () {
       if (saveBtn.disabled) return;
       withButton(saveBtn, async function () {
-        await api("PUT", ENDPOINTS.prompts + "/" + encodeURIComponent(promptId), {
+        var savedPrompt = await api("PUT", ENDPOINTS.prompts + "/" + encodeURIComponent(promptId), {
+          name: nameInput.value.trim(),
           prompt: tArea.value,
           version: vInput.value.trim(),
         });
-        onRefresh();
+        await loadAvailableKeys();
+        var updatedPrompt = Object.assign({}, prompt, savedPrompt || {}, {
+          name: nameInput.value.trim(),
+          prompt: tArea.value,
+          version: vInput.value.trim(),
+        });
+        onRefresh(promptId, updatedPrompt);
       }, "Persona updated");
     });
     
     var editPreview = createMarkdownPreview(tArea);
     var editorWrap = el("div", { className: "prompt-editor-pane", style: "display:none" },
+      el("div", { className: "admin-create-form-grid persona-create-grid" },
+        field("Name", nameInput),
+        field("Version", vInput)
+      ),
       field("Persona Text", tArea)
     );
     var previewWrap = el("div", { className: "prompt-preview-pane" }, editPreview);
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Persona");
     var cancelBtn = el("button", { className: "secondary", type: "button", style: "display:none" }, "Cancel");
     function promptHasChanges() {
-      return vInput.value.trim() !== originalVersion || tArea.value !== originalPromptText;
+      return nameInput.value.trim() !== originalName || vInput.value.trim() !== originalVersion || tArea.value !== originalPromptText;
     }
     function syncPromptSaveState() {
       saveBtn.disabled = !isEditingPrompt || !promptHasChanges();
     }
     function setPromptEditMode(editing) {
       isEditingPrompt = editing;
+      nameInput.readOnly = !editing;
+      nameInput.setAttribute("aria-readonly", editing ? "false" : "true");
+      if (editing) nameInput.removeAttribute("readonly");
+      else nameInput.setAttribute("readonly", "true");
       vInput.readOnly = !editing;
       vInput.setAttribute("aria-readonly", editing ? "false" : "true");
       if (editing) vInput.removeAttribute("readonly");
@@ -2734,27 +2934,29 @@
       previewWrap.style.display = editing ? "none" : "block";
       editToggle.style.display = editing ? "none" : "inline-flex";
       cancelBtn.style.display = editing ? "inline-flex" : "none";
+      saveBtn.style.display = editing ? "inline-flex" : "none";
       syncPromptSaveState();
     }
     editToggle.addEventListener("click", function () {
       setPromptEditMode(true);
     });
     cancelBtn.addEventListener("click", function () {
+      nameInput.value = originalName;
       vInput.value = originalVersion;
       tArea.value = originalPromptText;
       tArea.dispatchEvent(new Event("input"));
       setPromptEditMode(false);
     });
+    nameInput.addEventListener("input", syncPromptSaveState);
     vInput.addEventListener("input", syncPromptSaveState);
     tArea.addEventListener("input", syncPromptSaveState);
     syncPromptSaveState();
     panel.appendChild(el("div", { className: "stack", style: "margin-top:var(--sp-3)" },
-      field("Version", vInput),
-      el("div", { className: "inline-form" }, editToggle, cancelBtn),
+      el("div", { className: "inline-form" }, editToggle, cancelBtn, saveBtn),
       previewWrap,
-      editorWrap,
-      saveBtn
+      editorWrap
     ));
+    setPromptEditMode(false);
 
     // Associate to API key
     panel.appendChild(el("h3", null, "Associate to API Key"));
@@ -2804,7 +3006,7 @@
         onConfirm: async function () {
           await api("DELETE", ENDPOINTS.prompts + "/" + encodeURIComponent(promptId));
           showStatus("Persona deleted");
-          onRefresh();
+          onRefresh(null);
         }
       });
     });

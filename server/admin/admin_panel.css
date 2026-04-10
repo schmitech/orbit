@@ -608,6 +608,16 @@ textarea {
   gap: var(--sp-3) var(--sp-4);
 }
 
+.api-key-create-grid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(180px, 1fr) minmax(180px, 1fr);
+  align-items: end;
+}
+
+.persona-create-grid {
+  grid-template-columns: minmax(0, 1.4fr) minmax(96px, 0.4fr) minmax(180px, 1fr);
+  align-items: end;
+}
+
 .admin-create-form-grid label {
   display: flex;
   flex-direction: column;
@@ -830,6 +840,38 @@ tbody tr:nth-child(even) {
   gap: var(--sp-4);
 }
 
+.panel-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.panel-header-row h2 {
+  margin-bottom: 0;
+}
+
+.collapsible-panel-body {
+  margin-top: var(--sp-4);
+}
+
+.create-launch-row {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: var(--sp-2);
+}
+
+.create-launch-btn {
+  min-height: 38px;
+  padding: var(--sp-2) var(--sp-3);
+  gap: var(--sp-2);
+}
+
+.create-launch-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .pagination-bar {
   display: flex;
   align-items: center;
@@ -911,6 +953,15 @@ tbody tr:nth-child(even) {
   color: var(--ink-muted);
   font-weight: 500;
   min-width: 72px;
+}
+
+.detail-title {
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.detail-action-row {
+  margin-top: var(--sp-3);
 }
 
 /* ============================================================
@@ -1642,6 +1693,14 @@ code.plain-code {
     grid-template-columns: 1fr;
   }
 
+  .api-key-create-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .persona-create-grid {
+    grid-template-columns: 1fr;
+  }
+
   .admin-create-form-actions {
     justify-content: stretch;
   }
@@ -1973,6 +2032,67 @@ code.plain-code {
   border-color: var(--brand-500);
 }
 
+.monitoring-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: auto;
+}
+
+.monitoring-table {
+  min-width: 100%;
+}
+
+.monitoring-table tbody tr:hover {
+  background: var(--surface-raised);
+}
+
+.monitoring-table-primary {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.monitoring-table-code {
+  display: inline-block;
+  max-width: min(100%, 42rem);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.monitoring-status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.monitoring-status-icon {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(15, 29, 51, 0.05);
+}
+
+.monitoring-status-icon.green { background: #22c55e; }
+.monitoring-status-icon.amber { background: #f59e0b; }
+.monitoring-status-icon.red { background: var(--danger-500); }
+.monitoring-status-icon.muted { background: var(--ink-muted); }
+
+.monitoring-status-label {
+  font-size: var(--text-sm);
+  color: var(--ink);
+  text-transform: capitalize;
+}
+
 /* Datasource pool cards — keep Ref badge inside card when paths are long */
 .monitoring-datasource-card {
   min-width: 0;
@@ -2019,6 +2139,10 @@ code.plain-code {
   background: var(--surface-raised);
 }
 
+.monitoring-summary-card-compact {
+  padding: var(--sp-2) var(--sp-3);
+}
+
 .monitoring-summary-card .label {
   font-size: var(--text-xs);
   text-transform: uppercase;
@@ -2033,9 +2157,19 @@ code.plain-code {
   color: var(--ink);
 }
 
+.monitoring-summary-card-compact .value {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
 .monitoring-summary-card .hint {
   font-size: var(--text-xs);
   color: var(--ink-muted);
+}
+
+.monitoring-summary-card-compact .label,
+.monitoring-summary-card-compact .hint {
+  font-size: 0.68rem;
 }
 
 .adapter-health-toolbar {
@@ -2047,6 +2181,14 @@ code.plain-code {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
+}
+
+.monitoring-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
 }
 
 .monitoring-search-field {
