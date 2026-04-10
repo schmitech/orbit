@@ -374,9 +374,31 @@ textarea {
   display: block;
   width: 100%;
   min-height: 44px;
-  padding: 0.7rem 2.75rem 0.7rem 0.75rem;
+  padding: 0.7rem 5rem 0.7rem 0.75rem;
   overflow-wrap: anywhere;
   white-space: normal;
+}
+
+.copy-btn {
+  position: absolute;
+  right: calc(var(--sp-2) + 2rem);
+  top: 50%;
+  transform: translateY(-50%);
+  min-height: auto;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+  box-shadow: none;
+}
+
+.copy-btn:hover:not(:disabled),
+.copy-btn:active:not(:disabled) {
+  background: transparent;
+  color: var(--ink-secondary);
+  box-shadow: none;
 }
 
 .password-toggle:hover:not(:disabled),

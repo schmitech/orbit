@@ -137,6 +137,35 @@
     return el("label", { htmlFor: id, className: "stack" }, children);
   }
 
+  function svgIcon(pathD, viewBox) {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", "18");
+    svg.setAttribute("height", "18");
+    svg.setAttribute("viewBox", viewBox || "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    if (Array.isArray(pathD)) {
+      pathD.forEach(function (d) {
+        var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        p.setAttribute("d", d);
+        svg.appendChild(p);
+      });
+    } else {
+      var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      p.setAttribute("d", pathD);
+      svg.appendChild(p);
+    }
+    return svg;
+  }
+
+  var ICON_EYE = ["M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z", "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"];
+  var ICON_EYE_OFF = ["M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94", "M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19", "M14.12 14.12a3 3 0 1 1-4.24-4.24", "M1 1l22 22"];
+  var ICON_COPY = ["M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2", "M8 2h8a1 1 0 0 1 1 1v1H7V3a1 1 0 0 1 1-1z"];
+  var ICON_CHECK = ["M20 6L9 17l-5-5"];
+
   function passwordField(labelText, input, hintText) {
     input.type = "password";
     var wrapper = el("div", { className: "password-field" }, input);
@@ -145,12 +174,15 @@
       className: "password-toggle",
       "aria-label": "Show password",
       title: "Show password",
-    }, "👁");
+    });
+    toggleBtn.appendChild(svgIcon(ICON_EYE));
     toggleBtn.addEventListener("click", function () {
       var showing = input.type === "text";
       input.type = showing ? "password" : "text";
       toggleBtn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
       toggleBtn.setAttribute("title", showing ? "Show password" : "Hide password");
+      toggleBtn.innerHTML = "";
+      toggleBtn.appendChild(svgIcon(showing ? ICON_EYE : ICON_EYE_OFF));
     });
     wrapper.appendChild(toggleBtn);
     return field(labelText, wrapper, hintText, input);
@@ -1998,14 +2030,31 @@
       className: "password-toggle",
       "aria-label": "Show API key",
       title: "Show API key",
-    }, "👁");
+    });
+    revealBtn.appendChild(svgIcon(ICON_EYE));
     revealBtn.addEventListener("click", function () {
       revealSecret = !revealSecret;
       keyCode.textContent = revealSecret ? keyVal : maskSecret(keyVal);
       revealBtn.setAttribute("aria-label", revealSecret ? "Hide API key" : "Show API key");
       revealBtn.setAttribute("title", revealSecret ? "Hide API key" : "Show API key");
+      revealBtn.innerHTML = "";
+      revealBtn.appendChild(svgIcon(revealSecret ? ICON_EYE_OFF : ICON_EYE));
     });
-    var keyField = el("div", { className: "secret-field" }, keyCode, revealBtn);
+    var copyBtn = el("button", {
+      type: "button",
+      className: "copy-btn",
+      "aria-label": "Copy API key",
+      title: "Copy API key",
+    });
+    copyBtn.appendChild(svgIcon(ICON_COPY));
+    copyBtn.addEventListener("click", function () {
+      navigator.clipboard.writeText(keyVal).then(function () {
+        copyBtn.innerHTML = "";
+        copyBtn.appendChild(svgIcon(ICON_CHECK));
+        setTimeout(function () { copyBtn.innerHTML = ""; copyBtn.appendChild(svgIcon(ICON_COPY)); }, 1500);
+      });
+    });
+    var keyField = el("div", { className: "secret-field" }, keyCode, revealBtn, copyBtn);
 
     var summary = el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "Key:"), " ", keyField),
