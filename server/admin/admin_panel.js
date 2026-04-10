@@ -80,7 +80,7 @@
           node.addEventListener(k.slice(2).toLowerCase(), v);
         } else if (k === "dataset") {
           for (const [dk, dv] of Object.entries(v)) node.dataset[dk] = dv;
-        } else {
+        } else if (v != null) {
           node.setAttribute(k, v);
         }
       }
@@ -204,6 +204,125 @@
       timer = setTimeout(function () {
         fn.apply(null, args);
       }, delay);
+    };
+  }
+
+  var ITEMS_PER_PAGE = 10;
+
+  function createPaginator(opts) {
+    var pageSize = opts.pageSize || ITEMS_PER_PAGE;
+    var onPageChange = opts.onPageChange;
+    var allItems = [];
+    var currentPage = 1;
+    var totalPages = 1;
+    var barEl = el("div", { className: "pagination-bar" });
+
+    function computePages() {
+      totalPages = Math.max(1, Math.ceil(allItems.length / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+    }
+
+    function getSlice() {
+      var start = (currentPage - 1) * pageSize;
+      return allItems.slice(start, start + pageSize);
+    }
+
+    function renderControls() {
+      clear(barEl);
+      if (allItems.length <= pageSize) {
+        barEl.style.display = "none";
+        return;
+      }
+      barEl.style.display = "";
+      var start = (currentPage - 1) * pageSize + 1;
+      var end = Math.min(currentPage * pageSize, allItems.length);
+      barEl.appendChild(el("span", { className: "pagination-info" },
+        "Showing " + start + "\u2013" + end + " of " + allItems.length));
+
+      var btns = el("div", { className: "pagination-buttons" });
+
+      var prevAttrs = { type: "button", className: "pagination-btn", "aria-label": "Previous page" };
+      if (currentPage <= 1) prevAttrs.disabled = "true";
+      var prevBtn = el("button", prevAttrs, "\u2039");
+      prevBtn.addEventListener("click", function () { goToPage(currentPage - 1); });
+      btns.appendChild(prevBtn);
+
+      var pages = buildPageNumbers(currentPage, totalPages);
+      pages.forEach(function (p) {
+        if (p === "...") {
+          btns.appendChild(el("span", { className: "pagination-ellipsis" }, "\u2026"));
+        } else {
+          var pageAttrs = {
+            type: "button",
+            className: "pagination-btn" + (p === currentPage ? " active" : ""),
+            "aria-label": "Page " + p
+          };
+          if (p === currentPage) pageAttrs["aria-current"] = "page";
+          var btn = el("button", pageAttrs, String(p));
+          btn.addEventListener("click", function () { goToPage(p); });
+          btns.appendChild(btn);
+        }
+      });
+
+      var nextAttrs = { type: "button", className: "pagination-btn", "aria-label": "Next page" };
+      if (currentPage >= totalPages) nextAttrs.disabled = "true";
+      var nextBtn = el("button", nextAttrs, "\u203A");
+      nextBtn.addEventListener("click", function () { goToPage(currentPage + 1); });
+      btns.appendChild(nextBtn);
+
+      barEl.appendChild(btns);
+    }
+
+    function buildPageNumbers(cur, total) {
+      if (total <= 7) {
+        var arr = [];
+        for (var i = 1; i <= total; i++) arr.push(i);
+        return arr;
+      }
+      var pages = [1];
+      if (cur > 3) pages.push("...");
+      for (var j = Math.max(2, cur - 1); j <= Math.min(total - 1, cur + 1); j++) pages.push(j);
+      if (cur < total - 2) pages.push("...");
+      pages.push(total);
+      return pages;
+    }
+
+    function goToPage(n) {
+      n = Math.max(1, Math.min(n, totalPages));
+      if (n === currentPage && allItems.length > 0) return;
+      currentPage = n;
+      renderControls();
+      onPageChange(getSlice(), currentPage, totalPages);
+    }
+
+    function setData(items) {
+      allItems = items || [];
+      currentPage = 1;
+      computePages();
+      renderControls();
+      onPageChange(getSlice(), currentPage, totalPages);
+    }
+
+    function ensureItemVisible(predicate) {
+      for (var i = 0; i < allItems.length; i++) {
+        if (predicate(allItems[i])) {
+          var targetPage = Math.floor(i / pageSize) + 1;
+          if (targetPage !== currentPage) {
+            currentPage = targetPage;
+            renderControls();
+            onPageChange(getSlice(), currentPage, totalPages);
+          }
+          return;
+        }
+      }
+    }
+
+    return {
+      setData: setData,
+      getControlsEl: function () { return barEl; },
+      goToPage: goToPage,
+      ensureItemVisible: ensureItemVisible,
+      getCurrentPage: function () { return currentPage; }
     };
   }
 
@@ -1634,19 +1753,17 @@
   // TAB: API Keys
   // ==================================================================
   async function renderKeys(container) {
-    var layout = el("div", { className: "split-layout" });
-    var left = el("div", { className: "panel" });
-    var right = el("div", { className: "stack" });
+    var layout = el("div", { className: "tab-stacked-layout" });
+    var listPanel = el("div", { className: "panel" });
     var createPanel = el("div", { className: "panel" });
     var detailPanel = el("div", { className: "panel" });
     var keySearchFilter = "";
-    layout.appendChild(left);
-    layout.appendChild(right);
-    right.appendChild(createPanel);
-    right.appendChild(detailPanel);
+    layout.appendChild(listPanel);
+    layout.appendChild(createPanel);
+    layout.appendChild(detailPanel);
     container.appendChild(layout);
 
-    left.appendChild(el("h2", null, "API Keys"));
+    listPanel.appendChild(el("h2", null, "API Keys"));
 
     // Fetch adapters and prompts for dropdowns
     await loadAdaptersAndPrompts();
@@ -1699,10 +1816,19 @@
       placeholder: "Search API keys by client, adapter, persona, or last 4...",
       "aria-label": "Search API keys"
     });
-    left.appendChild(field("Search", keySearchInput));
+    listPanel.appendChild(field("Search", keySearchInput));
 
     var tableWrap = el("div", null, skeleton());
-    left.appendChild(tableWrap);
+    listPanel.appendChild(tableWrap);
+
+    var keyFilteredEmpty = false;
+    var keyPaginator = createPaginator({
+      pageSize: ITEMS_PER_PAGE,
+      onPageChange: function (pageItems) {
+        renderKeyTable(tableWrap, pageItems, detailPanel, keyFilteredEmpty);
+      }
+    });
+    listPanel.appendChild(keyPaginator.getControlsEl());
 
     detailPanel.appendChild(el("h2", null, "Key Details"));
     detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
@@ -1738,7 +1864,8 @@
           return String(value || "").toLowerCase().includes(filter);
         });
       });
-      renderKeyTable(tableWrap, filteredKeys, detailPanel, !!keys.length && filteredKeys.length === 0);
+      keyFilteredEmpty = !!keys.length && filteredKeys.length === 0;
+      keyPaginator.setData(filteredKeys);
     }
 
     keySearchInput.addEventListener("input", function (e) {
@@ -1757,6 +1884,7 @@
           });
           if (refreshedSelection) {
             selectedKey = refreshedSelection;
+            keyPaginator.ensureItemVisible(function (k) { return k._id === selectedKey._id; });
             clear(detailPanel);
             detailPanel.appendChild(el("p", { className: "muted" }, "Loading key details..."));
             try {
@@ -2361,19 +2489,17 @@
   // TAB: Personas
   // ==================================================================
   async function renderPrompts(container) {
-    var layout = el("div", { className: "split-layout" });
-    var left = el("div", { className: "panel" });
-    var right = el("div", { className: "stack" });
+    var layout = el("div", { className: "tab-stacked-layout" });
+    var listPanel = el("div", { className: "panel" });
     var createPanel = el("div", { className: "panel" });
     var detailPanel = el("div", { className: "panel" });
     var promptSearchFilter = "";
-    layout.appendChild(left);
-    layout.appendChild(right);
-    right.appendChild(createPanel);
-    right.appendChild(detailPanel);
+    layout.appendChild(listPanel);
+    layout.appendChild(createPanel);
+    layout.appendChild(detailPanel);
     container.appendChild(layout);
 
-    left.appendChild(el("h2", null, "Personas"));
+    listPanel.appendChild(el("h2", null, "Personas"));
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "100" });
     var versionInput = el("input", { type: "text", value: "1.0", maxlength: "100" });
@@ -2412,10 +2538,19 @@
       placeholder: "Search personas by name, version, or ID...",
       "aria-label": "Search personas"
     });
-    left.appendChild(field("Search", promptSearchInput));
+    listPanel.appendChild(field("Search", promptSearchInput));
 
     var tableWrap = el("div", null, skeleton());
-    left.appendChild(tableWrap);
+    listPanel.appendChild(tableWrap);
+
+    var promptFilteredEmpty = false;
+    var promptPaginator = createPaginator({
+      pageSize: ITEMS_PER_PAGE,
+      onPageChange: function (pageItems) {
+        renderPromptTable(tableWrap, pageItems, detailPanel, promptFilteredEmpty);
+      }
+    });
+    listPanel.appendChild(promptPaginator.getControlsEl());
 
     detailPanel.appendChild(el("h2", null, "Persona Details"));
     detailPanel.appendChild(el("p", { className: "muted" }, "Select a persona to edit"));
@@ -2451,7 +2586,8 @@
           return String(value || "").toLowerCase().includes(filter);
         });
       });
-      renderPromptTable(tableWrap, filteredPrompts, detailPanel, !!prompts.length && filteredPrompts.length === 0);
+      promptFilteredEmpty = !!prompts.length && filteredPrompts.length === 0;
+      promptPaginator.setData(filteredPrompts);
     }
 
     promptSearchInput.addEventListener("input", function (e) {
@@ -2470,6 +2606,7 @@
           });
           if (refreshedSelection) {
             selectedPrompt = refreshedSelection;
+            promptPaginator.ensureItemVisible(function (p) { return promptIdentifier(p) === promptIdentifier(selectedPrompt); });
             renderPromptDetail(detailPanel, refreshedSelection, function () {
               selectedPrompt = null;
               renderTab();
@@ -3020,10 +3157,10 @@
       return;
     }
 
-    var layout = el("div", { className: "split-layout" });
+    var layout = el("div", { className: "tab-stacked-layout" });
     container.appendChild(layout);
 
-    // ----- Left panel: adapter list -----
+    // ----- List panel: adapter list -----
     var leftPanel = el("div", { className: "panel" });
     layout.appendChild(leftPanel);
 
@@ -3099,14 +3236,13 @@
       return track;
     }
 
-    function renderAdapterRows(filter) {
+    function buildAdapterRows(pageItems) {
       clear(tbody);
-      var lc = (filter || "").toLowerCase();
-      var count = 0;
-      allAdapters.forEach(function (a) {
-        if (lc && a.name.toLowerCase().indexOf(lc) === -1 && a.adapter.toLowerCase().indexOf(lc) === -1) return;
-        count++;
-
+      if (!pageItems || pageItems.length === 0) {
+        tbody.appendChild(el("tr", null, el("td", { colSpan: "3", className: "empty-state" }, "No adapters found")));
+        return;
+      }
+      pageItems.forEach(function (a) {
         var row = el("tr", { className: "selectable-row", tabindex: "0" },
           el("td", null, a.name),
           el("td", null, a.adapter || a.type),
@@ -3124,20 +3260,30 @@
         });
         tbody.appendChild(row);
       });
-      if (count === 0) {
-        tbody.appendChild(el("tr", null, el("td", { colSpan: "3", className: "empty-state" }, "No adapters found")));
+    }
+
+    var adapterPaginator = createPaginator({
+      pageSize: ITEMS_PER_PAGE,
+      onPageChange: function (pageItems) {
+        buildAdapterRows(pageItems);
       }
+    });
+    leftPanel.appendChild(adapterPaginator.getControlsEl());
+
+    function renderAdapterRows(filter) {
+      var lc = (filter || "").toLowerCase();
+      var filtered = !lc ? allAdapters : allAdapters.filter(function (a) {
+        return a.name.toLowerCase().indexOf(lc) !== -1 || a.adapter.toLowerCase().indexOf(lc) !== -1;
+      });
+      adapterPaginator.setData(filtered);
     }
 
     searchInput.addEventListener("input", function () { renderAdapterRows(searchInput.value); });
     renderAdapterRows("");
 
-    // ----- Right panel: editor + actions -----
-    var rightPanel = el("div", { className: "stack" });
-    layout.appendChild(rightPanel);
-
+    // ----- Detail panel: editor + actions -----
     var detailPanel = el("div", { className: "panel" });
-    rightPanel.appendChild(detailPanel);
+    layout.appendChild(detailPanel);
 
     function renderEmptyDetail() {
       clear(detailPanel);
@@ -3360,6 +3506,7 @@
     if (selectedAdapterEntry) {
       var match = allAdapters.find(function (a) { return a.name === selectedAdapterEntry.name; });
       if (match) {
+        adapterPaginator.ensureItemVisible(function (a) { return a.name === selectedAdapterEntry.name; });
         renderDetail(match);
       } else {
         renderEmptyDetail();

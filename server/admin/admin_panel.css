@@ -821,6 +821,74 @@ tbody tr:nth-child(even) {
 }
 
 /* ============================================================
+   Stacked Tab Layout & Pagination
+   ============================================================ */
+
+.tab-stacked-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-4);
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) 0 0;
+  border-top: 1px solid var(--border-light);
+  margin-top: var(--sp-2);
+  font-size: var(--text-sm);
+}
+
+.pagination-info {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+}
+
+.pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.pagination-btn {
+  min-height: 32px;
+  min-width: 32px;
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  background: var(--neutral-100);
+  color: var(--ink-secondary);
+  border: 1px solid var(--neutral-200);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.pagination-btn:hover:not(:disabled):not(.active) {
+  background: var(--neutral-200);
+}
+
+.pagination-btn.active {
+  background: var(--brand-500);
+  color: #fff;
+  border-color: var(--brand-500);
+  cursor: default;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-ellipsis {
+  padding: 0 var(--sp-1);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  user-select: none;
+}
+
+/* ============================================================
    Key/Detail Summary Cards
    ============================================================ */
 
@@ -1537,6 +1605,18 @@ code.plain-code {
 
   .split-layout {
     grid-template-columns: 1fr;
+  }
+
+  .pagination-bar {
+    flex-direction: column;
+    gap: var(--sp-2);
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .pagination-buttons {
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   .panel-grid {
