@@ -618,6 +618,16 @@ textarea {
   align-items: end;
 }
 
+.user-create-grid {
+  grid-template-columns: minmax(220px, 320px) minmax(220px, 320px) minmax(120px, 160px);
+  align-items: end;
+  justify-content: start;
+}
+
+.user-reset-form label {
+  max-width: 320px;
+}
+
 .admin-create-form-grid label {
   display: flex;
   flex-direction: column;
@@ -1698,6 +1708,10 @@ code.plain-code {
   }
 
   .persona-create-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-create-grid {
     grid-template-columns: 1fr;
   }
 

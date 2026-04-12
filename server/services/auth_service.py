@@ -12,6 +12,7 @@ import hmac
 import secrets
 import base64
 import logging
+import re
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta, UTC
 
@@ -28,6 +29,12 @@ logger = logging.getLogger(__name__)
 
 class AuthService:
     """Service for handling user authentication and session management"""
+
+    USERNAME_MIN_LENGTH = 3
+    USERNAME_MAX_LENGTH = 50
+    PASSWORD_MIN_LENGTH = 8
+    PASSWORD_MAX_LENGTH = 128
+    USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 
     def __init__(self, config: Dict[str, Any], database_service: Optional[DatabaseService] = None):
         """Initialize the authentication service with configuration"""
@@ -111,6 +118,34 @@ class AuthService:
         dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, iterations)
         
         return salt, dk
+
+    @classmethod
+    def validate_username(cls, username: str) -> Optional[str]:
+        """Validate username rules for user creation."""
+        if username is None:
+            return "Username is required"
+        if username != username.strip():
+            return "Username cannot start or end with spaces"
+        if len(username) < cls.USERNAME_MIN_LENGTH:
+            return f"Username must be at least {cls.USERNAME_MIN_LENGTH} characters"
+        if len(username) > cls.USERNAME_MAX_LENGTH:
+            return f"Username must be at most {cls.USERNAME_MAX_LENGTH} characters"
+        if not cls.USERNAME_PATTERN.fullmatch(username):
+            return "Username may only contain letters, numbers, periods, underscores, and hyphens"
+        return None
+
+    @classmethod
+    def validate_password(cls, password: str) -> Optional[str]:
+        """Validate password rules without imposing composition requirements."""
+        if password is None:
+            return "Password is required"
+        if len(password) < cls.PASSWORD_MIN_LENGTH:
+            return f"Password must be at least {cls.PASSWORD_MIN_LENGTH} characters"
+        if len(password) > cls.PASSWORD_MAX_LENGTH:
+            return f"Password must be at most {cls.PASSWORD_MAX_LENGTH} characters"
+        if any(ch.isspace() for ch in password):
+            return "Password cannot contain spaces or other whitespace"
+        return None
     
     def _verify_password(self, password: str, stored_password: str) -> bool:
         """
@@ -433,6 +468,11 @@ class AuthService:
             True if successful, False otherwise
         """
         try:
+            password_error = self.validate_password(new_password)
+            if password_error:
+                logger.warning(f"Rejected password change for invalid new password: {password_error}")
+                return False
+
             # Get user
             # Use database service to ensure ID is in correct format for backend
             user_id_converted = await self.database.ensure_id_is_object_id(user_id)
@@ -497,6 +537,20 @@ class AuthService:
             The new user's ID if successful, None otherwise
         """
         try:
+            username_error = self.validate_username(username)
+            if username_error:
+                logger.warning(f"Rejected user creation for invalid username: {username_error}")
+                return None
+
+            password_error = self.validate_password(password)
+            if password_error:
+                logger.warning(f"Rejected user creation for invalid password: {password_error}")
+                return None
+
+            if role not in {"user", "admin"}:
+                logger.warning(f"Rejected user creation for invalid role: {role}")
+                return None
+
             # Check if username already exists
             existing = await self.database.find_one(
                 self.users_collection_name,
@@ -729,6 +783,11 @@ class AuthService:
             True if successful, False otherwise
         """
         try:
+            password_error = self.validate_password(new_password)
+            if password_error:
+                logger.warning(f"Rejected password reset for invalid new password: {password_error}")
+                return False
+
             # Use database service to ensure ID is in correct format for backend
             user_id_converted = await self.database.ensure_id_is_object_id(user_id)
             

@@ -12,9 +12,10 @@ This module contains authentication-related endpoints for:
 import logging
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from routes.auth_dependencies import get_auth_service, get_current_user, get_current_user_with_token, require_admin
+from services.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +23,22 @@ logger = logging.getLogger(__name__)
 auth_router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
+def validate_username_or_400(username: str) -> None:
+    error = AuthService.validate_username(username)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+
+
+def validate_password_or_400(password: str) -> None:
+    error = AuthService.validate_password(password)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+
+
 # Request/Response Models
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=AuthService.USERNAME_MAX_LENGTH)
+    password: str = Field(min_length=1, max_length=AuthService.PASSWORD_MAX_LENGTH)
 
 
 class LoginResponse(BaseModel):
@@ -34,8 +47,8 @@ class LoginResponse(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=AuthService.USERNAME_MAX_LENGTH)
+    password: str = Field(min_length=1, max_length=AuthService.PASSWORD_MAX_LENGTH)
     role: str = "user"
 
 
@@ -62,13 +75,13 @@ class UserByUsernameResponse(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str
-    new_password: str
+    current_password: str = Field(min_length=1, max_length=AuthService.PASSWORD_MAX_LENGTH)
+    new_password: str = Field(min_length=1, max_length=AuthService.PASSWORD_MAX_LENGTH)
 
 
 class ResetPasswordRequest(BaseModel):
     user_id: str
-    new_password: str
+    new_password: str = Field(min_length=1, max_length=AuthService.PASSWORD_MAX_LENGTH)
 
 
 class DeactivateUserRequest(BaseModel):
@@ -337,6 +350,11 @@ async def register_user(
             status_code=403,
             detail="Only administrators can create new users"
         )
+
+    validate_username_or_400(request.username)
+    validate_password_or_400(request.password)
+    if request.role not in {"user", "admin"}:
+        raise HTTPException(status_code=400, detail="Role must be either 'user' or 'admin'")
     
     try:
         user_id = await auth_service.create_user(
@@ -488,6 +506,7 @@ async def change_password(
         HTTPException: If password change fails
     """
     try:
+        validate_password_or_400(request.new_password)
         success = await auth_service.change_password(
             current_user["id"],
             request.current_password,
@@ -546,6 +565,8 @@ async def reset_user_password(
             status_code=400,
             detail="Use change-password to change your own password"
         )
+
+    validate_password_or_400(request.new_password)
     
     try:
         success = await auth_service.reset_user_password(

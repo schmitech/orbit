@@ -173,6 +173,11 @@
   var ICON_COPY = ["M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2", "M8 2h8a1 1 0 0 1 1 1v1H7V3a1 1 0 0 1 1-1z"];
   var ICON_CHECK = ["M20 6L9 17l-5-5"];
   var ICON_PLUS = ["M12 5v14", "M5 12h14"];
+  var USERNAME_MIN_LENGTH = 3;
+  var USERNAME_MAX_LENGTH = 50;
+  var PASSWORD_MIN_LENGTH = 8;
+  var PASSWORD_MAX_LENGTH = 128;
+  var USERNAME_PATTERN = /^[A-Za-z0-9._-]+$/;
 
   function passwordField(labelText, input, hintText) {
     input.type = "password";
@@ -194,6 +199,23 @@
     });
     wrapper.appendChild(toggleBtn);
     return field(labelText, wrapper, hintText, input);
+  }
+
+  function validateUsername(username) {
+    if (!username) return "Username is required";
+    if (username !== username.trim()) return "Username cannot start or end with spaces";
+    if (username.length < USERNAME_MIN_LENGTH) return "Username must be at least " + USERNAME_MIN_LENGTH + " characters";
+    if (username.length > USERNAME_MAX_LENGTH) return "Username must be at most " + USERNAME_MAX_LENGTH + " characters";
+    if (!USERNAME_PATTERN.test(username)) return "Username may only contain letters, numbers, periods, underscores, and hyphens";
+    return "";
+  }
+
+  function validatePassword(password) {
+    if (!password) return "Password is required";
+    if (password.length < PASSWORD_MIN_LENGTH) return "Password must be at least " + PASSWORD_MIN_LENGTH + " characters";
+    if (password.length > PASSWORD_MAX_LENGTH) return "Password must be at most " + PASSWORD_MAX_LENGTH + " characters";
+    if (/\s/.test(password)) return "Password cannot contain spaces or other whitespace";
+    return "";
   }
 
   function wrapTable(table) {
@@ -1580,125 +1602,304 @@
   // TAB: Users
   // ==================================================================
   async function renderUsers(container) {
-    var layout = el("div", { className: "split-layout" });
-    var left = el("div", { className: "panel" });
-    var right = el("div", { className: "stack" });
+    var layout = el("div", { className: "tab-stacked-layout" });
+    var listPanel = el("div", { className: "panel" });
+    var detailPanel = el("div", { className: "panel", style: "display:none" });
     var accountPanel = el("div", { className: "panel" });
-    var detailPanel = el("div", { className: "panel" });
-    layout.appendChild(left);
-    layout.appendChild(right);
-    right.appendChild(accountPanel);
-    right.appendChild(detailPanel);
+    var createPanel = el("div", { className: "panel", style: "display:none" });
+    var userSearchFilter = "";
+    var allUsers = [];
+    var userFilteredEmpty = false;
+    var tableWrap = el("div", null, skeleton());
+    var searchInput = el("input", {
+      type: "text",
+      placeholder: "Search users",
+      "aria-label": "Search users"
+    });
+    var userPaginator = createPaginator({
+      pageSize: ITEMS_PER_PAGE,
+      onPageChange: function (pageItems) {
+        renderUserTable(tableWrap, pageItems, userFilteredEmpty, handleSelectUser);
+      }
+    });
+
+    layout.appendChild(listPanel);
+    layout.appendChild(detailPanel);
+    layout.appendChild(accountPanel);
+    layout.appendChild(createPanel);
     container.appendChild(layout);
 
-    // Create user form
-    left.appendChild(el("h2", null, "Users"));
-    var usernameInput = el("input", { type: "text", required: "true", maxlength: "100" });
-    var passwordInput = el("input", { type: "password", required: "true", maxlength: "100" });
+    listPanel.appendChild(el("h2", null, "Users"));
+    listPanel.appendChild(field("Search", searchInput));
+    listPanel.appendChild(tableWrap);
+    listPanel.appendChild(userPaginator.getControlsEl());
+
+    var createLaunchBtn = el("button", {
+      className: "secondary create-launch-btn",
+      type: "button",
+      "aria-label": "Create user"
+    }, svgIcon(ICON_PLUS), el("span", null, "Create User"));
+    listPanel.appendChild(el("div", { className: "create-launch-row" }, createLaunchBtn));
+
+    var usernameInput = el("input", {
+      type: "text",
+      required: "true",
+      maxlength: String(USERNAME_MAX_LENGTH),
+      placeholder: "3-50 chars. Alphanumeric and ., _, - allowed.",
+      autocomplete: "off",
+      autocapitalize: "none",
+      autocorrect: "off",
+      spellcheck: "false",
+      pattern: "[A-Za-z0-9._-]+"
+    });
+    var passwordInput = el("input", {
+      type: "password",
+      required: "true",
+      maxlength: String(PASSWORD_MAX_LENGTH),
+      placeholder: "8-128 chars. No spaces.",
+      autocomplete: "new-password",
+      autocapitalize: "none",
+      autocorrect: "off",
+      spellcheck: "false"
+    });
     var roleSelect = el("select", null,
       el("option", { value: "user" }, "user"),
       el("option", { value: "admin" }, "admin")
     );
     var createBtn = el("button", { type: "button" }, "Create User");
+    var createPanelToggle = el("button", { className: "secondary", type: "button" }, "Close");
 
-    var form = el("div", { className: "inline-form" },
-      field("Username", usernameInput),
-      passwordField("Password", passwordInput),
-      field("Role", roleSelect),
-      createBtn
+    function openCreatePanel() {
+      createPanel.style.display = "";
+      createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function closeCreatePanel() {
+      createPanel.style.display = "none";
+    }
+
+    createLaunchBtn.addEventListener("click", openCreatePanel);
+    createPanelToggle.addEventListener("click", closeCreatePanel);
+
+    createPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "New User"),
+      createPanelToggle
+    ));
+
+    var form = el("div", { className: "admin-create-form" },
+      el("div", { className: "admin-create-form-grid user-create-grid" },
+        field("Username", usernameInput),
+        passwordField("Password", passwordInput),
+        field("Role", roleSelect)
+      ),
+      el("div", { className: "admin-create-form-actions" }, createBtn)
     );
-    left.appendChild(form);
+    createPanel.appendChild(form);
 
-    var tableWrap = el("div", null, skeleton());
-    left.appendChild(tableWrap);
-
-    // Right sidebar — persistent account panel plus selected user workspace
-    accountPanel.appendChild(el("h2", null, "My Account"));
-    renderChangeMyPassword(accountPanel);
     renderSelectedUserPlaceholder(detailPanel);
+    renderAccountSecurityPanel(accountPanel);
 
     createBtn.addEventListener("click", function () {
       var u = usernameInput.value.trim();
-      var p = passwordInput.value.trim();
-      if (!u || !p) return;
+      var p = passwordInput.value;
+      var usernameError = validateUsername(u);
+      if (usernameError) { showError(usernameError); return; }
+      var passwordError = validatePassword(p);
+      if (passwordError) { showError(passwordError); return; }
       withButton(createBtn, async function () {
         await api("POST", ENDPOINTS.register, { username: u, password: p, role: roleSelect.value });
         usernameInput.value = "";
         passwordInput.value = "";
-        loadUsers();
+        roleSelect.value = "user";
+        closeCreatePanel();
+        loadUsers({ preferredUsername: u });
       }, "User created");
     });
 
-    async function loadUsers() {
+    function applyUserFilter() {
+      var filter = userSearchFilter;
+      var filteredUsers = !filter ? allUsers : allUsers.filter(function (user) {
+        return [
+          user.username,
+          user.role,
+          user.id,
+          user.active !== false ? "active" : "inactive"
+        ].some(function (value) {
+          return String(value || "").toLowerCase().includes(filter);
+        });
+      });
+      userFilteredEmpty = !!allUsers.length && filteredUsers.length === 0;
+      userPaginator.setData(filteredUsers);
+    }
+
+    function handleSelectUser(user) {
+      selectedUser = user;
+      renderUserDetail(detailPanel, user, function (options) {
+        loadUsers(options || {});
+      });
+    }
+
+    searchInput.addEventListener("input", function (e) {
+      userSearchFilter = (e.target.value || "").trim().toLowerCase();
+      applyUserFilter();
+    });
+
+    async function loadUsers(options) {
+      options = options || {};
       try {
         var users = await api("GET", ENDPOINTS.users);
-        renderUserTable(tableWrap, users, detailPanel);
-        if (selectedUser && selectedUser.id) {
-          var refreshedSelection = users.find(function (user) {
-            return user.id === selectedUser.id;
+        allUsers = users;
+        applyUserFilter();
+
+        if (options.clearSelection) {
+          selectedUser = null;
+          renderSelectedUserPlaceholder(detailPanel);
+          return;
+        }
+
+        var refreshedSelection = null;
+        var preferredId = options.preferredUserId || (selectedUser && selectedUser.id);
+        if (preferredId) {
+          refreshedSelection = users.find(function (user) {
+            return user.id === preferredId;
           });
-          if (refreshedSelection) {
-            selectedUser = refreshedSelection;
-            renderUserDetail(detailPanel, refreshedSelection, function () {
-              selectedUser = null;
-              renderTab();
-            });
-          } else {
-            selectedUser = null;
-            renderSelectedUserPlaceholder(detailPanel);
-          }
+        }
+        if (!refreshedSelection && options.preferredUsername) {
+          refreshedSelection = users.find(function (user) {
+            return user.username === options.preferredUsername;
+          });
+        }
+
+        if (refreshedSelection) {
+          selectedUser = refreshedSelection;
+          userPaginator.ensureItemVisible(function (user) {
+            return user.id === refreshedSelection.id;
+          });
+          renderUserDetail(detailPanel, refreshedSelection, function (refreshOptions) {
+            loadUsers(refreshOptions || {});
+          });
         } else {
+          selectedUser = null;
           renderSelectedUserPlaceholder(detailPanel);
         }
       } catch (err) {
         clear(tableWrap);
         tableWrap.appendChild(el("p", { className: "muted" }, "Failed to load users"));
+        renderSelectedUserPlaceholder(detailPanel);
       }
     }
 
     loadUsers();
   }
 
-  function renderChangeMyPassword(panel) {
-    var curPwInput = el("input", { type: "password", placeholder: "Current password", maxlength: "100" });
-    var newPwInput = el("input", { type: "password", placeholder: "New password", maxlength: "100" });
-    var confirmPwInput = el("input", { type: "password", placeholder: "Confirm new password", maxlength: "100" });
-    var changeBtn = el("button", { type: "button" }, "Change Password");
+  function renderAccountSecurityPanel(panel) {
+    clear(panel);
+    var formWrap = el("div", { className: "collapsible-panel-body", style: "display:none" });
+    var toggleBtn = el("button", { className: "secondary", type: "button" }, "Change Password");
+
+    function openForm() {
+      formWrap.style.display = "";
+      toggleBtn.textContent = "Close";
+    }
+
+    function closeForm() {
+      formWrap.style.display = "none";
+      toggleBtn.textContent = "Change Password";
+    }
+
+    toggleBtn.addEventListener("click", function () {
+      if (formWrap.style.display === "none") openForm();
+      else closeForm();
+    });
+
+    panel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "My Account"),
+      toggleBtn
+    ));
+    panel.appendChild(el("div", { className: "key-summary" },
+      el("p", null, el("strong", null, "Username:"), " " + ((currentUser && currentUser.username) || "N/A")),
+      el("p", null, el("strong", null, "Role:"), " " + ((currentUser && currentUser.role) || "N/A"))
+    ));
+    renderChangeMyPassword(formWrap, closeForm);
+    panel.appendChild(formWrap);
+  }
+
+  function renderChangeMyPassword(panel, onDone) {
+    clear(panel);
+    var curPwInput = el("input", {
+      type: "password",
+      placeholder: "Current password",
+      maxlength: String(PASSWORD_MAX_LENGTH),
+      autocomplete: "current-password",
+      autocapitalize: "none",
+      autocorrect: "off",
+      spellcheck: "false"
+    });
+    var newPwInput = el("input", {
+      type: "password",
+      placeholder: "New password",
+      maxlength: String(PASSWORD_MAX_LENGTH),
+      autocomplete: "new-password",
+      autocapitalize: "none",
+      autocorrect: "off",
+      spellcheck: "false"
+    });
+    var confirmPwInput = el("input", {
+      type: "password",
+      placeholder: "Confirm new password",
+      maxlength: String(PASSWORD_MAX_LENGTH),
+      autocomplete: "new-password",
+      autocapitalize: "none",
+      autocorrect: "off",
+      spellcheck: "false"
+    });
+    var changeBtn = el("button", { type: "button" }, "Save Password");
+    var cancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
+
+    cancelBtn.addEventListener("click", function () {
+      curPwInput.value = "";
+      newPwInput.value = "";
+      confirmPwInput.value = "";
+      if (onDone) onDone();
+    });
 
     changeBtn.addEventListener("click", function () {
       var cur = curPwInput.value;
       var nw = newPwInput.value;
       var conf = confirmPwInput.value;
       if (!cur || !nw) return;
+      var passwordError = validatePassword(nw);
+      if (passwordError) { showError(passwordError); return; }
       if (nw !== conf) { showError("Passwords do not match"); return; }
       withButton(changeBtn, async function () {
         await api("POST", ENDPOINTS.changePassword, { current_password: cur, new_password: nw });
         curPwInput.value = "";
         newPwInput.value = "";
         confirmPwInput.value = "";
+        if (onDone) onDone();
       }, "Password changed successfully");
     });
 
-    panel.appendChild(el("div", { className: "stack" },
+    panel.appendChild(el("div", { className: "admin-create-form" },
+      el("p", { className: "muted" }, "Update the password for the account currently signed into the admin panel."),
       passwordField("Current Password", curPwInput),
-      passwordField("New Password", newPwInput),
+      passwordField("New Password", newPwInput, "8-128 chars. No spaces."),
       passwordField("Confirm Password", confirmPwInput),
-      changeBtn
+      el("div", { className: "inline-form detail-action-row" }, cancelBtn, changeBtn)
     ));
   }
 
   function renderSelectedUserPlaceholder(panel) {
     clear(panel);
-    panel.appendChild(el("h2", null, "Selected User"));
-    panel.appendChild(el("p", { className: "muted" }, "Select a user from the list to view account status, reset credentials, or manage access."));
+    panel.style.display = "none";
   }
 
-  function renderUserTable(wrap, users, rightPanel) {
+  function renderUserTable(wrap, users, filteredEmpty, onSelect) {
     clear(wrap);
     if (!users || users.length === 0) {
       wrap.appendChild(el("div", { className: "empty-state" },
         el("div", { className: "empty-state-icon" }, "\u{1F464}"),
-        el("p", null, "No users found")
+        el("p", null, filteredEmpty ? "No users match the current search" : "No users found")
       ));
       return;
     }
@@ -1707,7 +1908,7 @@
       el("tr", null,
         el("th", null, "Username"),
         el("th", null, "Role"),
-        el("th", null, "Active")
+        el("th", null, "Status")
       )
     );
     var tbody = el("tbody");
@@ -1727,12 +1928,8 @@
         )
       );
       tr.addEventListener("click", function () {
-        selectedUser = u;
         markSelectedRow(tbody, tr);
-        renderUserDetail(rightPanel, u, function () {
-          selectedUser = null;
-          renderTab();
-        });
+        onSelect(u);
       });
       tr.addEventListener("keydown", function (e) {
         if (e.key === "Enter" || e.key === " ") {
@@ -1749,28 +1946,56 @@
 
   function renderUserDetail(panel, user, onRefresh) {
     clear(panel);
-    panel.appendChild(el("h2", null, "Selected User"));
-    panel.appendChild(el("p", { className: "muted" }, "Managing " + user.username));
+    panel.style.display = "";
     var isCurrentUser = !!(currentUser && currentUser.id && user && user.id && currentUser.id === user.id);
+    var resetPanel = el("div", { className: "collapsible-panel-body", style: "display:none" });
+    var newPwInput = el("input", {
+      type: "password",
+      maxlength: String(PASSWORD_MAX_LENGTH),
+      autocomplete: "new-password",
+      autocapitalize: "none",
+      autocorrect: "off",
+      spellcheck: "false"
+    });
+    var resetBtn = el("button", { type: "button" }, "Apply Reset");
+    var resetCancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
+    var resetToggle = el("button", { className: "secondary", type: "button" }, "Reset Password");
 
-    var summary = el("div", { className: "key-summary" },
+    function closeResetPanel() {
+      newPwInput.value = "";
+      resetPanel.style.display = "none";
+      resetToggle.textContent = "Reset Password";
+    }
+
+    resetToggle.addEventListener("click", function () {
+      if (resetPanel.style.display === "none") {
+        resetPanel.style.display = "";
+        resetToggle.textContent = "Close Reset";
+      } else {
+        closeResetPanel();
+      }
+    });
+
+    resetCancelBtn.addEventListener("click", closeResetPanel);
+
+    panel.appendChild(el("h2", { className: "detail-title" }, user.username || "User Details"));
+    panel.appendChild(el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "ID:"), " " + (user.id || "N/A")),
       el("p", null, el("strong", null, "Role:"), " " + (user.role || "N/A")),
-      el("p", null, el("strong", null, "Active:"), " ",
+      el("p", null, el("strong", null, "Status:"), " ",
         el("span", { className: user.active !== false ? "status-active" : "status-inactive" },
           user.active !== false ? "Active" : "Inactive"
         )
       )
-    );
-    panel.appendChild(summary);
+    ));
 
-    // Activate / Deactivate
     if (isCurrentUser) {
       panel.appendChild(el("div", { className: "danger-zone" },
         el("p", null, "The account currently used for this admin session cannot be deactivated or deleted here."),
-        el("p", { className: "muted" }, "Use My Account to change your own password.")
+        el("p", { className: "muted" }, "Use My Account to update your own password.")
       ));
     } else {
+      var actionRow = el("div", { className: "inline-form detail-action-row" });
       var toggleBtn = el("button", { className: "secondary", type: "button" },
         user.active !== false ? "Deactivate User" : "Activate User"
       );
@@ -1785,44 +2010,36 @@
             try {
               await api("POST", ENDPOINTS.users + "/" + encodeURIComponent(user.id) + "/" + action);
               showStatus("User " + action + "d");
-              onRefresh();
+              onRefresh({ preferredUserId: user.id });
             } finally {
               toggleBtn.disabled = false;
             }
           }
         });
       });
-      panel.appendChild(toggleBtn);
-    }
-
-    // Reset password
-    panel.appendChild(el("h3", null, "Reset Password"));
-    var newPwInput = el("input", { type: "password", maxlength: "100" });
-    var resetBtn = el("button", { type: "button" }, "Reset Password");
-    resetBtn.addEventListener("click", function () {
-      var pw = newPwInput.value.trim();
-      if (!pw) return;
-      confirmAction({
-        title: "Reset Password",
-        message: "Reset the password for " + user.username + "?",
-        confirmLabel: "Reset",
-        onConfirm: async function () {
-          resetBtn.disabled = true;
-          try {
-            await api("POST", ENDPOINTS.resetPassword, { user_id: user.id, new_password: pw });
-            newPwInput.value = "";
-            showStatus("Password reset");
-          } finally {
-            resetBtn.disabled = false;
+      resetBtn.addEventListener("click", function () {
+        var pw = newPwInput.value;
+        if (!pw) return;
+        var passwordError = validatePassword(pw);
+        if (passwordError) { showError(passwordError); return; }
+        confirmAction({
+          title: "Reset Password",
+          message: "Reset the password for " + user.username + "?",
+          confirmLabel: "Reset",
+          onConfirm: async function () {
+            resetBtn.disabled = true;
+            try {
+              await api("POST", ENDPOINTS.resetPassword, { user_id: user.id, new_password: pw });
+              closeResetPanel();
+              showStatus("Password reset");
+            } finally {
+              resetBtn.disabled = false;
+            }
           }
-        }
+        });
       });
-    });
-    panel.appendChild(el("div", { className: "inline-form" }, passwordField("New password", newPwInput), resetBtn));
-
-    // Delete
-    if (!isCurrentUser) {
-      panel.appendChild(el("h3", null, "Danger Zone"));
+      actionRow.appendChild(toggleBtn);
+      actionRow.appendChild(resetToggle);
       var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete User");
       deleteBtn.addEventListener("click", function () {
         requireTypedConfirmation({
@@ -1833,14 +2050,17 @@
           onConfirm: async function () {
             await api("DELETE", ENDPOINTS.users + "/" + encodeURIComponent(user.id));
             showStatus("User deleted");
-            onRefresh();
+            onRefresh({ clearSelection: true });
           }
         });
       });
-      panel.appendChild(el("div", { className: "danger-zone" },
-        el("p", null, "Destructive actions affect account access immediately."),
-        deleteBtn
+      actionRow.appendChild(deleteBtn);
+      panel.appendChild(actionRow);
+      resetPanel.appendChild(el("div", { className: "admin-create-form user-reset-form" },
+        passwordField("New Password", newPwInput, "8-128 chars. No spaces."),
+        el("div", { className: "inline-form detail-action-row" }, resetCancelBtn, resetBtn)
       ));
+      panel.appendChild(resetPanel);
     }
   }
 
