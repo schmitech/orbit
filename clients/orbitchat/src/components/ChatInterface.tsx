@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useLayoutEffect } from 'react';
+import { useEffect, useCallback, useLayoutEffect, useMemo } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
@@ -21,6 +21,8 @@ import { AuthStatus } from './AuthStatus';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { useChatAgentSelection } from '../hooks/useChatAgentSelection';
 import { useAgentHomeNav } from '../hooks/useAgentHomeNav';
+import { AgentSeoContent } from './AgentSeoContent';
+import { applyDocumentSeo, getRuntimeSeoAdapterById, getRuntimeSeoAdapterBySlug, shouldRenderAgentNotesForSeo, type SeoAdapter } from '../utils/seo';
 
 const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-transparent px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-none backdrop-blur-0 dark:border-[#2f303d] dark:bg-transparent md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
@@ -125,6 +127,41 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const emptyStateTopSpacingClass = shouldShowAgentSelectionList
     ? 'pt-0 md:pt-0'
     : 'pt-4 md:pt-6';
+  const seoAdapter = useMemo<SeoAdapter | null>(() => {
+    if (shouldShowAgentSelectionList) {
+      return null;
+    }
+
+    const runtimeAdapter = getRuntimeSeoAdapterById(currentConversation?.adapterName) || getRuntimeSeoAdapterBySlug();
+    if (!runtimeAdapter && !currentConversation?.adapterName) {
+      return null;
+    }
+
+    const conversationAdapterName = currentConversation?.adapterName?.trim();
+    const conversationNotes = currentConversation?.adapterInfo?.notes?.trim();
+    if (!runtimeAdapter) {
+      return conversationAdapterName
+        ? {
+            id: conversationAdapterName,
+            name: conversationAdapterName,
+            notes: conversationNotes || undefined,
+          }
+        : null;
+    }
+
+    return {
+      ...runtimeAdapter,
+      notes: conversationNotes || runtimeAdapter.notes,
+    };
+  }, [
+    currentConversation?.adapterInfo?.notes,
+    currentConversation?.adapterName,
+    shouldShowAgentSelectionList
+  ]);
+
+  useEffect(() => {
+    applyDocumentSeo(seoAdapter);
+  }, [seoAdapter]);
 
   useEffect(() => {
     let removeGestureListeners: (() => void) | null = null;
@@ -389,8 +426,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-1 w-full min-h-0 flex-col pt-[8vh] md:pt-[12vh]">
-                  <div className={`mx-auto flex w-full ${emptyStateInputMaxWidthClass} flex-col items-center gap-6`}>
+                <div className="flex flex-1 w-full min-h-0 flex-col overflow-y-auto pt-4 md:pt-6">
+                  <div className={`mx-auto flex w-full ${emptyStateInputMaxWidthClass} flex-col items-center gap-4 pb-8 md:gap-5 md:pb-12`}>
                     {adapterNotesError ? (
                       <p className="w-full text-center text-sm text-red-600 dark:text-red-400">
                         {adapterNotesError}
@@ -407,6 +444,13 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         Configuring your agent…
                       </p>
                     ) : null}
+                    {seoAdapter && shouldRenderAgentNotesForSeo() && (
+                      <AgentSeoContent
+                        adapter={seoAdapter}
+                        syntaxTheme={syntaxTheme}
+                        forcedThemeClass={forcedThemeClass}
+                      />
+                    )}
                     <div className="w-full min-w-0">
                       <MessageInput
                         onSend={handleSendMessage}

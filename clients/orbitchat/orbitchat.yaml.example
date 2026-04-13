@@ -20,6 +20,23 @@ application:
   # If empty, uses bundled default: /favicon.svg
   favicon: ""
 
+# ---- SEO ----
+seo:
+  # Enable sitemap.xml generation for adapter slug routes.
+  includeSitemap: false
+  # Canonical public origin used for canonical URLs and sitemap entries.
+  # Required when includeSitemap is true.
+  siteUrl: ""
+  # Optional additional concrete origins to include in sitemap.xml.
+  # Use this for multiple real hosts like https://example.com and https://www.example.com.
+  alternateSiteUrls: []
+  # Optional wildcard host patterns allowed for runtime deployments.
+  # These are NOT expanded into sitemap.xml because sitemap entries must be concrete URLs.
+  # Example: "https://*.example.com"
+  hostPatterns: []
+  # Render each agent's notes on its slug route for search indexing.
+  exposeAgentNotes: true
+
 # ---- API ----
 
 # ---- Debug ----

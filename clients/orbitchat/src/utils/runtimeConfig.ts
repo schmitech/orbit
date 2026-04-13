@@ -45,6 +45,13 @@ export interface RuntimeConfig {
   debug: {
     consoleDebug: boolean;
   };
+  seo: {
+    includeSitemap: boolean;
+    siteUrl: string;
+    alternateSiteUrls: string[];
+    hostPatterns: string[];
+    exposeAgentNotes: boolean;
+  };
   features: {
     enableUpload: boolean;
     enableAudioOutput: boolean;
@@ -157,6 +164,13 @@ export const DEFAULTS: RuntimeConfig = {
   },
   debug: {
     consoleDebug: false,
+  },
+  seo: {
+    includeSitemap: false,
+    siteUrl: '',
+    alternateSiteUrls: [],
+    hostPatterns: [],
+    exposeAgentNotes: true,
   },
   features: {
     enableUpload: false,
@@ -411,6 +425,36 @@ export function getAdapterInputPlaceholder(adapterId?: string | null): string | 
 
 export function getConsoleDebug(): boolean {
   return runtimeConfig.debug.consoleDebug;
+}
+
+export function getSeoIncludeSitemap(): boolean {
+  return runtimeConfig.seo.includeSitemap;
+}
+
+export function getSeoSiteUrl(): string {
+  return runtimeConfig.seo.siteUrl.trim();
+}
+
+export function getSeoAlternateSiteUrls(): string[] {
+  return Array.isArray(runtimeConfig.seo.alternateSiteUrls)
+    ? runtimeConfig.seo.alternateSiteUrls
+        .filter((value): value is string => typeof value === 'string')
+        .map(value => value.trim())
+        .filter(Boolean)
+    : [];
+}
+
+export function getSeoHostPatterns(): string[] {
+  return Array.isArray(runtimeConfig.seo.hostPatterns)
+    ? runtimeConfig.seo.hostPatterns
+        .filter((value): value is string => typeof value === 'string')
+        .map(value => value.trim())
+        .filter(Boolean)
+    : [];
+}
+
+export function getSeoExposeAgentNotes(): boolean {
+  return runtimeConfig.seo.exposeAgentNotes;
 }
 
 export function getLocale(): string {

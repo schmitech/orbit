@@ -124,6 +124,13 @@ const DEFAULTS = {
   debug: {
     consoleDebug: false,
   },
+  seo: {
+    includeSitemap: false,
+    siteUrl: '',
+    alternateSiteUrls: [],
+    hostPatterns: [],
+    exposeAgentNotes: true,
+  },
   features: {
     enableUpload: false,
     enableAudioOutput: false,
@@ -158,6 +165,102 @@ const DEFAULTS = {
   startupScripts: [],
   adapters: [],
 };
+
+function slugifyAdapterName(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function normalizeConcreteOrigin(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed || trimmed.includes('*')) {
+    return null;
+  }
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return null;
+  }
+}
+
+function buildRobotsTxt(config) {
+  const canonicalOrigin = normalizeConcreteOrigin(config?.seo?.siteUrl);
+  if (!canonicalOrigin) {
+    return null;
+  }
+
+  return `User-agent: *
+Allow: /
+
+Sitemap: ${canonicalOrigin}/sitemap.xml
+`;
+}
+
+function buildSitemapXml(config, adapters) {
+  if (!config?.seo?.includeSitemap) {
+    return null;
+  }
+
+  const canonicalOrigin = normalizeConcreteOrigin(config?.seo?.siteUrl);
+  if (!canonicalOrigin) {
+    console.warn('[orbitchat] seo.includeSitemap is enabled but seo.siteUrl is empty; /sitemap.xml will not be served.');
+    return null;
+  }
+
+  const alternateOrigins = Array.isArray(config?.seo?.alternateSiteUrls)
+    ? config.seo.alternateSiteUrls.map(normalizeConcreteOrigin).filter(Boolean)
+    : [];
+  const wildcardEntries = Array.isArray(config?.seo?.hostPatterns)
+    ? config.seo.hostPatterns.filter(value => typeof value === 'string' && value.includes('*'))
+    : [];
+  if (wildcardEntries.length > 0) {
+    console.warn('[orbitchat] seo.hostPatterns supports wildcard hosts at runtime, but wildcard hosts are not added to sitemap.xml.');
+  }
+
+  const sitemapOrigins = Array.from(new Set([canonicalOrigin, ...alternateOrigins]));
+  const urls = new Set();
+  const mode = config.agentMode?.mode === 'single' ? 'single' : 'multi';
+
+  if (mode === 'single') {
+    sitemapOrigins.forEach((origin) => {
+      urls.add(`${origin}/`);
+    });
+  } else {
+    Object.keys(adapters || {}).forEach((adapterId) => {
+      const adapter = adapters[adapterId];
+      const slug = slugifyAdapterName(adapter?.name || adapterId);
+      if (slug) {
+        sitemapOrigins.forEach((origin) => {
+          urls.add(`${origin}/${slug}`);
+        });
+      }
+    });
+  }
+
+  if (urls.size === 0) {
+    return null;
+  }
+
+  const lastmod = new Date().toISOString();
+  const urlEntries = Array.from(urls)
+    .sort((a, b) => a.localeCompare(b))
+    .map((url) => `  <url>\n    <loc>${escapeXml(url)}</loc>\n    <lastmod>${lastmod}</lastmod>\n  </url>`)
+    .join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urlEntries}\n</urlset>\n`;
+}
 
 // ---- YAML config loading ----
 
@@ -258,6 +361,8 @@ function createServer(distPath, config, serverConfig = {}) {
   const app = express();
   const adapters = loadAdaptersForProxy(config.adapters);
   const apiOnly = serverConfig.apiOnly || false;
+  const robotsTxt = buildRobotsTxt(config);
+  const sitemapXml = buildSitemapXml(config, adapters);
   const localAssets = serverConfig.localAssets || {};
   const trustProxy = serverConfig.trustProxy;
 
@@ -424,6 +529,18 @@ function createServer(distPath, config, serverConfig = {}) {
   }
 
   app.use(express.json());
+  if (robotsTxt) {
+    app.get('/robots.txt', (_req, res) => {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.send(robotsTxt);
+    });
+  }
+  if (sitemapXml) {
+    app.get('/sitemap.xml', (_req, res) => {
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.send(sitemapXml);
+    });
+  }
   if (!apiOnly && distPath) {
     app.use(express.static(distPath, { index: false }));
 

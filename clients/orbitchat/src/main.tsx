@@ -4,11 +4,11 @@ import App from './App.tsx';
 import './index.css';
 import { getVersionInfo } from './utils/version.ts';
 import { debugLog } from './utils/debug.ts';
-import { getApplicationFavicon, getApplicationName, getStartupScripts } from './utils/runtimeConfig.ts';
+import { getApplicationFavicon, getStartupScripts } from './utils/runtimeConfig.ts';
 import { AuthProviderWrapper } from './auth/AuthProvider.tsx';
+import { applyDocumentSeo } from './utils/seo.ts';
 
-// Set document title from runtime config
-document.title = getApplicationName();
+applyDocumentSeo(null);
 const faviconHref = getApplicationFavicon();
 const faviconEl = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
 if (faviconEl) {

@@ -23,6 +23,13 @@ export interface OrbitChatYamlConfig {
     locale?: string;
     favicon?: string;
   };
+  seo?: {
+    includeSitemap?: boolean;
+    siteUrl?: string;
+    alternateSiteUrls?: string[];
+    hostPatterns?: string[];
+    exposeAgentNotes?: boolean;
+  };
   debug?: {
     consoleDebug?: boolean;
   };
