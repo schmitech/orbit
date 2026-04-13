@@ -20,8 +20,6 @@
 </p>
 
 <p align="center">
-  <a href="https://orbitsandbox.dev/"><strong>Live Sandbox</strong></a>
-  &nbsp;|&nbsp;
   <a href="https://orbit.schmitech.ai/redoc"><strong>API Reference</strong></a>
   &nbsp;|&nbsp;
   <a href="docker/README.md"><strong>Docker Guide</strong></a>
@@ -54,26 +52,6 @@ curl -X POST http://localhost:3000/v1/chat \
 That's it. ORBIT is listening on port 3000 with an admin panel at [localhost:3000/admin](http://localhost:3000/admin) (default login: `admin` / `admin123`).
 
 For GPU acceleration: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d`
-
----
-
-### Try it live
-
-The <a href="https://orbitsandbox.dev/" target="_blank" rel="noopener noreferrer">public sandbox</a> hosts one chat workspace per adapter. Pick a demo to see ORBIT in action.
-
-| Demo | Data Source | Try it |
-| :--- | :--- | :--- |
-| Simple Chat | LLM | <a href="https://orbitsandbox.dev/simple-chat" target="_blank">simple-chat</a> |
-| Multimodal Chat | LLM + Files | <a href="https://orbitsandbox.dev/chat-with-files" target="_blank">chat-with-files</a> |
-| Multi-Source Chat | SQLite + PostgreSQL + DuckDB | <a href="https://orbitsandbox.dev/multi-source-chat" target="_blank">composite-multi-source-explorer</a> |
-| Customer Orders | PostgreSQL | <a href="https://orbitsandbox.dev/intent-sql-postgres" target="_blank">intent-sql-postgres</a> |
-| HR Database | SQLite | <a href="https://orbitsandbox.dev/intent-sql-sqlite-hr" target="_blank">intent-sql-sqlite-hr</a> |
-| DuckDB Analytics | DuckDB | <a href="https://orbitsandbox.dev/intent-duckdb-analytics" target="_blank">intent-duckdb-analytics</a> |
-| EV Population Stats | DuckDB | <a href="https://orbitsandbox.dev/intent-duckdb-ev-population" target="_blank">intent-duckdb-ev-population</a> |
-| JSONPlaceholder REST API | HTTP (JSON) | <a href="https://orbitsandbox.dev/intent-http-jsonplaceholder" target="_blank">intent-http-jsonplaceholder</a> |
-| Paris Open Data API | HTTP (JSON) | <a href="https://orbitsandbox.dev/intent-http-paris-opendata" target="_blank">intent-http-paris-opendata</a> |
-| MFlix Sample Collection | MongoDB | <a href="https://orbitsandbox.dev/intent-mongodb-mflix" target="_blank">intent-mongodb-mflix</a> |
-| SpaceX GraphQL | GraphQL | <a href="https://orbitsandbox.dev/intent-graphql-spacex" target="_blank">intent-graphql-spacex</a> |
 
 Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/) and [`examples/intent-templates/`](examples/intent-templates/).
 
@@ -110,14 +88,6 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 | Separate pipelines for retrieval and inference | Unified model + retrieval + tooling gateway |
 | Fragile glue scripts between data sources and LLMs | Production-ready connectors with policy controls |
 | No visibility into what models are doing | Built-in RBAC, rate limiting, and audit logging |
-
----
-
-### Built with ORBIT
-
-- **[PoliceStats.ca](https://policestats.ca)** — Explore Canadian Crime Statistics with AI. Ask about auto theft, break-ins, neighbourhood crime patterns, and cross-city comparisons, with answers grounded in source data citations.
-
-Using ORBIT in production? [Let us know](https://schmitech.ai/en/contact) and we'll add your project here.
 
 ---
 
