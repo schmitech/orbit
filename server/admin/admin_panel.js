@@ -218,6 +218,11 @@
     return "";
   }
 
+  function syncBulkActionButton(button, count, label) {
+    button.disabled = count === 0;
+    button.textContent = count > 0 ? "Delete " + count + " " + label : "Delete Selected";
+  }
+
   function wrapTable(table) {
     return el("div", { className: "table-wrap" }, table);
   }
@@ -479,11 +484,33 @@
   // Status / Error messages
   // ------------------------------------------------------------------
   function showStatus(msg) {
+    clearMessages("error");
     pushMessage("status", msg, true);
   }
 
   function showError(msg) {
     pushMessage("error", msg, false);
+  }
+
+  function clearMessages(kind) {
+    var region = document.getElementById("toast-region");
+    if (!region) return;
+    var selector = kind ? "." + kind : ".status, .error";
+    region.querySelectorAll(selector).forEach(function (node) {
+      node.remove();
+    });
+  }
+
+  function clearValidationErrorsOnInput() {
+    clearMessages("error");
+  }
+
+  function bindValidationClear() {
+    Array.prototype.slice.call(arguments).forEach(function (control) {
+      if (!control || !control.addEventListener) return;
+      control.addEventListener("input", clearValidationErrorsOnInput);
+      control.addEventListener("change", clearValidationErrorsOnInput);
+    });
   }
 
   function pushMessage(kind, msg, autoDismiss) {
@@ -1610,16 +1637,24 @@
     var userSearchFilter = "";
     var allUsers = [];
     var userFilteredEmpty = false;
+    var selectedUserIds = new Set();
     var tableWrap = el("div", null, skeleton());
     var searchInput = el("input", {
       type: "text",
       placeholder: "Search users",
       "aria-label": "Search users"
     });
+    var bulkDeleteBtn = el("button", { className: "danger", type: "button", disabled: "true" }, "Delete Selected");
     var userPaginator = createPaginator({
       pageSize: ITEMS_PER_PAGE,
       onPageChange: function (pageItems) {
-        renderUserTable(tableWrap, pageItems, userFilteredEmpty, handleSelectUser);
+        renderUserTable(tableWrap, pageItems, userFilteredEmpty, handleSelectUser, {
+          selectedIds: selectedUserIds,
+          onSelectionChange: function () {
+            syncBulkActionButton(bulkDeleteBtn, selectedUserIds.size, "users");
+          },
+          currentUserId: currentUser && currentUser.id
+        });
       }
     });
 
@@ -1631,6 +1666,7 @@
 
     listPanel.appendChild(el("h2", null, "Users"));
     listPanel.appendChild(field("Search", searchInput));
+    listPanel.appendChild(el("div", { className: "bulk-action-row" }, bulkDeleteBtn));
     listPanel.appendChild(tableWrap);
     listPanel.appendChild(userPaginator.getControlsEl());
 
@@ -1695,6 +1731,7 @@
       el("div", { className: "admin-create-form-actions" }, createBtn)
     );
     createPanel.appendChild(form);
+    bindValidationClear(usernameInput, passwordInput, roleSelect);
 
     renderSelectedUserPlaceholder(detailPanel);
     renderAccountSecurityPanel(accountPanel);
@@ -1716,6 +1753,27 @@
       }, "User created");
     });
 
+    bulkDeleteBtn.addEventListener("click", function () {
+      var ids = Array.from(selectedUserIds);
+      if (!ids.length) return;
+      confirmAction({
+        title: "Delete Users",
+        message: "Delete " + ids.length + " selected users? This cannot be undone.",
+        confirmLabel: "Delete",
+        isDanger: true,
+        loadingLabel: "Deleting...",
+        onConfirm: async function () {
+          for (var i = 0; i < ids.length; i++) {
+            await api("DELETE", ENDPOINTS.users + "/" + encodeURIComponent(ids[i]));
+          }
+          ids.forEach(function (id) { selectedUserIds.delete(id); });
+          if (selectedUser && ids.indexOf(selectedUser.id) !== -1) selectedUser = null;
+          showStatus(ids.length + " user" + (ids.length === 1 ? "" : "s") + " deleted");
+          await loadUsers({ clearSelection: !selectedUser });
+        }
+      });
+    });
+
     function applyUserFilter() {
       var filter = userSearchFilter;
       var filteredUsers = !filter ? allUsers : allUsers.filter(function (user) {
@@ -1729,6 +1787,12 @@
         });
       });
       userFilteredEmpty = !!allUsers.length && filteredUsers.length === 0;
+      selectedUserIds.forEach(function (userId) {
+        if (!allUsers.some(function (user) { return user.id === userId; })) {
+          selectedUserIds.delete(userId);
+        }
+      });
+      syncBulkActionButton(bulkDeleteBtn, selectedUserIds.size, "users");
       userPaginator.setData(filteredUsers);
     }
 
@@ -1887,6 +1951,7 @@
       passwordField("Confirm Password", confirmPwInput),
       el("div", { className: "inline-form detail-action-row" }, cancelBtn, changeBtn)
     ));
+    bindValidationClear(curPwInput, newPwInput, confirmPwInput);
   }
 
   function renderSelectedUserPlaceholder(panel) {
@@ -1894,7 +1959,7 @@
     panel.style.display = "none";
   }
 
-  function renderUserTable(wrap, users, filteredEmpty, onSelect) {
+  function renderUserTable(wrap, users, filteredEmpty, onSelect, selection) {
     clear(wrap);
     if (!users || users.length === 0) {
       wrap.appendChild(el("div", { className: "empty-state" },
@@ -1904,8 +1969,31 @@
       return;
     }
     var table = el("table");
+    var selectableUsers = users.filter(function (user) {
+      return !selection.currentUserId || user.id !== selection.currentUserId;
+    });
+    var selectAllBox = el("input", {
+      type: "checkbox",
+      "aria-label": "Select all visible users"
+    });
+    selectAllBox.checked = selectableUsers.length > 0 && selectableUsers.every(function (user) {
+      return selection.selectedIds.has(user.id);
+    });
+    selectAllBox.indeterminate = !selectAllBox.checked && selectableUsers.some(function (user) {
+      return selection.selectedIds.has(user.id);
+    });
+    selectAllBox.addEventListener("click", function (e) { e.stopPropagation(); });
+    selectAllBox.addEventListener("change", function () {
+      selectableUsers.forEach(function (user) {
+        if (selectAllBox.checked) selection.selectedIds.add(user.id);
+        else selection.selectedIds.delete(user.id);
+      });
+      selection.onSelectionChange();
+      renderUserTable(wrap, users, filteredEmpty, onSelect, selection);
+    });
     var thead = el("thead", null,
       el("tr", null,
+        el("th", { className: "selection-col" }, selectAllBox),
         el("th", null, "Username"),
         el("th", null, "Role"),
         el("th", null, "Status")
@@ -1914,11 +2002,28 @@
     var tbody = el("tbody");
     users.forEach(function (u) {
       var isSelected = selectedUser && selectedUser.id === u.id;
+      var checkbox = el("input", {
+        type: "checkbox",
+        "aria-label": "Select user " + u.username
+      });
+      checkbox.checked = selection.selectedIds.has(u.id);
+      if (selection.currentUserId && selection.currentUserId === u.id) {
+        checkbox.disabled = true;
+        checkbox.title = "You cannot bulk-delete the current admin account";
+      }
+      checkbox.addEventListener("click", function (e) { e.stopPropagation(); });
+      checkbox.addEventListener("change", function () {
+        if (checkbox.checked) selection.selectedIds.add(u.id);
+        else selection.selectedIds.delete(u.id);
+        selection.onSelectionChange();
+        renderUserTable(wrap, users, filteredEmpty, onSelect, selection);
+      });
       var tr = el("tr", {
         className: "selectable-row" + (isSelected ? " selected-row" : ""),
         tabindex: "0",
         "aria-selected": isSelected ? "true" : "false",
       },
+        el("td", { className: "selection-col" }, checkbox),
         el("td", null, u.username),
         el("td", null, u.role || ""),
         el("td", null,
@@ -1952,6 +2057,7 @@
     var newPwInput = el("input", {
       type: "password",
       maxlength: String(PASSWORD_MAX_LENGTH),
+      placeholder: "8-128 chars. No spaces.",
       autocomplete: "new-password",
       autocapitalize: "none",
       autocorrect: "off",
@@ -2057,9 +2163,10 @@
       actionRow.appendChild(deleteBtn);
       panel.appendChild(actionRow);
       resetPanel.appendChild(el("div", { className: "admin-create-form user-reset-form" },
-        passwordField("New Password", newPwInput, "8-128 chars. No spaces."),
+        passwordField("New Password", newPwInput),
         el("div", { className: "inline-form detail-action-row" }, resetCancelBtn, resetBtn)
       ));
+      bindValidationClear(newPwInput);
       panel.appendChild(resetPanel);
     }
   }
@@ -2073,6 +2180,7 @@
     var createPanel = el("div", { className: "panel", style: "display:none" });
     var detailPanel = el("div", { className: "panel" });
     var keySearchFilter = "";
+    var selectedKeyIds = new Set();
     layout.appendChild(listPanel);
     layout.appendChild(detailPanel);
     layout.appendChild(createPanel);
@@ -2136,6 +2244,7 @@
       )
     );
     createPanel.appendChild(form);
+    bindValidationClear(clientInput, adapterSelect, promptSelect, notesInput);
 
     var keySearchInput = el("input", {
       type: "text",
@@ -2143,6 +2252,8 @@
       "aria-label": "Search API keys"
     });
     listPanel.appendChild(field("Search", keySearchInput));
+    var bulkDeleteBtn = el("button", { className: "danger", type: "button", disabled: "true" }, "Delete Selected");
+    listPanel.appendChild(el("div", { className: "bulk-action-row" }, bulkDeleteBtn));
 
     var tableWrap = el("div", null, skeleton());
     listPanel.appendChild(tableWrap);
@@ -2151,7 +2262,12 @@
     var keyPaginator = createPaginator({
       pageSize: ITEMS_PER_PAGE,
       onPageChange: function (pageItems) {
-        renderKeyTable(tableWrap, pageItems, detailPanel, keyFilteredEmpty);
+        renderKeyTable(tableWrap, pageItems, detailPanel, keyFilteredEmpty, {
+          selectedIds: selectedKeyIds,
+          onSelectionChange: function () {
+            syncBulkActionButton(bulkDeleteBtn, selectedKeyIds.size, "API keys");
+          }
+        }, loadKeys);
       }
     });
     listPanel.appendChild(keyPaginator.getControlsEl());
@@ -2186,6 +2302,27 @@
       }, "API key created");
     });
 
+    bulkDeleteBtn.addEventListener("click", function () {
+      var ids = Array.from(selectedKeyIds);
+      if (!ids.length) return;
+      confirmAction({
+        title: "Delete API Keys",
+        message: "Delete " + ids.length + " selected API keys? This cannot be undone.",
+        confirmLabel: "Delete",
+        isDanger: true,
+        loadingLabel: "Deleting...",
+        onConfirm: async function () {
+          for (var i = 0; i < ids.length; i++) {
+            await api("DELETE", ENDPOINTS.apiKeys + "/" + encodeURIComponent(ids[i]));
+          }
+          ids.forEach(function (id) { selectedKeyIds.delete(id); });
+          if (selectedKey && ids.indexOf(selectedKey._id) !== -1) selectedKey = null;
+          showStatus(ids.length + " API key" + (ids.length === 1 ? "" : "s") + " deleted");
+          await loadKeys();
+        }
+      });
+    });
+
     function applyKeyFilter() {
       var keys = cachedKeys || [];
       var filter = keySearchFilter;
@@ -2200,6 +2337,12 @@
         });
       });
       keyFilteredEmpty = !!keys.length && filteredKeys.length === 0;
+      selectedKeyIds.forEach(function (keyId) {
+        if (!keys.some(function (key) { return key._id === keyId; })) {
+          selectedKeyIds.delete(keyId);
+        }
+      });
+      syncBulkActionButton(bulkDeleteBtn, selectedKeyIds.size, "API keys");
       keyPaginator.setData(filteredKeys);
     }
 
@@ -2213,6 +2356,12 @@
         var keys = await api("GET", ENDPOINTS.apiKeys);
         cachedKeys = keys;
         applyKeyFilter();
+        selectedKeyIds.forEach(function (keyId) {
+          if (!keys.some(function (key) { return key._id === keyId; })) {
+            selectedKeyIds.delete(keyId);
+          }
+        });
+        syncBulkActionButton(bulkDeleteBtn, selectedKeyIds.size, "API keys");
         if (selectedKey && selectedKey._id) {
           var refreshedSelection = keys.find(function (key) {
             return key._id === selectedKey._id;
@@ -2244,6 +2393,10 @@
             detailPanel.appendChild(el("h2", null, "Key Details"));
             detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
           }
+        } else {
+          clear(detailPanel);
+          detailPanel.appendChild(el("h2", null, "Key Details"));
+          detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
         }
       } catch (err) {
         clear(tableWrap);
@@ -2410,7 +2563,7 @@
     return frame;
   }
 
-  function renderKeyTable(wrap, keys, rightPanel, filteredEmpty) {
+  function renderKeyTable(wrap, keys, rightPanel, filteredEmpty, selection, reloadKeys) {
     clear(wrap);
     if (!keys || keys.length === 0) {
       wrap.appendChild(el("div", { className: "empty-state" },
@@ -2420,8 +2573,28 @@
       return;
     }
     var table = el("table");
+    var selectAllBox = el("input", {
+      type: "checkbox",
+      "aria-label": "Select all visible API keys"
+    });
+    selectAllBox.checked = keys.length > 0 && keys.every(function (key) {
+      return selection.selectedIds.has(key._id);
+    });
+    selectAllBox.indeterminate = !selectAllBox.checked && keys.some(function (key) {
+      return selection.selectedIds.has(key._id);
+    });
+    selectAllBox.addEventListener("click", function (e) { e.stopPropagation(); });
+    selectAllBox.addEventListener("change", function () {
+      keys.forEach(function (key) {
+        if (selectAllBox.checked) selection.selectedIds.add(key._id);
+        else selection.selectedIds.delete(key._id);
+      });
+      selection.onSelectionChange();
+      renderKeyTable(wrap, keys, rightPanel, filteredEmpty, selection, reloadKeys);
+    });
     var thead = el("thead", null,
       el("tr", null,
+        el("th", { className: "selection-col" }, selectAllBox),
         el("th", null, "Client"),
         el("th", null, "Adapter"),
         el("th", null, "Persona"),
@@ -2431,11 +2604,24 @@
     var tbody = el("tbody");
     keys.forEach(function (k) {
       var isSelected = selectedKey && selectedKey._id && k._id && selectedKey._id === k._id;
+      var checkbox = el("input", {
+        type: "checkbox",
+        "aria-label": "Select API key " + (k.client_name || k._id || "")
+      });
+      checkbox.checked = selection.selectedIds.has(k._id);
+      checkbox.addEventListener("click", function (e) { e.stopPropagation(); });
+      checkbox.addEventListener("change", function () {
+        if (checkbox.checked) selection.selectedIds.add(k._id);
+        else selection.selectedIds.delete(k._id);
+        selection.onSelectionChange();
+        renderKeyTable(wrap, keys, rightPanel, filteredEmpty, selection, reloadKeys);
+      });
       var tr = el("tr", {
         className: "selectable-row" + (isSelected ? " selected-row" : ""),
         tabindex: "0",
         "aria-selected": isSelected ? "true" : "false",
       },
+        el("td", { className: "selection-col" }, checkbox),
         el("td", null, k.client_name || ""),
         el("td", null, k.adapter_name || "default"),
         el("td", null, k.system_prompt_name || "None"),
@@ -2455,7 +2641,7 @@
           selectedKey = detail;
           renderKeyDetail(rightPanel, detail, function () {
             selectedKey = null;
-            renderTab();
+            reloadKeys();
           });
         } catch (err) {
           selectedKey = null;
@@ -2619,6 +2805,7 @@
     adapterSelect.addEventListener("change", syncKeySaveState);
     promptSelect.addEventListener("change", syncKeySaveState);
     notesInput.addEventListener("input", syncKeySaveState);
+    bindValidationClear(clientInput, adapterSelect, promptSelect, notesInput);
     saveBtn.addEventListener("click", function () {
       var clientName = clientInput.value.trim();
       if (!clientName) {
@@ -2682,6 +2869,7 @@
     panel.appendChild(el("h3", null, "Rename Key"));
     var renameInput = el("input", { type: "text", maxlength: "100" });
     var renameBtn = el("button", { type: "button" }, "Rename");
+    bindValidationClear(renameInput);
     renameBtn.addEventListener("click", function () {
       var nk = renameInput.value.trim();
       if (!nk) return;
@@ -2868,6 +3056,7 @@
     var createPanel = el("div", { className: "panel", style: "display:none" });
     var detailPanel = el("div", { className: "panel", style: "display:none" });
     var promptSearchFilter = "";
+    var selectedPromptIds = new Set();
     layout.appendChild(listPanel);
     layout.appendChild(detailPanel);
     layout.appendChild(createPanel);
@@ -2919,6 +3108,7 @@
       el("div", { className: "admin-create-form-actions" }, createBtn)
     );
     createPanel.appendChild(form);
+    bindValidationClear(nameInput, versionInput, textArea, createKeySelect);
 
     var promptSearchInput = el("input", {
       type: "text",
@@ -2926,6 +3116,8 @@
       "aria-label": "Search personas"
     });
     listPanel.appendChild(field("Search", promptSearchInput));
+    var bulkDeleteBtn = el("button", { className: "danger", type: "button", disabled: "true" }, "Delete Selected");
+    listPanel.appendChild(el("div", { className: "bulk-action-row" }, bulkDeleteBtn));
 
     var tableWrap = el("div", null, skeleton());
     listPanel.appendChild(tableWrap);
@@ -2934,7 +3126,12 @@
     var promptPaginator = createPaginator({
       pageSize: ITEMS_PER_PAGE,
       onPageChange: function (pageItems) {
-        renderPromptTable(tableWrap, pageItems, detailPanel, promptFilteredEmpty, refreshPrompts);
+        renderPromptTable(tableWrap, pageItems, detailPanel, promptFilteredEmpty, refreshPrompts, {
+          selectedIds: selectedPromptIds,
+          onSelectionChange: function () {
+            syncBulkActionButton(bulkDeleteBtn, selectedPromptIds.size, "personas");
+          }
+        });
       }
     });
     listPanel.appendChild(promptPaginator.getControlsEl());
@@ -2966,6 +3163,27 @@
       }, "Persona created");
     });
 
+    bulkDeleteBtn.addEventListener("click", function () {
+      var ids = Array.from(selectedPromptIds);
+      if (!ids.length) return;
+      confirmAction({
+        title: "Delete Personas",
+        message: "Delete " + ids.length + " selected personas? This cannot be undone.",
+        confirmLabel: "Delete",
+        isDanger: true,
+        loadingLabel: "Deleting...",
+        onConfirm: async function () {
+          for (var i = 0; i < ids.length; i++) {
+            await api("DELETE", ENDPOINTS.prompts + "/" + encodeURIComponent(ids[i]));
+          }
+          ids.forEach(function (id) { selectedPromptIds.delete(id); });
+          if (selectedPrompt && ids.indexOf(promptIdentifier(selectedPrompt)) !== -1) selectedPrompt = null;
+          showStatus(ids.length + " persona" + (ids.length === 1 ? "" : "s") + " deleted");
+          await refreshPrompts();
+        }
+      });
+    });
+
     function applyPromptFilter() {
       var prompts = cachedPrompts || [];
       var filter = promptSearchFilter;
@@ -2979,6 +3197,12 @@
         });
       });
       promptFilteredEmpty = !!prompts.length && filteredPrompts.length === 0;
+      selectedPromptIds.forEach(function (promptId) {
+        if (!prompts.some(function (prompt) { return promptIdentifier(prompt) === promptId; })) {
+          selectedPromptIds.delete(promptId);
+        }
+      });
+      syncBulkActionButton(bulkDeleteBtn, selectedPromptIds.size, "personas");
       promptPaginator.setData(filteredPrompts);
     }
 
@@ -3028,7 +3252,7 @@
     refreshPrompts();
   }
 
-  function renderPromptTable(wrap, prompts, rightPanel, filteredEmpty, refreshPrompts) {
+  function renderPromptTable(wrap, prompts, rightPanel, filteredEmpty, refreshPrompts, selection) {
     clear(wrap);
     if (!prompts || prompts.length === 0) {
       wrap.appendChild(el("div", { className: "empty-state" },
@@ -3038,8 +3262,30 @@
       return;
     }
     var table = el("table");
+    var selectAllBox = el("input", {
+      type: "checkbox",
+      "aria-label": "Select all visible personas"
+    });
+    selectAllBox.checked = prompts.length > 0 && prompts.every(function (prompt) {
+      return selection.selectedIds.has(promptIdentifier(prompt));
+    });
+    selectAllBox.indeterminate = !selectAllBox.checked && prompts.some(function (prompt) {
+      return selection.selectedIds.has(promptIdentifier(prompt));
+    });
+    selectAllBox.addEventListener("click", function (e) { e.stopPropagation(); });
+    selectAllBox.addEventListener("change", function () {
+      prompts.forEach(function (prompt) {
+        var promptId = promptIdentifier(prompt);
+        if (!promptId) return;
+        if (selectAllBox.checked) selection.selectedIds.add(promptId);
+        else selection.selectedIds.delete(promptId);
+      });
+      selection.onSelectionChange();
+      renderPromptTable(wrap, prompts, rightPanel, filteredEmpty, refreshPrompts, selection);
+    });
     var thead = el("thead", null,
       el("tr", null,
+        el("th", { className: "selection-col" }, selectAllBox),
         el("th", null, "ID"),
         el("th", null, "Name"),
         el("th", null, "Version")
@@ -3049,11 +3295,24 @@
     prompts.forEach(function (p) {
       var promptId = promptIdentifier(p);
       var isSelected = selectedPrompt && promptIdentifier(selectedPrompt) === promptId;
+      var checkbox = el("input", {
+        type: "checkbox",
+        "aria-label": "Select persona " + (p.name || promptId || "")
+      });
+      checkbox.checked = selection.selectedIds.has(promptId);
+      checkbox.addEventListener("click", function (e) { e.stopPropagation(); });
+      checkbox.addEventListener("change", function () {
+        if (checkbox.checked) selection.selectedIds.add(promptId);
+        else selection.selectedIds.delete(promptId);
+        selection.onSelectionChange();
+        renderPromptTable(wrap, prompts, rightPanel, filteredEmpty, refreshPrompts, selection);
+      });
       var tr = el("tr", {
         className: "selectable-row" + (isSelected ? " selected-row" : ""),
         tabindex: "0",
         "aria-selected": isSelected ? "true" : "false",
       },
+        el("td", { className: "selection-col" }, checkbox),
         el("td", null, el("code", { className: "plain-code" }, promptId)),
         el("td", null, p.name),
         el("td", null, p.version || "")
@@ -3170,6 +3429,7 @@
     nameInput.addEventListener("input", syncPromptSaveState);
     vInput.addEventListener("input", syncPromptSaveState);
     tArea.addEventListener("input", syncPromptSaveState);
+    bindValidationClear(nameInput, vInput, tArea);
     syncPromptSaveState();
     panel.appendChild(el("div", { className: "stack", style: "margin-top:var(--sp-3)" },
       el("div", { className: "inline-form" }, editToggle, cancelBtn, saveBtn),

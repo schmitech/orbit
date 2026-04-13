@@ -871,6 +871,23 @@ tbody tr:nth-child(even) {
   padding-top: var(--sp-2);
 }
 
+.bulk-action-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0 var(--sp-2);
+}
+
+.selection-col {
+  width: 42px;
+  text-align: center;
+}
+
+.selection-col input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
 .create-launch-btn {
   min-height: 38px;
   padding: var(--sp-2) var(--sp-3);
