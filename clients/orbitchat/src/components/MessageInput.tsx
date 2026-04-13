@@ -283,7 +283,6 @@ export function MessageInput({
   const hasSuggestions = suggestions.length > 0;
   const autocompleteVisible = !isListening;
   const showAutocompletePanel = autocompleteVisible && hasSuggestions;
-  const showAutocompleteHints = autocompleteVisible && hasSuggestions;
   const activeSuggestionIndex = selectedIndex >= 0 ? selectedIndex : 0;
   const activeSuggestion = hasSuggestions ? suggestions[activeSuggestionIndex] : null;
   const inlineSuggestion = useMemo(() => {
@@ -303,20 +302,20 @@ export function MessageInput({
   const showCustomPlaceholder = message.trim().length === 0 && !inlineSuggestion;
   const renderSuggestionText = useCallback((suggestionText: string) => {
     if (!message) {
-      return <span className="line-clamp-2 text-current">{suggestionText}</span>;
+      return <span className="line-clamp-1 text-current">{suggestionText}</span>;
     }
 
     if (!suggestionText.toLowerCase().startsWith(message.toLowerCase())) {
-      return <span className="line-clamp-2 text-current">{suggestionText}</span>;
+      return <span className="line-clamp-1 text-current">{suggestionText}</span>;
     }
 
     const typedPart = suggestionText.slice(0, message.length);
     const completionPart = suggestionText.slice(message.length);
 
     return (
-      <span className="line-clamp-2">
-        <span className="opacity-65">{typedPart}</span>
-        <span className="font-medium text-current">{completionPart}</span>
+      <span className="line-clamp-1">
+        <span className="text-gray-500 dark:text-[#8e8ea0]">{typedPart}</span>
+        <span className="font-semibold text-[#353740] dark:text-[#ececf1]">{completionPart}</span>
       </span>
     );
   }, [message]);
@@ -1240,65 +1239,7 @@ export function MessageInput({
         )}
 
         <div className="relative w-full">
-          {/* Autocomplete suggestions dropdown */}
-          {showAutocompletePanel && (
-            <div className="mb-2 w-full overflow-hidden rounded-xl border border-gray-200/90 bg-white/95 shadow-[0_14px_38px_rgba(15,23,42,0.14)] ring-1 ring-black/5 backdrop-blur-sm dark:border-[#4a4b54] dark:bg-[#1f2027]/95 dark:shadow-[0_16px_38px_rgba(0,0,0,0.45)] dark:ring-white/10 z-50 md:absolute md:bottom-full md:left-0 md:w-[32rem] md:max-w-full">
-              <div className="border-b border-blue-100/90 bg-blue-50/80 px-3 py-2 text-xs font-semibold tracking-wide text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
-                <span>Suggestions</span>
-              </div>
-              <div role="listbox" aria-label="Autocomplete suggestions" className="max-h-64 overflow-y-auto p-1.5">
-                {suggestions.map((suggestion, index) => {
-                  const isSelected = index === selectedIndex;
-
-                  return (
-                    <button
-                      key={index}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      className={`group relative mb-1 flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors last:mb-0 ${
-                        isSelected
-                          ? 'bg-blue-100 text-blue-800 shadow-sm dark:bg-blue-900/45 dark:text-blue-100'
-                          : 'text-[#353740] hover:bg-blue-50 hover:text-blue-700 dark:text-[#ececf1] dark:hover:bg-blue-900/30 dark:hover:text-blue-200'
-                      }`}
-                      onClick={() => handleSelectSuggestion(suggestion.text)}
-                      onMouseEnter={() => setSelectedIndex(index)}
-                    >
-                      {renderSuggestionText(suggestion.text)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {showAutocompleteHints && (
-            <div className="mb-2 hidden md:flex flex-wrap items-center gap-2.5 text-xs text-gray-500 dark:text-[#bfc2cd]">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
-                  Tab
-                </span>
-                Accept
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
-                  →
-                </span>
-                Inline fill
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
-                  ↑/↓
-                </span>
-                Navigate
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="rounded border border-gray-300 bg-white/80 px-1.5 py-0.5 font-semibold text-gray-600 dark:border-[#40414f] dark:bg-[#2d2f39] dark:text-[#ececf1]">
-                  Esc
-                </span>
-                Dismiss
-              </span>
-            </div>
-          )}
+          {/* Autocomplete suggestions are rendered below the form */}
 
           <form onSubmit={handleSubmit} className="flex w-full flex-col gap-2 md:gap-3">
           {/* Mobile layout: stacked with textarea on top, buttons below */}
@@ -1671,6 +1612,33 @@ export function MessageInput({
           )}
         </div>
         </form>
+
+        {/* ChatGPT-style autocomplete suggestions below input */}
+        {showAutocompletePanel && (
+          <div role="listbox" aria-label="Autocomplete suggestions" className="w-full pt-1">
+            {suggestions.map((suggestion, index) => {
+              const isSelected = index === selectedIndex;
+
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  className={`flex w-full items-center gap-3 px-3 py-3 md:py-2.5 text-left text-[15px] md:text-sm transition-colors ${
+                    isSelected
+                      ? 'bg-gray-100 dark:bg-[#2d2f39]'
+                      : 'hover:bg-gray-50 dark:hover:bg-[#2d2f39]/60'
+                  }`}
+                  onClick={() => handleSelectSuggestion(suggestion.text)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                >
+                  {renderSuggestionText(suggestion.text)}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <ConfirmationModal
           isOpen={fileDeleteConfirmation.isOpen}

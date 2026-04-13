@@ -31,3 +31,5 @@ package-lock.json
 state.json
 *.tgz
 orbitchat.yaml
+robots.txt
+sitemap.xml
