@@ -20,7 +20,7 @@ class HealthStatus(BaseModel):
 class ApiKeyCreate(BaseModel):
     """API key creation request model"""
     client_name: str
-    notes: Optional[str] = Field(default=None, max_length=1000)
+    notes: Optional[str] = Field(default=None, max_length=2000)
     system_prompt_id: Optional[str] = None
     adapter_name: str  # Required adapter name
     
@@ -50,7 +50,7 @@ class ApiKeyUpdate(BaseModel):
     client_name: str = Field(min_length=1, max_length=100)
     adapter_name: str = Field(min_length=1)
     system_prompt_id: Optional[str] = None
-    notes: Optional[str] = Field(default=None, max_length=1000)
+    notes: Optional[str] = Field(default=None, max_length=2000)
 
 
 class ApiKeyDeactivate(BaseModel):
@@ -96,13 +96,13 @@ class ApiKeyQuotaResponse(BaseModel):
 class SystemPromptCreate(BaseModel):
     """System prompt creation request model"""
     name: str
-    prompt: str
+    prompt: str = Field(min_length=1, max_length=2000)
     version: str = "1.0"
 
 
 class SystemPromptUpdate(BaseModel):
     """System prompt update request model"""
-    prompt: str
+    prompt: str = Field(min_length=1, max_length=2000)
     version: Optional[str] = None
 
 

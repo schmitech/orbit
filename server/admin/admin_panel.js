@@ -513,6 +513,18 @@
     });
   }
 
+  function characterCount(input, maxLength) {
+    var counter = el("div", { className: "character-count", "aria-live": "polite" });
+    function sync() {
+      var current = (input.value || "").length;
+      counter.textContent = current + "/" + maxLength;
+      counter.classList.toggle("near-limit", current >= maxLength * 0.9);
+    }
+    input.addEventListener("input", sync);
+    sync();
+    return counter;
+  }
+
   function pushMessage(kind, msg, autoDismiss) {
     var region = document.getElementById("toast-region");
     if (!region) return;
@@ -2217,7 +2229,8 @@
         promptSelect.appendChild(el("option", { value: promptIdentifier(p) }, p.name + " (v" + (p.version || "1.0") + ")"));
       });
     }
-    var notesInput = el("textarea", { rows: "4", maxlength: "1000" });
+    var notesInput = el("textarea", { rows: "4", maxlength: "2000" });
+    var notesCounter = characterCount(notesInput, 2000);
     var createBtn = el("button", { type: "button" }, "Create Key");
     function openCreatePanel() {
       createPanel.style.display = "";
@@ -2238,7 +2251,7 @@
         field("Adapter", adapterSelect),
         field("Persona", promptSelect)
       ),
-      field("Notes", notesInput),
+      el("div", { className: "stack" }, field("Notes", notesInput), notesCounter),
       el("div", { className: "admin-create-form-actions" },
         createBtn
       )
@@ -2703,7 +2716,8 @@
       });
     });
     var keyField = el("div", { className: "secret-field" }, keyCode, revealBtn, copyBtn);
-    var notesInput = el("textarea", { rows: "4", maxlength: "1000" }, key.notes || "");
+    var notesInput = el("textarea", { rows: "4", maxlength: "2000" }, key.notes || "");
+    var notesCounter = characterCount(notesInput, 2000);
     var notesPreview = createMarkdownPreview(notesInput);
 
     var summary = el("div", { className: "key-summary" },
@@ -2759,7 +2773,7 @@
           field("Adapter", adapterSelect),
           field("Persona", promptSelect)
         ),
-        field("Notes", notesInput)
+        el("div", { className: "stack" }, field("Notes", notesInput), notesCounter)
       )
     );
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Details");
@@ -3066,7 +3080,8 @@
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "100" });
     var versionInput = el("input", { type: "text", value: "1.0", maxlength: "25" });
-    var textArea = el("textarea", { rows: "5", required: "true", maxlength: "50000" });
+    var textArea = el("textarea", { rows: "5", required: "true", maxlength: "2000" });
+    var textCounter = characterCount(textArea, 2000);
     var createKeySelect = el("select", null, el("option", { value: "" }, "Loading API keys..."));
     var createBtn = el("button", { type: "button" }, "Create Persona");
 
@@ -3104,7 +3119,7 @@
         field("Version", versionInput),
         field("API Key", createKeySelect)
       ),
-      field("Persona", textArea),
+      el("div", { className: "stack" }, field("Persona", textArea), textCounter),
       el("div", { className: "admin-create-form-actions" }, createBtn)
     );
     createPanel.appendChild(form);
@@ -3357,7 +3372,8 @@
     var isEditingPrompt = false;
     var nameInput = el("input", { type: "text", value: prompt.name || "", maxlength: "100", readonly: "true", "aria-readonly": "true" });
     var vInput = el("input", { type: "text", value: prompt.version || "1.0", maxlength: "25", readonly: "true", "aria-readonly": "true" });
-    var tArea = el("textarea", { rows: "8", maxlength: "50000", readonly: "true", "aria-readonly": "true" }, prompt.prompt || "");
+    var tArea = el("textarea", { rows: "8", maxlength: "2000", readonly: "true", "aria-readonly": "true" }, prompt.prompt || "");
+    var tCounter = characterCount(tArea, 2000);
     var saveBtn = el("button", { type: "button" }, "Save Changes");
     saveBtn.style.display = "none";
     saveBtn.addEventListener("click", function () {
@@ -3384,7 +3400,7 @@
         field("Name", nameInput),
         field("Version", vInput)
       ),
-      field("Persona Text", tArea)
+      el("div", { className: "stack" }, field("Persona Text", tArea), tCounter)
     );
     var previewWrap = el("div", { className: "prompt-preview-pane" }, editPreview);
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Persona");

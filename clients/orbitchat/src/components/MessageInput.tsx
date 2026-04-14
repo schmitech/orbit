@@ -180,6 +180,7 @@ export function MessageInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const agentInfoModalRef = useRef<HTMLDivElement>(null);
   const uploadPanelRef = useRef<HTMLDivElement>(null);
+  const autocompletePanelRef = useRef<HTMLDivElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
   const voiceMessageRef = useRef('');
   const pendingVoiceAutoSendRef = useRef(false);
@@ -1196,6 +1197,17 @@ export function MessageInput({
     });
   }, [showFileUpload, isUploading, pasteUploadingFiles.size, hasAnyUploadingConversations]);
 
+  // Auto-scroll suggestions into view (needed in centered/empty-state layout)
+  useEffect(() => {
+    if (!showAutocompletePanel) {
+      return;
+    }
+    autocompletePanelRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest'
+    });
+  }, [showAutocompletePanel]);
+
   const contentMaxWidth = maxWidthClass;
   const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
 
@@ -1242,10 +1254,9 @@ export function MessageInput({
           {/* Autocomplete suggestions are rendered below the form */}
 
           <form onSubmit={handleSubmit} className="flex w-full flex-col gap-2 md:gap-3">
-          {/* Mobile layout: stacked with textarea on top, buttons below */}
-          {/* Desktop layout: single row with all elements inline */}
+          {/* Single-row layout: textarea + action buttons inline on all viewports */}
           <div
-            className={`flex flex-col md:flex-row md:items-center gap-1.5 md:gap-2 rounded-xl md:rounded-lg border px-3 py-2 md:px-4 md:py-3 shadow-sm transition-all ${
+            className={`flex flex-row items-center gap-1.5 md:gap-2 rounded-xl md:rounded-lg border px-2.5 py-1.5 md:px-4 md:py-3 shadow-sm transition-all ${
               isFocused
                 ? 'border-gray-400 shadow-md dark:border-[#565869] dark:shadow-lg'
                 : 'border-gray-300 dark:border-[#40414f]'
@@ -1255,7 +1266,7 @@ export function MessageInput({
           <div className="relative flex-1 w-full min-w-0">
             {showCustomPlaceholder && effectivePlaceholder && (
               <div
-                className="pointer-events-none absolute inset-0 whitespace-pre-wrap text-base md:text-sm text-gray-500 dark:text-[#8e8ea0]"
+                className="pointer-events-none absolute inset-0 truncate whitespace-nowrap text-base md:text-sm text-gray-500 dark:text-[#8e8ea0]"
                 style={{
                   paddingTop: Math.max(textareaVerticalPadding.top - PLACEHOLDER_VERTICAL_OFFSET, 0),
                   paddingBottom: textareaVerticalPadding.bottom,
@@ -1318,9 +1329,8 @@ export function MessageInput({
             />
           </div>
 
-          {/* Action buttons row */}
-          <div className="flex items-center justify-between md:justify-end gap-1 md:gap-2 md:flex-shrink-0">
-            {/* Left side buttons on mobile */}
+          {/* Action buttons */}
+          <div className="flex items-center justify-end gap-1 md:gap-2 flex-shrink-0">
             <div className="flex items-center gap-1 md:gap-2">
               {isCentered && !uploadFeatureEnabled && (
                 <div className="hidden md:block h-8 w-8 shrink-0" aria-hidden="true" />
@@ -1337,7 +1347,7 @@ export function MessageInput({
                   disabled={isFileUploadDisabled}
                   onMouseEnter={() => setIsHoveringUpload(true)}
                   onMouseLeave={() => setIsHoveringUpload(false)}
-                  className={`flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
                     showFileUpload || visibleAttachedFiles.length > 0
                       ? 'bg-gray-200 text-[#353740] dark:bg-[#565869] dark:text-[#ececf1]'
                       : isFileUploadDisabled
@@ -1360,16 +1370,16 @@ export function MessageInput({
                   aria-label="Attach files"
                 >
                   {isFileUploadDisabled && isHoveringUpload ? (
-                    <X className="h-5 w-5 md:h-4 md:w-4" />
+                    <X className="h-4 w-4" />
                   ) : (
-                    <Paperclip className="h-5 w-5 md:h-4 md:w-4" />
+                    <Paperclip className="h-4 w-4" />
                   )}
                 </button>
               )}
 
-              {/* Character count - show inline on mobile when typing */}
+              {/* Character count - hidden on mobile to save space */}
               {message.length > 0 && (
-                <div className="px-2 text-xs text-gray-500 dark:text-[#bfc2cd] md:min-w-[72px] md:text-right">
+                <div className="hidden md:block px-2 text-xs text-gray-500 dark:text-[#bfc2cd] md:min-w-[72px] md:text-right">
                   <span className={message.length >= AppConfig.maxMessageLength ? 'text-red-600 font-semibold' : ''}>
                     {message.length}/{AppConfig.maxMessageLength}
                   </span>
@@ -1385,7 +1395,7 @@ export function MessageInput({
                   <button
                     type="button"
                     onClick={handleVoiceResponseToggle}
-                    className={`flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
+                    className={`hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
                       settings.voiceEnabled
                         ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
                         : 'text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
@@ -1411,9 +1421,9 @@ export function MessageInput({
                       disabled={isInputDisabled}
                       onMouseEnter={() => setIsHoveringMic(true)}
                       onMouseLeave={() => setIsHoveringMic(false)}
-                      className={`flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
+                      className={`hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
                         isListening
-                          ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'
+                          ? '!flex bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'
                           : isInputDisabled
                           ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
                           : 'text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
@@ -1441,7 +1451,7 @@ export function MessageInput({
                 <button
                   type="button"
                   onClick={() => setShowAgentInfo(true)}
-                  className="flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]"
+                  className="hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]"
                   title="About this agent"
                   aria-label="About this agent"
                 >
@@ -1450,8 +1460,8 @@ export function MessageInput({
               )}
 
               {(hasProcessingFiles || isUploading) && (
-                <div className="flex h-10 w-10 md:h-8 md:w-8 shrink-0 items-center justify-center">
-                  <Loader2 className="h-5 w-5 md:h-4 md:w-4 animate-spin text-gray-500 dark:text-[#bfc2cd]" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin text-gray-500 dark:text-[#bfc2cd]" />
                 </div>
               )}
 
@@ -1462,7 +1472,7 @@ export function MessageInput({
                     e.preventDefault();
                     stopStreaming();
                   }}
-                  className="flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
+                  className="flex h-9 w-9 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
                   title="Stop generating"
                   aria-label="Stop generating"
                 >
@@ -1472,7 +1482,7 @@ export function MessageInput({
                 <button
                   type="submit"
                   disabled={!hasTypedMessage || isInputDisabled || isComposing}
-                  className={`flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
+                  className={`flex h-9 w-9 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 ${
                     hasTypedMessage && !isInputDisabled && !isComposing
                       ? 'bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200'
                       : 'bg-gray-300 text-gray-500 dark:bg-[#565869] dark:text-[#6b6f7a]'
@@ -1480,7 +1490,7 @@ export function MessageInput({
                   title="Send message"
                   aria-label="Send message"
                 >
-                  <ArrowUp className="h-5 w-5 md:h-4 md:w-4" />
+                  <ArrowUp className="h-4 w-4" />
                 </button>
               )}
             </div>
@@ -1615,7 +1625,7 @@ export function MessageInput({
 
         {/* ChatGPT-style autocomplete suggestions below input */}
         {showAutocompletePanel && (
-          <div role="listbox" aria-label="Autocomplete suggestions" className="w-full pt-1">
+          <div ref={autocompletePanelRef} role="listbox" aria-label="Autocomplete suggestions" className="w-full pt-1">
             {suggestions.map((suggestion, index) => {
               const isSelected = index === selectedIndex;
 

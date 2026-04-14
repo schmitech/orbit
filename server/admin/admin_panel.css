@@ -888,6 +888,17 @@ tbody tr:nth-child(even) {
   cursor: pointer;
 }
 
+.character-count {
+  align-self: end;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.character-count.near-limit {
+  color: var(--danger-text);
+}
+
 .create-launch-btn {
   min-height: 38px;
   padding: var(--sp-2) var(--sp-3);

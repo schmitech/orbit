@@ -543,11 +543,11 @@ export function Message({
 
         {isAssistant && !message.isStreaming && (
           <>
-            <div className="py-1.5 md:py-2 flex flex-wrap items-center gap-1 md:gap-1 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
-              <div className="flex min-w-0 flex-wrap items-center gap-1 md:gap-1">
+            <div className="py-1.5 md:py-2 flex flex-nowrap items-center gap-1 md:gap-1 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
+              <div className="flex min-w-0 flex-nowrap items-center gap-1 md:gap-1">
                 <button
                   onClick={copyToClipboard}
-                  className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
                   title="Copy to clipboard"
                   aria-label="Copy to clipboard"
                 >
@@ -558,7 +558,7 @@ export function Message({
                 {onRegenerate && (
                   <button
                     onClick={() => onRegenerate(message.id)}
-                    className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
                     title="Regenerate response"
                     aria-label="Regenerate response"
                   >
@@ -575,12 +575,12 @@ export function Message({
                       setIsThreadOpen(true);
                       onStartThread(message.id, sessionId);
                     }}
-                    className={`inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-blue-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-100 hover:text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 dark:hover:border-blue-400/50 dark:hover:bg-blue-500/20 dark:hover:text-blue-100 md:px-3 md:py-1.5 ${isDark ? 'animate-follow-up-pulse-dark' : 'animate-follow-up-pulse-light'}`}
+                    className="inline-flex items-center gap-1 md:gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1.5 md:px-3 md:py-1.5 text-blue-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-100 hover:text-blue-800 hover:shadow-md dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 dark:hover:border-blue-400/50 dark:hover:bg-blue-500/20 dark:hover:text-blue-100 dark:hover:shadow-md animate-follow-up-enter whitespace-nowrap"
                     title="Continue this discussion with the current answer's context"
                     aria-label="Continue this discussion with the current answer's context"
                   >
-                    <MessageSquare className="h-4 w-4 md:h-3.5 md:w-3.5" />
-                    <span>Continue Discussion</span>
+                    <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                    <span>Continue</span>
                   </button>
                 )}
 
@@ -589,12 +589,12 @@ export function Message({
 
               {getEnableFeedbackButtons() && (
                 <>
-                <div className="hidden md:block w-px h-4 shrink-0 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
+                <div className="w-px h-4 shrink-0 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
                 <div className="relative flex shrink-0 items-center gap-0.5">
                   <button
                     onClick={() => handleFeedback('up')}
                     disabled={isFeedbackLoading}
-                    className={`rounded-md p-2.5 md:p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${isFeedbackLoading ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
+                    className={`rounded-md p-1.5 transition-colors ${isFeedbackLoading ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
                     title="Good response"
                     aria-label="Good response"
                   >
@@ -603,15 +603,15 @@ export function Message({
                   <button
                     onClick={() => handleFeedback('down')}
                     disabled={isFeedbackLoading}
-                    className={`rounded-md p-2.5 md:p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${isFeedbackLoading ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
+                    className={`rounded-md p-1.5 transition-colors ${isFeedbackLoading ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
                     title="Poor response"
                     aria-label="Poor response"
                   >
                     <ThumbsDown className="h-3.5 w-3.5" />
                   </button>
                   {showFeedbackAcknowledgement && (
-                    <div className="absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
-                      <div className="absolute left-0 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-emerald-500 dark:bg-emerald-600" />
+                    <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
+                      <div className="absolute left-1/2 top-full h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-emerald-500 dark:bg-emerald-600" />
                       <div className="relative flex items-center gap-1.5">
                         <Check className="h-3.5 w-3.5" />
                         <span>Thanks!</span>
