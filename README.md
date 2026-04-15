@@ -57,14 +57,6 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 
 ---
 
-### Built with ORBIT
-
-**[PoliceStats.ca](https://policestats.ca)** — Explore Canadian Crime Statistics with AI. Ask about auto theft, break-ins, neighbourhood crime patterns, and cross-city comparisons, with answers grounded in source data citations.
-
-Using ORBIT in production? [Let us know](https://schmitech.ai/en/contact) and we'll add your project here.
-
----
-
 ### What can you build with ORBIT?
 
 - **Ask your database questions in any language** — Connect Postgres, MySQL, MongoDB, DuckDB, or Elasticsearch and query them with natural language. Built-in language detection responds in the user's language automatically.
