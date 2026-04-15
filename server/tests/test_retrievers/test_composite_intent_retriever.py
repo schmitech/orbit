@@ -134,6 +134,9 @@ class MockEmbeddingClient:
     async def embed_query(self, query: str) -> List[float]:
         # Return a mock embedding
         return [0.1] * self.dimension
+
+    async def embed_documents(self, documents: List[str]) -> List[List[float]]:
+        return [[0.1] * self.dimension for _ in documents]
     
     async def initialize(self):
         self.initialized = True
@@ -653,6 +656,97 @@ class TestParallelSearch:
         # Should have matches from multiple adapters
         sources = {m.source_adapter for m in matches}
         assert len(sources) >= 2
+
+
+class TestCompositeTemplateReload:
+    """Test composite cross-adapter template reload."""
+
+    @pytest.mark.asyncio
+    async def test_reload_templates_rebuilds_cross_adapter_embeddings(
+        self, composite_config, mock_adapter_manager
+    ):
+        composite_config['adapter_config']['cross_adapter_templates'] = {
+            'enabled': True,
+            'template_library_path': ['examples/cross.yaml'],
+            'template_collection_name': 'composite_cross_adapter_templates',
+            'store_name': 'chroma',
+        }
+        retriever = CompositeIntentRetriever(
+            config=composite_config,
+            adapter_manager=mock_adapter_manager
+        )
+        retriever.embedding_client = MockEmbeddingClient()
+        retriever._child_adapters = {
+            'intent-sql-hr': object(),
+            'intent-duckdb-ev': object(),
+            'intent-mongodb-movies': object(),
+        }
+
+        existing_store = MagicMock()
+        existing_store.clear_all_templates = AsyncMock(return_value=True)
+        retriever._cross_adapter_template_store = existing_store
+
+        reloaded_store = MagicMock()
+        reloaded_store.get_statistics = AsyncMock(return_value={'total_templates': 4})
+        retriever._cross_adapter_template_store = existing_store
+
+        loaded_templates = [
+            {
+                'id': 'compare_revenue',
+                'description': 'Compare revenue across systems',
+                'nl_examples': ['Compare revenue by month', 'Show monthly revenue comparison'],
+                'target_adapters': [
+                    {'adapter': 'intent-duckdb-ev'},
+                    {'adapter': 'intent-sql-hr'},
+                ],
+            },
+            {
+                'id': 'compare_headcount',
+                'description': 'Compare headcount and activity',
+                'nl_examples': ['Compare headcount to registrations', 'Show staffing vs registrations'],
+                'target_adapters': [
+                    {'adapter': 'intent-sql-hr'},
+                    {'adapter': 'intent-mongodb-movies'},
+                ],
+            },
+        ]
+
+        async def fake_initialize():
+            retriever._cross_adapter_template_store = reloaded_store
+            retriever._cross_adapter_templates = {
+                template['id']: template for template in loaded_templates
+            }
+            retriever.cross_adapter_enabled = True
+
+        with patch.object(
+            retriever,
+            '_initialize_cross_adapter_templates',
+            new=AsyncMock(side_effect=fake_initialize)
+        ):
+            result = await retriever.reload_templates()
+
+        existing_store.clear_all_templates.assert_awaited_once()
+        reloaded_store.get_statistics.assert_awaited_once()
+        assert result['templates_loaded'] == 2
+        assert result['cross_adapter_templates_loaded'] == 2
+        assert result['cross_adapter_examples_loaded'] == 4
+        assert result['collection_name'] == 'composite_cross_adapter_templates'
+        assert result['cross_adapter_enabled'] is True
+
+    @pytest.mark.asyncio
+    async def test_reload_templates_noops_when_cross_adapter_templates_disabled(
+        self, composite_retriever
+    ):
+        composite_retriever.cross_adapter_enabled = False
+        composite_retriever.cross_adapter_template_paths = ['examples/cross.yaml']
+        composite_retriever.cross_adapter_collection_name = 'composite_cross_adapter_templates'
+
+        result = await composite_retriever.reload_templates()
+
+        assert result['templates_loaded'] == 0
+        assert result['cross_adapter_templates_loaded'] == 0
+        assert result['cross_adapter_examples_loaded'] == 0
+        assert result['cross_adapter_enabled'] is False
 
 
 class TestCompositeRetrieverClose:
@@ -1280,4 +1374,3 @@ class TestRoutingStatisticsWithMultistage:
         assert ms['reranking']['provider'] == 'anthropic'
         assert ms['string_similarity']['enabled'] is True
         assert ms['string_similarity']['algorithm'] == 'jaro_winkler'
-

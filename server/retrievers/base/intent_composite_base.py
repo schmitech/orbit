@@ -476,6 +476,67 @@ class CompositeIntentRetriever(BaseRetriever):
             logger.error(traceback.format_exc())
             self.cross_adapter_enabled = False
 
+    async def reload_templates(self) -> Dict[str, Any]:
+        """
+        Reload cross-adapter templates from YAML files and rebuild embeddings.
+
+        This mirrors intent adapter template hot reload behavior for composite
+        retrievers that own their own cross-adapter template collection.
+        """
+        try:
+            if not self.cross_adapter_enabled:
+                return {
+                    "templates_loaded": 0,
+                    "cross_adapter_templates_loaded": 0,
+                    "cross_adapter_examples_loaded": 0,
+                    "collection_name": self.cross_adapter_collection_name,
+                    "template_library_path": self.cross_adapter_template_paths,
+                    "cross_adapter_enabled": False,
+                }
+
+            logger.info(
+                "Reloading cross-adapter templates for collection '%s'...",
+                self.cross_adapter_collection_name,
+            )
+
+            if self._cross_adapter_template_store:
+                await self._cross_adapter_template_store.clear_all_templates()
+                logger.info(
+                    "Cleared existing cross-adapter templates from collection '%s'",
+                    self.cross_adapter_collection_name,
+                )
+
+            self._cross_adapter_templates = {}
+            await self._initialize_cross_adapter_templates()
+
+            stats = {}
+            if self._cross_adapter_template_store:
+                stats = await self._cross_adapter_template_store.get_statistics()
+
+            templates_loaded = len(self._cross_adapter_templates)
+            examples_loaded = stats.get("total_templates", 0)
+
+            logger.info(
+                "Cross-adapter template reload complete: %s templates with %s example embeddings in '%s'",
+                templates_loaded,
+                examples_loaded,
+                self.cross_adapter_collection_name,
+            )
+
+            return {
+                "templates_loaded": templates_loaded,
+                "cross_adapter_templates_loaded": templates_loaded,
+                "cross_adapter_examples_loaded": examples_loaded,
+                "collection_name": self.cross_adapter_collection_name,
+                "template_library_path": self.cross_adapter_template_paths,
+                "cross_adapter_enabled": self.cross_adapter_enabled,
+            }
+
+        except Exception as e:
+            logger.error(f"Error reloading cross-adapter templates: {e}")
+            logger.error(traceback.format_exc())
+            raise
+
     def _load_cross_adapter_yaml(self, path: str) -> Optional[List[Dict[str, Any]]]:
         """Load cross-adapter templates from a YAML file."""
         try:
