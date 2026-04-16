@@ -11,7 +11,7 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
     inference_provider: "openai"  # Override default inference provider
-    model: "gpt-5.2"         # Specific model for this adapter
+    model: "gpt-5.4-mini"         # Specific model for this adapter
     tts_provider: "openai"          # TTS provider for audio output (see tts.yaml)
 
     # Capabilities: Pure passthrough - no retrieval

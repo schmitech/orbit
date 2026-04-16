@@ -10,11 +10,11 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama"    # Override default inference provider
-    model: "granite-cpu"            # Specific model for this adapter
-    embedding_provider: "ollama"
-    embedding_model: "nomic-embed-text"
-    vision_provider: "openai"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    inference_provider: "openai"    # Override default inference provider
+    model: "gpt-5.4-mini"            # Specific model for this adapter
+    embedding_provider: "openai"
+    embedding_model: "text-embedding-3-small"
+    vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
     stt_provider: "whisper"               # STT provider for audio transcription (see stt.yaml) - local, free!
     
 
@@ -218,11 +218,11 @@ adapters:
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    inference_provider: "ollama_cloud"
-    model: "qwen3-coder:480b-cloud"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     embedding_provider: "openrouter"
     embedding_model: "openai/text-embedding-3-small"
-    vision_provider: "openai"
+    vision_provider: "gemini"
     tts_provider: "openai"
 
     capabilities:

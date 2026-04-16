@@ -23,7 +23,7 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "ollama_cloud"
+  inference_provider: "ollama"
 
 language_detection:
   enabled: true
@@ -429,7 +429,7 @@ files:
     # When disabled, docling will not be initialized until actually needed (lazy initialization)
     # PDF layout uses RT-DETR (PyTorch + torchvision). Intel macOS only gets PyPI torch up to 2.2.x; use files profile / setup.sh for matching pins.
     # Default: true (enabled)
-    docling_enabled: true
+    docling_enabled: false
 
     # MarkItDown processor configuration (Microsoft's document-to-markdown converter)
     # Set to true to enable MarkItDown as an alternative/fallback document processor
@@ -449,7 +449,7 @@ files:
     # MarkItDown-specific options
     markitdown:
       # Enable third-party plugins (default: false for security)
-      enable_plugins: false
+      enable_plugins: true
 
     # CSV processor settings
     csv:

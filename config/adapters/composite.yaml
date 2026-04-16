@@ -42,8 +42,8 @@ adapters:
     type: "retriever"
     adapter: "composite"
     implementation: "retrievers.implementations.composite.CompositeIntentRetriever"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     # Shared embedding provider for consistent similarity scoring across sources
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
@@ -60,7 +60,6 @@ adapters:
       # These must be names of other enabled intent adapters defined in intent.yaml
       child_adapters:
         - "intent-sql-sqlite-hr"
-        - "intent-sql-postgres"
         - "intent-duckdb-analytics"
 
       # Minimum confidence score to consider a template match
@@ -102,8 +101,8 @@ adapters:
     type: "retriever"
     adapter: "composite"
     implementation: "retrievers.implementations.composite.CompositeIntentRetriever"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     embedding_provider: "openrouter"
     embedding_model: "openai/text-embedding-3-small"
     capabilities:

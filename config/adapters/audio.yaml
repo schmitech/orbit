@@ -12,8 +12,8 @@ adapters:
     datasource: "none"
     adapter: "file"
     implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
 
     # Provider overrides
     stt_provider: "openai"    # Use Gemini for transcription (see stt.yaml)
@@ -74,8 +74,8 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     stt_provider: "openai"       # STT provider (see stt.yaml) - local, free!
     tts_provider: "openai"    # TTS provider (see tts.yaml) - premium quality
 
@@ -112,8 +112,8 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     stt_provider: "gemini"    # STT provider (see stt.yaml)
     tts_provider: "gemini"    # TTS provider (see tts.yaml)
 
@@ -162,8 +162,8 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     stt_provider: "whisper"       # STT provider (see stt.yaml) - local, free!
     tts_provider: "elevenlabs"    # TTS provider (see tts.yaml) - premium quality
 
@@ -203,8 +203,8 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     stt_provider: "whisper"   # STT provider (see stt.yaml) - local, free!
     tts_provider: "vllm"      # TTS provider (see tts.yaml) - local Orpheus model
 
@@ -243,8 +243,8 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     tts_provider: "coqui"  # TTS provider (see tts.yaml) - local, free!
 
     # Capabilities: Voice output with local TTS
@@ -289,8 +289,8 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     # Provider overrides - ALL LOCAL
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     stt_provider: "whisper"   # STT provider (see stt.yaml) - local, free!
     tts_provider: "coqui"     # TTS provider (see tts.yaml) - local, free!
 
@@ -349,8 +349,8 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     # Provider overrides
-    inference_provider: "ollama_cloud"  # Use cloud LLM for best quality
-    model: "gpt-oss:120b"
+    inference_provider: "openai"  # Use cloud LLM for best quality
+    model: "gpt-5.4-mini"
     stt_provider: "whisper"   # STT provider (see stt.yaml) - local, free!
     tts_provider: "coqui"     # TTS provider (see tts.yaml) - local, free!
 
@@ -396,8 +396,8 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
 
     # Audio providers - separate STT and TTS for flexibility
     stt_provider: "openai"       # STT provider (see stt.yaml) - local, free!

@@ -1,12 +1,12 @@
 adapters:
-- name: qa-sql
+- name: "qa-sql"
   enabled: false
-  type: retriever
-  datasource: sqlite
-  adapter: qa
-  implementation: retrievers.implementations.qa.QASSQLRetriever
-  inference_provider: ollama_cloud
-  model: gpt-oss:20b
+  type: "retriever"
+  datasource: "sqlite"
+  adapter: "qa"
+  implementation: "retrievers.implementations.qa.QASSQLRetriever"
+  inference_provider: "ollama"
+  model: "granite-cpu"
   # reranker_provider: cohere
   # reranker_model: rerank-english-v3.0
   capabilities:
@@ -85,12 +85,12 @@ adapters:
 
 - name: qa-vector-qdrant-demo
   enabled: false
-  type: retriever
-  datasource: qdrant
-  adapter: qa
-  implementation: retrievers.implementations.qa.QAQdrantRetriever
-  inference_provider: ollama_cloud
-  embedding_provider: ollama
+  type: "retriever"
+  datasource: "qdrant"
+  adapter: "qa"
+  implementation: "retrievers.implementations.qa.QAQdrantRetriever"
+  inference_provider: "openai"
+  embedding_provider: "ollama"
   capabilities:
     retrieval_behavior: always
     formatting_style: standard

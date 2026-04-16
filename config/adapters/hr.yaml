@@ -11,8 +11,8 @@ adapters:
     implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
     database: "examples/intent-templates/sql-intent-template/examples/sqlite/hr/hr.db"
     # Provider overrides - intent adapters benefit from powerful models
-    inference_provider: "ollama_cloud"    # Cloud LLM for complex intent classification
-    model: "gpt-oss:120b"           # Large model for better intent understanding
+    inference_provider: "openai"    # Cloud LLM for complex intent classification
+    model: "gpt-5.4-mini"           # Large model for better intent understanding
     embedding_provider: "ollama"          # Local embeddings for template matching
     embedding_model: "nomic-embed-text:latest"
     # reranker_provider: "ollama"           # Optional: Jina AI reranker for template relevance
@@ -50,8 +50,8 @@ adapters:
       return_results: 10
 
       # Template loading settings
-      reload_templates_on_start: true  # Whether to reload templates on startup
-      force_reload_templates: true  # Force reload even if templates exist in storage
+      reload_templates_on_start: false  # Whether to reload templates on startup
+      force_reload_templates: false  # Force reload even if templates exist in storage
 
       # Unified retriever features
       use_connection_pool: false  # SQLite doesn't support traditional pooling (file-based)

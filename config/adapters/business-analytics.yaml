@@ -6,8 +6,8 @@ adapters:
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
     database: "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics.duckdb"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     capabilities:

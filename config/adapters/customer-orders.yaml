@@ -4,13 +4,13 @@
 
 adapters:
   - name: "intent-sql-postgres"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "postgres"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
-    inference_provider: "ollama_cloud"
-    model: "gemma4:31b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     # reranker_provider: "cohere"
@@ -51,8 +51,8 @@ adapters:
       return_results: 100
 
       # Template loading settings
-      reload_templates_on_start: true  # Whether to reload templates on startup
-      force_reload_templates: true  # Force reload even if templates exist in storage
+      reload_templates_on_start: false  # Whether to reload templates on startup
+      force_reload_templates: false  # Force reload even if templates exist in storage
 
       # Unified retriever features
       use_connection_pool: true  # Enable connection pooling

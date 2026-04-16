@@ -4,14 +4,14 @@
 
 adapters:
   - name: "intent-sql-sqlite-classified"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "sqlite"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
     database: "../demos/classified-data/classified_data.db"
-    inference_provider: "ollama_cloud"
-    model: "glm-5"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     # reranker_provider: "cohere"
@@ -106,8 +106,8 @@ adapters:
       return_results: 100
 
       # Template loading settings
-      reload_templates_on_start: true  # Reload templates on startup for new deployment
-      force_reload_templates: true     # Force reload to pick up template changes
+      reload_templates_on_start: false  # Reload templates on startup for new deployment
+      force_reload_templates: false     # Force reload to pick up template changes
 
       # DuckDB-specific configuration
       read_only: true  # Allow concurrent reads from multiple processes
@@ -192,8 +192,8 @@ adapters:
     datasource: "http"  # Uses HTTP datasource placeholder
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentHTTPJSONRetriever"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:20b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     capabilities:
@@ -254,8 +254,8 @@ adapters:
     datasource: "http"  # Uses HTTP datasource placeholder
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentHTTPJSONRetriever"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     embedding_provider: "ollama"
     capabilities:
       retrieval_behavior: "always"
@@ -286,8 +286,8 @@ adapters:
       verbose: false  # Enable debug logging
 
       # Template loading settings
-      reload_templates_on_start: true
-      force_reload_templates: true
+      reload_templates_on_start: false
+      force_reload_templates: false
 
       # HTTP-specific configuration
       base_url: "https://opendata.paris.fr"
@@ -316,8 +316,8 @@ adapters:
     datasource: "http"  # Reuse HTTP placeholder
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentFirecrawlRetriever"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:20b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     embedding_provider: "ollama"  # Used for chunk ranking
     capabilities:
       retrieval_behavior: "always"
@@ -416,8 +416,8 @@ adapters:
     datasource: "mongodb"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.intent_mongodb_retriever.IntentMongoDBRetriever"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     reranker_provider: "anthropic"
@@ -564,8 +564,8 @@ adapters:
     implementation: "retrievers.implementations.intent.IntentAgentRetriever"
     
     # Model configuration - supports both single-model and multi-model patterns
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"              # Main inference model
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"              # Main inference model
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     
@@ -606,8 +606,8 @@ adapters:
       verbose: false               # Enable debug logging
       
       # Template loading settings
-      reload_templates_on_start: true
-      force_reload_templates: true
+      reload_templates_on_start: false
+      force_reload_templates: false
       
       # HTTP configuration (base_url required even for builtin tools)
       base_url: "http://localhost:8080"  # Placeholder for HTTP tools

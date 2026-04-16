@@ -14,8 +14,8 @@ adapters:
     implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
 
     # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "minimax-m2:cloud"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
     embedding_provider: "openai"
     vision_provider: "gemini"  # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
     audio_provider: "openai"   # Audio provider for audio file transcription: openai, google, ollama (see sound.yaml)
