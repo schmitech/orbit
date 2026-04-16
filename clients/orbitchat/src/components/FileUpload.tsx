@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Upload, Loader2 } from 'lucide-react';
+import { Upload, Loader2, CircleAlert } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { useChatStore } from '../stores/chatStore';
@@ -86,26 +86,40 @@ export function FileUpload({
       return;
     }
     const uploads = uploadingFilesStoreRef.current.get(targetConversationId) || new Map<string, FileUploadProgress>();
-    
+
     // Also check if there are files in the conversation that are still processing
     // This handles the case where user switched conversations during upload
     const conversation = conversations.find(conv => conv.id === targetConversationId);
     if (conversation && conversation.attachedFiles) {
-      const processingFiles = conversation.attachedFiles.filter(f => 
-        !f.processing_status || 
-        f.processing_status === 'processing' || 
+      // Build a set of file IDs that are no longer processing (completed, failed, error)
+      const finishedFileIds = new Set(
+        conversation.attachedFiles
+          .filter(f => f.processing_status === 'completed' || f.processing_status === 'failed' || f.processing_status === 'error')
+          .map(f => f.file_id)
+      );
+
+      const processingFiles = conversation.attachedFiles.filter(f =>
+        !f.processing_status ||
+        f.processing_status === 'processing' ||
         f.processing_status === 'uploading'
       );
-      
+
       // Merge existing uploads with processing files from conversation
       // This ensures we show progress even if upload progress was lost
       const mergedUploads = new Map(uploads);
       let hasNewUploads = false;
-      
+
+      // Remove progress entries for files that are no longer processing
+      mergedUploads.forEach((progress, key) => {
+        if (progress.fileId && finishedFileIds.has(progress.fileId)) {
+          mergedUploads.delete(key);
+        }
+      });
+
       processingFiles.forEach(file => {
         // Check if we already have progress for this file
-        const existingProgress = Array.from(uploads.values()).find(p => p.fileId === file.file_id);
-        
+        const existingProgress = Array.from(mergedUploads.values()).find(p => p.fileId === file.file_id);
+
         if (!existingProgress) {
           // Create progress entry for this processing file
           const progressKey = `${targetConversationId}-${file.filename}-${file.file_id}`;
@@ -118,7 +132,7 @@ export function FileUpload({
           hasNewUploads = true;
         }
       });
-      
+
       if (hasNewUploads || mergedUploads.size > 0) {
         uploadingFilesStoreRef.current.set(targetConversationId, mergedUploads);
         onUploadingChange?.(targetConversationId, true);
@@ -374,8 +388,11 @@ export function FileUpload({
           debugLog(`[FileUpload] Updating file ${uploadedAttachment.file_id} in conversation ${activeConversationId} with final status`);
           addFileToConversation(activeConversationId, uploadedAttachment);
           
-          // Only remove progress if file is completed, otherwise keep it for processing status
-          if (uploadedAttachment.processing_status === 'completed') {
+          // Remove progress if file is completed or failed; keep only for still-processing files
+          const fileFinished = uploadedAttachment.processing_status === 'completed' ||
+            uploadedAttachment.processing_status === 'failed' ||
+            uploadedAttachment.processing_status === 'error';
+          if (fileFinished) {
             updateUploadingStore(activeConversationId, (prev) => {
               prev.delete(progressKey);
               return prev;
@@ -523,34 +540,76 @@ export function FileUpload({
     return entries;
   }, [conversationId, globalUploadRevision]);
 
-  const progressContent = (
-    <div className="w-full max-w-full overflow-hidden space-y-2" role="status" aria-live="polite">
-      {Array.from(uploadingFiles.values()).map((progress) => (
-        <div key={progress.fileId || progress.filename} className="w-full max-w-full flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg overflow-hidden">
-          <Loader2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin flex-shrink-0" />
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
+  const renderProgressRow = (progress: FileUploadProgress, key: string) => {
+    const isError = progress.status === 'error';
+    return (
+      <div
+        key={key}
+        className={`group relative w-full flex items-center gap-3 rounded-lg px-3 py-2.5 overflow-hidden transition-colors ${
+          isError ? 'bg-red-50 dark:bg-red-950/30' : 'bg-gray-50 dark:bg-[#1f1f24]'
+        }`}
+      >
+        {/* Animated progress background fill */}
+        {!isError && (
+          <div
+            className="absolute inset-0 bg-blue-50 dark:bg-blue-900/15 transition-all duration-500 ease-out rounded-lg"
+            style={{ width: `${progress.progress}%` }}
+          />
+        )}
+        <div className="relative flex items-center gap-3 w-full min-w-0">
+          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
+            isError ? 'bg-red-100 dark:bg-red-900/30' : 'bg-blue-100 dark:bg-blue-900/30'
+          }`}>
+            {isError ? (
+              <CircleAlert className="h-4 w-4 text-red-500 dark:text-red-400" />
+            ) : (
+              <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-[#353740] dark:text-[#ececf1] truncate">
               {progress.filename}
             </p>
-            <div className="mt-1 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
-              <div
-                className="bg-emerald-600 dark:bg-emerald-400 h-1.5 rounded-full transition-all duration-300"
-                style={{ width: `${progress.progress}%` }}
-              />
-            </div>
+            {isError ? (
+              <p className="mt-0.5 text-xs text-red-600 dark:text-red-400 truncate">
+                {progress.error || 'Processing failed'}
+              </p>
+            ) : (
+              <div className="mt-1 flex items-center gap-2">
+                <div className="flex-1 bg-gray-200 dark:bg-[#3c3f4a] rounded-full h-1">
+                  <div
+                    className="bg-blue-500 dark:bg-blue-400 h-1 rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${progress.progress}%` }}
+                  />
+                </div>
+                <span className="text-[11px] tabular-nums text-gray-400 dark:text-[#8e8ea0] shrink-0">
+                  {Math.round(progress.progress)}%
+                </span>
+              </div>
+            )}
           </div>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            {progress.status === 'uploading' ? 'Uploading...' :
-             progress.status === 'processing' ? 'Processing...' :
-             progress.status === 'completed' ? 'Done' : 'Error'}
+          <span className={`text-xs font-medium shrink-0 ${
+            isError ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-[#bfc2cd]'
+          }`}>
+            {progress.status === 'uploading' ? 'Uploading' :
+             progress.status === 'processing' ? 'Processing' :
+             progress.status === 'completed' ? 'Done' : 'Failed'}
           </span>
         </div>
-      ))}
+      </div>
+    );
+  };
+
+  const progressContent = (
+    <div className="w-full max-w-full overflow-hidden space-y-1.5" role="status" aria-live="polite">
+      {Array.from(uploadingFiles.entries()).map(([key, progress]) =>
+        renderProgressRow(progress, key)
+      )}
     </div>
   );
 
   return (
-    <div className="w-full max-w-full overflow-hidden space-y-3">
+    <div className="w-full max-w-full overflow-hidden space-y-2">
       {isUploading && progressContent}
 
       {!isUploading && (
@@ -563,12 +622,12 @@ export function FileUpload({
           onDrop={handleDrop}
           disabled={disabled}
           className={`
-            relative w-full max-w-full border-2 border-dashed rounded-xl p-3 sm:p-4 transition-all text-left
+            group relative w-full max-w-full rounded-lg p-4 transition-all duration-200 text-left overflow-hidden
             ${isDragging
-              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-400'
+              ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400 dark:ring-blue-500 ring-inset'
               : disabled
-              ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-not-allowed opacity-50'
-              : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 hover:border-emerald-400 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60'
+              ? 'bg-gray-50 dark:bg-[#1f1f24] cursor-not-allowed opacity-50'
+              : 'bg-gray-50 dark:bg-[#1f1f24] hover:bg-gray-100 dark:hover:bg-[#252530] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-inset'
             }
           `}
           aria-label={disabled ? 'File upload disabled' : 'Upload files'}
@@ -583,14 +642,28 @@ export function FileUpload({
             accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.html,.pptx,.xlsx,.py,.java,.sql,.js,.mjs,.ts,.tsx,.cpp,.cxx,.cc,.c,.h,.hpp,.go,.rs,.rb,.php,.sh,.bash,.zsh,.yaml,.yml,.xml,.css,.scss,.sass,.less,.png,.jpg,.jpeg,.tiff,.wav,.mp3,.mp4,.ogg,.flac,.webm,.m4a,.aac,.vtt"
           />
 
-          <div className="flex flex-col items-center justify-center gap-2 text-center">
-            <Upload className={`w-6 h-6 ${isDragging ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`} />
-            <div className="px-2">
-              <p className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
-                {disabled ? 'File upload disabled' : isDragging ? 'Drop files here' : 'Click or drag files to upload'}
+          <div className="flex items-center gap-3">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 ${
+              isDragging
+                ? 'bg-blue-100 dark:bg-blue-800/40'
+                : 'bg-gray-200/70 dark:bg-[#2d2f39] group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30'
+            }`}>
+              <Upload className={`h-5 w-5 transition-colors duration-200 ${
+                isDragging
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : 'text-gray-400 dark:text-[#8e8ea0] group-hover:text-blue-500 dark:group-hover:text-blue-400'
+              }`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium transition-colors duration-200 ${
+                isDragging
+                  ? 'text-blue-700 dark:text-blue-300'
+                  : 'text-[#353740] dark:text-[#ececf1]'
+              }`}>
+                {disabled ? 'File upload disabled' : isDragging ? 'Drop files here' : 'Drop files or click to browse'}
               </p>
-              <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 px-1">
-                PDF, DOCX, TXT, CSV, JSON, HTML, code files (.py, .js, .ts, .java, .sql, etc.), images, audio (max {maxFiles} files)
+              <p className="text-xs text-gray-400 dark:text-[#8e8ea0] mt-0.5">
+                PDF, DOCX, TXT, CSV, code files, images, audio &middot; max {maxFiles} files
               </p>
             </div>
           </div>
@@ -598,36 +671,16 @@ export function FileUpload({
       )}
 
       {otherUploadingConversations.length > 0 && (
-        <div className="w-full max-w-full space-y-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/40">
-          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-            Uploads in other conversations
+        <div className="w-full max-w-full space-y-2 rounded-lg bg-gray-50 dark:bg-[#1f1f24] p-2.5">
+          <p className="text-xs font-medium text-gray-500 dark:text-[#8e8ea0] px-1">
+            Other conversations
           </p>
           {otherUploadingConversations.map(({ conversationId: otherId, uploads }) => (
-            <div key={otherId} className="space-y-2">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+            <div key={otherId} className="space-y-1.5">
+              <div className="text-[11px] font-medium text-gray-400 dark:text-[#6b6f7a] px-1">
                 {conversationNameMap.get(otherId) || 'Conversation'}
               </div>
-              {uploads.map(({ key, progress }) => (
-                <div key={key} className="w-full max-w-full flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg overflow-hidden">
-                  <Loader2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin flex-shrink-0" />
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
-                      {progress.filename}
-                    </p>
-                    <div className="mt-1 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
-                      <div
-                        className="bg-emerald-600 dark:bg-emerald-400 h-1.5 rounded-full transition-all duration-300"
-                        style={{ width: `${progress.progress}%` }}
-                      />
-                    </div>
-                  </div>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    {progress.status === 'uploading' ? 'Uploading...' :
-                     progress.status === 'processing' ? 'Processing...' :
-                     progress.status === 'completed' ? 'Done' : 'Error'}
-                  </span>
-                </div>
-              ))}
+              {uploads.map(({ key, progress }) => renderProgressRow(progress, key))}
             </div>
           ))}
         </div>

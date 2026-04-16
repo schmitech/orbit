@@ -6,6 +6,7 @@ export interface FileAttachment {
   upload_timestamp?: string;
   processing_status?: string;
   chunk_count?: number;
+  error_message?: string;
 }
 
 export interface ThreadInfo {

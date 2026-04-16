@@ -189,13 +189,17 @@ export class FileUploadService {
           throw new Error(`File ${response.file_id} was deleted during upload`);
         }
         debugWarn(`File status polling failed for ${response.file_id}:`, error);
+        // If polling failed due to a processing error, mark the file as failed
+        // instead of leaving it stuck in 'processing' forever
+        const isProcessingError = errorMessage.includes('processing failed') || errorMessage.includes('timeout');
         fileInfo = {
           file_id: response.file_id,
           filename: response.filename,
           mime_type: response.mime_type,
           file_size: response.file_size,
-          processing_status: response.status || 'processing',
-          chunk_count: response.chunk_count
+          processing_status: isProcessingError ? 'failed' : (response.status || 'processing'),
+          chunk_count: response.chunk_count,
+          error_message: isProcessingError ? errorMessage : undefined
         };
       }
 
@@ -329,6 +333,7 @@ export class FileUploadService {
         upload_timestamp?: string;
         processing_status?: string;
         chunk_count?: number;
+        error_message?: string;
       }) => ({
         file_id: file.file_id,
         filename: file.filename,
@@ -336,7 +341,8 @@ export class FileUploadService {
         file_size: file.file_size,
         upload_timestamp: file.upload_timestamp,
         processing_status: file.processing_status,
-        chunk_count: file.chunk_count
+        chunk_count: file.chunk_count,
+        error_message: file.error_message
       }));
     } catch (error: unknown) {
       logError('Failed to list files:', error);
@@ -384,7 +390,8 @@ export class FileUploadService {
         file_size: fileInfo.file_size,
         upload_timestamp: fileInfo.upload_timestamp,
         processing_status: fileInfo.processing_status,
-        chunk_count: fileInfo.chunk_count
+        chunk_count: fileInfo.chunk_count,
+        error_message: fileInfo.error_message
       };
     } catch (error: unknown) {
       if (
@@ -432,7 +439,8 @@ export class FileUploadService {
         }
 
         if (fileInfo.processing_status === 'error' || fileInfo.processing_status === 'failed') {
-          throw new Error(`File processing failed for ${fileId}`);
+          const serverMsg = fileInfo.error_message;
+          throw new Error(serverMsg || `File processing failed for ${fileId}`);
         }
 
         if (attempt < maxAttempts - 1) {

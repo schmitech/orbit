@@ -4,6 +4,7 @@ File Processing Service
 Main service for processing uploaded files: extraction, chunking, and storage preparation.
 """
 
+import asyncio
 import logging
 import uuid
 import hashlib
@@ -421,21 +422,27 @@ class FileProcessingService:
             mime_type: MIME type
             api_key: API key of uploader
         """
+        # Timeout for the entire processing pipeline (2 minutes).
+        # Prevents files from being stuck in 'processing' forever when
+        # external API calls (e.g. Gemini vision) hang or fail silently.
+        processing_timeout_seconds = 120
+
         try:
-            # Extract text and metadata
-            extracted_text, file_metadata = await self._extract_content(
-                file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt
-            )
+            async with asyncio.timeout(processing_timeout_seconds):
+                # Extract text and metadata
+                extracted_text, file_metadata = await self._extract_content(
+                    file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt
+                )
 
-            # Chunk content
-            chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
+                # Chunk content
+                chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
 
-            # Index chunks into vector store
-            index_result = await self._index_chunks_in_vector_store(
-                file_id=file_id,
-                api_key=api_key,
-                chunks=chunks
-            )
+                # Index chunks into vector store
+                index_result = await self._index_chunks_in_vector_store(
+                    file_id=file_id,
+                    api_key=api_key,
+                    chunks=chunks
+                )
 
             # Extract collection info
             collection_name = None
@@ -466,7 +473,22 @@ class FileProcessingService:
             )
 
             logger.debug(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
-            
+
+        except TimeoutError:
+            error_message = f"File processing timed out after {processing_timeout_seconds}s"
+            logger.error(f"Timeout processing file {file_id} ({filename}): {error_message}")
+
+            await self.metadata_store.update_processing_status(
+                file_id, 'failed', chunk_count=0
+            )
+            try:
+                await self.metadata_store.update_file_metadata(
+                    file_id,
+                    {'error': error_message, 'failed_at': datetime.now(UTC).isoformat()}
+                )
+            except Exception as meta_error:
+                logger.warning(f"Failed to store error metadata for {file_id}: {meta_error}")
+
         except Exception as e:
             error_message = str(e)
             logger.error(f"Error processing file content for {file_id}: {error_message}")

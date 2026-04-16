@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
-import { ArrowUp, CircleHelp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square } from 'lucide-react';
+import { ArrowUp, CircleHelp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square, CircleAlert, TriangleAlert } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useVoice } from '../hooks/useVoice';
 import { useAutocomplete } from '../hooks/useAutocomplete';
@@ -1216,37 +1216,44 @@ export function MessageInput({
     <div className={`bg-transparent px-2 py-1.5 md:bg-transparent md:px-0 md:pt-4 md:pb-2 md:dark:bg-transparent sm:px-4 ${containerAlignmentClasses}`}>
       <div className={`mx-auto w-full ${contentMaxWidth}`}>
         {voiceError && audioInputEnabled && (
-          <div role="alert" aria-live="assertive" className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
-            {voiceError}
+          <div role="alert" aria-live="assertive" className="mb-2.5 w-full flex items-start gap-2.5 rounded-lg bg-red-50 dark:bg-red-950/40 px-3.5 py-2.5 animate-fadeIn">
+            <CircleAlert className="h-4 w-4 mt-0.5 flex-shrink-0 text-red-500 dark:text-red-400" />
+            <span className="text-sm text-red-700 dark:text-red-300">{voiceError}</span>
           </div>
         )}
         {pasteError && (
-          <div role="alert" aria-live="assertive" className="mb-3 w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
-            {pasteError}
+          <div role="alert" aria-live="assertive" className="mb-2.5 w-full flex items-start gap-2.5 rounded-lg bg-red-50 dark:bg-red-950/40 px-3.5 py-2.5 animate-fadeIn">
+            <CircleAlert className="h-4 w-4 mt-0.5 flex-shrink-0 text-red-500 dark:text-red-400" />
+            <span className="text-sm text-red-700 dark:text-red-300">{pasteError}</span>
           </div>
         )}
         {uploadSuccessMessage && (
-          <div role="status" aria-live="polite" className="mb-3 w-full flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200">
-            <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-            <span>{uploadSuccessMessage}</span>
+          <div role="status" aria-live="polite" className="mb-2.5 w-full flex items-center gap-2.5 rounded-lg bg-gray-50 dark:bg-[#1f1f24] px-3.5 py-2.5 animate-fadeIn">
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <span className="text-sm text-[#353740] dark:text-[#ececf1]">{uploadSuccessMessage}</span>
           </div>
         )}
         {limitWarnings.length > 0 && (
-          <div role="status" aria-live="polite" className="mb-3 w-full rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-[#2f2410] dark:text-amber-100">
-            <ul className="list-none space-y-1">
-              {limitWarnings.map((warning, index) => (
-                <li key={`${warning}-${index}`}>{warning}</li>
-              ))}
-            </ul>
-            {isGuest && (messageLimitActive || fileLimitActive) && showLoginPrompt && (
-              <button
-                type="button"
-                onClick={() => useLoginPromptStore.getState().openLoginPrompt('Sign in to unlock higher message limits and more conversations.')}
-                className="mt-2 inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-              >
-                Sign in for higher limits
-              </button>
-            )}
+          <div role="status" aria-live="polite" className="mb-2.5 w-full flex items-start gap-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 px-3.5 py-2.5 animate-fadeIn">
+            <TriangleAlert className="h-4 w-4 mt-0.5 flex-shrink-0 text-amber-500 dark:text-amber-400" />
+            <div className="flex-1 min-w-0">
+              <ul className="list-none space-y-0.5">
+                {limitWarnings.map((warning, index) => (
+                  <li key={`${warning}-${index}`} className="text-sm text-amber-800 dark:text-amber-200">{warning}</li>
+                ))}
+              </ul>
+              {isGuest && (messageLimitActive || fileLimitActive) && showLoginPrompt && (
+                <button
+                  type="button"
+                  onClick={() => useLoginPromptStore.getState().openLoginPrompt('Sign in to unlock higher message limits and more conversations.')}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-[#353740] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#40414f] dark:bg-white dark:text-[#353740] dark:hover:bg-gray-200 transition-colors"
+                >
+                  Sign in for higher limits
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -1500,18 +1507,31 @@ export function MessageInput({
         {visibleAttachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {visibleAttachedFiles.map((file) => {
-              const isProcessing = !file.processing_status || 
-                file.processing_status === 'processing' || 
+              const isProcessing = !file.processing_status ||
+                file.processing_status === 'processing' ||
                 file.processing_status === 'uploading';
+              const isFailed = file.processing_status === 'failed' || file.processing_status === 'error';
               return (
                 <div
                   key={file.file_id}
-                  className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs dark:border-[#4a4b54] dark:bg-[#2d2f39]"
+                  className={`flex items-center gap-2 rounded-md border px-2 py-1 text-xs ${
+                    isFailed
+                      ? 'border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-950/30'
+                      : 'border-gray-200 bg-white dark:border-[#4a4b54] dark:bg-[#2d2f39]'
+                  }`}
+                  title={isFailed ? (file.error_message || 'File processing failed') : undefined}
                 >
                   {isProcessing && (
-                    <Loader2 className="h-3 w-3 animate-spin text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                    <Loader2 className="h-3 w-3 animate-spin text-blue-500 dark:text-blue-400 flex-shrink-0" />
                   )}
-                  <span className="truncate max-w-[150px] text-[#353740] dark:text-[#ececf1]">
+                  {isFailed && (
+                    <CircleAlert className="h-3 w-3 text-red-500 dark:text-red-400 flex-shrink-0" />
+                  )}
+                  <span className={`truncate max-w-[150px] ${
+                    isFailed
+                      ? 'text-red-700 dark:text-red-300'
+                      : 'text-[#353740] dark:text-[#ececf1]'
+                  }`}>
                     {file.filename}
                   </span>
                   {isProcessing && (
@@ -1519,11 +1539,24 @@ export function MessageInput({
                       {file.processing_status === 'uploading' ? 'Uploading...' : 'Processing...'}
                     </span>
                   )}
+                  {isFailed && (
+                    <span className="text-xs text-red-500 dark:text-red-400">Failed</span>
+                  )}
                   <button
                     type="button"
-                    onClick={() => openFileDeleteConfirmation(file)}
+                    onClick={() => {
+                      if (isFailed) {
+                        // Failed files: dismiss immediately without confirmation
+                        if (currentConversationId) {
+                          removeFileFromConversation(currentConversationId, file.file_id);
+                        }
+                        setAttachedFiles(prev => prev.filter(f => f.file_id !== file.file_id));
+                      } else {
+                        openFileDeleteConfirmation(file);
+                      }
+                    }}
                     className="rounded p-2 md:p-0.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-[#bfc2cd] dark:hover:bg-red-900/30 dark:hover:text-red-300"
-                    title="Remove file"
+                    title={isFailed ? 'Dismiss' : 'Remove file'}
                   >
                     <X className="h-4 w-4 md:h-3 md:w-3" />
                   </button>
@@ -1536,58 +1569,71 @@ export function MessageInput({
         {uploadFeatureEnabled && (isFileSupported || hasAnyUploadingConversations) && (
           <div
             ref={uploadPanelRef}
-            className={`rounded-md border border-gray-200 bg-white p-3 dark:border-[#4a4b54] dark:bg-[#2d2f39] ${
+            className={`rounded-lg border border-gray-200/80 bg-white p-2.5 dark:border-[#3c3f4a] dark:bg-[#2a2b32] transition-all duration-200 ${
               !showFileUpload && !isUploading && pasteUploadingFiles.size === 0 && !hasAnyUploadingConversations
                 ? 'hidden'
                 : ''
             }`}
           >
             {showFileUpload && (
-              <div className="mb-2 flex items-center justify-between text-sm text-[#353740] dark:text-[#ececf1]">
-                <span>Upload files</span>
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="text-xs font-medium text-gray-500 dark:text-[#8e8ea0] uppercase tracking-wider">Attach files</span>
                 <button
                   type="button"
                   onClick={() => setShowFileUpload(false)}
-                  className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-[#6b6f7a] dark:hover:bg-[#3c3f4a] dark:hover:text-[#bfc2cd] transition-colors"
                   title="Close"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             )}
             {(isUploading || pasteUploadingFiles.size > 0) && !showFileUpload && pasteUploadingFiles.size === 0 && (
-              <div className="mb-2 text-sm text-[#353740] dark:text-[#ececf1]">
-                Uploading files…
+              <div className="mb-2 px-1">
+                <span className="text-xs font-medium text-gray-500 dark:text-[#8e8ea0] uppercase tracking-wider">Uploading files</span>
               </div>
             )}
             {pasteUploadingFiles.size > 0 && (
-              <div className="mb-2 space-y-2">
+              <div className="mb-2 space-y-1.5">
                 {Array.from(pasteUploadingFiles.entries()).map(([key, progress]) => (
                   <div
                     key={key}
-                    className="w-full max-w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#1f1f24] rounded-lg overflow-hidden"
+                    className="group relative w-full flex items-center gap-3 rounded-lg px-3 py-2.5 bg-gray-50 dark:bg-[#1f1f24] overflow-hidden transition-colors"
                   >
-                    <Loader2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin flex-shrink-0" />
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-sm font-medium text-[#353740] dark:text-[#ececf1] truncate">
-                        {progress.filename}
-                      </p>
-                      <div className="mt-1 bg-gray-200 dark:bg-[#3c3f4a] rounded-full h-1.5">
-                        <div
-                          className="bg-emerald-600 dark:bg-emerald-400 h-1.5 rounded-full transition-all duration-300"
-                          style={{ width: `${progress.progress ?? 0}%` }}
-                        />
+                    <div
+                      className="absolute inset-0 bg-blue-50 dark:bg-blue-900/15 transition-all duration-500 ease-out rounded-lg"
+                      style={{ width: `${progress.progress ?? 0}%` }}
+                    />
+                    <div className="relative flex items-center gap-3 w-full min-w-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100 dark:bg-blue-900/30">
+                        <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
                       </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[#353740] dark:text-[#ececf1] truncate">
+                          {progress.filename}
+                        </p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="flex-1 bg-gray-200 dark:bg-[#3c3f4a] rounded-full h-1">
+                            <div
+                              className="bg-blue-500 dark:bg-blue-400 h-1 rounded-full transition-all duration-500 ease-out"
+                              style={{ width: `${progress.progress ?? 0}%` }}
+                            />
+                          </div>
+                          <span className="text-[11px] tabular-nums text-gray-400 dark:text-[#8e8ea0] shrink-0">
+                            {Math.round(progress.progress ?? 0)}%
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs font-medium text-gray-500 dark:text-[#bfc2cd] shrink-0">
+                        {progress.status === 'uploading'
+                          ? 'Uploading'
+                          : progress.status === 'processing'
+                          ? 'Processing'
+                          : progress.status === 'completed'
+                          ? 'Done'
+                          : 'Pending'}
+                      </span>
                     </div>
-                    <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">
-                      {progress.status === 'uploading'
-                        ? 'Uploading...'
-                        : progress.status === 'processing'
-                        ? 'Processing...'
-                        : progress.status === 'completed'
-                        ? 'Done'
-                        : 'Pending'}
-                    </span>
                   </div>
                 ))}
               </div>
@@ -1596,7 +1642,7 @@ export function MessageInput({
               Keep FileUpload mounted while uploads are in progress so progress bars stay visible
               even if the widget was auto-hidden after selecting files.
             */}
-            <div className={`pr-1 ${showFileUpload || isUploading ? 'block max-h-[40vh] overflow-y-auto' : 'hidden'}`} aria-hidden={!(showFileUpload || isUploading)}>
+            <div className={`${showFileUpload || isUploading ? 'block max-h-[40vh] overflow-y-auto' : 'hidden'}`} aria-hidden={!(showFileUpload || isUploading)}>
               <FileUpload
                 conversationId={currentConversationId}
                 onFilesSelected={handleFilesSelected}
