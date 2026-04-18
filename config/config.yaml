@@ -269,6 +269,12 @@ internal_services:
     # WARNING: This will delete ALL audit logs when the server starts
     # Use with caution - only recommended for development/testing environments
     clear_on_startup: true
+    # Admin & auth event auditing (opt-in). Records mutations on /admin/*
+    # and /auth/* endpoints (user CRUD, API-key management, config changes,
+    # login/logout, etc.) into a separate collection/table.
+    admin_events:
+      enabled: false
+      collection_name: "audit_admin_logs"
 
   mongodb:
     host: ${INTERNAL_SERVICES_MONGODB_HOST}

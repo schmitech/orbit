@@ -18,6 +18,10 @@ from .audit_storage_strategy import AuditStorageStrategy, AuditRecord
 from .sqlite_audit_strategy import SQLiteAuditStrategy
 from .mongodb_audit_strategy import MongoDBDAuditStrategy
 from .elasticsearch_audit_strategy import ElasticsearchAuditStrategy
+from .admin_audit_storage_strategy import AdminAuditStorageStrategy, AdminAuditRecord
+from .sqlite_admin_audit_strategy import SQLiteAdminAuditStrategy
+from .mongodb_admin_audit_strategy import MongoDBAdminAuditStrategy
+from .elasticsearch_admin_audit_strategy import ElasticsearchAdminAuditStrategy
 from utils.text_utils import mask_api_key
 
 logger = logging.getLogger(__name__)
@@ -52,12 +56,17 @@ class AuditService:
         self.config = config
         self._database_service = database_service
         self._strategy: Optional[AuditStorageStrategy] = None
+        self._admin_strategy: Optional[AdminAuditStorageStrategy] = None
         self._initialized = False
 
         # Get audit configuration
         audit_config = config.get('internal_services', {}).get('audit', {})
         self._enabled = audit_config.get('enabled', True)
         self._clear_on_startup = audit_config.get('clear_on_startup', False)
+
+        # Admin events sub-configuration (opt-in)
+        admin_cfg = audit_config.get('admin_events', {})
+        self._admin_enabled = bool(admin_cfg.get('enabled', False))
 
         # Get the inference provider from config (for default backend value)
         self._inference_provider = config.get('general', {}).get('inference_provider', 'ollama')
@@ -101,6 +110,22 @@ class AuditService:
         else:
             raise ValueError(f"Unsupported audit storage backend: {backend}")
 
+    def _create_admin_strategy(self) -> AdminAuditStorageStrategy:
+        """Create the admin-audit storage strategy on the same backend."""
+        backend = self._resolve_storage_backend()
+
+        if backend == 'elasticsearch':
+            logger.info("Using Elasticsearch for admin audit storage")
+            return ElasticsearchAdminAuditStrategy(self.config)
+        elif backend == 'sqlite':
+            logger.info("Using SQLite for admin audit storage")
+            return SQLiteAdminAuditStrategy(self.config, self._database_service)
+        elif backend == 'mongodb':
+            logger.info("Using MongoDB for admin audit storage")
+            return MongoDBAdminAuditStrategy(self.config, self._database_service)
+        else:
+            raise ValueError(f"Unsupported admin audit storage backend: {backend}")
+
     async def initialize(self) -> None:
         """
         Initialize the audit service and its storage strategy.
@@ -136,6 +161,23 @@ class AuditService:
             logger.error(f"Failed to initialize audit service: {e}")
             # Don't fail the application if audit service fails
             self._initialized = True
+
+        # Initialize admin-audit strategy if enabled (independent from conversation audit)
+        if self._admin_enabled:
+            try:
+                self._admin_strategy = self._create_admin_strategy()
+                await self._admin_strategy.initialize()
+                if self._admin_strategy.is_initialized():
+                    logger.info(
+                        f"Admin audit storage initialized with {self._admin_strategy.backend_name} backend"
+                    )
+                else:
+                    logger.warning(
+                        f"Admin audit strategy {self._admin_strategy.backend_name} failed to initialize"
+                    )
+            except Exception as e:
+                logger.error(f"Failed to initialize admin audit storage: {e}")
+                self._admin_strategy = None
 
     def _format_ip_address(self, ip: Optional[Union[str, List[str]]]) -> Dict[str, Any]:
         """
@@ -334,10 +376,52 @@ class AuditService:
             logger.error(f"Error querying audit logs: {e}")
             return []
 
+    async def log_admin_event(self, record: AdminAuditRecord) -> None:
+        """
+        Log a single admin/auth audit event.
+
+        Errors never propagate — audit write failures must not break the
+        underlying admin action.
+        """
+        if not self._admin_strategy or not self._admin_strategy.is_initialized():
+            return
+
+        try:
+            success = await self._admin_strategy.store(record)
+            if not success:
+                logger.warning("Failed to store admin audit record")
+        except Exception as e:
+            logger.error(f"Error logging admin audit event: {e}")
+
+    async def query_admin_events(
+        self,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 100,
+        offset: int = 0,
+        sort_by: str = 'timestamp',
+        sort_order: int = -1,
+    ) -> List[Dict[str, Any]]:
+        """Query stored admin audit events."""
+        if not self._admin_strategy or not self._admin_strategy.is_initialized():
+            return []
+        try:
+            return await self._admin_strategy.query(
+                filters=filters or {},
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                sort_order=sort_order,
+            )
+        except Exception as e:
+            logger.error(f"Error querying admin audit events: {e}")
+            return []
+
     async def close(self) -> None:
         """Close the audit service and its storage strategy."""
         if self._strategy:
             await self._strategy.close()
+        if self._admin_strategy:
+            await self._admin_strategy.close()
         self._initialized = False
         logger.debug("Audit service closed")
 
@@ -345,6 +429,15 @@ class AuditService:
     def is_enabled(self) -> bool:
         """Check if audit service is enabled."""
         return self._enabled
+
+    @property
+    def admin_events_enabled(self) -> bool:
+        """Check if admin-event auditing is enabled and initialized."""
+        return bool(
+            self._admin_enabled
+            and self._admin_strategy is not None
+            and self._admin_strategy.is_initialized()
+        )
 
     @property
     def backend_name(self) -> str:

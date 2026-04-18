@@ -122,6 +122,39 @@ class MiddlewareConfigurator:
         # Configure throttle middleware (added last, executed first - delays requests before rate limiting)
         MiddlewareConfigurator._configure_throttle_middleware(app, config, logger)
 
+        # Configure admin-audit middleware (outermost — sees all admin/auth mutations)
+        MiddlewareConfigurator._configure_admin_audit_middleware(app, config, logger)
+
+    @staticmethod
+    def _configure_admin_audit_middleware(app: FastAPI, config: Dict[str, Any], logger: logging.Logger) -> None:
+        """
+        Configure admin/auth audit middleware.
+
+        Only registered when internal_services.audit.admin_events.enabled is true.
+        The middleware itself double-checks that the audit service is available
+        and admin events are enabled at request time, so it is safe even if
+        config changes.
+        """
+        audit_cfg = config.get('internal_services', {}).get('audit', {}) or {}
+        admin_cfg = audit_cfg.get('admin_events', {}) or {}
+
+        if not audit_cfg.get('enabled', False) or not admin_cfg.get('enabled', False):
+            _logger.info("Admin audit middleware is disabled in configuration")
+            logger.info("Admin audit middleware is disabled in configuration")
+            return
+
+        try:
+            from server.middleware.admin_audit_middleware import AdminAuditMiddleware
+            app.add_middleware(AdminAuditMiddleware)
+            _logger.info("Admin audit middleware configured successfully")
+            logger.info("Admin audit middleware configured successfully")
+        except ImportError as e:
+            _logger.warning(f"AdminAuditMiddleware not available - admin audit disabled: {e}")
+            logger.warning(f"AdminAuditMiddleware not available - admin audit disabled: {e}")
+        except Exception as e:
+            _logger.warning(f"Failed to configure admin audit middleware: {e}")
+            logger.warning(f"Failed to configure admin audit middleware: {e}")
+
     @staticmethod
     def _configure_security_headers_middleware(app: FastAPI, config: Dict[str, Any], logger: logging.Logger) -> None:
         """

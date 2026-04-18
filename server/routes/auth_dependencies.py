@@ -49,12 +49,12 @@ async def get_current_user(
     """
     if not credentials or not credentials.credentials:
         return None
-    
+
     token = credentials.credentials
-    
+
     # Validate token
     is_valid, user_info = await auth_service.validate_token(token)
-    
+
     if not is_valid:
         # Token is invalid or expired
         raise HTTPException(
@@ -62,7 +62,11 @@ async def get_current_user(
             detail="Invalid or expired authentication token",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    
+
+    # Stash on request.state so non-dependency code (e.g. middleware) can
+    # read the resolved user without re-validating the token.
+    request.state.current_user = user_info
+
     return user_info
 
 
@@ -90,12 +94,12 @@ async def get_current_user_with_token(
     """
     if not credentials or not credentials.credentials:
         return None, None
-    
+
     token = credentials.credentials
-    
+
     # Validate token
     is_valid, user_info = await auth_service.validate_token(token)
-    
+
     if not is_valid:
         # Token is invalid or expired
         raise HTTPException(
@@ -103,7 +107,9 @@ async def get_current_user_with_token(
             detail="Invalid or expired authentication token",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    
+
+    request.state.current_user = user_info
+
     return user_info, token
 
 
@@ -162,14 +168,16 @@ async def get_optional_user(
     """
     if not credentials or not credentials.credentials:
         return None
-    
+
     token = credentials.credentials
-    
+
     # Validate token
     is_valid, user_info = await auth_service.validate_token(token)
-    
-    # Return user info if valid, None otherwise
-    return user_info if is_valid else None
+
+    if is_valid:
+        request.state.current_user = user_info
+        return user_info
+    return None
 
 
 # For backward compatibility with API key authentication
@@ -199,6 +207,9 @@ async def check_admin_or_api_key(
     """
     # If we have an admin user, allow access
     if current_user and current_user.get('role') == 'admin':
+        # get_optional_user already set request.state.current_user, but do it
+        # here too for defense in depth.
+        request.state.current_user = current_user
         return True
 
     # Otherwise, check API key using existing service
@@ -208,10 +219,13 @@ async def check_admin_or_api_key(
         adapter_manager = getattr(request.app.state, 'adapter_manager', None)
         is_valid, _, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
         if is_valid:
+            # Stash the raw key on request.state so the admin-audit middleware
+            # can record a masked version as the actor identity.
+            request.state.api_key = x_api_key
             return True
 
     # Neither admin auth nor valid API key
     raise HTTPException(
         status_code=401,
         detail="Admin authentication or valid API key required"
-    ) 
+    )

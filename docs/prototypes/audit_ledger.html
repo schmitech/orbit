@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Administrative Ledger — Orbit Ops</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..900,0..100;1,9..144,300..900,0..100&family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+
+<style>
+/* =========================================================
+   THE LEDGER — Design Tokens
+   ========================================================= */
+:root {
+  --paper:        #f3ead8;       /* cream paper */
+  --paper-2:      #ece2cc;       /* raised paper */
+  --paper-3:      #e3d7bc;       /* gutter */
+  --ink:          #17130e;       /* warm black ink */
+  --ink-2:        #3a2f22;       /* slightly faded ink */
+  --ink-3:        #6e5d46;       /* muted reference */
+  --rule:         #2b1e12;       /* hairline rules */
+  --rule-soft:    #b7a687;
+  --vermillion:   #b02a16;       /* FAILURE / DANGER / STAMP */
+  --vermillion-2: #8a1f0f;
+  --bottle:       #2d4a3a;       /* SUCCESS (understated) */
+  --gold:         #856931;       /* accents, numerals */
+
+  --ff-display: "Fraunces", "Times New Roman", serif;
+  --ff-body:    "DM Sans", "Helvetica", system-ui, sans-serif;
+  --ff-mono:    "IBM Plex Mono", "Courier New", monospace;
+
+  --tnum: "tnum" 1, "lnum" 1;
+  --onum: "onum" 1, "pnum" 1;
+
+  --space-05: .25rem;
+  --space-1:  .5rem;
+  --space-2:  1rem;
+  --space-3:  1.5rem;
+  --space-4:  2rem;
+  --space-5:  3rem;
+  --space-6:  4rem;
+  --space-8:  6rem;
+}
+
+/* =========================================================
+   RESET + TYPE
+   ========================================================= */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--ff-body);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--paper);
+  font-feature-settings: "ss01" 1, "kern" 1;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+
+  /* subtle paper-grain overlay */
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.09  0 0 0 0 0.07  0 0 0 0 0.05  0 0 0 0.12 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 240px 240px;
+}
+
+::selection { background: var(--ink); color: var(--paper); }
+
+h1, h2, h3 { margin: 0; font-family: var(--ff-display); font-weight: 400; }
+
+.smallcaps {
+  font-variant-caps: all-small-caps;
+  letter-spacing: .18em;
+  font-weight: 500;
+}
+
+.num-tabular { font-variant-numeric: tabular-nums lining-nums; }
+.num-oldstyle { font-variant-numeric: proportional-nums oldstyle-nums; }
+
+/* =========================================================
+   PAGE FRAME
+   ========================================================= */
+.folio {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  position: relative;
+}
+
+/* corner flourishes — archival dashed crop marks */
+.folio::before, .folio::after {
+  content: "";
+  position: absolute;
+  width: 34px; height: 34px;
+  border: 1px dashed var(--rule-soft);
+  border-radius: 0;
+}
+.folio::before { top: 14px; left: 14px; border-right: 0; border-bottom: 0; }
+.folio::after  { bottom: 14px; right: 14px; border-left: 0; border-top: 0; }
+
+/* =========================================================
+   MASTHEAD
+   ========================================================= */
+.masthead {
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid var(--rule);
+  position: relative;
+}
+
+.masthead .line1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-4);
+  padding-bottom: var(--space-2);
+}
+
+.stamp {
+  border: 1.5px solid var(--vermillion);
+  color: var(--vermillion);
+  padding: 6px 14px 5px;
+  font-family: var(--ff-body);
+  font-size: 11px;
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  transform: rotate(-2.5deg);
+  align-self: center;
+  position: relative;
+  background: transparent;
+  opacity: .88;
+}
+.stamp::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border: 1.5px solid var(--vermillion);
+  transform: translate(2px, 2px);
+  opacity: .35;
+  pointer-events: none;
+}
+
+.folio-meta {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-align: right;
+  line-height: 1.9;
+}
+.folio-meta strong { color: var(--ink); font-weight: 500; }
+
+.masthead h1 {
+  font-family: var(--ff-display);
+  font-size: clamp(54px, 8.4vw, 136px);
+  line-height: .92;
+  letter-spacing: -0.02em;
+  font-weight: 400;
+  font-variation-settings: "opsz" 144, "SOFT" 20;
+  margin: var(--space-2) 0 var(--space-2);
+  color: var(--ink);
+}
+.masthead h1 em {
+  font-style: italic;
+  font-variation-settings: "opsz" 144, "SOFT" 90;
+  color: var(--ink-2);
+}
+
+.subhead {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  align-items: baseline;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--rule);
+}
+.subhead .dateline {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: .08em;
+  color: var(--ink-2);
+}
+.subhead .tagline {
+  font-family: var(--ff-display);
+  font-style: italic;
+  font-size: 17px;
+  color: var(--ink-2);
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+}
+
+/* =========================================================
+   FILTER STRIP
+   ========================================================= */
+.filter-strip {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--space-3);
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+.filter-group .label {
+  font-size: 10px;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-right: 6px;
+}
+
+.chip {
+  font-family: var(--ff-mono);
+  font-size: 11.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--rule-soft);
+  padding: 5px 11px 4px;
+  cursor: pointer;
+  transition: all 140ms ease;
+  border-radius: 1px;
+}
+.chip:hover { border-color: var(--ink); color: var(--ink); }
+.chip[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.chip.danger[aria-pressed="true"] {
+  background: var(--vermillion);
+  border-color: var(--vermillion);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--rule);
+  padding: 4px 0;
+  min-width: 260px;
+}
+.search::before {
+  content: "⌕";
+  font-family: var(--ff-display);
+  font-size: 22px;
+  color: var(--ink-3);
+  margin-right: 8px;
+  line-height: 1;
+}
+.search input {
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  color: var(--ink);
+  width: 100%;
+  letter-spacing: .03em;
+}
+.search input::placeholder { color: var(--ink-3); font-style: italic; font-family: var(--ff-display); letter-spacing: 0; }
+
+/* =========================================================
+   LAYOUT — Index + Dossier
+   ========================================================= */
+.ledger {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) 1px minmax(0, 2fr);
+  gap: var(--space-4);
+  min-height: 600px;
+}
+.ledger > .gutter {
+  background: var(--rule);
+  opacity: .55;
+}
+
+/* ----- Register (left) ----- */
+.register-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--space-2);
+}
+.register-head h2 {
+  font-family: var(--ff-display);
+  font-style: italic;
+  font-size: 28px;
+  font-variation-settings: "opsz" 36, "SOFT" 80;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.register-head .count {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.register {
+  width: 100%;
+  border-collapse: collapse;
+  font-feature-settings: var(--tnum);
+}
+.register th {
+  text-align: left;
+  font-family: var(--ff-body);
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--rule);
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+}
+.register td {
+  padding: 14px 10px;
+  font-size: 13.5px;
+  border-bottom: 1px solid color-mix(in oklab, var(--rule-soft) 55%, transparent);
+  vertical-align: top;
+}
+
+.register tbody tr {
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.register tbody tr:hover { background: var(--paper-2); }
+.register tbody tr.is-active {
+  background: var(--ink);
+  color: var(--paper);
+}
+.register tbody tr.is-active td { border-bottom-color: var(--ink); }
+.register tbody tr.is-active .row-num { color: var(--paper); opacity: .6; }
+.register tbody tr.is-active .ts { color: color-mix(in oklab, var(--paper) 75%, transparent); }
+.register tbody tr.is-active .actor-role { color: color-mix(in oklab, var(--paper) 60%, transparent); }
+.register tbody tr.is-active .resource { color: color-mix(in oklab, var(--paper) 70%, transparent); }
+
+.row-num {
+  font-family: var(--ff-display);
+  font-style: italic;
+  font-variation-settings: "opsz" 12, "SOFT" 100;
+  font-feature-settings: var(--onum);
+  color: var(--ink-3);
+  font-size: 14px;
+  width: 42px;
+}
+
+.ts {
+  font-family: var(--ff-mono);
+  font-size: 11.5px;
+  letter-spacing: .03em;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.event-cell .event-type {
+  font-family: var(--ff-mono);
+  font-size: 12.5px;
+  color: var(--ink);
+  letter-spacing: .01em;
+}
+.event-cell .event-sub {
+  font-family: var(--ff-display);
+  font-style: italic;
+  font-size: 13px;
+  font-variation-settings: "opsz" 14, "SOFT" 80;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+.register tbody tr.is-active .event-sub { color: color-mix(in oklab, var(--paper) 85%, transparent); }
+
+.actor {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.actor-name { font-weight: 500; font-size: 13.5px; }
+.actor-role {
+  font-size: 11px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.actor-name.anon {
+  font-style: italic;
+  font-family: var(--ff-display);
+  font-variation-settings: "opsz" 14, "SOFT" 80;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.resource { font-family: var(--ff-mono); font-size: 11.5px; color: var(--ink-2); word-break: break-all; }
+
+.status {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-align: right;
+  white-space: nowrap;
+}
+.status .code { font-weight: 500; }
+.status .tag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border: 1px solid var(--bottle);
+  color: var(--bottle);
+  border-radius: 1px;
+  vertical-align: 2px;
+}
+.status.failed .tag {
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+.status.failed .code { color: var(--vermillion); }
+.status.failed .code::after {
+  content: "";
+  display: block;
+  height: 1px;
+  background: var(--vermillion);
+  margin-top: 2px;
+  margin-left: auto;
+  width: 2.4em;
+}
+.register tbody tr.is-active .status .tag { color: var(--paper); border-color: var(--paper); }
+
+/* ----- Dossier (right) ----- */
+.dossier {
+  padding-left: var(--space-3);
+  position: sticky;
+  top: var(--space-2);
+  align-self: start;
+  max-height: calc(100vh - var(--space-3));
+  overflow: auto;
+}
+
+.dossier-empty {
+  font-family: var(--ff-display);
+  font-style: italic;
+  font-size: 19px;
+  color: var(--ink-3);
+  line-height: 1.5;
+  padding: var(--space-6) var(--space-3);
+  text-align: center;
+  font-variation-settings: "opsz" 20, "SOFT" 90;
+}
+.dossier-empty .arrow {
+  display: block;
+  font-size: 32px;
+  margin-bottom: var(--space-2);
+  color: var(--rule-soft);
+  font-style: normal;
+}
+
+.dossier-open { animation: inkReveal 420ms cubic-bezier(.2,.7,.2,1); }
+@keyframes inkReveal {
+  from { opacity: 0; transform: translateY(6px); filter: blur(2px); }
+  to   { opacity: 1; transform: translateY(0);    filter: blur(0);  }
+}
+
+.dossier-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: var(--space-1);
+  border-bottom: 2px solid var(--rule);
+}
+.dossier-head .label {
+  font-size: 10px;
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+  font-weight: 500;
+}
+.dossier-head .close {
+  background: transparent;
+  border: 0;
+  color: var(--ink-3);
+  cursor: pointer;
+  font-family: var(--ff-display);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 4px;
+}
+.dossier-head .close:hover { color: var(--vermillion); }
+
+.dossier-title {
+  font-family: var(--ff-display);
+  font-size: 32px;
+  line-height: 1.02;
+  font-weight: 400;
+  font-variation-settings: "opsz" 48, "SOFT" 50;
+  margin: var(--space-3) 0 6px;
+  letter-spacing: -0.015em;
+}
+
+.dossier-title .dropcap {
+  float: left;
+  font-size: 74px;
+  line-height: .82;
+  font-style: italic;
+  font-variation-settings: "opsz" 144, "SOFT" 100, "wght" 300;
+  margin: 4px 8px 0 0;
+  color: var(--vermillion);
+}
+.dossier.failed .dossier-title .dropcap { color: var(--vermillion); }
+.dossier:not(.failed) .dossier-title .dropcap { color: var(--gold); }
+
+.dossier-sub {
+  font-family: var(--ff-display);
+  font-style: italic;
+  font-size: 16px;
+  font-variation-settings: "opsz" 14, "SOFT" 80;
+  color: var(--ink-2);
+  line-height: 1.5;
+  margin-bottom: var(--space-3);
+}
+
+.dossier hr.rule {
+  border: 0;
+  height: 1px;
+  background: var(--rule);
+  margin: var(--space-3) 0;
+}
+.dossier hr.flourish {
+  border: 0;
+  text-align: center;
+  margin: var(--space-3) 0;
+  color: var(--ink-3);
+  font-family: var(--ff-display);
+  font-style: italic;
+}
+.dossier hr.flourish::before { content: "— ✦ —"; letter-spacing: .6em; font-size: 12px; }
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 10px 18px;
+  font-size: 13.5px;
+}
+.field-grid dt {
+  font-size: 10px;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-top: 2px;
+  font-weight: 500;
+}
+.field-grid dd {
+  margin: 0;
+  font-family: var(--ff-mono);
+  font-size: 12.5px;
+  color: var(--ink);
+  word-break: break-all;
+}
+.field-grid dd .muted { color: var(--ink-3); }
+.field-grid dd.display {
+  font-family: var(--ff-display);
+  font-style: italic;
+  font-variation-settings: "opsz" 14, "SOFT" 80;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 11px;
+  border: 1px solid currentColor;
+  font-family: var(--ff-body);
+  font-size: 11px;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.verdict.success { color: var(--bottle); }
+.verdict.failure { color: var(--vermillion); }
+.verdict::before {
+  content: "";
+  width: 6px; height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+.summary-block {
+  background: var(--paper-2);
+  border-left: 2px solid var(--ink);
+  padding: 14px 16px;
+  font-family: var(--ff-mono);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink);
+}
+.summary-block .k { color: var(--ink-3); }
+.summary-block .v { color: var(--ink); }
+.summary-block .q { color: var(--gold); }
+
+.section-heading {
+  font-size: 10px;
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: var(--space-3) 0 var(--space-1);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-heading::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--rule-soft);
+}
+
+/* =========================================================
+   COLOPHON
+   ========================================================= */
+.colophon {
+  margin-top: var(--space-5);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.colophon em {
+  font-family: var(--ff-display);
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-variation-settings: "opsz" 14, "SOFT" 80;
+}
+
+/* =========================================================
+   STAGGERED LOAD
+   ========================================================= */
+.reveal { opacity: 0; transform: translateY(8px); animation: reveal 560ms cubic-bezier(.2,.7,.2,1) forwards; }
+@keyframes reveal { to { opacity: 1; transform: translateY(0); } }
+.reveal.r1 { animation-delay: 40ms; }
+.reveal.r2 { animation-delay: 180ms; }
+.reveal.r3 { animation-delay: 300ms; }
+.reveal.r4 { animation-delay: 420ms; }
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media (max-width: 1080px) {
+  .ledger { grid-template-columns: 1fr; }
+  .ledger > .gutter { display: none; }
+  .dossier { position: static; padding-left: 0; border-top: 2px solid var(--rule); padding-top: var(--space-3); }
+}
+@media (max-width: 720px) {
+  .folio { padding: var(--space-3) var(--space-2); }
+  .masthead h1 { font-size: 52px; }
+  .subhead { flex-direction: column; gap: var(--space-1); }
+  .register th:nth-child(1), .register td:nth-child(1) { display: none; }
+  .register th:nth-child(4), .register td:nth-child(4) { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="folio">
+
+  <!-- ========================= MASTHEAD ========================= -->
+  <header class="masthead reveal r1">
+    <div class="line1">
+      <div class="stamp">Confidential · Auditors Only</div>
+      <div class="folio-meta">
+        <div>Folio <strong class="num-tabular">№ 0137</strong> / 0842</div>
+        <div>Vol. III · <strong>MMXXVI</strong></div>
+        <div>ORBIT/OPS Archival Services</div>
+      </div>
+    </div>
+    <h1>The Administrative<br><em>Ledger</em>.</h1>
+    <div class="subhead">
+      <div class="dateline">Dateline · <strong>XVIII · IV · MMXXVI</strong> · 14:32:07 EDT</div>
+      <div class="tagline">Being a faithful register of privileged operations, kept in perpetuity.</div>
+    </div>
+  </header>
+
+  <!-- ========================= FILTERS ========================= -->
+  <nav class="filter-strip reveal r2" aria-label="Filters">
+    <div class="filter-group">
+      <span class="label">Outcome</span>
+      <button class="chip" data-filter="outcome" data-value="all" aria-pressed="true">All</button>
+      <button class="chip" data-filter="outcome" data-value="success" aria-pressed="false">Succeeded</button>
+      <button class="chip danger" data-filter="outcome" data-value="failure" aria-pressed="false">Failed</button>
+    </div>
+    <div class="filter-group">
+      <span class="label">Domain</span>
+      <button class="chip" data-filter="domain" data-value="all" aria-pressed="true">All</button>
+      <button class="chip" data-filter="domain" data-value="auth" aria-pressed="false">Auth</button>
+      <button class="chip" data-filter="domain" data-value="admin.api_key" aria-pressed="false">API Keys</button>
+      <button class="chip" data-filter="domain" data-value="admin.config" aria-pressed="false">Config</button>
+      <button class="chip" data-filter="domain" data-value="admin.server" aria-pressed="false">Server</button>
+      <button class="chip" data-filter="domain" data-value="admin.prompt" aria-pressed="false">Prompts</button>
+    </div>
+    <label class="search" aria-label="Search">
+      <input id="q" type="search" placeholder="Search actor, path, resource…" />
+    </label>
+  </nav>
+
+  <!-- ========================= LEDGER ========================= -->
+  <section class="ledger reveal r3">
+    <!-- REGISTER (left) -->
+    <div>
+      <div class="register-head">
+        <h2>Register of Entries</h2>
+        <div class="count"><span id="shown-count">14</span> of <span id="total-count">14</span> entries</div>
+      </div>
+      <table class="register" role="grid">
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Time</th>
+            <th>Event</th>
+            <th>Actor</th>
+            <th>Resource</th>
+            <th style="text-align:right">Status</th>
+          </tr>
+        </thead>
+        <tbody id="rows"><!-- populated by JS --></tbody>
+      </table>
+    </div>
+
+    <div class="gutter" aria-hidden="true"></div>
+
+    <!-- DOSSIER (right) -->
+    <aside class="dossier" id="dossier" aria-live="polite">
+      <div class="dossier-empty">
+        <span class="arrow">←</span>
+        Select an entry from the register<br>to inspect the dossier.
+      </div>
+    </aside>
+  </section>
+
+  <!-- ========================= COLOPHON ========================= -->
+  <footer class="colophon reveal r4">
+    <div>Set in <em>Fraunces</em>, <em>DM Sans</em> &amp; <em>IBM Plex Mono</em></div>
+    <div>ORBIT · Ops &amp; Archival · MMXXVI</div>
+  </footer>
+
+</div>
+
+<script>
+/* =========================================================
+   MOCK DATA — representative admin audit events
+   ========================================================= */
+const events = [
+  {
+    id: "adm-00231",
+    ts: "2026-04-18T14:31:52",
+    event_type: "auth.login",
+    event_summary: "Session created for administrator",
+    action: "LOGIN",
+    resource_type: "session",
+    resource_id: null,
+    actor_type: "user", actor_username: "r.schmilinsky", actor_id: "u-0004",
+    method: "POST", path: "/auth/login",
+    status_code: 200, success: true,
+    ip: "172.19.4.112", ip_source: "proxy",
+    user_agent: "orbit-cli/1.8.3",
+    request_summary: { username: "r.schmilinsky" },
+  },
+  {
+    id: "adm-00230",
+    ts: "2026-04-18T14:30:04",
+    event_type: "auth.login",
+    event_summary: "Invalid credentials — attempt rejected",
+    action: "LOGIN",
+    resource_type: "session",
+    resource_id: null,
+    actor_type: "anonymous", actor_username: null, actor_id: null,
+    method: "POST", path: "/auth/login",
+    status_code: 401, success: false,
+    ip: "185.211.44.8", ip_source: "direct",
+    user_agent: "curl/8.4.0",
+    error_message: "HTTP 401",
+    request_summary: { username: "postgres" },
+  },
+  {
+    id: "adm-00229",
+    ts: "2026-04-18T13:58:41",
+    event_type: "admin.api_key.create",
+    event_summary: "New API key issued to integration partner",
+    action: "CREATE",
+    resource_type: "api_key",
+    resource_id: "orbit_…f9a2c1",
+    actor_type: "user", actor_username: "r.schmilinsky", actor_id: "u-0004",
+    method: "POST", path: "/admin/api-keys",
+    status_code: 201, success: true,
+    ip: "172.19.4.112", ip_source: "proxy",
+    request_summary: { client_name: "Acme Analytics", adapter_name: "intent-sql", system_prompt_id: "prm_7b41" },
+  },
+  {
+    id: "adm-00228",
+    ts: "2026-04-18T13:42:19",
+    event_type: "admin.config.update",
+    event_summary: "System configuration amended",
+    action: "UPDATE",
+    resource_type: "config",
+    resource_id: null,
+    actor_type: "user", actor_username: "r.schmilinsky", actor_id: "u-0004",
+    method: "PUT", path: "/admin/config",
+    status_code: 200, success: true,
+    ip: "172.19.4.112", ip_source: "proxy",
+    request_summary: { changed_keys: ["safety.moderator.threshold", "performance.workers", "logging.level"] },
+  },
+  {
+    id: "adm-00227",
+    ts: "2026-04-18T12:11:58",
+    event_type: "admin.api_key.delete",
+    event_summary: "API key permanently revoked",
+    action: "DELETE",
+    resource_type: "api_key",
+    resource_id: "orbit_…81dd03",
+    actor_type: "user", actor_username: "ops-bot", actor_id: "u-0012",
+    method: "DELETE", path: "/admin/api-keys/6d8a92",
+    status_code: 204, success: true,
+    ip: "10.0.11.21", ip_source: "direct",
+    request_summary: {},
+  },
+  {
+    id: "adm-00226",
+    ts: "2026-04-18T11:47:02",
+    event_type: "admin.server.restart",
+    event_summary: "Restart attempt blocked — insufficient privilege",
+    action: "CONTROL",
+    resource_type: "server",
+    resource_id: null,
+    actor_type: "user", actor_username: "j.nakamura", actor_id: "u-0019",
+    method: "POST", path: "/admin/restart",
+    status_code: 403, success: false,
+    ip: "172.19.4.201", ip_source: "proxy",
+    user_agent: "Mozilla/5.0 (Macintosh)",
+    error_message: "HTTP 403",
+    request_summary: {},
+  },
+  {
+    id: "adm-00225",
+    ts: "2026-04-18T10:24:37",
+    event_type: "admin.prompt.update",
+    event_summary: "System prompt revised to v4.2",
+    action: "UPDATE",
+    resource_type: "prompt",
+    resource_id: "prm_7b41",
+    actor_type: "user", actor_username: "s.velasquez", actor_id: "u-0007",
+    method: "PUT", path: "/admin/prompts/prm_7b41",
+    status_code: 200, success: true,
+    ip: "172.19.4.88", ip_source: "proxy",
+    request_summary: { name: "intent-sql primary", version: "4.2" },
+  },
+  {
+    id: "adm-00224",
+    ts: "2026-04-18T09:51:12",
+    event_type: "auth.password.reset",
+    event_summary: "Password reset performed on behalf of user",
+    action: "UPDATE",
+    resource_type: "user",
+    resource_id: "u-0019",
+    actor_type: "user", actor_username: "r.schmilinsky", actor_id: "u-0004",
+    method: "POST", path: "/auth/reset-password",
+    status_code: 200, success: true,
+    ip: "172.19.4.112", ip_source: "proxy",
+    request_summary: { user_id: "u-0019" },
+  },
+  {
+    id: "adm-00223",
+    ts: "2026-04-18T09:15:48",
+    event_type: "admin.quota.update",
+    event_summary: "Quota limits amended for partner key",
+    action: "UPDATE",
+    resource_type: "api_key",
+    resource_id: "orbit_…f9a2c1",
+    actor_type: "user", actor_username: "s.velasquez", actor_id: "u-0007",
+    method: "PUT", path: "/admin/api-keys/4e12a9/quota",
+    status_code: 200, success: true,
+    ip: "172.19.4.88", ip_source: "proxy",
+    request_summary: { daily_limit: 25000, monthly_limit: 500000, throttle_enabled: true },
+  },
+  {
+    id: "adm-00222",
+    ts: "2026-04-18T08:03:30",
+    event_type: "admin.adapter.reload",
+    event_summary: "All adapters hot-reloaded after config change",
+    action: "CONTROL",
+    resource_type: "adapter",
+    resource_id: null,
+    actor_type: "api_key", actor_username: null, actor_id: "orbit_…admi01",
+    method: "POST", path: "/admin/reload-adapters",
+    status_code: 200, success: true,
+    ip: "10.0.11.21", ip_source: "direct",
+    request_summary: {},
+  },
+  {
+    id: "adm-00221",
+    ts: "2026-04-17T23:58:17",
+    event_type: "auth.user.create",
+    event_summary: "New operator account provisioned",
+    action: "CREATE",
+    resource_type: "user",
+    resource_id: "u-0021",
+    actor_type: "user", actor_username: "r.schmilinsky", actor_id: "u-0004",
+    method: "POST", path: "/auth/register",
+    status_code: 201, success: true,
+    ip: "172.19.4.112", ip_source: "proxy",
+    request_summary: { username: "k.okafor", role: "user" },
+  },
+  {
+    id: "adm-00220",
+    ts: "2026-04-17T22:41:09",
+    event_type: "auth.login",
+    event_summary: "Repeated login failures from foreign address",
+    action: "LOGIN",
+    resource_type: "session",
+    resource_id: null,
+    actor_type: "anonymous", actor_username: null, actor_id: null,
+    method: "POST", path: "/auth/login",
+    status_code: 401, success: false,
+    ip: "45.133.193.17", ip_source: "direct",
+    user_agent: "python-requests/2.31.0",
+    error_message: "HTTP 401",
+    request_summary: { username: "admin" },
+  },
+  {
+    id: "adm-00219",
+    ts: "2026-04-17T19:22:05",
+    event_type: "admin.api_key.deactivate",
+    event_summary: "Key taken offline pending investigation",
+    action: "UPDATE",
+    resource_type: "api_key",
+    resource_id: "orbit_…4c8b71",
+    actor_type: "user", actor_username: "j.nakamura", actor_id: "u-0019",
+    method: "POST", path: "/admin/api-keys/4c8b71/deactivate",
+    status_code: 200, success: true,
+    ip: "172.19.4.201", ip_source: "proxy",
+    request_summary: {},
+  },
+  {
+    id: "adm-00218",
+    ts: "2026-04-17T17:06:44",
+    event_type: "admin.server.shutdown",
+    event_summary: "Graceful shutdown requested by operator",
+    action: "CONTROL",
+    resource_type: "server",
+    resource_id: null,
+    actor_type: "user", actor_username: "r.schmilinsky", actor_id: "u-0004",
+    method: "POST", path: "/admin/shutdown",
+    status_code: 200, success: true,
+    ip: "172.19.4.112", ip_source: "proxy",
+    request_summary: {},
+  },
+];
+
+/* =========================================================
+   RENDERING
+   ========================================================= */
+const rows = document.getElementById("rows");
+const dossier = document.getElementById("dossier");
+const shownCount = document.getElementById("shown-count");
+const totalCount = document.getElementById("total-count");
+
+totalCount.textContent = events.length;
+
+const ROMAN_MONTHS = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
+
+function romanDate(iso){
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2,"0");
+  const mon = ROMAN_MONTHS[d.getMonth()];
+  const yy = String(d.getFullYear()).slice(2);
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mm = String(d.getMinutes()).padStart(2,"0");
+  const ss = String(d.getSeconds()).padStart(2,"0");
+  return { date: `${dd}·${mon}·${yy}`, time: `${hh}:${mm}:${ss}` };
+}
+
+function pad(n, width){ return String(n).padStart(width,"0"); }
+
+function renderRows(list){
+  rows.innerHTML = "";
+  list.forEach((e, i) => {
+    const t = romanDate(e.ts);
+    const tr = document.createElement("tr");
+    tr.dataset.id = e.id;
+    tr.innerHTML = `
+      <td class="row-num">${pad(events.length - events.indexOf(e), 3)}</td>
+      <td class="ts">${t.date}<br>${t.time}</td>
+      <td class="event-cell">
+        <div class="event-type">${e.event_type}</div>
+        <div class="event-sub">${e.event_summary}</div>
+      </td>
+      <td>
+        <div class="actor">
+          ${e.actor_type === "anonymous"
+            ? `<span class="actor-name anon">— anonymous —</span>`
+            : `<span class="actor-name">${e.actor_username || e.actor_id}</span>`}
+          <span class="actor-role">${e.actor_type}</span>
+        </div>
+      </td>
+      <td class="resource">${e.resource_id || e.resource_type}</td>
+      <td class="status ${e.success ? "ok" : "failed"}">
+        <span class="code">${e.status_code}</span>
+        <span class="tag">${e.success ? "ok" : "fail"}</span>
+      </td>
+    `;
+    tr.addEventListener("click", () => select(e.id));
+    rows.appendChild(tr);
+  });
+  shownCount.textContent = list.length;
+}
+
+function renderDossier(e){
+  const t = romanDate(e.ts);
+  const firstChar = e.event_type.charAt(0);
+  const restType = e.event_type.slice(1);
+  dossier.className = "dossier " + (e.success ? "succeeded" : "failed");
+  dossier.innerHTML = `
+    <div class="dossier-open">
+      <header class="dossier-head">
+        <div class="label">Dossier · ${e.id}</div>
+        <button class="close" aria-label="Close" onclick="deselect()">✕</button>
+      </header>
+
+      <h3 class="dossier-title">
+        <span class="dropcap">${firstChar}</span>${restType}
+      </h3>
+      <p class="dossier-sub">${e.event_summary}.</p>
+
+      <div>
+        <span class="verdict ${e.success ? "success" : "failure"}">
+          ${e.success ? "Verdict · Succeeded" : "Verdict · Failed"}
+        </span>
+      </div>
+
+      <hr class="rule">
+
+      <div class="section-heading">Principals</div>
+      <dl class="field-grid">
+        <dt>Actor</dt>
+        <dd class="${e.actor_type === 'anonymous' ? 'display' : ''}">
+          ${e.actor_type === 'anonymous'
+            ? '— anonymous —'
+            : (e.actor_username || '') + (e.actor_id ? ` <span class="muted">(${e.actor_id})</span>` : '')}
+        </dd>
+
+        <dt>Capacity</dt>
+        <dd>${e.actor_type}</dd>
+
+        <dt>Resource</dt>
+        <dd>${e.resource_id ? e.resource_id : `<span class="muted">(n/a — ${e.resource_type})</span>`}</dd>
+
+        <dt>Resource kind</dt>
+        <dd>${e.resource_type}</dd>
+      </dl>
+
+      <div class="section-heading">Request</div>
+      <dl class="field-grid">
+        <dt>Method</dt>        <dd>${e.method}</dd>
+        <dt>Path</dt>          <dd>${e.path}</dd>
+        <dt>Status</dt>        <dd style="${e.success ? '' : 'color:var(--vermillion)'}">${e.status_code}${e.error_message ? ` · ${e.error_message}` : ''}</dd>
+        <dt>Timestamp</dt>     <dd>${t.date} · ${t.time}</dd>
+        <dt>Event type</dt>    <dd>${e.event_type}</dd>
+        <dt>Action</dt>        <dd>${e.action}</dd>
+      </dl>
+
+      <div class="section-heading">Origin</div>
+      <dl class="field-grid">
+        <dt>IP</dt>         <dd>${e.ip}</dd>
+        <dt>Source</dt>     <dd>${e.ip_source}</dd>
+        ${e.user_agent ? `<dt>User-Agent</dt><dd>${e.user_agent}</dd>` : ''}
+      </dl>
+
+      ${Object.keys(e.request_summary || {}).length
+        ? `<div class="section-heading">Request Summary <span style="text-transform:none;letter-spacing:0;color:var(--ink-3);font-style:italic;font-family:var(--ff-display)">— fields recorded, secrets scrubbed</span></div>
+           <div class="summary-block">${formatSummary(e.request_summary)}</div>`
+        : `<hr class="flourish">`}
+    </div>
+  `;
+}
+
+function formatSummary(obj){
+  return Object.entries(obj)
+    .map(([k,v]) => {
+      let val;
+      if (Array.isArray(v)) {
+        val = '[' + v.map(x => `<span class="q">"${x}"</span>`).join(', ') + ']';
+      } else if (typeof v === 'string') {
+        val = `<span class="q">"${v}"</span>`;
+      } else {
+        val = `<span class="v">${v}</span>`;
+      }
+      return `<span class="k">${k}</span>: ${val}`;
+    })
+    .join('<br>');
+}
+
+function select(id){
+  const e = events.find(x => x.id === id);
+  if (!e) return;
+  document.querySelectorAll("#rows tr").forEach(tr => {
+    tr.classList.toggle("is-active", tr.dataset.id === id);
+  });
+  renderDossier(e);
+}
+
+function deselect(){
+  document.querySelectorAll("#rows tr.is-active").forEach(tr => tr.classList.remove("is-active"));
+  dossier.className = "dossier";
+  dossier.innerHTML = `
+    <div class="dossier-empty">
+      <span class="arrow">←</span>
+      Select an entry from the register<br>to inspect the dossier.
+    </div>`;
+}
+
+/* =========================================================
+   FILTERS
+   ========================================================= */
+const activeFilters = { outcome: "all", domain: "all", q: "" };
+
+document.querySelectorAll(".chip").forEach(chip => {
+  chip.addEventListener("click", () => {
+    const group = chip.dataset.filter;
+    const value = chip.dataset.value;
+    document.querySelectorAll(`.chip[data-filter="${group}"]`).forEach(c => c.setAttribute("aria-pressed", "false"));
+    chip.setAttribute("aria-pressed", "true");
+    activeFilters[group] = value;
+    apply();
+  });
+});
+
+document.getElementById("q").addEventListener("input", (ev) => {
+  activeFilters.q = ev.target.value.trim().toLowerCase();
+  apply();
+});
+
+function apply(){
+  const list = events.filter(e => {
+    if (activeFilters.outcome === "success" && !e.success) return false;
+    if (activeFilters.outcome === "failure" &&  e.success) return false;
+    if (activeFilters.domain !== "all" && !e.event_type.startsWith(activeFilters.domain)) return false;
+    if (activeFilters.q) {
+      const hay = `${e.event_type} ${e.actor_username || ""} ${e.actor_id || ""} ${e.path} ${e.resource_id || ""} ${e.ip}`.toLowerCase();
+      if (!hay.includes(activeFilters.q)) return false;
+    }
+    return true;
+  });
+  renderRows(list);
+}
+
+/* boot */
+renderRows(events);
+// auto-open the most recent event as an opening statement
+select(events[0].id);
+
+/* ESC closes the dossier */
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") deselect();
+});
+</script>
+</body>
+</html>

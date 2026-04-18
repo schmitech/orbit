@@ -15,6 +15,7 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 - `uploaded_files` - Uploaded file metadata for file adapter workflows
 - `file_chunks` - Chunk metadata for processed uploaded files
 - `audit_logs` - Audit trail records for conversation logging and compliance
+- `audit_admin_logs` - Audit trail records for admin/auth mutations (user CRUD, API-key management, config changes, login/logout, etc.)
 - `feedback` - User feedback (thumbs up/down) on chat responses
 
 ## Database File Location
@@ -386,6 +387,82 @@ When `storage_backend` is set to `"database"`, the audit service uses the same b
 
 **Response Compression:**
 When `compress_responses: true`, the response field is stored as base64-encoded gzip data. This typically reduces storage by 70-90% for LLM responses. The `response_compressed` field indicates whether decompression is needed when reading. Set to `false` during development/testing to see plain text responses in the database.
+
+---
+
+### audit_admin_logs
+
+Stores audit trail records for privileged operations on `/admin/*` and `/auth/*` endpoints. Populated by the admin-audit middleware when `internal_services.audit.admin_events.enabled` is `true`. Only mutations (POST/PUT/PATCH/DELETE) are recorded; read-only GETs are skipped.
+
+```sql
+CREATE TABLE IF NOT EXISTS audit_admin_logs (
+    id TEXT PRIMARY KEY,
+    timestamp TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    action TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT,
+    actor_type TEXT NOT NULL,
+    actor_id TEXT,
+    actor_username TEXT,
+    method TEXT NOT NULL,
+    path TEXT NOT NULL,
+    status_code INTEGER NOT NULL,
+    success INTEGER NOT NULL DEFAULT 0,
+    ip TEXT,
+    ip_type TEXT,
+    ip_is_local INTEGER DEFAULT 0,
+    ip_source TEXT,
+    ip_original_value TEXT,
+    user_agent TEXT,
+    error_message TEXT,
+    request_summary TEXT
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Unique record ID (UUID)
+- `timestamp` (TEXT): ISO format timestamp of the event
+- `event_type` (TEXT): Canonical event name (e.g. `auth.login`, `admin.api_key.create`, `admin.config.update`)
+- `action` (TEXT): Operation class (`CREATE`, `UPDATE`, `DELETE`, `LOGIN`, `LOGOUT`, `CONTROL`)
+- `resource_type` (TEXT): Kind of resource affected (`user`, `api_key`, `adapter`, `config`, `prompt`, `session`, `server`, ...)
+- `resource_id` (TEXT): Identifier of the affected resource (path param, body field, or actor id, depending on the route)
+- `actor_type` (TEXT): Who initiated the action (`user`, `api_key`, `anonymous`)
+- `actor_id` (TEXT): User ID for `user` actors; masked API key for `api_key` actors; `NULL` for anonymous
+- `actor_username` (TEXT): Username (when the actor is an authenticated user)
+- `method` (TEXT): HTTP method (POST/PUT/PATCH/DELETE)
+- `path` (TEXT): Concrete request path (not a template)
+- `status_code` (INTEGER): HTTP response status
+- `success` (INTEGER): `1` if `status_code < 400`, else `0`
+- `ip` (TEXT): Client IP address (cleaned)
+- `ip_type` (TEXT): IP address type (`ipv4`, `ipv6`, `local`, `unknown`)
+- `ip_is_local` (INTEGER): Whether the IP is local/private (1=true, 0=false)
+- `ip_source` (TEXT): `direct` or `proxy` (from `X-Forwarded-For`)
+- `ip_original_value` (TEXT): Raw IP value before parsing
+- `user_agent` (TEXT): Request `User-Agent` header
+- `error_message` (TEXT): Short marker for failed requests (e.g. `HTTP 401`)
+- `request_summary` (TEXT): JSON-encoded, secret-scrubbed subset of the request body. Per-route allowlists ensure passwords, raw API keys, and prompt bodies are never stored; config/adapter-config updates record only the list of changed top-level keys (no values).
+
+**Indexes:**
+- `idx_audit_admin_logs_timestamp` on `timestamp`
+- `idx_audit_admin_logs_actor_id` on `actor_id`
+- `idx_audit_admin_logs_event_type` on `event_type`
+- `idx_audit_admin_logs_resource_type` on `resource_type`
+- `idx_audit_admin_logs_success` on `success`
+
+**Configuration:**
+Admin-event auditing is opt-in and configured in `config/config.yaml` under the main audit block:
+
+```yaml
+internal_services:
+  audit:
+    enabled: true                     # Master audit toggle (required)
+    admin_events:
+      enabled: true                   # Enable admin/auth event auditing
+      collection_name: "audit_admin_logs"
+```
+
+When `audit.enabled` is `false`, admin-event auditing is forced off regardless of the `admin_events.enabled` flag. Audit write failures are logged and swallowed — they never break the underlying admin action.
 
 ---
 

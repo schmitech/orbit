@@ -267,6 +267,31 @@ class SQLiteService(DatabaseService):
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
+            ''',
+            'audit_admin_logs': '''
+                CREATE TABLE IF NOT EXISTS audit_admin_logs (
+                    id TEXT PRIMARY KEY,
+                    timestamp TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    resource_type TEXT NOT NULL,
+                    resource_id TEXT,
+                    actor_type TEXT NOT NULL,
+                    actor_id TEXT,
+                    actor_username TEXT,
+                    method TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    status_code INTEGER NOT NULL,
+                    success INTEGER NOT NULL DEFAULT 0,
+                    ip TEXT,
+                    ip_type TEXT,
+                    ip_is_local INTEGER DEFAULT 0,
+                    ip_source TEXT,
+                    ip_original_value TEXT,
+                    user_agent TEXT,
+                    error_message TEXT,
+                    request_summary TEXT
+                )
             '''
         }
 
@@ -318,6 +343,13 @@ class SQLiteService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_feedback_session ON feedback(session_id)',
                 'CREATE INDEX IF NOT EXISTS idx_feedback_type ON feedback(feedback_type)',
                 'CREATE INDEX IF NOT EXISTS idx_feedback_adapter ON feedback(adapter_name)',
+            ],
+            'audit_admin_logs': [
+                'CREATE INDEX IF NOT EXISTS idx_audit_admin_logs_timestamp ON audit_admin_logs(timestamp)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_admin_logs_actor_id ON audit_admin_logs(actor_id)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_admin_logs_event_type ON audit_admin_logs(event_type)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_admin_logs_resource_type ON audit_admin_logs(resource_type)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_admin_logs_success ON audit_admin_logs(success)',
             ],
         }
 

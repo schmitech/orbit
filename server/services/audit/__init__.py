@@ -33,6 +33,13 @@ from .audit_storage_strategy import (
 from .sqlite_audit_strategy import SQLiteAuditStrategy
 from .mongodb_audit_strategy import MongoDBDAuditStrategy
 from .elasticsearch_audit_strategy import ElasticsearchAuditStrategy
+from .admin_audit_storage_strategy import (
+    AdminAuditStorageStrategy,
+    AdminAuditRecord,
+)
+from .sqlite_admin_audit_strategy import SQLiteAdminAuditStrategy
+from .mongodb_admin_audit_strategy import MongoDBAdminAuditStrategy
+from .elasticsearch_admin_audit_strategy import ElasticsearchAdminAuditStrategy
 
 __all__ = [
     'AuditService',
@@ -41,6 +48,12 @@ __all__ = [
     'SQLiteAuditStrategy',
     'MongoDBDAuditStrategy',
     'ElasticsearchAuditStrategy',
+    # Admin audit
+    'AdminAuditStorageStrategy',
+    'AdminAuditRecord',
+    'SQLiteAdminAuditStrategy',
+    'MongoDBAdminAuditStrategy',
+    'ElasticsearchAdminAuditStrategy',
     # Compression utilities
     'compress_text',
     'decompress_text',
