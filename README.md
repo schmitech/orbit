@@ -4,7 +4,7 @@
   </a>
 
   <p>ORBIT — Open Retrieval-Based Inference Toolkit</p>
-  <h3>One API for 20+ LLM providers, your databases, and your files.</h3>
+  <h3>One API for 29 LLM providers, 17 data sources, and your files.</h3>
 </div>
 
 <br/>
@@ -57,26 +57,63 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 
 ---
 
-### What can you build with ORBIT?
+### What's in the box
 
-- **Ask your database questions in any language** — Connect Postgres, MySQL, MongoDB, DuckDB, or Elasticsearch and query them with natural language. Built-in language detection responds in the user's language automatically.
-- **Switch LLM providers without changing code** — Swap between OpenAI, Anthropic, Gemini, Groq, Ollama, vLLM, and more with a config change.
-- **Build voice agents** — Full-duplex speech-to-speech with interruption handling via PersonaPlex.
-- **Power agentic workflows** — MCP-compatible, so AI agents can use ORBIT as a tool.
-- **Upload files and get answers** — RAG over PDFs, images, and documents out of the box.
-- **Add guardrails and content moderation** — Built-in safety layer with OpenAI, Anthropic, or local (Llama Guard) moderators to filter harmful content before it reaches users.
-- **Go from text to speech and back** — Plug in STT (Whisper, Google, Gemini) and TTS (OpenAI, ElevenLabs, Coqui) providers for voice-enabled applications.
-- **Keep everything private** — Self-host on your own infrastructure with RBAC, rate limiting, and audit logging.
+| Layer | Coverage |
+| :--- | :--- |
+| **LLM & inference** | 29 providers — OpenAI, Anthropic, Gemini, Cohere, Groq, DeepSeek, Mistral, xAI, AWS Bedrock, Azure, Vertex, Together, Fireworks, Perplexity, Replicate, OpenRouter, Watson, NVIDIA, Hugging Face, Ollama (local/cloud/remote), vLLM, TensorRT-LLM, llama.cpp, Shimmy, BitNet (1.58-bit), Transformers, Z.ai |
+| **Data sources** | 17 — Postgres, MySQL, MariaDB, SQL Server, Oracle, SQLite, MongoDB, Redis, Cassandra, DuckDB, Athena, Elasticsearch, Supabase + HTTP/REST, GraphQL, Firecrawl |
+| **Vector stores** | Chroma, Qdrant, Pinecone, Milvus, Weaviate, Elasticsearch |
+| **Embeddings** | 10 providers — OpenAI, Cohere, Jina, Voyage, Mistral, Gemini, OpenRouter, Ollama, llama.cpp, Sentence-Transformers |
+| **Rerankers** | 6 providers — Cohere, Jina, Voyage, OpenAI, Anthropic, Ollama |
+| **Moderation / guardrails** | OpenAI, Anthropic, Llama Guard (local), pluggable chain |
+| **Voice** | Full-duplex speech-to-speech via **PersonaPlex**; STT (Whisper, Google, Gemini), TTS (OpenAI, ElevenLabs, Coqui) |
+| **Protocols** | OpenAI-compatible chat API + **MCP** — drop-in tool server for [OpenClaw](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md), Claude Desktop, Cursor, or any MCP client |
 
 ---
 
-### Supported integrations
+### Why ORBIT stands out
 
-**LLM Providers:** OpenAI, Anthropic, Google Gemini, Cohere, Groq, DeepSeek, Mistral, AWS Bedrock, Azure, Together, Ollama, vLLM, llama.cpp
+Most AI gateways stop at provider routing. ORBIT is built for the messy parts of production RAG.
 
-**Data Sources:** PostgreSQL, MySQL, MongoDB, Elasticsearch, DuckDB, SQLite, HTTP/REST APIs, GraphQL
+- **Intent-based retrieval, not just vector search** — ship real queries, not vector guesses. Users ask in natural language; ORBIT picks the right template and runs the query against your data. [Learn more](docs/intent-sql-rag-system.md).
+- **Cross-adapter RAG across mixed databases + APIs** — one question, many sources. Fan a query out to SQL, MongoDB, HTTP, and more in parallel and let the LLM merge the answers. [Learn more](config/adapters/composite.yaml).
+- **Template diagnostics** — iterate on intent templates without burning LLM tokens. [Learn more](docs/template-diagnostics.md).
+- **Conversation threading with cached datasets** — branch off any turn; follow-ups reuse the retrieved data instead of re-querying the DB. [Learn more](docs/conversation-threading-architecture.md).
+- **Circuit breakers + parallel fan-out** — resilient adapter orchestration that survives provider hiccups. [Learn more](docs/fault-tolerance/).
+- **Autocomplete that knows your data** — fuzzy-matched suggestions sourced from your intent templates. [Learn more](docs/autocomplete-architecture.md).
+- **Two-layer rate limiting** — IP limits plus per-API-key quotas with progressive throttling. [Learn more](docs/rate-limiting-architecture.md).
+- **Multilingual by default** — 100+ languages with conversation stickiness so the model doesn't flap between turns. [Learn more](docs/language-detection-architecture.md).
+- **OpenClaw / MCP integration** — drop ORBIT into any OpenClaw agent as a tool server with a single config entry. [Learn more](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md).
 
-**Vector Stores:** Chroma, Qdrant, Pinecone, Milvus, Weaviate
+---
+
+### What can you build with ORBIT?
+
+- **Ask your database questions in any language** — connect Postgres, MySQL, MongoDB, DuckDB, Elasticsearch, or any of the other 12 sources and query them with natural language.
+- **Query across Postgres + MongoDB + a REST API in one prompt** — true multi-source RAG, no pipeline glue.
+- **Switch LLM providers without changing code** — swap between 29 providers with a single config line.
+- **Build full-duplex voice agents** — speech-to-speech with interruption handling via PersonaPlex.
+- **Plug ORBIT into OpenClaw in minutes** — one config entry turns ORBIT into a tool server for any OpenClaw agent. [Walkthrough](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md).
+- **Power agentic workflows** — MCP-compatible with Claude Desktop, Cursor, and custom agents.
+- **Upload files and get answers** — RAG over PDFs, images, and documents out of the box.
+- **Add guardrails and moderation** — chain OpenAI, Anthropic, or local Llama Guard moderators.
+- **Keep everything private** — self-host on your own infrastructure with RBAC, audit logs, and two-layer rate limiting.
+
+---
+
+### Real-world example: PoliceStats.ca
+
+ORBIT is used in production at [PoliceStats.ca](https://policestats.ca), a public-facing AI search and analytics site for Canadian municipal police open data.
+
+PoliceStats uses ORBIT to:
+- Route users across many dataset-specific adapters for cities like Toronto, Ottawa, Montreal, Edmonton, Hamilton, Winnipeg, Saskatoon, Vancouver, and Canada-wide statistics
+- Query structured public-safety datasets using natural language
+- Return grounded answers with source citations back to the relevant open data portal
+- Support both broad city assistants and narrow subdomain assistants
+- Power a production web chat experience with typed and voice interaction
+
+PoliceStats is a useful reference if you want to see ORBIT applied to a real vertical product instead of only toy examples: one OpenAI-compatible API, many adapters, structured retrieval over public data, and answers designed for end users rather than internal analysts.
 
 ---
 
@@ -84,10 +121,12 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 
 | Without ORBIT | With ORBIT |
 | :--- | :--- |
-| One SDK per provider, rewrites when you switch | One OpenAI-compatible API across all providers |
+| One SDK per provider, rewrites when you switch | One OpenAI-compatible API across 29 providers |
 | Separate pipelines for retrieval and inference | Unified model + retrieval + tooling gateway |
-| Fragile glue scripts between data sources and LLMs | Production-ready connectors with policy controls |
-| No visibility into what models are doing | Built-in RBAC, rate limiting, and audit logging |
+| Fragile glue scripts between data sources and LLMs | 9 intent-adapter archetypes with template diagnostics |
+| Separate tools for each database — no way to combine them | Composite adapters fan one prompt across SQL + NoSQL + HTTP, merged by the LLM |
+| Cascading failures when a provider hiccups | Circuit breakers, parallel fan-out, progressive throttling |
+| No visibility into what models are doing | Built-in RBAC, quota-aware rate limiting, and audit logging |
 
 ---
 
@@ -153,7 +192,7 @@ source venv/bin/activate
 ### Resources
 
 - [Step-by-Step Tutorial](docs/tutorial.md) — Chat with your own data in minutes
-- [Cookbook](docs/cookbook/) — Recipes for real-world use cases
+- [Cookbook](docs/cookbook/) — 20+ recipes: database copilots, voice assistants, fault tolerance, MCP agents, private gateways
 - [Documentation](docs/) — Full architecture and setup guides
 - [GitHub Issues](https://github.com/schmitech/orbit/issues) — Bug reports and feature requests
 
