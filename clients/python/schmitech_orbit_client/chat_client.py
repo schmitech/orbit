@@ -125,6 +125,30 @@ def _normalize_api_url(api_url: str) -> str:
     return normalized
 
 
+def generate_session_id() -> str:
+    """Generate a new session identifier for an isolated conversation."""
+    return str(uuid.uuid4())
+
+
+def clear_local_conversation_state() -> None:
+    """Clear the in-memory transcript for the active conversation."""
+    conversation_history.clear()
+
+
+def render_welcome_panel(args, session_id: str) -> None:
+    """Render the standard chat welcome/status panel."""
+    welcome_panel = Panel.fit(
+        f"[bold cyan]Welcome to the Orbit Chat Client![/bold cyan]\n\n"
+        f"[cyan]Server URL:[/cyan] {args.url}\n"
+        f"[cyan]Session ID:[/cyan] {session_id}\n\n"
+        f"[dim]Type 'exit' or 'quit' to end the conversation[/dim]\n"
+        f"[dim]Type '/help' for available commands[/dim]",
+        title="🚀 ORBIT Chat",
+        border_style="cyan"
+    )
+    console.print(welcome_panel)
+
+
 class OrbitChatClient:
     """Lightweight client for interacting with the ORBIT chat service."""
 
@@ -276,10 +300,10 @@ class SlashCommandCompleter(Completer):
         
         self.command_descriptions = {
             "/help": "Show available commands",
-            "/clear": "Clear conversation display",
+            "/clear": "Start a fresh conversation with a new session ID",
             "/clear-previous-messages": "Clear local prompt/history autocomplete cache",
-            "/clear-server-history": "Clear server conversation history for the current session",
-            "/reset-session": "Generate new session ID",
+            "/clear-server-history": "Delete current session history on the server and locally",
+            "/reset-session": "Start a fresh conversation without deleting the old session",
             "/status": "Show current status",
             "/debug": "Toggle debug mode",
             "/timing": "Toggle timing display",
@@ -464,10 +488,10 @@ def handle_slash_command(command, session_id, args, session=None):
         
         commands = [
             ("/help", "Show this help message"),
-            ("/clear", "Clear conversation display"),
+            ("/clear", "Start a fresh conversation with a new session ID"),
             ("/clear-previous-messages", "Clear local prompt/history autocomplete cache"),
-            ("/clear-server-history", "Clear server-side conversation history only"),
-            ("/reset-session", "Generate a new session ID"),
+            ("/clear-server-history", "Delete current session history on the server and locally"),
+            ("/reset-session", "Start a fresh conversation without deleting the old session"),
             ("/status", "Show current session and server info"),
             ("/debug", "Toggle debug mode on/off"),
             ("/timing", "Toggle timing display on/off"),
@@ -483,23 +507,37 @@ def handle_slash_command(command, session_id, args, session=None):
         return True, session_id, args, False
     
     elif cmd == "/clear":
-        # Clear the screen and conversation history
+        old_session_id = session_id
+        clear_local_conversation_state()
         console.clear()
-        conversation_history.clear()
-        
-        # Redisplay welcome banner with proper newlines
-        welcome_panel = Panel.fit(
-            f"[bold cyan]Welcome to the Orbit Chat Client![/bold cyan]\n\n"
-            f"[cyan]Server URL:[/cyan] {args.url}\n"
-            f"[cyan]Session ID:[/cyan] {session_id}\n\n"
-            f"[dim]Type 'exit' or 'quit' to end the conversation[/dim]\n"
-            f"[dim]Type '/help' for available commands[/dim]",
-            title="🚀 ORBIT Chat",
-            border_style="cyan"
+        server_history_cleared = clear_server_history(
+            session_id=old_session_id,
+            args=args,
+            suppress_missing_key_warning=True
         )
-        console.print(welcome_panel)
-        console.print("✨ Conversation cleared!", style="green")
-        return True, session_id, args, False
+        new_session_id = generate_session_id()
+        render_welcome_panel(args, new_session_id)
+        if server_history_cleared:
+            console.print(
+                f"✨ Started a new conversation. Previous session {old_session_id} was cleared on the server.",
+                style="green"
+            )
+        else:
+            console.print(
+                f"✨ Started a new conversation with session [cyan]{new_session_id}[/cyan].",
+                style="green"
+            )
+            if args.api_key:
+                console.print(
+                    f"[dim]Previous session {old_session_id} could not be cleared on the server.[/dim]",
+                    style="yellow"
+                )
+            else:
+                console.print(
+                    "[dim]Set an API key if you also want /clear to delete the previous server-side history.[/dim]",
+                    style="cyan"
+                )
+        return True, new_session_id, args, False
     
     elif cmd == "/clear-previous-messages":
         history_cleared = False
@@ -519,12 +557,25 @@ def handle_slash_command(command, session_id, args, session=None):
         return True, session_id, args, history_cleared
 
     elif cmd == "/clear-server-history":
-        clear_server_history(session_id=session_id, args=args)
+        server_history_cleared = clear_server_history(session_id=session_id, args=args)
+        if server_history_cleared:
+            clear_local_conversation_state()
+            console.print("✨ Local transcript cleared for the current session.", style="green")
         return True, session_id, args, False
     
     elif cmd == "/reset-session":
-        new_session_id = str(uuid.uuid4())
-        console.print(f"🔄 Session reset! New ID: [cyan]{new_session_id}[/cyan]")
+        old_session_id = session_id
+        new_session_id = generate_session_id()
+        clear_local_conversation_state()
+        console.clear()
+        render_welcome_panel(args, new_session_id)
+        console.print(
+            f"🔄 Started a new conversation with session [cyan]{new_session_id}[/cyan].",
+            style="green"
+        )
+        console.print(
+            f"[dim]Previous session [cyan]{old_session_id}[/cyan] was left unchanged on the server.[/dim]"
+        )
         return True, new_session_id, args, False
     
     elif cmd == "/status":
@@ -766,7 +817,7 @@ def main():
             console.print(f"❌ Error validating API key: {e}", style=ERROR_STYLE)
             sys.exit(1)
 
-    session_id = args.session_id if args.session_id else str(uuid.uuid4())
+    session_id = args.session_id if args.session_id else generate_session_id()
     session = PromptSession(
         history=FileHistory(HISTORY_FILE),
         completer=SlashCommandCompleter(),
@@ -775,17 +826,7 @@ def main():
     )
     setattr(session.default_buffer, "_orbit_completion_shift", -1)
 
-    # Welcome banner
-    welcome_panel = Panel.fit(
-        f"[bold cyan]Welcome to the Orbit Chat Client![/bold cyan]\n\n"
-        f"[cyan]Server URL:[/cyan] {args.url}\n"
-        f"[cyan]Session ID:[/cyan] {session_id}\n\n"
-        f"[dim]Type 'exit' or 'quit' to end the conversation[/dim]\n"
-        f"[dim]Type '/help' for available commands[/dim]",
-        title="🚀 ORBIT Chat",
-        border_style="cyan"
-    )
-    console.print(welcome_panel)
+    render_welcome_panel(args, session_id)
     
     while True:
         try:
@@ -864,20 +905,24 @@ def main():
             # If exiting, attempt to clear server history before goodbye
     console.print("\n[bold cyan]👋 Goodbye![/bold cyan]")
 
-if __name__ == "__main__":
-    main()
-def clear_server_history(session_id: str, args) -> None:
+def clear_server_history(
+    session_id: str,
+    args,
+    *,
+    suppress_missing_key_warning: bool = False
+) -> bool:
     """Attempt to clear server-side conversation history for the current session."""
     if not session_id:
         console.print("❌ No active session ID available to clear on the server", style=ERROR_STYLE)
-        return
+        return False
 
     if not args.api_key:
-        console.print(
-            "⚠️  Set an API key to clear server-side conversation history",
-            style=WARNING_STYLE
-        )
-        return
+        if not suppress_missing_key_warning:
+            console.print(
+                "⚠️  Set an API key to clear server-side conversation history",
+                style=WARNING_STYLE
+            )
+        return False
 
     try:
         client = OrbitChatClient(
@@ -892,6 +937,7 @@ def clear_server_history(session_id: str, args) -> None:
             f"🧹 Server history cleared for session {session_id}: {deleted_count} messages removed",
             style="green"
         )
+        return True
     except Exception as exc:
         error_msg = str(exc)
         # Check if the error is due to adapter not supporting conversation history
@@ -902,3 +948,8 @@ def clear_server_history(session_id: str, args) -> None:
         else:
             # For other errors, show them as actual errors
             console.print(f"❌ Error clearing server history: {exc}", style=ERROR_STYLE)
+        return False
+
+
+if __name__ == "__main__":
+    main()
