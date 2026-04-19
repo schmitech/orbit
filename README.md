@@ -20,6 +20,8 @@
 </p>
 
 <p align="center">
+  <a href="docs/tutorial.md"><strong>Tutorial</strong></a>
+  &nbsp;|&nbsp;
   <a href="https://orbit.schmitech.ai/redoc"><strong>API Reference</strong></a>
   &nbsp;|&nbsp;
   <a href="docker/README.md"><strong>Docker Guide</strong></a>
@@ -114,6 +116,25 @@ PoliceStats uses ORBIT to:
 - Power a production web chat experience with typed and voice interaction
 
 PoliceStats is a useful reference if you want to see ORBIT applied to a real vertical product instead of only toy examples: one OpenAI-compatible API, many adapters, structured retrieval over public data, and answers designed for end users rather than internal analysts.
+
+---
+
+### Build a business on ORBIT
+
+ORBIT is Apache 2.0 — you can build and sell commercial products on top of it without royalties or per-seat licensing back to the project. Below are product patterns that map cleanly to ORBIT's primitives (intent adapters, composite routing, voice, MCP, guardrails). Each row links to a cookbook recipe with a working configuration you can fork as a starting point.
+
+| Product pattern | What you're actually selling | Starting point |
+| :--- | :--- | :--- |
+| **Vertical database copilot** | A natural-language query layer over one industry's schemas — healthcare claims, legal discovery, logistics, retail ops, public safety — sold per-seat to analysts who don't write SQL | [Database copilot](docs/cookbook/build-natural-language-database-copilot-with-orbit.md) · [NL-BI](docs/cookbook/implementing-database-copilot-natural-language-bi.md) |
+| **Private AI gateway for regulated data** | On-prem or VPC-only deployment for banks, hospitals, insurers, and government — RBAC, audit logs, guardrails, and data residency baked in | [Private gateway](docs/cookbook/deploy-private-ai-gateway-for-regulated-data-with-orbit.md) |
+| **Full-duplex voice assistant** | Voice-first copilots for call centers, field service, drive-throughs, and lobby kiosks — priced per concurrent channel or per minute | [Field service voice](docs/cookbook/deploying-full-duplex-voice-assistants-field-service.md) · [PersonaPlex overview](docs/cookbook/orbit-personaplex-full-duplex-voice-assistant.md) |
+| **Enterprise system chat connectors** | Chat-native access to ServiceNow, Salesforce, Jira, SAP, or internal APIs — sold per connector or as an integration bundle | [ServiceNow connector](docs/cookbook/connect-servicenow-with-natural-language-using-orbit.md) · [REST / GraphQL](docs/cookbook/conversational-rest-graphql-api-orbit.md) |
+| **Document Q&A for teams** | Knowledge-base SaaS over PDFs, contracts, policies, and manuals — semantic search with citations, team subscriptions | [File-upload RAG](docs/cookbook/orbit-file-upload-rag.md) · [Vector stores](docs/cookbook/orbit-vector-store-embeddings-setup.md) |
+| **Managed ORBIT hosting** | Run ORBIT-as-a-Service for customers who don't want to operate it — SLA-backed, failover, metered usage, multi-tenant API keys | [Production deployment](docs/cookbook/orbit-server-production-deployment.md) · [Resilient gateway](docs/cookbook/orbit-resilient-ai-gateway-failover-rate-limiting.md) · [Rate limits & quotas](docs/cookbook/orbit-rate-limiting-and-quotas.md) |
+| **MCP tools for agent platforms** | Package domain-specific ORBIT adapters as MCP tools and sell them to Claude, Cursor, OpenClaw, and custom-agent users | [MCP / OpenClaw](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md) |
+| **Market-intel chat over the public web** | Subscription products that answer questions about competitor pricing, regulatory filings, and news by chat-indexing live web content | [Firecrawl web queries](docs/cookbook/natural-language-web-queries-orbit-firecrawl.md) |
+
+Already shipped in production: see [PoliceStats.ca](https://policestats.ca) above for a vertical public-data product built on ORBIT. If you build something on top, [open an issue](https://github.com/schmitech/orbit/issues) and we'll feature it here.
 
 ---
 
