@@ -12,6 +12,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
+from ..errors import raise_sanitized
 
 
 
@@ -229,3 +230,5 @@ class MistralBaseService(ProviderAIService):
             logger.error(f"Mistral connection error during {operation}: {str(error)}")
         else:
             logger.error(f"Mistral error during {operation}: {str(error)}")
+
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

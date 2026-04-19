@@ -12,6 +12,7 @@ from typing import Dict, Any, AsyncGenerator, Optional
 
 from openrouter import OpenRouter
 
+from ...errors import raise_sanitized
 from ...services import InferenceService
 
 
@@ -167,3 +168,4 @@ class OpenRouterInferenceService(InferenceService):
     def _handle_error(self, error: Exception, operation: str) -> None:
         """Handle OpenRouter API errors with appropriate logging."""
         logger.error(f"OpenRouter error during {operation}: {str(error)}")
+        raise_sanitized(error, provider="openrouter", operation=operation)

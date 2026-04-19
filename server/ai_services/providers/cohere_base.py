@@ -14,6 +14,7 @@ import cohere
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
+from ..errors import raise_sanitized
 
 logger = logging.getLogger(__name__)
 # Suppress Cohere Pydantic deprecation warnings
@@ -244,3 +245,5 @@ class CohereBaseService(ProviderAIService):
             logger.error(f"Cohere connection error during {operation}: {str(error)}")
         else:
             logger.error(f"Cohere error during {operation}: {str(error)}")
+
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

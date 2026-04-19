@@ -6,6 +6,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
+from ..errors import raise_sanitized
 import logging
 
 # Configure logging to suppress Metal-related messages
@@ -202,6 +203,7 @@ class LlamaCppBaseService(ProviderAIService):
 
     def _handle_llama_cpp_error(self, error: Exception, operation: str = "operation") -> None:
         logger.error(f"Llama.cpp error during {operation}: {str(error)}")
+        raise_sanitized(error, provider=self.provider_name, operation=operation)
 
     def _get_batch_size(self, default: int = 8) -> int:
         """

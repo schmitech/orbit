@@ -12,6 +12,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
+from ..errors import raise_sanitized
 
 
 
@@ -235,3 +236,5 @@ class ZaiBaseService(ProviderAIService):
             logger.error(f"Z.AI API error during {operation}: {str(error)}")
         else:
             logger.error(f"Unexpected error during {operation}: {str(error)}")
+
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

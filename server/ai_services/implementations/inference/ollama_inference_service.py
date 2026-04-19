@@ -10,6 +10,7 @@ import logging
 from typing import Dict, Any, AsyncGenerator
 import json
 
+from ...errors import sanitize_provider_error
 from ...providers import OllamaBaseService
 from ...services import InferenceService
 
@@ -171,7 +172,18 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
             async with session.post(url, json=payload) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    yield f"Error: {error_text}"
+                    logger.error(
+                        "Ollama HTTP %s during streaming generation: %s",
+                        response.status,
+                        error_text,
+                    )
+                    http_error = RuntimeError(f"Ollama HTTP {response.status}")
+                    http_error.status_code = response.status
+                    yield sanitize_provider_error(
+                        http_error,
+                        provider=self.provider_name,
+                        operation="streaming generation",
+                    )
                     return
 
                 # Stream the response
@@ -197,6 +209,9 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
                             continue  # Skip invalid JSON lines
 
         except Exception as e:
-            error_detail = f"{type(e).__name__}: {str(e)}" if str(e) else type(e).__name__
-            logger.error(f"Error in streaming generation: {error_detail}", exc_info=True)
-            yield f"Error: {error_detail}"
+            logger.exception("Error in streaming generation")
+            yield sanitize_provider_error(
+                e,
+                provider=self.provider_name,
+                operation="streaming generation",
+            )

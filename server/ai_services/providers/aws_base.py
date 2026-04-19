@@ -13,6 +13,7 @@ from botocore.exceptions import ClientError
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
+from ..errors import raise_sanitized
 
 
 
@@ -275,3 +276,5 @@ class AWSBaseService(ProviderAIService):
                 )
         else:
             logger.error(f"Unexpected error during {operation}: {str(error)}")
+
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

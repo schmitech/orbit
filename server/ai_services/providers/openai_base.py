@@ -14,6 +14,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
+from ..errors import raise_sanitized
 
 logger = logging.getLogger(__name__)
 
@@ -291,3 +292,5 @@ class OpenAIBaseService(ProviderAIService):
             logger.error(f"OpenAI API error during {operation}: {str(error)}")
         else:
             logger.error(f"Unexpected error during {operation}: {str(error)}")
+
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

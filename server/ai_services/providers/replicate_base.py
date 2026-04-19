@@ -4,6 +4,7 @@ import logging
 from typing import Dict, Any
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
+from ..errors import raise_sanitized
 
 logger = logging.getLogger(__name__)
 
@@ -59,3 +60,4 @@ class ReplicateBaseService(ProviderAIService):
 
     def _handle_replicate_error(self, error: Exception, operation: str = "operation") -> None:
         logger.error(f"Replicate error during {operation}: {str(error)}")
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

@@ -11,6 +11,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
+from ..errors import raise_sanitized
 import logging
 
 logger = logging.getLogger(__name__)
@@ -199,6 +200,7 @@ class TensorRTBaseService(ProviderAIService):
     def _handle_tensorrt_error(self, error: Exception, operation: str = "operation") -> None:
         """Handle TensorRT-LLM errors with logging."""
         logger.error(f"TensorRT-LLM error during {operation}: {str(error)}")
+        raise_sanitized(error, provider=self.provider_name, operation=operation)
 
     def _get_temperature(self, default: float = 0.1) -> float:
         """Get temperature configuration."""

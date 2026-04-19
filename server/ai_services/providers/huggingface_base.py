@@ -4,6 +4,7 @@ import logging
 from typing import Dict, Any
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
+from ..errors import raise_sanitized
 
 logger = logging.getLogger(__name__)
 
@@ -96,3 +97,5 @@ class HuggingFaceBaseService(ProviderAIService):
                 logger.error(f"Hugging Face HTTP error during {operation}: {error_str}")
         else:
             logger.error(f"Hugging Face error during {operation}: {error_str}")
+
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

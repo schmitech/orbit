@@ -11,6 +11,7 @@ from threading import Thread
 from typing import Dict, Any, AsyncGenerator
 
 from ...base import ServiceType
+from ...errors import sanitize_provider_error
 from ...providers.transformers_base import TransformersBaseService
 from ...services import InferenceService
 
@@ -212,5 +213,11 @@ class TransformersInferenceService(InferenceService, TransformersBaseService):
 
         except Exception as e:
             if not isinstance(e, (StopAsyncIteration,)):
+                # _handle_transformers_error raises ProviderServiceError, so this
+                # yield is only reachable for StopAsyncIteration.
                 self._handle_transformers_error(e, "streaming generation")
-            yield f"Error: {e}"
+            yield sanitize_provider_error(
+                e,
+                provider=self.provider_name,
+                operation="streaming generation",
+            )

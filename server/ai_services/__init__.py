@@ -48,6 +48,7 @@ elif __name__ == "ai_services":
     sys.modules.setdefault("server.ai_services", sys.modules[__name__])
 
 from .base import AIService, ProviderAIService, ServiceType
+from .errors import ProviderServiceError, sanitize_provider_error
 from .connection import (
     ConnectionManager,
     RetryHandler,
@@ -108,6 +109,10 @@ __all__ = [
     'AIService',
     'ProviderAIService',
     'ServiceType',
+
+    # Error sanitization
+    'ProviderServiceError',
+    'sanitize_provider_error',
 
     # Connection utilities
     'ConnectionManager',

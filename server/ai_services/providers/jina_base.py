@@ -13,6 +13,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
+from ..errors import raise_sanitized
 
 
 
@@ -264,3 +265,5 @@ class JinaBaseService(ProviderAIService):
             logger.error(f"Jina connection error during {operation}: {str(error)}")
         else:
             logger.error(f"Jina error during {operation}: {str(error)}")
+
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

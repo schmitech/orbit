@@ -11,6 +11,7 @@ import logging
 import os
 import asyncio
 from typing import Dict, Any, AsyncGenerator
+from ...errors import sanitize_provider_error
 from ...services import InferenceService
 from ...providers.llama_cpp_base import LlamaCppBaseService
 
@@ -244,5 +245,9 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                                     yield text
 
         except Exception as e:
-            logger.error(f"Error generating streaming response with Llama.cpp: {str(e)}")
-            yield f"Error: {str(e)}"
+            logger.exception("Error generating streaming response with Llama.cpp")
+            yield sanitize_provider_error(
+                e,
+                provider=self.provider_name,
+                operation="streaming generation",
+            )

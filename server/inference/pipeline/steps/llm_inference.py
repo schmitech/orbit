@@ -7,6 +7,8 @@ This step handles the core language model generation.
 import logging
 from collections import OrderedDict
 from typing import AsyncGenerator
+
+from ai_services.errors import sanitize_provider_error
 from ..base import PipelineStep, ProcessingContext
 from ..prompt_builder import PromptInstructionBuilder
 
@@ -99,9 +101,14 @@ class LLMInferenceStep(PipelineStep):
                 logger.debug("Generated response preview: %s...", response[:100])
             
         except Exception as e:
-            logger.error(f"Error during LLM inference: {str(e)}")
-            context.set_error(f"Failed to generate response: {str(e)}")
-        
+            logger.exception("Error during LLM inference")
+            user_message = sanitize_provider_error(
+                e,
+                provider=getattr(context, 'inference_provider', None),
+                operation="text generation",
+            )
+            context.set_error(user_message)
+
         return context
     
     async def process_stream(self, context: ProcessingContext) -> AsyncGenerator[str, None]:
@@ -166,10 +173,14 @@ class LLMInferenceStep(PipelineStep):
                 logger.debug("Generated streaming response preview: %s...", accumulated_response[:100])
             
         except Exception as e:
-            logger.error(f"Error during streaming LLM inference: {str(e)}")
-            error_chunk = f"Error: {str(e)}"
-            yield error_chunk
-            context.set_error(f"Failed to generate streaming response: {str(e)}")
+            logger.exception("Error during streaming LLM inference")
+            user_message = sanitize_provider_error(
+                e,
+                provider=getattr(context, 'inference_provider', None),
+                operation="streaming generation",
+            )
+            yield user_message
+            context.set_error(user_message)
     
     async def _build_prompt(self, context: ProcessingContext) -> str:
         """

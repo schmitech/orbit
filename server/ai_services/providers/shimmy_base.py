@@ -7,6 +7,7 @@ import httpx
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
+from ..errors import raise_sanitized
 
 logger = logging.getLogger(__name__)
 
@@ -182,4 +183,6 @@ class ShimmyBaseService(ProviderAIService):
             logger.error(
                 f"Error during {operation} with Shimmy: {str(error)}"
             )
+
+        raise_sanitized(error, provider=self.provider_name, operation=operation)
 

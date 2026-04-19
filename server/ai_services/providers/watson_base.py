@@ -4,6 +4,7 @@ import logging
 from typing import Dict
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
+from ..errors import raise_sanitized
 
 logger = logging.getLogger(__name__)
 
@@ -49,3 +50,4 @@ class WatsonBaseService(ProviderAIService):
 
     def _handle_watson_error(self, error: Exception, operation: str = "operation") -> None:
         logger.error(f"Watson error during {operation}: {str(error)}")
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

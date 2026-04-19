@@ -5,6 +5,7 @@ import asyncio
 import logging
 from typing import Dict, Any, AsyncGenerator
 from ...base import ServiceType, ProviderAIService
+from ...errors import sanitize_provider_error
 from ...services import InferenceService
 from ...providers.bitnet_base import BitNetBaseService
 
@@ -282,5 +283,9 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                                     yield text
                     
         except Exception as e:
-            logger.error(f"Error generating streaming response with BitNet: {str(e)}")
-            yield f"Error: {str(e)}"
+            logger.exception("Error generating streaming response with BitNet")
+            yield sanitize_provider_error(
+                e,
+                provider=self.provider_name,
+                operation="streaming generation",
+            )

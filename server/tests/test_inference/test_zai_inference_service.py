@@ -189,17 +189,24 @@ class TestZaiInferenceService:
 
     @pytest.mark.asyncio
     async def test_error_handling(self, mock_config):
-        """Test error handling during generation."""
+        """Provider errors are wrapped in a client-safe ProviderServiceError."""
+        from ai_services.errors import ProviderServiceError
+
+        original = Exception("API Error")
         with patch('ai_services.providers.zai_base.ZaiClient') as mock_zai_client_class:
             mock_client = Mock()
-            mock_client.chat.completions.create = AsyncMock(side_effect=Exception("API Error"))
+            mock_client.chat.completions.create = AsyncMock(side_effect=original)
             mock_zai_client_class.return_value = mock_client
-            
+
             service = ZaiInferenceService(mock_config)
             service.initialized = True
-            
-            with pytest.raises(Exception, match="API Error"):
+
+            with pytest.raises(ProviderServiceError) as exc_info:
                 await service.generate("Hello")
+
+            # Raw provider detail must not leak into the user-facing message
+            assert "API Error" not in exc_info.value.user_message
+            assert exc_info.value.original_error is original
 
     def test_configuration_extraction(self, mock_config):
         """Test that configuration is properly extracted."""

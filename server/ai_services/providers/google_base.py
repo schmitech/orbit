@@ -10,6 +10,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
+from ..errors import raise_sanitized
 
 
 
@@ -163,3 +164,5 @@ class GoogleBaseService(ProviderAIService):
             logger.error(
                 f"{self.provider_name.title()} error during {operation}: {error_str}"
             )
+
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

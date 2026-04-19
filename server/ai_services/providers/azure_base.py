@@ -11,6 +11,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
+from ..errors import raise_sanitized
 
 
 
@@ -276,3 +277,5 @@ class AzureBaseService(ProviderAIService):
             logger.error(
                 f"Azure error during {operation}: {error_str}"
             )
+
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

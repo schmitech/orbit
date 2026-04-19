@@ -13,6 +13,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from ollama import AsyncClient
 
+from ...errors import sanitize_provider_error
 from ...services import InferenceService
 
 logger = logging.getLogger(__name__)
@@ -220,8 +221,12 @@ class OllamaCloudInferenceService(InferenceService):
                 if content:
                     yield content
         except Exception as exc:
-            logger.error("Error generating streaming response with Ollama Cloud: %s", exc)
-            yield f"Error: {exc}"
+            logger.exception("Error generating streaming response with Ollama Cloud")
+            yield sanitize_provider_error(
+                exc,
+                provider=getattr(self, "provider_name", "ollama_cloud"),
+                operation="streaming generation",
+            )
 
     def _build_options(self, overrides: Dict[str, Any]) -> Dict[str, Any]:
         """Merge default generation options with caller overrides."""

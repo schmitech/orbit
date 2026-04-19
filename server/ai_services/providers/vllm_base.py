@@ -10,6 +10,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
+from ..errors import raise_sanitized
 import logging
 
 logger = logging.getLogger(__name__)
@@ -207,6 +208,7 @@ class VLLMBaseService(ProviderAIService):
     def _handle_vllm_error(self, error: Exception, operation: str = "operation") -> None:
         """Handle vLLM errors with logging."""
         logger.error(f"vLLM error during {operation}: {str(error)}")
+        raise_sanitized(error, provider=self.provider_name, operation=operation)
 
     def _get_temperature(self, default: float = 0.7) -> float:
         """Get temperature configuration."""

@@ -19,6 +19,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
+from ..errors import raise_sanitized
 
 
 
@@ -415,3 +416,5 @@ class OpenAICompatibleBaseService(ProviderAIService):
                 f"Error during {operation} with {self.provider_name.title()}: "
                 f"{str(error)}"
             )
+
+        raise_sanitized(error, provider=self.provider_name, operation=operation)

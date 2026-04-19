@@ -9,6 +9,7 @@ from typing import Dict, Any
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from ..base import ProviderAIService, ServiceType
+from ..errors import raise_sanitized
 import logging
 
 logger = logging.getLogger(__name__)
@@ -203,6 +204,7 @@ class TransformersBaseService(ProviderAIService):
     def _handle_transformers_error(self, error: Exception, operation: str = "operation") -> None:
         """Handle transformers errors with logging."""
         logger.error(f"Transformers error during {operation}: {error}")
+        raise_sanitized(error, provider=self.provider_name, operation=operation)
 
     def _get_temperature(self, default: float = 0.7) -> float:
         provider_config = self._extract_provider_config()
