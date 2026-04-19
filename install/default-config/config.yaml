@@ -254,7 +254,7 @@ internal_services:
   # Audit trail storage configuration
   # Stores conversation audit logs for compliance and analytics
   audit:
-    enabled: false
+    enabled: true
     # Storage backend for audit logs
     # Options: "elasticsearch", "sqlite", "mongodb", "database"
     # "database" means use the same backend as internal_services.backend.type
@@ -273,7 +273,7 @@ internal_services:
     # and /auth/* endpoints (user CRUD, API-key management, config changes,
     # login/logout, etc.) into a separate collection/table.
     admin_events:
-      enabled: false
+      enabled: true
       collection_name: "audit_admin_logs"
 
   mongodb:
@@ -328,24 +328,24 @@ chat_history:
     required: false
 
 conversation_threading:
-  enabled: false
+  enabled: true
   dataset_ttl_hours: 24  # Global default TTL for stored datasets
   storage_backend: "sqlite"  # redis, sqlite, mongodb (fallback order: redis -> sqlite/mongodb)
   redis_key_prefix: "thread_dataset:"
 
 # Autocomplete configuration for query suggestions based on intent template nl_examples
 autocomplete:
-  enabled: false  # Master switch - when false, /v1/autocomplete returns empty results
+  enabled: true  # Master switch - when false, /v1/autocomplete returns empty results
 
   # Query matching settings
   min_query_length: 3  # Minimum characters before fetching suggestions
-  max_suggestions: 500   # Maximum suggestions returned per request
+  max_suggestions: 10   # Server-side ceiling; endpoint and UI request smaller values within this cap
 
   # Caching configuration
   cache:
     # Use Redis for distributed caching (recommended for multi-instance deployments)
     # Falls back to in-memory cache if Redis is unavailable
-    use_redis: true
+    use_redis: false
     ttl_seconds: 1800  # 30 minutes - templates rarely change
     redis_key_prefix: "autocomplete:"
 
@@ -361,8 +361,8 @@ autocomplete:
     # Higher = stricter matching, fewer results
     # Recommended: 0.7 for levenshtein, 0.8 for jaro_winkler
     threshold: 0.75
-    # Maximum candidates to evaluate with fuzzy matching (performance guard)
-    max_candidates: 1000
+    # Maximum candidates to fuzzy-rank after cheap relevance prefiltering
+    max_candidates: 250
 
 # Composite Intent Retriever template selection configuration
 # Improves template selection accuracy when routing queries across multiple intent adapters
@@ -372,7 +372,7 @@ composite_retrieval:
   # Uses the configured reranker (from rerankers.yaml) to re-score top candidates
   reranking:
     enabled: false              # Enable reranker stage for better semantic understanding
-    provider: "ollama"      # Reranker provider from rerankers.yaml (anthropic, cohere, openai, etc.)
+    provider: "anthropic"      # Reranker provider from rerankers.yaml (anthropic, cohere, openai, etc.)
     top_candidates: 10         # Number of embedding candidates to pass to reranker
     weight: 0.4                # Weight for reranker score in final combined score
 
@@ -433,6 +433,7 @@ files:
     # Docling processor configuration
     # Set to false to disable docling processor and prevent outbound connections to HuggingFace at startup
     # When disabled, docling will not be initialized until actually needed (lazy initialization)
+    # PDF layout uses RT-DETR (PyTorch + torchvision). Intel macOS only gets PyPI torch up to 2.2.x; use files profile / setup.sh for matching pins.
     # Default: true (enabled)
     docling_enabled: false
 
@@ -441,7 +442,7 @@ files:
     # Supports: PDF, DOCX, PPTX, XLSX, XLS, HTML, CSV, JSON, XML, images, audio, ZIP, EPUB
     # Requires: pip install markitdown[all]
     # Default: false (opt-in)
-    markitdown_enabled: false
+    markitdown_enabled: true
 
     # Processor priority when multiple universal processors are enabled
     # Determines which processor is tried first for overlapping MIME types
@@ -449,12 +450,12 @@ files:
     # - docling: Try Docling first (advanced document understanding)
     # - markitdown: Try MarkItDown first (clean markdown conversion)
     # - native: Only use native Python processors (no universal processors)
-    processor_priority: "docling"
+    processor_priority: "markitdown"
 
     # MarkItDown-specific options
     markitdown:
       # Enable third-party plugins (default: false for security)
-      enable_plugins: false
+      enable_plugins: true
 
     # CSV processor settings
     csv:
@@ -581,7 +582,7 @@ security:
     # Content Security Policy - restricts resource loading
     # Adjust based on your frontend requirements
     # Allows dashboard external resources: Chart.js CDN and Google Fonts
-    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
 
     # HTTP Strict Transport Security - enforce HTTPS
     # Only effective when served over HTTPS

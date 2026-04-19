@@ -124,7 +124,7 @@ class InferenceServer:
         self.app = FastAPI(
             title="ORBIT",
             description="A FastAPI server with chat endpoint and RAG capabilities",
-            version="2.6.5",
+            version="2.6.6",
             lifespan=self._create_lifespan_manager(),
             default_response_class=ORJSONResponse  # Fast JSON serialization
         )

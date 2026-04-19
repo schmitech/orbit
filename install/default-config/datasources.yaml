@@ -4,7 +4,6 @@ datasources:
     db_path: "examples/chroma/chroma_db"
     host: "localhost"
     port: 8000
-    embedding_provider: "ollama" 
   qdrant:
     # Qdrant Cloud: set DATASOURCE_QDRANT_URL and DATASOURCE_QDRANT_API_KEY
     # Self-hosted: set DATASOURCE_QDRANT_HOST and DATASOURCE_QDRANT_PORT
@@ -15,7 +14,6 @@ datasources:
     timeout: 5
     prefer_grpc: false
     https: false
-    embedding_provider: ollama
     collection_name: "orbit"
   sqlite:
     database: "examples/sqlite/sqlite_db"
@@ -53,12 +51,10 @@ datasources:
     port: 19530
     dim: 768
     metric_type: "IP"  # Options: L2, IP, COSINE
-    embedding_provider: null
   pinecone:
     api_key: ${DATASOURCE_PINECONE_API_KEY}
     # host: ${DATASOURCE_PINECONE_HOST}  # Only needed for pod-based indexes
     namespace: ""  # Empty string for default namespace (where data was ingested)
-    embedding_provider: null
   elasticsearch:
     node: ${DATASOURCE_ELASTICSEARCH_NODE}
     verify_certs: true

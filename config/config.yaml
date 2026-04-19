@@ -254,7 +254,7 @@ internal_services:
   # Audit trail storage configuration
   # Stores conversation audit logs for compliance and analytics
   audit:
-    enabled: false
+    enabled: true
     # Storage backend for audit logs
     # Options: "elasticsearch", "sqlite", "mongodb", "database"
     # "database" means use the same backend as internal_services.backend.type
@@ -273,7 +273,7 @@ internal_services:
     # and /auth/* endpoints (user CRUD, API-key management, config changes,
     # login/logout, etc.) into a separate collection/table.
     admin_events:
-      enabled: false
+      enabled: true
       collection_name: "audit_admin_logs"
 
   mongodb:
@@ -450,7 +450,7 @@ files:
     # - docling: Try Docling first (advanced document understanding)
     # - markitdown: Try MarkItDown first (clean markdown conversion)
     # - native: Only use native Python processors (no universal processors)
-    processor_priority: "docling"
+    processor_priority: "markitdown"
 
     # MarkItDown-specific options
     markitdown:

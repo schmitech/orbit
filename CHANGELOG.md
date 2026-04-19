@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.6.6] - 2026-04-19
+
+### Core System Updates
+- Composite adapter: Enabled composite adapter end-to-end, reorganized prompt examples, and added composite cross-adapter template hot reload so the admin reload flow rebuilds cross-adapter template embeddings and vector collections (with tests for the reload and disabled/no-op paths)
+- Cross-adapter templates: Added cross-domain intent templates layered on top of individual adapters
+- OpenAI Realtime voice: Added `openai_realtime` adapter (`open-ai-real-time-voice-chat`) bridging ORBIT's `/ws/voice` JSON protocol to OpenAI's Realtime WebSocket; registered in the adapter registry; added `clients/openai-realtime-voice` (Vite) for manual testing; routed voice WebSocket adapter selection through API-key resolution; loaded Realtime session instructions from the prompt service instead of static config; tightened VAD defaults to reduce false turns; added prompt/voice-turn debug logging
+- Autocomplete service hardening: Sanitize and deduplicate `nl_examples`, clamp limits to config, single-flight cache population, prefilter fuzzy candidates by relevance instead of naive truncation; detached business-analytics adapter into its own file; added a NASA-principles-based coding agent
+- Admin auditing: New audit module for admin events
+- Default inference model: `openai` `gpt-5.4-mini`
+- Utilities: New MongoDB↔SQLite sync script for API keys and personas
+
+### Chat-app & UI Improvements
+- orbitchat mobile: Single-row input layout (only attach + send visible); hide voice toggle, mic, and help buttons on mobile; shorten "Continue Discussion" to "Continue"; keep action buttons on one row; reposition feedback toast above thumbs; fix placeholder overflow with truncation; remove persistent hover background on selected feedback thumbs
+- orbitchat autocomplete redesign: Move suggestions from a floating card above the input to full-width rows below; typed portion in muted gray, completion in bold; removed keyboard hint bar; mobile-friendly touch targets preserved
+- orbitchat file upload: Redesigned drop zone (icon badge, horizontal layout, subtle hover transitions); animated progress rows with slim progress bar and percentage readout; modernized success/error/warning banners using app color tokens; 120s backend processing timeout to prevent files stuck in `processing`; propagated `error_message` through `FileAttachment`, `getFileInfo`, `listFiles`, `pollFileStatus`; failed files show red error state in file pills instead of an infinite spinner; progress entries cleaned up on failed/completed; skip confirmation dialog when dismissing failed file pills
+- orbitchat SEO: YAML-driven SEO settings; generated `sitemap.xml` and `robots.txt` from config; per-agent metadata/canonical handling; render backend agent notes on agent landing pages for indexing
+- Admin panel — Adapter tab: Dedicated adapter management; removed adapter controls from Ops; searchable/paginated tables replacing long vertical scroll on overview
+- Admin panel — API keys / personas: List-level + Create actions hide the create forms; detail views stay read-only until explicit edit; persona edits apply without full reload; persona renames propagate to associated API-key metadata; markdown notes render in API key details; clipboard icon on API-key field; updated API-key/password mask toggle icon; refresh API-key adapter options after adapter creation; live character counters with notes/persona limits raised to 2000 characters (persona later raised to 10000); clearer stale-validation handling and password-rules guidance
+- Admin panel — general: New audit view; bulk delete across users / API keys / personas; pagination for long lists; user management polish
+
+### Bug Fixes & Technical Improvements
+- Adapter toggle now applies immediately: The admin toggle endpoint (`PATCH /admin/adapters/config/entry/{name}/toggle`) wrote `enabled: true/false` to YAML but never notified `DynamicAdapterManager`, so disabled adapters remained usable from the client until a manual "Reload Adapter" click; the handler now calls `reload_adapters_config(config_path)` and `adapter_manager.reload_adapters(new_config, adapter_name)` after the write, reusing the single-adapter reload path (evicts the cached instance and removes the entry from `AdapterConfigManager` on disable; preloads on enable); response includes `reload_summary` / `reload_error` so the UI surfaces runtime-sync failures instead of claiming silent success (Fix #127)
+- Provider error sanitization: Raw provider SDK exceptions (e.g. OpenAI `Error code: 401 - Your IP is not authorized...`) were being streamed back to clients as response chunks, leaking account-, network-, and policy-level detail; errors are now wrapped in a client-safe `ProviderServiceError`, streaming paths that previously yielded raw strings are sanitized, and provider base classes raise instead of yielding error chunks
+- Config hygiene: Removed unused `embedding_provider` field from datasource entries in `config/datasources.yaml` (chroma, qdrant, milvus, pinecone); deleted the orphan `resolve_datasource_embedding_provider()` in `server/config/resolver.py`; simplified `IntentSQLRetriever._initialize_embedding_client` to always resolve via the global `embedding.provider` (the datasource-level override was never reachable in production code paths)
+- Refactor: Moved `nh3` and markdown handling to the default profile
+
 ## [2.6.5] - 2026-04-06
 
 ### Core System Updates
@@ -117,7 +143,6 @@
 - Server Shutdown: Fixed graceful shutdown hanging due to event loop deadlock; reordered shutdown (services first, thread pools last), thread pool shutdown in run_in_executor with timeout fallback
 - Startup & Config: Added startup script injection (startupScripts runtime config); configurable Express trust proxy via orbitchat.yaml for reverse-proxy/rate-limit deployments
 - CSV Pipeline: Added auto-split support for large CSVs in csv_to_duckdb pipeline (e.g. 450MB+), with --auto-split and --split-size CLI flags and per-chunk progress
-- API Key Scripts: Added --notes-file support to orbit key create and PoliceStats key generation; fixed script path resolution for project-root execution (e.g. ./utils/scripts/... from repo root)
 - Dependencies: Replaced deprecated google-generativeai (Gemini) library; updated dependency versions and Qdrant client
 - Retrievers: Fixed 18 bugs in server/retrievers including SQL injection via unvalidated collection_name, case-sensitive filter bypasses, redundant re-initialization, stale domain components, greedy JSON extraction, error message leakage, HTTP client resource leak, race condition in embedding client re-init, unbounded rerank cache growth, template/parameter handling, and unit test mocking
 - Pipeline: Fixed 11 pipeline bugs (context.message guards, pipeline metrics on early returns, step identification, refusal_message in response_validation, truncation_info, metadata=None in document_reranking, sync wrapper run_coroutine_threadsafe, Optional types, metrics export)
