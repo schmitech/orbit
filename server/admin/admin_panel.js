@@ -4336,10 +4336,15 @@
   }
 
   // ==================================================================
-  // TAB: Audit — admin/auth event ledger
+  // TAB: Audit — admin/auth + inference request ledger
   // ==================================================================
 
   var AUDIT_PAGE_SIZE = 25;
+  var AUDIT_STREAMS = [
+    { value: "all", label: "All" },
+    { value: "admin", label: "Admin" },
+    { value: "inference", label: "Inference" },
+  ];
 
   var AUDIT_DOMAINS = [
     { value: "all",             label: "All" },
@@ -4361,7 +4366,16 @@
       + "\u00A0" + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
   }
 
+  function isInferenceAudit(ev) {
+    return !!ev && ev.audit_source === "inference";
+  }
+
   function formatActor(ev) {
+    if (isInferenceAudit(ev)) {
+      if (ev.actor_type === "user") return ev.actor_id || "user";
+      if (ev.actor_type === "api_key") return ev.actor_id || "API key";
+      return "anonymous";
+    }
     if (ev.actor_type === "user") {
       return ev.actor_username || ev.actor_id || "\u2014";
     }
@@ -4369,6 +4383,38 @@
       return ev.actor_id || "API key";
     }
     return "anonymous";
+  }
+
+  function auditSourceLabel(ev) {
+    return isInferenceAudit(ev) ? "Inference" : "Admin";
+  }
+
+  function auditSourceBadgeClass(ev) {
+    return "audit-source-badge audit-source-badge--" + (isInferenceAudit(ev) ? "inference" : "admin");
+  }
+
+  function auditEventTitle(ev) {
+    if (isInferenceAudit(ev)) return ev.title || ev.backend || "inference";
+    return ev.event_type || "\u2014";
+  }
+
+  function auditEventSubtitle(ev) {
+    if (isInferenceAudit(ev)) return ev.subtitle || ev.adapter_name || "inference request";
+    return ev.action || "";
+  }
+
+  function auditResourceText(ev) {
+    if (isInferenceAudit(ev)) {
+      return ev.adapter_name || ev.backend || ev.resource_id || "\u2014";
+    }
+    return ev.resource_id || ev.resource_type || "\u2014";
+  }
+
+  function auditOutcomeLabel(ev) {
+    if (isInferenceAudit(ev)) {
+      return ev.success ? "served" : "blocked";
+    }
+    return ev.success ? "ok" : "fail";
   }
 
   function auditChip(label, pressed, onClick, variant) {
@@ -4391,11 +4437,12 @@
 
     listPanel.appendChild(el("h2", null, "Audit Ledger"));
     listPanel.appendChild(el("p", { className: "muted" },
-      "A register of privileged operations on /admin/* and /auth/* endpoints. ",
-      "Read-only mutations — click a row to inspect the dossier."));
+      "A unified register of admin/auth activity and inference requests captured by the audit service. ",
+      "Use the stream filter to isolate operational events from live inference traffic."));
 
     // ----- State (per-render closure) -----
     var state = {
+      source: "all",          // "all" | "admin" | "inference"
       outcome: "all",        // "all" | "success" | "failure"
       domain: "all",         // event_prefix value, or "all"
       q: "",                 // free-text search
@@ -4407,16 +4454,30 @@
     var searchDebounce = null;
 
     // ----- Filter strip -----
+    var sourceGroup = el("div", { className: "audit-view__chips" });
     var outcomeGroup = el("div", { className: "audit-view__chips" });
     var domainGroup = el("div", { className: "audit-view__chips" });
     var searchInput = el("input", {
       type: "search",
-      placeholder: "Search actor, path, resource, IP\u2026",
+      placeholder: "Search actor, provider, query, path, resource, IP\u2026",
       "aria-label": "Search audit events",
       className: "audit-view__search-input",
     });
 
     function renderChips() {
+      clear(sourceGroup);
+      sourceGroup.appendChild(el("span", { className: "audit-view__chip-label" }, "Stream"));
+      AUDIT_STREAMS.forEach(function (stream) {
+        sourceGroup.appendChild(auditChip(stream.label, state.source === stream.value, function () {
+          state.source = stream.value;
+          if (state.source === "inference") state.domain = "all";
+          state.offset = 0;
+          state.selectedIndex = null;
+          renderChips();
+          load();
+        }));
+      });
+
       clear(outcomeGroup);
       outcomeGroup.appendChild(el("span", { className: "audit-view__chip-label" }, "Outcome"));
       [
@@ -4438,6 +4499,7 @@
       domainGroup.appendChild(el("span", { className: "audit-view__chip-label" }, "Domain"));
       AUDIT_DOMAINS.forEach(function (d) {
         domainGroup.appendChild(auditChip(d.label, state.domain === d.value, function () {
+          if (state.source === "inference" && d.value !== "all") return;
           state.domain = d.value;
           state.offset = 0;
           state.selectedIndex = null;
@@ -4445,6 +4507,7 @@
           load();
         }));
       });
+      domainGroup.classList.toggle("is-disabled", state.source === "inference");
     }
 
     searchInput.addEventListener("input", function (e) {
@@ -4462,6 +4525,7 @@
     refreshBtn.addEventListener("click", function () { load(); });
 
     listPanel.appendChild(el("div", { className: "audit-view__filters" },
+      sourceGroup,
       outcomeGroup,
       domainGroup,
       el("div", { className: "audit-view__search" }, searchInput),
@@ -4471,7 +4535,7 @@
 
     // ----- Table wrap + pagination -----
     var tableWrap = el("div", { className: "audit-view__table-wrap" }, skeleton());
-    var pagerBar = el("div", { className: "audit-view__pager" });
+    var pagerBar = el("div", { className: "audit-view__pager pagination-bar" });
     listPanel.appendChild(tableWrap);
     listPanel.appendChild(pagerBar);
 
@@ -4489,9 +4553,10 @@
       var params = new URLSearchParams();
       params.set("limit", String(AUDIT_PAGE_SIZE));
       params.set("offset", String(state.offset));
+      params.set("source", state.source);
       if (state.outcome === "success") params.set("success", "true");
       else if (state.outcome === "failure") params.set("success", "false");
-      if (state.domain && state.domain !== "all") params.set("event_prefix", state.domain);
+      if (state.domain && state.domain !== "all" && state.source !== "inference") params.set("event_prefix", state.domain);
       if (state.q) params.set("q", state.q);
 
       try {
@@ -4516,15 +4581,15 @@
       } catch (err) {
         clear(tableWrap);
         var msg = (err && err.message) || "";
-        if (/admin audit is not enabled/i.test(msg)) {
+        if (/audit ledger is not enabled/i.test(msg) || /admin audit is not enabled/i.test(msg) || /inference request audit is not enabled/i.test(msg)) {
           tableWrap.appendChild(el("div", { className: "empty-state" },
-            el("p", null, "Admin audit is not enabled."),
+            el("p", null, "Audit ledger is not enabled."),
             el("p", { className: "muted" },
               "Set ",
               el("code", null, "internal_services.audit.enabled: true"),
-              " and ",
+              " for inference request auditing, and ",
               el("code", null, "internal_services.audit.admin_events.enabled: true"),
-              " in config.yaml, then restart the server.")
+              " if you also want admin/auth events, then restart the server.")
           ));
         } else {
           tableWrap.appendChild(el("div", { className: "empty-state" },
@@ -4549,7 +4614,7 @@
         el("p", { className: "muted" },
           state.offset > 0
             ? "Try jumping to page 1 or loosening the filters."
-            : "As admin and auth actions occur they will appear here.")
+            : "As admin actions and inference requests occur they will appear here.")
       ));
       return;
     }
@@ -4568,7 +4633,8 @@
 
     events.forEach(function (ev, idx) {
       var statusCls = ev.success ? "badge-ok" : "badge-fail";
-      var statusLabel = ev.success ? "ok" : "fail";
+      var statusLabel = auditOutcomeLabel(ev);
+      var isSelected = state.selectedIndex === idx;
 
       var actorCell;
       if (ev.actor_type === "anonymous") {
@@ -4583,22 +4649,39 @@
         );
       }
 
-      var resourceText = ev.resource_id || ev.resource_type || "\u2014";
+      var resourceText = auditResourceText(ev);
 
-      var tr = el("tr", { className: "audit-row" + (state.selectedIndex === idx ? " audit-row--active" : "") },
+      var rowClass = "selectable-row audit-row audit-row--source-" + (isInferenceAudit(ev) ? "inference" : "admin");
+      if (isSelected) rowClass += " selected-row audit-row--active";
+
+      var tr = el("tr", { className: rowClass },
         el("td", { className: "audit-col-time" }, formatAuditTimestamp(ev.timestamp)),
         el("td", { className: "audit-col-event" },
-          el("div", { className: "audit-event-type" }, ev.event_type || "\u2014"),
-          el("div", { className: "audit-event-action muted" }, ev.action || "")
+          el("div", { className: "audit-event-meta" },
+            el("span", { className: auditSourceBadgeClass(ev) }, auditSourceLabel(ev))
+          ),
+          el("div", { className: "audit-event-type" }, auditEventTitle(ev)),
+          el("div", { className: "audit-event-action muted" }, auditEventSubtitle(ev))
         ),
         el("td", null, actorCell),
         el("td", { className: "audit-col-resource" }, resourceText),
         el("td", { className: "audit-col-status" },
-          el("span", { className: "audit-status-code" }, String(ev.status_code != null ? ev.status_code : "")),
+          el("span", { className: "audit-status-code" }, isInferenceAudit(ev) ? (ev.backend || "") : String(ev.status_code != null ? ev.status_code : "")),
           el("span", { className: "badge " + statusCls }, statusLabel)
         )
       );
-      tr.addEventListener("click", function () { onSelect(idx); });
+      tr.tabIndex = 0;
+      tr.setAttribute("aria-selected", isSelected ? "true" : "false");
+      tr.addEventListener("click", function () {
+        markSelectedRow(tbody, tr);
+        onSelect(idx);
+      });
+      tr.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          tr.click();
+        }
+      });
       tbody.appendChild(tr);
     });
 
@@ -4655,7 +4738,7 @@
     panel.appendChild(el("h2", null, "Dossier"));
     panel.appendChild(el("div", { className: "empty-state" },
       el("p", null, "Select an entry from the register."),
-      el("p", { className: "muted" }, "A dossier shows the actor, the request, its origin, and any fields captured in the request summary.")
+      el("p", { className: "muted" }, "A dossier shows the actor, request metadata, origin details, and the captured payload or summary for the selected audit record.")
     ));
   }
 
@@ -4671,36 +4754,62 @@
     ));
 
     panel.appendChild(el("div", { className: "audit-dossier__headline" },
-      el("div", { className: "audit-dossier__event-type" }, ev.event_type || "\u2014"),
-      ev.action ? el("div", { className: "audit-dossier__action muted" }, ev.action) : null
+      el("div", { className: "audit-dossier__meta" },
+        el("span", { className: auditSourceBadgeClass(ev) }, auditSourceLabel(ev))
+      ),
+      el("div", { className: "audit-dossier__event-type" }, auditEventTitle(ev)),
+      auditEventSubtitle(ev) ? el("div", { className: "audit-dossier__action muted" }, auditEventSubtitle(ev)) : null
     ));
 
     var verdictCls = "audit-verdict audit-verdict--" + (ev.success ? "success" : "failure");
     panel.appendChild(el("div", null,
       el("span", { className: verdictCls },
-        ev.success ? "Succeeded" : "Failed",
-        " \u00B7 HTTP " + (ev.status_code != null ? ev.status_code : "?")
+        isInferenceAudit(ev) ? (ev.success ? "Served" : "Blocked") : (ev.success ? "Succeeded" : "Failed"),
+        isInferenceAudit(ev)
+          ? " \u00B7 " + (ev.backend || "inference")
+          : " \u00B7 HTTP " + (ev.status_code != null ? ev.status_code : "?")
       )
     ));
 
     panel.appendChild(el("h3", { className: "audit-section-heading" }, "Principals"));
-    panel.appendChild(renderAuditFieldGrid([
-      ["Actor", formatActor(ev)],
-      ["Capacity", ev.actor_type || ""],
-      ["Actor ID", ev.actor_id || "\u2014"],
-      ["Resource", ev.resource_id || "\u2014"],
-      ["Resource kind", ev.resource_type || ""],
-    ]));
+    if (isInferenceAudit(ev)) {
+      panel.appendChild(renderAuditFieldGrid([
+        ["Actor", formatActor(ev)],
+        ["Capacity", ev.actor_type || ""],
+        ["User ID", ev.user_id || "\u2014"],
+        ["API key", ev.api_key && ev.api_key.key ? ev.api_key.key : "\u2014"],
+        ["Session", ev.session_id || "\u2014"],
+      ]));
+    } else {
+      panel.appendChild(renderAuditFieldGrid([
+        ["Actor", formatActor(ev)],
+        ["Capacity", ev.actor_type || ""],
+        ["Actor ID", ev.actor_id || "\u2014"],
+        ["Resource", ev.resource_id || "\u2014"],
+        ["Resource kind", ev.resource_type || ""],
+      ]));
+    }
 
-    panel.appendChild(el("h3", { className: "audit-section-heading" }, "Request"));
-    panel.appendChild(renderAuditFieldGrid([
-      ["Method", ev.method || ""],
-      ["Path", ev.path || ""],
-      ["Status", String(ev.status_code != null ? ev.status_code : "") + (ev.error_message ? " \u00B7 " + ev.error_message : "")],
-      ["Timestamp", formatAuditTimestamp(ev.timestamp)],
-      ["Event type", ev.event_type || ""],
-      ["Action", ev.action || ""],
-    ]));
+    panel.appendChild(el("h3", { className: "audit-section-heading" }, isInferenceAudit(ev) ? "Inference" : "Request"));
+    if (isInferenceAudit(ev)) {
+      panel.appendChild(renderAuditFieldGrid([
+        ["Backend", ev.backend || "\u2014"],
+        ["Adapter", ev.adapter_name || "\u2014"],
+        ["Blocked", ev.blocked ? "yes" : "no"],
+        ["Timestamp", formatAuditTimestamp(ev.timestamp)],
+        ["Event type", ev.event_type || ""],
+        ["Action", ev.action || ""],
+      ]));
+    } else {
+      panel.appendChild(renderAuditFieldGrid([
+        ["Method", ev.method || ""],
+        ["Path", ev.path || ""],
+        ["Status", String(ev.status_code != null ? ev.status_code : "") + (ev.error_message ? " \u00B7 " + ev.error_message : "")],
+        ["Timestamp", formatAuditTimestamp(ev.timestamp)],
+        ["Event type", ev.event_type || ""],
+        ["Action", ev.action || ""],
+      ]));
+    }
 
     panel.appendChild(el("h3", { className: "audit-section-heading" }, "Origin"));
     var originRows = [
@@ -4713,22 +4822,36 @@
     if (ev.user_agent) originRows.push(["User-Agent", ev.user_agent]);
     panel.appendChild(renderAuditFieldGrid(originRows));
 
-    var summary = ev.request_summary;
-    if (summary && typeof summary === "object" && Object.keys(summary).length > 0) {
-      panel.appendChild(el("h3", { className: "audit-section-heading" }, "Request summary"));
-      panel.appendChild(el("p", { className: "muted audit-dossier__summary-note" },
-        "Fields recorded by the middleware \u2014 secrets (passwords, raw API keys) are never stored."));
-      var lines = Object.keys(summary).map(function (k) {
-        var v = summary[k];
-        var vStr;
-        if (Array.isArray(v)) {
-          vStr = "[" + v.map(function (x) { return JSON.stringify(x); }).join(", ") + "]";
-        } else {
-          vStr = JSON.stringify(v);
-        }
-        return k + ": " + vStr;
-      });
-      panel.appendChild(el("pre", { className: "audit-dossier__summary" }, lines.join("\n")));
+    if (isInferenceAudit(ev)) {
+      panel.appendChild(el("h3", { className: "audit-section-heading" }, "Payload"));
+      panel.appendChild(el("div", { className: "audit-dossier__payload" },
+        el("div", { className: "audit-dossier__payload-block" },
+          el("div", { className: "audit-dossier__payload-label" }, "Query"),
+          el("pre", { className: "audit-dossier__summary" }, ev.query || "\u2014")
+        ),
+        el("div", { className: "audit-dossier__payload-block" },
+          el("div", { className: "audit-dossier__payload-label" }, "Response"),
+          el("pre", { className: "audit-dossier__summary" }, ev.response || "\u2014")
+        )
+      ));
+    } else {
+      var summary = ev.request_summary;
+      if (summary && typeof summary === "object" && Object.keys(summary).length > 0) {
+        panel.appendChild(el("h3", { className: "audit-section-heading" }, "Request summary"));
+        panel.appendChild(el("p", { className: "muted audit-dossier__summary-note" },
+          "Fields recorded by the middleware \u2014 secrets (passwords, raw API keys) are never stored."));
+        var lines = Object.keys(summary).map(function (k) {
+          var v = summary[k];
+          var vStr;
+          if (Array.isArray(v)) {
+            vStr = "[" + v.map(function (x) { return JSON.stringify(x); }).join(", ") + "]";
+          } else {
+            vStr = JSON.stringify(v);
+          }
+          return k + ": " + vStr;
+        });
+        panel.appendChild(el("pre", { className: "audit-dossier__summary" }, lines.join("\n")));
+      }
     }
   }
 

@@ -620,6 +620,41 @@ class TestMongoDBDAuditStrategy:
         assert len(results) == 1
         mock_db.find_many.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_mongodb_query_keeps_plain_text_query_when_response_is_compressed(self):
+        """MongoDB query path should only decompress the response field."""
+        from services.audit import compress_text
+
+        mock_db = AsyncMock()
+        mock_db._initialized = True
+        mock_db.create_index = AsyncMock()
+        mock_db.find_many = AsyncMock(return_value=[
+            {
+                '_id': '1',
+                'query': 'Plain text query',
+                'response': compress_text('Compressed response body'),
+                'response_compressed': True,
+                'session_id': 'session_123',
+            }
+        ])
+
+        config = {
+            'internal_services': {
+                'audit': {
+                    'collection_name': 'audit_logs'
+                }
+            }
+        }
+
+        strategy = MongoDBDAuditStrategy(config, mock_db)
+        await strategy.initialize()
+
+        results = await strategy.query({'session_id': 'session_123'})
+
+        assert len(results) == 1
+        assert results[0]['query'] == 'Plain text query'
+        assert results[0]['response'] == 'Compressed response body'
+
 
 # ============================================================================
 # Integration Tests
@@ -812,6 +847,50 @@ class TestSQLiteAuditCompression:
 
         assert len(results) == 1
         assert results[0]['response'] == "This is a test response that should be compressed."
+        assert results[0]['response_compressed'] is True
+
+        await audit_service.close()
+        sqlite_service.close()
+        SQLiteService.clear_cache()
+
+    @pytest.mark.asyncio
+    async def test_query_remains_plain_text_when_response_is_compressed(self, tmp_path):
+        """Query text should not be decompressed when only response compression is enabled."""
+        db_path = os.path.join(tmp_path, "test_query_plain.db")
+        config = {
+            'general': {'inference_provider': 'test'},
+            'internal_services': {
+                'backend': {
+                    'type': 'sqlite',
+                    'sqlite': {'database_path': db_path}
+                },
+                'audit': {
+                    'enabled': True,
+                    'storage_backend': 'sqlite',
+                    'collection_name': 'audit_logs',
+                    'compress_responses': True
+                }
+            }
+        }
+
+        sqlite_service = SQLiteService(config)
+        await sqlite_service.initialize()
+
+        audit_service = AuditService(config, sqlite_service)
+        await audit_service.initialize()
+
+        query_text = "What is the status of order #12345?"
+        await audit_service.log_conversation(
+            query=query_text,
+            response="Order #12345 is processing.",
+            session_id="query_plain_test"
+        )
+
+        results = await audit_service.query_audit_logs({'session_id': 'query_plain_test'})
+
+        assert len(results) == 1
+        assert results[0]['query'] == query_text
+        assert results[0]['response'] == "Order #12345 is processing."
         assert results[0]['response_compressed'] is True
 
         await audit_service.close()

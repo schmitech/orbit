@@ -178,17 +178,10 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         Returns:
             Record with nested ip_metadata and api_key structures
         """
-        # Get query and response and check if they need decompression
+        # Only the response field is compressed; query remains plain text.
         query = flat_record.get('query', '')
         response = flat_record.get('response', '')
         is_compressed = bool(flat_record.get('response_compressed', 0))
-
-        if is_compressed and query:
-            try:
-                query = decompress_text(query)
-            except Exception as e:
-                logger.warning(f"Failed to decompress query: {e}")
-                # Return compressed query as-is if decompression fails
 
         if is_compressed and response:
             try:

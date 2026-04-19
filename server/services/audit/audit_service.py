@@ -431,6 +431,15 @@ class AuditService:
         return self._enabled
 
     @property
+    def inference_events_enabled(self) -> bool:
+        """Check if inference-request auditing is enabled and initialized."""
+        return bool(
+            self._enabled
+            and self._strategy is not None
+            and self._strategy.is_initialized()
+        )
+
+    @property
     def admin_events_enabled(self) -> bool:
         """Check if admin-event auditing is enabled and initialized."""
         return bool(

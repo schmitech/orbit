@@ -196,15 +196,9 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
                 sort=[(sort_by, sort_order)]
             )
 
-            # Decompress queries and responses if needed
+            # Only the response field is compressed; query remains plain text.
             for record in results:
                 if record.get('response_compressed'):
-                    if record.get('query'):
-                        try:
-                            record['query'] = decompress_text(record['query'])
-                        except Exception as e:
-                            logger.warning(f"Failed to decompress query: {e}")
-                            # Keep compressed query if decompression fails
                     if record.get('response'):
                         try:
                             record['response'] = decompress_text(record['response'])

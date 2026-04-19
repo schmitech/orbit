@@ -2587,6 +2587,10 @@ code.plain-code {
   gap: var(--sp-2);
 }
 
+.audit-view__chips.is-disabled {
+  opacity: 0.5;
+}
+
 .audit-view__chip-label {
   font-size: 10px;
   letter-spacing: 0.16em;
@@ -2665,10 +2669,6 @@ code.plain-code {
 }
 
 .audit-view__pager {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: var(--sp-3);
   margin-top: var(--sp-3);
 }
 
@@ -2710,9 +2710,18 @@ code.plain-code {
   background: var(--surface-raised);
 }
 
+.audit-table tbody tr.audit-row--source-inference:hover {
+  background: #fff7ed;
+}
+
 .audit-table tbody tr.audit-row--active,
 .audit-table tbody tr.audit-row--active:hover {
   background: var(--brand-50);
+}
+
+.audit-table tbody tr.audit-row--source-inference.audit-row--active,
+.audit-table tbody tr.audit-row--source-inference.audit-row--active:hover {
+  background: #ffedd5;
 }
 
 .audit-col-time {
@@ -2732,6 +2741,38 @@ code.plain-code {
   font-size: var(--text-sm);
   color: var(--ink);
   word-break: break-all;
+}
+
+.audit-event-meta,
+.audit-dossier__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: 6px;
+}
+
+.audit-source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.audit-source-badge--admin {
+  color: var(--brand-700);
+  background: var(--brand-50);
+  border-color: var(--brand-200);
+}
+
+.audit-source-badge--inference {
+  color: #9a3412;
+  background: #fff7ed;
+  border-color: #fdba74;
 }
 
 .audit-event-action {
@@ -2860,6 +2901,24 @@ code.plain-code {
   flex: 1;
   height: 1px;
   background: var(--border-light);
+}
+
+.audit-dossier__payload {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.audit-dossier__payload-block {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.audit-dossier__payload-label {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  font-weight: 600;
 }
 
 .audit-field-grid {
