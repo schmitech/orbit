@@ -177,7 +177,7 @@ If Ollama runs on your host, add `-e OLLAMA_HOST=host.docker.internal:11434` so 
 <summary><strong>From release tarball (production)</strong></summary>
 
 ```bash
-curl -L https://github.com/schmitech/orbit/releases/download/v2.6.5/orbit-2.6.6.tar.gz -o orbit-2.6.6.tar.gz
+curl -L https://github.com/schmitech/orbit/releases/download/v2.6.6/orbit-2.6.6.tar.gz -o orbit-2.6.6.tar.gz
 tar -xzf orbit-2.6.6.tar.gz && cd orbit-2.6.6
 
 cp env.example .env && ./install/setup.sh
