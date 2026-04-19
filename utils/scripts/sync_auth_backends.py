@@ -156,17 +156,26 @@ def open_sqlite(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def get_sqlite_table_columns(conn: sqlite3.Connection, table: str) -> List[str]:
+    cur = conn.execute(f"PRAGMA table_info({table})")
+    return [row["name"] for row in cur.fetchall()]
+
+
 def read_sqlite_prompts(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
     cur = conn.execute("SELECT id, name, prompt, version, created_at, updated_at FROM system_prompts")
     return [sqlite_row_to_prompt(r) for r in cur.fetchall()]
 
 
 def read_sqlite_api_keys(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
-    cur = conn.execute(
-        "SELECT id, api_key, client_name, notes, active, created_at, adapter_name, "
-        "system_prompt_id, quota_daily_limit, quota_monthly_limit, "
-        "quota_throttle_enabled, quota_throttle_priority FROM api_keys"
-    )
+    desired_cols = [
+        "id", "api_key", "client_name", "notes", "active", "created_at",
+        "adapter_name", "system_prompt_id",
+        "quota_daily_limit", "quota_monthly_limit",
+        "quota_throttle_enabled", "quota_throttle_priority",
+    ]
+    available_cols = set(get_sqlite_table_columns(conn, "api_keys"))
+    cols = [col for col in desired_cols if col in available_cols]
+    cur = conn.execute("SELECT " + ", ".join(cols) + " FROM api_keys")
     return [sqlite_row_to_api_key(r) for r in cur.fetchall()]
 
 
@@ -299,10 +308,14 @@ def upsert_sqlite_prompt(conn: sqlite3.Connection, existing: Optional[sqlite3.Ro
 
 
 def upsert_sqlite_api_key(conn: sqlite3.Connection, existing: Optional[sqlite3.Row], doc: Dict[str, Any], dry_run: bool) -> None:
-    cols = ["api_key", "client_name", "notes", "active", "created_at",
-            "adapter_name", "system_prompt_id",
-            "quota_daily_limit", "quota_monthly_limit",
-            "quota_throttle_enabled", "quota_throttle_priority"]
+    desired_cols = [
+        "api_key", "client_name", "notes", "active", "created_at",
+        "adapter_name", "system_prompt_id",
+        "quota_daily_limit", "quota_monthly_limit",
+        "quota_throttle_enabled", "quota_throttle_priority",
+    ]
+    available_cols = set(get_sqlite_table_columns(conn, "api_keys"))
+    cols = [col for col in desired_cols if col in available_cols]
     vals = []
     for c in cols:
         v = doc.get(c)
