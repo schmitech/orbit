@@ -1,10 +1,13 @@
 # Tutorial: Chat with Your Data
 
-This tutorial walks you through connecting ORBIT to databases, files, vector stores, and APIs so you can query them using natural language.
+Welcome! By the end of this tutorial you'll have ORBIT chatting with a real database, a set of uploaded files, a vector store, and a public API — all through natural language, all behind a single endpoint.
+
+You don't have to do every example. Start with "Your first chat" to confirm the server works, then jump to whichever data source looks like yours.
 
 ## Table of Contents
 
-- [Prerequisites](#prerequisites)
+- [Before you start](#before-you-start)
+- [Your first chat (2 minutes)](#your-first-chat-2-minutes)
 - [Adapter Types Overview](#adapter-types-overview)
 - [Example 1: SQL Database (SQLite)](#example-1-sql-database-sqlite)
 - [Example 2: Chat with Files](#example-2-chat-with-files)
@@ -16,42 +19,117 @@ This tutorial walks you through connecting ORBIT to databases, files, vector sto
 - [Example 8: Agent with Function Calling](#example-8-agent-with-function-calling)
 - [Creating API Keys](#creating-api-keys)
 - [Connecting Your Own Data](#connecting-your-own-data)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## Prerequisites
+## Before you start
 
-- ORBIT installed via [release download](../README.md#option-2-download-latest-release) or [git clone](../README.md#option-3-clone-from-git-development)
-- Python environment activated (`source venv/bin/activate`)
-- ORBIT server running (`./bin/orbit.sh start`)
+You need three things:
 
-> **Note:** The basic Docker image (`schmitech/orbit:basic`) includes simple chat only. Use the release or git install for database adapters.
+1. **ORBIT installed.** Either the [release download](../README.md#option-2-download-latest-release) or a [git clone](../README.md#option-3-clone-from-git-development).
+2. **An inference provider.** The shipped adapters default to **OpenAI (`gpt-5.4-mini`)**, so set `OPENAI_API_KEY` in your environment — or swap to another provider in `config/inference.yaml` (Ollama, Anthropic, Gemini, and 25+ others are supported).
+3. **The server running.**
+   ```bash
+   source venv/bin/activate
+   ./bin/orbit.sh start
+   ```
+   You should see `Uvicorn running on http://0.0.0.0:3000` in the logs.
+
+> **Tip:** The basic Docker image (`schmitech/orbit:basic`) includes simple chat only. For database and file adapters, use the release tarball or a git checkout.
+
+Quick health check:
+
+```bash
+curl -s http://localhost:3000/health
+# {"status":"ok", ...}
+```
+
+If that responds, you're ready.
+
+### CLI or web UI — your choice
+
+Every admin task in this tutorial (creating API keys, managing prompts/personas, toggling adapters, editing config, viewing audit events, watching live metrics) can be done two ways:
+
+- **CLI** — the `./bin/orbit.sh …` commands you'll see below.
+- **Admin panel** — point your browser at **`http://localhost:3000/admin`** and sign in with the admin credentials from your `.env` (`ORBIT_DEFAULT_ADMIN_PASSWORD`, default username `admin`).
+
+The panel covers Users, API Keys, Prompts/Personas, Adapters (with live toggle + per-adapter YAML editor), Settings (in-browser `config.yaml` editor), Audit, and Overview monitoring. The CLI is faster for scripted setup; the UI is friendlier for exploration. Use whichever you prefer — they act on the same underlying state.
+
+### Install the chat client (`orbitchat`)
+
+You'll see `orbitchat …` invocations throughout this tutorial — that's the standalone chat UI for testing adapters end-to-end. It's a separate npm package from the ORBIT server; it proxies your API requests so real API keys never reach the browser.
+
+```bash
+npm install -g orbitchat
+```
+
+Point it at your running server and an API key:
+
+```bash
+orbitchat --api-url http://localhost:3000 --api-key orbit_YOUR_KEY --open
+```
+
+That opens a browser against a local proxy (default `http://localhost:5173`). You can also run it against multiple adapters at once or as a proxy-only layer for your own UI — see [`clients/orbitchat/README.md`](../clients/orbitchat/README.md) for the full option reference, `orbitchat.yaml` config, and the HTTP contract for custom frontends.
+
+> The **admin panel** at `/admin` is for configuration (keys, prompts, adapters, settings). **`orbitchat`** is for actually *chatting* with an adapter to test it. You'll use both.
+
+---
+
+## Your first chat (2 minutes)
+
+Before touching any data source, let's confirm the full request path works end-to-end. The `simple-chat` adapter is pure conversational — no retrieval, no setup — so it's the fastest way to prove the server + API key + client flow is wired.
+
+### 1. Create an API key
+
+```bash
+./bin/orbit.sh login --username admin --password admin123
+
+./bin/orbit.sh key create \
+  --adapter simple-chat \
+  --name "First Chat" \
+  --prompt-text "You are a friendly assistant."
+```
+
+Copy the `orbit_…` key that's printed.
+
+> Prefer clicking? Open `http://localhost:3000/admin` → **API Keys** → **+ Create**, pick `simple-chat` as the adapter, paste a prompt, and save. The key is shown once — copy it immediately.
+
+### 2. Chat
+
+```bash
+orbitchat --api-url http://localhost:3000 --api-key orbit_YOUR_KEY --open
+```
+
+Ask it anything. **If you get a response, the stack is working.** If not, skip down to [Troubleshooting](#troubleshooting) before going further.
+
+Now that you have a known-good baseline, pick an example below based on what you want to chat with.
 
 ---
 
 ## Adapter Types Overview
 
-ORBIT supports different adapter types for different use cases:
+ORBIT picks the right retrieval strategy based on an *adapter type*. You don't choose these at query time — you configure them once in `config/adapters/*.yaml` and reference them by name when creating an API key.
 
-| Adapter Type | Use Case | Examples |
+| Adapter Type | Use it when… | Examples |
 |:---|:---|:---|
-| **Passthrough** | Simple chat without retrieval | `simple-chat` |
-| **Multimodal** | Chat with uploaded files (PDF, images, audio) | `simple-chat-with-files` |
-| **QA** | Question-answering from vector stores | `qa-vector-chroma`, `qa-vector-qdrant` |
-| **Intent SQL** | Natural language to SQL translation | `intent-sql-sqlite-hr`, `intent-duckdb-analytics` |
-| **Intent HTTP** | Natural language to API calls | `intent-http-jsonplaceholder` |
-| **Intent MongoDB** | Natural language to MongoDB queries | `intent-mongodb-mflix` |
-| **Intent GraphQL** | Natural language to GraphQL queries | `intent-graphql-spacex` |
-| **Intent Agent** | Function calling with built-in tools | `intent-agent-example` |
-| **Composite** | Query across multiple data sources | `composite-multi-source` |
+| **Passthrough** | You want plain chat without retrieval | `simple-chat` |
+| **Multimodal** | Users will upload files (PDF, images, audio) | `simple-chat-with-files` |
+| **QA** | You have documents already embedded in a vector store | `qa-vector-chroma`, `qa-vector-qdrant` |
+| **Intent SQL** | You have a SQL database and want NL → SQL | `intent-sql-sqlite-hr`, `intent-duckdb-analytics` |
+| **Intent HTTP** | You want NL → REST API calls | `intent-http-jsonplaceholder` |
+| **Intent MongoDB** | You have a MongoDB collection | `intent-mongodb-mflix` |
+| **Intent GraphQL** | You have a GraphQL endpoint | `intent-graphql-spacex` |
+| **Intent Agent** | You want function-calling with built-in tools | `intent-agent-example` |
+| **Composite** | You want one chat that routes across several sources | `composite-multi-source` |
 
 ---
 
 ## Example 1: SQL Database (SQLite)
 
-This example uses a local SQLite database with sample HR/employee data.
+Let's try the most common ORBIT pattern: asking questions in English against a real SQL database. We'll use a small local SQLite file with sample HR data.
 
-### 1. Generate Test Data
+### 1. Generate sample data
 
 ```bash
 python examples/intent-templates/sql-intent-template/examples/sqlite/hr/generate_hr_data.py \
@@ -61,13 +139,13 @@ python examples/intent-templates/sql-intent-template/examples/sqlite/hr/generate
 
 ### 2. Restart ORBIT
 
-Restart the server to load the pre-generated SQL templates:
+ORBIT preloads intent templates at startup, so a restart picks them up:
 
 ```bash
 ./bin/orbit.sh restart
 ```
 
-### 3. Create an API Key
+### 3. Create an API key for the HR adapter
 
 ```bash
 ./bin/orbit.sh key create \
@@ -77,35 +155,34 @@ Restart the server to load the pre-generated SQL templates:
   --prompt-name "HR Assistant"
 ```
 
-### 4. Start Chatting
+### 4. Start chatting
 
 ```bash
 orbitchat --api-url http://localhost:3000 --api-key YOUR_API_KEY --open
 ```
 
-**Try questions like:**
+Try:
+
 - "How many employees per department?"
 - "What's the average salary per department?"
 - "Show me employees hired in the last 30 days"
 - "Which departments are over budget on payroll?"
 
-### How Intent SQL Works
+### What's happening under the hood
 
-1. ORBIT classifies your natural language intent
-2. Selects the appropriate SQL template from the template library
-3. Extracts parameters (dates, names, values) using an LLM
-4. Executes the query against your database
-5. Formats results in natural language
+1. ORBIT classifies the intent of your question.
+2. It picks the closest SQL template from `intent-sql-sqlite-hr`'s template library.
+3. An LLM extracts parameters (dates, names, numbers) from your question.
+4. ORBIT runs the parameterized SQL against your database.
+5. Results are formatted back into natural language.
+
+Templates — not free-form SQL generation — are what make this safe and reliable. You'll see the same pattern in DuckDB, MongoDB, HTTP, and GraphQL adapters.
 
 ---
 
 ## Example 2: Chat with Files
 
-Upload PDFs, images, or audio files and chat about their content.
-
-### Adapter Configuration
-
-The `simple-chat-with-files` adapter is pre-configured in `config/adapters/multimodal.yaml`:
+Let users upload PDFs, images, or audio and ask questions about them. The `simple-chat-with-files` adapter is pre-configured in `config/adapters/multimodal.yaml`:
 
 ```yaml
 - name: "simple-chat-with-files"
@@ -113,17 +190,19 @@ The `simple-chat-with-files` adapter is pre-configured in `config/adapters/multi
   type: "passthrough"
   adapter: "multimodal"
   implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-  
-  # Provider overrides
-  inference_provider: "ollama_cloud"
-  embedding_provider: "ollama"      # For file chunk retrieval
-  vision_provider: "gemini"         # For image analysis
-  tts_provider: "openai"            # For audio output
-  
+
+  # Provider overrides (defaults shown — swap as needed)
+  inference_provider: "openai"
+  model: "gpt-5.4-mini"
+  embedding_provider: "openai"
+  embedding_model: "text-embedding-3-small"
+  vision_provider: "gemini"           # For image files
+  stt_provider: "whisper"             # Local speech-to-text for audio
+
   capabilities:
-    retrieval_behavior: "conditional"  # Only retrieves when files are uploaded
+    retrieval_behavior: "conditional" # Retrieves only when files are attached
     supports_file_ids: true
-    
+
   config:
     chunking_strategy: "recursive"
     chunk_size: 1000
@@ -132,7 +211,7 @@ The `simple-chat-with-files` adapter is pre-configured in `config/adapters/multi
     return_results: 10
 ```
 
-### Create an API Key
+### Create an API key
 
 ```bash
 ./bin/orbit.sh key create \
@@ -141,19 +220,19 @@ The `simple-chat-with-files` adapter is pre-configured in `config/adapters/multi
   --prompt-text "You are a helpful assistant that answers questions about uploaded documents. Be accurate and cite specific content from the files."
 ```
 
-### Usage
+### Try it
 
-1. Use the React chat app or web widget
-2. Upload a PDF, Word doc, image, or audio file
-3. Ask questions about the content
+1. Open the web chat (React app or embedded widget).
+2. Attach a PDF, DOCX, image, or audio file.
+3. Ask:
+   - "Summarize this document"
+   - "What are the key points in section 3?"
+   - "What does the chart on page 2 show?" (images)
+   - "Transcribe and summarize this audio file" (audio)
 
-**Example questions:**
-- "Summarize this document"
-- "What are the key points in section 3?"
-- "What does the chart on page 2 show?" (for images)
-- "Transcribe and summarize this audio file"
+Retrieval only fires when there's a file attached — regular messages go straight to the LLM, keeping costs and latency down.
 
-### Supported File Types
+### Supported file types
 
 | Category | Formats |
 |:---|:---|
@@ -167,16 +246,15 @@ The `simple-chat-with-files` adapter is pre-configured in `config/adapters/multi
 
 ## Example 3: Vector Store Q&A
 
-Use vector similarity search for Q&A over embedded documents.
+If your documents are already embedded in a vector store, the QA adapter handles semantic search + answer generation.
 
-### Option A: Chroma (Local)
+### Option A: Chroma (runs locally, no extra services)
 
 ```bash
-# Set up sample data
 ./examples/sample-db-setup.sh chroma
 ```
 
-The adapter is configured in `config/adapters/qa.yaml`:
+Configured in `config/adapters/qa.yaml`:
 
 ```yaml
 - name: "qa-vector-chroma"
@@ -185,7 +263,7 @@ The adapter is configured in `config/adapters/qa.yaml`:
   datasource: "chroma"
   adapter: "qa"
   implementation: "retrievers.implementations.qa.QAChromaRetriever"
-  
+
   config:
     collection: "city"
     confidence_threshold: 0.3
@@ -194,7 +272,7 @@ The adapter is configured in `config/adapters/qa.yaml`:
     return_results: 3
 ```
 
-### Option B: Qdrant (Cloud or Self-hosted)
+### Option B: Qdrant (Cloud or self-hosted)
 
 ```yaml
 - name: "qa-vector-qdrant"
@@ -204,7 +282,7 @@ The adapter is configured in `config/adapters/qa.yaml`:
   adapter: "qa"
   implementation: "retrievers.implementations.qa.QAQdrantRetriever"
   embedding_provider: "openai"
-  
+
   config:
     collection: "my_collection"
     confidence_threshold: 0.3
@@ -213,7 +291,7 @@ The adapter is configured in `config/adapters/qa.yaml`:
     return_results: 3
 ```
 
-### Create an API Key
+### Create an API key
 
 ```bash
 ./bin/orbit.sh key create \
@@ -222,15 +300,13 @@ The adapter is configured in `config/adapters/qa.yaml`:
   --prompt-file ./examples/prompts/examples/city/city-assistant-normal-prompt.txt
 ```
 
+**Tip:** If answers come back "I don't have information about that," lower `confidence_threshold` incrementally (try 0.2, then 0.15). Thresholds behave consistently across Chroma, Qdrant, FAISS, and Milvus as of 2.6.4.
+
 ---
 
 ## Example 4: DuckDB Analytics
 
-Query analytical data using DuckDB with natural language.
-
-### Adapter Configuration
-
-Example from `config/adapters/intent.yaml`:
+DuckDB is ideal for analytical questions over columnar data — aggregations, trends, comparisons. Example from `config/adapters/intent.yaml`:
 
 ```yaml
 - name: "intent-duckdb-analytics"
@@ -240,42 +316,41 @@ Example from `config/adapters/intent.yaml`:
   adapter: "intent"
   implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
   database: "utils/duckdb-intent-template/examples/analytics/analytics.duckdb"
-  
-  inference_provider: "ollama_cloud"
-  model: "gpt-oss:120b"
-  embedding_provider: "ollama"
-  
+
+  inference_provider: "openai"
+  model: "gpt-5.4-mini"
+  embedding_provider: "openai"
+
   config:
     domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
     template_library_path:
       - "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics_templates.yaml"
-    
+
     template_collection_name: "duckdb_analytics_templates"
     store_name: "chroma"
     confidence_threshold: 0.4
     max_templates: 5
     return_results: 100
-    
-    # DuckDB-specific settings
-    read_only: true                    # Allow concurrent reads
+
+    # DuckDB-specific
+    read_only: true
     access_mode: "READ_ONLY"
 ```
 
-### Use Cases
+Good fits:
 
-DuckDB excels at analytical queries:
 - "What was the total revenue last quarter?"
 - "Show me sales trends by month"
 - "Which products had the highest growth rate?"
 - "Compare this year's performance to last year"
 
+> You can stick with `ollama_cloud` / `gpt-oss:120b` if you prefer local-style hosted models — just update `inference_provider` and `model` to match whatever's enabled in your `config/inference.yaml`.
+
 ---
 
 ## Example 5: MongoDB Queries
 
-Query MongoDB collections using natural language.
-
-### Adapter Configuration
+Natural language → MongoDB find/aggregate queries.
 
 ```yaml
 - name: "intent-mongodb-mflix"
@@ -284,16 +359,16 @@ Query MongoDB collections using natural language.
   datasource: "mongodb"
   adapter: "intent"
   implementation: "retrievers.implementations.intent.intent_mongodb_retriever.IntentMongoDBRetriever"
-  
-  inference_provider: "ollama_cloud"
-  model: "glm-4.7:cloud"
-  embedding_provider: "openrouter"
-  
+
+  inference_provider: "openai"
+  model: "gpt-5.4-mini"
+  embedding_provider: "openai"
+
   config:
     domain_config_path: "examples/intent-templates/mongodb-intent-template/examples/sample_mflix/templates/mflix_domain.yaml"
     template_library_path:
       - "examples/intent-templates/mongodb-intent-template/examples/sample_mflix/templates/mflix_templates.yaml"
-    
+
     database: "sample_mflix"
     default_collection: "movies"
     default_limit: 100
@@ -301,9 +376,8 @@ Query MongoDB collections using natural language.
     case_insensitive_regex: true
 ```
 
-### Example Questions
+Using MongoDB's `sample_mflix` dataset:
 
-Using the MongoDB sample_mflix database:
 - "Find movies directed by Christopher Nolan"
 - "What are the top rated action movies from the 2000s?"
 - "Show me movies with Leonardo DiCaprio"
@@ -312,9 +386,7 @@ Using the MongoDB sample_mflix database:
 
 ## Example 6: HTTP APIs
 
-Query REST APIs using natural language.
-
-### Adapter Configuration
+Treat any REST API as a data source — no SQL, no embeddings, just templates mapped to HTTP requests.
 
 ```yaml
 - name: "intent-http-jsonplaceholder"
@@ -323,47 +395,47 @@ Query REST APIs using natural language.
   datasource: "http"
   adapter: "intent"
   implementation: "retrievers.implementations.intent.IntentHTTPJSONRetriever"
-  
-  inference_provider: "ollama_cloud"
-  model: "gpt-oss:20b"
-  embedding_provider: "ollama"
-  
+
+  inference_provider: "openai"
+  model: "gpt-5.4-mini"
+  embedding_provider: "openai"
+
   config:
     domain_config_path: "examples/intent-templates/http-intent-template/examples/jsonplaceholder/templates/jsonplaceholder_domain.yaml"
     template_library_path:
       - "examples/intent-templates/http-intent-template/examples/jsonplaceholder/templates/jsonplaceholder_templates.yaml"
-    
+
     base_url: "https://jsonplaceholder.typicode.com"
     default_timeout: 30
     enable_retries: true
     max_retries: 3
 ```
 
-### Other HTTP Adapters
+### Other HTTP-shaped adapters ready to try
 
 | Adapter | Description |
 |:---|:---|
 | `intent-http-paris-opendata` | Paris city open data portal |
 | `intent-graphql-spacex` | SpaceX GraphQL API |
-| `intent-firecrawl-webscrape` | Web scraping with Firecrawl |
+| `intent-firecrawl-webscrape` | Web scraping via Firecrawl |
 
 ---
 
 ## Example 7: Multi-Source Composite
 
-Query across multiple data sources with a single interface. The Composite Intent Retriever automatically routes each query to the best matching data source.
+Point *one* chat interface at several data sources and let ORBIT figure out which one should answer each question. The Composite Intent Retriever searches every child adapter's template library and routes to the best match.
 
-### How It Works
+### How routing works
 
-1. You configure multiple child intent adapters (SQL, DuckDB, MongoDB, HTTP, etc.)
-2. When a query arrives, the composite retriever searches all child template stores
-3. The best matching template is selected based on similarity score
-4. The query is routed to the child adapter that owns that template
-5. Results include metadata showing which source was used
+1. Configure multiple child intent adapters (SQL, DuckDB, MongoDB, HTTP, etc.).
+2. A query arrives; ORBIT searches all child template stores in parallel.
+3. The best matching template wins based on similarity score.
+4. The query is dispatched to that child adapter.
+5. The response includes metadata saying which source answered.
 
-### Adapter Configuration
+### Adapter configuration
 
-Create `config/adapters/composite.yaml`:
+In `config/adapters/composite.yaml`:
 
 ```yaml
 adapters:
@@ -372,23 +444,22 @@ adapters:
     type: "retriever"
     adapter: "composite"
     implementation: "retrievers.implementations.composite.CompositeIntentRetriever"
-    
+
     embedding_provider: "openai"
-    
+
     config:
-      # Child adapters to search across
       child_adapters:
         - "intent-sql-sqlite-hr"
         - "intent-duckdb-ev-population"
         - "intent-mongodb-mflix"
-      
+
       confidence_threshold: 0.4
       max_templates_per_source: 3
       parallel_search: true
       search_timeout: 5.0
 ```
 
-### Create an API Key
+### Create an API key
 
 ```bash
 ./bin/orbit.sh key create \
@@ -397,27 +468,15 @@ adapters:
   --prompt-text "You are a data assistant that can query multiple databases. Answer questions using the retrieved data."
 ```
 
-### Example Questions
+### See routing in action
 
-With HR, EV Population, and Movie databases configured:
+With HR, EV population, and Movie databases wired up:
 
-- "How many employees are in Engineering?" → Routes to HR database
-- "Count Tesla vehicles by city" → Routes to EV database
-- "Find movies directed by Spielberg" → Routes to MongoDB
+- "How many employees are in Engineering?" → HR database
+- "Count Tesla vehicles by city" → EV database
+- "Find movies directed by Spielberg" → MongoDB
 
-The composite retriever automatically determines the best source for each question.
-
-### Use Cases
-
-| Configuration | Data Sources |
-|:---|:---|
-| **Enterprise Data Hub** | HR database + CRM + Analytics |
-| **Government Open Data** | Travel expenses + Contracts + Crime stats |
-| **Hybrid Sources** | Internal SQL + External APIs |
-
-### Routing Metadata
-
-Results include metadata showing the routing decision:
+### Routing metadata returned with each response
 
 ```json
 {
@@ -430,23 +489,23 @@ Results include metadata showing the routing decision:
 }
 ```
 
-See the [Composite Intent Retriever documentation](adapters/composite-intent-retriever.md) for advanced configuration.
+See [Composite Intent Retriever](adapters/composite-intent-retriever.md) for tuning reranking, string-similarity weighting, and cross-adapter templates.
 
 ---
 
 ## Example 8: Agent with Function Calling
 
-Execute tools and functions using natural language. The Agent Retriever extends intent-based retrieval with built-in tool execution capabilities.
+The Agent Retriever extends the intent pattern with *tool execution*. Instead of returning retrieved documents, it runs built-in tools (calculator, date/time, JSON transforms) or calls external APIs (weather, finance, location) and synthesizes the result.
 
-### How It Works
+### How it works
 
-1. User asks a question (e.g., "What is 15% of 200?")
-2. ORBIT matches the query to a function template
-3. The function model generates a tool call with parameters
-4. Built-in tool executes the operation
-5. Response is synthesized in natural language
+1. User asks: "What is 15% of 200?"
+2. ORBIT matches the query to a function template.
+3. The function-calling model emits a tool call with parameters.
+4. A built-in tool executes.
+5. ORBIT synthesizes a natural-language reply.
 
-### Built-in Tools
+### Built-in tools
 
 | Tool | Operations | Examples |
 |:---|:---|:---|
@@ -454,20 +513,16 @@ Execute tools and functions using natural language. The Agent Retriever extends 
 | **Date/Time** | now, format, diff, add_days, parse | "How many days until March 1st?" |
 | **JSON Transform** | filter, sort, select, aggregate | "Filter items where price > 100" |
 
-### HTTP API Tools (Configurable)
+### HTTP-backed tools (require config)
 
 | Tool | Description | Examples |
 |:---|:---|:---|
 | **Weather** | Current conditions and forecasts | "What's the weather in London?" |
 | **Location** | Geocoding and place search | "Find coordinates of the Eiffel Tower" |
 | **Finance** | Stock quotes and currency conversion | "Convert 100 USD to EUR" |
-| **Productivity** | Notifications and task creation | "Create a task for tomorrow" |
+| **Productivity** | Notifications and tasks | "Create a task for tomorrow" |
 
-> **Note:** HTTP API tools require configuration with your API endpoints and credentials.
-
-### Adapter Configuration
-
-The agent adapter is pre-configured in `config/adapters/intent.yaml`:
+### Adapter configuration (pre-wired in `config/adapters/intent.yaml`)
 
 ```yaml
 - name: "intent-agent-example"
@@ -476,33 +531,32 @@ The agent adapter is pre-configured in `config/adapters/intent.yaml`:
   datasource: "http"
   adapter: "intent"
   implementation: "retrievers.implementations.intent.IntentAgentRetriever"
-  
+
   # Embedding for template matching
   embedding_provider: "ollama"
   embedding_model: "nomic-embed-text"
-  
+
   # Inference model for response synthesis
   inference_model_provider: "ollama"
   inference_model: "gemma3:270m"
-  
+
   config:
     domain_config_path: "examples/intent-templates/agent-template/domain.yaml"
     template_library_path:
       - "examples/intent-templates/agent-template/tools.yaml"
-    
+
     confidence_threshold: 0.6
     max_templates: 5
-    
+
     agent:
-      # Optional: Dedicated function-calling model
+      # Optional dedicated function-calling model
       function_model_provider: "ollama"
       function_model: "functiongemma"
-      
-      # Generate natural language responses
+
       synthesize_response: true
 ```
 
-### Create an API Key
+### Create an API key
 
 ```bash
 ./bin/orbit.sh key create \
@@ -512,60 +566,42 @@ The agent adapter is pre-configured in `config/adapters/intent.yaml`:
   --prompt-name "Agent Assistant"
 ```
 
-Or use the automated script:
+Or use the helper script:
 
 ```bash
 ./utils/scripts/generate-sample-api-keys.sh --adapter intent-agent-example
 ```
 
-### Example Questions
+### Try it
 
-**Calculator:**
-- "What is 15% of 200?"
-- "Calculate the average of 10, 20, 30, 40"
-- "Multiply 125 by 8"
+**Calculator:** "What is 15% of 200?" · "Average of 10, 20, 30, 40" · "Multiply 125 by 8"
 
-**Date/Time:**
-- "What's today's date?"
-- "How many days until December 25th?"
-- "Add 30 days to January 15, 2026"
+**Date/Time:** "What's today's date?" · "Days until December 25th?" · "Add 30 days to January 15, 2026"
 
-**JSON Transform:**
-- "Sort this data by price descending"
-- "Filter items where quantity is greater than 10"
-- "Calculate the sum of all amounts"
+**JSON Transform:** "Sort this data by price descending" · "Filter items where quantity > 10" · "Sum of all amounts"
 
-**HTTP API (when configured):**
-- "What's the weather in San Francisco?"
-- "Get me the Apple stock price"
-- "Convert 100 dollars to euros"
-- "Create a task to review the report"
+**HTTP tools (when configured):** "Weather in San Francisco?" · "Apple stock price?" · "Convert 100 USD to EUR" · "Create a task to review the report"
 
-### Multi-Model Setup (Optional)
+### Multi-model setup (optional)
 
-For better accuracy, use separate models for each task:
+For better accuracy, split the work across specialized models:
 
 ```yaml
-# Text generation
 inference_model_provider: "ollama"
 inference_model: "gemma3:270m"
 
-# Semantic search
 embedding_provider: "ollama"
 embedding_model: "nomic-embed-text"
 
-# Function calling (optional dedicated model)
 config:
   agent:
     function_model_provider: "ollama"
     function_model: "functiongemma"
 ```
 
-If no `function_model` is specified, the inference model handles both text generation and function calling.
+If no `function_model` is set, the inference model handles both synthesis and function calls.
 
-### Response Format
-
-Tool execution results include metadata:
+### Response format
 
 ```json
 {
@@ -582,65 +618,93 @@ Tool execution results include metadata:
 }
 ```
 
-See the [Intent Agent Retriever documentation](adapters/intent-agent-retriever.md) for advanced configuration and custom tool development.
+See [Intent Agent Retriever](adapters/intent-agent-retriever.md) for custom tool development.
 
 ---
 
 ## Creating API Keys
 
-API keys control access and define which adapter and system prompt to use.
+API keys decide *which adapter* a caller uses and *which system prompt* gets injected. One key, one adapter, one prompt — that's the model.
 
-### CLI Commands
+You can create and manage keys either from the web admin panel or from the CLI.
+
+### Option A — Admin panel (recommended for exploration)
+
+1. Open **`http://localhost:3000/admin`** and sign in (default username `admin`, password from `ORBIT_DEFAULT_ADMIN_PASSWORD`).
+2. Go to **API Keys** → **+ Create**.
+3. Pick the adapter, name the key, paste or attach a system prompt, and save.
+4. The `orbit_…` key is shown once — copy it immediately; ORBIT never shows it again.
+
+The admin panel also lets you:
+
+- Bulk-delete keys, search by name/adapter, and edit metadata/notes (markdown-rendered in the detail view).
+- Attach or switch prompts (managed under the **Prompts / Personas** tab) without rotating the key.
+- See recent activity for a key in the **Audit** tab (admin events auditing was added in 2.6.6).
+
+### Option B — CLI (faster for scripted setup)
 
 ```bash
-# Login first
+# Log in first
 ./bin/orbit.sh login --username admin --password admin123
 
-# Create a key with inline prompt
+# Inline prompt
 ./bin/orbit.sh key create \
   --adapter simple-chat \
   --name "My Assistant" \
   --prompt-text "You are a helpful assistant."
 
-# Create a key with prompt file
+# Prompt from file
 ./bin/orbit.sh key create \
   --adapter intent-sql-sqlite-hr \
   --name "HR Bot" \
   --prompt-file ./examples/prompts/hr-assistant-prompt.txt \
   --prompt-name "HR Assistant"
 
-# List all keys
+# List & delete
 ./bin/orbit.sh key list
-
-# Delete a key
 ./bin/orbit.sh key delete --key orbit_abc123...
 ```
 
-### Key Options
+### CLI options
 
 | Option | Description |
 |:---|:---|
-| `--adapter` | Which adapter to use |
-| `--name` | Friendly name for the key |
+| `--adapter` | Which adapter to bind |
+| `--name` | Friendly name |
 | `--prompt-text` | Inline system prompt |
 | `--prompt-file` | Load system prompt from file |
-| `--prompt-name` | Name for the prompt configuration |
-| `--notes` | Optional notes about the key |
+| `--prompt-name` | Name the prompt for reuse |
+| `--notes` | Optional notes (markdown rendered in admin) |
+
+### What else lives in the admin panel
+
+Beyond API keys, the panel at `/admin` handles everything you'd otherwise edit by hand or script:
+
+| Tab | What you can do |
+|:---|:---|
+| **Overview** | Live system health, metrics, cached adapter/provider counts, Prometheus endpoint link |
+| **Users** | Create/edit/delete admin users, reset passwords, bulk-delete |
+| **API Keys** | CRUD with prompt attach/switch, search, quotas, bulk actions |
+| **Prompts / Personas** | Author/edit/rename system prompts; changes propagate to associated API keys |
+| **Adapters** | List all adapters, toggle `enabled` live (applies immediately as of 2.6.6), edit per-adapter YAML in an Ace editor, trigger `reload-adapters` and `reload-templates` |
+| **Settings** | Edit `config.yaml` in the browser with validation before save |
+| **Audit** | Browse admin/auth events (login, key mutations, config edits) and conversation audit logs when enabled |
+
+> Tip: adapter toggles from the Adapters tab now notify the running server immediately (fix in 2.6.6) — no separate "Reload Adapter" click needed.
 
 ---
 
 ## Connecting Your Own Data
 
-### SQL Databases
+### SQL databases
 
-1. **Generate templates** from your schema:
+1. Generate templates from your schema:
    ```bash
    python examples/intent-templates/sql-intent-template/generate_templates.py \
      --database path/to/your.db \
      --output templates/
    ```
-
-2. **Add adapter** to `config/adapters/intent.yaml`:
+2. Add the adapter to `config/adapters/intent.yaml`:
    ```yaml
    - name: "my-database"
      enabled: true
@@ -653,56 +717,48 @@ API keys control access and define which adapter and system prompt to use.
        template_library_path:
          - "templates/templates.yaml"
    ```
+3. Restart ORBIT and create an API key against `my-database`.
 
-3. **Restart ORBIT** and create an API key
+### Vector stores
 
-### Vector Stores
+1. Index documents into Chroma, Qdrant, or Pinecone.
+2. Configure a QA adapter with your collection name.
+3. Create an API key against it.
 
-1. **Index your documents** into a vector store (Chroma, Qdrant, Pinecone)
-2. **Configure the QA adapter** with your collection name
-3. **Create an API key** for the adapter
+### Files (no config needed)
 
-### Files
-
-The multimodal adapter handles files automatically:
-1. Enable `simple-chat-with-files` adapter
-2. Create an API key
-3. Upload files through the chat interface
+The `simple-chat-with-files` adapter is already enabled. Create a key, upload files through the chat interface, and you're done.
 
 ---
 
 ## Adapter Configuration Reference
 
-### Common Settings
-
-All adapters support these configuration options:
+Every adapter accepts these shared fields:
 
 ```yaml
 - name: "adapter-name"
-  enabled: true                        # Enable/disable the adapter
-  type: "retriever"                    # retriever, passthrough
-  
-  # Provider overrides (optional)
-  inference_provider: "ollama"         # Override LLM provider
-  model: "llama3:8b"                   # Override model
-  embedding_provider: "openai"         # Override embedding provider
-  reranker_provider: "cohere"          # Add reranking
-  
-  # Capabilities
+  enabled: true                  # Toggle the adapter on/off (live-reloadable from admin)
+  type: "retriever"              # "retriever" or "passthrough"
+
+  # Provider overrides (optional — falls back to config/*.yaml defaults)
+  inference_provider: "ollama"
+  model: "llama3:8b"
+  embedding_provider: "openai"
+  reranker_provider: "cohere"
+
   capabilities:
-    retrieval_behavior: "always"       # none, always, conditional
-    formatting_style: "standard"       # standard, clean
+    retrieval_behavior: "always" # "none", "always", or "conditional"
+    formatting_style: "standard" # "standard" or "clean"
     supports_file_ids: false
     supports_threading: true
-  
-  # Fault tolerance
+
   fault_tolerance:
     operation_timeout: 30.0
     failure_threshold: 5
     max_retries: 3
 ```
 
-### Intent Adapter Settings
+Intent adapters add:
 
 ```yaml
 config:
@@ -710,7 +766,7 @@ config:
   template_library_path:
     - "path/to/templates.yaml"
   template_collection_name: "my_templates"
-  store_name: "chroma"                 # Vector store for template matching
+  store_name: "chroma"           # Vector store used for template matching
   confidence_threshold: 0.4
   max_templates: 5
   return_results: 100
@@ -722,21 +778,27 @@ config:
 
 ## Troubleshooting
 
-| Issue | Solution |
+| Symptom | Try this |
 |:---|:---|
-| "No matching template found" | Lower `confidence_threshold` or add more templates |
-| Slow template matching | Check embedding provider is running |
-| File upload fails | Check `max_file_size` and supported types |
-| Database connection fails | Verify database path and permissions |
-| API timeout | Increase `operation_timeout` in fault_tolerance |
+| `curl /health` hangs or refuses | Server isn't running — check `./bin/orbit.sh start` logs |
+| "Adapter … is not available" | The adapter is disabled in `config/adapters/*.yaml`, or was toggled off in the admin panel. Toggling now applies immediately (2.6.6) |
+| 401 or "unauthorized" from OpenAI / other provider | Set the provider's API key env var (e.g. `OPENAI_API_KEY`) before `./bin/orbit.sh start` |
+| "No matching template found" | Lower `confidence_threshold`, or add more `nl_examples` to your template YAML |
+| Slow template matching | Make sure your embedding provider is reachable; check logs for `Preloading embedding provider…` |
+| File upload fails | Check `max_file_size` in the multimodal adapter and supported types above |
+| Intent SQL returns wrong year / param | Explicit years should bind correctly on recent versions — double-check the template's parameter names |
+| Vector QA returns "I don't have information about that" | Threshold may be too strict; drop `confidence_threshold` by 0.05–0.1 |
+
+Logs live in `logs/orbit.log`. The admin panel's audit view (2.6.6) surfaces adapter toggles, config edits, and auth events.
 
 ---
 
 ## Next Steps
 
-- [Configuration Guide](configuration.md) – Full configuration reference
-- [SQL Retriever Architecture](sql-retriever-architecture.md) – Deep dive into SQL adapters
-- [Composite Intent Retriever](adapters/composite-intent-retriever.md) – Multi-source query routing
-- [Intent Agent Retriever](adapters/intent-agent-retriever.md) – Function calling and tool execution
-- [API Keys Guide](api-keys.md) – Advanced API key management
-- [Authentication Guide](authentication.md) – User and role management
+- [Configuration Guide](configuration.md) – full configuration reference
+- [SQL Retriever Architecture](sql-retriever-architecture.md) – deep dive into intent SQL
+- [Composite Intent Retriever](adapters/composite-intent-retriever.md) – multi-source routing details
+- [Intent Agent Retriever](adapters/intent-agent-retriever.md) – function calling & custom tools
+- [API Keys Guide](api-keys.md) – advanced key management
+- [Authentication Guide](authentication.md) – users and roles
+- [`orbitchat` chat client](../clients/orbitchat/README.md) – CLI flags, `orbitchat.yaml` config, proxy-only mode, and the HTTP contract for custom UIs
