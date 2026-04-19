@@ -821,10 +821,45 @@ async def toggle_adapter_enabled(
     backup = _backup_and_write(file_path, new_content)
 
     state = "enabled" if enabled else "disabled"
+
+    # Apply the change to the running adapter manager so the toggle takes
+    # effect immediately (disabled adapters are evicted from cache and
+    # removed from config_manager; enabled adapters are preloaded).
+    adapter_manager = getattr(request.app.state, "adapter_manager", None)
+    config_path = getattr(request.app.state, "config_path", None)
+    reload_summary = None
+    reload_error = None
+
+    if adapter_manager and config_path:
+        try:
+            new_config = reload_adapters_config(config_path)
+            reload_summary = await adapter_manager.reload_adapters(new_config, adapter_name)
+        except Exception as e:
+            logger.error(
+                f"Adapter '{adapter_name}' YAML was {state} but runtime reload failed: {e}",
+                exc_info=True,
+            )
+            reload_error = str(e)
+    else:
+        reload_error = "adapter_manager or config_path not available in app state"
+        logger.warning(
+            f"Adapter '{adapter_name}' YAML was {state} but runtime reload skipped: {reload_error}"
+        )
+
+    if reload_error:
+        message = (
+            f"Adapter '{adapter_name}' {state} in config, but runtime reload failed "
+            f"({reload_error}). Use 'Reload Adapter' to apply."
+        )
+    else:
+        message = f"Adapter '{adapter_name}' {state} and applied."
+
     return {
-        "message": f"Adapter '{adapter_name}' {state}. Use 'Reload Adapter' to apply changes.",
+        "message": message,
         "enabled": enabled,
         "backup": backup,
+        "reload_summary": reload_summary,
+        "reload_error": reload_error,
     }
 
 

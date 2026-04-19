@@ -173,13 +173,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
     
     async def _initialize_embedding_client(self):
         """Initialize embedding client with fallback support."""
-        embedding_provider = self.datasource_config.get('embedding_provider')
-
-        if not embedding_provider or embedding_provider == 'null':
-            embedding_provider = self.config.get('embedding', {}).get('provider')
-            logger.info(f"Using global embedding provider: {embedding_provider}")
-        else:
-            logger.info(f"Using datasource-specific embedding provider: {embedding_provider}")
+        embedding_provider = self.config.get('embedding', {}).get('provider')
+        logger.info(f"Using global embedding provider: {embedding_provider}")
 
         # Store for re-initialization if client is closed by cache cleanup
         self._embedding_provider = embedding_provider
