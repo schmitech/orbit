@@ -1994,3 +1994,105 @@ def tail_log_file(
         "updated_at": datetime.utcfromtimestamp(mtime).isoformat() + "Z",
         "lines": tail_lines,
     }
+
+
+# -------------------------------------------------------------------------
+# Admin / Auth Audit Events
+# -------------------------------------------------------------------------
+
+@admin_router.get("/audit/events")
+async def list_admin_audit_events(
+    request: Request,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    event_type: Optional[str] = Query(None),
+    event_prefix: Optional[str] = Query(None, description="Match event_type that starts with this prefix (e.g. 'auth.', 'admin.api_key.')"),
+    actor_id: Optional[str] = Query(None),
+    success: Optional[bool] = Query(None),
+    resource_type: Optional[str] = Query(None),
+    q: Optional[str] = Query(None, description="Free-text search across actor_username, path, resource_id, ip"),
+    since: Optional[str] = Query(None, description="ISO timestamp (inclusive lower bound)"),
+    until: Optional[str] = Query(None, description="ISO timestamp (exclusive upper bound)"),
+    authorized: bool = Depends(admin_auth_check),
+):
+    """
+    List admin/auth audit events, most recent first.
+
+    Server-side filters: `event_type` / `actor_id` / `success` / `resource_type`
+    go through the underlying strategy's dict-filter. `event_prefix`, `q`,
+    `since`, and `until` are applied in Python after the fetch — the current
+    storage strategies don't support range/regex queries natively. To keep
+    post-filtering bounded, each oversample fetches up to `limit * 10` rows
+    (capped) and then slices to the requested page.
+    """
+    audit_service = getattr(request.app.state, "audit_service", None)
+    if audit_service is None or not audit_service.admin_events_enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin audit is not enabled. Set internal_services.audit.admin_events.enabled: true.",
+        )
+
+    native_filters: dict = {}
+    if event_type is not None:
+        native_filters["event_type"] = event_type
+    if actor_id is not None:
+        native_filters["actor_id"] = actor_id
+    if success is not None:
+        native_filters["success"] = success
+    if resource_type is not None:
+        native_filters["resource_type"] = resource_type
+
+    needs_post_filter = any(v is not None for v in (event_prefix, q, since, until))
+    fetch_limit = min(limit * 10, 5000) if needs_post_filter else limit
+    fetch_offset = 0 if needs_post_filter else offset
+
+    try:
+        rows = await audit_service.query_admin_events(
+            filters=native_filters,
+            limit=fetch_limit,
+            offset=fetch_offset,
+            sort_by="timestamp",
+            sort_order=-1,
+        )
+    except Exception as exc:
+        logger.error(f"Failed to query admin audit events: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to query audit events")
+
+    if needs_post_filter:
+        q_lower = q.lower() if q else None
+        prefix = event_prefix
+        since_val = since
+        until_val = until
+
+        def keep(row: dict) -> bool:
+            if prefix and not str(row.get("event_type", "")).startswith(prefix):
+                return False
+            if since_val and str(row.get("timestamp", "")) < since_val:
+                return False
+            if until_val and str(row.get("timestamp", "")) >= until_val:
+                return False
+            if q_lower:
+                hay = " ".join(
+                    str(row.get(field, "") or "")
+                    for field in ("actor_username", "actor_id", "path", "resource_id", "ip", "event_type")
+                ).lower()
+                if q_lower not in hay:
+                    return False
+            return True
+
+        filtered = [r for r in rows if keep(r)]
+        total_after_filter = len(filtered)
+        page = filtered[offset : offset + limit]
+    else:
+        page = rows
+        total_after_filter = None  # unknown without a second count query
+
+    return {
+        "events": page,
+        "limit": limit,
+        "offset": offset,
+        "returned": len(page),
+        # `total` is an approximation when post-filtering is active (only counts
+        # what was fetched in the oversample window); null otherwise.
+        "total": total_after_filter,
+    }

@@ -397,3 +397,139 @@ class TestAdminAuditMiddleware:
         summary = evt.get("request_summary") or {}
         assert summary.get("client_name") == "acme"
         assert "secret" not in summary  # not on allowlist
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/audit/events endpoint
+# ---------------------------------------------------------------------------
+
+def _build_endpoint_app(audit_service):
+    """FastAPI app mounting the real admin_router with auth bypassed."""
+    from routes.admin_routes import admin_router, admin_auth_check
+    app = FastAPI()
+    app.state.audit_service = audit_service
+    app.include_router(admin_router)
+    app.dependency_overrides[admin_auth_check] = lambda: True
+    return app
+
+
+async def _seed_events(audit_service, count_ok=3, count_fail=2, event_type="admin.api_key.create"):
+    for i in range(count_ok):
+        await audit_service.log_admin_event(AdminAuditRecord(
+            timestamp=datetime.now(),
+            event_type=event_type,
+            action="CREATE",
+            resource_type="api_key",
+            resource_id=f"key-{i}",
+            actor_type="user", actor_id="u1", actor_username="alice",
+            method="POST", path="/admin/api-keys",
+            status_code=201, success=True,
+            ip="127.0.0.1",
+            ip_metadata={"type": "local", "isLocal": True, "source": "direct", "originalValue": "127.0.0.1"},
+        ))
+    for i in range(count_fail):
+        await audit_service.log_admin_event(AdminAuditRecord(
+            timestamp=datetime.now(),
+            event_type="auth.login",
+            action="LOGIN",
+            resource_type="session",
+            actor_type="anonymous",
+            method="POST", path="/auth/login",
+            status_code=401, success=False,
+            ip="10.0.0.1",
+            ip_metadata={"type": "ipv4", "isLocal": True, "source": "direct", "originalValue": "10.0.0.1"},
+            request_summary={"username": f"attacker-{i}"},
+        ))
+
+
+class TestAuditEventsEndpoint:
+    async def test_returns_503_when_admin_audit_disabled(self, sqlite_admin_config):
+        # disable admin events
+        sqlite_admin_config["internal_services"]["audit"]["admin_events"]["enabled"] = False
+        sqlite_service = SQLiteService(sqlite_admin_config)
+        await sqlite_service.initialize()
+        audit_service = AuditService(sqlite_admin_config, sqlite_service)
+        await audit_service.initialize()
+        try:
+            app = _build_endpoint_app(audit_service)
+            with TestClient(app) as client:
+                resp = client.get("/admin/audit/events")
+            assert resp.status_code == 503
+            assert "not enabled" in resp.json()["detail"].lower()
+        finally:
+            await audit_service.close()
+            sqlite_service.close()
+            SQLiteService.clear_cache()
+
+    async def test_returns_empty_list_when_no_events(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            resp = client.get("/admin/audit/events")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["events"] == []
+        assert body["limit"] == 50
+        assert body["offset"] == 0
+        assert body["returned"] == 0
+
+    async def test_returns_seeded_events_newest_first(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        await _seed_events(audit_service)
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            resp = client.get("/admin/audit/events")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["returned"] == 5
+        # Newest first means timestamps are non-increasing
+        timestamps = [e["timestamp"] for e in body["events"]]
+        assert timestamps == sorted(timestamps, reverse=True)
+
+    async def test_filter_by_success_false(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        await _seed_events(audit_service)
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            resp = client.get("/admin/audit/events?success=false")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["returned"] == 2
+        assert all(not e["success"] for e in body["events"])
+
+    async def test_filter_by_event_prefix(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        await _seed_events(audit_service)
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            resp = client.get("/admin/audit/events?event_prefix=auth.")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["returned"] == 2
+        assert all(e["event_type"].startswith("auth.") for e in body["events"])
+
+    async def test_free_text_search(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        await _seed_events(audit_service)
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            resp = client.get("/admin/audit/events?q=alice")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["returned"] == 3  # the three seeded admin.api_key.create rows by alice
+        for e in body["events"]:
+            assert e["actor_username"] == "alice"
+
+    async def test_pagination(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        await _seed_events(audit_service, count_ok=10, count_fail=0)
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            page1 = client.get("/admin/audit/events?limit=3&offset=0").json()
+            page2 = client.get("/admin/audit/events?limit=3&offset=3").json()
+        assert page1["returned"] == 3
+        assert page2["returned"] == 3
+        # Seeded rows have unique resource_ids (key-0 … key-9) — pages must not overlap.
+        rids1 = [e["resource_id"] for e in page1["events"]]
+        rids2 = [e["resource_id"] for e in page2["events"]]
+        assert set(rids1).isdisjoint(set(rids2))

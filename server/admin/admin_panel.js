@@ -72,6 +72,7 @@
     login: "/admin/login",
     config: "/admin/config",
     adapterConfigs: "/admin/adapters/config",
+    auditEvents: "/admin/audit/events",
   };
 
   // ------------------------------------------------------------------
@@ -767,6 +768,7 @@
     { id: "prompts", label: "Personas" },
     { id: "adapters", label: "Adapters" },
     { id: "ops", label: "Ops" },
+    { id: "audit", label: "Audit" },
     { id: "settings", label: "Settings" },
   ];
 
@@ -876,6 +878,7 @@
       case "prompts": renderPrompts(c); break;
       case "adapters": renderAdapters(c); break;
       case "ops": renderOps(c); break;
+      case "audit": renderAudit(c); break;
       case "settings": renderSettings(c); break;
     }
   }
@@ -4330,6 +4333,412 @@
     });
 
     loadConfig();
+  }
+
+  // ==================================================================
+  // TAB: Audit — admin/auth event ledger
+  // ==================================================================
+
+  var AUDIT_PAGE_SIZE = 25;
+
+  var AUDIT_DOMAINS = [
+    { value: "all",             label: "All" },
+    { value: "auth.",           label: "Auth" },
+    { value: "admin.api_key.",  label: "API Keys" },
+    { value: "admin.config",    label: "Config" },
+    { value: "admin.adapter.",  label: "Adapters" },
+    { value: "admin.server.",   label: "Server" },
+    { value: "admin.prompt.",   label: "Prompts" },
+    { value: "admin.quota.",    label: "Quotas" },
+  ];
+
+  function formatAuditTimestamp(iso) {
+    if (!iso) return "\u2014";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    var pad = function (n) { return String(n).padStart(2, "0"); };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate())
+      + "\u00A0" + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+  }
+
+  function formatActor(ev) {
+    if (ev.actor_type === "user") {
+      return ev.actor_username || ev.actor_id || "\u2014";
+    }
+    if (ev.actor_type === "api_key") {
+      return ev.actor_id || "API key";
+    }
+    return "anonymous";
+  }
+
+  function auditChip(label, pressed, onClick, variant) {
+    var cls = "audit-chip";
+    if (pressed) cls += " audit-chip--active";
+    if (variant) cls += " audit-chip--" + variant;
+    var btn = el("button", { type: "button", className: cls, "aria-pressed": String(!!pressed) }, label);
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  async function renderAudit(container) {
+    // ----- Layout: list panel (left) + dossier panel (right) -----
+    var layout = el("div", { className: "tab-stacked-layout audit-view" });
+    var listPanel = el("div", { className: "panel audit-view__list" });
+    var detailPanel = el("div", { className: "panel audit-view__detail" });
+    layout.appendChild(listPanel);
+    layout.appendChild(detailPanel);
+    container.appendChild(layout);
+
+    listPanel.appendChild(el("h2", null, "Audit Ledger"));
+    listPanel.appendChild(el("p", { className: "muted" },
+      "A register of privileged operations on /admin/* and /auth/* endpoints. ",
+      "Read-only mutations — click a row to inspect the dossier."));
+
+    // ----- State (per-render closure) -----
+    var state = {
+      outcome: "all",        // "all" | "success" | "failure"
+      domain: "all",         // event_prefix value, or "all"
+      q: "",                 // free-text search
+      offset: 0,
+      selectedIndex: null,
+      lastPage: [],
+      loading: false,
+    };
+    var searchDebounce = null;
+
+    // ----- Filter strip -----
+    var outcomeGroup = el("div", { className: "audit-view__chips" });
+    var domainGroup = el("div", { className: "audit-view__chips" });
+    var searchInput = el("input", {
+      type: "search",
+      placeholder: "Search actor, path, resource, IP\u2026",
+      "aria-label": "Search audit events",
+      className: "audit-view__search-input",
+    });
+
+    function renderChips() {
+      clear(outcomeGroup);
+      outcomeGroup.appendChild(el("span", { className: "audit-view__chip-label" }, "Outcome"));
+      [
+        ["all", "All", null],
+        ["success", "Succeeded", null],
+        ["failure", "Failed", "danger"],
+      ].forEach(function (tuple) {
+        var value = tuple[0], label = tuple[1], variant = tuple[2];
+        outcomeGroup.appendChild(auditChip(label, state.outcome === value, function () {
+          state.outcome = value;
+          state.offset = 0;
+          state.selectedIndex = null;
+          renderChips();
+          load();
+        }, variant));
+      });
+
+      clear(domainGroup);
+      domainGroup.appendChild(el("span", { className: "audit-view__chip-label" }, "Domain"));
+      AUDIT_DOMAINS.forEach(function (d) {
+        domainGroup.appendChild(auditChip(d.label, state.domain === d.value, function () {
+          state.domain = d.value;
+          state.offset = 0;
+          state.selectedIndex = null;
+          renderChips();
+          load();
+        }));
+      });
+    }
+
+    searchInput.addEventListener("input", function (e) {
+      var v = (e.target.value || "").trim();
+      if (searchDebounce) clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(function () {
+        state.q = v;
+        state.offset = 0;
+        state.selectedIndex = null;
+        load();
+      }, 250);
+    });
+
+    var refreshBtn = el("button", { type: "button", className: "secondary" }, "Refresh");
+    refreshBtn.addEventListener("click", function () { load(); });
+
+    listPanel.appendChild(el("div", { className: "audit-view__filters" },
+      outcomeGroup,
+      domainGroup,
+      el("div", { className: "audit-view__search" }, searchInput),
+      el("div", { className: "audit-view__actions" }, refreshBtn)
+    ));
+    renderChips();
+
+    // ----- Table wrap + pagination -----
+    var tableWrap = el("div", { className: "audit-view__table-wrap" }, skeleton());
+    var pagerBar = el("div", { className: "audit-view__pager" });
+    listPanel.appendChild(tableWrap);
+    listPanel.appendChild(pagerBar);
+
+    // ----- Dossier: empty initial state -----
+    renderAuditDossierEmpty(detailPanel);
+
+    // ----- Data loading -----
+    async function load() {
+      if (state.loading) return;
+      state.loading = true;
+      clear(tableWrap);
+      tableWrap.appendChild(skeleton());
+      clear(pagerBar);
+
+      var params = new URLSearchParams();
+      params.set("limit", String(AUDIT_PAGE_SIZE));
+      params.set("offset", String(state.offset));
+      if (state.outcome === "success") params.set("success", "true");
+      else if (state.outcome === "failure") params.set("success", "false");
+      if (state.domain && state.domain !== "all") params.set("event_prefix", state.domain);
+      if (state.q) params.set("q", state.q);
+
+      try {
+        var resp = await api("GET", ENDPOINTS.auditEvents + "?" + params.toString());
+        state.lastPage = resp.events || [];
+        renderAuditTable(tableWrap, state, function (idx) {
+          state.selectedIndex = idx;
+          renderAuditDossier(detailPanel, state.lastPage[idx], function () {
+            state.selectedIndex = null;
+            renderAuditDossierEmpty(detailPanel);
+            Array.prototype.forEach.call(
+              tableWrap.querySelectorAll("tr.audit-row"),
+              function (tr) { tr.classList.remove("audit-row--active"); }
+            );
+          });
+          Array.prototype.forEach.call(
+            tableWrap.querySelectorAll("tr.audit-row"),
+            function (tr, i) { tr.classList.toggle("audit-row--active", i === idx); }
+          );
+        });
+        renderAuditPager(pagerBar, state, resp, load);
+      } catch (err) {
+        clear(tableWrap);
+        var msg = (err && err.message) || "";
+        if (/admin audit is not enabled/i.test(msg)) {
+          tableWrap.appendChild(el("div", { className: "empty-state" },
+            el("p", null, "Admin audit is not enabled."),
+            el("p", { className: "muted" },
+              "Set ",
+              el("code", null, "internal_services.audit.enabled: true"),
+              " and ",
+              el("code", null, "internal_services.audit.admin_events.enabled: true"),
+              " in config.yaml, then restart the server.")
+          ));
+        } else {
+          tableWrap.appendChild(el("div", { className: "empty-state" },
+            el("p", null, "Failed to load audit events."),
+            el("p", { className: "muted" }, (err && err.message) || "Unknown error")
+          ));
+        }
+      } finally {
+        state.loading = false;
+      }
+    }
+
+    load();
+  }
+
+  function renderAuditTable(wrap, state, onSelect) {
+    clear(wrap);
+    var events = state.lastPage || [];
+    if (events.length === 0) {
+      wrap.appendChild(el("div", { className: "empty-state" },
+        el("p", null, "No events match the current filters."),
+        el("p", { className: "muted" },
+          state.offset > 0
+            ? "Try jumping to page 1 or loosening the filters."
+            : "As admin and auth actions occur they will appear here.")
+      ));
+      return;
+    }
+
+    var table = el("table", { className: "audit-table" });
+    var thead = el("thead", null,
+      el("tr", null,
+        el("th", null, "Time"),
+        el("th", null, "Event"),
+        el("th", null, "Actor"),
+        el("th", null, "Resource"),
+        el("th", { className: "audit-col-status" }, "Status")
+      )
+    );
+    var tbody = el("tbody");
+
+    events.forEach(function (ev, idx) {
+      var statusCls = ev.success ? "badge-ok" : "badge-fail";
+      var statusLabel = ev.success ? "ok" : "fail";
+
+      var actorCell;
+      if (ev.actor_type === "anonymous") {
+        actorCell = el("div", null,
+          el("span", { className: "audit-actor-anon" }, "anonymous"),
+          el("div", { className: "audit-actor-role" }, ev.actor_type)
+        );
+      } else {
+        actorCell = el("div", null,
+          el("span", { className: "audit-actor-name" }, formatActor(ev)),
+          el("div", { className: "audit-actor-role" }, ev.actor_type || "")
+        );
+      }
+
+      var resourceText = ev.resource_id || ev.resource_type || "\u2014";
+
+      var tr = el("tr", { className: "audit-row" + (state.selectedIndex === idx ? " audit-row--active" : "") },
+        el("td", { className: "audit-col-time" }, formatAuditTimestamp(ev.timestamp)),
+        el("td", { className: "audit-col-event" },
+          el("div", { className: "audit-event-type" }, ev.event_type || "\u2014"),
+          el("div", { className: "audit-event-action muted" }, ev.action || "")
+        ),
+        el("td", null, actorCell),
+        el("td", { className: "audit-col-resource" }, resourceText),
+        el("td", { className: "audit-col-status" },
+          el("span", { className: "audit-status-code" }, String(ev.status_code != null ? ev.status_code : "")),
+          el("span", { className: "badge " + statusCls }, statusLabel)
+        )
+      );
+      tr.addEventListener("click", function () { onSelect(idx); });
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    wrap.appendChild(el("div", { className: "table-wrap" }, table));
+  }
+
+  function renderAuditPager(bar, state, resp, reload) {
+    clear(bar);
+    var returned = (resp && resp.returned) || 0;
+    if (state.offset === 0 && returned === 0) return;
+
+    var pageNum = Math.floor(state.offset / AUDIT_PAGE_SIZE) + 1;
+    var start = state.offset + 1;
+    var end = state.offset + returned;
+
+    var hasPrev = state.offset > 0;
+    var hasNext = returned >= AUDIT_PAGE_SIZE;
+
+    bar.appendChild(el("span", { className: "pagination-info" },
+      returned > 0
+        ? "Showing " + start + "\u2013" + end + " \u00B7 Page " + pageNum
+        : "Page " + pageNum));
+
+    var btns = el("div", { className: "pagination-buttons" });
+    var prevAttrs = { type: "button", className: "pagination-btn", "aria-label": "Previous page" };
+    if (!hasPrev) prevAttrs.disabled = "true";
+    var prevBtn = el("button", prevAttrs, "\u2039");
+    prevBtn.addEventListener("click", function () {
+      state.offset = Math.max(0, state.offset - AUDIT_PAGE_SIZE);
+      state.selectedIndex = null;
+      reload();
+    });
+    btns.appendChild(prevBtn);
+
+    btns.appendChild(el("span", { className: "pagination-btn active", "aria-current": "page" }, String(pageNum)));
+
+    var nextAttrs = { type: "button", className: "pagination-btn", "aria-label": "Next page" };
+    if (!hasNext) nextAttrs.disabled = "true";
+    var nextBtn = el("button", nextAttrs, "\u203A");
+    nextBtn.addEventListener("click", function () {
+      state.offset = state.offset + AUDIT_PAGE_SIZE;
+      state.selectedIndex = null;
+      reload();
+    });
+    btns.appendChild(nextBtn);
+
+    bar.appendChild(btns);
+  }
+
+  function renderAuditDossierEmpty(panel) {
+    clear(panel);
+    panel.appendChild(el("h2", null, "Dossier"));
+    panel.appendChild(el("div", { className: "empty-state" },
+      el("p", null, "Select an entry from the register."),
+      el("p", { className: "muted" }, "A dossier shows the actor, the request, its origin, and any fields captured in the request summary.")
+    ));
+  }
+
+  function renderAuditDossier(panel, ev, onClose) {
+    clear(panel);
+    if (!ev) { renderAuditDossierEmpty(panel); return; }
+
+    var closeBtn = el("button", { type: "button", className: "secondary audit-dossier__close" }, "Close");
+    closeBtn.addEventListener("click", onClose);
+    panel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "Dossier"),
+      closeBtn
+    ));
+
+    panel.appendChild(el("div", { className: "audit-dossier__headline" },
+      el("div", { className: "audit-dossier__event-type" }, ev.event_type || "\u2014"),
+      ev.action ? el("div", { className: "audit-dossier__action muted" }, ev.action) : null
+    ));
+
+    var verdictCls = "audit-verdict audit-verdict--" + (ev.success ? "success" : "failure");
+    panel.appendChild(el("div", null,
+      el("span", { className: verdictCls },
+        ev.success ? "Succeeded" : "Failed",
+        " \u00B7 HTTP " + (ev.status_code != null ? ev.status_code : "?")
+      )
+    ));
+
+    panel.appendChild(el("h3", { className: "audit-section-heading" }, "Principals"));
+    panel.appendChild(renderAuditFieldGrid([
+      ["Actor", formatActor(ev)],
+      ["Capacity", ev.actor_type || ""],
+      ["Actor ID", ev.actor_id || "\u2014"],
+      ["Resource", ev.resource_id || "\u2014"],
+      ["Resource kind", ev.resource_type || ""],
+    ]));
+
+    panel.appendChild(el("h3", { className: "audit-section-heading" }, "Request"));
+    panel.appendChild(renderAuditFieldGrid([
+      ["Method", ev.method || ""],
+      ["Path", ev.path || ""],
+      ["Status", String(ev.status_code != null ? ev.status_code : "") + (ev.error_message ? " \u00B7 " + ev.error_message : "")],
+      ["Timestamp", formatAuditTimestamp(ev.timestamp)],
+      ["Event type", ev.event_type || ""],
+      ["Action", ev.action || ""],
+    ]));
+
+    panel.appendChild(el("h3", { className: "audit-section-heading" }, "Origin"));
+    var originRows = [
+      ["IP", ev.ip || "\u2014"],
+    ];
+    if (ev.ip_metadata) {
+      if (ev.ip_metadata.source) originRows.push(["Source", ev.ip_metadata.source]);
+      if (ev.ip_metadata.type) originRows.push(["Type", ev.ip_metadata.type]);
+    }
+    if (ev.user_agent) originRows.push(["User-Agent", ev.user_agent]);
+    panel.appendChild(renderAuditFieldGrid(originRows));
+
+    var summary = ev.request_summary;
+    if (summary && typeof summary === "object" && Object.keys(summary).length > 0) {
+      panel.appendChild(el("h3", { className: "audit-section-heading" }, "Request summary"));
+      panel.appendChild(el("p", { className: "muted audit-dossier__summary-note" },
+        "Fields recorded by the middleware \u2014 secrets (passwords, raw API keys) are never stored."));
+      var lines = Object.keys(summary).map(function (k) {
+        var v = summary[k];
+        var vStr;
+        if (Array.isArray(v)) {
+          vStr = "[" + v.map(function (x) { return JSON.stringify(x); }).join(", ") + "]";
+        } else {
+          vStr = JSON.stringify(v);
+        }
+        return k + ": " + vStr;
+      });
+      panel.appendChild(el("pre", { className: "audit-dossier__summary" }, lines.join("\n")));
+    }
+  }
+
+  function renderAuditFieldGrid(rows) {
+    var dl = el("dl", { className: "audit-field-grid" });
+    rows.forEach(function (row) {
+      dl.appendChild(el("dt", null, row[0]));
+      dl.appendChild(el("dd", null, row[1] == null || row[1] === "" ? "\u2014" : row[1]));
+    });
+    return dl;
   }
 
   // ------------------------------------------------------------------
