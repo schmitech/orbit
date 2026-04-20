@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
-from fastapi.responses import ORJSONResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from fastmcp import FastMCP
@@ -128,7 +127,6 @@ class InferenceServer:
             description="A FastAPI server with chat endpoint and RAG capabilities",
             version="2.6.6",
             lifespan=self._create_lifespan_manager(),
-            default_response_class=ORJSONResponse,  # Fast JSON serialization
             docs_url="/docs" if docs_enabled else None,
             redoc_url="/redoc" if docs_enabled else None,
             openapi_url="/openapi.json" if docs_enabled else None,
