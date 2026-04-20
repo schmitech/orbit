@@ -94,6 +94,7 @@ COPY install/orbit.db.default /orbit/orbit.db
 # Set environment variables
 ENV PYTHONPATH=/orbit:/orbit/server
 ENV PATH="/orbit/bin:${PATH}"
+ENV ENVIRONMENT=production
 
 # ═══════════════════════════════════════════════════════════════════════════
 # GPU/CPU Auto-Detection Configuration

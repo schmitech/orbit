@@ -53,6 +53,7 @@ services:
     environment:
       - OLLAMA_HOST=ollama:11434
       - ORBIT_PRESET=auto
+      - ENVIRONMENT=production
     volumes:
       - orbit-data:/orbit/data
       - orbit-logs:/orbit/logs
