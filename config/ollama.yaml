@@ -277,62 +277,6 @@ ollama_presets:
     keep_alive: "10m"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # Gemma 3 4B on CPU - Excellent quality-to-size ratio for edge deployment
-  # ═══════════════════════════════════════════════════════════════════════════
-  # Model: https://ollama.com/library/gemma3
-  # 
-  # Google's Gemma 3 4B is highly optimized for edge inference.
-  # Exceptional performance for its size, very memory efficient (~3GB).
-  # Great for general-purpose tasks, reasoning, and instruction following.
-  # ═══════════════════════════════════════════════════════════════════════════
-  gemma3-4b-cpu:
-    base_url: "http://localhost:11434"
-    model: "gemma3:4b"
-    stream: true
-    think: false
-    # Generation parameters - Gemma 3 works well with moderate temperatures
-    temperature: 0.7
-    top_p: 0.9
-    top_k: 40
-    min_p: 0.0
-    typical_p: 0.9
-    num_predict: 4096
-    repeat_penalty: 1.1
-    repeat_last_n: 64
-    presence_penalty: 0.0
-    frequency_penalty: 0.0
-    mirostat: 0
-    mirostat_tau: 4.0
-    mirostat_eta: 0.1
-    # Context - Gemma 3 supports up to 128K but limit for CPU/16GB RAM
-    num_ctx: 8192  # 8K context for 16GB RAM efficiency
-    num_keep: 1024
-    penalize_newline: false
-    stop: []
-    # CPU optimized settings
-    num_threads: 6
-    num_batch: 64
-    num_gpu: 0  # CPU only
-    main_gpu: 0
-    low_vram: false
-    use_mmap: true
-    use_mlock: false
-    vocab_only: false
-    numa: false
-    seed: null
-    retry:
-      enabled: true
-      max_retries: 5
-      initial_wait_ms: 2000
-      max_wait_ms: 30000
-      exponential_base: 2
-    timeout:
-      connect: 10000
-      total: 120000
-      warmup: 120000
-    keep_alive: "10m"
-
-  # ═══════════════════════════════════════════════════════════════════════════
   # SmolLM2 1.7B on CPU - Ultra-fast inference for latency-sensitive apps
   # ═══════════════════════════════════════════════════════════════════════════
   # Model: https://ollama.com/library/smollm2
@@ -528,6 +472,62 @@ ollama_presets:
     mirostat: 0
     mirostat_tau: 4.0
     mirostat_eta: 0.1
+    num_ctx: 8192
+    num_keep: 1024
+    penalize_newline: false
+    stop: []
+    # CPU optimized settings
+    num_threads: 6
+    num_batch: 64
+    num_gpu: 0  # CPU only
+    main_gpu: 0
+    low_vram: false
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    seed: null
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 120000
+      warmup: 120000
+    keep_alive: "10m"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Gemma 4 E2B on CPU - Multimodal edge model with native thinking
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Model: https://ollama.com/library/gemma4:e2b
+  # 
+  # Google's Gemma 4 E2B is a multimodal "edge" variant.
+  # Optimized for local execution with native text, image, and audio support.
+  # Features a dedicated thinking mode for complex logic and reasoning.
+  # ═══════════════════════════════════════════════════════════════════════════
+  gemma4-e2b-cpu:
+    base_url: "http://localhost:11434"
+    model: "gemma4:e2b"
+    stream: true
+    think: true  # Gemma 4 E2B supports native thinking mode
+    # Generation parameters - Balanced for quality and reasoning
+    temperature: 0.7
+    top_p: 0.95
+    top_k: 64
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 4096
+    repeat_penalty: 1.1
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # Context - Gemma 4 supports up to 128K, limit for CPU/16GB RAM efficiency
     num_ctx: 8192
     num_keep: 1024
     penalize_newline: false
