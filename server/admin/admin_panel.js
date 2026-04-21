@@ -4417,15 +4417,6 @@
     return ev.success ? "ok" : "fail";
   }
 
-  function auditChip(label, pressed, onClick, variant) {
-    var cls = "audit-chip";
-    if (pressed) cls += " audit-chip--active";
-    if (variant) cls += " audit-chip--" + variant;
-    var btn = el("button", { type: "button", className: cls, "aria-pressed": String(!!pressed) }, label);
-    btn.addEventListener("click", onClick);
-    return btn;
-  }
-
   async function renderAudit(container) {
     // ----- Layout: list panel (left) + dossier panel (right) -----
     var layout = el("div", { className: "tab-stacked-layout audit-view" });
@@ -4454,9 +4445,9 @@
     var searchDebounce = null;
 
     // ----- Filter strip -----
-    var sourceGroup = el("div", { className: "audit-view__chips" });
-    var outcomeGroup = el("div", { className: "audit-view__chips" });
-    var domainGroup = el("div", { className: "audit-view__chips" });
+    var sourceSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit stream" });
+    var outcomeSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit outcome" });
+    var domainSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit domain" });
     var searchInput = el("input", {
       type: "search",
       placeholder: "Search actor, provider, query, path, resource, IP\u2026",
@@ -4464,51 +4455,57 @@
       className: "audit-view__search-input",
     });
 
-    function renderChips() {
-      clear(sourceGroup);
-      sourceGroup.appendChild(el("span", { className: "audit-view__chip-label" }, "Stream"));
+    function renderFilters() {
+      clear(sourceSelect);
       AUDIT_STREAMS.forEach(function (stream) {
-        sourceGroup.appendChild(auditChip(stream.label, state.source === stream.value, function () {
-          state.source = stream.value;
-          if (state.source === "inference") state.domain = "all";
-          state.offset = 0;
-          state.selectedIndex = null;
-          renderChips();
-          load();
-        }));
+        var option = el("option", { value: stream.value }, stream.label);
+        if (state.source === stream.value) option.selected = true;
+        sourceSelect.appendChild(option);
       });
 
-      clear(outcomeGroup);
-      outcomeGroup.appendChild(el("span", { className: "audit-view__chip-label" }, "Outcome"));
+      clear(outcomeSelect);
       [
-        ["all", "All", null],
-        ["success", "Succeeded", null],
-        ["failure", "Failed", "danger"],
+        ["all", "All"],
+        ["success", "Succeeded"],
+        ["failure", "Failed"],
       ].forEach(function (tuple) {
-        var value = tuple[0], label = tuple[1], variant = tuple[2];
-        outcomeGroup.appendChild(auditChip(label, state.outcome === value, function () {
-          state.outcome = value;
-          state.offset = 0;
-          state.selectedIndex = null;
-          renderChips();
-          load();
-        }, variant));
+        var value = tuple[0], label = tuple[1];
+        var option = el("option", { value: value }, label);
+        if (state.outcome === value) option.selected = true;
+        outcomeSelect.appendChild(option);
       });
 
-      clear(domainGroup);
-      domainGroup.appendChild(el("span", { className: "audit-view__chip-label" }, "Domain"));
+      clear(domainSelect);
       AUDIT_DOMAINS.forEach(function (d) {
-        domainGroup.appendChild(auditChip(d.label, state.domain === d.value, function () {
-          if (state.source === "inference" && d.value !== "all") return;
-          state.domain = d.value;
-          state.offset = 0;
-          state.selectedIndex = null;
-          renderChips();
-          load();
-        }));
+        var option = el("option", { value: d.value }, d.label);
+        if (state.domain === d.value) option.selected = true;
+        domainSelect.appendChild(option);
       });
-      domainGroup.classList.toggle("is-disabled", state.source === "inference");
+      domainSelect.disabled = state.source === "inference";
     }
+
+    sourceSelect.addEventListener("change", function () {
+      state.source = sourceSelect.value;
+      if (state.source === "inference") state.domain = "all";
+      state.offset = 0;
+      state.selectedIndex = null;
+      renderFilters();
+      load();
+    });
+
+    outcomeSelect.addEventListener("change", function () {
+      state.outcome = outcomeSelect.value;
+      state.offset = 0;
+      state.selectedIndex = null;
+      load();
+    });
+
+    domainSelect.addEventListener("change", function () {
+      state.domain = domainSelect.value;
+      state.offset = 0;
+      state.selectedIndex = null;
+      load();
+    });
 
     searchInput.addEventListener("input", function (e) {
       var v = (e.target.value || "").trim();
@@ -4525,13 +4522,22 @@
     refreshBtn.addEventListener("click", function () { load(); });
 
     listPanel.appendChild(el("div", { className: "audit-view__filters" },
-      sourceGroup,
-      outcomeGroup,
-      domainGroup,
+      el("label", { className: "audit-view__filter-field" },
+        el("span", { className: "audit-view__filter-label" }, "Stream"),
+        sourceSelect
+      ),
+      el("label", { className: "audit-view__filter-field" },
+        el("span", { className: "audit-view__filter-label" }, "Outcome"),
+        outcomeSelect
+      ),
+      el("label", { className: "audit-view__filter-field" },
+        el("span", { className: "audit-view__filter-label" }, "Domain"),
+        domainSelect
+      ),
       el("div", { className: "audit-view__search" }, searchInput),
       el("div", { className: "audit-view__actions" }, refreshBtn)
     ));
-    renderChips();
+    renderFilters();
 
     // ----- Table wrap + pagination -----
     var tableWrap = el("div", { className: "audit-view__table-wrap" }, skeleton());

@@ -2570,77 +2570,45 @@ code.plain-code {
    ============================================================ */
 
 .audit-view__filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-3) var(--sp-4);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 220px)) minmax(260px, 1fr) auto;
+  align-items: end;
+  gap: var(--sp-3);
   padding: var(--sp-3) 0;
   margin-bottom: var(--sp-3);
   border-top: 1px solid var(--border-light);
   border-bottom: 1px solid var(--border-light);
 }
 
-.audit-view__chips {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
+.audit-view__filter-field {
+  display: grid;
+  gap: var(--sp-1);
 }
 
-.audit-view__chips.is-disabled {
-  opacity: 0.5;
-}
-
-.audit-view__chip-label {
+.audit-view__filter-label {
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--ink-muted);
-  margin-right: var(--sp-2);
 }
 
-.audit-chip {
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  color: var(--ink-secondary);
-  background: var(--surface);
+.audit-view__select {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
-  padding: 4px 12px;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
-}
-
-.audit-chip:hover {
-  border-color: var(--brand-500);
+  border-radius: var(--radius-md);
+  font: inherit;
   color: var(--ink);
+  background: var(--surface);
 }
 
-.audit-chip--active {
-  background: var(--ink);
-  color: var(--surface);
-  border-color: var(--ink);
-}
-
-.audit-chip--active:hover {
-  background: var(--ink-secondary);
-  border-color: var(--ink-secondary);
-  color: var(--surface);
-}
-
-.audit-chip--danger.audit-chip--active {
-  background: var(--danger-500);
-  border-color: var(--danger-500);
-  color: #fff;
-}
-
-.audit-chip--danger.audit-chip--active:hover {
-  background: var(--danger-600);
-  border-color: var(--danger-600);
+.audit-view__select:disabled {
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
 }
 
 .audit-view__search {
-  flex: 1 1 260px;
   min-width: 220px;
 }
 
@@ -2966,7 +2934,6 @@ code.plain-code {
 
 @media (max-width: 980px) {
   .audit-view__filters {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: 1fr;
   }
 }
