@@ -143,11 +143,6 @@ const DEFAULTS = {
     silenceTimeoutMs: 4000,
     recognitionLanguage: '',
   },
-  github: {
-    showStats: true,
-    owner: 'schmitech',
-    repo: 'orbit',
-  },
   outOfServiceMessage: null,
   limits: {
     files: { perConversation: 5, maxSizeMB: 50, totalFiles: 100 },

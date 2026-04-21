@@ -64,11 +64,6 @@ export interface RuntimeConfig {
     silenceTimeoutMs: number;
     recognitionLanguage: string;
   };
-  github: {
-    showStats: boolean;
-    owner: string;
-    repo: string;
-  };
   outOfServiceMessage: string | null;
   limits: {
     files: {
@@ -183,11 +178,6 @@ export const DEFAULTS: RuntimeConfig = {
   voice: {
     silenceTimeoutMs: 4000,
     recognitionLanguage: '',
-  },
-  github: {
-    showStats: true,
-    owner: 'schmitech',
-    repo: 'orbit',
   },
   outOfServiceMessage: null,
   limits: {
@@ -516,18 +506,6 @@ export function getDefaultAdapterName(): string | null {
     }
   }
   return null;
-}
-
-export function getShowGitHubStats(): boolean {
-  return runtimeConfig.github.showStats;
-}
-
-export function getGitHubOwner(): string {
-  return runtimeConfig.github.owner;
-}
-
-export function getGitHubRepo(): string {
-  return runtimeConfig.github.repo;
 }
 
 export function getOutOfServiceMessage(): string | null {

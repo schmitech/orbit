@@ -57,12 +57,6 @@ voice:
   silenceTimeoutMs: 4000
   recognitionLanguage: ""
 
-# ---- GitHub Stats ----
-github:
-  showStats: true
-  owner: "schmitech"
-  repo: "orbit"
-
 # ---- Out of Service ----
 # Set to a message string to show maintenance screen; null to disable
 outOfServiceMessage: null

@@ -45,11 +45,6 @@ export interface OrbitChatYamlConfig {
     silenceTimeoutMs?: number;
     recognitionLanguage?: string;
   };
-  github?: {
-    showStats?: boolean;
-    owner?: string;
-    repo?: string;
-  };
   outOfServiceMessage?: string | null;
   limits?: {
     files?: {

@@ -7,7 +7,6 @@ import { debugError } from '../utils/debug';
 import { getApiUrl, getHeaderNavLinks, getIsSingleAdapterMode } from '../utils/runtimeConfig';
 import { AdapterSelector } from './AdapterSelector';
 import { useFocusTrap } from '../hooks/useFocusTrap';
-import { GitHubStatsBanner } from './GitHubStatsBanner';
 import { AppFooter } from './AppFooter';
 
 interface SidebarProps {
@@ -440,12 +439,8 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
       >
         {/* Header area */}
         <div className="bg-transparent px-4 pb-4 pt-4 dark:border-[#2d2f39]">
-          <div className="flex w-full justify-center">
-            <GitHubStatsBanner className="w-full max-w-[220px] items-center text-center" />
-          </div>
-
           {/* Action buttons */}
-          <div className="mt-8 space-y-2 pb-3">
+          <div className="space-y-2 pb-3">
             <button
               onClick={onOpenSettings}
               disabled={!onOpenSettings}
