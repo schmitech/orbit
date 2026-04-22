@@ -104,21 +104,6 @@ Most AI gateways stop at provider routing. ORBIT is built for the messy parts of
 
 ---
 
-### Real-world example: PoliceStats.ca
-
-ORBIT is used in production at [PoliceStats.ca](https://policestats.ca), a public-facing AI search and analytics site for Canadian municipal police open data.
-
-PoliceStats uses ORBIT to:
-- Route users across many dataset-specific adapters for cities like Toronto, Ottawa, Montreal, Edmonton, Hamilton, Winnipeg, Saskatoon, Vancouver, and Canada-wide statistics
-- Query structured public-safety datasets using natural language
-- Return grounded answers with source citations back to the relevant open data portal
-- Support both broad city assistants and narrow subdomain assistants
-- Power a production web chat experience with typed and voice interaction
-
-PoliceStats is a useful reference if you want to see ORBIT applied to a real vertical product instead of only toy examples: one OpenAI-compatible API, many adapters, structured retrieval over public data, and answers designed for end users rather than internal analysts.
-
----
-
 ### Build a business on ORBIT
 
 ORBIT is Apache 2.0 — you can build and sell commercial products on top of it without royalties or per-seat licensing back to the project. Below are product patterns that map cleanly to ORBIT's primitives (intent adapters, composite routing, voice, MCP, guardrails). Each row links to a cookbook recipe with a working configuration you can fork as a starting point.
@@ -134,7 +119,7 @@ ORBIT is Apache 2.0 — you can build and sell commercial products on top of it 
 | **MCP tools for agent platforms** | Package domain-specific ORBIT adapters as MCP tools and sell them to Claude, Cursor, OpenClaw, and custom-agent users | [MCP / OpenClaw](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md) |
 | **Market-intel chat over the public web** | Subscription products that answer questions about competitor pricing, regulatory filings, and news by chat-indexing live web content | [Firecrawl web queries](docs/cookbook/natural-language-web-queries-orbit-firecrawl.md) |
 
-Already shipped in production: see [PoliceStats.ca](https://policestats.ca) above for a vertical public-data product built on ORBIT. If you build something on top, [open an issue](https://github.com/schmitech/orbit/issues) and we'll feature it here.
+If you build something on top, [open an issue](https://github.com/schmitech/orbit/issues) and we'll feature it here.
 
 ---
 
