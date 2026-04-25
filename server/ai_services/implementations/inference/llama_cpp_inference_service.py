@@ -114,18 +114,12 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
         return [{"role": "user", "content": prompt}]
 
     def _clean_response_text(self, text: str) -> str:
-        """Clean up response text by removing special tokens."""
+        """Remove stop tokens from a complete (non-streaming) response."""
         if not text:
             return text
-        
-        # Clean up stop tokens
         for token in self.stop_tokens:
             text = text.replace(token, "")
-        
-        # Remove any trailing special tokens
-        text = text.split("<")[0].strip()
-        text = " ".join(text.split())
-        return text
+        return text.strip()
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using Llama.cpp (API or direct mode)."""
@@ -199,17 +193,12 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                     stream=True
                 )
 
-                # Process stream chunks
+                # Process stream chunks — yield raw content to preserve whitespace between tokens
                 async for chunk in stream:
                     if chunk and chunk.choices and len(chunk.choices) > 0:
                         choice = chunk.choices[0]
                         if choice.delta and choice.delta.content:
-                            text = choice.delta.content
-                            if text:
-                                # Clean up the text
-                                text = self._clean_response_text(text)
-                                if text:
-                                    yield text
+                            yield choice.delta.content
 
             else:
                 # Direct mode: Use llama-cpp-python
@@ -232,17 +221,14 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
 
                 stream = await asyncio.to_thread(_stream_generate)
 
-                # Process stream chunks
+                # Process stream chunks — yield raw content to preserve whitespace between tokens
                 for chunk in stream:
                     if chunk and "choices" in chunk and len(chunk["choices"]) > 0:
                         choice = chunk["choices"][0]
                         if "delta" in choice and "content" in choice["delta"]:
                             text = choice["delta"]["content"]
                             if text:
-                                # Clean up the text
-                                text = self._clean_response_text(text)
-                                if text:
-                                    yield text
+                                yield text
 
         except Exception as e:
             logger.exception("Error generating streaming response with Llama.cpp")

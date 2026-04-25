@@ -1,5 +1,9 @@
 {
   "models": {
+    "gemma4-2eb": {
+      "repo_id": "unsloth/gemma-4-E2B-it-GGUF",
+      "filename": "gemma-4-E2B-it-Q4_K_M.gguf"
+    },
     "gemma3-270m": {
       "repo_id": "unsloth/gemma-3-270m-it-GGUF",
       "filename": "gemma-3-270m-it-Q8_0.gguf"

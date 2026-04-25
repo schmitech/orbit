@@ -45,12 +45,14 @@ class LlamaCppBaseService(ProviderAIService):
 
         # Determine mode: API or Direct
         # Default to "direct" for backward compatibility (previous version only supported direct mode)
+        explicit_mode = "mode" in llama_config
         self.mode = llama_config.get("mode", "direct")
         self.model_path = llama_config.get("model_path")
 
-        # If model_path is specified, force direct mode (backward compatibility)
-        if self.model_path and self.mode != "direct":
-            logger.warning("model_path specified but mode is not 'direct'. Forcing direct mode.")
+        # Only force direct mode when mode wasn't explicitly configured — model_path may be
+        # present as a reference value even when running in API mode.
+        if self.model_path and not explicit_mode:
+            logger.debug("model_path specified without explicit mode, defaulting to direct mode.")
             self.mode = "direct"
 
         if self.mode == "direct":
