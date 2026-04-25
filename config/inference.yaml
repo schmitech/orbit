@@ -250,44 +250,7 @@ inference:
       exponential_base: 2
   llama_cpp:
     enabled: true
-    # Mode: "direct" (load model locally with Python bindings) or "api" (connect to llama.cpp server)
-    mode: "api"
-
-    # Direct mode configuration
-    model_path: "models/gemma-4-E2B-it-Q4_K_M.gguf"
-    chat_format: null
-    verbose: false
-
-    # API mode configuration
-    base_url: "http://localhost:8080"  # llama.cpp server URL (OpenAI-compatible API)
-    model: "gemma4:e2b"  # Model name to request from the server (for API mode)
-    api_key: null  # Optional API key for secured servers
-
-    # Generation parameters - Optimized for Gemma 4 E2B (4.65B, Q4_K_M) on CPU
-    # Model metadata defaults: temp=1.0, top_k=64, top_p=0.95 — lowered for factual/RAG use
-    temperature: 0.1
-    top_p: 0.95
-    top_k: 64
-    # max_tokens must leave headroom after the prompt within the server's per-slot context.
-    # Server started with default -c 4096 → 1024 tokens/slot. System prompt alone is ~900 tokens,
-    # leaving almost nothing for output. Restart server with: -c 16384 (4096/slot × 4 slots).
-    max_tokens: 2048
-    repeat_penalty: 1.1  # Gemma 4 needs minimal penalty; 1.2 causes over-suppression
-
-    # Context and threading (direct mode only — server controls these in API mode)
-    n_ctx: 32768
-    n_threads: 6  # Matches server's n_threads (6/12 logical cores)
-    stream: true
-
-    # GPU settings (direct mode only)
-    n_gpu_layers: 0  # For GPU/Metal support (0 = CPU only)
-    main_gpu: 0
-    tensor_split: null
-
-    # Stop tokens - leave empty: Gemma 4 E2B is a thinking model (server detected thinking=1).
-    # The server handles EOG natively (logit_bias=-inf for <turn|>/<eos>). Sending them as
-    # API stop strings interferes with the thinking→answer transition and causes empty responses.
-    stop_tokens: []
+    use_preset: "gemma4-e2b-direct-cpu"  # Reference to preset in config/llama_cpp.yaml
   gemini:
     enabled: true
     api_key: ${GOOGLE_API_KEY}

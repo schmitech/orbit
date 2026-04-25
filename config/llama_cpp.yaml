@@ -1,0 +1,195 @@
+# Llama.cpp Presets Configuration
+# Define named presets for different llama.cpp configurations (API/direct, different models)
+# Reference these presets from inference.yaml using: use_preset: "preset-name"
+#
+# Preset naming convention:
+#   <model>-api          — OpenAI-compatible llama-server (CPU/GPU decided by the server)
+#   <model>-direct-cpu   — In-process GGUF loading, CPU only
+#   <model>-direct-gpu   — In-process GGUF loading, full CUDA/Metal GPU offload
+
+llama_cpp_presets:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Gemma 4 E2B (4.65B, Q4_K_M) — google/gemma-4-E2B-It
+  # Thinking model: server detects thinking=1 automatically
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Start server: ./utils/scripts/run_llama_server.sh
+  # Requires --ctx-size 16384 (4096 tokens/slot × 4 slots) to leave room for
+  # thinking phase + answer after the large system prompt (~900 tokens).
+  # ═══════════════════════════════════════════════════════════════════════════
+  gemma4-e2b-api:
+    mode: "api"
+    base_url: "http://localhost:8080"
+    model: "gemma4:e2b"
+    api_key: null
+    # Model metadata defaults: temp=1.0, top_k=64, top_p=0.95 — lowered for factual use
+    temperature: 0.1
+    top_p: 0.95
+    top_k: 64
+    max_tokens: 2048
+    repeat_penalty: 1.1
+    stream: true
+    # Stop tokens — empty: EOG tokens handled natively by the server (logit_bias=-inf).
+    # Sending <turn|>/<eos> as stop strings breaks thinking→answer transition.
+    stop_tokens: []
+    model_path: "models/gemma-4-E2B-it-Q4_K_M.gguf"
+    chat_format: null
+    verbose: false
+
+  gemma4-e2b-direct-cpu:
+    mode: "direct"
+    model_path: "models/gemma-4-E2B-it-Q4_K_M.gguf"
+    chat_format: null
+    verbose: false
+    temperature: 0.1
+    top_p: 0.95
+    top_k: 64
+    max_tokens: 2048
+    repeat_penalty: 1.1
+    # 32K context — Gemma 4 supports 128K but 32K is practical on CPU
+    n_ctx: 32768
+    n_threads: 6
+    stream: true
+    n_gpu_layers: 0
+    main_gpu: 0
+    tensor_split: null
+    stop_tokens: []
+
+  gemma4-e2b-direct-gpu:
+    mode: "direct"
+    model_path: "models/gemma-4-E2B-it-Q4_K_M.gguf"
+    chat_format: null
+    verbose: false
+    temperature: 0.1
+    top_p: 0.95
+    top_k: 64
+    max_tokens: 4096
+    repeat_penalty: 1.1
+    n_ctx: 65536
+    n_threads: 4
+    stream: true
+    # Full CUDA/Metal offload — set to a positive integer to partially offload
+    n_gpu_layers: -1
+    main_gpu: 0
+    tensor_split: null
+    stop_tokens: []
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Mistral 7B Instruct v0.1 (7B, Q4_0) — TheBloke/Mistral-7B-Instruct-v0.1
+  # Classic instruction-tuned 7B; strong general-purpose performance.
+  # ═══════════════════════════════════════════════════════════════════════════
+  mistral-7b-api:
+    mode: "api"
+    base_url: "http://localhost:8080"
+    model: "mistral-7b"
+    api_key: null
+    temperature: 0.1
+    top_p: 0.9
+    top_k: 40
+    max_tokens: 2048
+    repeat_penalty: 1.1
+    stream: true
+    stop_tokens: []
+    model_path: "models/mistral-7b-instruct-v0.1.Q4_0.gguf"
+    chat_format: "mistral-instruct"
+    verbose: false
+
+  mistral-7b-direct-cpu:
+    mode: "direct"
+    model_path: "models/mistral-7b-instruct-v0.1.Q4_0.gguf"
+    chat_format: "mistral-instruct"
+    verbose: false
+    temperature: 0.1
+    top_p: 0.9
+    top_k: 40
+    max_tokens: 1024
+    repeat_penalty: 1.1
+    # 7B on CPU — keep context conservative to avoid excessive RAM use
+    n_ctx: 8192
+    n_threads: 6
+    stream: true
+    n_gpu_layers: 0
+    main_gpu: 0
+    tensor_split: null
+    stop_tokens: []
+
+  mistral-7b-direct-gpu:
+    mode: "direct"
+    model_path: "models/mistral-7b-instruct-v0.1.Q4_0.gguf"
+    chat_format: "mistral-instruct"
+    verbose: false
+    temperature: 0.1
+    top_p: 0.9
+    top_k: 40
+    max_tokens: 4096
+    repeat_penalty: 1.1
+    # Mistral supports 32K context; larger window feasible on GPU
+    n_ctx: 32768
+    n_threads: 4
+    stream: true
+    n_gpu_layers: -1
+    main_gpu: 0
+    tensor_split: null
+    stop_tokens: []
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Granite 4.0 1B (1B, Q4_K_M) — ibm-granite/granite-4.0-1b
+  # Ultra-fast IBM model — excellent for low-latency or resource-constrained use.
+  # ═══════════════════════════════════════════════════════════════════════════
+  granite4-1b-api:
+    mode: "api"
+    base_url: "http://localhost:8080"
+    model: "granite4:1b"
+    api_key: null
+    temperature: 0.1
+    top_p: 0.9
+    top_k: 30
+    max_tokens: 2048
+    repeat_penalty: 1.15
+    stream: true
+    stop_tokens: []
+    model_path: "models/granite-4.0-1b-Q4_K_M.gguf"
+    chat_format: null
+    verbose: false
+
+  granite4-1b-direct-cpu:
+    mode: "direct"
+    model_path: "models/granite-4.0-1b-Q4_K_M.gguf"
+    chat_format: null
+    verbose: false
+    temperature: 0.1
+    top_p: 0.9
+    top_k: 30
+    max_tokens: 4096
+    repeat_penalty: 1.15
+    # 1B model is lightweight — 32K context is practical even on CPU
+    n_ctx: 32768
+    n_threads: 6
+    stream: true
+    n_gpu_layers: 0
+    main_gpu: 0
+    tensor_split: null
+    stop_tokens:
+      - "<|end_of_text|>"
+      - "<|end_of_role|>"
+
+  granite4-1b-direct-gpu:
+    mode: "direct"
+    model_path: "models/granite-4.0-1b-Q4_K_M.gguf"
+    chat_format: null
+    verbose: false
+    temperature: 0.1
+    top_p: 0.9
+    top_k: 30
+    max_tokens: 8192
+    repeat_penalty: 1.15
+    # 1B on GPU — full 128K context is feasible; using 65K as a practical ceiling
+    n_ctx: 65536
+    n_threads: 4
+    stream: true
+    n_gpu_layers: -1
+    main_gpu: 0
+    tensor_split: null
+    stop_tokens:
+      - "<|end_of_text|>"
+      - "<|end_of_role|>"

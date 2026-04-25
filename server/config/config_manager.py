@@ -76,8 +76,9 @@ def load_config(config_path: Optional[str] = None):
                 # Process environment variables
                 config = _process_env_vars(config)
 
-                # Resolve Ollama preset references (must be after imports and env vars)
+                # Resolve preset references (must be after imports and env vars)
                 config = _resolve_ollama_presets(config)
+                config = _resolve_llama_cpp_presets(config)
                 
                 # Log key configuration values
                 _log_config_summary(config, config_path)
@@ -489,6 +490,50 @@ def _resolve_ollama_presets(config: Dict[str, Any]) -> Dict[str, Any]:
         
     except Exception as e:
         logger.warning(f"Error resolving Ollama presets: {str(e)}")
+        return config
+
+
+def _resolve_llama_cpp_presets(config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Resolve llama.cpp preset references in inference configuration.
+
+    If inference.llama_cpp contains a 'use_preset' key, look up the preset in
+    llama_cpp_presets (loaded from config/llama_cpp.yaml) and replace the
+    llama_cpp config with the preset values, preserving the 'enabled' flag.
+    """
+    try:
+        inference_config = config.get('inference', {})
+        llama_config = inference_config.get('llama_cpp', {})
+        llama_presets = config.get('llama_cpp_presets', {})
+
+        preset_name = llama_config.get('use_preset')
+        if not preset_name:
+            return config
+
+        if preset_name not in llama_presets:
+            logger.error(
+                f"Llama.cpp preset '{preset_name}' not found in llama_cpp_presets. "
+                f"Available presets: {list(llama_presets.keys())}"
+            )
+            return config
+
+        preset = llama_presets[preset_name]
+        if not isinstance(preset, dict):
+            logger.error(f"Llama.cpp preset '{preset_name}' is not a valid configuration dictionary")
+            return config
+
+        enabled = llama_config.get('enabled', True)
+        resolved = preset.copy()
+        resolved['enabled'] = enabled
+        resolved['_from_preset'] = preset_name
+        resolved.pop('use_preset', None)
+
+        config['inference']['llama_cpp'] = resolved
+        logger.info(f"Resolved llama.cpp configuration from preset '{preset_name}' (model={preset.get('model')})")
+        return config
+
+    except Exception as e:
+        logger.warning(f"Error resolving llama.cpp presets: {str(e)}")
         return config
 
 

@@ -4,29 +4,9 @@
       "repo_id": "unsloth/gemma-4-E2B-it-GGUF",
       "filename": "gemma-4-E2B-it-Q4_K_M.gguf"
     },
-    "gemma3-270m": {
-      "repo_id": "unsloth/gemma-3-270m-it-GGUF",
-      "filename": "gemma-3-270m-it-Q8_0.gguf"
-    },
-    "gemma3-1b": {
-      "repo_id": "unsloth/gemma-3-1b-it-GGUF",
-      "filename": "gemma-3-1b-it-Q4_0.gguf"
-    },
-    "tinyllama-1b": {
-      "repo_id": "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF",
-      "filename": "tinyllama-1.1b-chat-v1.0.q4_0.gguf"
-    },
-    "phi-2": {
-      "repo_id": "TheBloke/phi-2-GGUF",
-      "filename": "phi-2.Q4_0.gguf"
-    },
     "mistral-7b": {
       "repo_id": "TheBloke/Mistral-7B-Instruct-v0.1-GGUF",
       "filename": "mistral-7b-instruct-v0.1.Q4_0.gguf"
-    },
-    "granite4-micro": {
-      "repo_id": "ibm-granite/granite-4.0-micro-GGUF",
-      "filename": "granite-4.0-micro-Q4_0.gguf"
     },
     "granite4-1b": {
       "repo_id": "ibm-granite/granite-4.0-1b-GGUF",

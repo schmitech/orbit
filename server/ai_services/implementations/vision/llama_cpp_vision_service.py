@@ -8,11 +8,14 @@ Requires multimodal llama.cpp models like llava, bakllava, or other vision model
 """
 
 import asyncio
+import logging
 from typing import Dict, Any, Union, List
 from PIL import Image
 
 from ...services import VisionService
 from ...providers.llama_cpp_base import LlamaCppBaseService
+
+logger = logging.getLogger(__name__)
 
 
 class LlamaCppVisionService(VisionService, LlamaCppBaseService):
@@ -33,20 +36,73 @@ class LlamaCppVisionService(VisionService, LlamaCppBaseService):
     """
 
     def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize the llama.cpp vision service.
-
-        Args:
-            config: Configuration dictionary
-        """
         # Cooperative initialization - LlamaCppBaseService handles mode detection
         super().__init__(config, "llama_cpp")
 
-        # Get vision-specific configuration
         provider_config = self._extract_provider_config()
         self.temperature = provider_config.get('temperature', 0.0)
         self.max_tokens = provider_config.get('max_tokens', 1000)
         self.stream = provider_config.get('stream', False)
+        # Direct mode only — chat format tells llama-cpp-python how to format vision messages
+        self.chat_format = provider_config.get('chat_format', 'llava-1-5')
+        # Optional CLIP projector for multimodal models (e.g. llava-v1.5-mmproj.gguf)
+        self.clip_model_path = provider_config.get('clip_model_path', None)
+
+    async def initialize(self) -> bool:
+        if self.initialized:
+            return True
+
+        try:
+            if self.mode == "api":
+                # API mode: server already has the model loaded
+                logger.info(f"Llama.cpp vision API mode configured at {self.base_url}")
+                self.initialized = True
+                return True
+
+            # Direct mode: load multimodal GGUF with llama-cpp-python
+            import os
+            from llama_cpp import Llama
+
+            if not self.model_path:
+                logger.error("model_path is required for llama.cpp vision direct mode")
+                return False
+
+            if not os.path.exists(self.model_path):
+                logger.error(f"Vision model file not found at: {self.model_path}")
+                return False
+
+            logger.info(f"Loading llama.cpp vision model from: {self.model_path}")
+
+            def _load():
+                kwargs = dict(
+                    model_path=self.model_path,
+                    chat_format=self.chat_format,
+                    n_ctx=self.n_ctx,
+                    n_threads=self.n_threads,
+                    n_gpu_layers=self.n_gpu_layers,
+                    main_gpu=self.main_gpu,
+                    tensor_split=self.tensor_split,
+                    verbose=False,
+                )
+                if self.clip_model_path and os.path.exists(self.clip_model_path):
+                    # LLaVA-style models need the separate CLIP projector
+                    from llama_cpp.llama_chat_format import Llava15ChatHandler
+                    kwargs['chat_handler'] = Llava15ChatHandler(
+                        clip_model_path=self.clip_model_path
+                    )
+                return Llama(**kwargs)
+
+            self.llama_model = await asyncio.to_thread(_load)
+            logger.info(f"Llama.cpp vision model loaded (format={self.chat_format})")
+            self.initialized = True
+            return True
+
+        except ImportError:
+            logger.error("llama-cpp-python not installed (required for direct mode)")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to initialize llama.cpp vision service: {e}")
+            return False
 
     async def analyze_image(
         self,
