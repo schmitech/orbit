@@ -567,3 +567,76 @@ inference:
       initial_wait_ms: 1000
       max_wait_ms: 30000
       exponential_base: 2
+  cerebras:
+    enabled: false
+    api_key: ${CEREBRAS_API_KEY}
+    model: "llama-3.3-70b"
+    context_window: 131072  # Cerebras supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 8192
+    stream: true
+  deepinfra:
+    enabled: false
+    api_key: ${DEEPINFRA_API_KEY}
+    model: "meta-llama/Meta-Llama-3.1-70B-Instruct"
+    context_window: 131072  # Llama 3.1 supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
+  lmstudio:
+    enabled: false
+    api_key: "lm-studio"  # Placeholder — LM Studio local server ignores auth
+    base_url: "http://localhost:1234/v1"
+    model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF"  # Update to match loaded model
+    context_window: 32768
+    temperature: 0.7
+    top_p: 0.9
+    max_tokens: 4096
+    stream: true
+  moonshot:
+    enabled: false
+    api_key: ${MOONSHOT_API_KEY}
+    model: "moonshot-v1-128k"
+    context_window: 131072  # Kimi supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
+  minimax:
+    enabled: false
+    api_key: ${MINIMAX_API_KEY}
+    model: "MiniMax-Text-01"
+    context_window: 1000000  # MiniMax-Text-01 supports 1M context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
+  nebius:
+    enabled: false
+    api_key: ${NEBIUS_API_KEY}
+    model: "meta-llama/Meta-Llama-3.1-70B-Instruct"
+    context_window: 131072  # Llama 3.1 supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
+  venice:
+    enabled: false
+    api_key: ${VENICE_API_KEY}
+    model: "llama-3.3-70b"
+    context_window: 131072  # Llama 3.3 supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
+  scaleway:
+    enabled: false
+    api_key: ${SCALEWAY_API_KEY}
+    model: "llama-3.3-70b-instruct"
+    context_window: 131072  # Llama 3.3 supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true

@@ -58,6 +58,14 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "openrouter": "https://openrouter.ai/api/v1",
         "xai": "https://api.x.ai/v1",
         "cohere": "https://api.cohere.ai/compatibility/v1",
+        "cerebras": "https://api.cerebras.ai/v1",
+        "deepinfra": "https://api.deepinfra.com/v1/openai",
+        "lmstudio": "http://localhost:1234/v1",
+        "moonshot": "https://api.moonshot.cn/v1",
+        "minimax": "https://api.minimax.chat/v1",
+        "nebius": "https://api.studio.nebius.ai/v1",
+        "venice": "https://api.venice.ai/api/v1",
+        "scaleway": "https://api.scaleway.ai/v1",
     }
 
     # Default API key environment variable names
@@ -71,6 +79,14 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "openrouter": "OPENROUTER_API_KEY",
         "xai": "XAI_API_KEY",
         "cohere": "COHERE_API_KEY",
+        "cerebras": "CEREBRAS_API_KEY",
+        "deepinfra": "DEEPINFRA_API_KEY",
+        "lmstudio": "LMSTUDIO_API_KEY",
+        "moonshot": "MOONSHOT_API_KEY",
+        "minimax": "MINIMAX_API_KEY",
+        "nebius": "NEBIUS_API_KEY",
+        "venice": "VENICE_API_KEY",
+        "scaleway": "SCALEWAY_API_KEY",
     }
 
     def __init__(

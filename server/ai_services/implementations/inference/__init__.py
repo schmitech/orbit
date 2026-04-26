@@ -31,6 +31,14 @@ Available providers:
     - ZaiInferenceService: Z.AI inference
     - TensorRTInferenceService: TensorRT-LLM (NVIDIA) inference
     - TransformersInferenceService: Transformers (Local) inference
+    - CerebrasInferenceService: Cerebras ultra-fast inference
+    - DeepInfraInferenceService: DeepInfra hosted open-model inference
+    - LMStudioInferenceService: LM Studio local inference
+    - MoonshotInferenceService: Moonshot AI (Kimi) inference
+    - MiniMaxInferenceService: MiniMax inference
+    - NebiusInferenceService: Nebius AI Studio inference
+    - VeniceInferenceService: Venice AI privacy-focused inference
+    - ScalewayInferenceService: Scaleway European cloud inference
 """
 
 import logging
@@ -69,6 +77,14 @@ _implementations = [
     ('zai_inference_service', 'ZaiInferenceService'),
     ('tensorrt_inference_service', 'TensorRTInferenceService'),
     ('transformers_inference_service', 'TransformersInferenceService'),
+    ('cerebras_inference_service', 'CerebrasInferenceService'),
+    ('deepinfra_inference_service', 'DeepInfraInferenceService'),
+    ('lmstudio_inference_service', 'LMStudioInferenceService'),
+    ('moonshot_inference_service', 'MoonshotInferenceService'),
+    ('minimax_inference_service', 'MiniMaxInferenceService'),
+    ('nebius_inference_service', 'NebiusInferenceService'),
+    ('venice_inference_service', 'VeniceInferenceService'),
+    ('scaleway_inference_service', 'ScalewayInferenceService'),
 ]
 
 for module_name, class_name in _implementations:

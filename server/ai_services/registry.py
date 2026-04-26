@@ -109,6 +109,14 @@ def register_inference_services(config: Dict[str, Any] = None) -> None:
         ("zai", "ZaiInferenceService", "Z.AI"),
         ("tensorrt", "TensorRTInferenceService", "TensorRT-LLM"),
         ("transformers", "TransformersInferenceService", "Transformers (Local)"),
+        ("cerebras", "CerebrasInferenceService", "Cerebras"),
+        ("deepinfra", "DeepInfraInferenceService", "DeepInfra"),
+        ("lmstudio", "LMStudioInferenceService", "LM Studio"),
+        ("moonshot", "MoonshotInferenceService", "Moonshot AI"),
+        ("minimax", "MiniMaxInferenceService", "MiniMax"),
+        ("nebius", "NebiusInferenceService", "Nebius AI Studio"),
+        ("venice", "VeniceInferenceService", "Venice AI"),
+        ("scaleway", "ScalewayInferenceService", "Scaleway"),
     ]
 
     # Get inference config if available

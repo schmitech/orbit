@@ -77,7 +77,7 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 
 | Without ORBIT | With ORBIT |
 | :--- | :--- |
-| One SDK per provider, rewrites when you switch | One OpenAI-compatible API across 29 providers |
+| One SDK per provider, rewrites when you switch | One OpenAI-compatible API across 37 providers |
 | Separate pipelines for retrieval and inference | Unified model + retrieval + tooling gateway |
 | Fragile glue scripts between data sources and LLMs | Intent adapters with template diagnostics |
 | Separate tools for each database, with no easy way to combine them | Composite adapters fan one prompt across SQL + NoSQL + HTTP, merged by the LLM |
@@ -127,7 +127,7 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 
 | Capability | Includes |
 | :--- | :--- |
-| **LLM gateway** | OpenAI-compatible chat API, 29 hosted and local providers, streaming, provider failover |
+| **LLM gateway** | OpenAI-compatible chat API, 37 hosted and local providers, streaming, provider failover |
 | **RAG over real systems** | SQL, NoSQL, REST, GraphQL, files, web content, vector stores, rerankers |
 | **Intent-based retrieval** | Natural-language templates, diagnostics, autocomplete, cached datasets, conversation threading |
 | **Production controls** | API keys, RBAC, audit logs, rate limits, quotas, moderation, circuit breakers |
@@ -139,7 +139,7 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 
 | Layer | Coverage |
 | :--- | :--- |
-| **LLM & inference** | 29 providers — OpenAI, Anthropic, Gemini, Cohere, Groq, DeepSeek, Mistral, xAI, AWS Bedrock, Azure, Vertex, Together, Fireworks, Perplexity, Replicate, OpenRouter, Watson, NVIDIA, Hugging Face, Ollama (local/cloud/remote), vLLM, TensorRT-LLM, llama.cpp, Shimmy, BitNet (1.58-bit), Transformers, Z.ai |
+| **LLM & inference** | 37 providers — OpenAI, Anthropic, Gemini, Cohere, Groq, DeepSeek, Mistral, xAI, AWS Bedrock, Azure, Vertex, Together, Fireworks, Perplexity, Replicate, OpenRouter, Watson, NVIDIA, Hugging Face, Ollama (local/cloud/remote), vLLM, TensorRT-LLM, llama.cpp, Shimmy, BitNet (1.58-bit), Transformers, Z.ai, Cerebras, DeepInfra, LM Studio, Moonshot AI, MiniMax, Nebius, Venice AI, Scaleway |
 | **Data sources** | 17 — Postgres, MySQL, MariaDB, SQL Server, Oracle, SQLite, MongoDB, Redis, Cassandra, DuckDB, Athena, Elasticsearch, Supabase + HTTP/REST, GraphQL, Firecrawl |
 | **Vector stores** | Chroma, Qdrant, Pinecone, Milvus, Weaviate, Elasticsearch |
 | **Embeddings** | 10 providers — OpenAI, Cohere, Jina, Voyage, Mistral, Gemini, OpenRouter, Ollama, llama.cpp, Sentence-Transformers |
