@@ -234,13 +234,11 @@ class LoadGenerator:
         """Generate health check load."""
         print(f"Generating health check load: {requests_per_second} req/s for {duration}s")
         
-        1.0 / requests_per_second
         end_time = time.time() + duration
-        
+
         while time.time() < end_time:
             start_batch = time.time()
-            
-            # Create batch of requests
+
             tasks = []
             for _ in range(requests_per_second):
                 task = self.make_request('GET', '/health')
@@ -299,37 +297,42 @@ class LoadGenerator:
     async def mixed_load(self, duration: int, requests_per_second: int):
         """Generate mixed load across different endpoints."""
         print(f"Generating mixed load: {requests_per_second} req/s for {duration}s")
-        
-        endpoints = [
-            ('GET', '/health'),
-            ('GET', '/health/ready'),
-            ('GET', '/health/adapters'),
-            ('GET', '/health/system')
+
+        # /health and /admin endpoints are excluded from the server's application
+        # throughput tracking (they are infrastructure endpoints, not user traffic).
+        # Include a /v1/ endpoint so the dashboard Throughput metric is populated.
+        infra_endpoints = [
+            ('GET', '/health', {}),
+            ('GET', '/health/ready', {}),
+            ('GET', '/health/adapters', {}),
+            ('GET', '/health/system', {}),
         ]
-        
+
+        app_endpoints = []
         if self.api_key:
-            endpoints.extend([
-                ('GET', '/admin/api-keys'),
-                ('GET', '/admin/prompts')
-            ])
-        
-        1.0 / requests_per_second
+            chat_payload = {
+                "messages": [{"role": "user", "content": "Performance test"}],
+                "stream": False,
+            }
+            app_endpoints = [
+                ('POST', '/v1/chat/completions',
+                 {'json': chat_payload, 'headers': {'Content-Type': 'application/json'}}),
+            ]
+
+        endpoints = infra_endpoints + app_endpoints
         end_time = time.time() + duration
-        
+
         while time.time() < end_time:
             start_batch = time.time()
-            
-            # Create batch of mixed requests
+
             tasks = []
-            for _ in range(requests_per_second):
-                method, endpoint = endpoints[_ % len(endpoints)]
-                task = self.make_request(method, endpoint)
+            for i in range(requests_per_second):
+                method, endpoint, kwargs = endpoints[i % len(endpoints)]
+                task = self.make_request(method, endpoint, **kwargs)
                 tasks.append(task)
-            
-            # Execute batch
+
             await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Wait for next batch
+
             elapsed = time.time() - start_batch
             if elapsed < 1.0:
                 await asyncio.sleep(1.0 - elapsed)

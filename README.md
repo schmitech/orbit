@@ -177,8 +177,7 @@ ORBIT is Apache 2.0, so you can build and sell commercial products on top of it 
 
 ### Deployment options
 
-<details>
-<summary><strong>Docker Compose (fastest path)</strong></summary>
+#### Docker Compose (fastest path)
 
 ```bash
 git clone https://github.com/schmitech/orbit.git && cd orbit/docker
@@ -191,12 +190,15 @@ Starts ORBIT + Ollama with SmolLM2, auto-pulls models, and exposes the API on po
 ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' npx orbitchat
 ```
 
+<p align="center">
+  <img width="1773" alt="ORBIT Admin Dashboard" src="https://github.com/user-attachments/assets/87593829-ef9e-4306-b090-780e34ea47d9" />
+  <br />
+  <em>ORBIT Admin Dashboard</em>
+</p>
+
 See the full [Docker Guide](docker/README.md) for GPU mode, volumes, and configuration.
 
-</details>
-
-<details>
-<summary><strong>Pre-built image (server only)</strong></summary>
+#### Pre-built image (server only)
 
 ```bash
 docker pull schmitech/orbit:basic
@@ -205,10 +207,7 @@ docker run -d --name orbit-basic -p 3000:3000 schmitech/orbit:basic
 
 If Ollama runs on your host, add `-e OLLAMA_HOST=host.docker.internal:11434` so the container can reach it. Includes simple-chat only.
 
-</details>
-
-<details>
-<summary><strong>From release tarball (production)</strong></summary>
+#### From release tarball (production)
 
 ```bash
 curl -L https://github.com/schmitech/orbit/releases/download/v2.6.6/orbit-2.6.6.tar.gz -o orbit-2.6.6.tar.gz
@@ -218,8 +217,6 @@ cp env.example .env && ./install/setup.sh
 source venv/bin/activate
 ./bin/orbit.sh start && cat ./logs/orbit.log
 ```
-
-</details>
 
 ---
 

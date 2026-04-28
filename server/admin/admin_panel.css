@@ -1885,9 +1885,17 @@ code.plain-code {
   transition: all var(--transition-fast);
 }
 
-.time-window-btn:hover {
+.time-window-btn:hover:not(:disabled) {
   border-color: var(--brand-500);
   color: var(--brand-600);
+  background: var(--brand-50);
+  box-shadow: none;
+}
+
+.time-window-btn:active:not(:disabled) {
+  background: var(--brand-50);
+  box-shadow: none;
+  transform: none;
 }
 
 .time-window-btn[aria-pressed="true"] {
@@ -1965,11 +1973,11 @@ code.plain-code {
 
 /* Progress bars */
 .monitoring-progress-track {
-  height: 6px;
+  height: 3px;
   background: var(--surface-sunken);
   border-radius: var(--radius-pill);
   overflow: hidden;
-  margin-top: var(--sp-2);
+  margin-top: var(--sp-3);
 }
 
 .monitoring-progress-bar {
@@ -1978,11 +1986,11 @@ code.plain-code {
   transition: width 0.35s ease;
 }
 
-.monitoring-progress-bar.green  { background: #22c55e; }
-.monitoring-progress-bar.amber  { background: #f59e0b; }
-.monitoring-progress-bar.red    { background: var(--danger-500); }
-.monitoring-progress-bar.sky    { background: var(--brand-500); }
-.monitoring-progress-bar.muted  { background: var(--ink-muted); }
+.monitoring-progress-bar.green  { background: #73bf69; }
+.monitoring-progress-bar.amber  { background: #f2a35e; }
+.monitoring-progress-bar.red    { background: #f26073; }
+.monitoring-progress-bar.sky    { background: #5794f2; }
+.monitoring-progress-bar.muted  { background: rgba(255,255,255,0.2); }
 
 /* Chart cards */
 .charts-grid {
@@ -1992,7 +2000,7 @@ code.plain-code {
 }
 
 .chart-card {
-  background: var(--surface);
+  background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--sp-4);
@@ -2003,16 +2011,16 @@ code.plain-code {
   margin: 0 0 var(--sp-3);
   padding: 0;
   border: none;
-  font-size: var(--text-sm);
+  font-size: 10px;
   font-weight: 700;
-  color: var(--ink);
-  text-transform: none;
-  letter-spacing: normal;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 .chart-card canvas {
   width: 100% !important;
-  height: 220px !important;
+  height: 240px !important;
 }
 
 /* Monitoring badges */

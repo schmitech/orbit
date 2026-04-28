@@ -1028,42 +1028,101 @@
     ws.onerror = function () { console.error("Metrics WebSocket error"); };
   }
 
-  // --- Light-theme chart options ---
+  // --- Dark Grafana-style chart options ---
   var monitoringChartOpts = {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: "index", intersect: false, axis: "x" },
-    elements: { point: { radius: 0, hoverRadius: 5, hitRadius: 18 } },
+    elements: { point: { radius: 0, hoverRadius: 4, hitRadius: 20 }, line: { borderWidth: 1.5 } },
     scales: {
-      y: { beginAtZero: true, grid: { color: "rgba(15,29,51,0.06)" }, ticks: { color: "#6b7a96" } },
-      x: { grid: { color: "rgba(15,29,51,0.06)" }, ticks: { color: "#6b7a96", maxRotation: 0, minRotation: 0 } }
+      y: {
+        beginAtZero: true,
+        grid: { color: "rgba(15,29,51,0.06)", drawBorder: false },
+        ticks: { color: "#6b7a96", font: { size: 10, family: "'JetBrains Mono', monospace" }, padding: 6 }
+      },
+      x: {
+        grid: { color: "rgba(15,29,51,0.05)", drawBorder: false },
+        ticks: { color: "#6b7a96", maxRotation: 0, minRotation: 0, font: { size: 10, family: "'JetBrains Mono', monospace" }, padding: 4 }
+      }
     },
-    plugins: { legend: { labels: { color: "#0f1d33" } } }
+    plugins: {
+      legend: {
+        labels: {
+          color: "#3d4f6f",
+          usePointStyle: true,
+          pointStyle: "line",
+          boxWidth: 28,
+          boxHeight: 2,
+          font: { size: 11 },
+          padding: 14
+        }
+      },
+      tooltip: {
+        backgroundColor: "rgba(10,14,23,0.96)",
+        borderColor: "rgba(255,255,255,0.1)",
+        borderWidth: 1,
+        titleColor: "#c9d1d9",
+        bodyColor: "#8892a4",
+        padding: 10,
+        cornerRadius: 6,
+        titleFont: { family: "'JetBrains Mono', monospace", size: 11 },
+        bodyFont: { family: "'JetBrains Mono', monospace", size: 11 }
+      }
+    }
   };
 
   function initOverviewCharts() {
     destroyOverviewCharts();
-    var ids = ["mon-system-chart", "mon-request-chart", "mon-response-chart", "mon-percentile-chart"];
-    var configs = [
-      { datasets: [{ label: "CPU %", borderColor: "#2b6cb0", backgroundColor: "rgba(43,108,176,0.1)", tension: 0.25, fill: true, data: [] },
-                    { label: "Memory %", borderColor: "#059669", backgroundColor: "rgba(5,150,105,0.1)", tension: 0.25, fill: true, data: [] }] },
-      { datasets: [{ label: "Requests/sec", borderColor: "#d97706", backgroundColor: "rgba(217,119,6,0.1)", tension: 0.25, fill: true, data: [] },
-                    { label: "Error Rate %", borderColor: "#e11d48", backgroundColor: "rgba(225,29,72,0.1)", tension: 0.25, fill: true, data: [] }] },
-      { datasets: [{ label: "Avg Response Time", borderColor: "#7c3aed", backgroundColor: "rgba(124,58,237,0.1)", tension: 0.25, fill: true, data: [] }] },
-      { datasets: [{ label: "P50", borderColor: "#059669", fill: false, tension: 0.25, data: [] },
-                    { label: "P95", borderColor: "#d97706", fill: false, tension: 0.25, data: [] },
-                    { label: "P99", borderColor: "#e11d48", fill: false, tension: 0.25, data: [] }] }
+    var chartDefs = [
+      { id: "mon-system-chart", series: [
+          { label: "CPU %",    color: "#5794f2", rgb: [87,148,242],  fill: true },
+          { label: "Memory %", color: "#73bf69", rgb: [115,191,105], fill: true }
+        ]
+      },
+      { id: "mon-request-chart", series: [
+          { label: "Requests/sec", color: "#f2a35e", rgb: [242,163,94],  fill: true },
+          { label: "Error Rate %", color: "#f26073", rgb: [242,96,115],  fill: true }
+        ]
+      },
+      { id: "mon-response-chart", series: [
+          { label: "Avg Response Time", color: "#b877d9", rgb: [184,119,217], fill: true }
+        ]
+      },
+      { id: "mon-percentile-chart", series: [
+          { label: "P50", color: "#73bf69", fill: false },
+          { label: "P95", color: "#f2a35e", fill: false, borderDash: [4, 3] },
+          { label: "P99", color: "#f26073", fill: false, borderDash: [2, 2] }
+        ]
+      }
     ];
 
-    ids.forEach(function (id, i) {
-      var canvas = document.getElementById(id);
+    chartDefs.forEach(function (def, i) {
+      var canvas = document.getElementById(def.id);
       if (!canvas) return;
-      overviewCharts[id] = new Chart(canvas, {
+      var ctx = canvas.getContext("2d");
+
+      var datasets = def.series.map(function (s) {
+        var bg = (s.fill && s.rgb) ? (function () {
+          var g = ctx.createLinearGradient(0, 0, 0, 300);
+          g.addColorStop(0, "rgba(" + s.rgb[0] + "," + s.rgb[1] + "," + s.rgb[2] + ",0.2)");
+          g.addColorStop(1, "rgba(" + s.rgb[0] + "," + s.rgb[1] + "," + s.rgb[2] + ",0)");
+          return g;
+        })() : "transparent";
+        return {
+          label: s.label, borderColor: s.color, backgroundColor: bg,
+          fill: s.fill || false, tension: 0.3, borderDash: s.borderDash || [],
+          borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 20, data: []
+        };
+      });
+
+      var opts = i === 1
+        ? Object.assign({}, monitoringChartOpts, { scales: Object.assign({}, monitoringChartOpts.scales, { y: Object.assign({}, monitoringChartOpts.scales.y, { ticks: Object.assign({}, monitoringChartOpts.scales.y.ticks, { stepSize: 1, precision: 0 }), min: 0 }) }) })
+        : monitoringChartOpts;
+
+      overviewCharts[def.id] = new Chart(canvas, {
         type: "line",
-        data: { labels: [], datasets: configs[i].datasets.map(function (d) { return Object.assign({}, d, { pointRadius: 0, pointHoverRadius: 5, pointHitRadius: 18 }); }) },
-        options: i === 1
-          ? Object.assign({}, monitoringChartOpts, { scales: Object.assign({}, monitoringChartOpts.scales, { y: Object.assign({}, monitoringChartOpts.scales.y, { ticks: Object.assign({}, monitoringChartOpts.scales.y.ticks, { stepSize: 1, precision: 0 }), min: 0 }) }) })
-          : monitoringChartOpts
+        data: { labels: [], datasets: datasets },
+        options: opts
       });
     });
   }

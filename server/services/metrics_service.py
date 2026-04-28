@@ -504,7 +504,7 @@ class MetricsService:
             },
             'requests': {
                 'total': sum(1 for t in self.request_timestamps),
-                'per_second': round(requests_per_second),
+                'per_second': round(requests_per_second, 2),
                 'error_rate': round(error_rate, 2),
                 'avg_response_time': round(avg_response_time, 2),
                 'p50_response_time': round(p50_response_time, 2),
