@@ -32,11 +32,9 @@
 ---
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/e700b56b-9204-48c5-8111-a68f6cccf3e2" controls muted playsinline width="75%"></video>
-</p>
-
-<p align="center">
-  <a href="https://github.com/user-attachments/assets/e700b56b-9204-48c5-8111-a68f6cccf3e2">Watch the ORBIT demo video</a>
+  <video src="https://github.com/user-attachments/assets/5118565d-5d44-45a6-990d-97bc18156ec0" controls muted playsinline width="75%"></video>
+  <br />
+  <em>The HR assistant answering workforce questions over employee, department, budget, and compensation data. Source available at <a href="examples/intent-templates/sql-intent-template/examples/sqlite/hr/">examples/intent-templates/sql-intent-template/examples/sqlite/hr</a>.</em>
 </p>
 
 ORBIT gives you one OpenAI-compatible API for private RAG, model routing, file Q&A, database copilots, voice agents, and MCP tools. Run it locally, connect your own data, and swap between hosted or local LLM providers without rewriting your app.
@@ -191,9 +189,9 @@ ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' npx orbitchat
 ```
 
 <p align="center">
-  <img width="1773" alt="ORBIT Admin Dashboard" src="https://github.com/user-attachments/assets/87593829-ef9e-4306-b090-780e34ea47d9" />
+  <img width="1773" alt="admin panel dashboard" src="https://github.com/user-attachments/assets/87593829-ef9e-4306-b090-780e34ea47d9" />
   <br />
-  <em>ORBIT Admin Dashboard</em>
+  <em>admin panel dashboard</em>
 </p>
 
 See the full [Docker Guide](docker/README.md) for GPU mode, volumes, and configuration.
