@@ -69,6 +69,12 @@ For GPU acceleration: `docker compose -f docker-compose.yml -f docker-compose.gp
 
 Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/) and [`examples/intent-templates/`](examples/intent-templates/).
 
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/3c4328a6-e3d0-4bc7-adbd-490a7cc920bf" controls muted playsinline width="75%"></video>
+  <br />
+  <em>The <code>config/adapters/multimodal.yaml</code> adapter in action: ORBIT generates chart-rich Markdown from <code>clients/orbitchat/tests/chart-rendering-prompt.md</code>.</em>
+</p>
+
 ---
 
 ### Why ORBIT?
