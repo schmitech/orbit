@@ -37,6 +37,8 @@
   <em>The HR assistant answering workforce questions over employee, department, budget, and compensation data. Source available at <a href="examples/intent-templates/sql-intent-template/examples/sqlite/hr/">examples/intent-templates/sql-intent-template/examples/sqlite/hr</a>.</em>
 </p>
 
+---
+
 ORBIT gives you one OpenAI-compatible API for private RAG, model routing, file Q&A, database copilots, voice agents, and MCP tools. Run it locally, connect your own data, and swap between hosted or local LLM providers without rewriting your app.
 
 If ORBIT looks useful, **[star the repo](https://github.com/schmitech/orbit)** to follow new adapters, recipes, voice features, and production-ready RAG workloads.
