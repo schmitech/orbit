@@ -28,6 +28,14 @@ class LLMInferenceStep(PipelineStep):
         self._prompt_cache: OrderedDict[str, str] = OrderedDict()  # LRU cache for system prompts (max 100)
         self._prompt_cache_max_size = 100
 
+    async def _resolve_llm_provider(self, context: ProcessingContext):
+        """Resolve the LLM provider for this request, preferring adapter overrides."""
+        if context.inference_provider and self.container.has('adapter_manager'):
+            adapter_manager = self.container.get('adapter_manager')
+            adapter_name = getattr(context, 'adapter_name', None)
+            return await adapter_manager.get_overridden_provider(context.inference_provider, adapter_name)
+        return self.container.get('llm_provider')
+
     def _create_prompt_builder(self) -> PromptInstructionBuilder:
         """Create a shared prompt builder backed by the pipeline services."""
         return PromptInstructionBuilder(
@@ -69,16 +77,10 @@ class LLMInferenceStep(PipelineStep):
         debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
 
         try:
-            llm_provider = None
-            if context.inference_provider and self.container.has('adapter_manager'):
-                # Get the adapter manager and get the cached/new provider
-                adapter_manager = self.container.get('adapter_manager')
-                # Pass adapter_name to get model-specific provider if configured
-                adapter_name = getattr(context, 'adapter_name', None)
-                llm_provider = await adapter_manager.get_overridden_provider(context.inference_provider, adapter_name)
-            else:
-                # Fallback to default provider
-                llm_provider = self.container.get('llm_provider')
+            llm_provider = await self._resolve_llm_provider(context)
+            if llm_provider is None:
+                context.set_error("No LLM provider available: check adapter and provider configuration")
+                return context
 
             # Build the full prompt
             full_prompt = await self._build_prompt(context)
@@ -128,16 +130,12 @@ class LLMInferenceStep(PipelineStep):
         debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
 
         try:
-            llm_provider = None
-            if context.inference_provider and self.container.has('adapter_manager'):
-                # Get the adapter manager and get the cached/new provider
-                adapter_manager = self.container.get('adapter_manager')
-                # Pass adapter_name to get model-specific provider if configured
-                adapter_name = getattr(context, 'adapter_name', None)
-                llm_provider = await adapter_manager.get_overridden_provider(context.inference_provider, adapter_name)
-            else:
-                # Fallback to default provider
-                llm_provider = self.container.get('llm_provider')
+            llm_provider = await self._resolve_llm_provider(context)
+            if llm_provider is None:
+                error_msg = "No LLM provider available: check adapter and provider configuration"
+                context.set_error(error_msg)
+                yield error_msg
+                return
 
             # Build the full prompt
             full_prompt = await self._build_prompt(context)
@@ -156,13 +154,11 @@ class LLMInferenceStep(PipelineStep):
             async for chunk in llm_provider.generate_stream(full_prompt, **kwargs):
                 # Check for cancellation before yielding each chunk
                 if context.is_cancelled():
-                    logger.debug(f"[LLM_INFERENCE] >>> CANCELLATION DETECTED <<< after {llm_chunk_count} chunks, accumulated_chars={len(accumulated_response)}")
+                    logger.debug("[LLM_INFERENCE] >>> CANCELLATION DETECTED <<< after %d chunks, accumulated_chars=%d", llm_chunk_count, len(accumulated_response))
                     break
 
                 llm_chunk_count += 1
                 accumulated_response += chunk
-                # Uncomment to debug streaming
-                # logger.debug(f"LLM_STREAM: Received chunk #{llm_chunk_count} from provider: {repr(chunk[:30]) if len(chunk) > 30 else repr(chunk)}")
                 yield chunk
 
             context.response = accumulated_response
