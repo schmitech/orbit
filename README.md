@@ -110,7 +110,7 @@ Most AI gateways stop at provider routing. ORBIT is built for the messy parts of
 - **Autocomplete that knows your data** — fuzzy-matched suggestions sourced from your intent templates. [Learn more](docs/autocomplete-architecture.md).
 - **Two-layer rate limiting** — IP limits plus per-API-key quotas with progressive throttling. [Learn more](docs/rate-limiting-architecture.md).
 - **Multilingual by default** — 100+ languages with conversation stickiness so the model doesn't flap between turns. [Learn more](docs/language-detection-architecture.md).
-- **OpenClaw / MCP integration** — drop ORBIT into any OpenClaw agent as a tool server with a single config entry. [Learn more](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md).
+- **OpenClaw / Hermes / MCP integration** — drop ORBIT into MCP-capable agents as a tool server with a single config entry. [Learn more](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md).
 
 ---
 
@@ -141,6 +141,28 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 | Run ORBIT as an MCP tool server for agents | [MCP / OpenClaw walkthrough](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md) |
 | Build a full-duplex voice assistant | [PersonaPlex voice assistant](docs/cookbook/orbit-personaplex-full-duplex-voice-assistant.md) |
 
+#### Use ORBIT with Hermes Agent
+
+ORBIT's inference server also exposes a Streamable HTTP MCP endpoint at `/mcp`, so Hermes Agent can call ORBIT-backed chat, RAG, and adapter tools from the same server you use for `/v1/chat`.
+
+Add ORBIT to `~/.hermes/config.yaml`:
+
+```yaml
+mcp_servers:
+  orbit:
+    url: "http://localhost:3000/mcp"
+    headers:
+      X-API-Key: "default-key"
+```
+
+Then start Hermes and ask it to use the ORBIT tools:
+
+```bash
+hermes chat
+```
+
+Use your deployed URL, for example `https://orbit.example.com/mcp`, and an API key created for the adapter Hermes should access. See [Server Setup](docs/server.md) and the [Hermes MCP quickstart](https://hermes-agent.nousresearch.com/docs/getting-started/quickstart#mcp-servers).
+
 ---
 
 ### What's in the box
@@ -151,7 +173,7 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 | **RAG over real systems** | SQL, NoSQL, REST, GraphQL, files, web content, vector stores, rerankers |
 | **Intent-based retrieval** | Natural-language templates, diagnostics, autocomplete, cached datasets, conversation threading |
 | **Production controls** | API keys, RBAC, audit logs, rate limits, quotas, moderation, circuit breakers |
-| **Agent + voice support** | MCP server, OpenClaw / Claude Desktop / Cursor compatibility, full-duplex PersonaPlex voice |
+| **Agent + voice support** | MCP server, OpenClaw / Hermes / Claude Desktop / Cursor compatibility, full-duplex PersonaPlex voice |
 | **Clients** | Web chat, CLI, mobile app, Node SDK, Python client, or any OpenAI-compatible SDK |
 
 <details>
@@ -166,7 +188,7 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 | **Rerankers** | 6 providers — Cohere, Jina, Voyage, OpenAI, Anthropic, Ollama |
 | **Moderation / guardrails** | OpenAI, Anthropic, Llama Guard (local), pluggable chain |
 | **Voice** | Full-duplex speech-to-speech via **PersonaPlex**; STT (Whisper, Google, Gemini), TTS (OpenAI, ElevenLabs, Coqui) |
-| **Protocols** | OpenAI-compatible chat API + **MCP** — drop-in tool server for [OpenClaw](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md), Claude Desktop, Cursor, or any MCP client |
+| **Protocols** | OpenAI-compatible chat API + **MCP** — drop-in tool server for [OpenClaw](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md), Hermes, Claude Desktop, Cursor, or any MCP client |
 
 </details>
 
