@@ -1297,8 +1297,11 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     isCategoryXAxis &&
     (estimatedCategorySlotWidth < 84 ||
       (estimatedCategorySlotWidth < 108 && labelAnalysis.maxLength > 12));
+  const estimatedLabelPixelWidth = labelAnalysis.maxLength * 7;
   const shouldRotateLabels =
-    isCategoryXAxis && (dataPointCount > 6 || (labelAnalysis.maxLength > 12 && estimatedCategorySlotWidth < 96));
+    isCategoryXAxis &&
+    (dataPointCount > 6 ||
+      (labelAnalysis.maxLength > 8 && estimatedLabelPixelWidth > estimatedCategorySlotWidth * 0.8));
   // Truncate when the slot width is too narrow or the labels are long enough to crowd the axis.
   const shouldTruncateLabels =
     isCategoryXAxis &&
