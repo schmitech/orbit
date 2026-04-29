@@ -23,6 +23,10 @@ interface UseChatAgentSelectionOptions {
 }
 
 type AdapterInfoFetchResult = { ok: true } | { ok: false; error?: unknown };
+type AdapterNotesErrorState = { conversationId: string; message: string } | null;
+
+const missingSingleAdapterMessage =
+  'Single adapter mode requires agentMode.defaultAdapterId to match an adapter id in orbitchat.yaml.';
 
 export function useChatAgentSelection({
   currentConversation,
@@ -33,16 +37,15 @@ export function useChatAgentSelection({
   clearCurrentConversationAdapter
 }: UseChatAgentSelectionOptions) {
   const [isConfiguringAdapter, setIsConfiguringAdapter] = useState(false);
-  const [adapterNotesError, setAdapterNotesError] = useState<string | null>(null);
+  const [adapterNotesAsyncError, setAdapterNotesAsyncError] = useState<AdapterNotesErrorState>(null);
   const isSingleAdapterMode = getIsSingleAdapterMode();
   const singleAdapterId = getConfiguredSingleAdapterId();
+  const initialPathSlug = typeof window !== 'undefined'
+    ? getAgentSlugFromPath(window.location.pathname)
+    : null;
 
-  const initialPathSlugRef = useRef<string | null>(
-    typeof window !== 'undefined' ? getAgentSlugFromPath(window.location.pathname) : null
-  );
-  const initialAgentSelectionVisible = showEmptyState && !initialPathSlugRef.current;
-  const [isAgentSelectionVisible, setIsAgentSelectionVisible] = useState(initialAgentSelectionVisible);
-  const agentSelectionConversationRef = useRef<string | null>(null);
+  const [pendingInitialPathSlug, setPendingInitialPathSlug] = useState<string | null>(initialPathSlug);
+  const [isAgentSelectionVisible, setIsAgentSelectionVisible] = useState(() => showEmptyState && !initialPathSlug);
   const adapterInfoLoadedRef = useRef<string | null>(null);
   const adapterInfoRetryTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const adapterInfoRateLimitCooldownMs = 30000;
@@ -126,7 +129,6 @@ export function useChatAgentSelection({
     if (!activeConversation || activeConversation.messages.length > 0) {
       try {
         const newConversationId = createConversation();
-        agentSelectionConversationRef.current = newConversationId;
         return newConversationId;
       } catch (error) {
         debugWarn(
@@ -165,7 +167,7 @@ export function useChatAgentSelection({
       }));
 
       if (useChatStore.getState().currentConversationId === conversation.id) {
-        setAdapterNotesError(null);
+        setAdapterNotesAsyncError(null);
       }
 
       persistChatState();
@@ -174,7 +176,7 @@ export function useChatAgentSelection({
       const friendlyMessage = getAdapterInfoErrorMessage(error);
       const latestState = useChatStore.getState();
       if (latestState.currentConversationId === conversation.id) {
-        setAdapterNotesError(friendlyMessage);
+        setAdapterNotesAsyncError({ conversationId: conversation.id, message: friendlyMessage });
       }
       const latestConversation = latestState.conversations.find(conv => conv.id === conversation.id);
       if (latestConversation && latestConversation.messages.length === 0) {
@@ -197,7 +199,7 @@ export function useChatAgentSelection({
     }
 
     setIsConfiguringAdapter(true);
-    setAdapterNotesError(null);
+    setAdapterNotesAsyncError(null);
     clearConversationAdapterError(activeConversation.id);
     try {
       const runtimeApiUrl = activeConversation.apiUrl || getApiUrl();
@@ -214,7 +216,7 @@ export function useChatAgentSelection({
     } catch (error) {
       debugError('Failed to configure adapter from empty state:', error);
       const friendlyMessage = getAdapterInfoErrorMessage(error);
-      setAdapterNotesError(friendlyMessage);
+      setAdapterNotesAsyncError({ conversationId: activeConversation.id, message: friendlyMessage });
       markConversationAdapterError(activeConversation.id, friendlyMessage);
     } finally {
       setIsConfiguringAdapter(false);
@@ -273,7 +275,7 @@ export function useChatAgentSelection({
       return;
     }
 
-    initialPathSlugRef.current = null;
+    setPendingInitialPathSlug(null);
 
     const state = useChatStore.getState();
     const conv = state.currentConversationId
@@ -301,56 +303,22 @@ export function useChatAgentSelection({
     setIsAgentSelectionVisible(true);
   }, [clearCurrentConversationAdapter, createConversation, isSingleAdapterMode]);
 
-  useEffect(() => {
-    if (currentConversation?.adapterLoadError) {
-      setAdapterNotesError(currentConversation.adapterLoadError);
-    } else {
-      setAdapterNotesError(null);
-    }
-  }, [currentConversation?.id, currentConversation?.adapterName, currentConversation?.adapterLoadError]);
+  const shouldShowSelectionForConversation =
+    !isSingleAdapterMode &&
+    showEmptyState &&
+    !pendingInitialPathSlug &&
+    !currentConversation?.adapterName &&
+    !currentConversationHasDraftContent;
 
-  useEffect(() => {
-    if (isSingleAdapterMode) {
-      if (isAgentSelectionVisible) {
-        setIsAgentSelectionVisible(false);
-      }
-      agentSelectionConversationRef.current = currentConversation?.id || null;
-      return;
-    }
-
-    if (!showEmptyState) {
-      if (isAgentSelectionVisible) {
-        setIsAgentSelectionVisible(false);
-      }
-      agentSelectionConversationRef.current = currentConversation?.id || null;
-      return;
-    }
-
-    if (initialPathSlugRef.current) {
-      agentSelectionConversationRef.current = currentConversation?.id || null;
-      return;
-    }
-
-    const conversationId = currentConversation?.id || null;
-    const shouldShowSelectionForConversation =
-      !currentConversation?.adapterName && !currentConversationHasDraftContent;
-    if (agentSelectionConversationRef.current !== conversationId) {
-      agentSelectionConversationRef.current = conversationId;
-      setIsAgentSelectionVisible(shouldShowSelectionForConversation);
-      return;
-    }
-
-    if (isAgentSelectionVisible !== shouldShowSelectionForConversation) {
-      setIsAgentSelectionVisible(shouldShowSelectionForConversation);
-    }
-  }, [
-    showEmptyState,
-    currentConversation?.adapterName,
-    currentConversation?.id,
-    currentConversationHasDraftContent,
-    isAgentSelectionVisible,
-    isSingleAdapterMode
-  ]);
+  const shouldShowAgentSelectionList =
+    shouldShowSelectionForConversation ||
+    (
+      !isSingleAdapterMode &&
+      showEmptyState &&
+      isAgentSelectionVisible &&
+      !currentConversation?.adapterName &&
+      !currentConversationHasDraftContent
+    );
 
   useEffect(() => {
     if (isSingleAdapterMode) {
@@ -358,8 +326,7 @@ export function useChatAgentSelection({
       return;
     }
 
-    const shouldShowAgentSelectionList = showEmptyState && isAgentSelectionVisible;
-    if (initialPathSlugRef.current) {
+    if (pendingInitialPathSlug) {
       return;
     }
 
@@ -368,7 +335,12 @@ export function useChatAgentSelection({
       return;
     }
     replaceAgentSlug(slugifyAdapterName(currentConversation.adapterName));
-  }, [showEmptyState, isAgentSelectionVisible, currentConversation?.adapterName, isSingleAdapterMode]);
+  }, [
+    currentConversation?.adapterName,
+    isSingleAdapterMode,
+    pendingInitialPathSlug,
+    shouldShowAgentSelectionList
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -380,7 +352,7 @@ export function useChatAgentSelection({
 
       if (isSingleAdapterMode) {
         replaceAgentSlug(null);
-        initialPathSlugRef.current = null;
+        setPendingInitialPathSlug(null);
         return;
       }
 
@@ -397,14 +369,14 @@ export function useChatAgentSelection({
         replaceAgentSlug(null);
         clearCurrentConversationAdapter();
         setIsAgentSelectionVisible(true);
-        initialPathSlugRef.current = null;
+        setPendingInitialPathSlug(null);
         return;
       }
       ensureConversationReadyForAgent();
       setIsAgentSelectionVisible(false);
       replaceAgentSlug(slug);
       await handleEmptyStateAdapterChange(adapterName);
-      initialPathSlugRef.current = null;
+      setPendingInitialPathSlug(null);
     };
 
     void synchronizeFromLocation();
@@ -426,7 +398,6 @@ export function useChatAgentSelection({
     }
 
     if (!singleAdapterId) {
-      setAdapterNotesError('Single adapter mode requires agentMode.defaultAdapterId to match an adapter id in orbitchat.yaml.');
       return;
     }
 
@@ -447,7 +418,7 @@ export function useChatAgentSelection({
 
     const configureSingleAdapter = async () => {
       setIsConfiguringAdapter(true);
-      setAdapterNotesError(null);
+      setAdapterNotesAsyncError(null);
       clearConversationAdapterError(currentConversation.id);
 
       try {
@@ -457,7 +428,7 @@ export function useChatAgentSelection({
       } catch (error) {
         if (!cancelled) {
           const friendlyMessage = getAdapterInfoErrorMessage(error);
-          setAdapterNotesError(friendlyMessage);
+          setAdapterNotesAsyncError({ conversationId: currentConversation.id, message: friendlyMessage });
           markConversationAdapterError(currentConversation.id, friendlyMessage);
         }
       } finally {
@@ -569,6 +540,11 @@ export function useChatAgentSelection({
     };
   }, []);
 
+  const adapterNotesError = isSingleAdapterMode && !singleAdapterId
+    ? missingSingleAdapterMessage
+    : currentConversation?.adapterLoadError ??
+      (adapterNotesAsyncError?.conversationId === currentConversation?.id ? adapterNotesAsyncError.message : null);
+
   return {
     adapterNotesError,
     handleAgentCardSelection,
@@ -579,6 +555,6 @@ export function useChatAgentSelection({
     isConfiguringAdapter,
     isSingleAdapterMode,
     setIsAgentSelectionVisible,
-    shouldShowAgentSelectionList: !isSingleAdapterMode && showEmptyState && isAgentSelectionVisible
+    shouldShowAgentSelectionList
   };
 }

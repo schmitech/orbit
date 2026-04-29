@@ -104,3 +104,41 @@ async def test_prompt_builder_includes_time_instruction_when_clock_service_enabl
 
     assert "Current time is 2026-04-08 10:00." in result
     clock_service.get_time_instruction.assert_called_once_with("America/Toronto", "%Y-%m-%d %H:%M")
+
+
+def test_build_chart_instruction_contains_all_chart_types():
+    builder = PromptInstructionBuilder(config={})
+    instruction = builder.build_chart_instruction()
+
+    for chart_type in ("bar", "line", "pie", "area", "scatter", "composed", "radar", "funnel", "radialbar"):
+        assert chart_type in instruction, f"Chart type '{chart_type}' missing from chart instruction"
+
+
+def test_build_chart_instruction_contains_new_config_options():
+    builder = PromptInstructionBuilder(config={})
+    instruction = builder.build_chart_instruction()
+
+    assert "layout" in instruction
+    assert "innerRadius" in instruction
+    assert "outerRadius" in instruction
+    assert "horizontal" in instruction
+
+
+def test_build_chart_instruction_contains_usage_notes_for_new_types():
+    builder = PromptInstructionBuilder(config={})
+    instruction = builder.build_chart_instruction()
+
+    assert "radar" in instruction
+    assert "funnel" in instruction
+    assert "radialbar" in instruction
+    assert "xKey" in instruction
+
+
+def test_build_chart_instruction_rules_updated():
+    builder = PromptInstructionBuilder(config={})
+    instruction = builder.build_chart_instruction()
+
+    # Rule 7 — radar xKey guidance
+    assert "spoke" in instruction or "radar" in instruction
+    # Rule 8 — horizontal bar guidance
+    assert "layout: horizontal" in instruction

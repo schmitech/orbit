@@ -148,8 +148,6 @@ export const SVGRenderer: React.FC<SVGRendererProps> = ({ code }) => {
   useEffect(() => {
     const trimmed = code.trim();
     if (!trimmed) {
-      setSanitizedSvg(null);
-      setError(null);
       return;
     }
 
@@ -166,7 +164,9 @@ export const SVGRenderer: React.FC<SVGRendererProps> = ({ code }) => {
     const likelyStreaming = incomplete || rapidUpdate;
 
     if (incomplete) {
-      setIsStreaming(true);
+      setTimeout(() => {
+        setIsStreaming(true);
+      }, 0);
       // Don't try to render incomplete SVG
       return;
     }
@@ -194,19 +194,29 @@ export const SVGRenderer: React.FC<SVGRendererProps> = ({ code }) => {
       // Make SVG responsive
       const responsiveSvg = ensureResponsiveSvg(sanitized);
 
-      setSanitizedSvg(responsiveSvg);
-      setError(null);
-      setIsStreaming(false);
+      setTimeout(() => {
+        setSanitizedSvg(responsiveSvg);
+        setError(null);
+        setIsStreaming(false);
+      }, 0);
     } catch (err) {
       if (likelyStreaming) {
-        setIsStreaming(true);
-        setError(null);
+        setTimeout(() => {
+          setIsStreaming(true);
+          setError(null);
+        }, 0);
       } else {
-        setError(err instanceof Error ? err.message : 'Failed to process SVG');
-        setIsStreaming(false);
+        setTimeout(() => {
+          setError(err instanceof Error ? err.message : 'Failed to process SVG');
+          setIsStreaming(false);
+        }, 0);
       }
     }
   }, [code]);
+
+  if (!code.trim()) {
+    return null;
+  }
 
   if (error) {
     return (
@@ -304,4 +314,3 @@ export const SVGRenderer: React.FC<SVGRendererProps> = ({ code }) => {
     </div>
   );
 };
-

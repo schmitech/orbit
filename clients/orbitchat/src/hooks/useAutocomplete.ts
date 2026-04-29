@@ -302,15 +302,19 @@ export function useAutocomplete(
       adapterSupportsAutocomplete === false ||
       (adapterName ? isAdapterTemporarilySuppressed(adapterName) : false)
     ) {
-      setSuggestions([]);
-      cleanupActiveRequests();
+      setTimeout(() => {
+        setSuggestions([]);
+        cleanupActiveRequests();
+      }, 0);
       return;
     }
 
     if (suppressedQueryRef.current) {
       if (query === suppressedQueryRef.current) {
-        setSuggestions([]);
-        cleanupActiveRequests();
+        setTimeout(() => {
+          setSuggestions([]);
+          cleanupActiveRequests();
+        }, 0);
         return;
       }
       suppressedQueryRef.current = null;

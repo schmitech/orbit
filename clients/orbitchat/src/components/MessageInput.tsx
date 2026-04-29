@@ -530,7 +530,9 @@ export function MessageInput({
     onSend(voiceMessage, allFileIds.length > 0 ? allFileIds : undefined);
 
     clearSuggestions();
-    setMessage('');
+    setTimeout(() => {
+      setMessage('');
+    }, 0);
     voiceMessageRef.current = '';
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -543,7 +545,9 @@ export function MessageInput({
   useEffect(() => {
     if (isUploading && showFileUpload) {
       // Upload has started - hide upload widget, only progress will be visible
-      setShowFileUpload(false);
+      setTimeout(() => {
+        setShowFileUpload(false);
+      }, 0);
     }
   }, [isUploading, showFileUpload]);
 
@@ -601,9 +605,13 @@ export function MessageInput({
       lastConversationIdRef.current = currentConversationId || null;
       if (currentConversationId && currentConversation) {
         const convFiles = currentConversation.attachedFiles || [];
-        setAttachedFiles(convFiles.map(file => ({ ...file })));
+        setTimeout(() => {
+          setAttachedFiles(convFiles.map(file => ({ ...file })));
+        }, 0);
       } else {
-        setAttachedFiles([]);
+        setTimeout(() => {
+          setAttachedFiles([]);
+        }, 0);
       }
     }
   }, [currentConversationId, currentConversation]);
@@ -613,18 +621,22 @@ export function MessageInput({
     if (currentConversationId && currentConversation) {
       const convFiles = currentConversation.attachedFiles || [];
       if (convFiles.length > 0) {
-        setAttachedFiles(prev => {
-          const attachedFileIds = new Set(prev.map(f => f.file_id));
-          const missingFiles = convFiles.filter(f => !attachedFileIds.has(f.file_id));
-          
-          if (missingFiles.length > 0) {
-            debugLog(`[MessageInput] Syncing ${missingFiles.length} missing files from conversation to UI`);
-            return [...prev, ...missingFiles];
-          }
-          return prev;
-        });
+        setTimeout(() => {
+          setAttachedFiles(prev => {
+            const attachedFileIds = new Set(prev.map(f => f.file_id));
+            const missingFiles = convFiles.filter(f => !attachedFileIds.has(f.file_id));
+            
+            if (missingFiles.length > 0) {
+              debugLog(`[MessageInput] Syncing ${missingFiles.length} missing files from conversation to UI`);
+              return [...prev, ...missingFiles];
+            }
+            return prev;
+          });
+        }, 0);
       } else if (convFiles.length === 0 && attachedFiles.length > 0) {
-        setAttachedFiles([]);
+        setTimeout(() => {
+          setAttachedFiles([]);
+        }, 0);
       }
     }
   }, [currentConversationId, currentConversation, conversations, attachedFiles.length]);
@@ -718,18 +730,20 @@ export function MessageInput({
   }, [currentConversationId, currentConversation?.adapterName, fileSignature, hasFilesStillProcessing, syncConversationFiles]);
 
   useEffect(() => {
-    setConversationUploadingState(prev => {
-      const existingIds = new Set(conversations.map(conv => conv.id));
-      let changed = false;
-      const next = { ...prev };
-      Object.keys(next).forEach(id => {
-        if (!existingIds.has(id)) {
-          delete next[id];
-          changed = true;
-        }
+    setTimeout(() => {
+      setConversationUploadingState(prev => {
+        const existingIds = new Set(conversations.map(conv => conv.id));
+        let changed = false;
+        const next = { ...prev };
+        Object.keys(next).forEach(id => {
+          if (!existingIds.has(id)) {
+            delete next[id];
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
       });
-      return changed ? next : prev;
-    });
+    }, 0);
   }, [conversations]);
 
   const handleSubmit = (e: React.FormEvent) => {

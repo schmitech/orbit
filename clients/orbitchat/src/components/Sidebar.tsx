@@ -93,22 +93,21 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   }>({ isOpen: false, isDeleting: false });
 
   const [showConfig, setShowConfig] = useState(false);
-  const [selectedAdapter, setSelectedAdapter] = useState<string | null>(null);
+  const [selectedAdapter, setSelectedAdapter] = useState<{ conversationId: string | null; adapterName: string } | null>(null);
   const [isValidating, setIsValidating] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<{ conversationId: string | null; message: string } | null>(null);
   const configDialogRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const canConfigureApi = !currentConversation || currentConversation.messages.length === 0;
 
-  useEffect(() => {
-    setSelectedAdapter(currentConversation?.adapterName ?? null);
-  }, [currentConversation?.adapterName]);
-
-  useEffect(() => {
-    setValidationError(null);
-  }, [currentConversationId]);
+  const selectedAdapterName =
+    selectedAdapter?.conversationId === currentConversationId
+      ? selectedAdapter.adapterName
+      : currentConversation?.adapterName ?? null;
+  const validationErrorMessage =
+    validationError?.conversationId === currentConversationId ? validationError.message : null;
 
   // -----------------------------------------------------------------------
   // Conversation filtering & grouping
@@ -181,7 +180,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
 
   const handleAdapterSelection = async (adapterName: string) => {
     if (!canConfigureApi || !adapterName) return;
-    setSelectedAdapter(adapterName);
+    setSelectedAdapter({ conversationId: currentConversationId ?? null, adapterName });
     setValidationError(null);
     setIsValidating(true);
     try {
@@ -191,7 +190,10 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
       setShowConfig(false);
     } catch (error) {
       debugError('Failed to configure adapter:', error);
-      setValidationError(error instanceof Error ? error.message : 'Failed to configure adapter');
+      setValidationError({
+        conversationId: currentConversationId ?? null,
+        message: error instanceof Error ? error.message : 'Failed to configure adapter'
+      });
     } finally {
       setIsValidating(false);
     }
@@ -403,16 +405,16 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
             </h2>
             <div className="space-y-5">
               <AdapterSelector
-                selectedAdapter={selectedAdapter || currentConversation?.adapterName || null}
+                selectedAdapter={selectedAdapterName}
                 onAdapterChange={handleAdapterSelection}
                 disabled={isValidating}
                 variant="prominent"
                 showDescriptions
                 showLabel={false}
               />
-              {validationError && (
+              {validationErrorMessage && (
                 <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
-                  {validationError}
+                  {validationErrorMessage}
                 </div>
               )}
               <div className="flex justify-end gap-3 pt-2">
@@ -462,9 +464,9 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
           </div>
 
           {/* Validation error (outside modal) */}
-          {validationError && !showConfig && (
+          {validationErrorMessage && !showConfig && (
             <p role="alert" className="mt-2 text-xs text-red-600 dark:text-red-400">
-              {validationError}
+              {validationErrorMessage}
             </p>
           )}
 

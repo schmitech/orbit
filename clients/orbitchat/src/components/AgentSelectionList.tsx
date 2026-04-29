@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Search, X } from 'lucide-react';
 import { AgentCard } from './AgentCard';
 import { fetchAdapters, type Adapter } from '../utils/middlewareConfig';
@@ -122,18 +122,15 @@ export function AgentSelectionList({
     focusAgentCardAtIndex(currentIndex - 1);
   };
 
-  const filteredAdapters = useMemo(() => {
-    const trimmedQuery = searchQuery.trim().toLowerCase();
-    if (!trimmedQuery) {
-      return adapters;
-    }
-    return adapters.filter(adapter => {
-      const nameMatches = adapter.name.toLowerCase().includes(trimmedQuery);
-      const descriptionMatches = adapter.description?.toLowerCase().includes(trimmedQuery) ?? false;
-      const modelMatches = adapter.model?.toLowerCase().includes(trimmedQuery) ?? false;
-      return nameMatches || descriptionMatches || modelMatches;
-    });
-  }, [adapters, searchQuery]);
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const filteredAdapters = trimmedQuery
+    ? adapters.filter(adapter => {
+        const nameMatches = adapter.name.toLowerCase().includes(trimmedQuery);
+        const descriptionMatches = adapter.description?.toLowerCase().includes(trimmedQuery) ?? false;
+        const modelMatches = adapter.model?.toLowerCase().includes(trimmedQuery) ?? false;
+        return nameMatches || descriptionMatches || modelMatches;
+      })
+    : adapters;
   const isFilteringAgents = searchQuery.trim().length > 0;
 
   useEffect(() => {

@@ -7,12 +7,22 @@ import {
   CartesianGrid,
   Cell,
   ComposedChart,
+  Funnel,
+  FunnelChart,
   Label,
+  LabelList,
   Legend,
   Line,
   LineChart,
   Pie,
   PieChart,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  RadialBar,
+  RadialBarChart,
   ReferenceLine,
   ResponsiveContainer,
   Scatter,
@@ -30,6 +40,10 @@ import type {
   ChartRendererProps,
   ChartSeriesConfig,
 } from '../types';
+
+const scheduleChartStateUpdate = (update: () => void) => {
+  setTimeout(update, 0);
+};
 
 // Premium color palette — WCAG AA-accessible against both light and dark backgrounds
 const DEFAULT_COLORS = [
@@ -82,7 +96,7 @@ type PartialChartConfig = Partial<ChartConfig> & {
 interface NormalizedSeries extends ChartSeriesConfig {
   color: string;
   name: string;
-  type: 'bar' | 'line' | 'area' | 'scatter';
+  type: 'bar' | 'line' | 'area' | 'scatter' | 'radar' | 'funnel';
   yAxisId: 'left' | 'right';
   opacity: number;
   stackId?: string;
@@ -254,6 +268,19 @@ const applyConfigLine = (config: PartialChartConfig, key: string, rawValue: stri
     case 'referencelines': {
       const parsed = tryParseJSON<ChartReferenceLineConfig[]>(value);
       if (parsed) config.referenceLines = parsed;
+      return;
+    }
+    case 'layout':
+      config.layout = value as 'horizontal' | 'vertical';
+      return;
+    case 'innerradius': {
+      const parsed = parseNumericValue(value);
+      config.innerRadius = typeof parsed === 'number' ? parsed : value;
+      return;
+    }
+    case 'outerradius': {
+      const parsed = parseNumericValue(value);
+      config.outerRadius = typeof parsed === 'number' ? parsed : value;
       return;
     }
     default:
@@ -690,6 +717,10 @@ const buildSeries = (config: ChartConfig, colors: string[]): NormalizedSeries[] 
       ? 'area'
       : config.type === 'scatter'
       ? 'scatter'
+      : config.type === 'radar'
+      ? 'radar'
+      : config.type === 'funnel'
+      ? 'funnel'
       : 'bar';
 
   return baseSeries.map((series, idx) => {
@@ -932,10 +963,12 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     if (!parsed) {
       if (likelyStreaming) {
         // During streaming, show waiting state instead of error
-        setIsWaitingForData(true); // eslint-disable-line react-hooks/set-state-in-effect -- intentional state sync from prop
-        setIsStreaming(true);
-        setError(null);
-        setConfig(null);
+        scheduleChartStateUpdate(() => {
+          setIsWaitingForData(true);
+          setIsStreaming(true);
+          setError(null);
+          setConfig(null);
+        });
         if (streamingTimeoutRef.current) {
           clearTimeout(streamingTimeoutRef.current);
         }
@@ -948,10 +981,12 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
           }
         }, 5000);
       } else {
-        setConfig(null);
-        setError('Failed to parse chart configuration');
-        setIsStreaming(false);
-        setIsWaitingForData(false);
+        scheduleChartStateUpdate(() => {
+          setConfig(null);
+          setError('Failed to parse chart configuration');
+          setIsStreaming(false);
+          setIsWaitingForData(false);
+        });
       }
       return;
     }
@@ -959,10 +994,12 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     if (!Array.isArray(parsed.data) || parsed.data.length === 0) {
       if (likelyStreaming) {
         // During streaming with no data yet, show waiting state
-        setIsWaitingForData(true);
-        setIsStreaming(true);
-        setError(null);
-        setConfig(null);
+        scheduleChartStateUpdate(() => {
+          setIsWaitingForData(true);
+          setIsStreaming(true);
+          setError(null);
+          setConfig(null);
+        });
 
         // Clear any existing streaming timeout
         if (streamingTimeoutRef.current) {
@@ -979,10 +1016,12 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
           }
         }, 5000);
       } else {
-        setConfig(null);
-        setError('Chart data is empty');
-        setIsStreaming(false);
-        setIsWaitingForData(false);
+        scheduleChartStateUpdate(() => {
+          setConfig(null);
+          setError('Chart data is empty');
+          setIsStreaming(false);
+          setIsWaitingForData(false);
+        });
       }
       return;
     }
@@ -990,10 +1029,12 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     if (!parsed.type) {
       if (likelyStreaming) {
         // Type not yet received during streaming
-        setIsWaitingForData(true);
-        setIsStreaming(true);
-        setError(null);
-        setConfig(null);
+        scheduleChartStateUpdate(() => {
+          setIsWaitingForData(true);
+          setIsStreaming(true);
+          setError(null);
+          setConfig(null);
+        });
         if (streamingTimeoutRef.current) {
           clearTimeout(streamingTimeoutRef.current);
         }
@@ -1006,16 +1047,20 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
           }
         }, 5000);
       } else {
-        setConfig(null);
-        setError('Chart type is required (bar, line, pie, area, scatter, composed)');
-        setIsStreaming(false);
-        setIsWaitingForData(false);
+        scheduleChartStateUpdate(() => {
+          setConfig(null);
+          setError('Chart type is required (bar, line, pie, area, scatter, composed)');
+          setIsStreaming(false);
+          setIsWaitingForData(false);
+        });
       }
       return;
     }
 
     // Clear waiting state - we have valid data now
-    setIsWaitingForData(false);
+    scheduleChartStateUpdate(() => {
+      setIsWaitingForData(false);
+    });
 
     // Clear streaming timeout if we got valid data
     if (streamingTimeoutRef.current) {
@@ -1024,7 +1069,9 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     }
 
     if (likelyStreaming) {
-      setIsStreaming(true);
+      scheduleChartStateUpdate(() => {
+        setIsStreaming(true);
+      });
 
       // Clear any existing debounce timer
       if (debounceTimerRef.current) {
@@ -1044,13 +1091,17 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
       }, 400);
 
       // Show partial data while streaming (but still set it)
-      setError(null);
-      setConfig(parsed);
+      scheduleChartStateUpdate(() => {
+        setError(null);
+        setConfig(parsed);
+      });
     } else {
       // Data is complete and not rapidly updating - render immediately
-      setIsStreaming(false);
-      setError(null);
-      setConfig(parsed);
+      scheduleChartStateUpdate(() => {
+        setIsStreaming(false);
+        setError(null);
+        setConfig(parsed);
+      });
     }
 
     // Cleanup
@@ -1159,7 +1210,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   const derivedSeries = allSeries.filter((s) => !hiddenSeries.has(s.key));
 
   const hasRightAxis = derivedSeries.some((series) => series.yAxisId === 'right');
-  const showLegend = config.showLegend ?? (config.type === 'pie' || derivedSeries.length > 1);
+  const showLegend = config.showLegend ?? (config.type === 'pie' || config.type === 'funnel' || config.type === 'radialbar' || derivedSeries.length > 1);
   const showGrid = config.showGrid ?? true;
 
   const referenceLineElements = renderReferenceLines(config.referenceLines);
@@ -1549,7 +1600,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
         <div ref={chartViewportRef} style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
           <div style={{ minWidth: '100%' }}>
             <ResponsiveContainer width={intrinsicChartWidth} height={height}>
-        {config.type === 'bar' && (
+        {config.type === 'bar' && config.layout !== 'horizontal' && (
           <BarChart data={config.data} margin={chartMargin} barCategoryGap="20%">
             {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />}
             <XAxis
@@ -1580,7 +1631,6 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             )}
             <Tooltip content={renderCustomTooltip} cursor={tooltipCursor} />
             {showLegend && <Legend content={renderInteractiveLegend} />}
-            {referenceLineElements}
             {derivedSeries.map((series) => (
               <Bar
                 name={series.name}
@@ -1594,6 +1644,45 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 animationEasing={ANIMATION_DEFAULTS.easing}
               />
             ))}
+            {referenceLineElements}
+          </BarChart>
+        )}
+
+        {config.type === 'bar' && config.layout === 'horizontal' && (
+          <BarChart
+            data={config.data}
+            layout="vertical"
+            margin={{ ...chartMargin, left: isCompactViewport ? 100 : 120 }}
+            barCategoryGap="20%"
+          >
+            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />}
+            <XAxis
+              type="number"
+              tickFormatter={axisTickFormatter}
+              {...axisStylingProps}
+            />
+            <YAxis
+              type="category"
+              dataKey={config.xKey || 'name'}
+              width={isCompactViewport ? 100 : 120}
+              {...axisStylingProps}
+              tick={{ fill: axisColor, fontSize: isCompactViewport ? 11 : 12 }}
+            />
+            <Tooltip content={renderCustomTooltip} cursor={tooltipCursor} />
+            {showLegend && <Legend content={renderInteractiveLegend} />}
+            {derivedSeries.map((series) => (
+              <Bar
+                name={series.name}
+                key={series.key}
+                dataKey={series.key}
+                fill={series.color}
+                stackId={series.stackId}
+                radius={[0, 4, 4, 0]}
+                animationDuration={ANIMATION_DEFAULTS.duration}
+                animationEasing={ANIMATION_DEFAULTS.easing}
+              />
+            ))}
+            {referenceLineElements}
           </BarChart>
         )}
 
@@ -1628,7 +1717,6 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             )}
             <Tooltip content={renderCustomTooltip} cursor={{ stroke: gridColor, strokeDasharray: '4 4' }} />
             {showLegend && <Legend content={renderInteractiveLegend} />}
-            {referenceLineElements}
             {derivedSeries.map((series) => (
               <Line
                 name={series.name}
@@ -1644,6 +1732,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 animationEasing={ANIMATION_DEFAULTS.easing}
               />
             ))}
+            {referenceLineElements}
           </LineChart>
         )}
 
@@ -1679,7 +1768,6 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             )}
             <Tooltip content={renderCustomTooltip} cursor={{ stroke: gridColor, strokeDasharray: '4 4' }} />
             {showLegend && <Legend content={renderInteractiveLegend} />}
-            {referenceLineElements}
             {derivedSeries.map((series) => (
               <Area
                 name={series.name}
@@ -1697,6 +1785,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 animationEasing={ANIMATION_DEFAULTS.easing}
               />
             ))}
+            {referenceLineElements}
           </AreaChart>
         )}
 
@@ -1732,7 +1821,6 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             )}
             <Tooltip content={renderCustomTooltip} cursor={tooltipCursor} />
             {showLegend && <Legend content={renderInteractiveLegend} />}
-            {referenceLineElements}
             {derivedSeries.map((series) => {
               switch (series.type) {
                 case 'line':
@@ -1797,34 +1885,40 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                   );
               }
             })}
+            {referenceLineElements}
           </ComposedChart>
         )}
 
-        {config.type === 'pie' && (
-          <PieChart>
-            <Pie
-              data={config.data}
-              dataKey={derivedSeries[0]?.key || config.dataKeys?.[0] || 'value'}
-              nameKey={config.xKey || 'name'}
-              cx="50%"
-              cy="50%"
-              outerRadius={height / 3}
-              innerRadius={height / 6}
-              paddingAngle={2}
-              strokeWidth={0}
-              label={({ name, percent }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
-              labelLine={{ stroke: axisColor, strokeWidth: 1 }}
-              animationDuration={ANIMATION_DEFAULTS.duration}
-              animationEasing={ANIMATION_DEFAULTS.easing}
-            >
-              {config.data.map((_: unknown, index: number) => (
-                <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-              ))}
-            </Pie>
-            <Tooltip content={renderCustomTooltip} />
-            {showLegend && <Legend content={renderInteractiveLegend} />}
-          </PieChart>
-        )}
+        {config.type === 'pie' && (() => {
+          const pieHasMany = config.data.length > 5;
+          const pieOuterRadius = config.outerRadius ?? height / 3;
+          const pieInnerRadius = config.innerRadius ?? height / 6;
+          return (
+            <PieChart>
+              <Pie
+                data={config.data}
+                dataKey={derivedSeries[0]?.key || config.dataKeys?.[0] || 'value'}
+                nameKey={config.xKey || 'name'}
+                cx="50%"
+                cy="50%"
+                outerRadius={pieOuterRadius}
+                innerRadius={pieInnerRadius}
+                paddingAngle={2}
+                strokeWidth={0}
+                label={pieHasMany ? false : ({ name, percent }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(1)}%`}
+                labelLine={pieHasMany ? false : { stroke: axisColor, strokeWidth: 1 }}
+                animationDuration={ANIMATION_DEFAULTS.duration}
+                animationEasing={ANIMATION_DEFAULTS.easing}
+              >
+                {config.data.map((_: unknown, index: number) => (
+                  <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                ))}
+              </Pie>
+              <Tooltip content={renderCustomTooltip} />
+              <Legend content={renderInteractiveLegend} />
+            </PieChart>
+          );
+        })()}
 
         {config.type === 'scatter' && (
           <ScatterChart margin={chartMargin}>
@@ -1846,7 +1940,6 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             </YAxis>
             <Tooltip content={renderCustomTooltip} cursor={tooltipCursor} />
             {showLegend && <Legend content={renderInteractiveLegend} />}
-            {referenceLineElements}
             {derivedSeries.map((series) => (
               <Scatter
                 key={series.key}
@@ -1857,7 +1950,81 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 animationEasing={ANIMATION_DEFAULTS.easing}
               />
             ))}
+            {referenceLineElements}
           </ScatterChart>
+        )}
+
+        {config.type === 'radar' && (
+          <RadarChart cx="50%" cy="50%" outerRadius="72%" data={config.data}>
+            <PolarGrid stroke={gridColor} />
+            <PolarAngleAxis
+              dataKey={config.xKey || 'name'}
+              tick={{ fill: axisColor, fontSize: 12 }}
+            />
+            <PolarRadiusAxis
+              axisLine={false}
+              tick={{ fill: secondaryTextColor, fontSize: 10 }}
+            />
+            {derivedSeries.map((series) => (
+              <Radar
+                key={series.key}
+                name={series.name}
+                dataKey={series.key}
+                stroke={series.color}
+                fill={series.color}
+                fillOpacity={0.25}
+                strokeWidth={2}
+                animationDuration={ANIMATION_DEFAULTS.duration}
+                animationEasing={ANIMATION_DEFAULTS.easing}
+              />
+            ))}
+            <Tooltip content={renderCustomTooltip} />
+            {showLegend && <Legend content={renderInteractiveLegend} />}
+          </RadarChart>
+        )}
+
+        {config.type === 'funnel' && (
+          <FunnelChart margin={chartMargin}>
+            <Funnel
+              dataKey={derivedSeries[0]?.key || 'value'}
+              data={config.data.map((item, idx) => ({ ...item, fill: (config.colors ?? DEFAULT_COLORS)[idx % (config.colors ?? DEFAULT_COLORS).length] }))}
+              isAnimationActive={true}
+              animationDuration={ANIMATION_DEFAULTS.duration}
+              animationEasing={ANIMATION_DEFAULTS.easing}
+            >
+              <LabelList
+                dataKey={config.xKey || 'name'}
+                position="center"
+                style={{ fill: '#fff', fontWeight: 600, fontSize: 13 }}
+              />
+            </Funnel>
+            <Tooltip content={renderCustomTooltip} />
+            {showLegend && <Legend content={renderInteractiveLegend} />}
+          </FunnelChart>
+        )}
+
+        {config.type === 'radialbar' && (
+          <RadialBarChart
+            cx="50%"
+            cy="50%"
+            innerRadius="20%"
+            outerRadius="90%"
+            data={config.data.map((item, idx) => ({ ...item, fill: (config.colors ?? DEFAULT_COLORS)[idx % (config.colors ?? DEFAULT_COLORS).length] }))}
+            margin={chartMargin}
+          >
+            <PolarGrid stroke={gridColor} gridType="circle" />
+            <PolarAngleAxis type="number" tick={false} />
+            <RadialBar
+              dataKey={derivedSeries[0]?.key || 'value'}
+              background={{ fill: gridColor }}
+              cornerRadius={4}
+              label={{ position: 'insideStart', fill: '#fff', fontWeight: 600, fontSize: 12 }}
+              animationDuration={ANIMATION_DEFAULTS.duration}
+              animationEasing={ANIMATION_DEFAULTS.easing}
+            />
+            <Tooltip content={renderCustomTooltip} />
+            {showLegend && <Legend content={renderInteractiveLegend} />}
+          </RadialBarChart>
         )}
             </ResponsiveContainer>
           </div>

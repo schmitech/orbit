@@ -44,7 +44,7 @@ export interface ChartFormatterConfig {
 export interface ChartSeriesConfig {
   key: string;
   name?: string;
-  type?: 'bar' | 'line' | 'area' | 'scatter';
+  type?: 'bar' | 'line' | 'area' | 'scatter' | 'radar' | 'funnel';
   color?: string;
   yAxisId?: 'left' | 'right';
   stackId?: string;
@@ -69,7 +69,7 @@ export interface ChartReferenceLineConfig {
 export type ChartDataItem = Record<string, any>;
 
 export interface ChartConfig {
-  type: 'bar' | 'line' | 'pie' | 'area' | 'scatter' | 'composed';
+  type: 'bar' | 'line' | 'pie' | 'area' | 'scatter' | 'composed' | 'radar' | 'funnel' | 'radialbar';
   title?: string;
   description?: string;
   data: ChartDataItem[];
@@ -88,6 +88,9 @@ export interface ChartConfig {
   formatter?: ChartFormatterConfig;
   series?: ChartSeriesConfig[];
   referenceLines?: ChartReferenceLineConfig[];
+  layout?: 'horizontal' | 'vertical';
+  innerRadius?: number | string;
+  outerRadius?: number | string;
 }
 
 /**

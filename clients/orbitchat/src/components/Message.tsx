@@ -191,15 +191,19 @@ export function Message({
 
   useEffect(() => {
     if (!message.threadInfo) {
-      setThreadInput('');
-      setIsThreadOpen(false);
-      setIsSendingThreadMessage(false);
+      setTimeout(() => {
+        setThreadInput('');
+        setIsThreadOpen(false);
+        setIsSendingThreadMessage(false);
+      }, 0);
     }
   }, [message.threadInfo]);
 
   useEffect(() => {
     if (threadReplyCount > 0) {
-      setIsThreadOpen(true);
+      setTimeout(() => {
+        setIsThreadOpen(true);
+      }, 0);
     }
   }, [threadReplyCount]);
 

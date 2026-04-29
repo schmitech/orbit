@@ -255,12 +255,25 @@ class PromptInstructionBuilder:
             'series: [{"key":"revenue","name":"Revenue","type":"bar","color":"#3b82f6","yAxisId":"left"},{"key":"margin","name":"Margin","type":"line","color":"#f59e0b","yAxisId":"right"}]\n'
             "```\n"
             "\n"
-            "CHART TYPES: bar, line, pie, area, scatter, composed\n"
+            "CHART TYPES: bar, line, pie, area, scatter, composed, radar, funnel, radialbar\n"
+            "\n"
+            "TYPE USAGE NOTES:\n"
+            "  bar      — vertical bars; add `layout: horizontal` for horizontal bars\n"
+            "  line     — line chart with optional dots\n"
+            "  area     — filled area chart; supports stacking\n"
+            "  pie      — donut/pie; xKey = name field, one series key = value field;\n"
+            "             labels auto-hidden when > 5 segments (legend shown instead)\n"
+            "  scatter  — x/y scatter plot\n"
+            "  composed — mix bar/line/area/scatter per series via series[].type\n"
+            "  radar    — spider/radar chart; xKey = category axis (e.g. 'skill'),\n"
+            "             dataKeys or series = one column per metric/group\n"
+            "  funnel   — conversion funnel; xKey = stage name field, one series key = value\n"
+            "  radialbar — concentric arc bars; xKey = name field, one series key = value\n"
             "\n"
             "SERIES OBJECT PROPERTIES:\n"
             '  "key": (REQUIRED) the field name in each data object — must match a key in data. Do NOT use "dataKey", always use "key".\n'
             '  "name": display label for the legend\n'
-            '  "type": "bar", "line", "area", or "scatter" (only needed for composed charts)\n'
+            '  "type": "bar", "line", "area", or "scatter" (only for composed charts)\n'
             '  "color": hex color, e.g. "#3b82f6"\n'
             '  "yAxisId": "left" (default) or "right" for dual-axis charts\n'
             '  "stackId": group name to stack bars/areas together\n'
@@ -272,10 +285,12 @@ class PromptInstructionBuilder:
             "  type, title, description, xKey, xAxisLabel, yAxisLabel, yAxisRightLabel,\n"
             "  xAxisType (category or number), stacked (true/false), showLegend (true/false),\n"
             "  showGrid (true/false), height (pixels), width (pixels),\n"
+            "  layout (horizontal — only for bar charts, produces horizontal bars),\n"
+            "  innerRadius (pixels — for pie/radialbar), outerRadius (pixels — for pie/radialbar),\n"
             "  valueFormat (number/compact/currency/percent), valuePrefix, valueSuffix,\n"
             "  valueDecimals, valueCurrency, colors (comma-separated hex codes)\n"
             "\n"
-            "REFERENCE LINES (optional):\n"
+            "REFERENCE LINES (optional, not supported on radar/funnel/radialbar/pie):\n"
             '  referenceLines: [{"y":500,"label":"Target","color":"#ef4444"}]\n'
             "\n"
             "RULES:\n"
@@ -284,6 +299,8 @@ class PromptInstructionBuilder:
             "3. Every series must reference a field that exists in the data objects.\n"
             "4. labels[] and data[] arrays must be the same length.\n"
             "5. Use hex color codes (e.g. #3b82f6). Labels can contain spaces.\n"
-            "6. For pie charts, use xKey for the name field and a single series key for the value field.\n"
+            "6. For pie, funnel, and radialbar charts: use xKey for the name field and a single series key for the value field.\n"
+            "7. For radar charts: xKey is the spoke label field; each additional column/series is one data group.\n"
+            "8. For horizontal bar charts: use `type: bar` and add `layout: horizontal`.\n"
             "--- END CHART FORMATTING RULES ---\n"
         )

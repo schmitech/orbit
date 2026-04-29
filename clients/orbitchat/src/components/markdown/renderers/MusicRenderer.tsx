@@ -110,9 +110,6 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
   useEffect(() => {
     const trimmed = code.trim();
     if (!trimmed) {
-      setIsLoading(false);
-      setIsAbc(false);
-      setIsStreaming(false);
       return;
     }
 
@@ -129,28 +126,34 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
     const likelyStreaming = incomplete || rapidUpdate;
 
     if (incomplete) {
-      setIsStreaming(true);
-      setIsLoading(true);
-      setError(null);
+      setTimeout(() => {
+        setIsStreaming(true);
+        setIsLoading(true);
+        setError(null);
+      }, 0);
       return;
     }
 
     if (isAbcNotation(code)) {
-      setIsAbc(true);
-      setError(null);
-      if (likelyStreaming) {
-        setIsStreaming(true);
-      }
-    } else {
-      setIsAbc(false);
-      if (likelyStreaming) {
-        setIsStreaming(true);
+      setTimeout(() => {
+        setIsAbc(true);
         setError(null);
-      } else {
-        setError('Unable to detect ABC notation. Expected ABC notation starting with headers like X:, T:, M:, L:, or K:');
-        setIsLoading(false);
-        setIsStreaming(false);
-      }
+        if (likelyStreaming) {
+          setIsStreaming(true);
+        }
+      }, 0);
+    } else {
+      setTimeout(() => {
+        setIsAbc(false);
+        if (likelyStreaming) {
+          setIsStreaming(true);
+          setError(null);
+        } else {
+          setError('Unable to detect ABC notation. Expected ABC notation starting with headers like X:, T:, M:, L:, or K:');
+          setIsLoading(false);
+          setIsStreaming(false);
+        }
+      }, 0);
     }
   }, [code]);
 
@@ -220,6 +223,10 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
       }
     };
   }, [code, isAbc, isStreaming]);
+
+  if (!code.trim()) {
+    return null;
+  }
 
   if (error) {
     return (
