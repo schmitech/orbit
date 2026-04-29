@@ -108,6 +108,14 @@ Most AI gateways stop at provider routing. ORBIT is built for the messy parts of
 
 ---
 
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/55a1f582-5ea4-411d-bbfc-4ccffbd6f81a" controls muted playsinline width="75%"></video>
+  <br />
+  <em>ORBIT supports conversation threading with multi-turn follow-ups on the same result set — branch off any assistant response to keep drilling into the data without re-querying the database. Source available at <a href="examples/intent-templates/duckdb-intent-template/examples/analytics/">examples/intent-templates/duckdb-intent-template/examples/analytics</a>.</em>
+</p>
+
+---
+
 ### Is ORBIT a fit?
 
 ORBIT is a good fit if you need a self-hosted AI gateway, private RAG over real business systems, mixed data-source retrieval, provider switching, or MCP tools for agents.

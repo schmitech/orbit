@@ -26,7 +26,6 @@ from .chat_handlers import (
     ResponseProcessor
 )
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
 
@@ -66,7 +65,6 @@ class PipelineChatService:
         """
         self.config = config
 
-        # Store services for direct access
         self.logger_service = logger_service
         self.chat_history_service = chat_history_service
         self.moderator_service = moderator_service
@@ -74,23 +72,18 @@ class PipelineChatService:
         self.redis_service = redis_service
         self.audit_service = audit_service
 
-        # Create pipeline factory
         self.pipeline_factory = PipelineFactory(config)
 
-        # Use provided adapter manager or create a local one (backward compatibility)
         if adapter_manager is not None:
-            # Use the shared adapter manager - config changes during reload will be reflected
             # For FaultTolerantAdapterManager, use base_adapter_manager for handlers
             if hasattr(adapter_manager, 'base_adapter_manager'):
                 adapter_manager = adapter_manager.base_adapter_manager
             logger.debug("Using shared adapter manager for pipeline chat service")
         else:
-            # Create local adapter manager (backward compatibility, but won't reflect reloads)
             from services.dynamic_adapter_manager import DynamicAdapterManager
             adapter_manager = DynamicAdapterManager(config)
             logger.debug("Created local adapter manager for pipeline chat service")
 
-        # Create pipeline with services
         self.pipeline = self.pipeline_factory.create_pipeline_with_services(
             retriever=retriever,
             reranker_service=reranker_service,
@@ -105,13 +98,9 @@ class PipelineChatService:
             thread_dataset_service=thread_dataset_service
         )
 
-        # Initialize handlers with shared adapter_manager
         self._init_handlers(adapter_manager)
-
-        # Store pipeline reference for async initialization
         self._pipeline_initialized = False
 
-        # Query burst cache — short-TTL cache to absorb repeated identical queries
         query_cache_config = config.get('internal_services', {}).get('redis', {}).get('query_cache', {})
         self._query_cache_enabled = query_cache_config.get('enabled', True)
         self._query_cache_ttl = int(query_cache_config.get('ttl', 30))
@@ -121,38 +110,24 @@ class PipelineChatService:
         logger.debug("Pipeline-based chat service initialized with clean providers")
 
     def _init_handlers(self, adapter_manager) -> None:
-        """
-        Initialize all specialized handlers.
-
-        Args:
-            adapter_manager: The adapter manager instance
-        """
-        # Conversation history handler
+        """Initialize all specialized handlers."""
         self.conversation_handler = ConversationHistoryHandler(
             config=self.config,
             chat_history_service=self.chat_history_service,
             adapter_manager=adapter_manager
         )
-
-        # Audio handler
         self.audio_handler = AudioHandler(
             config=self.config,
             adapter_manager=adapter_manager
         )
-
-        # Request context builder
         self.context_builder = RequestContextBuilder(
             config=self.config,
             adapter_manager=adapter_manager
         )
-
-        # Streaming handler (depends on audio handler)
         self.streaming_handler = StreamingHandler(
             config=self.config,
             audio_handler=self.audio_handler
         )
-
-        # Response processor (depends on conversation handler)
         self.response_processor = ResponseProcessor(
             config=self.config,
             conversation_handler=self.conversation_handler,
@@ -167,8 +142,14 @@ class PipelineChatService:
             self._pipeline_initialized = True
             logger.info("Pipeline provider initialized")
 
+    # -------------------------------------------------------------------------
+    # Query burst cache helpers
+    # -------------------------------------------------------------------------
+
     def _build_query_cache_key(
-        self, message: str, adapter_name: str,
+        self,
+        message: str,
+        adapter_name: str,
         thread_id: Optional[str] = None,
         file_ids: Optional[List[str]] = None,
         system_prompt_id: Optional[ObjectId] = None,
@@ -188,7 +169,6 @@ class PipelineChatService:
         if not self._query_cache_enabled:
             return None
 
-        # Try Redis
         if self.redis_service:
             try:
                 cached = await self.redis_service.get_json(cache_key)
@@ -198,7 +178,6 @@ class PipelineChatService:
             except Exception:
                 logger.debug("Failed to read query cache from Redis", exc_info=True)
 
-        # In-memory fallback
         entry = self._memory_cache.get(cache_key)
         if entry:
             result, expire_at = entry
@@ -214,14 +193,12 @@ class PipelineChatService:
         if not self._query_cache_enabled or 'error' in result:
             return
 
-        # Redis
         if self.redis_service:
             try:
                 await self.redis_service.store_json(cache_key, result, ttl=self._query_cache_ttl)
             except Exception:
                 logger.debug("Failed to store query cache in Redis", exc_info=True)
 
-        # In-memory (evict expired entries first, then oldest if still full)
         now = time.monotonic()
         if len(self._memory_cache) >= self._query_cache_max_memory:
             expired = [k for k, (_, exp) in self._memory_cache.items() if now >= exp]
@@ -232,46 +209,223 @@ class PipelineChatService:
 
         self._memory_cache[cache_key] = (result, now + self._query_cache_ttl)
 
-    async def process_chat(self, message: str, client_ip: str, adapter_name: str,
-                          system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
-                          session_id: Optional[str] = None, user_id: Optional[str] = None,
-                          file_ids: Optional[List[str]] = None,
-                          thread_id: Optional[str] = None,
-                          audio_input: Optional[str] = None,
-                          audio_format: Optional[str] = None,
-                          language: Optional[str] = None,
-                          return_audio: Optional[bool] = None,
-                          tts_voice: Optional[str] = None,
-                          source_language: Optional[str] = None,
-                          target_language: Optional[str] = None) -> Dict[str, Any]:
+    # -------------------------------------------------------------------------
+    # Thread context resolution
+    # -------------------------------------------------------------------------
+
+    async def _resolve_context_for_thread(
+        self,
+        thread_id: str,
+        session_id: Optional[str],
+        adapter_name: str,
+    ) -> Tuple[List[Dict[str, str]], Optional[str]]:
+        """
+        Return (context_messages, effective_session_id) for a thread request.
+
+        Turn 1 (thread session empty): seeds from the parent session so the LLM
+        sees the exchange that spawned this thread.
+        Turn 2+: uses the thread session's own accumulated history.
+        """
+        assert thread_id, "thread_id must not be empty"
+
+        container = self.pipeline.container
+        if not container.has('thread_service'):
+            return await self.conversation_handler.get_context(session_id, adapter_name), session_id
+
+        thread_service = container.get('thread_service')
+        thread_info = await thread_service.get_thread(thread_id)
+        if not thread_info:
+            logger.warning(f"Thread {thread_id} not found; falling back to session context")
+            return await self.conversation_handler.get_context(session_id, adapter_name), session_id
+
+        thread_session_id = thread_info.get('thread_session_id', session_id)
+
+        thread_messages = await self.conversation_handler.get_context(thread_session_id, adapter_name)
+        if thread_messages:
+            return thread_messages, thread_session_id
+
+        # First turn: thread session is empty — seed with parent context so the LLM
+        # retains the conversation that led to this thread being created.
+        parent_session_id = thread_info.get('parent_session_id', session_id)
+        parent_messages = await self.conversation_handler.get_context(parent_session_id, adapter_name)
+        return parent_messages, thread_session_id
+
+    # -------------------------------------------------------------------------
+    # Pure computation helpers (no I/O, no side effects)
+    # -------------------------------------------------------------------------
+
+    def _determine_inference_backend(self, context: ProcessingContext) -> str:
+        """Return the inference provider name for logging."""
+        return (
+            context.inference_provider
+            or self.config.get('general', {}).get('inference_provider', 'unknown')
+        )
+
+    def _build_threading_metadata(
+        self,
+        context: ProcessingContext,
+        adapter_name: str,
+        assistant_message_id: Optional[str],
+        session_id: Optional[str],
+        accumulated_text: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Return threading metadata for the done chunk, or None if threading is not applicable."""
+        if not (assistant_message_id and session_id and adapter_name):
+            return None
+        if not self.response_processor._adapter_supports_threading(adapter_name):
+            logger.debug(f"Adapter {adapter_name} does not support threading")
+            return None
+        has_results = self.response_processor._has_meaningful_results(
+            sources=context.retrieved_docs or [],
+            response=accumulated_text,
+        )
+        if not has_results:
+            total_docs = len(context.retrieved_docs) if context.retrieved_docs else 0
+            logger.debug(
+                f"Adapter {adapter_name} supports threading but no meaningful results "
+                f"(total_docs={total_docs}) - threading disabled"
+            )
+            return None
+        logger.debug(
+            f"Adding threading metadata: adapter={adapter_name}, "
+            f"message_id={assistant_message_id}, session_id={session_id}"
+        )
+        return {
+            "supports_threading": True,
+            "message_id": assistant_message_id,
+            "session_id": session_id,
+        }
+
+    # -------------------------------------------------------------------------
+    # Audio helpers
+    # -------------------------------------------------------------------------
+
+    async def _maybe_generate_full_audio(
+        self,
+        response_text: str,
+        final_state: Optional[StreamingState],
+        adapter_name: str,
+        tts_voice: Optional[str],
+        language: Optional[str],
+        return_audio: Optional[bool],
+    ) -> Tuple[Optional[bytes], Optional[str]]:
+        """
+        Generate a full audio blob when not using incremental sentence streaming.
+        Returns (audio_data, audio_format) or (None, None) if audio is unavailable.
+        """
+        if not return_audio or not response_text:
+            return None, None
+        if final_state and final_state.sentence_detector and final_state.audio_chunks_sent > 0:
+            return None, None  # already delivered incrementally during streaming
+        try:
+            result = await self.audio_handler.generate_audio(
+                text=response_text,
+                adapter_name=adapter_name,
+                tts_voice=tts_voice,
+                language=language,
+            )
+            if result is not None:
+                return result
+        except Exception as e:
+            logger.warning(f"Failed to generate audio: {e}", exc_info=True)
+        return None, None
+
+    async def _maybe_yield_remaining_audio_chunk(
+        self,
+        final_state: StreamingState,
+        adapter_name: str,
+        tts_voice: Optional[str],
+        language: Optional[str],
+    ) -> Optional[str]:
+        """
+        Return a streaming chunk for any sentence-streaming audio remainder, or None.
+        Only applies when audio was already sent incrementally during streaming.
+        """
+        if not (final_state.sentence_detector and final_state.audio_chunks_sent > 0):
+            return None
+        remaining_text = final_state.sentence_detector.get_remaining_text()
+        if not remaining_text or not remaining_text.strip():
+            return None
+        return await self.streaming_handler.generate_remaining_audio(
+            state=final_state,
+            adapter_name=adapter_name,
+            tts_voice=tts_voice,
+            language=language,
+        )
+
+    # -------------------------------------------------------------------------
+    # Pipeline stream consumer
+    # -------------------------------------------------------------------------
+
+    async def _consume_pipeline_stream(
+        self,
+        context: ProcessingContext,
+        adapter_name: str,
+        tts_voice: Optional[str],
+        language: Optional[str],
+        return_audio: bool,
+        cancel_event: Optional[asyncio.Event],
+    ):
+        """
+        Yield (chunk, StreamingState) pairs from the pipeline stream.
+        Raises RuntimeError if the pipeline returns no stream.
+        """
+        pipeline_stream = self.pipeline.process_stream(context)
+        if pipeline_stream is None:
+            raise RuntimeError("pipeline.process_stream returned None")
+
+        async for item in self.streaming_handler.process_stream(
+            pipeline_stream=pipeline_stream,
+            adapter_name=adapter_name,
+            tts_voice=tts_voice,
+            language=language,
+            return_audio=return_audio,
+        ):
+            if cancel_event and cancel_event.is_set():
+                logger.debug(f"Stream cancelled for adapter={adapter_name}")
+                return
+            if not isinstance(item, tuple) or len(item) != 2:
+                logger.error(f"Invalid stream item from streaming_handler: type={type(item)}")
+                continue
+            yield item
+
+    # -------------------------------------------------------------------------
+    # Public interface
+    # -------------------------------------------------------------------------
+
+    async def process_chat(
+        self,
+        message: str,
+        client_ip: str,
+        adapter_name: str,
+        system_prompt_id: Optional[ObjectId] = None,
+        api_key: Optional[str] = None,
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        file_ids: Optional[List[str]] = None,
+        thread_id: Optional[str] = None,
+        audio_input: Optional[str] = None,
+        audio_format: Optional[str] = None,
+        language: Optional[str] = None,
+        return_audio: Optional[bool] = None,
+        tts_voice: Optional[str] = None,
+        source_language: Optional[str] = None,
+        target_language: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Process a chat message using the pipeline architecture.
 
-        Args:
-            message: The chat message
-            client_ip: Client IP address
-            adapter_name: Adapter name to use for retrieval
-            system_prompt_id: Optional system prompt ID to use
-            api_key: Optional API key for authentication
-            session_id: Optional session identifier for chat history
-            user_id: Optional user identifier
-            file_ids: Optional list of file IDs for file context
-            audio_input: Optional base64 encoded audio input
-            audio_format: Optional audio format
-            language: Optional language code
-            return_audio: Whether to return audio response
-            tts_voice: Optional TTS voice
-            source_language: Optional source language for translation
-            target_language: Optional target language for translation
-
-        Returns:
-            Dictionary containing response and metadata
+        Returns a dictionary containing response and metadata, or {"error": ...}
+        on failure.
         """
+        if not message or not message.strip():
+            return {"error": "message must not be empty"}
+        if not adapter_name:
+            return {"error": "adapter_name must not be empty"}
+
         try:
-            # Ensure pipeline is initialized
             await self.initialize()
 
-            # --- Query burst cache: return cached result for identical recent queries ---
             cache_key = None
             if self._query_cache_enabled and not audio_input:
                 cache_key = self._build_query_cache_key(
@@ -281,182 +435,27 @@ class PipelineChatService:
                 if cached:
                     return cached
 
-            # Log request details
             await self.response_processor.log_request_details(
                 message, client_ip, adapter_name,
                 str(system_prompt_id) if system_prompt_id else None,
-                api_key, session_id, user_id
+                api_key, session_id, user_id,
             )
 
-            # Get conversation context
-            context_messages = await self.conversation_handler.get_context(session_id, adapter_name)
-
-            # Build processing context
-            context = self.context_builder.build_context(
-                message=message,
-                adapter_name=adapter_name,
-                context_messages=context_messages,
-                system_prompt_id=system_prompt_id,
-                user_id=user_id,
-                session_id=session_id,
-                api_key=api_key,
-                file_ids=file_ids,
-                thread_id=thread_id,
-                audio_input=audio_input,
-                audio_format=audio_format,
-                language=language,
-                return_audio=return_audio,
-                tts_voice=tts_voice,
-                source_language=source_language,
-                target_language=target_language
-            )
-
-            # Process through pipeline
-            result = await self.pipeline.process(context)
-
-            # Handle errors
-            if result.has_error():
-                error_msg = result.error or "Pipeline processing failed"
-                logger.error(f"Pipeline error: {error_msg}")
-                return {"error": error_msg}
-
-            # Determine backend for logging
-            backend = (
-                result.inference_provider
-                or self.config.get('general', {}).get('inference_provider', 'unknown')
-            )
-
-            # Process response (formatting, warnings, storage, logging)
-            processed_response, assistant_message_id = await self.response_processor.process_response(
-                response=result.response,
-                message=message,
-                client_ip=client_ip,
-                adapter_name=adapter_name,
-                session_id=session_id,
-                user_id=user_id,
-                api_key=api_key,
-                backend=backend,
-                processing_time=result.processing_time,
-                retrieved_docs=result.retrieved_docs
-            )
-
-            # Generate audio if requested
-            audio_data = None
-            audio_format_str = None
-            if return_audio and result.response:
-                try:
-                    result_audio = await self.audio_handler.generate_audio(
-                        text=result.response,
-                        adapter_name=adapter_name,
-                        tts_voice=tts_voice,
-                        language=language
-                    )
-                    # Properly handle None or tuple return
-                    if result_audio is not None:
-                        audio_data, audio_format_str = result_audio
-                except Exception as e:
-                    logger.warning(f"Failed to generate audio: {str(e)}")
-
-            # Build and return result
-            final_result = self.response_processor.build_result(
-                response=processed_response,
-                sources=result.sources,
-                metadata=result.metadata,
-                processing_time=result.processing_time,
-                audio_data=audio_data,
-                audio_format=audio_format_str,
-                assistant_message_id=assistant_message_id,
-                session_id=session_id,
-                adapter_name=adapter_name
-            )
-
-            # --- Cache the result for burst protection (skip if audio) ---
-            if cache_key and not audio_data:
-                await self._store_cached_response(cache_key, final_result)
-
-            return final_result
-
-        except Exception as e:
-            logger.error(f"Error processing chat with pipeline: {str(e)}")
-            return {"error": str(e)}
-
-    async def process_chat_stream(self, message: str, client_ip: str, adapter_name: str,
-                                 system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
-                                 session_id: Optional[str] = None, user_id: Optional[str] = None,
-                                 file_ids: Optional[List[str]] = None,
-                                 thread_id: Optional[str] = None,
-                                 audio_input: Optional[str] = None,
-                                 audio_format: Optional[str] = None,
-                                 language: Optional[str] = None,
-                                 return_audio: Optional[bool] = None,
-                                 tts_voice: Optional[str] = None,
-                                 source_language: Optional[str] = None,
-                                 target_language: Optional[str] = None,
-                                 cancel_event: Optional[asyncio.Event] = None):
-        """
-        Process a chat message with streaming response using the pipeline architecture.
-
-        Args:
-            message: The chat message
-            client_ip: Client IP address
-            adapter_name: Adapter name to use for retrieval
-            system_prompt_id: Optional system prompt ID to use
-            api_key: Optional API key for authentication
-            session_id: Optional session identifier for chat history
-            user_id: Optional user identifier
-            file_ids: Optional list of file IDs for file context
-            audio_input: Optional base64 encoded audio input
-            audio_format: Optional audio format
-            language: Optional language code
-            return_audio: Whether to return audio response
-            tts_voice: Optional TTS voice
-            source_language: Optional source language for translation
-            target_language: Optional target language for translation
-            cancel_event: Optional asyncio.Event for stream cancellation
-
-        Yields:
-            Streaming response chunks
-        """
-        try:
-            logger.debug(f"[PIPELINE_CHAT_SERVICE] Starting stream processing: adapter={adapter_name}, session={session_id}, has_cancel_event={cancel_event is not None}")
-            # Ensure pipeline is initialized
-            await self.initialize()
-
-            # --- Query burst cache: replay cached response as a simulated stream ---
-            if self._query_cache_enabled and not audio_input:
-                stream_cache_key = self._build_query_cache_key(
-                    message, adapter_name, thread_id, file_ids, system_prompt_id
+            if thread_id:
+                context_messages, effective_session_id = await self._resolve_context_for_thread(
+                    thread_id, session_id, adapter_name
                 )
-                cached = await self._get_cached_response(stream_cache_key)
-                if cached:
-                    text_chunk = json.dumps({"response": cached.get("response", ""), "done": False})
-                    yield f"data: {text_chunk}\n\n"
-                    done_data = {"done": True}
-                    if cached.get("sources"):
-                        done_data["sources"] = cached["sources"]
-                    if cached.get("metadata"):
-                        done_data["metadata"] = cached["metadata"]
-                    yield f"data: {json.dumps(done_data)}\n\n"
-                    return
+            else:
+                context_messages = await self.conversation_handler.get_context(session_id, adapter_name)
+                effective_session_id = session_id
 
-            # Log request details
-            await self.response_processor.log_request_details(
-                message, client_ip, adapter_name,
-                str(system_prompt_id) if system_prompt_id else None,
-                api_key, session_id, user_id
-            )
-
-            # Get conversation context
-            context_messages = await self.conversation_handler.get_context(session_id, adapter_name)
-
-            # Build processing context
             context = self.context_builder.build_context(
                 message=message,
                 adapter_name=adapter_name,
                 context_messages=context_messages,
                 system_prompt_id=system_prompt_id,
                 user_id=user_id,
-                session_id=session_id,
+                session_id=effective_session_id,
                 api_key=api_key,
                 file_ids=file_ids,
                 thread_id=thread_id,
@@ -467,108 +466,193 @@ class PipelineChatService:
                 tts_voice=tts_voice,
                 source_language=source_language,
                 target_language=target_language,
-                cancel_event=cancel_event
             )
 
-            # Track state for post-processing
+            result = await self.pipeline.process(context)
+
+            if result.has_error():
+                error_msg = result.error or "Pipeline processing failed"
+                logger.error(f"Pipeline error: {error_msg}")
+                return {"error": error_msg}
+
+            backend = self._determine_inference_backend(context)
+
+            processed_response, assistant_message_id = await self.response_processor.process_response(
+                response=result.response,
+                message=message,
+                client_ip=client_ip,
+                adapter_name=adapter_name,
+                session_id=context.session_id,
+                user_id=user_id,
+                api_key=api_key,
+                backend=backend,
+                processing_time=result.processing_time,
+                retrieved_docs=result.retrieved_docs,
+            )
+
+            audio_data, audio_format_str = await self._maybe_generate_full_audio(
+                result.response or "", None, adapter_name, tts_voice, language, return_audio
+            )
+
+            final_result = self.response_processor.build_result(
+                response=processed_response,
+                sources=result.sources,
+                metadata=result.metadata,
+                processing_time=result.processing_time,
+                audio_data=audio_data,
+                audio_format=audio_format_str,
+                assistant_message_id=assistant_message_id,
+                session_id=context.session_id,
+                adapter_name=adapter_name,
+            )
+
+            if cache_key and not audio_data:
+                await self._store_cached_response(cache_key, final_result)
+
+            return final_result
+
+        except Exception as e:
+            logger.error(f"Error processing chat with pipeline: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def process_chat_stream(
+        self,
+        message: str,
+        client_ip: str,
+        adapter_name: str,
+        system_prompt_id: Optional[ObjectId] = None,
+        api_key: Optional[str] = None,
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        file_ids: Optional[List[str]] = None,
+        thread_id: Optional[str] = None,
+        audio_input: Optional[str] = None,
+        audio_format: Optional[str] = None,
+        language: Optional[str] = None,
+        return_audio: Optional[bool] = None,
+        tts_voice: Optional[str] = None,
+        source_language: Optional[str] = None,
+        target_language: Optional[str] = None,
+        cancel_event: Optional[asyncio.Event] = None,
+    ):
+        """
+        Process a chat message with streaming response using the pipeline architecture.
+
+        Yields SSE-formatted data chunks, ending with a done chunk.
+        """
+        if not message or not message.strip():
+            yield f"data: {json.dumps({'error': 'message must not be empty', 'done': True})}\n\n"
+            return
+        if not adapter_name:
+            yield f"data: {json.dumps({'error': 'adapter_name must not be empty', 'done': True})}\n\n"
+            return
+
+        try:
+            logger.debug(
+                f"[PIPELINE_CHAT_SERVICE] Starting stream: adapter={adapter_name}, "
+                f"session={session_id}, has_cancel_event={cancel_event is not None}"
+            )
+            await self.initialize()
+
+            if self._query_cache_enabled and not audio_input:
+                stream_cache_key = self._build_query_cache_key(
+                    message, adapter_name, thread_id, file_ids, system_prompt_id
+                )
+                cached = await self._get_cached_response(stream_cache_key)
+                if cached:
+                    yield f"data: {json.dumps({'response': cached.get('response', ''), 'done': False})}\n\n"
+                    done_data: Dict[str, Any] = {"done": True}
+                    if cached.get("sources"):
+                        done_data["sources"] = cached["sources"]
+                    if cached.get("metadata"):
+                        done_data["metadata"] = cached["metadata"]
+                    yield f"data: {json.dumps(done_data)}\n\n"
+                    return
+
+            await self.response_processor.log_request_details(
+                message, client_ip, adapter_name,
+                str(system_prompt_id) if system_prompt_id else None,
+                api_key, session_id, user_id,
+            )
+
+            if thread_id:
+                context_messages, effective_session_id = await self._resolve_context_for_thread(
+                    thread_id, session_id, adapter_name
+                )
+            else:
+                context_messages = await self.conversation_handler.get_context(session_id, adapter_name)
+                effective_session_id = session_id
+
+            context = self.context_builder.build_context(
+                message=message,
+                adapter_name=adapter_name,
+                context_messages=context_messages,
+                system_prompt_id=system_prompt_id,
+                user_id=user_id,
+                session_id=effective_session_id,
+                api_key=api_key,
+                file_ids=file_ids,
+                thread_id=thread_id,
+                audio_input=audio_input,
+                audio_format=audio_format,
+                language=language,
+                return_audio=return_audio,
+                tts_voice=tts_voice,
+                source_language=source_language,
+                target_language=target_language,
+                cancel_event=cancel_event,
+            )
+
             final_state = None
 
             try:
-                # Get pipeline stream
-                pipeline_stream = self.pipeline.process_stream(context)
-                
-                # Validate pipeline stream is not None
-                if pipeline_stream is None:
-                    logger.error("pipeline.process_stream returned None")
-                    error_chunk = json.dumps({
-                        "error": "Pipeline stream is not available",
-                        "done": True
-                    })
-                    yield f"data: {error_chunk}\n\n"
-                    return
-                
-                # Process stream through handler
-                # Wrap in try-except to catch unpacking errors
-                try:
-                    async for item in self.streaming_handler.process_stream(
-                        pipeline_stream=pipeline_stream,
-                        adapter_name=adapter_name,
-                        tts_voice=tts_voice,
-                        language=language,
-                        return_audio=return_audio or False
-                    ):
-                        # Check for cancellation before processing each item
-                        if cancel_event and cancel_event.is_set():
-                            logger.debug(f"[PIPELINE_CHAT_SERVICE] >>> CANCELLATION DETECTED <<< adapter={adapter_name}")
-                            break
-
-                        # Validate that item is a tuple before unpacking
-                        if item is None:
-                            logger.error("streaming_handler.process_stream yielded None instead of tuple")
-                            continue
-                        if not isinstance(item, tuple) or len(item) != 2:
-                            logger.error(f"streaming_handler.process_stream yielded invalid item: {type(item)}, value: {item}")
-                            continue
-
-                        chunk, state = item
-                        yield chunk
-                        # No sleep needed - async generator already yields control
-                        final_state = state
-                except TypeError as te:
-                    if "cannot unpack" in str(te) or "non-iterable" in str(te):
-                        logger.error(f"Unpacking error in stream processing: {str(te)}", exc_info=True)
-                        error_chunk = json.dumps({
-                            "error": f"Stream processing error: {str(te)}",
-                            "done": True
-                        })
-                        yield f"data: {error_chunk}\n\n"
-                        return
-                    raise
-
-                # Post-stream processing
-                if final_state and final_state.accumulated_text and final_state.stream_completed:
-                    async for chunk in self._process_post_stream(
-                        final_state=final_state,
-                        context=context,
-                        message=message,
-                        client_ip=client_ip,
-                        adapter_name=adapter_name,
-                        session_id=session_id,
-                        user_id=user_id,
-                        api_key=api_key,
-                        return_audio=return_audio,
-                        tts_voice=tts_voice,
-                        language=language
-                    ):
-                        yield chunk
-
-                    # Cache the streamed result for burst protection
-                    if (self._query_cache_enabled and not audio_input
-                            and not return_audio and final_state.accumulated_text):
-                        try:
-                            stream_cache_key = self._build_query_cache_key(
-                                message, adapter_name, thread_id, file_ids, system_prompt_id
-                            )
-                            cache_result = {
-                                "response": final_state.accumulated_text,
-                                "sources": context.sources if context.sources else [],
-                            }
-                            await self._store_cached_response(stream_cache_key, cache_result)
-                        except Exception:
-                            pass
-
+                async for chunk, state in self._consume_pipeline_stream(
+                    context, adapter_name, tts_voice, language,
+                    return_audio or False, cancel_event,
+                ):
+                    yield chunk
+                    final_state = state
             except Exception as stream_error:
-                logger.error(f"Error in pipeline streaming: {str(stream_error)}")
-                error_chunk = json.dumps({
-                    "error": f"Stream generation failed: {str(stream_error)}",
-                    "done": True
-                })
-                yield f"data: {error_chunk}\n\n"
+                logger.error(f"Error in pipeline streaming: {stream_error}", exc_info=True)
+                yield f"data: {json.dumps({'error': str(stream_error), 'done': True})}\n\n"
+                return
+
+            if not (final_state and final_state.accumulated_text and final_state.stream_completed):
+                return
+
+            async for chunk in self._process_post_stream(
+                final_state=final_state,
+                context=context,
+                message=message,
+                client_ip=client_ip,
+                adapter_name=adapter_name,
+                session_id=context.session_id,
+                user_id=user_id,
+                api_key=api_key,
+                return_audio=return_audio,
+                tts_voice=tts_voice,
+                language=language,
+            ):
+                yield chunk
+
+            if self._query_cache_enabled and not audio_input and not return_audio:
+                if final_state.accumulated_text:
+                    try:
+                        cache_result = {
+                            "response": final_state.accumulated_text,
+                            "sources": context.sources if context.sources else [],
+                        }
+                        await self._store_cached_response(stream_cache_key, cache_result)
+                    except Exception:
+                        logger.debug("Failed to cache streamed response", exc_info=True)
 
         except Exception as e:
-            logger.error(f"Error processing chat stream with pipeline: {str(e)}")
-            error_json = json.dumps({"error": str(e), "done": True})
-            yield f"data: {error_json}\n\n"
+            logger.error(f"Error processing chat stream with pipeline: {e}", exc_info=True)
+            yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
+
+    # -------------------------------------------------------------------------
+    # Post-stream finalization
+    # -------------------------------------------------------------------------
 
     async def _process_post_stream(
         self,
@@ -582,33 +666,13 @@ class PipelineChatService:
         api_key: Optional[str],
         return_audio: Optional[bool],
         tts_voice: Optional[str],
-        language: Optional[str]
+        language: Optional[str],
     ):
         """
-        Handle post-stream processing including response finalization,
-        warnings, and audio generation.
-
-        Args:
-            final_state: The final streaming state
-            context: Processing context
-            message: Original user message
-            client_ip: Client IP address
-            adapter_name: Adapter name
-            session_id: Session identifier
-            user_id: User identifier
-            api_key: API key
-            return_audio: Whether to return audio
-            tts_voice: TTS voice
-            language: Language code
-
-        Yields:
-            Post-processing chunks
+        Finalize a completed stream: store the response, emit optional warning and
+        audio chunks, then yield the done chunk with threading metadata.
         """
-        # Process response (formatting, warnings, storage, logging)
-        backend = (
-            context.inference_provider
-            or self.config.get('general', {}).get('inference_provider', 'unknown')
-        )
+        backend = self._determine_inference_backend(context)
 
         final_response, assistant_message_id = await self.response_processor.process_response(
             response=final_state.accumulated_text,
@@ -620,105 +684,35 @@ class PipelineChatService:
             api_key=api_key,
             backend=backend,
             processing_time=context.processing_time,
-            retrieved_docs=context.retrieved_docs
+            retrieved_docs=context.retrieved_docs,
         )
 
-        # Check if warning was added and send as additional chunk
         warning = await self.conversation_handler.check_limit_warning(session_id, adapter_name)
         if warning:
-            warning_chunk = json.dumps({
-                "response": f"\n\n---\n{warning}",
-                "done": False
-            })
-            yield f"data: {warning_chunk}\n\n"
+            yield f"data: {json.dumps({'response': f'{chr(10)}{chr(10)}---{chr(10)}{warning}', 'done': False})}\n\n"
 
-        # Generate remaining audio if streaming audio was used
-        # Note: Remaining audio may have already been generated early during streaming
-        # Check if there's actually remaining text that needs audio
-        if return_audio and final_state.sentence_detector and final_state.audio_chunks_sent > 0:
-            # Only generate if there's actually remaining text (early generation may have already handled it)
-            remaining_text = final_state.sentence_detector.get_remaining_text()
-            if remaining_text and remaining_text.strip():
-                remaining_audio_chunk = await self.streaming_handler.generate_remaining_audio(
-                    state=final_state,
-                    adapter_name=adapter_name,
-                    tts_voice=tts_voice,
-                    language=language
-                )
-                if remaining_audio_chunk:
-                    yield remaining_audio_chunk
+        remaining_chunk = await self._maybe_yield_remaining_audio_chunk(
+            final_state, adapter_name, tts_voice, language
+        )
+        if remaining_chunk:
+            yield remaining_chunk
 
-        # Generate full audio if no streaming audio was sent
-        audio_data = None
-        audio_format_str = None
-        if return_audio and final_response:
-            if not (final_state.sentence_detector and final_state.audio_chunks_sent > 0):
-                try:
-                    logger.debug(f"Calling audio_handler.generate_audio for adapter: {adapter_name}, voice: {tts_voice}")
-                    result = await self.audio_handler.generate_audio(
-                        text=final_response,
-                        adapter_name=adapter_name,
-                        tts_voice=tts_voice,
-                        language=language
-                    )
-                    # Properly handle None or tuple return
-                    if result is not None:
-                        audio_data, audio_format_str = result
-                    logger.debug(f"Audio generation result: audio_data={audio_data is not None}, format={audio_format_str}")
-                except Exception as e:
-                    logger.warning(f"Failed to generate audio: {str(e)}", exc_info=True)
+        audio_data, audio_format_str = await self._maybe_generate_full_audio(
+            final_response, final_state, adapter_name, tts_voice, language, return_audio
+        )
 
-        # Check if adapter supports threading and add metadata
-        # Only enable threading if there are actual retrieved results to thread on
-        # Uses centralized _has_meaningful_results which checks:
-        # 1. LLM response text (PRIMARY - if LLM says "no results", trust it)
-        # 2. Document confidence scores
-        # 3. Source content for actual data
-        threading_metadata = None
-        if assistant_message_id and session_id and adapter_name:
-            supports_threading = self.response_processor._adapter_supports_threading(adapter_name)
+        threading_metadata = self._build_threading_metadata(
+            context=context,
+            adapter_name=adapter_name,
+            assistant_message_id=assistant_message_id,
+            session_id=session_id,
+            accumulated_text=final_state.accumulated_text if final_state else "",
+        )
 
-            # Use centralized meaningful results check (includes LLM response analysis)
-            accumulated_response = final_state.accumulated_text if final_state else ""
-            has_results = self.response_processor._has_meaningful_results(
-                sources=context.retrieved_docs or [],
-                response=accumulated_response
-            )
-
-            # For debug logging, also compute meaningful_docs count
-            meaningful_docs = []
-            if context.retrieved_docs:
-                meaningful_docs = [
-                    doc for doc in context.retrieved_docs
-                    if (doc.get('confidence', 0) > 0.01 or
-                        doc.get('metadata', {}).get('similarity', 0) > 0.01)
-                ]
-
-            if supports_threading and has_results:
-                threading_metadata = {
-                    "supports_threading": True,
-                    "message_id": assistant_message_id,
-                    "session_id": session_id,
-                }
-                logger.debug(
-                    f"Adding threading metadata to done chunk: adapter={adapter_name}, message_id={assistant_message_id}, session_id={session_id}, meaningful_results={len(meaningful_docs)}"
-                )
-            elif supports_threading and not has_results:
-                total_docs = len(context.retrieved_docs) if context.retrieved_docs else 0
-                logger.debug(
-                    f"Adapter {adapter_name} supports threading but no meaningful results found (total_docs={total_docs}, all low-confidence placeholders) - threading disabled"
-                )
-            else:
-                logger.debug(
-                    f"Adapter {adapter_name} does not support threading"
-                )
-        
-        # Send final done chunk
-        done_chunk = self.streaming_handler.build_done_chunk(
+        yield self.streaming_handler.build_done_chunk(
             state=final_state,
             audio_data=audio_data,
             audio_format_str=audio_format_str,
             threading_metadata=threading_metadata,
-            assistant_message_id=assistant_message_id
+            assistant_message_id=assistant_message_id,
         )
-        yield done_chunk
