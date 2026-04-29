@@ -22,8 +22,6 @@
 <p align="center">
   <a href="docs/tutorial.md"><strong>Tutorial</strong></a>
   &nbsp;|&nbsp;
-  <a href="https://orbit.schmitech.ai/redoc"><strong>API Reference</strong></a>
-  &nbsp;|&nbsp;
   <a href="docker/README.md"><strong>Docker Guide</strong></a>
   &nbsp;|&nbsp;
   <a href="docs/cookbook/"><strong>Cookbook</strong></a>
