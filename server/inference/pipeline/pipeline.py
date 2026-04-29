@@ -37,6 +37,15 @@ class InferencePipeline:
         self.container = container
         self.monitor = PipelineMonitor()
         self.logger = logging.getLogger(__name__)
+
+    def clear_prompt_cache(self, prompt_id: str = None) -> int:
+        """Clear prompt caches held by pipeline steps."""
+        cleared = 0
+        for step in self.steps:
+            clear_cache = getattr(step, "clear_prompt_cache", None)
+            if clear_cache:
+                cleared += clear_cache(prompt_id)
+        return cleared
     
     async def process(self, context: ProcessingContext) -> ProcessingContext:
         """

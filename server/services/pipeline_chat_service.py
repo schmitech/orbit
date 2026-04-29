@@ -209,6 +209,31 @@ class PipelineChatService:
 
         self._memory_cache[cache_key] = (result, now + self._query_cache_ttl)
 
+    async def clear_prompt_cache(self, prompt_id: Optional[str] = None) -> Dict[str, int]:
+        """Clear prompt-dependent runtime caches after persona mutations."""
+        prompt_entries = 0
+        if hasattr(self.pipeline, "clear_prompt_cache"):
+            prompt_entries = self.pipeline.clear_prompt_cache(str(prompt_id) if prompt_id else None)
+
+        memory_query_entries = len(self._memory_cache)
+        self._memory_cache.clear()
+
+        redis_query_entries = 0
+        if self.redis_service and hasattr(self.redis_service, "_clear_keys_by_pattern"):
+            try:
+                redis_query_entries = await self.redis_service._clear_keys_by_pattern(
+                    "qcache:*",
+                    "query burst cache",
+                )
+            except Exception:
+                logger.debug("Failed to clear Redis query cache after prompt cache invalidation", exc_info=True)
+
+        return {
+            "prompt_entries": prompt_entries,
+            "memory_query_entries": memory_query_entries,
+            "redis_query_entries": redis_query_entries,
+        }
+
     # -------------------------------------------------------------------------
     # Thread context resolution
     # -------------------------------------------------------------------------

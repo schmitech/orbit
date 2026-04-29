@@ -113,6 +113,19 @@ class PromptInstructionBuilder:
 
         return self.DEFAULT_SYSTEM_PROMPT
 
+    def clear_prompt_cache(self, prompt_id: Optional[str] = None) -> int:
+        """Clear cached prompt text, optionally for one prompt ID."""
+        if prompt_id:
+            cache_key = f"prompt:{prompt_id}"
+            if cache_key in self._prompt_cache:
+                del self._prompt_cache[cache_key]
+                return 1
+            return 0
+
+        cleared = len(self._prompt_cache)
+        self._prompt_cache.clear()
+        return cleared
+
     def build_language_instruction(self, context: ProcessingContext) -> str:
         """Build language instruction based on detected language."""
         lang_detect_config = self.config.get("language_detection", {})

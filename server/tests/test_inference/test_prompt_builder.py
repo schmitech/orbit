@@ -47,6 +47,34 @@ async def test_prompt_builder_uses_prompt_service_text():
 
 
 @pytest.mark.asyncio
+async def test_prompt_builder_clear_prompt_cache_removes_specific_prompt():
+    prompt_service = AsyncMock()
+    prompt_service.get_prompt_by_id.side_effect = [
+        {"prompt": "Original persona."},
+        {"prompt": "Updated persona."},
+    ]
+
+    cache = OrderedDict()
+    builder = PromptInstructionBuilder(
+        config={},
+        prompt_service=prompt_service,
+        prompt_cache=cache,
+    )
+    context = ProcessingContext(
+        adapter_name="voice-chat",
+        system_prompt_id="prompt-123",
+    )
+
+    assert await builder.get_system_prompt(context) == "Original persona."
+    assert await builder.get_system_prompt(context) == "Original persona."
+    assert prompt_service.get_prompt_by_id.await_count == 1
+
+    assert builder.clear_prompt_cache("prompt-123") == 1
+    assert await builder.get_system_prompt(context) == "Updated persona."
+    assert prompt_service.get_prompt_by_id.await_count == 2
+
+
+@pytest.mark.asyncio
 async def test_prompt_builder_falls_back_to_default_prompt():
     builder = PromptInstructionBuilder(config={})
     context = ProcessingContext(adapter_name="voice-chat")

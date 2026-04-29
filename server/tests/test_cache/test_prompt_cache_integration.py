@@ -64,6 +64,14 @@ class MockMongoDBService:
             if "$set" in update:
                 self.prompts[str(prompt_id)].update(update["$set"])
             return True
+
+        name = query.get("name")
+        if name:
+            for prompt in self.prompts.values():
+                if prompt.get("name") == name:
+                    if "$set" in update:
+                        prompt.update(update["$set"])
+                    return True
         return False
 
     async def delete_one(self, collection, query):
@@ -238,6 +246,35 @@ async def test_cache_invalidation_on_update(prompt_service, mock_mongodb, mock_r
     assert mock_mongodb.find_one_calls == 1  # Had to fetch from MongoDB
     assert mock_redis.get_calls == 1  # Checked cache (miss)
     assert mock_redis.set_calls == 1  # Cached new result
+
+
+@pytest.mark.asyncio
+async def test_cache_invalidation_on_create_existing_prompt(prompt_service, mock_mongodb, mock_redis):
+    """Test that create_prompt invalidates cache when it updates an existing prompt by name"""
+    prompt_id = await prompt_service.create_prompt(
+        name="test_create_existing_invalidation",
+        prompt_text="Original prompt text.",
+        version="1.0"
+    )
+
+    await prompt_service.get_prompt_by_id(prompt_id)
+    cache_key = f"prompt:{prompt_id}"
+    assert cache_key in mock_redis.storage
+
+    mock_redis.delete_calls = 0
+    returned_id = await prompt_service.create_prompt(
+        name="test_create_existing_invalidation",
+        prompt_text="Updated prompt text.",
+        version="2.0"
+    )
+
+    assert str(returned_id) == str(prompt_id)
+    assert mock_redis.delete_calls == 1
+    assert cache_key not in mock_redis.storage
+
+    updated_prompt = await prompt_service.get_prompt_by_id(prompt_id)
+    assert updated_prompt["prompt"] == "Updated prompt text."
+    assert updated_prompt["version"] == "2.0"
 
 
 @pytest.mark.asyncio

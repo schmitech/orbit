@@ -91,6 +91,15 @@ class TestPromptCacheBounded:
         assert "prompt:1" not in step._prompt_cache, "Oldest untouched entry should be evicted"
         assert "prompt:100" in step._prompt_cache
 
+    def test_clear_prompt_cache_removes_specific_entry(self):
+        step = self._make_step()
+        step._prompt_cache["prompt:stale"] = "old persona"
+        step._prompt_cache["prompt:other"] = "other persona"
+
+        assert step.clear_prompt_cache("stale") == 1
+        assert "prompt:stale" not in step._prompt_cache
+        assert "prompt:other" in step._prompt_cache
+
 
 class TestServiceContainerNoUnusedServices:
     """Fix #6: Verify _services dict was removed from ServiceContainer."""

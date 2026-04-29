@@ -46,6 +46,10 @@ class LLMInferenceStep(PipelineStep):
             prompt_cache_max_size=self._prompt_cache_max_size,
             builder_logger=self.logger,
         )
+
+    def clear_prompt_cache(self, prompt_id: str = None) -> int:
+        """Clear in-memory system prompt cache entries held by this step."""
+        return self._create_prompt_builder().clear_prompt_cache(prompt_id)
     
     def should_execute(self, context: ProcessingContext) -> bool:
         """

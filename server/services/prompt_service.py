@@ -137,6 +137,9 @@ class PromptService:
             # Check if a prompt with this name already exists
             existing = await self.database.find_one(self.collection_name, {"name": name})
             if existing:
+                if self.redis_service:
+                    await self.clear_prompt_cache(existing["_id"])
+
                 # Update the existing prompt instead of creating a new one
                 await self.database.update_one(
                     self.collection_name,

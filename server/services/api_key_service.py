@@ -613,6 +613,48 @@ class ApiKeyService:
             logger.error(f"Error updating API key system prompt: {str(e)}")
             return False
 
+    async def clear_system_prompt_associations(self, system_prompt_id: str) -> int:
+        """Remove a deleted system prompt from any API keys that reference it."""
+        try:
+            system_prompt_id_str = str(system_prompt_id)
+            cleared = 0
+            while True:
+                linked_keys = await self.database.find_many(
+                    self.collection_name,
+                    {"system_prompt_id": system_prompt_id_str},
+                    limit=1000,
+                    skip=0,
+                )
+                if not linked_keys:
+                    break
+
+                batch_cleared = 0
+                for key_doc in linked_keys:
+                    key_id = str(key_doc.get("_id")) if key_doc.get("_id") else None
+                    if not key_id:
+                        continue
+                    updated = await self.database.update_one(
+                        self.collection_name,
+                        {"_id": key_id},
+                        {"$set": {"system_prompt_id": None}},
+                    )
+                    if updated:
+                        cleared += 1
+                        batch_cleared += 1
+                if batch_cleared == 0:
+                    break
+
+            if cleared:
+                logger.info(
+                    "Cleared deleted system prompt %s from %s API key association(s)",
+                    system_prompt_id_str,
+                    cleared,
+                )
+            return cleared
+        except Exception as e:
+            logger.error(f"Error clearing API key prompt associations: {str(e)}")
+            return 0
+
     async def update_api_key_metadata(
         self,
         api_key_or_id: str,

@@ -94,6 +94,30 @@ def get_prompt_service(request: Request):
     return request.app.state.prompt_service
 
 
+async def _clear_runtime_prompt_caches(request: Request, prompt_id: Optional[str] = None) -> None:
+    """Clear in-process prompt/query caches that are outside PromptService Redis."""
+    chat_service = getattr(request.app.state, 'chat_service', None)
+    if not chat_service or not hasattr(chat_service, 'clear_prompt_cache'):
+        return
+
+    try:
+        stats = await chat_service.clear_prompt_cache(prompt_id)
+        logger.debug("Cleared runtime prompt caches for %s: %s", prompt_id or "all prompts", stats)
+    except Exception:
+        logger.warning("Failed to clear runtime prompt caches for %s", prompt_id, exc_info=True)
+
+
+async def _clear_deleted_prompt_associations(request: Request, prompt_id: str) -> None:
+    """Detach deleted personas from API keys so admin state has no dangling links."""
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    if not api_key_service or not hasattr(api_key_service, 'clear_system_prompt_associations'):
+        return
+
+    cleared = await api_key_service.clear_system_prompt_associations(prompt_id)
+    if cleared:
+        logger.debug("Detached deleted prompt %s from %s API key(s)", prompt_id, cleared)
+
+
 def check_service_availability(service, service_name: str):
     """Check if a service is available and raise error if not"""
     if service is None:
@@ -1153,6 +1177,8 @@ async def create_prompt(
         prompt_data.prompt,
         prompt_data.version
     )
+
+    await _clear_runtime_prompt_caches(request, str(prompt_id))
     
     prompt = await prompt_service.get_prompt_by_id(prompt_id)
     
@@ -1258,6 +1284,7 @@ def render_markdown_preview(
 async def update_prompt(
     prompt_id: str,
     prompt_data: SystemPromptUpdate,
+    request: Request,
     prompt_service = Depends(get_prompt_service),
     authorized: bool = Depends(admin_auth_check)
 ):
@@ -1270,6 +1297,8 @@ async def update_prompt(
     
     if not success:
         raise HTTPException(status_code=404, detail="Prompt not found or not updated")
+
+    await _clear_runtime_prompt_caches(request, prompt_id)
         
     prompt = await prompt_service.get_prompt_by_id(prompt_id)
     
@@ -1290,6 +1319,7 @@ async def update_prompt(
 @admin_router.delete("/prompts/{prompt_id}")
 async def delete_prompt(
     prompt_id: str,
+    request: Request,
     prompt_service = Depends(get_prompt_service),
     authorized: bool = Depends(admin_auth_check)
 ):
@@ -1298,6 +1328,9 @@ async def delete_prompt(
     
     if not success:
         raise HTTPException(status_code=404, detail="Prompt not found")
+
+    await _clear_runtime_prompt_caches(request, prompt_id)
+    await _clear_deleted_prompt_associations(request, prompt_id)
         
     return {"status": "success", "message": "Prompt deleted"}
 
