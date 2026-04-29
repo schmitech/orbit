@@ -90,6 +90,14 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 
 ---
 
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/994aaede-dcce-40b5-8622-47f28684cedd" controls muted playsinline width="75%"></video>
+  <br />
+  <em>The multimodal adapter lets you upload PDFs, documents, and images, then ask questions across all of them in a single conversation. Context is preserved across turns, and running it with a local model keeps every file and query entirely on your own infrastructure.</em>
+</p>
+
+---
+
 ### What ORBIT does differently
 
 Most AI gateways stop at provider routing. ORBIT is built for the messy parts of production RAG.
