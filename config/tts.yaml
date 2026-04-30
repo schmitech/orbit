@@ -2,7 +2,7 @@
 # Global TTS settings and provider-specific configurations
 
 tts:
-  provider: "openai"    # Global default TTS provider: openai, google, gemini, elevenlabs, ollama, vllm, coqui
+  provider: "gemini"    # Global default TTS provider: openai, google, gemini, elevenlabs, ollama, vllm, coqui
   enabled: true             # Global TTS enable/disable
 
   # Content sanitization for TTS
@@ -66,21 +66,8 @@ tts_providers:
     enabled: true
     api_key: ${GOOGLE_API_KEY}
     # TTS configuration
-    tts_model: "gemini-2.5-pro-preview-tts"  # Gemini 2.5 Flash TTS model (required for audio generation)
-    # Voice options (30 voices available):
-    # - puck (default) - Bright, upbeat
-    # - charon - Deep, authoritative
-    # - kore - Warm, friendly
-    # - fenrir - Strong, confident
-    # - aoede - Melodic, expressive
-    # - zephyr - Light, airy
-    # - leda - Gentle, soothing
-    # - orus - Firm, steady
-    # - despina, enceladus, iapetus, umbriel (celestial-themed voices)
-    # - achernar, achird, algenib, algieba, alnilam (star-themed voices)
-    # - autonoe, callirrhoe, erinome, laomedeia (mythological voices)
-    # - gacrux, pulcherrima, rasalgethi, sadachbia, sadaltager, schedar, sulafat, vindemiatrix, zubenelgenubi
-    tts_voice: "Kore"  # Default voice (warm, friendly)
+    tts_model: "gemini-3.1-flash-tts-preview"
+    tts_voice: "Achernar"  # https://docs.cloud.google.com/text-to-speech/docs/gemini-tts#voice_options
     tts_format: "wav"  # Output format: wav, mp3
     # Transport configuration
     transport: "rest"  # Use REST to avoid gRPC/ALTS warnings
