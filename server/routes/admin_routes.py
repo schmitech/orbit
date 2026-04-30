@@ -611,6 +611,140 @@ async def get_adapter_capabilities(
 
 
 # ---------------------------------------------------------------------------
+# Model discovery endpoints
+# ---------------------------------------------------------------------------
+
+@admin_router.get("/models")
+async def list_available_models(
+    request: Request,
+    x_api_key: str = Header(..., alias="X-API-Key")
+):
+    """
+    List all inference models available in the system.
+
+    Requires a valid API key (X-API-Key header). No admin credentials needed.
+
+    Derives the list from enabled providers in config/inference.yaml.
+    Each enabled provider contributes its configured default model. Ollama
+    presets are included as additional entries.
+
+    Returns a flat list that clients can use to populate a model picker.
+    """
+    config = getattr(request.app.state, 'config', {})
+    inference_cfg = config.get('inference', {})
+
+    models = []
+    for provider_name, provider_cfg in inference_cfg.items():
+        if not isinstance(provider_cfg, dict):
+            continue
+        if not provider_cfg.get('enabled', False):
+            continue
+        model_name = provider_cfg.get('model') or provider_cfg.get('use_preset')
+        if not model_name:
+            continue
+        safe_model = model_name.replace('/', '-').replace(':', '-')
+        models.append({
+            "name": f"{provider_name}-{safe_model}",
+            "provider": provider_name,
+            "model": model_name,
+        })
+
+    # Include named Ollama presets as additional selectable entries
+    for preset_name, preset_cfg in config.get('ollama_presets', {}).items():
+        if not isinstance(preset_cfg, dict):
+            continue
+        preset_model = preset_cfg.get('model', preset_name)
+        models.append({
+            "name": f"ollama-{preset_name}",
+            "provider": "ollama",
+            "model": preset_model,
+            "preset": preset_name,
+        })
+
+    # Include named llama_cpp presets
+    for preset_name, preset_cfg in config.get('llama_cpp_presets', {}).items():
+        if not isinstance(preset_cfg, dict):
+            continue
+        preset_model = preset_cfg.get('model_path', preset_name)
+        models.append({
+            "name": f"llama_cpp-{preset_name}",
+            "provider": "llama_cpp",
+            "model": preset_model,
+            "preset": preset_name,
+        })
+
+    return {"models": models}
+
+
+@admin_router.get("/adapters/{adapter_name}/models")
+async def list_adapter_models(
+    adapter_name: str,
+    request: Request,
+    x_api_key: str = Header(..., alias="X-API-Key")
+):
+    """
+    List models available for a specific adapter.
+
+    Requires a valid API key (X-API-Key header). No admin credentials needed.
+
+    If the adapter defines a 'allowed_models' list in its config, that list
+    is returned and 'has_restrictions' is true.
+
+    If no 'allowed_models' are defined, the adapter's single default model
+    (inference_provider + model) is returned and 'has_restrictions' is false.
+
+    Clients can use this endpoint to build a per-adapter model picker.
+    """
+    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
+    if not adapter_manager:
+        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    if not adapter_manager:
+        raise HTTPException(status_code=503, detail="Adapter manager is not available")
+
+    adapter_config = adapter_manager.get_adapter_config(adapter_name) if hasattr(adapter_manager, 'get_adapter_config') else None
+    if adapter_config is None:
+        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found")
+
+    allowed = adapter_config.get('allowed_models') or []
+
+    if allowed:
+        models = [
+            {"name": m.get('name', ''), "provider": m.get('provider', ''), "model": m.get('model', '')}
+            for m in allowed
+            if m.get('name') and m.get('provider') and m.get('model')
+        ]
+        return {
+            "adapter_name": adapter_name,
+            "has_restrictions": True,
+            "models": models,
+        }
+
+    # No allowed_models list — return the adapter's single default
+    inference_provider = adapter_config.get('inference_provider')
+    config = getattr(request.app.state, 'config', {})
+    default_provider = config.get('general', {}).get('inference_provider', 'default')
+    provider = inference_provider or default_provider
+    model = adapter_config.get('model', '')
+
+    if not model:
+        inference_cfg = config.get('inference', {}).get(provider, {})
+        model = inference_cfg.get('model', '')
+
+    safe_model = model.replace('/', '-').replace(':', '-') if model else ''
+    default_entry = {
+        "name": f"{provider}-{safe_model}" if safe_model else provider,
+        "provider": provider,
+        "model": model,
+    }
+
+    return {
+        "adapter_name": adapter_name,
+        "has_restrictions": False,
+        "models": [default_entry] if model else [],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Adapter config file management
 # ---------------------------------------------------------------------------
 
@@ -739,6 +873,7 @@ async def list_adapter_configs(
                         "inference_provider": adapter.get("inference_provider", ""),
                         "model": adapter.get("model", ""),
                         "embedding_provider": adapter.get("embedding_provider", ""),
+                        "allowed_models": adapter.get("allowed_models") or [],
                     })
         except Exception:
             pass  # File might have invalid YAML — show it anyway with empty adapters

@@ -436,6 +436,7 @@ class PipelineChatService:
         tts_voice: Optional[str] = None,
         source_language: Optional[str] = None,
         target_language: Optional[str] = None,
+        requested_model: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process a chat message using the pipeline architecture.
@@ -491,6 +492,7 @@ class PipelineChatService:
                 tts_voice=tts_voice,
                 source_language=source_language,
                 target_language=target_language,
+                requested_model=requested_model,
             )
 
             result = await self.pipeline.process(context)
@@ -559,6 +561,7 @@ class PipelineChatService:
         source_language: Optional[str] = None,
         target_language: Optional[str] = None,
         cancel_event: Optional[asyncio.Event] = None,
+        requested_model: Optional[str] = None,
     ):
         """
         Process a chat message with streaming response using the pipeline architecture.
@@ -626,6 +629,7 @@ class PipelineChatService:
                 source_language=source_language,
                 target_language=target_language,
                 cancel_event=cancel_event,
+                requested_model=requested_model,
             )
 
             final_state = None

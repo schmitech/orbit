@@ -78,6 +78,10 @@ class ProcessingContext:
     # Stream cancellation
     cancel_event: Optional[asyncio.Event] = None  # Event to signal stream cancellation
 
+    # Runtime model override (resolved from adapter's allowed_models at request time)
+    runtime_provider: Optional[str] = None
+    runtime_model_name: Optional[str] = None
+
     def has_error(self) -> bool:
         """Check if the context has an error."""
         return self.is_blocked or self.error is not None

@@ -30,10 +30,20 @@ class LLMInferenceStep(PipelineStep):
 
     async def _resolve_llm_provider(self, context: ProcessingContext):
         """Resolve the LLM provider for this request, preferring adapter overrides."""
-        if context.inference_provider and self.container.has('adapter_manager'):
+        if self.container.has('adapter_manager'):
             adapter_manager = self.container.get('adapter_manager')
             adapter_name = getattr(context, 'adapter_name', None)
-            return await adapter_manager.get_overridden_provider(context.inference_provider, adapter_name)
+            # Runtime model override (from request body) takes priority over adapter config
+            if context.runtime_provider and context.runtime_model_name:
+                return await adapter_manager.get_overridden_provider(
+                    context.runtime_provider,
+                    adapter_name,
+                    explicit_model_override=context.runtime_model_name,
+                )
+            if context.inference_provider:
+                return await adapter_manager.get_overridden_provider(
+                    context.inference_provider, adapter_name
+                )
         return self.container.get('llm_provider')
 
     def _create_prompt_builder(self) -> PromptInstructionBuilder:

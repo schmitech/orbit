@@ -276,25 +276,54 @@ class DynamicAdapterManager:
         else:
             logger.error(f"Failed to load adapter {adapter_name}: {str(error)}")
 
-    async def get_overridden_provider(self, provider_name: str, adapter_name: str = None) -> Any:
+    async def get_overridden_provider(
+        self,
+        provider_name: str,
+        adapter_name: str = None,
+        explicit_model_override: Optional[str] = None,
+    ) -> Any:
         """
         Get an inference provider instance by name, loading and caching it if necessary.
 
         Args:
             provider_name: The name of the provider to create
             adapter_name: Optional adapter name to get model override from
+            explicit_model_override: When set, bypasses the adapter config model lookup and uses
+                                     this value directly (used for runtime per-request model selection)
         """
         if not provider_name:
             raise ValueError("Provider name cannot be empty")
 
-        model_override = None
-        if adapter_name:
-            adapter_config = self.config_manager.get(adapter_name)
-            if adapter_config and adapter_config.get('model'):
-                model_override = adapter_config['model']
-                logger.debug(f"Found model override '{model_override}' for adapter '{adapter_name}'")
+        if explicit_model_override is not None:
+            model_override = explicit_model_override
+            logger.debug(
+                f"Using explicit runtime model override '{model_override}' "
+                f"for provider '{provider_name}'"
+            )
+        else:
+            model_override = None
+            if adapter_name:
+                adapter_config = self.config_manager.get(adapter_name)
+                if adapter_config and adapter_config.get('model'):
+                    model_override = adapter_config['model']
+                    logger.debug(f"Found model override '{model_override}' for adapter '{adapter_name}'")
 
         return await self.provider_cache.create_provider(provider_name, model_override, adapter_name)
+
+    def get_allowed_models(self, adapter_name: str) -> list:
+        """
+        Return the allowed_models list for an adapter, or an empty list if not defined.
+
+        Args:
+            adapter_name: The adapter name
+
+        Returns:
+            List of allowed model dicts (each has 'name', 'provider', 'model')
+        """
+        adapter_config = self.config_manager.get(adapter_name)
+        if not adapter_config:
+            return []
+        return adapter_config.get('allowed_models') or []
 
     async def get_overridden_embedding(self, provider_name: str, adapter_name: str = None) -> Any:
         """

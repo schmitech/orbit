@@ -12,6 +12,20 @@ class ChatMessage(BaseModel):
     stream: bool = Field(default=True, description="Whether to stream the response")
 
 
+class AllowedModel(BaseModel):
+    """A single model option allowed for an adapter."""
+    name: str
+    provider: str
+    model: str
+
+
+class AdapterModelsResponse(BaseModel):
+    """Response listing models available for an adapter."""
+    adapter_name: str
+    models: List[AllowedModel]
+    has_restrictions: bool
+
+
 class HealthStatus(BaseModel):
     """Health status model"""
     status: str = Field(description="Overall health status of the server")

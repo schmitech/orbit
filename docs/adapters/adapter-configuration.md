@@ -181,4 +181,89 @@ If you see unexpected behavior after importing:
 ### Performance Considerations
 - Import processing happens at startup
 - Large numbers of imported files may impact startup time
-- Consider caching strategies for frequently changing adapter configurations 
+- Consider caching strategies for frequently changing adapter configurations
+
+---
+
+## Runtime Model Selection
+
+By default, an adapter always uses the model defined in its `inference_provider` and `model` fields. The optional `allowed_models` field lets clients request a different model at runtime by passing a `"model"` key in the chat request body.
+
+### Adapter configuration
+
+```yaml
+adapters:
+  - name: "simple-chat"
+    enabled: true
+    type: "passthrough"
+    inference_provider: "openai"
+    model: "gpt-4o-mini"          # Default / fallback model
+
+    allowed_models:               # Optional — omit to lock the adapter to its default model
+      - name: "openai-gpt-4o-mini"
+        provider: "openai"
+        model: "gpt-4o-mini"
+      - name: "anthropic-claude-haiku"
+        provider: "anthropic"
+        model: "claude-haiku-4-5-20251001"
+      - name: "ollama-llama3"
+        provider: "ollama"
+        model: "llama3:8b"
+```
+
+Each entry in `allowed_models` has three fields:
+
+| Field | Description |
+|---|---|
+| `name` | Client-facing identifier sent as the `"model"` value in the request body |
+| `provider` | Internal provider key (must match a key under `inference:` in `inference.yaml`) |
+| `model` | Actual model name passed to the provider |
+
+**Behaviour rules:**
+- If `allowed_models` is defined and the client sends a `"model"` value not in the list, the request is rejected with HTTP 400.
+- If `allowed_models` is defined and the client omits `"model"`, the adapter's default `model` is used.
+- If `allowed_models` is not defined at all, any `"model"` value in the request is silently ignored and the adapter's default is used.
+
+### Discovering available models
+
+**List all models an adapter accepts:**
+```bash
+curl -s http://localhost:3000/admin/adapters/simple-chat/models \
+  -H "X-API-Key: <YOUR_API_KEY>" | jq .
+```
+
+```json
+{
+  "adapter_name": "simple-chat",
+  "has_restrictions": true,
+  "models": [
+    { "name": "openai-gpt-4o-mini",     "provider": "openai",     "model": "gpt-4o-mini" },
+    { "name": "anthropic-claude-haiku", "provider": "anthropic",  "model": "claude-haiku-4-5-20251001" },
+    { "name": "ollama-llama3",          "provider": "ollama",     "model": "llama3:8b" }
+  ]
+}
+```
+
+When `has_restrictions` is `false`, the adapter has no `allowed_models` list and the single default model is returned.
+
+**List all models available across all enabled providers:**
+```bash
+curl -s http://localhost:8000/admin/models \
+  -H "X-API-Key: <YOUR_API_KEY>" | jq .
+```
+
+### Sending a request with a model override
+
+```bash
+curl -s http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <YOUR_API_KEY>" \
+  -H "X-Session-ID: local-test" \
+  -d '{
+    "model": "anthropic-claude-haiku",
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "stream": false
+  }' | jq .
+```
+
+Omit `"model"` (or set it to `null`) to use the adapter's configured default. 

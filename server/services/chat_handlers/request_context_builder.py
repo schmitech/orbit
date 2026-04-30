@@ -119,7 +119,8 @@ class RequestContextBuilder:
         tts_voice: Optional[str] = None,
         source_language: Optional[str] = None,
         target_language: Optional[str] = None,
-        cancel_event: Optional[asyncio.Event] = None
+        cancel_event: Optional[asyncio.Event] = None,
+        requested_model: Optional[str] = None,
     ) -> ProcessingContext:
         """
         Build a ProcessingContext from request parameters.
@@ -141,6 +142,8 @@ class RequestContextBuilder:
             source_language: Optional source language for translation
             target_language: Optional target language for translation
             cancel_event: Optional asyncio.Event for stream cancellation
+            requested_model: Optional model name from the request body (must match
+                             a allowed_models entry in the adapter config)
 
         Returns:
             ProcessingContext instance
@@ -157,6 +160,28 @@ class RequestContextBuilder:
             tts_voice = custom_config.get('tts_voice')
             if tts_voice:
                 logger.debug(f"Using adapter config tts_voice: {tts_voice} for adapter: {adapter_name}")
+
+        # Resolve runtime model override from adapter's allowed_models
+        runtime_provider = None
+        runtime_model_name = None
+        if requested_model:
+            adapter_config = self.get_adapter_config(adapter_name)
+            allowed = adapter_config.get('allowed_models') or []
+            if allowed:
+                match = next((m for m in allowed if m.get('name') == requested_model), None)
+                if match is None:
+                    allowed = [m['name'] for m in allowed if m.get('name')]
+                    raise ValueError(
+                        f"Model '{requested_model}' is not allowed for adapter '{adapter_name}'. "
+                        f"Allowed models: {allowed}"
+                    )
+                runtime_provider = match['provider']
+                runtime_model_name = match['model']
+                logger.debug(
+                    f"Runtime model override: '{requested_model}' → "
+                    f"{runtime_provider}/{runtime_model_name} for adapter '{adapter_name}'"
+                )
+            # If adapter has no allowed_models list, silently ignore the override
 
         # Create and return processing context
         return ProcessingContext(
@@ -179,5 +204,7 @@ class RequestContextBuilder:
             tts_voice=tts_voice,
             source_language=source_language,
             target_language=target_language,
-            cancel_event=cancel_event
+            cancel_event=cancel_event,
+            runtime_provider=runtime_provider,
+            runtime_model_name=runtime_model_name,
         )
