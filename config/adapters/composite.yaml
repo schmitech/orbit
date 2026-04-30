@@ -80,18 +80,18 @@ adapters:
       # Cross-adapter templates for multi-source comparison queries
       # When a query matches a cross-adapter template, the composite retriever
       # routes to multiple child adapters in parallel and merges results.
-      cross_adapter_templates:
-        enabled: true
-        template_library_path:
-          - "examples/intent-templates/cross-adapter-template/cross_adapter_templates.yaml"
-        template_collection_name: "composite_cross_adapter_templates"
-        store_name: "chroma"
+      # cross_adapter_templates:
+      #   enabled: true
+      #   template_library_path:
+      #     - "examples/intent-templates/cross-adapter-template/cross_adapter_templates.yaml"
+      #   template_collection_name: "composite_cross_adapter_templates"
+      #   store_name: "chroma"
 
-      # Cross-adapter execution settings
-      cross_adapter_execution:
-        timeout_per_adapter: 10.0  # Timeout per child adapter query (seconds)
-        partial_results: true       # Return results even if some adapters fail
-        default_merge_strategy: "side_by_side"  # side_by_side or labeled_concat
+      # # Cross-adapter execution settings
+      # cross_adapter_execution:
+      #   timeout_per_adapter: 10.0  # Timeout per child adapter query (seconds)
+      #   partial_results: true       # Return results even if some adapters fail
+      #   default_merge_strategy: "side_by_side"  # side_by_side or labeled_concat
 
 
   # Example: Full Multi-Database Explorer

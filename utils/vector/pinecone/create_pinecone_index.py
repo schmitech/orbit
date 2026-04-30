@@ -45,11 +45,11 @@ from pinecone import Pinecone, ServerlessSpec
 import time
 
 # Add server directory to path for importing embedding services
-server_path = Path(__file__).resolve().parents[2] / "server"
+server_path = Path(__file__).resolve().parents[3] / "server"
 sys.path.append(str(server_path))
 
 # Load environment variables from .env file in the project root directory
-dotenv_path = Path(__file__).resolve().parents[2] / ".env"
+dotenv_path = Path(__file__).resolve().parents[3] / ".env"
 load_dotenv(dotenv_path=dotenv_path)
 print(f"Loading environment variables from: {dotenv_path}")
 
@@ -60,8 +60,8 @@ def load_config():
     # Get the directory of this script
     script_dir = Path(__file__).resolve().parent
     
-    # Get the project root (2 levels up: examples -> pinecone -> project_root)
-    project_root = script_dir.parents[1]
+    # Get the project root (3 levels up: pinecone -> vector -> utils -> project_root)
+    project_root = script_dir.parents[2]
     
     # Load main config.yaml
     config_path = project_root / "config" / "config.yaml"

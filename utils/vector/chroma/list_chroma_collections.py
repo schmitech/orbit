@@ -43,8 +43,8 @@ def load_config():
     # Get the directory of this script
     script_dir = Path(__file__).resolve().parent
     
-    # Get the project root (2 levels up: scripts -> chroma -> project_root)
-    project_root = script_dir.parents[1]
+    # Get the project root (3 levels up: chroma -> vector -> utils -> project_root)
+    project_root = script_dir.parents[2]
     
     # Load main config.yaml
     config_path = project_root / "config" / "config.yaml"

@@ -38,7 +38,7 @@ from pinecone import Pinecone
 def get_pinecone_client():
     """Initialize and return Pinecone client"""
     # Load environment variables from main project directory
-    project_env_path = Path(__file__).resolve().parents[2] / ".env"
+    project_env_path = Path(__file__).resolve().parents[3] / ".env"
     if project_env_path.exists():
         load_dotenv(project_env_path, override=True)
         print(f"Loading environment variables from: {project_env_path}")

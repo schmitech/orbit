@@ -33,12 +33,12 @@ adapters:
 
     config:
       # Path to the domain definition file
-      domain_config_path: "examples/intent-templates/sql-intent-template/examples/postgres/customer-orders/customer_order_domain.yaml"
+      domain_config_path: "examples/intent-templates/sql-intent-template/postgres/customer-orders/customer_order_domain.yaml"
       template_library_path:
-        - "examples/intent-templates/sql-intent-template/examples/postgres/customer-orders/customer_orders_templates.yaml"
-        - "examples/intent-templates/sql-intent-template/examples/postgres/customer-orders/business_intelligence_templates.yaml"
-        - "examples/intent-templates/sql-intent-template/examples/postgres/customer-orders/advanced_analytics_templates.yaml"
-        - "examples/intent-templates/sql-intent-template/examples/postgres/customer-orders/comparative_analysis_templates.yaml"
+        - "examples/intent-templates/sql-intent-template/postgres/customer-orders/customer_orders_templates.yaml"
+        - "examples/intent-templates/sql-intent-template/postgres/customer-orders/business_intelligence_templates.yaml"
+        - "examples/intent-templates/sql-intent-template/postgres/customer-orders/advanced_analytics_templates.yaml"
+        - "examples/intent-templates/sql-intent-template/postgres/customer-orders/comparative_analysis_templates.yaml"
       # Name for the vector store collection for templates
       # reranker_top_n: 40      # Optional: limit reranked results (overrides return_results)
       template_collection_name: "intent_query_templates"
