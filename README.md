@@ -69,12 +69,6 @@ For GPU acceleration: `docker compose -f docker-compose.yml -f docker-compose.gp
 
 Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/) and [`examples/intent-templates/`](examples/intent-templates/).
 
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/bd1aa8d0-abe4-499d-a6bb-32b4520ac504" controls muted playsinline width="75%"></video>
-  <br />
-  <em>OrbitChat rendering live charts from LLM output — bar, line, area, pie, scatter, composed, radar, funnel, radialbar, and horizontal bar — with no client-side charting code required. The model emits a fenced <code>chart</code> block, and the renderer handles the rest.</em>
-</p>
-
 ---
 
 ### Why ORBIT?
@@ -141,27 +135,13 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 | Run ORBIT as an MCP tool server for agents | [MCP / OpenClaw walkthrough](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md) |
 | Build a full-duplex voice assistant | [PersonaPlex voice assistant](docs/cookbook/orbit-personaplex-full-duplex-voice-assistant.md) |
 
-#### Use ORBIT with Hermes Agent
+---
 
-ORBIT's inference server also exposes a Streamable HTTP MCP endpoint at `/mcp`, so Hermes Agent can call ORBIT-backed chat, RAG, and adapter tools from the same server you use for `/v1/chat`.
-
-Add ORBIT to `~/.hermes/config.yaml`:
-
-```yaml
-mcp_servers:
-  orbit:
-    url: "http://localhost:3000/mcp"
-    headers:
-      X-API-Key: "default-key"
-```
-
-Then start Hermes and ask it to use the ORBIT tools:
-
-```bash
-hermes chat
-```
-
-Use your deployed URL, for example `https://orbit.example.com/mcp`, and an API key created for the adapter Hermes should access. See [Server Setup](docs/server.md) and the [Hermes MCP quickstart](https://hermes-agent.nousresearch.com/docs/getting-started/quickstart#mcp-servers).
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/bd1aa8d0-abe4-499d-a6bb-32b4520ac504" controls muted playsinline width="75%"></video>
+  <br />
+  <em>OrbitChat rendering live charts from LLM output — bar, line, area, pie, scatter, composed, radar, funnel, radialbar, and horizontal bar — with no client-side charting code required. The model emits a fenced <code>chart</code> block, and the renderer handles the rest.</em>
+</p>
 
 ---
 

@@ -154,6 +154,28 @@ OpenClaw supports per-agent MCP server lists. To give only certain agents access
 
 Agents that don’t list `orbit` won’t see ORBIT’s tools.
 
+### 7. Use ORBIT with Hermes Agent
+
+Hermes Agent can call ORBIT-backed chat, RAG, and adapter tools from the same server you use for `/v1/chat`.
+
+Add ORBIT to `~/.hermes/config.yaml`:
+
+```yaml
+mcp_servers:
+  orbit:
+    url: "http://localhost:3000/mcp"
+    headers:
+      X-API-Key: "default-key"
+```
+
+Then start Hermes and ask it to use the ORBIT tools:
+
+```bash
+hermes chat
+```
+
+Use your deployed URL, for example `https://orbit.example.com/mcp`, and an API key created for the adapter Hermes should access. See [Server Setup](docs/server.md) and the [Hermes MCP quickstart](https://hermes-agent.nousresearch.com/docs/getting-started/quickstart#mcp-servers).
+
 ## Troubleshooting
 
 | Issue | What to check |
