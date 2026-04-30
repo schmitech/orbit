@@ -205,6 +205,16 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
         if self.domain_adapter and hasattr(self.domain_adapter, 'apply_domain_filtering'):
             return self.domain_adapter.apply_domain_filtering(context_items, query)
         return context_items
+
+    def _text_similarity(self, query: str, text: str) -> float:
+        """Word-overlap similarity between query and text, in [0, 1]."""
+        if not query or not text:
+            return 0.0
+        query_words = set(query.lower().split())
+        text_words = set(text.lower().split())
+        if not query_words:
+            return 0.0
+        return len(query_words & text_words) / len(query_words)
     
     @abstractmethod
     def convert_score_to_confidence(self, score: float) -> float:
@@ -341,10 +351,20 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
                     
                     context_items.append(context_item)
             
+            # Blend vector confidence with question text similarity so that the
+            # exact or closest textual match wins when many docs share near-identical
+            # vector distances (common with templated QA data).
+            for item in context_items:
+                question = item.get("metadata", {}).get("question", "") or item.get("question", "")
+                if question:
+                    text_sim = self._text_similarity(query, question)
+                    vector_conf = item["confidence"]
+                    item["confidence"] = 0.5 * vector_conf + 0.5 * text_sim
+
             # Sort by confidence
             context_items = sorted(
-                context_items, 
-                key=lambda x: x.get("confidence", 0), 
+                context_items,
+                key=lambda x: x.get("confidence", 0),
                 reverse=True
             )
             

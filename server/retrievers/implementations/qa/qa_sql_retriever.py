@@ -78,7 +78,17 @@ class QASSQLRetriever(SQLiteRetriever):
         """Initialize QA-specific features on top of SQLite initialization."""
         # Call parent initialization first
         await super().initialize()
-        
+
+        # Reconcile default_search_fields against the actual table schema now
+        # that the connection is open. This covers the case where self.collection
+        # was set from adapter config and get_relevant_context never calls
+        # set_collection (which is the only place field detection normally runs).
+        if self.collection and self.connection:
+            try:
+                await self.set_collection(self.collection)
+            except Exception as e:
+                logger.warning(f"Could not reconcile search fields for table '{self.collection}': {e}")
+
         # Check for QA-specific search_tokens table optimization
         try:
             cursor = self.connection.cursor()

@@ -1,12 +1,12 @@
 adapters:
 - name: "qa-sql"
-  enabled: false
+  enabled: true
   type: "retriever"
   datasource: "sqlite"
   adapter: "qa"
   implementation: "retrievers.implementations.qa.QASSQLRetriever"
-  inference_provider: "ollama"
-  model: "granite-cpu"
+  inference_provider: "llama_cpp"
+  model: "gemma4-e2b-direct-cpu"
   # reranker_provider: cohere
   # reranker_model: rerank-english-v3.0
   capabilities:
@@ -33,11 +33,9 @@ adapters:
     - id
     - question
     - answer
-    - category
-    - confidence
-    security_filter: active = 1
+    - question_tokens
+    - source
     cache_ttl: 1800
-    test_timestamp: '1765467550.5618649'
   fault_tolerance:
     operation_timeout: 15.0
     failure_threshold: 10
@@ -60,10 +58,10 @@ adapters:
   datasource: chroma
   adapter: qa
   implementation: retrievers.implementations.qa.QAChromaRetriever
-  inference_provider: "openrouter"
-  model: "google/gemini-3-flash-preview"
-  embedding_provider: ollama
-  embedding_model: nomic-embed-text
+  inference_provider: "ollama_cloud"
+  model: "gpt-oss:20b"
+  embedding_provider: openai
+  embedding_model: text-embedding-3-small
   capabilities:
     retrieval_behavior: always
     formatting_style: standard
@@ -79,7 +77,7 @@ adapters:
     collection: city
     confidence_threshold: 0.3
     distance_scaling_factor: 2.0
-    max_results: 5
+    max_results: 50
     return_results: 3
     timezone: America/Toronto
 
@@ -89,8 +87,8 @@ adapters:
   datasource: "qdrant"
   adapter: "qa"
   implementation: "retrievers.implementations.qa.QAQdrantRetriever"
-  inference_provider: "openai"
-  embedding_provider: "ollama"
+  inference_provider: "llama_cpp"
+  embedding_provider: "gemma4-e2b-direct-cpu"
   capabilities:
     retrieval_behavior: always
     formatting_style: standard

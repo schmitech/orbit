@@ -213,17 +213,21 @@ class ApiService:
             data["adapter_name"] = adapter_name
         if resolved_notes:
             data["notes"] = resolved_notes
-        
-        response = self.api_client.post("/admin/api-keys", headers=headers, json_data=data)
-        response.raise_for_status()
-        api_key_result = response.json()
-        
-        # Associate prompt if we have one
         if prompt_id:
-            api_key = api_key_result.get("api_key")
-            if api_key:
-                self.associate_prompt_with_api_key(api_key, prompt_id)
-                api_key_result["system_prompt_id"] = prompt_id
+            data["system_prompt_id"] = prompt_id
+        
+        try:
+            response = self.api_client.post("/admin/api-keys", headers=headers, json_data=data)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            detail = e.response.text
+            try:
+                detail = e.response.json().get("detail", detail)
+            except Exception:
+                pass
+            raise OrbitError(f"{e.response.status_code} {detail}")
+
+        api_key_result = response.json()
         
         return api_key_result
     

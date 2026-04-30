@@ -23,7 +23,7 @@
 # The script will:
 # 1. Set up the specified database type (SQLite or Chroma)
 # 2. Create sample QA collections
-# 3. Optionally create API keys for the adapters (uses new adapter-based approach)
+# 3. Optionally create API keys for the adapters
 # 4. Display setup instructions and API keys if created
 
 set -e
@@ -31,8 +31,16 @@ set -e
 # Get the directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Get the project root (parent of install directory)
+# Get the project root (parent of examples directory)
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+SQLITE_DB_PATH="$PROJECT_ROOT/examples/sqlite/sqlite_db"
+CHROMA_DB_PATH="$PROJECT_ROOT/examples/chroma/chroma_db"
+CHROMA_CREATE_SCRIPT="$PROJECT_ROOT/utils/vector/chroma/create_qa_pairs_collection.py"
+CITY_QA_DATA="$PROJECT_ROOT/examples/city-qa-pairs.json"
+CITY_PROMPT_FILE="$PROJECT_ROOT/examples/prompts/examples/city/city-assistant-normal-prompt.md"
+ACTIVITY_QA_DATA="$PROJECT_ROOT/examples/activity-qa-pairs.json"
+ACTIVITY_PROMPT_FILE="$PROJECT_ROOT/examples/prompts/examples/activity/activity-assistant-normal-prompt.md"
 
 # Default value for CREATE_API_KEYS
 CREATE_API_KEYS=true
@@ -114,13 +122,46 @@ with open('$CONFIG_PATH') as f:
         PROTOCOL="http"
     fi
     
-    # Read use_local setting from config
-    USE_LOCAL=$(python3 -c "
+    # Read use_local setting from imported datasource config when available.
+    DATASOURCES_CONFIG_PATH="$(dirname "$CONFIG_PATH")/datasources.yaml"
+    if [ ! -f "$DATASOURCES_CONFIG_PATH" ]; then
+        DATASOURCES_CONFIG_PATH="$PROJECT_ROOT/config/datasources.yaml"
+    fi
+
+    if [ -f "$DATASOURCES_CONFIG_PATH" ]; then
+        USE_LOCAL=$(python3 -c "
+import yaml
+with open('$DATASOURCES_CONFIG_PATH') as f:
+    config = yaml.safe_load(f) or {}
+    print(str(config.get('datasources', {}).get('chroma', {}).get('use_local', True)).lower())
+")
+        CONFIG_CHROMA_DB_PATH=$(python3 -c "
+import yaml
+from pathlib import Path
+with open('$DATASOURCES_CONFIG_PATH') as f:
+    config = yaml.safe_load(f) or {}
+db_path = config.get('datasources', {}).get('chroma', {}).get('db_path', 'examples/chroma/chroma_db')
+path = Path(db_path)
+if not path.is_absolute():
+    path = Path('$PROJECT_ROOT') / path
+print(path)
+")
+        if [ -n "$CONFIG_CHROMA_DB_PATH" ]; then
+            CHROMA_DB_PATH="$CONFIG_CHROMA_DB_PATH"
+        fi
+    else
+        USE_LOCAL="true"
+    fi
+
+    # Read use_local setting from config as a fallback for legacy config layouts.
+    if [ -z "$USE_LOCAL" ]; then
+        USE_LOCAL=$(python3 -c "
 import yaml
 with open('$CONFIG_PATH') as f:
     config = yaml.safe_load(f)
     print(str(config.get('datasources', {}).get('chroma', {}).get('use_local', True)).lower())
 ")
+    fi
 fi
 
 # Set default protocol if not set
@@ -131,42 +172,60 @@ fi
 echo "🚀 Setting up sample QA collections..."
 
 if [ "$DATASOURCE" = "sqlite" ]; then
-    # Remove existing SQLite database directory if it exists
-    if [ -d "$PROJECT_ROOT/sqlite_db" ]; then
+    if [ ! -f "$PROJECT_ROOT/examples/sqlite/rag_cli.py" ]; then
+        echo "❌ Error: SQLite setup script not found at $PROJECT_ROOT/examples/sqlite/rag_cli.py"
+        exit 1
+    fi
+    if [ ! -f "$CITY_QA_DATA" ]; then
+        echo "❌ Error: Sample Q&A data not found at $CITY_QA_DATA"
+        exit 1
+    fi
+
+    # Remove existing SQLite database file or directory if it exists
+    if [ -e "$SQLITE_DB_PATH" ]; then
         echo "Removing existing SQLite database..."
-        rm -rf "$PROJECT_ROOT/sqlite_db"
+        rm -rf "$SQLITE_DB_PATH"
     fi
 
     # Create new SQLite database with sample data
-    python3 "$PROJECT_ROOT/examples/sqlite/rag_cli.py" setup --db-path "$PROJECT_ROOT/examples/sqlite/sqlite_db" --data-path "$PROJECT_ROOT/examples/city-qa-pairs.json"
+    python3 "$PROJECT_ROOT/examples/sqlite/rag_cli.py" setup --db-path "$SQLITE_DB_PATH" --data-path "$CITY_QA_DATA"
 else
+    if [ ! -f "$CHROMA_CREATE_SCRIPT" ]; then
+        echo "❌ Error: Chroma setup script not found at $CHROMA_CREATE_SCRIPT"
+        exit 1
+    fi
+    if [ ! -f "$CITY_QA_DATA" ]; then
+        echo "❌ Error: Sample Q&A data not found at $CITY_QA_DATA"
+        exit 1
+    fi
+
     # Remove existing Chroma database directory if it exists
     if [ "$USE_LOCAL" = "true" ]; then
-        if [ -d "$PROJECT_ROOT/chroma_db" ]; then
+        if [ -d "$CHROMA_DB_PATH" ]; then
             echo "Removing existing Chroma database..."
-            rm -rf "$PROJECT_ROOT/chroma_db"
+            rm -rf "$CHROMA_DB_PATH"
         fi
     fi
 
     # Create Chroma collections
     echo "Creating Chroma collections..."
-    LOCAL_FLAG=""
+    LOCAL_ARGS=()
     if [ "$USE_LOCAL" = "true" ]; then
-        LOCAL_FLAG="--local --db-path $PROJECT_ROOT/examples/chroma/chroma_db"
+        LOCAL_ARGS=(--local --db-path "$CHROMA_DB_PATH")
     fi
     
     # Load Q&A pairs
-    python3 "$PROJECT_ROOT/examples/chroma/create_qa_pairs_collection.py" city "$PROJECT_ROOT/examples/city-qa-pairs.json" $LOCAL_FLAG
+    python3 "$CHROMA_CREATE_SCRIPT" city "$CITY_QA_DATA" "${LOCAL_ARGS[@]}"
     
-    # Uncomment to create sample activity collection (will take lonnger due to volume of data)
-    # python3 "$PROJECT_ROOT/examples/chroma/create_qa_pairs_collection.py" activity "$PROJECT_ROOT/examples/activity-qa-pairs.json" $LOCAL_FLAG
+    # Uncomment to create sample activity collection if examples/activity-qa-pairs.json is present.
+    # python3 "$CHROMA_CREATE_SCRIPT" activity "$ACTIVITY_QA_DATA" "${LOCAL_ARGS[@]}"
 fi
 
 echo "✅ Sample QA collections created."
 
 if [ "$CREATE_API_KEYS" = true ]; then
     echo ""
-    echo "🔑 Creating API keys using new adapter-based approach..."
+    echo "🔑 Creating API keys for ORBIT adapters..."
     
     # Determine which adapter to use based on datasource
     if [ "$DATASOURCE" = "sqlite" ]; then
@@ -178,10 +237,15 @@ if [ "$CREATE_API_KEYS" = true ]; then
     fi
     
     echo "  • Connecting to server on port $PORT"
-    echo "  • Using prompt file '$PROJECT_ROOT/examples/prompts/examples/city/city-assistant-normal-prompt.txt'"
+    echo "  • Using prompt file '$CITY_PROMPT_FILE'"
     echo ""
 
-    # Create API key using new adapter-based approach
+    if [ ! -f "$CITY_PROMPT_FILE" ]; then
+        echo "❌ Error: Prompt file not found at $CITY_PROMPT_FILE"
+        exit 1
+    fi
+
+    # Create API key for the selected adapter
     SERVER_URL="${PROTOCOL}://localhost:${PORT}"
     echo "Debug: Connecting to server at $SERVER_URL"
     
@@ -236,47 +300,91 @@ if [ "$CREATE_API_KEYS" = true ]; then
     # Check if we need to authenticate first
     echo "Checking authentication status..."
     AUTH_STATUS=$(python3 "$PROJECT_ROOT/bin/orbit.py" auth-status 2>/dev/null || echo 'not authenticated')
+    echo "  • auth-status output:"
+    echo "$AUTH_STATUS" | sed -E 's/orbit_[A-Za-z0-9]+/orbit_***MASKED***/g' | sed 's/^/    /'
     
-    if echo "$AUTH_STATUS" | grep -q 'authenticated'; then
+    if echo "$AUTH_STATUS" | grep -qi 'not authenticated'; then
+        echo "❌ Not authenticated. Please login first:"
+        echo "  python $PROJECT_ROOT/bin/orbit.py login"
+        echo "Then run this script again."
+        exit 1
+    elif echo "$AUTH_STATUS" | grep -qi 'authenticated'; then
         echo "✅ Authentication verified"
     else
-        echo "❌ Not authenticated. Please login first:"
+        echo "❌ Could not determine authentication status. Please login first:"
         echo "  python $PROJECT_ROOT/bin/orbit.py login"
         echo "Then run this script again."
         exit 1
     fi
     
-    # Create API key using new --adapter flag instead of deprecated --collection flag
+    # Create API key using the adapter name from config/adapters/qa.yaml
+    echo ""
+    echo "Creating API key..."
+    echo "  • Adapter: $ADAPTER_NAME"
+    echo "  • Key name: City Assistant"
+    echo "  • Prompt name: Municipal Assistant Prompt"
+    echo "  • Command: python3 $PROJECT_ROOT/bin/orbit.py key create --adapter $ADAPTER_NAME --name \"City Assistant\" --prompt-file $CITY_PROMPT_FILE --prompt-name \"Municipal Assistant Prompt\""
+    echo "  • Waiting for orbit CLI response..."
+
+    set +e
     API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" key create \
       --adapter "$ADAPTER_NAME" \
       --name "City Assistant" \
       --notes "This is a sample API key for the City Assistant using adapter '$ADAPTER_NAME'." \
-      --prompt-file "$PROJECT_ROOT/examples/prompts/examples/city/city-assistant-normal-prompt.txt" \
-      --prompt-name "Municipal Assistant Prompt")
+      --prompt-file "$CITY_PROMPT_FILE" \
+      --prompt-name "Municipal Assistant Prompt" 2>&1)
+    API_KEY_EXIT_CODE=$?
+    set -e
+
+    echo "  • orbit CLI exit code: $API_KEY_EXIT_CODE"
+    if [ -n "$API_KEY_OUTPUT" ]; then
+        echo "  • orbit CLI output:"
+        echo "$API_KEY_OUTPUT" | sed -E 's/orbit_[A-Za-z0-9]+/orbit_***MASKED***/g' | sed 's/^/    /'
+    else
+        echo "  • orbit CLI output: <empty>"
+    fi
+
+    if [ "$API_KEY_EXIT_CODE" -ne 0 ]; then
+        echo "❌ Error: API key creation failed for adapter '$ADAPTER_NAME'."
+        echo ""
+        echo "Troubleshooting:"
+        echo "  1. Confirm the adapter is enabled in config/adapters/qa.yaml."
+        echo "  2. Confirm config/adapters.yaml imports adapters/qa.yaml."
+        echo "  3. Restart the ORBIT server if adapter config changed after it started."
+        echo "  4. Try manually: python3 $PROJECT_ROOT/bin/orbit.py key create --adapter $ADAPTER_NAME --name \"City Assistant\" --prompt-file \"$CITY_PROMPT_FILE\" --prompt-name \"Municipal Assistant Prompt\""
+        exit "$API_KEY_EXIT_CODE"
+    fi
 
     # Extract just the API key - properly capture orbit_ format keys
     CITY_API_KEY=$(echo "$API_KEY_OUTPUT" | grep -o 'orbit_[A-Za-z0-9]\+' | head -1)
 
-    echo "✅ API key created successfully using adapter approach!"
+    if [ -z "$CITY_API_KEY" ]; then
+        echo "❌ Error: API key creation command succeeded, but no orbit_ key was found in the CLI output."
+        echo "Please review the orbit CLI output above."
+        exit 1
+    fi
+
+    echo "  • Extracted API key prefix: ${CITY_API_KEY:0:12}..."
+    echo "✅ API key created successfully for adapter '$ADAPTER_NAME'!"
 
     # If using Chroma, create additional API key for activity collection
     if [ "$DATASOURCE" = "chroma" ]; then
         echo ""
         echo "🔑 Creating API key for activity collection..."
         echo "  • Using adapter 'qa-vector-chroma' for activity data"
-        echo "  • Using prompt file '$PROJECT_ROOT/examples/prompts/examples/activity/activity-assistant-normal-prompt.txt'"
+        echo "  • Using prompt file '$ACTIVITY_PROMPT_FILE'"
         echo ""
 
-        # Uncomment to generate an API Key for the activity collection using new adapter approach
+        # Uncomment to generate an API key for the activity adapter.
         # ACTIVITY_API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" key create \
         #   --adapter qa-vector-chroma \
         #   --name "Activity Assistant" \
         #   --notes "This is a sample API key for the Activity Assistant using adapter 'qa-vector-chroma'." \
-        #   --prompt-file "$PROJECT_ROOT/examples/prompts/examples/activity/activity-assistant-normal-prompt.txt" \
+        #   --prompt-file "$ACTIVITY_PROMPT_FILE" \
         #   --prompt-name "Activity Assistant Prompt")
 
         # ACTIVITY_API_KEY=$(echo "$ACTIVITY_API_KEY_OUTPUT" | grep -o 'orbit_[A-Za-z0-9]\+' | head -1)
-        # echo "✅ Activity API key created successfully using adapter approach!"
+        # echo "✅ Activity API key created successfully for adapter 'qa-vector-chroma'!"
     fi
 else
     echo ""
@@ -299,7 +407,7 @@ if [ "$CREATE_API_KEYS" = true ]; then
     echo "  cd $PROJECT_ROOT/clients/python"
     echo "  python -m venv venv"
     echo "  source venv/bin/activate"
-    echo "  pip install -r requirements.txt"
+    echo "  pip install -e ."
     echo ""
     echo "Alternatively, you can install the pip package directly:"
     echo ""
@@ -318,8 +426,7 @@ if [ "$CREATE_API_KEYS" = true ]; then
     #     echo "Activity API KEY (using adapter 'qa-vector-chroma'): $ACTIVITY_API_KEY"
     # fi
     echo ""
-    echo "Note: This script now uses the new adapter-based approach."
-    echo "      The old --collection method is deprecated but still supported."
+    echo "Note: API keys are associated with adapters from config/adapters/*.yaml."
     echo "================================================================"
 fi
 
