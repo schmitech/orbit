@@ -175,6 +175,14 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 
 ---
 
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/4f291788-0c5c-4b06-947b-8147d746e508" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Runtime model selection in action: the HR assistant queries a Canadian employee database in natural language. Switch between a local on-prem model and a cloud-hosted model mid-conversation — the selected model travels with every message, including thread replies and regenerations. No redeploy. No config change. Data residency stays in your control.</em>
+</p>
+
+---
+
 ### What can you build with ORBIT?
 
 - **Private AI gateways** for regulated teams that need self-hosting, RBAC, audit logs, guardrails, and data residency.
