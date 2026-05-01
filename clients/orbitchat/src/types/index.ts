@@ -45,6 +45,22 @@ export interface AdapterInfo {
   notes?: string | null;  // Description/notes about the adapter from API key record
 }
 
+export interface AllowedModel {
+  name: string;      // Client-facing identifier (sent as "model" in request body)
+  provider: string;  // Internal provider key
+  model: string;     // Actual model name passed to the provider
+}
+
+export interface AdapterModelsResponse {
+  adapter_name: string;
+  has_restrictions: boolean;
+  models: AllowedModel[];
+}
+
+export interface AllModelsResponse {
+  models: AllowedModel[];
+}
+
 export interface AudioSettings {
   enabled: boolean;
   ttsVoice?: string;  // Voice for TTS: 'alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer' (OpenAI)

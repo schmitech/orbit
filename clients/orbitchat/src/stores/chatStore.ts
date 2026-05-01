@@ -289,10 +289,10 @@ interface ExtendedChatState extends ChatState {
   deleteConversation: (id: string) => Promise<void>;
   deleteAllConversations: () => Promise<void>;
   deleteThread: (conversationId: string, parentMessageId: string, threadId: string) => Promise<void>;
-  sendMessage: (content: string, fileIds?: string[], threadId?: string) => Promise<void>;
+  sendMessage: (content: string, fileIds?: string[], threadId?: string, model?: string) => Promise<void>;
   createThread: (messageId: string, sessionId: string) => Promise<void>;
   appendToLastMessage: (content: string, conversationId?: string) => void;
-  regenerateResponse: (messageId: string) => Promise<void>;
+  regenerateResponse: (messageId: string, model?: string) => Promise<void>;
   updateConversationTitle: (id: string, title: string) => void;
   clearError: () => void;
   configureApiSettings: (apiUrl: string, sessionId?: string, adapterName?: string) => Promise<void>;
@@ -841,7 +841,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     debouncedSaveToLocalStorage(get);
   },
 
-  sendMessage: async (content: string, fileIds?: string[], threadId?: string) => {
+  sendMessage: async (content: string, fileIds?: string[], threadId?: string, model?: string) => {
     try {
       // Prevent multiple simultaneous requests
       if (get().isLoading) {
@@ -1149,7 +1149,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           returnAudio,
           ttsVoice,
           undefined, // sourceLanguage
-          undefined // targetLanguage
+          undefined, // targetLanguage
+          model
         )) {
           // Capture request_id from server's first chunk (for stop functionality)
           if (response.request_id && !activeRequestId) {
@@ -1513,7 +1514,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     buffer.timeoutId = setTimeout(flushBuffer, STREAMING_BATCH_DELAY);
   },
 
-  regenerateResponse: async (messageId: string) => {
+  regenerateResponse: async (messageId: string, model?: string) => {
     try {
       // Prevent multiple simultaneous requests
       if (get().isLoading) {
@@ -1655,7 +1656,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           undefined, // audioFormat for input
           language,
           returnAudio,
-          ttsVoice
+          ttsVoice,
+          undefined, // sourceLanguage
+          undefined, // targetLanguage
+          model
         )) {
           // Capture request_id from server's first chunk (for stop functionality)
           if (response.request_id && !activeRequestId) {

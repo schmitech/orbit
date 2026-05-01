@@ -104,6 +104,7 @@ Most AI gateways stop at provider routing. ORBIT is built for the messy parts of
 - **Autocomplete that knows your data** — fuzzy-matched suggestions sourced from your intent templates. [Learn more](docs/autocomplete-architecture.md).
 - **Two-layer rate limiting** — IP limits plus per-API-key quotas with progressive throttling. [Learn more](docs/rate-limiting-architecture.md).
 - **Multilingual by default** — 100+ languages with conversation stickiness so the model doesn't flap between turns. [Learn more](docs/language-detection-architecture.md).
+- **Runtime model selection** — adapters declare an `allowed_models` list; clients pick a model per request and ORBIT resolves it to the right provider at runtime. The chat UI exposes a model picker on every agent card and in the active conversation header — no redeploy needed to switch models. [Learn more](docs/adapters/adapter-configuration.md).
 - **OpenClaw / Hermes / MCP integration** — drop ORBIT into MCP-capable agents as a tool server with a single config entry. [Learn more](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md).
 
 ---

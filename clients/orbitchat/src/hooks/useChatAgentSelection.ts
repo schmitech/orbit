@@ -45,7 +45,7 @@ export function useChatAgentSelection({
     : null;
 
   const [pendingInitialPathSlug, setPendingInitialPathSlug] = useState<string | null>(initialPathSlug);
-  const [isAgentSelectionVisible, setIsAgentSelectionVisible] = useState(() => showEmptyState && !initialPathSlug);
+  const [isAgentSelectionVisible, setIsAgentSelectionVisible] = useState(() => !isSingleAdapterMode && showEmptyState && !initialPathSlug);
   const adapterInfoLoadedRef = useRef<string | null>(null);
   const adapterInfoRetryTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const adapterInfoRateLimitCooldownMs = 30000;

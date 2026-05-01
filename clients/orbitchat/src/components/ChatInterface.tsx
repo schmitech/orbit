@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useLayoutEffect, useMemo } from 'react';
+import { useEffect, useCallback, useLayoutEffect, useMemo, useState, useRef } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
@@ -23,6 +23,111 @@ import { useChatAgentSelection } from '../hooks/useChatAgentSelection';
 import { useAgentHomeNav } from '../hooks/useAgentHomeNav';
 import { AgentSeoContent } from './AgentSeoContent';
 import { applyDocumentSeo, getRuntimeSeoAdapterById, getRuntimeSeoAdapterBySlug, shouldRenderAgentNotesForSeo, type SeoAdapter } from '../utils/seo';
+import { ModelsService } from '../services/modelsService';
+import type { AllowedModel } from '../types';
+
+// ---------------------------------------------------------------------------
+// ModelPicker — inline dropdown for runtime model selection
+// ---------------------------------------------------------------------------
+interface ModelPickerProps {
+  defaultModel: string | null;
+  availableModels: AllowedModel[];
+  selectedModel: string | null;
+  onSelect: (name: string | null) => void;
+}
+
+function ModelPicker({ defaultModel, availableModels, selectedModel, onSelect }: ModelPickerProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  // Nothing to show when there's no model info at all
+  if (!defaultModel && availableModels.length === 0) return null;
+
+  const displayLabel = selectedModel ?? defaultModel;
+
+  // Static badge when only one option (or no list at all)
+  if (availableModels.length <= 1) {
+    return (
+      <div
+        className="inline-flex max-w-full flex-shrink items-center gap-2 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] min-w-0"
+        title={displayLabel ?? undefined}
+        aria-label={`Model: ${displayLabel}`}
+      >
+        <span>Model</span>
+        <span className="block truncate text-gray-800 normal-case dark:text-[#ececf1]">{displayLabel}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="inline-flex max-w-[240px] flex-shrink items-center gap-1.5 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-200 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] dark:hover:border-[#5a5b65] dark:hover:bg-[#3a3b48] min-w-0"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="flex-shrink-0">Model</span>
+        <span className="block truncate text-gray-800 normal-case dark:text-[#ececf1]">{displayLabel}</span>
+        <svg
+          className={`flex-shrink-0 h-3 w-3 text-gray-400 transition-transform duration-150 dark:text-[#6b6f7a] ${open ? 'rotate-180' : ''}`}
+          viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"
+        >
+          <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Select model"
+          className="absolute left-0 top-full z-50 mt-1.5 min-w-[200px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-[#4a4b54] dark:bg-[#2a2b38]"
+        >
+          {availableModels.map(m => {
+            const isActive = (selectedModel ?? defaultModel) === m.name;
+            return (
+              <button
+                key={m.name}
+                role="option"
+                aria-selected={isActive}
+                type="button"
+                onClick={() => { onSelect(m.name); setOpen(false); }}
+                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors ${
+                  isActive
+                    ? 'bg-gray-100 text-gray-900 dark:bg-[#343541] dark:text-[#ececf1]'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-[#bfc2cd] dark:hover:bg-[#313240]'
+                }`}
+              >
+                <span className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border ${
+                  isActive
+                    ? 'border-blue-500 bg-blue-500 dark:border-blue-400 dark:bg-blue-400'
+                    : 'border-gray-300 dark:border-[#5a5b65]'
+                }`}>
+                  {isActive && (
+                    <svg className="h-2 w-2 text-white" viewBox="0 0 8 8" fill="currentColor">
+                      <circle cx="4" cy="4" r="2" />
+                    </svg>
+                  )}
+                </span>
+                <span className="truncate font-medium normal-case tracking-normal">{m.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-transparent px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-none backdrop-blur-0 dark:border-[#2f303d] dark:bg-transparent md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
@@ -78,6 +183,42 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   const hasIntroDescription = applicationDescription.length > 0;
 
   const { registerGoHome } = useAgentHomeNav();
+
+  const [availableModels, setAvailableModels] = useState<AllowedModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  // Captures a model pre-selected in the agent card; used as initial selection when adapter loads.
+  const pendingModelRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const adapterName = currentConversation?.adapterName;
+    let cancelled = false;
+
+    async function loadModels() {
+      if (!adapterName) {
+        setAvailableModels([]);
+        setSelectedModel(null);
+        return;
+      }
+      try {
+        const models = await ModelsService.listAdapterModels(adapterName, adapterName);
+        if (cancelled) return;
+        setAvailableModels(models);
+        const pending = pendingModelRef.current;
+        pendingModelRef.current = null;
+        const initial = models.find(m => m.name === pending)?.name ?? (models.length > 0 ? models[0].name : null);
+        setSelectedModel(initial);
+      } catch {
+        if (!cancelled) {
+          pendingModelRef.current = null;
+          setAvailableModels([]);
+          setSelectedModel(null);
+        }
+      }
+    }
+
+    void loadModels();
+    return () => { cancelled = true; };
+  }, [currentConversation?.adapterName]);
 
   const {
     adapterNotesError,
@@ -214,7 +355,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   }, [settings.voiceEnabled]);
 
   const handleSendMessage = (content: string, fileIds?: string[], threadId?: string) => {
-    sendMessage(content, fileIds, threadId);
+    sendMessage(content, fileIds, threadId, selectedModel ?? undefined);
   };
 
   const handleSendThreadMessage = async (threadId: string, _parentMessageId: string, content: string) => {
@@ -294,18 +435,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 {showHeaderMetadata && (
                   <div className="space-y-1.5 md:space-y-3">
                     <div className="hidden md:flex min-w-0 flex-wrap items-center gap-2 justify-start md:flex-nowrap">
-                      {currentConversation?.adapterInfo?.model && (
-                        <div
-                          className="inline-flex max-w-full flex-shrink items-center gap-2 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] min-w-0"
-                          title={currentConversation.adapterInfo.model}
-                          aria-label={`Model: ${currentConversation.adapterInfo.model}`}
-                        >
-                          <span>Model</span>
-                          <span className="block truncate text-gray-800 normal-case dark:text-[#ececf1]">
-                            {currentConversation.adapterInfo.model}
-                          </span>
-                        </div>
-                      )}
+                      <ModelPicker
+                        defaultModel={currentConversation?.adapterInfo?.model ?? null}
+                        availableModels={availableModels}
+                        selectedModel={selectedModel}
+                        onSelect={setSelectedModel}
+                      />
                       <div
                         className="inline-flex max-w-full flex-shrink items-center gap-2 rounded-md border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] min-w-0"
                         title={
@@ -419,7 +554,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         </div>
                       </div>
                       <AgentSelectionList
-                        onAdapterSelect={handleAgentCardSelection}
+                        onAdapterSelect={(adapterName, model) => {
+                          pendingModelRef.current = model ?? null;
+                          handleAgentCardSelection(adapterName);
+                        }}
                         className={`${prominentWidthClass} md:flex-1 md:min-h-0 md:overflow-hidden`}
                       />
                     </div>
@@ -475,7 +613,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
             <div className="flex flex-1 flex-col min-h-0">
               <MessageList
                 messages={currentConversation.messages}
-                onRegenerate={regenerateResponse}
+                onRegenerate={(messageId) => regenerateResponse(messageId, selectedModel ?? undefined)}
                 onStartThread={async (messageId: string, sessionId: string) => {
                   try {
                     await createThread(messageId, sessionId);

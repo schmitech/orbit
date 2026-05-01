@@ -5,6 +5,7 @@
 import { debugLog } from './utils/debug';
 import { getAccessToken } from './auth/tokenStore';
 import { getUserIdHeaderValue } from './auth/userId';
+import type { AdapterModelsResponse, AllModelsResponse } from './types';
 
 // Type definitions for the API
 export interface StreamResponse {
@@ -49,7 +50,8 @@ export interface ApiClient {
     returnAudio?: boolean,
     ttsVoice?: string,
     sourceLanguage?: string,
-    targetLanguage?: string
+    targetLanguage?: string,
+    model?: string
   ): AsyncGenerator<StreamResponse>;
   createThread?(messageId: string, sessionId: string): Promise<{
     thread_id: string;
@@ -159,6 +161,8 @@ export interface ApiClient {
   }>;
   getConversationHistory?(sessionId?: string, limit?: number): Promise<ConversationHistoryResponse>;
   stopChat?(sessionId: string, requestId: string): Promise<boolean>;
+  getAdapterModels?(adapterName: string): Promise<AdapterModelsResponse>;
+  getAllModels?(): Promise<AllModelsResponse>;
 }
 
 export interface ApiFunctions {
@@ -174,7 +178,8 @@ export interface ApiFunctions {
     returnAudio?: boolean,
     ttsVoice?: string,
     sourceLanguage?: string,
-    targetLanguage?: string
+    targetLanguage?: string,
+    model?: string
   ) => AsyncGenerator<StreamResponse>;
   ApiClient: new (config: { apiUrl: string; sessionId?: string | null; adapterName?: string | null }) => ApiClient;
   stopChat?: (sessionId: string, requestId: string) => Promise<boolean>;
@@ -295,7 +300,8 @@ function createProxyApi(): ApiFunctions {
         returnAudio?: boolean,
         ttsVoice?: string,
         sourceLanguage?: string,
-        targetLanguage?: string
+        targetLanguage?: string,
+        model?: string
       ): AsyncGenerator<StreamResponse> {
         const requestBody: Record<string, unknown> = {
           messages: [{ role: 'user', content: message }],
@@ -314,6 +320,7 @@ function createProxyApi(): ApiFunctions {
         if (ttsVoice) requestBody.tts_voice = ttsVoice;
         if (sourceLanguage) requestBody.source_language = sourceLanguage;
         if (targetLanguage) requestBody.target_language = targetLanguage;
+        if (model) requestBody.model = model;
 
         const response = await fetch('/api/v1/chat', {
           method: 'POST',
@@ -610,6 +617,26 @@ function createProxyApi(): ApiFunctions {
         const result = await response.json();
         return result.status === 'cancelled';
       },
+
+      async getAdapterModels(adapterName: string): Promise<AdapterModelsResponse> {
+        const response = await fetch(`/api/admin/adapters/${encodeURIComponent(adapterName)}/models`, {
+          headers: await buildHeaders({
+            'X-Adapter-Name': clientAdapterName,
+          }),
+        });
+        if (!response.ok) throw new Error(await buildErrorMessage(response));
+        return response.json();
+      },
+
+      async getAllModels(): Promise<AllModelsResponse> {
+        const response = await fetch('/api/admin/models', {
+          headers: await buildHeaders({
+            'X-Adapter-Name': clientAdapterName,
+          }),
+        });
+        if (!response.ok) throw new Error(await buildErrorMessage(response));
+        return response.json();
+      },
     };
   };
 
@@ -626,7 +653,8 @@ function createProxyApi(): ApiFunctions {
       returnAudio?: boolean,
       ttsVoice?: string,
       sourceLanguage?: string,
-      targetLanguage?: string
+      targetLanguage?: string,
+      model?: string
     ): AsyncGenerator<StreamResponse> {
       if (!defaultAdapterName) {
         throw new Error('Adapter name is required');
@@ -643,7 +671,8 @@ function createProxyApi(): ApiFunctions {
         returnAudio,
         ttsVoice,
         sourceLanguage,
-        targetLanguage
+        targetLanguage,
+        model
       );
     },
     stopChat: async (sessionId: string, requestId: string): Promise<boolean> => {
@@ -686,6 +715,8 @@ function createProxyApi(): ApiFunctions {
       get validateApiKey() { return this.client.validateApiKey?.bind(this.client); }
       get getAdapterInfo() { return this.client.getAdapterInfo?.bind(this.client); }
       get stopChat() { return this.client.stopChat?.bind(this.client); }
+      get getAdapterModels() { return this.client.getAdapterModels?.bind(this.client); }
+      get getAllModels() { return this.client.getAllModels?.bind(this.client); }
     },
   };
 }

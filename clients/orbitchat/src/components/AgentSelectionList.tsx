@@ -5,7 +5,7 @@ import { fetchAdapters, type Adapter } from '../utils/middlewareConfig';
 import { debugError } from '../utils/debug';
 
 interface AgentSelectionListProps {
-  onAdapterSelect: (adapterName: string) => void;
+  onAdapterSelect: (adapterName: string, model?: string) => void;
   className?: string;
   title?: string;
   subtitle?: string;
@@ -42,7 +42,7 @@ export function AgentSelectionList({
     typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
 
   const getAgentCardButtons = () =>
-    Array.from(scrollContainerRef.current?.querySelectorAll<HTMLButtonElement>('button[data-agent-card="true"]') ?? []);
+    Array.from(scrollContainerRef.current?.querySelectorAll<HTMLElement>('[data-agent-card="true"]') ?? []);
 
   const focusAgentCardAtIndex = (index: number) => {
     const cardButtons = getAgentCardButtons();
@@ -97,7 +97,7 @@ export function AgentSelectionList({
     }
 
     const activeElement = document.activeElement;
-    if (!(activeElement instanceof HTMLButtonElement) || activeElement.dataset.agentCard !== 'true') {
+    if (!(activeElement instanceof HTMLElement) || activeElement.dataset.agentCard !== 'true') {
       return;
     }
 
@@ -227,13 +227,13 @@ export function AgentSelectionList({
           {isFilteringAgents ? (
             <div className="mx-auto flex w-full max-w-xl flex-col gap-3 lg:max-w-2xl">
               {filteredAdapters.map(adapter => (
-                <AgentCard key={adapter.id} adapter={adapter} onSelect={selected => onAdapterSelect(selected.id)} />
+                <AgentCard key={adapter.id} adapter={adapter} onSelect={(selected, model) => onAdapterSelect(selected.id, model)} />
               ))}
             </div>
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
               {filteredAdapters.map(adapter => (
-                <AgentCard key={adapter.id} adapter={adapter} onSelect={selected => onAdapterSelect(selected.id)} />
+                <AgentCard key={adapter.id} adapter={adapter} onSelect={(selected, model) => onAdapterSelect(selected.id, model)} />
               ))}
             </div>
           )}
