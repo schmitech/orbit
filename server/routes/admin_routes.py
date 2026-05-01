@@ -701,9 +701,20 @@ async def list_adapter_models(
     if not adapter_manager:
         raise HTTPException(status_code=503, detail="Adapter manager is not available")
 
-    adapter_config = adapter_manager.get_adapter_config(adapter_name) if hasattr(adapter_manager, 'get_adapter_config') else None
+    # Resolve the real adapter name from the API key (client-side IDs may differ from server config names)
+    resolved_name = adapter_name
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    if api_key_service and x_api_key:
+        try:
+            is_valid, key_adapter_name, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
+            if is_valid and key_adapter_name:
+                resolved_name = key_adapter_name
+        except Exception:
+            pass
+
+    adapter_config = adapter_manager.get_adapter_config(resolved_name) if hasattr(adapter_manager, 'get_adapter_config') else None
     if adapter_config is None:
-        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found")
+        raise HTTPException(status_code=404, detail=f"Adapter '{resolved_name}' not found")
 
     allowed = adapter_config.get('allowed_models') or []
 
@@ -714,7 +725,7 @@ async def list_adapter_models(
             if m.get('name') and m.get('provider') and m.get('model')
         ]
         return {
-            "adapter_name": adapter_name,
+            "adapter_name": resolved_name,
             "has_restrictions": True,
             "models": models,
         }
@@ -738,7 +749,7 @@ async def list_adapter_models(
     }
 
     return {
-        "adapter_name": adapter_name,
+        "adapter_name": resolved_name,
         "has_restrictions": False,
         "models": [default_entry] if model else [],
     }

@@ -359,7 +359,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
   };
 
   const handleSendThreadMessage = async (threadId: string, _parentMessageId: string, content: string) => {
-    await sendMessage(content, undefined, threadId);
+    await sendMessage(content, undefined, threadId, selectedModel ?? undefined);
   };
 
   const handleStartNewConversation = () => {

@@ -44,9 +44,18 @@ class OllamaConfig:
                 if not is_true_value(enabled):
                     raise ValueError(f"Ollama provider is disabled for {service_type}")
         
+        service_config = self._resolve_inference_preset(config, service_config, service_type)
+
         # Base configuration
         self.base_url = service_config.get('base_url', 'http://localhost:11434')
-        self.model = service_config.get('model', self._get_default_model(service_type))
+        self.model = service_config.get('model')
+        if not self.model:
+            if service_type == 'inference':
+                raise ValueError(
+                    "Ollama inference model is not configured. Set "
+                    "inference.ollama.model or inference.ollama.use_preset in config/inference.yaml."
+                )
+            self.model = self._get_default_model(service_type)
         
         # Retry configuration
         retry_config = service_config.get('retry', {})
@@ -70,16 +79,45 @@ class OllamaConfig:
         self.temperature = service_config.get('temperature', 0.1)
         self.dimensions = service_config.get('dimensions')
     
+    def _resolve_inference_preset(
+        self,
+        config: Dict[str, Any],
+        service_config: Dict[str, Any],
+        service_type: str,
+    ) -> Dict[str, Any]:
+        """Resolve inference.ollama.use_preset when config_manager has not already done it."""
+        if service_type != 'inference' or service_config.get('model'):
+            return service_config
+
+        preset_name = service_config.get('use_preset')
+        if not preset_name:
+            return service_config
+
+        presets = config.get('ollama_presets', {})
+        preset = presets.get(preset_name)
+        if not isinstance(preset, dict):
+            available = ', '.join(sorted(presets.keys())) or 'none'
+            raise ValueError(
+                f"Ollama preset '{preset_name}' was not found in ollama_presets "
+                f"(available: {available})"
+            )
+
+        resolved_config = preset.copy()
+        for key, value in service_config.items():
+            if key != 'use_preset' and value is not None:
+                resolved_config[key] = value
+        resolved_config['_from_preset'] = preset_name
+        return resolved_config
+
     def _get_default_model(self, service_type: str) -> str:
         """Get default model based on service type."""
         defaults = {
             'embeddings': 'nomic-embed-text',
-            'inference': 'gemma3:1b',
             'moderators': 'gemma3:12b',
             'rerankers': 'xitao/bge-reranker-v2-m3:',
             'vision': 'qwen3-vl:8b'
         }
-        return defaults.get(service_type, 'gemma3:1b')
+        return defaults.get(service_type, '')
 
 
 class OllamaSessionManager:
