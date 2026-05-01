@@ -557,7 +557,7 @@ adapters:
   # - Built-in tools for common operations
   # - Response synthesis for natural language output
   - name: "intent-agent-example"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "http"
     adapter: "intent"

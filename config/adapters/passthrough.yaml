@@ -11,21 +11,30 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
     inference_provider: "ollama"  # Override default inference provider
-    model: "gpt-oss:120b"         # Specific model for this adapter (default / fallback)
-    tts_provider: "ollama"          # TTS provider for audio output (see tts.yaml)
+    model: "gemma4-e2b-cpu"         # Specific model for this adapter (default / fallback)
+    tts_provider: "openai"          # TTS provider for audio output (see tts.yaml)
 
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
     # allowed_models:
+    #   - name: "llama-cpp-gemma4"
+    #     provider: "llama_cpp"
+    #     model: "gemma4-e2b-direct-cpu"
+    #   - name: "ollama-gemma4-e2b"
+    #     provider: "ollama"
+    #     model: "gemma4-e2b-cpu"
     #   - name: "ollama-gpt-oss-120b"
     #     provider: "ollama_cloud"
-    #     model: "gpt-oss:120b"
-    #   - name: "openai-gpt-4o-mini"
+    #     model: "gpt-oss:20b"
+    #   - name: "openai-gpt-5.4-mini"
     #     provider: "openai"
-    #     model: "gpt-4o-mini"
+    #     model: "gpt-5.4-mini"
     #   - name: "anthropic-claude-haiku"
     #     provider: "anthropic"
     #     model: "claude-haiku-4-5-20251001"
+    #   - name: "gemini-3.1-pro-preview"
+    #     provider: "gemini"
+    #     model: "gemini-3.1-pro-preview"
 
     # Capabilities: Pure passthrough - no retrieval
     capabilities:
