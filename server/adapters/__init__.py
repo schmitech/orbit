@@ -104,6 +104,17 @@ def register_adapters():
         config={}
     )
 
+    # Also register multimodal adapter for image_generation type so that
+    # adapters with type: image_generation and adapter: multimodal can be loaded.
+    # ImageGenerationStep handles the actual generation; the domain adapter is the same.
+    ADAPTER_REGISTRY.register(
+        adapter_type="image_generation",
+        datasource="none",
+        adapter_name="multimodal",
+        factory_func=_create_multimodal_adapter,
+        config={}
+    )
+
     logger.info("Registered multimodal passthrough adapter")
 
     # Register PersonaPlex speech-to-speech adapter

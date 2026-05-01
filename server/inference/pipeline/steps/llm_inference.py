@@ -64,11 +64,22 @@ class LLMInferenceStep(PipelineStep):
     def should_execute(self, context: ProcessingContext) -> bool:
         """
         Determine if this step should execute.
-        
+
         Returns:
-            True if LLM provider is available and not blocked
+            True if LLM provider is available, not blocked, and not an image generation adapter
         """
-        return self.container.has('llm_provider') and not context.is_blocked
+        if not self.container.has('llm_provider') or context.is_blocked:
+            return False
+        # Defer to ImageGenerationStep for image generation adapters
+        if context.adapter_name and self.container.has('adapter_manager'):
+            try:
+                adapter_manager = self.container.get('adapter_manager')
+                adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
+                if adapter_config and adapter_config.get('type') == 'image_generation':
+                    return False
+            except Exception:
+                pass
+        return True
     
     def supports_streaming(self) -> bool:
         """This step supports streaming responses."""

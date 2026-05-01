@@ -541,7 +541,10 @@ class StreamingHandler:
         audio_data: Optional[bytes] = None,
         audio_format_str: Optional[str] = None,
         threading_metadata: Optional[Dict[str, Any]] = None,
-        assistant_message_id: Optional[str] = None
+        assistant_message_id: Optional[str] = None,
+        image: Optional[str] = None,
+        image_format: Optional[str] = None,
+        image_revised_prompt: Optional[str] = None,
     ) -> str:
         """
         Build the final done chunk with all metadata.
@@ -584,6 +587,13 @@ class StreamingHandler:
             done_chunk["audio"] = audio_base64
             done_chunk["audioFormat"] = audio_format_str or "mp3"
             logger.debug(f"Including audio in done chunk: {len(audio_base64)} chars (base64)")
+
+        # Include generated image if present
+        if image:
+            done_chunk["image"] = image
+            done_chunk["image_format"] = image_format or "png"
+            if image_revised_prompt:
+                done_chunk["image_revised_prompt"] = image_revised_prompt
 
         done_json = json.dumps(done_chunk)
 

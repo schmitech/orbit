@@ -317,7 +317,10 @@ class ResponseProcessor:
         audio_format: Optional[str] = None,
         assistant_message_id: Optional[str] = None,
         session_id: Optional[str] = None,
-        adapter_name: Optional[str] = None
+        adapter_name: Optional[str] = None,
+        image: Optional[str] = None,
+        image_format: Optional[str] = None,
+        image_revised_prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Build the final result dictionary.
@@ -372,6 +375,13 @@ class ResponseProcessor:
         if audio_data:
             result["audio"] = base64.b64encode(audio_data).decode('utf-8')
             result["audio_format"] = audio_format or "mp3"
+
+        # Add generated image if present
+        if image:
+            result["image"] = image
+            result["image_format"] = image_format or "png"
+            if image_revised_prompt:
+                result["image_revised_prompt"] = image_revised_prompt
 
         return result
     

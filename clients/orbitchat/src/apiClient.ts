@@ -16,6 +16,9 @@ export interface StreamResponse {
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
   audio_chunk?: string;  // Optional streaming audio chunk (base64-encoded)
   chunk_index?: number;  // Index of the audio chunk for ordering
+  image?: string;  // Optional base64-encoded generated image
+  image_format?: string;  // Image format (png, jpeg, webp)
+  image_revised_prompt?: string;  // Provider-rewritten prompt (DALL-E 3)
   assistant_message_id?: string;  // Database message ID for feedback
   threading?: {  // Optional threading metadata
     supports_threading: boolean;
@@ -256,6 +259,9 @@ function parseSseDataLine(line: string): StreamResponse | null {
       audioFormat: data.audio_format || data.audioFormat,
       audio_chunk: data.audio_chunk,
       chunk_index: data.chunk_index,
+      image: data.image,
+      image_format: data.image_format,
+      image_revised_prompt: data.image_revised_prompt,
       assistant_message_id: data.assistant_message_id,
       threading: data.threading
     };

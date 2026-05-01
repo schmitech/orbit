@@ -101,6 +101,10 @@ class ContextRetrievalStep(PipelineStep):
         if not adapter_name:
             adapter_name = adapter_config.get('name', '')
 
+        # Image generation adapters never need context retrieval
+        if adapter_type == 'image_generation':
+            return AdapterCapabilities.for_passthrough(supports_file_retrieval=False)
+
         # Passthrough adapters
         if adapter_type == 'passthrough':
             if adapter_impl == 'multimodal':
@@ -135,8 +139,13 @@ class ContextRetrievalStep(PipelineStep):
 
                 if adapter_config:
                     try:
-                        capabilities = self._infer_capabilities(adapter_config, adapter_name)
-                        self._capability_registry.register(adapter_name, capabilities)
+                        # Prefer explicit capabilities config over inference
+                        if 'capabilities' in adapter_config:
+                            self._capability_registry.register_from_config(adapter_name, adapter_config)
+                            capabilities = self._capability_registry.get(adapter_name)
+                        else:
+                            capabilities = self._infer_capabilities(adapter_config, adapter_name)
+                            self._capability_registry.register(adapter_name, capabilities)
                         logger.debug(
                             f"Inferred and registered capabilities for adapter: {adapter_name}"
                         )

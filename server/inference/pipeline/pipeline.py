@@ -13,7 +13,7 @@ from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep
 
 logger = logging.getLogger(__name__)
 
@@ -181,13 +181,25 @@ class InferencePipeline:
                     self.monitor.record_pipeline_metrics(total_time, False)
                     return
             
+            # If image generation already produced a result, short-circuit here.
+            if context.image:
+                done_payload: dict = {"response": context.response or "", "done": True}
+                done_payload["image"] = context.image
+                done_payload["image_format"] = context.image_format or "png"
+                if context.image_revised_prompt:
+                    done_payload["image_revised_prompt"] = context.image_revised_prompt
+                yield json.dumps(done_payload)
+                total_time = time.perf_counter() - start_time
+                self.monitor.record_pipeline_metrics(total_time, True)
+                return
+
             # Find the LLM step for streaming
             llm_step = None
             for step in self.steps:
                 if isinstance(step, LLMInferenceStep):
                     llm_step = step
                     break
-            
+
             if llm_step is None:
                 logger.error("No LLM step found in pipeline!")
                 error_json = json.dumps({"error": "No LLM step configured", "done": True})
@@ -259,15 +271,17 @@ class InferencePipeline:
                     error_json = json.dumps({"error": str(e), "done": True})
                     yield error_json
             else:
-                # Fallback to non-streaming if LLM step doesn't support streaming
-                try:
-                    context = await llm_step.process(context)
-                    response_json = json.dumps({"response": context.response, "done": True})
-                    yield response_json
-                except Exception as e:
-                    logger.error(f"Error in non-streaming LLM step: {str(e)}")
-                    error_json = json.dumps({"error": str(e), "done": True})
-                    yield error_json
+                # Fallback to non-streaming if LLM step doesn't support streaming or should not execute
+                if llm_step.should_execute(context):
+                    try:
+                        context = await llm_step.process(context)
+                    except Exception as e:
+                        logger.error(f"Error in non-streaming LLM step: {str(e)}")
+                        error_json = json.dumps({"error": str(e), "done": True})
+                        yield error_json
+                        return
+                response_json = json.dumps({"response": context.response, "done": True})
+                yield response_json
             
             # Record overall pipeline metrics
             total_time = time.perf_counter() - start_time
@@ -319,7 +333,10 @@ class InferencePipelineBuilder:
         # Document reranking (if enabled and documents retrieved)
         steps.append(DocumentRerankingStep(container))
 
-        # LLM inference is always needed
+        # Image generation — executes instead of LLM for image_generation adapters
+        steps.append(ImageGenerationStep(container))
+
+        # LLM inference is always needed (skips image_generation adapters)
         steps.append(LLMInferenceStep(container))
         
         # Response validation only if moderator service is available

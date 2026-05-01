@@ -28,6 +28,9 @@ export interface Message {
   attachments?: FileAttachment[];
   audio?: string;  // Optional base64-encoded audio data (TTS response) - full audio
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
+  image?: string;  // Optional base64-encoded generated image
+  imageFormat?: string;  // Image format (png, jpeg, webp)
+  imageRevisedPrompt?: string;  // Provider-rewritten prompt (e.g. DALL-E 3)
   threadInfo?: ThreadInfo;
   supportsThreading?: boolean;
   databaseMessageId?: string;  // Database message ID from server (used for thread creation and feedback)

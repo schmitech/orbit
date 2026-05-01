@@ -36,12 +36,16 @@ export const debouncedSaveToLocalStorage = (getState: () => { conversations: Con
     localStorageSaveTimeout = null;
     try {
       const currentState = getState();
-      // Exclude transient/large data (audio) from persistence to reduce size
+      // Exclude large binary data (audio, image) from persistence to reduce localStorage size
       const conversationsForStorage = currentState.conversations.map(conv => ({
         ...conv,
-        messages: conv.messages.map(msg =>
-          msg.audio ? Object.fromEntries(Object.entries(msg).filter(([k]) => k !== 'audio')) as typeof msg : msg
-        )
+        messages: conv.messages.map(msg => {
+          const hasLargeData = msg.audio || msg.image;
+          if (!hasLargeData) return msg;
+          return Object.fromEntries(
+            Object.entries(msg).filter(([k]) => k !== 'audio' && k !== 'image')
+          ) as typeof msg;
+        })
       }));
       localStorage.setItem('chat-state', JSON.stringify({
         conversations: conversationsForStorage,
@@ -1205,10 +1209,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             set(state => ({
               conversations: state.conversations.map(conv => {
                 if (conv.id !== streamingConversationId) return conv;
-                
+
                 const messages = [...conv.messages];
                 const lastMessage = messages[messages.length - 1];
-                
+
                 // Update the last assistant message with audio data
                 if (lastMessage && lastMessage.role === 'assistant') {
                   messages[messages.length - 1] = {
@@ -1217,12 +1221,36 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     audioFormat: response.audioFormat || 'mp3'
                   };
                 }
-                
+
                 return {
                   ...conv,
                   messages,
                   updatedAt: new Date()
                 };
+              })
+            }));
+          }
+
+          // Handle generated image in done chunk
+          if (response.image && response.done) {
+            receivedAnyText = true; // image counts as a valid response
+            set(state => ({
+              conversations: state.conversations.map(conv => {
+                if (conv.id !== streamingConversationId) return conv;
+
+                const messages = [...conv.messages];
+                const lastMessage = messages[messages.length - 1];
+
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  messages[messages.length - 1] = {
+                    ...lastMessage,
+                    image: response.image,
+                    imageFormat: response.image_format || 'png',
+                    imageRevisedPrompt: response.image_revised_prompt,
+                  };
+                }
+
+                return { ...conv, messages, updatedAt: new Date() };
               })
             }));
           }
@@ -1704,6 +1732,30 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                   messages,
                   updatedAt: new Date()
                 };
+              })
+            }));
+          }
+
+          // Handle generated image if present
+          if (response.image && response.done) {
+            receivedAnyText = true; // image counts as a valid response
+            set(state => ({
+              conversations: state.conversations.map(conv => {
+                if (conv.id !== regeneratingConversationId) return conv;
+
+                const messages = [...conv.messages];
+                const lastMessage = messages[messages.length - 1];
+
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  messages[messages.length - 1] = {
+                    ...lastMessage,
+                    image: response.image,
+                    imageFormat: response.image_format || 'png',
+                    imageRevisedPrompt: response.image_revised_prompt,
+                  };
+                }
+
+                return { ...conv, messages, updatedAt: new Date() };
               })
             }));
           }

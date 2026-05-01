@@ -531,6 +531,9 @@ class PipelineChatService:
                 assistant_message_id=assistant_message_id,
                 session_id=context.session_id,
                 adapter_name=adapter_name,
+                image=result.image,
+                image_format=result.image_format,
+                image_revised_prompt=result.image_revised_prompt,
             )
 
             if cache_key and not audio_data:
@@ -646,7 +649,17 @@ class PipelineChatService:
                 yield f"data: {json.dumps({'error': str(stream_error), 'done': True})}\n\n"
                 return
 
-            if not (final_state and final_state.accumulated_text and final_state.stream_completed):
+            # Image generation: the pipeline emits a single {"done":true,"image":...} chunk.
+            # streaming_handler consumes it internally (accumulates text, sets stream_completed)
+            # but yields zero items, so final_state is never assigned above.
+            # Synthesise a minimal state so _process_post_stream runs and sends the done chunk.
+            if final_state is None and context.image:
+                final_state = StreamingState()
+                final_state.accumulated_text = context.response or ""
+                final_state.stream_completed = True
+
+            if not (final_state and final_state.stream_completed
+                    and (final_state.accumulated_text or context.image)):
                 return
 
             async for chunk in self._process_post_stream(
@@ -744,4 +757,7 @@ class PipelineChatService:
             audio_format_str=audio_format_str,
             threading_metadata=threading_metadata,
             assistant_message_id=assistant_message_id,
+            image=context.image,
+            image_format=context.image_format,
+            image_revised_prompt=context.image_revised_prompt,
         )

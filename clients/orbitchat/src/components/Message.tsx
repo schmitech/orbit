@@ -16,6 +16,7 @@ import { MarkdownRenderer } from './markdown';
 import { debugError } from '../utils/debug';
 import { getEnableFeedbackButtons, getEnableConversationThreads, getIsAuthConfigured } from '../utils/runtimeConfig';
 import { AudioPlayer } from './AudioPlayer';
+import { ImageDisplay } from './ImageDisplay';
 import { ConfirmationModal } from './ConfirmationModal';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { AppConfig } from '../utils/config';
@@ -542,6 +543,14 @@ export function Message({
 
           {message.audio && isAssistant && !message.isStreaming && (
             <AudioPlayer audio={message.audio} audioFormat={message.audioFormat} autoPlay={false} />
+          )}
+
+          {message.image && isAssistant && !message.isStreaming && (
+            <ImageDisplay
+              image={message.image}
+              imageFormat={message.imageFormat}
+              revisedPrompt={message.imageRevisedPrompt}
+            />
           )}
         </div>
 

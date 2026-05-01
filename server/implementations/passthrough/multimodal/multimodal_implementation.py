@@ -35,7 +35,19 @@ class MultimodalImplementation(BaseRetriever):
         # Initialize file retriever (will be initialized lazily)
         self._file_retriever = None
 
-        logger.debug("Initialized multimodal conversational implementation")
+        # Resolve image generation provider: adapter config > global image config default.
+        # ImageGenerationStep reads this same field from adapter_config; stored here for
+        # logging and potential direct use by downstream services.
+        adapter_config = config.get('adapter_config', {})
+        self._image_provider = (
+            adapter_config.get('image_provider')
+            or config.get('image', {}).get('provider', 'openai')
+        )
+
+        logger.debug(
+            "Initialized multimodal conversational implementation (image_provider=%s)",
+            self._image_provider,
+        )
     
     def _get_datasource_name(self) -> str:
         """Return the synthetic datasource identifier used for passthrough mode."""

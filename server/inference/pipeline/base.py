@@ -82,6 +82,11 @@ class ProcessingContext:
     runtime_provider: Optional[str] = None
     runtime_model_name: Optional[str] = None
 
+    # Image generation output
+    image: Optional[str] = None               # base64-encoded generated image
+    image_format: Optional[str] = None        # "png", "jpeg", or "webp"
+    image_revised_prompt: Optional[str] = None  # provider-rewritten prompt (e.g. DALL-E 3)
+
     def has_error(self) -> bool:
         """Check if the context has an error."""
         return self.is_blocked or self.error is not None
