@@ -291,6 +291,7 @@ export function MessageInput({
   const { skills, isLoading: skillsLoading, selectedSkill, selectSkill, clearSkill } = useSkills({
     adapterName: currentConversation?.adapterName,
     enabled: true,
+    supportsThreading: currentConversation?.adapterInfo?.supportsThreading ?? false,
   });
   const activeSuggestionIndex = selectedIndex >= 0 ? selectedIndex : 0;
   const activeSuggestion = hasSuggestions ? suggestions[activeSuggestionIndex] : null;
@@ -1344,7 +1345,7 @@ export function MessageInput({
               onChange={(e) => {
                 const val = e.target.value;
                 setMessage(val);
-                setShowSkillPicker(val.startsWith('/'));
+                setShowSkillPicker(val.startsWith('/') && skills.length > 0);
               }}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}

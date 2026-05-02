@@ -454,11 +454,11 @@ class ApiKeyService:
 
         adapter_info['model'] = model
 
-        # Extract file support capability from adapter config
-        # Check capabilities.supports_file_ids to determine if adapter supports file processing
+        # Extract capability flags from adapter config
         capabilities = adapter_config.get('capabilities', {})
         supports_file_ids = capabilities.get('supports_file_ids', False)
         adapter_info['isFileSupported'] = bool(supports_file_ids)
+        adapter_info['supportsThreading'] = bool(capabilities.get('supports_threading', False))
 
         if debug_enabled:
             logger.debug(

@@ -180,6 +180,11 @@ class ContextRetrievalStep(PipelineStep):
         if not context.adapter_name:
             return False
 
+        # Follow-up threads ALWAYS need context retrieval to load the stored dataset,
+        # even if the adapter otherwise has retrieval disabled (e.g. skills or passthrough).
+        if context.thread_id:
+            return True
+
         # Get adapter capabilities
         capabilities = self._get_capabilities(context.adapter_name)
 

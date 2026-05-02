@@ -45,6 +45,7 @@ export interface AdapterInfo {
   adapter_name: string;
   model: string | null;
   isFileSupported?: boolean;
+  supportsThreading?: boolean;
   notes?: string | null;  // Description/notes about the adapter from API key record
 }
 

@@ -51,19 +51,81 @@ class ImageGenerationStep(PipelineStep):
             context.set_error("No image generation service is available for this adapter.")
             return context
 
+        # Refine prompt using conversation history or retrieved context if available
+        prompt = context.message
+        if context.context_messages or context.formatted_context:
+            prompt = await self._rewrite_prompt(context)
+
         try:
-            result = await image_service.generate_image(context.message)
+            result = await image_service.generate_image(prompt)
             context.image = base64.b64encode(result["image_bytes"]).decode("utf-8")
             context.image_format = result.get("format", "png")
             context.image_revised_prompt = result.get("revised_prompt")
-            # Set response to the revised prompt (if any) so conversation history
-            # stores something meaningful; falls back to the original prompt.
-            context.response = context.image_revised_prompt or context.message
+            # Set response to the rewritten prompt or revised prompt so history
+            # stores something meaningful.
+            context.response = context.image_revised_prompt or prompt
         except Exception as e:
             logger.error(f"Image generation failed: {e}", exc_info=True)
             context.set_error(f"Image generation failed: {e}")
 
         return context
+
+    async def _rewrite_prompt(self, context: ProcessingContext) -> str:
+        """Rewrite the user's message into a descriptive image prompt using history and context."""
+        if not context.context_messages and not context.formatted_context:
+            return context.message
+
+        llm_provider = self.container.get_or_none('llm_provider')
+        if not llm_provider:
+            return context.message
+
+        # Cap history to last 6 turns to avoid blowing the context window.
+        # Exclude the current message if it happens to be the last entry.
+        recent_msgs = context.context_messages[-6:] if context.context_messages else []
+        if recent_msgs and recent_msgs[-1].get('role') == 'user' and recent_msgs[-1].get('content', '').strip() == context.message.strip():
+            recent_msgs = recent_msgs[:-1]
+
+        history = []
+        for msg in recent_msgs:
+            role = msg.get('role', 'user').title()
+            content = msg.get('content', '')
+            if role and content:
+                history.append(f"{role}: {content}")
+
+        history_text = "\n".join(history) if history else "No prior conversation."
+        context_text = f"\nRetrieved Data/Context:\n{context.formatted_context}\n" if context.formatted_context else ""
+
+        rewrite_prompt = (
+            "You are an expert at writing prompts for AI image generators.\n"
+            "Your task: rewrite the user's request into a single, standalone, richly descriptive image generation prompt.\n\n"
+            "Rules:\n"
+            "1. Always enrich the prompt with visual detail: subjects, actions, setting, art style, lighting, mood, and composition.\n"
+            "2. If the user's message is vague or uses references like 'Draw it' or 'Visualize this', resolve those references "
+            "using the conversation history or retrieved data below.\n"
+            "3. If the message references data, numbers, or a chart, describe a visually compelling infographic or data visualization.\n"
+            "4. Even if the user already wrote a descriptive prompt, enrich it further — always improve quality.\n"
+            "5. Output ONLY the final prompt. No preamble, no explanation, no quotes.\n\n"
+            f"Conversation History:\n{history_text}\n"
+            f"{context_text}"
+            f"User request: {context.message}\n"
+            "Image prompt:"
+        )
+
+        try:
+            rewritten = await llm_provider.generate(rewrite_prompt, max_tokens=300, temperature=0.3)
+            rewritten = rewritten.strip()
+            # Strip surrounding quotes the LLM sometimes adds
+            for quote in ('"', "'"):
+                if rewritten.startswith(quote) and rewritten.endswith(quote) and len(rewritten) > 2:
+                    rewritten = rewritten[1:-1].strip()
+                    break
+            if rewritten and len(rewritten) >= 10:
+                logger.debug(f"Rewrote skill prompt: '{context.message}' -> '{rewritten}'")
+                return rewritten
+        except Exception as e:
+            logger.warning(f"Failed to rewrite skill prompt: {e}")
+        
+        return context.message
 
     async def _get_image_service(self, context: ProcessingContext):
         """Resolve the image generation service from config and adapter settings."""

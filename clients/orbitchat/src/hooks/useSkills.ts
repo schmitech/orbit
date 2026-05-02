@@ -15,6 +15,12 @@ const skillsCache = new Map<string, CacheEntry>();
 export interface UseSkillsOptions {
   adapterName?: string | null;
   enabled?: boolean;
+  /**
+   * When true (adapter supports conversation threading), skills are suppressed
+   * in the main conversation. They are only meaningful inside a thread where
+   * retrieved data is already available.
+   */
+  supportsThreading?: boolean;
 }
 
 export interface UseSkillsResult {
@@ -26,8 +32,10 @@ export interface UseSkillsResult {
 }
 
 export function useSkills(options: UseSkillsOptions = {}): UseSkillsResult {
-  const { adapterName, enabled = true } = options;
-  const isActive = enabled && Boolean(adapterName);
+  const { adapterName, enabled = true, supportsThreading = false } = options;
+  // Skills are suppressed at the top-level conversation for threading adapters —
+  // the user must be inside a thread (where data already exists) to invoke a skill.
+  const isActive = enabled && Boolean(adapterName) && !supportsThreading;
 
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);

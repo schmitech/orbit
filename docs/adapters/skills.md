@@ -34,7 +34,7 @@ Client: POST /v1/chat
    7. Response: { "image": "<base64>", "image_format": "png" }
 ```
 
-The conversation messages are still passed to the skill adapter, giving it full context of what the user was asking. The skill adapter decides how to use that context — image generation uses the last user message as the prompt.
+The conversation messages are still passed to the skill adapter, giving it full context of what the user was asking. The skill adapter decides how to use that context — image generation enriches the user's request into a detailed image prompt using conversation history and any thread-cached data (see [Image Generation Prompt Rewriting](#image-generation-prompt-rewriting) below).
 
 ---
 
@@ -194,7 +194,7 @@ No authentication required beyond the standard admin check.
 }
 ```
 
-Use this endpoint to build a skill picker in the UI (`/skills` autocomplete).
+Use this endpoint to build a skill picker in the UI (see [UI Integration](#ui-integration)).
 
 ### List skills available to an adapter
 
@@ -218,14 +218,67 @@ Use this endpoint to determine which skills to show in the UI for the current us
 
 ---
 
-## UI Integration (`/skills`)
+## UI Integration
 
-The intended flow for a chat client:
+### OrbitChat skill picker
 
-1. On load (or on `/skills` typed), call `GET /admin/adapters/{name}/skills` to fetch skills available to the current adapter.
-2. Render a list/autocomplete — the `name` and `description` from `GET /admin/skills` give you display text.
-3. When the user selects a skill and submits a message, send the request with `skill: "<skill-name>"`.
-4. The response will contain `image` / `image_format` instead of a text `response`. Render accordingly.
+OrbitChat implements a built-in skill picker:
+
+1. **On load**, call `GET /admin/adapters/{name}/skills` and `GET /admin/skills` to fetch available skills for the current adapter.
+2. **Trigger**: typing `/` as the first character of a message opens the skill picker. Continuing to type (e.g. `/ima`) filters by skill name or description in real time.
+3. **Select**: clicking or pressing Enter on a skill closes the picker, attaches a skill badge to the message input, and clears the text field.
+4. **Send**: submitting the message sends `skill: "<skill-name>"` in the request body alongside the user's message.
+5. **Response rendering**: if the response includes `image` + `image_format`, the client renders the image inline instead of text.
+
+### Threading adapters
+
+For adapters that have `supports_threading: true` (e.g. intent-SQL adapters), the skill picker is **suppressed in the main conversation**. Skills require retrieved data to be useful, and that data only exists inside a thread. Once the user opens a thread (branched from a retrieval response), skills become available again within that thread context.
+
+This behaviour is driven by the `supportsThreading` field returned in `GET /admin/adapters/info` (see below). The front-end `useSkills` hook reads this field and sets `isActive = false` when it is `true`, preventing skill fetch and picker display.
+
+### Adapter info endpoint
+
+`GET /admin/adapters/info` now includes a `supportsThreading` field in its response:
+
+```json
+{
+  "client_name": "HR Assistant",
+  "adapter_name": "intent-sql-sqlite-hr",
+  "model": null,
+  "isFileSupported": false,
+  "supportsThreading": true
+}
+```
+
+The UI reads this to decide whether to show the skill picker.
+
+### Generic integration flow
+
+1. Call `GET /admin/adapters/{name}/skills` to get the allowlist for the current adapter.
+2. Call `GET /admin/skills` to get display metadata (`name`, `description`) for each skill.
+3. Merge the two responses to build your picker UI.
+4. When the user selects a skill and submits a message, send `skill: "<skill-name>"` in the request body.
+5. The response will contain `image` / `image_format` instead of a text `response`. Render accordingly.
+
+---
+
+## Image Generation Prompt Rewriting
+
+When an image-generation skill request arrives, `ImageGenerationStep` does not send the user's raw message directly to the image model. Instead, if conversation history or thread-cached data is available, it first calls an auxiliary LLM to rewrite the message into a richer, more descriptive image prompt.
+
+**When rewriting is triggered:** `context.context_messages` is non-empty (there is conversation history) **or** `context.formatted_context` is non-empty (a thread's cached dataset was loaded).
+
+**What the rewriter does:**
+
+1. Takes up to the last 6 conversation turns as history context (capped to avoid blowing the context window).
+2. Strips the current user message from the history tail if it appears there to avoid duplication.
+3. Includes any thread-cached retrieval data (`formatted_context`) as additional context for the LLM.
+4. Asks the LLM to produce a single, standalone, richly descriptive image prompt — resolving vague references like "draw it" or "visualize this chart" using the history/context.
+5. Always enriches the prompt with visual details (subjects, setting, art style, lighting, mood, composition) even when the user already wrote a descriptive prompt.
+
+**Fallback:** if the rewriter call fails, or the rewritten string is shorter than 10 characters, the original user message is used unchanged.
+
+The rewritten prompt is what gets sent to the image provider (DALL-E 3 / Imagen). The provider may further revise it (e.g. DALL-E 3 content policy rewrites), which is returned as `image_revised_prompt` in the response.
 
 ---
 
@@ -282,8 +335,13 @@ No server code changes are required. ORBIT discovers skill adapters at startup b
 | Capability declaration | `server/adapters/capabilities.py` | `AdapterCapabilities.available_skills` |
 | Admin endpoints | `server/routes/admin_routes.py` | `GET /admin/skills`, `GET /admin/adapters/{name}/skills` |
 | Response schemas | `server/models/schema.py` | `SkillInfo`, `SkillsResponse`, `AdapterSkillsResponse` |
+| `supportsThreading` in adapter info | `server/services/api_key_service.py` | `get_adapter_info` returns `supportsThreading` from capabilities |
 | Image skill adapter config | `config/adapters/image.yaml` | `image-generator` |
 | Example consumer adapter | `config/adapters/hr.yaml` | `intent-sql-sqlite-hr` |
+| UI skill picker component | `clients/orbitchat/src/components/SkillPicker.tsx` | Filtered dropdown, icon mapping, selected state |
+| UI skill hook | `clients/orbitchat/src/hooks/useSkills.ts` | Fetches skills, caches 60 s, gates on `supportsThreading` |
+| UI skills service | `clients/orbitchat/src/services/skillsService.ts` | Thin API wrapper for skills endpoints |
+| UI API client | `clients/orbitchat/src/apiClient.ts` | `skill` param in `streamChat`, `getAdapterSkills`, `getAllSkills` |
 
 ### ProcessingContext fields
 
