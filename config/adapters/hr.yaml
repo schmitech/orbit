@@ -18,22 +18,22 @@ adapters:
     # reranker_provider: "ollama"           # Optional: Jina AI reranker for template relevance
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
-    # allowed_models:
-    #   - name: "llama-cpp-gemma4"
-    #     provider: "llama_cpp"
-    #     model: "gemma4-e2b-direct-cpu"
-    #   - name: "ollama-gemma4-e2b"
-    #     provider: "ollama"
-    #     model: "gemma4-e2b-cpu"
-    #   - name: "ollama-gpt-oss-120b"
-    #     provider: "ollama_cloud"
-    #     model: "gpt-oss:20b"
-    #   - name: "claude-sonnet-4-5"
-    #     provider: "anthropic"
-    #     model: "claude-sonnet-4-5-20250929"
-    #   - name: "gemini-3.1-pro-preview"
-    #     provider: "gemini"
-    #     model: "gemini-3.1-pro-preview"
+    allowed_models:
+      - name: "llama-cpp-gemma4"
+        provider: "llama_cpp"
+        model: "gemma4-e2b-direct-cpu"
+      - name: "ollama-gemma4-e2b"
+        provider: "ollama"
+        model: "gemma4-e2b-cpu"
+      - name: "ollama-gpt-oss-120b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:20b"
+      - name: "claude-sonnet-4-5"
+        provider: "anthropic"
+        model: "claude-sonnet-4-5-20250929"
+      - name: "gemini-3.1-pro-preview"
+        provider: "gemini"
+        model: "gemini-3.1-pro-preview"
     capabilities:
       retrieval_behavior: "always"
       formatting_style: "standard"
@@ -46,6 +46,8 @@ adapters:
       context_max_tokens: 8000
       numeric_precision:
         decimal_places: 2
+      available_skills:
+        - "image-generation"
     config:
       # SQLite database path is configured in datasources.yaml
       check_same_thread: false  # Allow multi-threaded access

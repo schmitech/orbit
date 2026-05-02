@@ -1,11 +1,14 @@
+# Washington State Electric Vehicle Population Database
+  # Data source: Washington State DOL via data.gov
+  # Contains 270,000+ registered BEV and PHEV vehicles
 adapters:
-  - name: "intent-duckdb-analytics"
+  - name: "intent-duckdb-ev-population"
     enabled: true
     type: "retriever"
     datasource: "duckdb"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
-    database: "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics.duckdb"
+    database: "examples/intent-templates/duckdb-intent-template/examples/ev-population/ev_population.duckdb"
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
     embedding_provider: "ollama"
@@ -26,12 +29,12 @@ adapters:
         decimal_places: 2
     config:
       # Path to the domain definition file
-      domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
+      domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/ev-population/ev_population_domain.yaml"
       template_library_path:
-        - "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics_templates.yaml"
+        - "examples/intent-templates/duckdb-intent-template/examples/ev-population/ev_population_templates.yaml"
 
       # Name for the vector store collection for templates
-      template_collection_name: "duckdb_analytics_templates"
+      template_collection_name: "duckdb_ev_population_templates"
       # Store configuration - references stores.yaml
       store_name: "chroma"
       confidence_threshold: 0.4
@@ -43,15 +46,12 @@ adapters:
       return_results: 100
 
       # Template loading settings
-      reload_templates_on_start: false  # Whether to reload templates on startup
-      force_reload_templates: false  # Force reload even if templates exist in storage
+      reload_templates_on_start: false  # Reload templates on startup for new deployment
+      force_reload_templates: false     # Force reload to pick up template changes
 
       # DuckDB-specific configuration
-      # Database path is configured in datasources.yaml (defaults to examples/duckdb/analytics.duckdb)
-      # Can override here if needed:
-      # database: "path/to/custom.duckdb"  # Optional: override datasource default
-      read_only: true  # Allow concurrent reads from multiple processes (no writes needed for intent queries)
-      access_mode: "READ_ONLY"  # Multiple processes can read simultaneously (see https://duckdb.org/docs/stable/connect/concurrency)
+      read_only: true  # Allow concurrent reads from multiple processes
+      access_mode: "READ_ONLY"  # Multiple processes can read simultaneously
       threads: null  # Use default thread count
 
       # Query monitoring (automatically provided by unified base)

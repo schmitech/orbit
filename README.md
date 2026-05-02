@@ -154,6 +154,7 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 | **RAG over real systems** | SQL, NoSQL, REST, GraphQL, files, web content, vector stores, rerankers |
 | **Intent-based retrieval** | Natural-language templates, diagnostics, autocomplete, cached datasets, conversation threading |
 | **Production controls** | API keys, RBAC, audit logs, rate limits, quotas, moderation, circuit breakers |
+| **Cross-adapter skills** | Invoke specialized adapters (image generation, and more) mid-conversation via a `skill` field — explicit allowlist per adapter, no separate auth |
 | **Agent + voice support** | MCP server, OpenClaw / Hermes / Claude Desktop / Cursor compatibility, full-duplex PersonaPlex voice |
 | **Clients** | Web chat, CLI, mobile app, Node SDK, Python client, or any OpenAI-compatible SDK |
 
@@ -192,6 +193,14 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 - **MCP tools for agent platforms** that expose domain-specific data and actions to Claude Desktop, Cursor, OpenClaw, or custom agents.
 
 ORBIT is Apache 2.0, so you can build and sell commercial products on top of it without royalties or per-seat licensing back to the project. If you build something, [open an issue](https://github.com/schmitech/orbit/issues) and we'll feature it.
+
+---
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/268801ff-5e17-4358-9e69-b2667851d611" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Image generation as a cross-adapter skill. ORBIT routes the request to the image adapter, enriching the prompt with conversation history and thread context before generating.</em>
+</p>
 
 ---
 

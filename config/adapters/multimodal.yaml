@@ -18,25 +18,27 @@ adapters:
     stt_provider: "whisper"               # STT provider for audio transcription (see stt.yaml) - local, free!
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
-    # allowed_models:
-    #   - name: "llama-cpp-gemma4"
-    #     provider: "llama_cpp"
-    #     model: "gemma4-e2b-direct-cpu"
-    #   - name: "ollama-gemma4-e2b"
-    #     provider: "ollama"
-    #     model: "gemma4-e2b-cpu"
-    #   - name: "ollama-gpt-oss-120b"
-    #     provider: "ollama_cloud"
-    #     model: "gpt-oss:20b"
-    #   - name: "claude-sonnet-4-5"
-    #     provider: "anthropic"
-    #     model: "claude-sonnet-4-5-20250929"
-    #   - name: "gemini-3.1-pro-preview"
-    #     provider: "gemini"
-    #     model: "gemini-3.1-pro-preview"
+    allowed_models:
+      - name: "llama-cpp-gemma4"
+        provider: "llama_cpp"
+        model: "gemma4-e2b-direct-cpu"
+      - name: "ollama-gemma4-e2b"
+        provider: "ollama"
+        model: "gemma4-e2b-cpu"
+      - name: "ollama-gpt-oss-120b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:20b"
+      - name: "claude-sonnet-4-5"
+        provider: "anthropic"
+        model: "claude-sonnet-4-5-20250929"
+      - name: "gemini-3.1-pro-preview"
+        provider: "gemini"
+        model: "gemini-3.1-pro-preview"
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
       retrieval_behavior: "conditional"  # Only retrieves when file_ids are present
+      available_skills:
+        - "image-generation"
       formatting_style: "clean"          # Clean format (no citations) to prevent LLM citation markers
       supports_threading: false
       supports_file_ids: true            # Accepts file_ids parameter for filtering
@@ -285,29 +287,3 @@ adapters:
         - "image/jpeg"
         - "image/tiff"
         - "image/webp"
-
-  # Dedicated image generation adapter — converts text prompts to images via DALL-E 3 or Imagen 3
-  # Handled by ImageGenerationStep; LLMInferenceStep is skipped for this adapter type.
-  - name: "image-generator"
-    enabled: false
-    type: "image_generation"
-    datasource: "none"
-    adapter: "multimodal"
-    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    inference_provider: "ollama_cloud"    # Override default inference provider
-    model: "gpt-oss-120b"            # Specific model for this adapter
-    image_provider: "gemini"              # Image generation provider (see image.yaml): openai, gemini
-
-    capabilities:
-      retrieval_behavior: "none"
-      formatting_style: "clean"
-      supports_threading: false
-      supports_file_ids: false
-      supports_session_tracking: true
-      requires_api_key_validation: true
-      optional_parameters:
-        - "session_id"
-
-    config:
-      storage_backend: "filesystem"
-      storage_root: "./uploads"
