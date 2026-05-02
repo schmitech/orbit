@@ -135,7 +135,7 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
           handleCardActivate();
         }
       }}
-      className="group relative flex w-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left shadow-sm transition-colors duration-150 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 dark:border-[#3b3c49] dark:bg-[#22252d] dark:hover:border-[#4b4f5c] dark:hover:bg-[#282b34] dark:focus-visible:ring-sky-400/30 md:px-5 md:py-4"
+      className="group relative flex w-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left shadow-sm transition-colors duration-150 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 dark:border-[#242424] dark:bg-[#080808] dark:hover:border-[#333333] dark:hover:bg-[#111111] dark:focus-visible:ring-sky-400/30 md:px-5 md:py-4"
     >
       <div className="relative">
         <div className="min-w-0">

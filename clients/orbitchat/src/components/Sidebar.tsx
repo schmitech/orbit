@@ -137,6 +137,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
   const totalConversations = getConversationCount();
   const conversationLabel = totalConversations === 1 ? 'conversation' : 'conversations';
   const isSearching = searchQuery.length > 0;
+  const hasSearchableConversations = conversationsWithHistory.length > 0;
 
   // -----------------------------------------------------------------------
   // Scroll to active conversation on mount
@@ -471,6 +472,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
           )}
 
           {/* Search */}
+          {hasSearchableConversations && (
           <div className="border-t border-gray-200 pt-4 mt-4 dark:border-[#2d2f39]">
             <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-200/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.94))] shadow-[0_10px_28px_rgba(15,23,42,0.05)] transition-all duration-200 focus-within:border-sky-300/90 focus-within:shadow-[0_0_0_1px_rgba(125,211,252,0.55),0_10px_28px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(37,39,49,0.95),rgba(29,31,39,0.92))] dark:shadow-[0_12px_30px_rgba(0,0,0,0.2)] dark:focus-within:border-sky-400/30 dark:focus-within:shadow-[0_0_0_1px_rgba(56,189,248,0.22),0_12px_30px_rgba(0,0,0,0.2)]">
               <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[linear-gradient(180deg,rgba(255,255,255,0.45),rgba(255,255,255,0))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0))]" />
@@ -509,6 +511,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
               </p>
             )}
           </div>
+          )}
         </div>
 
         {/* Conversation list */}
@@ -519,19 +522,7 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
           onKeyDown={handleListKeyDown}
           className="flex-1 overflow-y-auto bg-transparent px-3 py-2"
         >
-          {filteredConversations.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-200 bg-white/60 p-6 text-center dark:border-[#2d2f39] dark:bg-[#1e2028]">
-              <MessageSquare className="mx-auto mb-3 h-7 w-7 text-gray-300 dark:text-[#4d5166]" />
-              <p className="text-sm font-medium text-gray-500 dark:text-[#8b8fa3]">
-                {isSearching ? 'No conversations match your search' : 'No conversations yet'}
-              </p>
-              {!isSearching && (
-                <p className="mt-1.5 text-[12px] text-gray-400 dark:text-[#6e7490]">
-                  Start a conversation to see it here
-                </p>
-              )}
-            </div>
-          ) : isSearching ? (
+          {filteredConversations.length === 0 ? null : isSearching ? (
             // Flat list when searching (no time groups)
             <div className="space-y-1">
               {filteredConversations.map(renderConversationCard)}
