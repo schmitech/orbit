@@ -535,6 +535,16 @@ export function Message({
               : 'thread-markdown-wrapper overflow-x-visible text-sm rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 text-[#111827] dark:bg-[#303030] dark:text-[#f5f5f5]'
             }>
               {replyContent}
+              {reply.audio && replyIsAssistant && !reply.isStreaming && (
+                <AudioPlayer audio={reply.audio} audioFormat={reply.audioFormat} autoPlay={false} />
+              )}
+              {reply.image && replyIsAssistant && !reply.isStreaming && (
+                <ImageDisplay
+                  image={reply.image}
+                  imageFormat={reply.imageFormat}
+                  revisedPrompt={reply.imageRevisedPrompt}
+                />
+              )}
             </div>
             {replyIsAssistant && !reply.isStreaming && getEnableFeedbackButtons() && (
               <ThreadReplyFeedback reply={reply} />
