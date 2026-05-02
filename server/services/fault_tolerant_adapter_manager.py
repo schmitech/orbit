@@ -64,6 +64,14 @@ class FaultTolerantAdapterManager:
         """Get adapter configuration - delegates to base adapter manager"""
         return self.base_adapter_manager.get_adapter_config(adapter_name)
 
+    def get_skill_adapter(self, skill_name: str) -> Optional[str]:
+        """Resolve a skill name to its adapter name."""
+        return self.base_adapter_manager.get_skill_adapter(skill_name)
+
+    def get_all_skills(self) -> List[Dict[str, Any]]:
+        """Return metadata for all registered skill adapters."""
+        return self.base_adapter_manager.get_all_skills()
+
     async def get_relevant_context(self, query: str, adapter_names: List[str] = None,
                                  adapter_name: str = None, api_key: Optional[str] = None,
                                  **kwargs) -> List[Dict[str, Any]]:

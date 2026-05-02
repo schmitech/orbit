@@ -2,6 +2,7 @@
 Tests for RequestContextBuilder.
 """
 
+import pytest
 import sys
 import os
 from bson import ObjectId
@@ -216,3 +217,98 @@ class TestRequestContextBuilder:
         # Should not have adapter-specific settings
         assert context.inference_provider is None
         assert context.timezone is None
+
+
+class TestSkillRouting:
+    """Tests for skill invocation via RequestContextBuilder."""
+
+    def _make_builder(self, base_config, adapter_config, skill_adapter_name=None):
+        """Helper: build a RequestContextBuilder with controllable adapter mocks."""
+        from unittest.mock import MagicMock
+
+        manager = MagicMock()
+        manager.get_adapter_config.side_effect = lambda name: (
+            adapter_config if name in ("test_adapter", skill_adapter_name) else None
+        )
+        manager.get_skill_adapter.return_value = skill_adapter_name
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def test_skill_routes_to_skill_adapter(self, base_config):
+        """When skill is allowed, adapter_name is swapped to the skill adapter."""
+        adapter_cfg = {
+            'type': 'retriever',
+            'inference_provider': 'openai',
+            'config': {},
+            'capabilities': {'available_skills': ['image-generation']},
+        }
+        builder = self._make_builder(base_config, adapter_cfg, skill_adapter_name='image-generator')
+
+        context = builder.build_context(
+            message="a sunset over mountains",
+            adapter_name="test_adapter",
+            context_messages=[],
+            skill="image-generation",
+        )
+
+        assert context.adapter_name == 'image-generator'
+        assert context.original_adapter_name == 'test_adapter'
+        assert context.requested_skill == 'image-generation'
+
+    def test_skill_not_in_allowlist_raises(self, base_config):
+        """Requesting a skill not in available_skills raises ValueError."""
+        adapter_cfg = {
+            'type': 'retriever',
+            'inference_provider': 'openai',
+            'config': {},
+            'capabilities': {'available_skills': []},
+        }
+        builder = self._make_builder(base_config, adapter_cfg, skill_adapter_name='image-generator')
+
+        with pytest.raises(ValueError, match="not available"):
+            builder.build_context(
+                message="test",
+                adapter_name="test_adapter",
+                context_messages=[],
+                skill="image-generation",
+            )
+
+    def test_skill_adapter_not_registered_raises(self, base_config):
+        """Raises ValueError when no adapter is registered for the skill."""
+        adapter_cfg = {
+            'type': 'retriever',
+            'inference_provider': 'openai',
+            'config': {},
+            'capabilities': {'available_skills': ['image-generation']},
+        }
+        builder = self._make_builder(base_config, adapter_cfg, skill_adapter_name=None)
+
+        with pytest.raises(ValueError, match="No adapter is registered"):
+            builder.build_context(
+                message="test",
+                adapter_name="test_adapter",
+                context_messages=[],
+                skill="image-generation",
+            )
+
+    def test_no_skill_leaves_adapter_unchanged(self, base_config):
+        """Omitting skill= leaves adapter_name untouched."""
+        from unittest.mock import MagicMock
+
+        manager = MagicMock()
+        manager.get_adapter_config.return_value = {
+            'type': 'passthrough',
+            'inference_provider': 'openai',
+            'config': {},
+            'capabilities': {'available_skills': ['image-generation']},
+        }
+        builder = RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+        context = builder.build_context(
+            message="hello",
+            adapter_name="test_adapter",
+            context_messages=[],
+        )
+
+        assert context.adapter_name == 'test_adapter'
+        assert context.requested_skill is None
+        assert context.original_adapter_name is None

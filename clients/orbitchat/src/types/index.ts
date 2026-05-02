@@ -60,6 +60,18 @@ export interface AdapterModelsResponse {
   models: AllowedModel[];
 }
 
+export interface SkillInfo {
+  name: string;
+  description: string;
+  adapter_name: string;
+  enabled: boolean;
+}
+
+export interface AdapterSkillsResponse {
+  adapter_name: string;
+  available_skills: string[];
+}
+
 export interface AllModelsResponse {
   models: AllowedModel[];
 }

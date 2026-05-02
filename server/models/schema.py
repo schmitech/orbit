@@ -26,6 +26,25 @@ class AdapterModelsResponse(BaseModel):
     has_restrictions: bool
 
 
+class SkillInfo(BaseModel):
+    """Metadata for a skill exposed by an adapter."""
+    name: str
+    description: str
+    adapter_name: str
+    enabled: bool
+
+
+class SkillsResponse(BaseModel):
+    """Response listing all registered skills."""
+    skills: List[SkillInfo]
+
+
+class AdapterSkillsResponse(BaseModel):
+    """Response listing skills available to a specific adapter."""
+    adapter_name: str
+    available_skills: List[str]
+
+
 class HealthStatus(BaseModel):
     """Health status model"""
     status: str = Field(description="Overall health status of the server")

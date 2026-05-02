@@ -325,6 +325,14 @@ class DynamicAdapterManager:
             return []
         return adapter_config.get('allowed_models') or []
 
+    def get_skill_adapter(self, skill_name: str) -> Optional[str]:
+        """Return the adapter_name registered for a skill, or None."""
+        return self.config_manager.get_skill_adapter(skill_name)
+
+    def get_all_skills(self) -> list:
+        """Return metadata for all adapters marked as skills."""
+        return self.config_manager.get_all_skills()
+
     async def get_overridden_embedding(self, provider_name: str, adapter_name: str = None) -> Any:
         """
         Get an embedding service instance by name, loading and caching it if necessary.

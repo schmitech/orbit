@@ -348,5 +348,42 @@ class TestCapabilityReloading:
         assert 'adapter2' in names
 
 
+class TestAvailableSkills:
+    """Tests for the available_skills capability field."""
+
+    def test_from_config_with_skills(self):
+        """available_skills is parsed from capabilities config."""
+        config = {
+            'capabilities': {
+                'retrieval_behavior': 'always',
+                'available_skills': ['image-generation', 'translation'],
+            }
+        }
+        caps = AdapterCapabilities.from_config(config)
+        assert caps.available_skills == ['image-generation', 'translation']
+
+    def test_from_config_no_skills_defaults_empty(self):
+        """available_skills defaults to [] when absent."""
+        config = {'capabilities': {'retrieval_behavior': 'always'}}
+        caps = AdapterCapabilities.from_config(config)
+        assert caps.available_skills == []
+
+    def test_from_config_empty_skills_list(self):
+        """Explicit empty list is preserved."""
+        config = {'capabilities': {'available_skills': []}}
+        caps = AdapterCapabilities.from_config(config)
+        assert caps.available_skills == []
+
+    def test_direct_construction(self):
+        """available_skills can be set directly on AdapterCapabilities."""
+        caps = AdapterCapabilities(available_skills=['image-generation'])
+        assert 'image-generation' in caps.available_skills
+
+    def test_default_is_empty_list(self):
+        """Default AdapterCapabilities has no skills."""
+        caps = AdapterCapabilities()
+        assert caps.available_skills == []
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

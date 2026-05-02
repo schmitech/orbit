@@ -82,6 +82,10 @@ class ProcessingContext:
     runtime_provider: Optional[str] = None
     runtime_model_name: Optional[str] = None
 
+    # Skill invocation (set when client sends skill= in request)
+    requested_skill: Optional[str] = None
+    original_adapter_name: Optional[str] = None
+
     # Image generation output
     image: Optional[str] = None               # base64-encoded generated image
     image_format: Optional[str] = None        # "png", "jpeg", or "webp"

@@ -200,7 +200,6 @@ ORBIT is Apache 2.0, so you can build and sell commercial products on top of it 
 | Client | Description |
 | :--- | :--- |
 | **[Web Chat](clients/orbitchat/)** | React UI |
-| **CLI** | `pip install schmitech-orbit-client` |
 | **[Mobile](clients/orbit-mobile/)** | iOS & Android (Expo) |
 | **[Node SDK](clients/node-api/)** | Or use any OpenAI-compatible SDK |
 

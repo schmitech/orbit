@@ -189,6 +189,26 @@ class AdapterConfigManager:
         """
         return self._adapter_configs.copy()
 
+    def get_skill_adapter(self, skill_name: str) -> Optional[str]:
+        """Return the adapter_name whose skill_name matches, or None."""
+        for name, cfg in self._adapter_configs.items():
+            if cfg.get('expose_as_skill') and cfg.get('skill_name') == skill_name:
+                return name
+        return None
+
+    def get_all_skills(self) -> List[Dict[str, Any]]:
+        """Return metadata for all adapters marked as skills."""
+        return [
+            {
+                'name': cfg.get('skill_name', name),
+                'description': cfg.get('skill_description', ''),
+                'adapter_name': name,
+                'enabled': cfg.get('enabled', True),
+            }
+            for name, cfg in self._adapter_configs.items()
+            if cfg.get('expose_as_skill')
+        ]
+
     def find_adapter_in_config_list(
         self,
         adapter_name: str,

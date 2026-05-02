@@ -25,7 +25,8 @@ from models.schema import (
     SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse,
     ApiKeyPromptAssociate, ChatHistoryClearResponse, AdapterReloadResponse,
     TemplateReloadResponse, TemplateTestRequest, ApiKeyQuota, ApiKeyQuotaUpdate,
-    ApiKeyUsage, ApiKeyQuotaResponse
+    ApiKeyUsage, ApiKeyQuotaResponse,
+    SkillInfo, SkillsResponse, AdapterSkillsResponse,
 )
 from config.config_manager import reload_adapters_config
 
@@ -753,6 +754,79 @@ async def list_adapter_models(
         "has_restrictions": False,
         "models": [default_entry] if model else [],
     }
+
+
+# ---------------------------------------------------------------------------
+# Skills endpoints
+# ---------------------------------------------------------------------------
+
+@admin_router.get("/skills", response_model=SkillsResponse)
+async def list_skills(request: Request):
+    """
+    List all skills registered in ORBIT.
+
+    A skill is an adapter marked with expose_as_skill: true in its config.
+    Returns name, description, adapter_name, and enabled state for each skill.
+    """
+    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
+    if not adapter_manager:
+        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    if not adapter_manager:
+        raise HTTPException(status_code=503, detail="Adapter manager is not available")
+
+    raw_skills = (
+        adapter_manager.get_all_skills()
+        if hasattr(adapter_manager, 'get_all_skills')
+        else []
+    )
+    logger.debug("Admin skills list requested: %s registered skill(s)", len(raw_skills))
+    return SkillsResponse(
+        skills=[SkillInfo(**s) for s in raw_skills]
+    )
+
+
+@admin_router.get("/adapters/{adapter_name}/skills", response_model=AdapterSkillsResponse)
+async def list_adapter_skills(
+    adapter_name: str,
+    request: Request,
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+):
+    """
+    List skills available to a specific adapter.
+
+    Returns the available_skills list from the adapter's capabilities config.
+    Requires a valid API key (X-API-Key header).
+    """
+    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
+    if not adapter_manager:
+        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    if not adapter_manager:
+        raise HTTPException(status_code=503, detail="Adapter manager is not available")
+
+    # Resolve adapter name from API key (same pattern as list_adapter_models)
+    resolved_name = adapter_name
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    if api_key_service and x_api_key:
+        try:
+            is_valid, key_adapter_name, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
+            if is_valid and key_adapter_name:
+                resolved_name = key_adapter_name
+        except Exception:
+            logger.debug("Adapter skills lookup failed API key validation for '%s'", adapter_name, exc_info=True)
+
+    adapter_config = adapter_manager.get_adapter_config(resolved_name) if hasattr(adapter_manager, 'get_adapter_config') else None
+    if adapter_config is None:
+        logger.warning("Adapter skills requested for unknown adapter '%s' (resolved from '%s')", resolved_name, adapter_name)
+        raise HTTPException(status_code=404, detail=f"Adapter '{resolved_name}' not found")
+
+    available_skills = adapter_config.get('capabilities', {}).get('available_skills', [])
+    logger.debug(
+        "Adapter skills requested: requested='%s', resolved='%s', available_skills=%s",
+        adapter_name,
+        resolved_name,
+        available_skills,
+    )
+    return AdapterSkillsResponse(adapter_name=resolved_name, available_skills=available_skills)
 
 
 # ---------------------------------------------------------------------------

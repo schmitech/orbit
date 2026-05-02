@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
-import { ArrowUp, CircleHelp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square, CircleAlert, TriangleAlert } from 'lucide-react';
+import { ArrowUp, CircleHelp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square, CircleAlert, TriangleAlert, Sparkles } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useVoice } from '../hooks/useVoice';
 import { useAutocomplete } from '../hooks/useAutocomplete';
+import { useSkills } from '../hooks/useSkills';
 import { FileUpload } from './FileUpload';
 import { ConfirmationModal } from './ConfirmationModal';
+import { SkillPicker } from './SkillPicker';
 import { FileAttachment } from '../types';
 import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
@@ -21,7 +23,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface MessageInputProps {
-  onSend: (message: string, fileIds?: string[], threadId?: string) => void;
+  onSend: (message: string, fileIds?: string[], threadId?: string, skill?: string) => void;
   disabled?: boolean;
   placeholder?: string;
   autoFocusEnabled?: boolean;
@@ -209,6 +211,7 @@ export function MessageInput({
     });
   }, []);
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
+  const [showSkillPicker, setShowSkillPicker] = useState(false);
   const [textareaVerticalPadding, setTextareaVerticalPadding] = useState(() => ({
     top: DEFAULT_TEXTAREA_VERTICAL_PADDING + VERTICAL_ALIGNMENT_OFFSET,
     bottom: Math.max(DEFAULT_TEXTAREA_VERTICAL_PADDING - VERTICAL_ALIGNMENT_OFFSET, 0)
@@ -284,6 +287,11 @@ export function MessageInput({
   const hasSuggestions = suggestions.length > 0;
   const autocompleteVisible = !isListening;
   const showAutocompletePanel = autocompleteVisible && hasSuggestions;
+
+  const { skills, isLoading: skillsLoading, selectedSkill, selectSkill, clearSkill } = useSkills({
+    adapterName: currentConversation?.adapterName,
+    enabled: true,
+  });
   const activeSuggestionIndex = selectedIndex >= 0 ? selectedIndex : 0;
   const activeSuggestion = hasSuggestions ? suggestions[activeSuggestionIndex] : null;
   const inlineSuggestion = useMemo(() => {
@@ -527,7 +535,11 @@ export function MessageInput({
     const allFileIds = conversationFiles.map(f => f.file_id);
 
     debugLog('[MessageInput] Auto-sending voice message immediately:', voiceMessage);
-    onSend(voiceMessage, allFileIds.length > 0 ? allFileIds : undefined);
+    onSend(voiceMessage, allFileIds.length > 0 ? allFileIds : undefined, undefined, selectedSkill?.name);
+    clearSkill();
+    setTimeout(() => {
+      setShowSkillPicker(false);
+    }, 0);
 
     clearSuggestions();
     setTimeout(() => {
@@ -539,7 +551,7 @@ export function MessageInput({
       textareaRef.current.style.overflowY = 'hidden';
       adjustTextareaVerticalAlignment();
     }
-  }, [voiceRecordingAvailable, voiceCompletionCount, isInputDisabled, isComposing, onSend, adjustTextareaVerticalAlignment, clearSuggestions]);
+  }, [voiceRecordingAvailable, voiceCompletionCount, isInputDisabled, isComposing, onSend, selectedSkill, clearSkill, adjustTextareaVerticalAlignment, clearSuggestions]);
 
   // Close upload area when upload starts (hide upload widget, show only progress)
   useEffect(() => {
@@ -753,13 +765,16 @@ export function MessageInput({
       if (isListening) {
         stopListening();
       }
-      
+
       // For multimodal conversations, send ALL files attached to the conversation
       // (not just the newly attached ones in this message)
       const conversationFiles = currentConversation?.attachedFiles || [];
       const allFileIds = conversationFiles.map(f => f.file_id);
-      
-      onSend(message.trim(), allFileIds.length > 0 ? allFileIds : undefined);
+
+      const activeSkillName = selectedSkill?.name;
+      onSend(message.trim(), allFileIds.length > 0 ? allFileIds : undefined, undefined, activeSkillName);
+      clearSkill();
+      setShowSkillPicker(false);
       playSoundEffect('messageSent', settings.soundEnabled);
       setMessage('');
       voiceMessageRef.current = ''; // Clear voice message ref when manually submitting
@@ -923,6 +938,12 @@ export function MessageInput({
         clearSuggestions();
         return;
       }
+    }
+
+    if (e.key === 'Escape' && showSkillPicker) {
+      e.preventDefault();
+      setShowSkillPicker(false);
+      return;
     }
 
     // Normal Enter handling (submit message)
@@ -1279,9 +1300,9 @@ export function MessageInput({
           <div
             className={`flex flex-row items-center gap-1.5 md:gap-2 rounded-xl md:rounded-lg border px-2.5 py-1.5 md:px-4 md:py-3 shadow-sm transition-all ${
               isFocused
-                ? 'border-gray-400 shadow-md dark:border-[#565869] dark:shadow-lg'
-                : 'border-gray-300 dark:border-[#40414f]'
-            } bg-gray-50 dark:bg-[#2d2f39]`}
+                ? 'border-gray-400 shadow-md dark:border-[#3a3a3a] dark:shadow-lg'
+                : 'border-gray-300 dark:border-[#242424]'
+            } bg-gray-50 dark:bg-[#111111]`}
           >
           {/* Textarea row */}
           <div className="relative flex-1 w-full min-w-0">
@@ -1320,7 +1341,11 @@ export function MessageInput({
               ref={textareaRef}
               aria-label="Message input"
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setMessage(val);
+                setShowSkillPicker(val.startsWith('/'));
+              }}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               onCompositionStart={() => setIsComposing(true)}
@@ -1518,6 +1543,25 @@ export function MessageInput({
           </div>
         </div>
 
+        {selectedSkill && (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs dark:border-violet-800/50 dark:bg-violet-900/20">
+              <Sparkles className="h-3 w-3 flex-shrink-0 text-violet-500 dark:text-violet-400" />
+              <span className="font-medium text-violet-700 dark:text-violet-300 capitalize">
+                {selectedSkill.name.replace(/-/g, ' ')}
+              </span>
+              <button
+                type="button"
+                onClick={() => clearSkill()}
+                className="ml-0.5 rounded p-0.5 text-violet-500 hover:bg-violet-100 hover:text-violet-700 dark:text-violet-400 dark:hover:bg-violet-800/30 dark:hover:text-violet-200 transition-colors"
+                aria-label="Remove skill"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {visibleAttachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {visibleAttachedFiles.map((file) => {
@@ -1682,6 +1726,29 @@ export function MessageInput({
           )}
         </div>
         </form>
+
+        {/* Skill picker panel - shown when user types / */}
+        {showSkillPicker && (
+          <div className="w-full pt-1">
+            <SkillPicker
+              skills={skills}
+              isLoading={skillsLoading}
+              selectedSkill={selectedSkill}
+              query={message.startsWith('/') ? message.slice(1) : ''}
+              onSelect={(skill) => {
+                selectSkill(skill);
+                setShowSkillPicker(false);
+                setMessage('');
+                textareaRef.current?.focus();
+              }}
+              onClose={() => {
+                setShowSkillPicker(false);
+                setMessage('');
+                textareaRef.current?.focus();
+              }}
+            />
+          </div>
+        )}
 
         {/* ChatGPT-style autocomplete suggestions below input */}
         {showAutocompletePanel && (

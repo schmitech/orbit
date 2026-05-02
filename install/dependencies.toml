@@ -52,7 +52,6 @@ dependencies = [
     "rich>=14.3.3",
     "environs>=14.0.0,<15.0.0",  # 15+ needs marshmallow>=4; langchain-community/dataclasses-json need marshmallow<4
     "prometheus-client>=0.24.1",
-    "schmitech-orbit-client>=1.1.6",
     "tqdm>=4.67.3",
     "redis>=7.4.0",
     "elasticsearch>=9.3.0",

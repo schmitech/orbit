@@ -74,6 +74,7 @@ Understand how ORBIT works.
 | [Intent Agent Retriever](adapters/intent-agent-retriever.md) | Function calling and tool execution capabilities |
 | [File Adapter](file-adapter-guide.md) | Document upload and processing |
 | [Passthrough Adapter](multimodal-conversational-adapter.md) | Direct conversational AI without retrieval |
+| [Skills](adapters/skills.md) | Cross-adapter capabilities (image generation and more) |
 
 ---
 

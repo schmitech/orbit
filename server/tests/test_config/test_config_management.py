@@ -382,5 +382,73 @@ class TestAdapterConfigManager:
         assert 'qa-file' in result['unchanged']
 
 
+class TestSkillRegistry:
+    """Tests for skill lookup methods on AdapterConfigManager."""
+
+    def _config_with_skills(self):
+        return {
+            'adapters': [
+                {
+                    'name': 'image-generator',
+                    'enabled': True,
+                    'expose_as_skill': True,
+                    'skill_name': 'image-generation',
+                    'skill_description': 'Generate images from text',
+                    'type': 'image_generation',
+                },
+                {
+                    'name': 'simple-chat',
+                    'enabled': True,
+                    'type': 'passthrough',
+                },
+                {
+                    'name': 'video-generator',
+                    'enabled': True,
+                    'expose_as_skill': True,
+                    'skill_name': 'video-generation',
+                    'skill_description': 'Generate videos',
+                    'type': 'passthrough',
+                },
+            ]
+        }
+
+    def test_get_skill_adapter_found(self):
+        mgr = AdapterConfigManager(self._config_with_skills())
+        assert mgr.get_skill_adapter('image-generation') == 'image-generator'
+
+    def test_get_skill_adapter_second_skill(self):
+        mgr = AdapterConfigManager(self._config_with_skills())
+        assert mgr.get_skill_adapter('video-generation') == 'video-generator'
+
+    def test_get_skill_adapter_not_found(self):
+        mgr = AdapterConfigManager(self._config_with_skills())
+        assert mgr.get_skill_adapter('nonexistent-skill') is None
+
+    def test_get_skill_adapter_non_skill_adapter_ignored(self):
+        """Adapters without expose_as_skill are not returned."""
+        mgr = AdapterConfigManager(self._config_with_skills())
+        assert mgr.get_skill_adapter('simple-chat') is None
+
+    def test_get_all_skills_returns_skill_adapters_only(self):
+        mgr = AdapterConfigManager(self._config_with_skills())
+        skills = mgr.get_all_skills()
+        names = [s['name'] for s in skills]
+        assert 'image-generation' in names
+        assert 'video-generation' in names
+        assert len(skills) == 2
+
+    def test_get_all_skills_fields(self):
+        mgr = AdapterConfigManager(self._config_with_skills())
+        skill = next(s for s in mgr.get_all_skills() if s['name'] == 'image-generation')
+        assert skill['description'] == 'Generate images from text'
+        assert skill['adapter_name'] == 'image-generator'
+        assert skill['enabled'] is True
+
+    def test_get_all_skills_empty_when_none_registered(self):
+        config = {'adapters': [{'name': 'simple-chat', 'enabled': True, 'type': 'passthrough'}]}
+        mgr = AdapterConfigManager(config)
+        assert mgr.get_all_skills() == []
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

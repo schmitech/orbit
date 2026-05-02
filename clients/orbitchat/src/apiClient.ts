@@ -54,7 +54,8 @@ export interface ApiClient {
     ttsVoice?: string,
     sourceLanguage?: string,
     targetLanguage?: string,
-    model?: string
+    model?: string,
+    skill?: string
   ): AsyncGenerator<StreamResponse>;
   createThread?(messageId: string, sessionId: string): Promise<{
     thread_id: string;
@@ -166,6 +167,8 @@ export interface ApiClient {
   stopChat?(sessionId: string, requestId: string): Promise<boolean>;
   getAdapterModels?(adapterName: string): Promise<AdapterModelsResponse>;
   getAllModels?(): Promise<AllModelsResponse>;
+  getAdapterSkills?(adapterName: string): Promise<{ adapter_name: string; available_skills: string[] }>;
+  getAllSkills?(): Promise<{ skills: Array<{ name: string; description: string; adapter_name: string; enabled: boolean }> }>;
 }
 
 export interface ApiFunctions {
@@ -182,7 +185,8 @@ export interface ApiFunctions {
     ttsVoice?: string,
     sourceLanguage?: string,
     targetLanguage?: string,
-    model?: string
+    model?: string,
+    skill?: string
   ) => AsyncGenerator<StreamResponse>;
   ApiClient: new (config: { apiUrl: string; sessionId?: string | null; adapterName?: string | null }) => ApiClient;
   stopChat?: (sessionId: string, requestId: string) => Promise<boolean>;
@@ -307,7 +311,8 @@ function createProxyApi(): ApiFunctions {
         ttsVoice?: string,
         sourceLanguage?: string,
         targetLanguage?: string,
-        model?: string
+        model?: string,
+        skill?: string
       ): AsyncGenerator<StreamResponse> {
         const requestBody: Record<string, unknown> = {
           messages: [{ role: 'user', content: message }],
@@ -327,6 +332,7 @@ function createProxyApi(): ApiFunctions {
         if (sourceLanguage) requestBody.source_language = sourceLanguage;
         if (targetLanguage) requestBody.target_language = targetLanguage;
         if (model) requestBody.model = model;
+        if (skill) requestBody.skill = skill;
 
         const response = await fetch('/api/v1/chat', {
           method: 'POST',
@@ -643,6 +649,26 @@ function createProxyApi(): ApiFunctions {
         if (!response.ok) throw new Error(await buildErrorMessage(response));
         return response.json();
       },
+
+      async getAdapterSkills(adapterName: string) {
+        const response = await fetch(`/api/admin/adapters/${encodeURIComponent(adapterName)}/skills`, {
+          headers: await buildHeaders({
+            'X-Adapter-Name': clientAdapterName,
+          }),
+        });
+        if (!response.ok) throw new Error(await buildErrorMessage(response));
+        return response.json();
+      },
+
+      async getAllSkills() {
+        const response = await fetch('/api/admin/skills', {
+          headers: await buildHeaders({
+            'X-Adapter-Name': clientAdapterName,
+          }),
+        });
+        if (!response.ok) throw new Error(await buildErrorMessage(response));
+        return response.json();
+      },
     };
   };
 
@@ -660,7 +686,8 @@ function createProxyApi(): ApiFunctions {
       ttsVoice?: string,
       sourceLanguage?: string,
       targetLanguage?: string,
-      model?: string
+      model?: string,
+      skill?: string
     ): AsyncGenerator<StreamResponse> {
       if (!defaultAdapterName) {
         throw new Error('Adapter name is required');
@@ -678,7 +705,8 @@ function createProxyApi(): ApiFunctions {
         ttsVoice,
         sourceLanguage,
         targetLanguage,
-        model
+        model,
+        skill
       );
     },
     stopChat: async (sessionId: string, requestId: string): Promise<boolean> => {
@@ -723,6 +751,8 @@ function createProxyApi(): ApiFunctions {
       get stopChat() { return this.client.stopChat?.bind(this.client); }
       get getAdapterModels() { return this.client.getAdapterModels?.bind(this.client); }
       get getAllModels() { return this.client.getAllModels?.bind(this.client); }
+      get getAdapterSkills() { return this.client.getAdapterSkills?.bind(this.client); }
+      get getAllSkills() { return this.client.getAllSkills?.bind(this.client); }
     },
   };
 }

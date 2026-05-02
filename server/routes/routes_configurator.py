@@ -345,6 +345,7 @@ class RouteConfigurator:
             messages: List[Dict[str, str]]
             stream: bool = False
             model: Optional[str] = None  # Optional runtime model override (must be in adapter's allowed_models)
+            skill: Optional[str] = None  # Optional skill name to invoke (must be in adapter's available_skills)
             file_ids: Optional[List[str]] = None  # Optional list of file IDs for file context
             thread_id: Optional[str] = None  # Optional thread ID for follow-up questions
             # Audio input parameters (for STT)
@@ -389,6 +390,7 @@ class RouteConfigurator:
                 "source_language": getattr(chat_request, "source_language", None),
                 "target_language": getattr(chat_request, "target_language", None),
                 "requested_model": getattr(chat_request, "model", None),
+                "skill": getattr(chat_request, "skill", None),
             }
 
             return last_user_message, payload

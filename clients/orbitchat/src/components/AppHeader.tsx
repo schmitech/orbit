@@ -50,7 +50,7 @@ export function AppHeader() {
 
   return (
     <header
-      className={`relative z-30 shrink-0 bg-white px-3 pb-1 pt-2 dark:bg-[#212121] sm:px-5 sm:pb-2 sm:pt-3 lg:px-8 md:sticky md:top-0 md:pt-5 ${headerBorderClass}`.trim()}
+      className={`relative z-30 shrink-0 bg-white px-3 pb-1 pt-2 dark:bg-black sm:px-5 sm:pb-2 sm:pt-3 lg:px-8 md:sticky md:top-0 md:pt-5 ${headerBorderClass}`.trim()}
       style={{
         backgroundColor: bgColor || undefined,
         color: textColor || undefined,
@@ -66,7 +66,7 @@ export function AppHeader() {
                 event.preventDefault();
                 goHome();
               }}
-              className="inline-flex items-center rounded-sm px-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-blue-300 dark:focus-visible:ring-offset-[#212121] md:-ml-1"
+              className="inline-flex items-center rounded-sm px-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-blue-300 dark:focus-visible:ring-offset-black md:-ml-1"
             >
               <img
                 src={logoUrl}

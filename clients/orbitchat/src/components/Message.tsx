@@ -8,8 +8,10 @@ import {
   File,
   MessageSquare,
   RotateCcw,
+  Sparkles,
   ThumbsDown,
-  ThumbsUp
+  ThumbsUp,
+  X
 } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from './markdown';
@@ -22,15 +24,17 @@ import { sanitizeMessageContent, truncateLongContent } from '../utils/contentVal
 import { AppConfig } from '../utils/config';
 import { useTheme } from '../contexts/ThemeContext';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
+import { useSkills } from '../hooks/useSkills';
 import { useLoginPromptStore } from '../stores/loginPromptStore';
 import { useChatStore } from '../stores/chatStore';
+import { SkillPicker } from './SkillPicker';
 
 interface MessageProps {
   message: MessageType;
   onRegenerate?: (messageId: string) => void;
   onStartThread?: (messageId: string, sessionId: string) => void;
   onClearThread?: (messageId: string, threadId: string) => Promise<void> | void;
-  onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string) => Promise<void> | void;
+  onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string, skill?: string) => Promise<void> | void;
   threadMessages?: MessageType[];
   sessionId?: string;
   isThreadSendDisabled?: boolean;
@@ -123,6 +127,7 @@ export function Message({
   const [threadInput, setThreadInput] = useState('');
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
+  const [showThreadSkillPicker, setShowThreadSkillPicker] = useState(false);
   const [showClearThreadConfirmation, setShowClearThreadConfirmation] = useState(false);
   const [isClearingThread, setIsClearingThread] = useState(false);
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
@@ -145,6 +150,9 @@ export function Message({
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
   const isAuthenticated = useIsAuthenticated();
   const isGuest = getIsAuthConfigured() && !isAuthenticated;
+  const conversations = useChatStore(state => state.conversations);
+  const currentConversationId = useChatStore(state => state.currentConversationId);
+  const currentConversation = conversations.find(conv => conv.id === currentConversationId);
   const threadsEnabled = getEnableConversationThreads();
   const threadCharLimit = AppConfig.maxMessageLength;
   const threadLimit = AppConfig.maxMessagesPerThread;
@@ -158,6 +166,10 @@ export function Message({
   const { theme, isDark } = useTheme();
   const threadPlaceholder = 'Reply in thread...';
   const threadInputId = `thread-input-${message.id}`;
+  const { skills, isLoading: skillsLoading, selectedSkill, selectSkill, clearSkill } = useSkills({
+    adapterName: currentConversation?.adapterName,
+    enabled: threadsEnabled && Boolean(message.threadInfo),
+  });
 
   const forcedThemeClass =
     theme.mode === 'dark' ? 'dark' : theme.mode === 'light' ? 'light' : '';
@@ -196,9 +208,11 @@ export function Message({
         setThreadInput('');
         setIsThreadOpen(false);
         setIsSendingThreadMessage(false);
+        setShowThreadSkillPicker(false);
+        clearSkill();
       }, 0);
     }
-  }, [message.threadInfo]);
+  }, [message.threadInfo, clearSkill]);
 
   useEffect(() => {
     if (threadReplyCount > 0) {
@@ -329,10 +343,13 @@ export function Message({
       return;
     }
     const previousDraft = threadInput;
+    const previousSkill = selectedSkill;
     setThreadInput('');
     setIsSendingThreadMessage(true);
+    setShowThreadSkillPicker(false);
     try {
-      await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed);
+      await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed, selectedSkill?.name);
+      clearSkill();
       // Refocus the thread input field after sending
       setTimeout(() => {
         if (threadTextareaRef.current) {
@@ -342,6 +359,9 @@ export function Message({
     } catch (error) {
       debugError('Failed to send thread message:', error);
       setThreadInput(previousDraft);
+      if (previousSkill) {
+        selectSkill(previousSkill);
+      }
       // Refocus even on error so user can retry
       setTimeout(() => {
         if (threadTextareaRef.current) {
@@ -354,6 +374,10 @@ export function Message({
   };
 
   const handleThreadKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Escape' && showThreadSkillPicker) {
+      setShowThreadSkillPicker(false);
+      return;
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       handleThreadSubmit();
@@ -709,18 +733,40 @@ export function Message({
                   ref={threadComposerRef}
                   className="mt-1 w-full max-w-[64rem] bg-transparent pt-1"
                 >
-                  <div className="flex items-center gap-2 bg-transparent">
+                  {selectedSkill && (
+                    <div className="mb-2 flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs dark:border-violet-800/50 dark:bg-violet-900/20">
+                        <Sparkles className="h-3 w-3 flex-shrink-0 text-violet-500 dark:text-violet-400" />
+                        <span className="font-medium text-violet-700 dark:text-violet-300 capitalize">
+                          {selectedSkill.name.replace(/-/g, ' ')}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => clearSkill()}
+                          className="ml-0.5 rounded p-0.5 text-violet-500 hover:bg-violet-100 hover:text-violet-700 dark:text-violet-400 dark:hover:bg-violet-800/30 dark:hover:text-violet-200 transition-colors"
+                          aria-label="Remove thread skill"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-[#242424] dark:bg-[#101010]">
                     <label htmlFor={threadInputId} className="sr-only">
                       Reply in thread
                     </label>
                     <textarea
                       id={threadInputId}
                       ref={threadTextareaRef}
-                      className="flex-1 w-full sm:w-auto min-w-0 resize-none bg-transparent px-0 py-1.5 sm:py-1 text-base sm:text-sm text-[#353740] placeholder-slate-500 outline-none transition focus:outline-none disabled:opacity-60 dark:text-[#ececf1] dark:placeholder-[#8e8ea0]"
+                      className="flex-1 w-full sm:w-auto min-w-0 resize-none bg-transparent px-0 py-1.5 sm:py-1 text-base sm:text-sm text-[#353740] placeholder-slate-500 outline-none transition focus:outline-none disabled:opacity-60 dark:text-[#ececf1] dark:placeholder-[#70707c]"
                       placeholder={threadPlaceholder}
                       aria-label="Reply in thread"
                       value={threadInput}
-                      onChange={e => setThreadInput(e.target.value)}
+                      onChange={e => {
+                        const value = e.target.value;
+                        setThreadInput(value);
+                        setShowThreadSkillPicker(value.startsWith('/'));
+                      }}
                       onKeyDown={handleThreadKeyDown}
                       disabled={threadComposerDisabled}
                       rows={1}
@@ -749,6 +795,27 @@ export function Message({
                       )}
                     </div>
                   </div>
+                  {showThreadSkillPicker && (
+                    <div className="w-full pt-1">
+                      <SkillPicker
+                        skills={skills}
+                        isLoading={skillsLoading}
+                        selectedSkill={selectedSkill}
+                        query={threadInput.startsWith('/') ? threadInput.slice(1) : ''}
+                        onSelect={(skill) => {
+                          selectSkill(skill);
+                          setShowThreadSkillPicker(false);
+                          setThreadInput('');
+                          threadTextareaRef.current?.focus();
+                        }}
+                        onClose={() => {
+                          setShowThreadSkillPicker(false);
+                          setThreadInput('');
+                          threadTextareaRef.current?.focus();
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {threadReplyCount > 0 && (

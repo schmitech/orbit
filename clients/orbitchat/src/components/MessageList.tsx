@@ -11,7 +11,7 @@ interface MessageListProps {
   onRegenerate?: (messageId: string) => void;
   onStartThread?: (messageId: string, sessionId: string) => void;
   onClearThread?: (messageId: string, threadId: string) => Promise<void> | void;
-  onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string) => Promise<void> | void;
+  onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string, skill?: string) => Promise<void> | void;
   sessionId?: string;
   isLoading?: boolean;
   contentMaxWidthClass?: string;

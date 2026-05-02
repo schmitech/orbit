@@ -293,7 +293,7 @@ interface ExtendedChatState extends ChatState {
   deleteConversation: (id: string) => Promise<void>;
   deleteAllConversations: () => Promise<void>;
   deleteThread: (conversationId: string, parentMessageId: string, threadId: string) => Promise<void>;
-  sendMessage: (content: string, fileIds?: string[], threadId?: string, model?: string) => Promise<void>;
+  sendMessage: (content: string, fileIds?: string[], threadId?: string, model?: string, skill?: string) => Promise<void>;
   createThread: (messageId: string, sessionId: string) => Promise<void>;
   appendToLastMessage: (content: string, conversationId?: string) => void;
   regenerateResponse: (messageId: string, model?: string) => Promise<void>;
@@ -845,7 +845,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     debouncedSaveToLocalStorage(get);
   },
 
-  sendMessage: async (content: string, fileIds?: string[], threadId?: string, model?: string) => {
+  sendMessage: async (content: string, fileIds?: string[], threadId?: string, model?: string, skill?: string) => {
     try {
       // Prevent multiple simultaneous requests
       if (get().isLoading) {
@@ -1154,7 +1154,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           ttsVoice,
           undefined, // sourceLanguage
           undefined, // targetLanguage
-          model
+          model,
+          skill
         )) {
           // Capture request_id from server's first chunk (for stop functionality)
           if (response.request_id && !activeRequestId) {

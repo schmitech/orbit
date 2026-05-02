@@ -121,6 +121,7 @@ class RequestContextBuilder:
         target_language: Optional[str] = None,
         cancel_event: Optional[asyncio.Event] = None,
         requested_model: Optional[str] = None,
+        skill: Optional[str] = None,
     ) -> ProcessingContext:
         """
         Build a ProcessingContext from request parameters.
@@ -183,6 +184,33 @@ class RequestContextBuilder:
                 )
             # If adapter has no allowed_models list, silently ignore the override
 
+        # Resolve skill invocation: validate allowlist and swap adapter
+        original_adapter_name = None
+        requested_skill = None
+        if skill:
+            adapter_config = self.get_adapter_config(adapter_name)
+            available_skills = adapter_config.get('capabilities', {}).get('available_skills', [])
+            if skill not in available_skills:
+                raise ValueError(
+                    f"Skill '{skill}' is not available for adapter '{adapter_name}'. "
+                    f"Available skills: {available_skills}"
+                )
+            skill_adapter_name = (
+                self.adapter_manager.get_skill_adapter(skill)
+                if self.adapter_manager and hasattr(self.adapter_manager, 'get_skill_adapter')
+                else None
+            )
+            if not skill_adapter_name:
+                raise ValueError(f"No adapter is registered for skill '{skill}'")
+            original_adapter_name = adapter_name
+            requested_skill = skill
+            adapter_name = skill_adapter_name
+            inference_provider = self.get_inference_provider(adapter_name)
+            logger.debug(
+                f"Skill routing: '{requested_skill}' → adapter '{adapter_name}' "
+                f"(original: '{original_adapter_name}')"
+            )
+
         # Create and return processing context
         return ProcessingContext(
             message=message,
@@ -207,4 +235,6 @@ class RequestContextBuilder:
             cancel_event=cancel_event,
             runtime_provider=runtime_provider,
             runtime_model_name=runtime_model_name,
+            requested_skill=requested_skill,
+            original_adapter_name=original_adapter_name,
         )

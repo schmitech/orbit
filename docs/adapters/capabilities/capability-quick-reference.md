@@ -21,6 +21,7 @@
 | `context_format` | string | `null` | Table format for intent data: `"markdown_table"`, `"toon"`, `"csv"`, or `null` (default pipe-separated) |
 | `context_max_tokens` | int | `null` | Token budget for context trimming. Drops lowest-confidence documents when exceeded |
 | `numeric_precision` | object | `{}` | Numeric formatting options, e.g. `{decimal_places: 2}` for rounding unformatted floats |
+| `available_skills` | list | `[]` | Skill names this adapter may invoke via `skill:` in requests. See [Skills](../skills.md) |
 
 ---
 

@@ -15,12 +15,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (saved) {
       const parsed = JSON.parse(saved) as Partial<ThemeConfig>;
       return {
-        mode: parsed.mode || 'system',
+        mode: parsed.mode || 'dark',
         highContrast: !!parsed.highContrast
       };
     }
     return {
-      mode: 'system',
+      mode: 'dark',
       highContrast: false
     };
   });

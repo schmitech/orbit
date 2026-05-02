@@ -354,12 +354,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     return cleanupGestureListeners;
   }, [settings.voiceEnabled]);
 
-  const handleSendMessage = (content: string, fileIds?: string[], threadId?: string) => {
-    sendMessage(content, fileIds, threadId, selectedModel ?? undefined);
+  const handleSendMessage = (content: string, fileIds?: string[], threadId?: string, skill?: string) => {
+    sendMessage(content, fileIds, threadId, selectedModel ?? undefined, skill);
   };
 
-  const handleSendThreadMessage = async (threadId: string, _parentMessageId: string, content: string) => {
-    await sendMessage(content, undefined, threadId, selectedModel ?? undefined);
+  const handleSendThreadMessage = async (threadId: string, _parentMessageId: string, content: string, skill?: string) => {
+    await sendMessage(content, undefined, threadId, selectedModel ?? undefined, skill);
   };
 
   const handleStartNewConversation = () => {

@@ -60,6 +60,9 @@ class AdapterCapabilities:
     context_max_tokens: Optional[int] = None  # Token budget for context trimming
     numeric_precision: Dict[str, Any] = field(default_factory=dict)  # e.g. {"decimal_places": 2}
 
+    # Skills available to this adapter (skill names that can be invoked via skill= in requests)
+    available_skills: List[str] = field(default_factory=list)
+
     # Custom behavior hooks (for advanced use cases)
     custom_should_execute: Optional[Callable[[Any], bool]] = None
     custom_format_context: Optional[Callable[[list, Optional[Dict]], str]] = None
@@ -101,6 +104,7 @@ class AdapterCapabilities:
             context_format=capabilities_config.get('context_format'),
             context_max_tokens=capabilities_config.get('context_max_tokens'),
             numeric_precision=capabilities_config.get('numeric_precision', {}),
+            available_skills=capabilities_config.get('available_skills', []),
         )
 
     @classmethod
