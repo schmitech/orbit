@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, X, ZoomIn } from 'lucide-react';
 
 interface ImageDisplayProps {
@@ -14,6 +14,13 @@ export function ImageDisplay({ image, imageFormat = 'png', revisedPrompt }: Imag
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const dataUrl = `data:image/${imageFormat};base64,${image}`;
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [lightboxOpen]);
 
   const handleDownload = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -115,9 +122,9 @@ export function ImageDisplay({ image, imageFormat = 'png', revisedPrompt }: Imag
           }}
         >
           <button
-            onClick={() => setLightboxOpen(false)}
+            onClick={(e) => { e.stopPropagation(); setLightboxOpen(false); }}
             style={{
-              position: 'absolute',
+              position: 'fixed',
               top: '16px',
               right: '16px',
               background: 'rgba(255,255,255,0.15)',

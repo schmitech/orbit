@@ -2218,14 +2218,22 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             }
 
             const normalizedMessages = convertHistoryMessages(historyMessages, conversation.messages);
-            if (haveSameMessages(conversation.messages, normalizedMessages)) {
+
+            // Thread messages live under a separate session on the backend — preserve them
+            // from local state so a backend sync doesn't wipe them out.
+            const threadMessages = conversation.messages.filter(m => m.isThreadMessage);
+            const mergedMessages = threadMessages.length > 0
+              ? [...normalizedMessages, ...threadMessages]
+              : normalizedMessages;
+
+            if (haveSameMessages(conversation.messages, mergedMessages)) {
               return null;
             }
 
             return {
               id: conversation.id,
               sessionId: history?.session_id || conversation.sessionId,
-              messages: normalizedMessages,
+              messages: mergedMessages,
               cleared: false,
               updatedAt: normalizedMessages[normalizedMessages.length - 1]?.timestamp || new Date()
             };
