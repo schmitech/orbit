@@ -504,11 +504,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       adapterLoadError: null
     };
 
-    // Update state with new conversation and switch to its session
+    // Update state with new conversation and switch to its session.
+    // Reset isLoading so the new conversation is immediately usable even if a stream
+    // is still running for a previous conversation in the background.
     set((state: ExtendedChatState) => ({
       conversations: [newConversation, ...state.conversations],
       currentConversationId: id,
-      sessionId: newSessionId
+      sessionId: newSessionId,
+      isLoading: false,
     }));
 
     // Wait for adapter selection before configuring API
@@ -1398,9 +1401,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     } catch (error) {
       logError('Chat store error:', error);
-      set(() => ({
+      set(state => ({
         isLoading: false,
-        error: `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`
+        // Only surface the error if the user is still viewing the conversation that errored.
+        // If they switched away, the error belongs to a background stream and should not
+        // overwrite the current conversation's UI state.
+        ...(state.currentConversationId === streamingConversationId && {
+          error: `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }),
       }));
     }
   },
@@ -1882,10 +1890,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     } catch (error) {
       logError('Regenerate error:', error);
-      set({
+      set(state => ({
         isLoading: false,
-        error: `Failed to regenerate response: ${error instanceof Error ? error.message : 'Unknown error'}`
-      });
+        ...(state.currentConversationId === regeneratingConversationId && {
+          error: `Failed to regenerate response: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }),
+      }));
     }
   },
 

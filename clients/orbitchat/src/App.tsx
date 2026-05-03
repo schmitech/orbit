@@ -11,10 +11,12 @@ import { AuthGate } from './components/AuthGate';
 import { LoginPromptModal } from './components/LoginPromptModal';
 import { AppHeader } from './components/AppHeader';
 import { AgentHomeNavProvider } from './contexts/AgentHomeNavProvider';
+import { useChatStore } from './stores/chatStore';
 
 function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const conversations = useChatStore(state => state.conversations);
   const outOfServiceMessage = getOutOfServiceMessage();
   if (outOfServiceMessage) {
     return (
@@ -24,6 +26,10 @@ function App() {
     );
   }
 
+  const showSidebar = conversations.some(
+    c => (c.messages.length > 0 || (c.attachedFiles?.length ?? 0) > 0) && !c.adapterLoadError
+  );
+
   return (
     <ThemeProvider>
       <SettingsProvider>
@@ -31,9 +37,11 @@ function App() {
           <AgentHomeNavProvider>
             <div className="h-dvh flex flex-col bg-white dark:bg-black text-slate-900 dark:text-slate-100">
               <div className="flex-1 flex flex-col md:flex-row md:pl-4 min-h-0">
-                <div className="hidden md:flex md:h-full">
-                  <Sidebar onOpenSettings={() => setIsSettingsOpen(true)} />
-                </div>
+                {showSidebar && (
+                  <div className="hidden md:flex md:h-full">
+                    <Sidebar />
+                  </div>
+                )}
                 <div className="flex-1 flex flex-col w-full min-h-0">
                   <AppHeader />
                   <div className="flex-1 flex justify-center w-full min-h-0">
@@ -60,10 +68,6 @@ function App() {
                 <div className="relative z-10 h-full w-[min(20rem,90vw)] animate-slideIn bg-white dark:bg-black">
                   <Sidebar
                     onRequestClose={() => setIsMobileSidebarOpen(false)}
-                    onOpenSettings={() => {
-                      setIsSettingsOpen(true);
-                      setIsMobileSidebarOpen(false);
-                    }}
                   />
                   <button
                     onClick={() => setIsMobileSidebarOpen(false)}

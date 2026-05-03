@@ -7,6 +7,7 @@ interface Props {
   conversation: Conversation;
   onPress: () => void;
   theme: ThemeColors;
+  isActive?: boolean;
 }
 
 function formatTimestamp(date: Date): string {
@@ -23,15 +24,17 @@ function formatTimestamp(date: Date): string {
   return date.toLocaleDateString();
 }
 
-export function ConversationCard({ conversation, onPress, theme }: Props) {
+export function ConversationCard({ conversation, onPress, theme, isActive = false }: Props) {
   const topLevelUserMessages = conversation.messages.filter(
     (msg) => msg.role === 'user' && !msg.isThreadMessage
   );
   const lastTopLevelUserMessage = topLevelUserMessages[topLevelUserMessages.length - 1];
-  const title = conversation.adapterInfo?.adapter_name || conversation.title;
-  const preview = lastTopLevelUserMessage
-    ? lastTopLevelUserMessage.content.slice(0, 140) + (lastTopLevelUserMessage.content.length > 140 ? '...' : '')
-    : 'No messages yet';
+  const agentName = conversation.adapterInfo?.adapter_name;
+  const preview = lastTopLevelUserMessage?.content ?? 'No messages yet';
+
+  const bgColor = isActive ? theme.primaryLight : theme.surface;
+  const bgPressed = isActive ? theme.primaryLight : theme.surfaceSecondary;
+  const borderColor = isActive ? theme.primary : theme.border;
 
   return (
     <Pressable
@@ -39,8 +42,9 @@ export function ConversationCard({ conversation, onPress, theme }: Props) {
       style={({ pressed }) => [
         styles.container,
         {
-          backgroundColor: pressed ? theme.surface : theme.card,
-          borderColor: theme.border,
+          backgroundColor: pressed ? bgPressed : bgColor,
+          borderColor,
+          borderWidth: isActive ? 1 : StyleSheet.hairlineWidth,
         },
       ]}
     >
@@ -48,11 +52,16 @@ export function ConversationCard({ conversation, onPress, theme }: Props) {
         <View style={styles.mainRow}>
           <View style={styles.leftColumn}>
             <Text
-              style={[styles.title, { color: theme.text }]}
+              style={[styles.title, { color: isActive ? theme.primary : theme.text }]}
               numberOfLines={1}
             >
-              {title}
+              {conversation.title}
             </Text>
+            {agentName ? (
+              <Text style={[styles.agent, { color: theme.textTertiary }]} numberOfLines={1}>
+                {agentName}
+              </Text>
+            ) : null}
             <Text
               style={[styles.preview, { color: theme.textSecondary }]}
               numberOfLines={2}
@@ -94,13 +103,18 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   rightColumn: {
-    width: 112,
+    flexShrink: 0,
     alignItems: 'flex-end',
-    justifyContent: 'flex-start',
+    alignSelf: 'flex-start',
+    paddingLeft: 8,
   },
   title: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  agent: {
+    fontSize: 12,
+    marginTop: 3,
   },
   timestamp: {
     fontSize: 12,
@@ -108,6 +122,6 @@ const styles = StyleSheet.create({
   preview: {
     fontSize: 14,
     lineHeight: 18,
-    marginTop: 8,
+    marginTop: 6,
   },
 });

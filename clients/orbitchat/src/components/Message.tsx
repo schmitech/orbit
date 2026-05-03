@@ -590,54 +590,23 @@ export function Message({
 
         {isAssistant && !message.isStreaming && (
           <>
-            <div className="py-1.5 md:py-2 flex flex-nowrap items-center gap-1 md:gap-1 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd]">
-              <div className="flex min-w-0 flex-nowrap items-center gap-1 md:gap-1">
-                <button
-                  onClick={copyToClipboard}
-                  className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
-                  title="Copy to clipboard"
-                  aria-label="Copy to clipboard"
-                >
-                  <Copy className="h-4 w-4 md:h-3.5 md:w-3.5" />
-                  <span className="hidden sm:inline">Copy</span>
-                </button>
+            <div className="py-1 flex flex-nowrap items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0] transition-opacity">
+              {/* Copy */}
+              <button
+                onClick={copyToClipboard}
+                className="rounded-md p-1.5 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
+                title="Copy to clipboard"
+                aria-label="Copy to clipboard"
+              >
+                {copied
+                  ? <Check className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                  : <Copy className="h-4 w-4" />
+                }
+              </button>
 
-                {onRegenerate && (
-                  <button
-                    onClick={() => onRegenerate(message.id)}
-                    className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
-                    title="Regenerate response"
-                    aria-label="Regenerate response"
-                  >
-                    <RotateCcw className="h-4 w-4 md:h-3.5 md:w-3.5" />
-                    <span className="hidden sm:inline">Retry</span>
-                  </button>
-                )}
-
-                {threadsEnabled && message.supportsThreading && !message.threadInfo && onStartThread && sessionId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      pendingThreadFocusRef.current = true;
-                      setIsThreadOpen(true);
-                      onStartThread(message.id, sessionId);
-                    }}
-                    className="inline-flex items-center gap-1 md:gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1.5 md:px-3 md:py-1.5 text-blue-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-100 hover:text-blue-800 hover:shadow-md dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 dark:hover:border-blue-400/50 dark:hover:bg-blue-500/20 dark:hover:text-blue-100 dark:hover:shadow-md animate-follow-up-enter whitespace-nowrap"
-                    title="Continue this discussion with the current answer's context"
-                    aria-label="Continue this discussion with the current answer's context"
-                  >
-                    <MessageSquare className="h-3.5 w-3.5 shrink-0" />
-                    <span>Continue</span>
-                  </button>
-                )}
-
-              </div>
-
-
+              {/* Feedback */}
               {getEnableFeedbackButtons() && (
-                <>
-                <div className="w-px h-4 shrink-0 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
-                <div className="relative flex shrink-0 items-center gap-0.5">
+                <div className="relative flex items-center gap-0.5">
                   <button
                     onClick={() => handleFeedback('up')}
                     disabled={isFeedbackLoading}
@@ -645,7 +614,7 @@ export function Message({
                     title="Good response"
                     aria-label="Good response"
                   >
-                    <ThumbsUp className="h-3.5 w-3.5" />
+                    <ThumbsUp className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleFeedback('down')}
@@ -654,7 +623,7 @@ export function Message({
                     title="Poor response"
                     aria-label="Poor response"
                   >
-                    <ThumbsDown className="h-3.5 w-3.5" />
+                    <ThumbsDown className="h-4 w-4" />
                   </button>
                   {showFeedbackAcknowledgement && (
                     <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
@@ -666,17 +635,47 @@ export function Message({
                     </div>
                   )}
                 </div>
-                </>
               )}
 
+              {/* Regenerate */}
+              {onRegenerate && (
+                <button
+                  onClick={() => onRegenerate(message.id)}
+                  className="rounded-md p-1.5 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
+                  title="Regenerate response"
+                  aria-label="Regenerate response"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </button>
+              )}
+
+              {/* Continue thread */}
+              {threadsEnabled && message.supportsThreading && !message.threadInfo && onStartThread && sessionId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    pendingThreadFocusRef.current = true;
+                    setIsThreadOpen(true);
+                    onStartThread(message.id, sessionId);
+                  }}
+                  className="ml-1 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs text-blue-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-100 hover:text-blue-800 hover:shadow-md dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 dark:hover:border-blue-400/50 dark:hover:bg-blue-500/20 dark:hover:text-blue-100 animate-follow-up-enter whitespace-nowrap"
+                  title="Continue this discussion with the current answer's context"
+                  aria-label="Continue this discussion with the current answer's context"
+                >
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                  <span>Continue</span>
+                </button>
+              )}
+
+              {/* Thread reply count */}
               {threadsEnabled && message.threadInfo && (
                 <>
-                  <div className="hidden md:block w-px h-4 shrink-0 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
+                  <div className="w-px h-4 shrink-0 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
                   <button
                     onClick={() => setIsThreadOpen(prev => !prev)}
-                    className="inline-flex min-w-0 items-center gap-1.5 rounded-md px-3.5 py-2.5 md:px-3 md:py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
+                    className="inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors text-xs"
                   >
-                    <MessageSquare className="h-4 w-4 md:h-3.5 md:w-3.5" />
+                    <MessageSquare className="h-4 w-4" />
                     <span className="truncate">{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</span>
                     {isThreadOpen
                       ? <ChevronUp className="h-3 w-3" />
@@ -695,13 +694,6 @@ export function Message({
                     </button>
                   )}
                 </>
-              )}
-
-              {copied && (
-                <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
-                  <Check className="h-3.5 w-3.5" />
-                  <span>Copied</span>
-                </div>
               )}
             </div>
 
@@ -743,25 +735,23 @@ export function Message({
                   ref={threadComposerRef}
                   className="mt-1 w-full max-w-[64rem] bg-transparent pt-1"
                 >
-                  {selectedSkill && (
-                    <div className="mb-2 flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs dark:border-violet-800/50 dark:bg-violet-900/20">
-                        <Sparkles className="h-3 w-3 flex-shrink-0 text-violet-500 dark:text-violet-400" />
-                        <span className="font-medium text-violet-700 dark:text-violet-300 capitalize">
+                  <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-[#242424] dark:bg-[#101010]">
+                    {selectedSkill && (
+                      <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200">
+                        <Sparkles className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+                        <span className="min-w-0 truncate font-medium capitalize">
                           {selectedSkill.name.replace(/-/g, ' ')}
                         </span>
                         <button
                           type="button"
                           onClick={() => clearSkill()}
-                          className="ml-0.5 rounded p-0.5 text-violet-500 hover:bg-violet-100 hover:text-violet-700 dark:text-violet-400 dark:hover:bg-violet-800/30 dark:hover:text-violet-200 transition-colors"
+                          className="-mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100"
                           aria-label="Remove thread skill"
                         >
-                          <X className="h-3 w-3" />
+                          <X className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
                       </div>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-[#242424] dark:bg-[#101010]">
+                    )}
                     <label htmlFor={threadInputId} className="sr-only">
                       Reply in thread
                     </label>

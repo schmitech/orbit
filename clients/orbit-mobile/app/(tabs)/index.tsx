@@ -12,6 +12,7 @@ import { Conversation } from '../../src/types';
 
 export default function ConversationsScreen() {
   const conversations = useChatStore((s) => s.conversations);
+  const currentConversationId = useChatStore((s) => s.currentConversationId);
   const createConversation = useChatStore((s) => s.createConversation);
   const deleteConversation = useChatStore((s) => s.deleteConversation);
   const setCurrentConversation = useChatStore((s) => s.setCurrentConversation);
@@ -47,6 +48,7 @@ export default function ConversationsScreen() {
           conversation={item}
           onPress={() => handleOpenChat(item.id)}
           theme={theme}
+          isActive={item.id === currentConversationId}
         />
       </SwipeableRow>
     ),

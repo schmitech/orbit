@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, MessageSquare, Trash2, Edit2, Trash, Paperclip, Settings } from 'lucide-react';
+import { Search, X, MessageSquare, Trash2, Edit2, Trash, Paperclip } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -11,7 +11,6 @@ import { AppFooter } from './AppFooter';
 
 interface SidebarProps {
   onRequestClose?: () => void;
-  onOpenSettings?: () => void;
 }
 
 const MAX_TITLE_LENGTH = 100;
@@ -62,7 +61,7 @@ function groupConversationsByTime(conversations: Conversation[]): TimeGroup[] {
 // Sidebar Component
 // ---------------------------------------------------------------------------
 
-export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
+export function Sidebar({ onRequestClose }: SidebarProps) {
   const isSingleAdapterMode = getIsSingleAdapterMode();
   const {
     conversations,
@@ -444,14 +443,6 @@ export function Sidebar({ onRequestClose, onOpenSettings }: SidebarProps) {
         <div className="bg-transparent px-4 pb-4 pt-4 dark:border-[#2d2f39]">
           {/* Action buttons */}
           <div className="space-y-2 pb-3">
-            <button
-              onClick={onOpenSettings}
-              disabled={!onOpenSettings}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition-all duration-150 hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#3d4050] dark:text-[#d4d7e2] dark:hover:bg-[#2d2f39] dark:hover:border-[#4d5166] dark:disabled:hover:bg-transparent dark:disabled:hover:border-[#3d4050]"
-            >
-              <Settings className="h-4 w-4" />
-              Settings
-            </button>
             {conversations.length > 0 && conversations.some((conv) => conv.messages.length > 0) && (
               <button
                 onClick={handleClearAll}
