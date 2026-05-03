@@ -161,40 +161,52 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
             </div>
 
             {/* Desktop right column: model picker + chevron */}
-            <div
-              className="hidden min-w-[132px] flex-shrink-0 flex-col items-end gap-3 self-stretch md:flex"
-              onClick={stopBubble}
-              onKeyDown={stopBubble}
-            >
-              <MiniModelPicker
-                defaultModel={defaultModel}
-                availableModels={availableModels}
-                selectedModel={selectedModel}
-                onSelect={setSelectedModel}
-              />
-              <span className="mt-auto inline-flex items-center text-slate-700 transition-transform duration-150 group-hover:translate-x-0.5 dark:text-slate-200">
-                <ChevronRight className="h-4 w-4" />
-              </span>
+            <div className="hidden min-w-[132px] flex-shrink-0 flex-col items-end gap-3 self-stretch md:flex">
+              <div onClick={stopBubble} onKeyDown={stopBubble}>
+                <MiniModelPicker
+                  defaultModel={defaultModel}
+                  availableModels={availableModels}
+                  selectedModel={selectedModel}
+                  onSelect={setSelectedModel}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCardActivate();
+                }}
+                className="mt-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-700 transition-all duration-150 hover:bg-slate-100 group-hover:translate-x-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 dark:text-slate-200 dark:hover:bg-white/10 dark:focus-visible:ring-sky-400/30"
+                aria-label={`Start conversation with ${adapter.name}`}
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       {/* Mobile bottom row */}
-      <div
-        className="mt-3 flex items-center justify-between gap-3 border-t border-slate-200 pt-2.5 text-xs text-slate-500 dark:border-white/10 dark:text-slate-400 md:hidden"
-        onClick={stopBubble}
-        onKeyDown={stopBubble}
-      >
-        <MiniModelPicker
-          defaultModel={defaultModel}
-          availableModels={availableModels}
-          selectedModel={selectedModel}
-          onSelect={setSelectedModel}
-        />
-        <span className="inline-flex items-center text-slate-700 transition-transform duration-150 group-hover:translate-x-0.5 dark:text-slate-200">
-          <ChevronRight className="h-4 w-4" />
-        </span>
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-200 pt-2.5 text-xs text-slate-500 dark:border-white/10 dark:text-slate-400 md:hidden">
+        <div onClick={stopBubble} onKeyDown={stopBubble}>
+          <MiniModelPicker
+            defaultModel={defaultModel}
+            availableModels={availableModels}
+            selectedModel={selectedModel}
+            onSelect={setSelectedModel}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleCardActivate();
+          }}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-700 transition-all duration-150 hover:bg-slate-100 group-hover:translate-x-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 dark:text-slate-200 dark:hover:bg-white/10 dark:focus-visible:ring-sky-400/30"
+          aria-label={`Start conversation with ${adapter.name}`}
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
     </div>
   );

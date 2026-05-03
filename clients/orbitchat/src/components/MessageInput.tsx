@@ -567,7 +567,6 @@ export function MessageInput({
 
     debugLog('[MessageInput] Auto-sending voice message immediately:', voiceMessage);
     onSend(voiceMessage, allFileIds.length > 0 ? allFileIds : undefined, undefined, selectedSkill?.name);
-    clearSkill();
     setTimeout(() => {
       setShowSkillPicker(false);
     }, 0);
@@ -582,7 +581,7 @@ export function MessageInput({
       textareaRef.current.style.overflowY = 'hidden';
       adjustTextareaVerticalAlignment();
     }
-  }, [voiceRecordingAvailable, voiceCompletionCount, isInputDisabled, isComposing, onSend, selectedSkill, clearSkill, adjustTextareaVerticalAlignment, clearSuggestions]);
+  }, [voiceRecordingAvailable, voiceCompletionCount, isInputDisabled, isComposing, onSend, selectedSkill, adjustTextareaVerticalAlignment, clearSuggestions]);
 
   // Close upload area when upload starts (hide upload widget, show only progress)
   useEffect(() => {
@@ -804,7 +803,6 @@ export function MessageInput({
 
       const activeSkillName = selectedSkill?.name;
       onSend(message.trim(), allFileIds.length > 0 ? allFileIds : undefined, undefined, activeSkillName);
-      clearSkill();
       setShowSkillPicker(false);
       playSoundEffect('messageSent', settings.soundEnabled);
       setMessage('');
@@ -1374,6 +1372,26 @@ export function MessageInput({
                 : 'border-gray-300 dark:border-[#242424]'
             } bg-gray-50 dark:bg-[#111111]`}
           >
+          {selectedSkill && (
+            <div className="flex max-w-[45%] shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200 sm:max-w-[38%] md:max-w-[32%]">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              <span className="min-w-0 truncate font-medium capitalize">
+                {selectedSkill.name.replace(/-/g, ' ')}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  clearSkill();
+                  textareaRef.current?.focus();
+                }}
+                className="-mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600"
+                aria-label="Remove skill"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          )}
+
           {/* Textarea row */}
           <div className="relative flex-1 w-full min-w-0">
             {showCustomPlaceholder && effectivePlaceholder && (
@@ -1615,25 +1633,6 @@ export function MessageInput({
             </div>
           </div>
         </div>
-
-        {selectedSkill && (
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs dark:border-violet-800/50 dark:bg-violet-900/20">
-              <Sparkles className="h-3 w-3 flex-shrink-0 text-violet-500 dark:text-violet-400" />
-              <span className="font-medium text-violet-700 dark:text-violet-300 capitalize">
-                {selectedSkill.name.replace(/-/g, ' ')}
-              </span>
-              <button
-                type="button"
-                onClick={() => clearSkill()}
-                className="ml-0.5 rounded p-0.5 text-violet-500 hover:bg-violet-100 hover:text-violet-700 dark:text-violet-400 dark:hover:bg-violet-800/30 dark:hover:text-violet-200 transition-colors"
-                aria-label="Remove skill"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-        )}
 
         {visibleAttachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2">
