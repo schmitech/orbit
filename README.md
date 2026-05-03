@@ -71,6 +71,14 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 
 ---
 
+<p align="center">
+  <img width="700" alt="image generation skill" src="https://github.com/user-attachments/assets/e2588037-8b94-4351-b3cb-40ff41102add" />
+  <br />
+  <em>Invoke specialized cross-adapter skills like image generation at any point during a conversation to visualize data, generate charts, or create infographics directly from retrieval results. <a href="docs/adapters/skills.md">Learn more</a>.</em>
+</p>
+
+---
+
 ### Why ORBIT?
 
 | Without ORBIT | With ORBIT |
