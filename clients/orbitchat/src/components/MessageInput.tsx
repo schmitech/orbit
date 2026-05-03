@@ -212,6 +212,7 @@ export function MessageInput({
   }, []);
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
   const [showSkillPicker, setShowSkillPicker] = useState(false);
+  const [activeSkillIndex, setActiveSkillIndex] = useState(0);
   const [textareaVerticalPadding, setTextareaVerticalPadding] = useState(() => ({
     top: DEFAULT_TEXTAREA_VERTICAL_PADDING + VERTICAL_ALIGNMENT_OFFSET,
     bottom: Math.max(DEFAULT_TEXTAREA_VERTICAL_PADDING - VERTICAL_ALIGNMENT_OFFSET, 0)
@@ -286,13 +287,26 @@ export function MessageInput({
   });
   const hasSuggestions = suggestions.length > 0;
   const autocompleteVisible = !isListening;
-  const showAutocompletePanel = autocompleteVisible && hasSuggestions;
+  const showAutocompletePanel = autocompleteVisible && hasSuggestions && !showSkillPicker;
 
   const { skills, isLoading: skillsLoading, selectedSkill, selectSkill, clearSkill } = useSkills({
     adapterName: currentConversation?.adapterName,
     enabled: true,
     supportsThreading: currentConversation?.adapterInfo?.supportsThreading ?? false,
   });
+  const skillQuery = message.startsWith('/') ? message.slice(1) : '';
+  const normalizedSkillQuery = skillQuery.toLowerCase().replace(/-/g, ' ');
+  const filteredSkills = useMemo(() => {
+    if (!normalizedSkillQuery) {
+      return skills;
+    }
+    return skills.filter(skill =>
+      skill.name.replace(/-/g, ' ').toLowerCase().includes(normalizedSkillQuery) ||
+      skill.description.toLowerCase().includes(normalizedSkillQuery)
+    );
+  }, [normalizedSkillQuery, skills]);
+  const safeActiveSkillIndex = filteredSkills.length > 0 ? Math.min(activeSkillIndex, filteredSkills.length - 1) : 0;
+  const activeSkill = filteredSkills[safeActiveSkillIndex] ?? null;
   const activeSuggestionIndex = selectedIndex >= 0 ? selectedIndex : 0;
   const activeSuggestion = hasSuggestions ? suggestions[activeSuggestionIndex] : null;
   const inlineSuggestion = useMemo(() => {
@@ -329,6 +343,22 @@ export function MessageInput({
       </span>
     );
   }, [message]);
+
+  const selectSkillAndClose = useCallback((skill: typeof skills[number]) => {
+    selectSkill(skill);
+    setShowSkillPicker(false);
+    setMessage('');
+    setActiveSkillIndex(0);
+    textareaRef.current?.focus();
+  }, [selectSkill]);
+
+  const closeSkillPicker = useCallback(() => {
+    setShowSkillPicker(false);
+    setMessage('');
+    setActiveSkillIndex(0);
+    textareaRef.current?.focus();
+  }, []);
+
   const adjustTextareaVerticalAlignment = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea || typeof window === 'undefined') {
@@ -899,6 +929,51 @@ export function MessageInput({
   }, [suggestions, handleSelectSuggestion]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showSkillPicker) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveSkillIndex(prev => {
+          if (filteredSkills.length === 0) {
+            return 0;
+          }
+          return (prev + 1) % filteredSkills.length;
+        });
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveSkillIndex(prev => {
+          if (filteredSkills.length === 0) {
+            return 0;
+          }
+          return (prev - 1 + filteredSkills.length) % filteredSkills.length;
+        });
+        return;
+      }
+      if (e.key === 'Home') {
+        e.preventDefault();
+        setActiveSkillIndex(0);
+        return;
+      }
+      if (e.key === 'End') {
+        e.preventDefault();
+        setActiveSkillIndex(Math.max(filteredSkills.length - 1, 0));
+        return;
+      }
+      if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+        if (activeSkill) {
+          e.preventDefault();
+          selectSkillAndClose(activeSkill);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeSkillPicker();
+        return;
+      }
+    }
+
     // Handle autocomplete navigation when suggestions are visible
     if (hasSuggestions && autocompleteVisible) {
       if (e.key === 'ArrowDown') {
@@ -939,12 +1014,6 @@ export function MessageInput({
         clearSuggestions();
         return;
       }
-    }
-
-    if (e.key === 'Escape' && showSkillPicker) {
-      e.preventDefault();
-      setShowSkillPicker(false);
-      return;
     }
 
     // Normal Enter handling (submit message)
@@ -1345,6 +1414,9 @@ export function MessageInput({
               onChange={(e) => {
                 const val = e.target.value;
                 setMessage(val);
+                if (val.startsWith('/')) {
+                  setActiveSkillIndex(0);
+                }
                 setShowSkillPicker(val.startsWith('/') && skills.length > 0);
               }}
               onKeyDown={handleKeyDown}
@@ -1735,18 +1807,16 @@ export function MessageInput({
               skills={skills}
               isLoading={skillsLoading}
               selectedSkill={selectedSkill}
-              query={message.startsWith('/') ? message.slice(1) : ''}
-              onSelect={(skill) => {
-                selectSkill(skill);
-                setShowSkillPicker(false);
-                setMessage('');
-                textareaRef.current?.focus();
+              activeSkillName={activeSkill?.name}
+              query={skillQuery}
+              onActiveSkillChange={(skill) => {
+                const nextIndex = filteredSkills.findIndex(item => item.name === skill.name);
+                if (nextIndex >= 0) {
+                  setActiveSkillIndex(nextIndex);
+                }
               }}
-              onClose={() => {
-                setShowSkillPicker(false);
-                setMessage('');
-                textareaRef.current?.focus();
-              }}
+              onSelect={selectSkillAndClose}
+              onClose={closeSkillPicker}
             />
           </div>
         )}
