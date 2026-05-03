@@ -1,0 +1,532 @@
+domain_name: Toronto Police Break and Enter Database
+description: Toronto Police Service break and enter incident database for DuckDB - tracks B&E occurrences across Toronto from 2014-2025 including B&E, B&E with intent, B&E out, and unlawfully in dwelling-house
+domain_type: analytical
+semantic_types:
+  date_value:
+    description: Date values in various formats
+    patterns:
+    - date
+    - day
+    - time
+    - when
+    - from
+    - to
+    - between
+    regex_patterns:
+    - \b\d{4}-\d{2}-\d{2}\b
+    - \b\d{2}/\d{2}/\d{4}\b
+  identifier:
+    description: Unique identifier
+    patterns:
+    - id
+    - identifier
+    - key
+    regex_patterns:
+    - \b(\d+)\b
+  integer_value:
+    description: Integer/count values
+    patterns:
+    - count
+    - number
+    - year
+    - value
+    - hour
+    regex_patterns:
+    - \b\d+\b
+vocabulary:
+  entity_synonyms:
+    break_and_enter:
+    - break and enter
+    - break-and-enter
+    - B&E
+    - break-in
+    - break in
+    - breaking and entering
+    - burglary
+    - burglar
+    - home invasion
+    - forced entry
+    - unlawful entry
+    - trespassing
+    - dwelling intrusion
+    offence:
+    - offence
+    - offense
+    - crime
+    - incident
+    - occurrence
+    - occurrences
+    - event
+    neighbourhood:
+    - neighbourhood
+    - neighborhood
+    - area
+    - location
+    - community
+    - hood
+    division:
+    - division
+    - D11
+    - D12
+    - D13
+    - D14
+    - D22
+    - D23
+    - D31
+    - D32
+    - D33
+    - D41
+    - D42
+    - D43
+    - D51
+    - D52
+    - D53
+    - D54
+    - D55
+    premises:
+    - premises
+    - apartment
+    - house
+    - commercial
+    - outside
+    - transit
+    - educational
+    - residential
+    location:
+    - location type
+    - single home
+    - rooming house
+    - condo
+    - parking lot
+    - bar
+    - restaurant
+    - convenience store
+    - gas station
+  action_verbs:
+    find:
+    - show
+    - list
+    - get
+    - find
+    - display
+    - retrieve
+    - lookup
+    - search
+    - view
+    filter:
+    - filter
+    - only
+    - just
+    - where
+    - with
+    - having
+    - containing
+    - for
+    - in
+    count:
+    - count
+    - number of
+    - how many
+    - total
+    - sum
+    sort:
+    - sort
+    - order
+    - arrange
+    - rank
+    - top
+    - highest
+    - lowest
+    - most
+    calculate:
+    - calculate
+    - compute
+    - aggregate
+    - sum
+    - average
+    - avg
+    - total
+    - rate
+    compare:
+    - compare
+    - vs
+    - versus
+    - difference
+    - change
+    - trend
+    - analyze
+entities:
+  break_and_enter:
+    name: break_and_enter
+    entity_type: primary
+    table_name: break_and_enter
+    description: Break and enter occurrences across Toronto
+    primary_key: id
+    display_name_field: offence
+    searchable_fields:
+    - neighbourhood_158
+    - division
+    - location_type
+    - offence
+    common_filters:
+    - occ_year
+    - offence
+    - premises_type
+    - location_type
+    - neighbourhood_158
+    - division
+    - occ_dow
+    - occ_hour
+    default_sort_field: occ_date
+    default_sort_order: DESC
+fields:
+  break_and_enter:
+    id:
+      name: id
+      data_type: integer
+      db_column: id
+      description: Unique record identifier
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 1
+    event_unique_id:
+      name: event_unique_id
+      data_type: string
+      db_column: event_unique_id
+      description: Offence number
+      required: false
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: identifier
+      summary_priority: 2
+    report_date:
+      name: report_date
+      data_type: date
+      db_column: report_date
+      description: Date offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 7
+    occ_date:
+      name: occ_date
+      data_type: date
+      db_column: occ_date
+      description: Date offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 9
+    report_year:
+      name: report_year
+      data_type: integer
+      db_column: report_year
+      description: Year offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 6
+    report_month:
+      name: report_month
+      data_type: string
+      db_column: report_month
+      description: Month offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 5
+    report_day:
+      name: report_day
+      data_type: integer
+      db_column: report_day
+      description: Day of the month offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 4
+    report_doy:
+      name: report_doy
+      data_type: integer
+      db_column: report_doy
+      description: Day of the year offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 3
+    report_dow:
+      name: report_dow
+      data_type: string
+      db_column: report_dow
+      description: Day of the week offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 5
+    report_hour:
+      name: report_hour
+      data_type: integer
+      db_column: report_hour
+      description: Hour offence was reported (0-23)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 5
+    occ_year:
+      name: occ_year
+      data_type: integer
+      db_column: occ_year
+      description: Year offence occurred (2014-2025)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 10
+    occ_month:
+      name: occ_month
+      data_type: string
+      db_column: occ_month
+      description: Month offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    occ_day:
+      name: occ_day
+      data_type: integer
+      db_column: occ_day
+      description: Day of the month offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 4
+    occ_doy:
+      name: occ_doy
+      data_type: integer
+      db_column: occ_doy
+      description: Day of the year offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 3
+    occ_dow:
+      name: occ_dow
+      data_type: string
+      db_column: occ_dow
+      description: Day of the week offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 6
+    occ_hour:
+      name: occ_hour
+      data_type: integer
+      db_column: occ_hour
+      description: Hour offence occurred (0-23)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 7
+    division:
+      name: division
+      data_type: string
+      db_column: division
+      description: "Police division where offence occurred (D11-D55, NSA)"
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 8
+    location_type:
+      name: location_type
+      data_type: string
+      db_column: location_type
+      description: "Detailed location type (Single Home, Apartment, Bar/Restaurant, Parking Lots, etc.)"
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    premises_type:
+      name: premises_type
+      data_type: string
+      db_column: premises_type
+      description: "Premises type (Apartment, Commercial, Educational, House, Other, Outside, Transit)"
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 8
+    ucr_code:
+      name: ucr_code
+      data_type: integer
+      db_column: ucr_code
+      description: "Uniform Crime Reporting code (2120=B&E, 2121=B&E to steal firearm, 2125=B&E vehicle to steal firearm)"
+      required: false
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: integer_value
+      summary_priority: 3
+    ucr_ext:
+      name: ucr_ext
+      data_type: integer
+      db_column: ucr_ext
+      description: "UCR extension code (200=B&E, 210=B&E Out, 220=B&E W'Intent, 230=Unlawfully In Dwelling)"
+      required: false
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: integer_value
+      summary_priority: 4
+    offence:
+      name: offence
+      data_type: string
+      db_column: offence
+      description: "Offence type (B&E, B&E W'Intent, B&E Out, B&E - To Steal Firearm, B&E - M/Veh To Steal Firearm, Unlawfully In Dwelling-House)"
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    csi_category:
+      name: csi_category
+      data_type: string
+      db_column: csi_category
+      description: "Community Safety Indicator category (Break and Enter)"
+      required: false
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 5
+    hood_158:
+      name: hood_158
+      data_type: string
+      db_column: hood_158
+      description: Neighbourhood identifier (158-neighbourhood structure)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 5
+    neighbourhood_158:
+      name: neighbourhood_158
+      data_type: string
+      db_column: neighbourhood_158
+      description: Neighbourhood name (158-neighbourhood structure)
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    hood_140:
+      name: hood_140
+      data_type: string
+      db_column: hood_140
+      description: Neighbourhood identifier (old 140-neighbourhood structure)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 3
+    neighbourhood_140:
+      name: neighbourhood_140
+      data_type: string
+      db_column: neighbourhood_140
+      description: Neighbourhood name (old 140-neighbourhood structure)
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 5
+    long_wgs84:
+      name: long_wgs84
+      data_type: double
+      db_column: long_wgs84
+      description: Longitude coordinates (offset to nearest intersection)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 1
+    lat_wgs84:
+      name: lat_wgs84
+      data_type: double
+      db_column: lat_wgs84
+      description: Latitude coordinates (offset to nearest intersection)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 1
+    x:
+      name: x
+      data_type: double
+      db_column: x
+      description: X coordinate (Web Mercator)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 1
+    y:
+      name: y
+      data_type: double
+      db_column: y
+      description: Y coordinate (Web Mercator)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 1
+relationships: []
+query_patterns: []
+metadata:
+  generated_at: '2026-04-10T12:00:00.000000'
+  generator_version: 1.0.0
+  auto_generated: true
+  source: "Toronto Police Service Public Safety Data Portal - Break and Enter Open Data"
+  source_url: "https://data.tps.ca/datasets/TorontoPS::break-and-enter-open-data/about"

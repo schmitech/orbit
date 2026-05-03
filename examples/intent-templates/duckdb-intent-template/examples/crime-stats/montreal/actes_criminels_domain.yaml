@@ -1,0 +1,228 @@
+domain_name: Base de données des actes criminels du SPVM
+description: Base de données des actes criminels du Service de police de la Ville de Montréal (SPVM) pour DuckDB - suivi des incidents criminels à travers Montréal de 2015 à 2025
+domain_type: analytical
+semantic_types:
+  date_value:
+    description: Valeurs de date dans divers formats
+    patterns:
+    - date
+    - jour
+    - quand
+    - entre
+    - de
+    - à
+    regex_patterns:
+    - \b\d{4}-\d{2}-\d{2}\b
+  identifier:
+    description: Identifiant unique
+    patterns:
+    - id
+    - identifiant
+    - numéro
+    regex_patterns:
+    - \b(\d+)\b
+  integer_value:
+    description: Valeurs entières
+    patterns:
+    - nombre
+    - total
+    - année
+    regex_patterns:
+    - \b\d+\b
+vocabulary:
+  entity_synonyms:
+    crime:
+    - crime
+    - acte criminel
+    - infraction
+    - délit
+    - incident
+    vol:
+    - vol
+    - vols
+    - volé
+    - cambriolage
+    - larcin
+    introduction:
+    - introduction
+    - introduction par effraction
+    - entrée par effraction
+    - cambriolage
+    mefait:
+    - méfait
+    - vandalisme
+    - dommage
+    - dégât
+    vol_vehicule:
+    - vol de véhicule
+    - vol de voiture
+    - vol d'auto
+    - vol automobile
+    vol_qualifie:
+    - vol qualifié
+    - braquage
+    - hold-up
+    - agression pour vol
+    arrondissement:
+    - arrondissement
+    - quartier
+    - secteur
+    - zone
+    - borough
+  action_verbs:
+    find:
+    - montre
+    - affiche
+    - liste
+    - trouve
+    - cherche
+    - donne
+    - présente
+    filter:
+    - filtre
+    - seulement
+    - uniquement
+    - où
+    - avec
+    - dans
+    - pour
+    count:
+    - combien
+    - nombre de
+    - total
+    - compte
+    sort:
+    - trie
+    - classe
+    - rang
+    - top
+    - plus
+    - moins
+    calculate:
+    - calcule
+    - moyenne
+    - taux
+    - pourcentage
+    compare:
+    - compare
+    - versus
+    - vs
+    - différence
+    - évolution
+    - tendance
+entities:
+  actes_criminels:
+    name: actes_criminels
+    entity_type: primary
+    table_name: actes_criminels
+    description: Actes criminels à travers Montréal
+    primary_key: id
+    display_name_field: categorie
+    searchable_fields:
+    - categorie
+    - arrondissement
+    - quart
+    common_filters:
+    - categorie
+    - arrondissement
+    - quart
+    - pdq
+    default_sort_field: date_evenement
+    default_sort_order: DESC
+fields:
+  actes_criminels:
+    id:
+      name: id
+      data_type: integer
+      db_column: id
+      description: Identifiant unique de l'enregistrement
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 1
+    categorie:
+      name: categorie
+      data_type: string
+      db_column: categorie
+      description: "Catégorie de crime (Vol de véhicule à moteur, Introduction, Méfait, Vol dans/sur véhicule à moteur, Vols qualifiés, Infractions entrainant la mort)"
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    date_evenement:
+      name: date_evenement
+      data_type: date
+      db_column: date_evenement
+      description: Date de l'événement
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 9
+    quart:
+      name: quart
+      data_type: string
+      db_column: quart
+      description: "Quart de travail (jour, soir, nuit)"
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 8
+    pdq:
+      name: pdq
+      data_type: integer
+      db_column: pdq
+      description: Numéro du poste de quartier (PDQ) du SPVM
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 6
+    longitude:
+      name: longitude
+      data_type: double
+      db_column: longitude
+      description: Longitude de l'incident
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 1
+    latitude:
+      name: latitude
+      data_type: double
+      db_column: latitude
+      description: Latitude de l'incident
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 1
+    arrondissement:
+      name: arrondissement
+      data_type: string
+      db_column: arrondissement
+      description: Arrondissement ou ville liée de Montréal où l'incident s'est produit
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+relationships: []
+query_patterns: []
+metadata:
+  generated_at: '2026-03-17T12:00:00.000000'
+  generator_version: 1.0.0
+  auto_generated: true
+  source: Données ouvertes de la Ville de Montréal - Actes criminels (SPVM)

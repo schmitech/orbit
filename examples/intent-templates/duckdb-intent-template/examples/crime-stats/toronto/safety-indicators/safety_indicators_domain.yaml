@@ -1,0 +1,516 @@
+domain_name: Toronto Police Community Safety Indicators Database
+description: Toronto Police Service Community Safety Indicators database for DuckDB covering Toronto major crime indicator records by report date, including assault, break and enter, auto theft, robbery, and theft over
+domain_type: analytical
+semantic_types:
+  date_value:
+    description: Date values in various formats
+    patterns:
+    - date
+    - day
+    - time
+    - when
+    - from
+    - to
+    - between
+    regex_patterns:
+    - \b\d{4}-\d{2}-\d{2}\b
+    - \b\d{2}/\d{2}/\d{4}\b
+  identifier:
+    description: Unique identifiers and keys
+    patterns:
+    - id
+    - identifier
+    - key
+    - event number
+    regex_patterns:
+    - \b(\d+)\b
+  integer_value:
+    description: Integer and count values
+    patterns:
+    - count
+    - number
+    - total
+    - year
+    - hour
+    regex_patterns:
+    - \b\d+\b
+vocabulary:
+  entity_synonyms:
+    safety_indicator:
+    - community safety indicator
+    - community safety indicators
+    - csi
+    - csi data
+    - major crime indicators
+    - major crime indicator
+    category:
+    - category
+    - csi category
+    - crime type
+    assault:
+    - assault
+    - assaults
+    auto_theft:
+    - auto theft
+    - vehicle theft
+    - car theft
+    - theft of motor vehicle
+    break_and_enter:
+    - break and enter
+    - break-in
+    - b and e
+    - b&e
+    robbery:
+    - robbery
+    - robberies
+    - mugging
+    theft_over:
+    - theft over
+    - over 5000 theft
+    - theft over 5000
+    offence:
+    - offence
+    - offense
+    - charge
+    - incident type
+    premises:
+    - premises
+    - property type
+    - building type
+    location:
+    - location
+    - location type
+    - place type
+    neighbourhood:
+    - neighbourhood
+    - neighborhood
+    - area
+    - community
+    - hood
+    division:
+    - division
+    - district
+    - precinct
+  action_verbs:
+    find:
+    - show
+    - list
+    - get
+    - find
+    - display
+    - retrieve
+    - lookup
+    - search
+    - view
+    filter:
+    - filter
+    - only
+    - just
+    - where
+    - with
+    - having
+    - for
+    - in
+    count:
+    - count
+    - number of
+    - how many
+    - total
+    - sum
+    sort:
+    - sort
+    - order
+    - arrange
+    - rank
+    - top
+    - highest
+    - lowest
+    - most
+    calculate:
+    - calculate
+    - compute
+    - aggregate
+    - total
+    - average
+    - avg
+    - rate
+    compare:
+    - compare
+    - vs
+    - versus
+    - difference
+    - change
+    - trend
+entities:
+  safety_indicators:
+    name: safety_indicators
+    entity_type: primary
+    table_name: safety_indicators
+    description: Toronto Community Safety Indicator records at the offence and/or victim level
+    primary_key: id
+    display_name_field: neighbourhood_158
+    searchable_fields:
+    - event_unique_id
+    - division
+    - csi_category
+    - offence
+    - premises_type
+    - location_type
+    - neighbourhood_158
+    - neighbourhood_140
+    common_filters:
+    - report_year
+    - occ_year
+    - division
+    - csi_category
+    - offence
+    - premises_type
+    - location_type
+    - neighbourhood_158
+    - occ_dow
+    - occ_hour
+    default_sort_field: report_date
+    default_sort_order: DESC
+fields:
+  safety_indicators:
+    id:
+      name: id
+      data_type: integer
+      db_column: id
+      description: Unique record identifier from OBJECTID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 1
+    event_unique_id:
+      name: event_unique_id
+      data_type: string
+      db_column: event_unique_id
+      description: Offence number or event identifier
+      required: false
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: identifier
+      summary_priority: 2
+    report_date:
+      name: report_date
+      data_type: date
+      db_column: report_date
+      description: Date the offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 10
+    occ_date:
+      name: occ_date
+      data_type: date
+      db_column: occ_date
+      description: Date the offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 9
+    report_year:
+      name: report_year
+      data_type: integer
+      db_column: report_year
+      description: Year the offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 10
+    report_month:
+      name: report_month
+      data_type: string
+      db_column: report_month
+      description: Month the offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    report_day:
+      name: report_day
+      data_type: integer
+      db_column: report_day
+      description: Day of month the offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 4
+    report_doy:
+      name: report_doy
+      data_type: integer
+      db_column: report_doy
+      description: Day of year the offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 4
+    report_dow:
+      name: report_dow
+      data_type: string
+      db_column: report_dow
+      description: Day of week the offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 6
+    report_hour:
+      name: report_hour
+      data_type: integer
+      db_column: report_hour
+      description: Hour the offence was reported
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 6
+    occ_year:
+      name: occ_year
+      data_type: integer
+      db_column: occ_year
+      description: Year the offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 9
+    occ_month:
+      name: occ_month
+      data_type: string
+      db_column: occ_month
+      description: Month the offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    occ_day:
+      name: occ_day
+      data_type: integer
+      db_column: occ_day
+      description: Day of month the offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 4
+    occ_doy:
+      name: occ_doy
+      data_type: integer
+      db_column: occ_doy
+      description: Day of year the offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 4
+    occ_dow:
+      name: occ_dow
+      data_type: string
+      db_column: occ_dow
+      description: Day of week the offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 6
+    occ_hour:
+      name: occ_hour
+      data_type: integer
+      db_column: occ_hour
+      description: Hour the offence occurred
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 7
+    division:
+      name: division
+      data_type: string
+      db_column: division
+      description: Toronto Police division where the offence occurred
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 8
+    location_type:
+      name: location_type
+      data_type: string
+      db_column: location_type
+      description: Detailed location type of the offence
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    premises_type:
+      name: premises_type
+      data_type: string
+      db_column: premises_type
+      description: High-level premises type of the offence
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    ucr_code:
+      name: ucr_code
+      data_type: integer
+      db_column: ucr_code
+      description: UCR code for the offence
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 3
+    ucr_ext:
+      name: ucr_ext
+      data_type: integer
+      db_column: ucr_ext
+      description: UCR extension code for the offence
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 3
+    offence:
+      name: offence
+      data_type: string
+      db_column: offence
+      description: Specific offence title
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    csi_category:
+      name: csi_category
+      data_type: string
+      db_column: csi_category
+      description: Community Safety Indicator category
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    hood_158:
+      name: hood_158
+      data_type: string
+      db_column: hood_158
+      description: Neighbourhood code in Toronto's 158-neighbourhood structure
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 6
+    neighbourhood_158:
+      name: neighbourhood_158
+      data_type: string
+      db_column: neighbourhood_158
+      description: Neighbourhood name in Toronto's 158-neighbourhood structure
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    hood_140:
+      name: hood_140
+      data_type: string
+      db_column: hood_140
+      description: Neighbourhood code in Toronto's older 140-neighbourhood structure
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 5
+    neighbourhood_140:
+      name: neighbourhood_140
+      data_type: string
+      db_column: neighbourhood_140
+      description: Neighbourhood name in Toronto's older 140-neighbourhood structure
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    long_wgs84:
+      name: long_wgs84
+      data_type: number
+      db_column: long_wgs84
+      description: Longitude in WGS84, offset to the nearest intersection
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 2
+    lat_wgs84:
+      name: lat_wgs84
+      data_type: number
+      db_column: lat_wgs84
+      description: Latitude in WGS84, offset to the nearest intersection
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 2
+    x:
+      name: x
+      data_type: number
+      db_column: x
+      description: Projected X coordinate supplied in the CSV
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 1
+    y:
+      name: y
+      data_type: number
+      db_column: y
+      description: Projected Y coordinate supplied in the CSV
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 1

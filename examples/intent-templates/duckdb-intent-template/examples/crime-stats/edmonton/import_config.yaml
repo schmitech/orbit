@@ -1,0 +1,8 @@
+auto_id: true
+column_mapping:
+  occurrence_category: "Occurrence_Category"
+  occurrence_group: "Occurrence_Group"
+  occurrence_type: "Occurrence_Type_Group"
+  intersection: "Intersection"
+  date_reported: "Date_Reported"
+  year: "Year"

@@ -1,0 +1,58 @@
+# Cross-adapter templates for Toronto-wide composite queries.
+# These templates are owned by the Toronto composite retriever and trigger
+# parallel execution across multiple Toronto child adapters.
+
+templates:
+  - id: toronto_public_safety_snapshot
+    description: Summarize the most important Toronto-wide public safety findings across datasets
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-toronto-police-assault"
+        label: "Assault"
+      - adapter: "intent-duckdb-toronto-police-auto-theft"
+        label: "Auto Theft"
+      - adapter: "intent-duckdb-toronto-police-bicycle-theft"
+        label: "Bicycle Theft"
+      - adapter: "intent-duckdb-toronto-police-break-and-enter"
+        label: "Break and Enter"
+      - adapter: "intent-duckdb-toronto-police-robbery"
+        label: "Robbery"
+      - adapter: "intent-duckdb-toronto-police-safety-indicators"
+        label: "Safety Indicators"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "Show me your biggest finding in Toronto"
+      - "What is the biggest finding in Toronto?"
+      - "What stands out most in Toronto this year?"
+      - "Give me the main Toronto public safety insight"
+      - "Show me a Toronto public safety snapshot"
+      - "Give me a Toronto auto theft summary for this year"
+      - "Quick Toronto overview of vehicle theft"
+      - "Toronto auto theft snapshot"
+      - "City-wide Toronto auto theft pulse"
+      - "Give me a Toronto assault snapshot for 2025"
+      - "Quick assault summary for Toronto in 2025"
+      - "Give me a Toronto robbery snapshot for 2025"
+      - "Quick robbery summary for Toronto in 2025"
+      - "Give me a Toronto shootings snapshot for 2025"
+      - "Quick gun violence summary for Toronto in 2025"
+      - "Give me a homicide summary for Toronto this year"
+      - "Quick Toronto overview of murders"
+      - "Hate crime snapshot for Toronto"
+      - "Give me a summary of hate crimes in Toronto"
+      - "Give me a Toronto major crime snapshot for 2025"
+      - "Quick Toronto major crime summary for 2025"
+      - "Give me a Toronto break and enter overview"
+      - "Summary of break and enter in Toronto"
+      - "Give me an overview of domestic violence in Toronto for 2024"
+      - "High-level IPV summary for Toronto"
+      - "Give me a bicycle theft snapshot for Toronto"
+      - "Overall bike theft summary for Toronto 2024"
+    tags:
+      - toronto
+      - composite
+      - snapshot
+      - overview
+      - insight
+      - public-safety

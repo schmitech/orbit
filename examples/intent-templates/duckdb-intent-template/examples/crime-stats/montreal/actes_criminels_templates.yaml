@@ -1,0 +1,978 @@
+status: completed
+generated_at: '2026-03-17T12:00:00.000000'
+last_updated: '2026-03-17T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 23
+templates:
+# =============================================================================
+# TENDANCES ANNUELLES
+# =============================================================================
+
+- id: total_annuel
+  description: Total des actes criminels par année
+  sql: |
+    SELECT EXTRACT(YEAR FROM date_evenement) AS annee, COUNT(*) AS total_incidents
+    FROM actes_criminels
+    GROUP BY annee
+    ORDER BY annee
+  parameters: []
+  nl_examples:
+  - Combien de crimes par année à Montréal?
+  - Tendance annuelle des crimes à Montréal
+  - Évolution de la criminalité à Montréal
+  - Total des actes criminels par an à Montréal
+  - Combien d'incidents criminels y a-t-il eu chaque année à Montréal?
+  - Est-ce que la criminalité augmente ou diminue au fil des ans à Montréal?
+  - Donne-moi le nombre de crimes année par année à Montréal
+  - Comparaison année par année du volume total de criminalité à Montréal
+  - C'est quoi la tendance générale des crimes à Montréal?
+  - How many crimes per year in Montreal?
+  - Annual crime trends in Montreal
+  - Is crime increasing or decreasing in Montreal?
+  - Total criminal incidents per year in Montreal
+  - Year-over-year crime numbers in Montreal
+  - How has crime changed over the years in Montreal?
+  - Give me the Montreal crime totals by year
+  - What is the overall crime trend in Montreal?
+  - Show me yearly crime statistics for Montreal
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: actes_criminels
+    qualifiers: [tendances, annuel]
+  tags: [tendances, annuel, stratégique]
+
+- id: par_categorie_annuel
+  description: Répartition des crimes par catégorie pour une année donnée
+  sql: |
+    SELECT categorie, COUNT(*) AS total_incidents,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct
+    FROM actes_criminels
+    WHERE EXTRACT(YEAR FROM date_evenement) = :annee
+    GROUP BY categorie
+    ORDER BY total_incidents DESC
+  parameters:
+  - name: annee
+    type: integer
+    description: Année à analyser
+    required: false
+    default: 2025
+  nl_examples:
+  - Quels types de crimes en 2024 à Montréal?
+  - Répartition par catégorie à Montréal
+  - Types de crimes les plus fréquents à Montréal
+  - Quels sont les crimes les plus courants à Montréal?
+  - Quelles catégories de crimes dominent en 2023 à Montréal?
+  - C'est quoi les crimes les plus communs à Montréal?
+  - Ventilation des actes criminels par type à Montréal pour l'année en cours
+  - Quel pourcentage représentent les vols par rapport aux autres crimes à Montréal?
+  - Montre-moi la distribution des différents types de crimes à Montréal
+  - What types of crimes occurred in 2024 in Montreal?
+  - Crime breakdown by category in Montreal
+  - Most frequent types of crimes in Montreal
+  - What are the most common crimes in Montreal?
+  - Which crime categories dominate in 2023 in Montreal?
+  - Show me the distribution of different crime types in Montreal
+  - What percentage of crimes are thefts in Montreal?
+  - Montreal crime breakdown by type for the current year
+  - What kinds of crimes happen most in Montreal?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: actes_criminels
+    qualifiers: [categorie, répartition]
+  tags: [categorie, répartition, annuel]
+
+- id: tendance_categorie
+  description: Tendance d'une catégorie de crime spécifique à travers les années
+  sql: |
+    SELECT EXTRACT(YEAR FROM date_evenement) AS annee, COUNT(*) AS total_incidents
+    FROM actes_criminels
+    WHERE categorie = :categorie
+    GROUP BY annee
+    ORDER BY annee
+  parameters:
+  - name: categorie
+    type: string
+    description: "Catégorie de crime (Vol de véhicule à moteur, Introduction, Méfait, Vol dans / sur véhicule à moteur, Vols qualifiés, Infractions entrainant la mort)"
+    required: true
+  nl_examples:
+  - Tendance des vols de véhicules à Montréal
+  - Évolution des introductions par effraction à Montréal
+  - Méfaits au fil des années à Montréal
+  - Tendance des vols qualifiés à Montréal
+  - Est-ce que les vols de voitures augmentent d'année en année à Montréal?
+  - Comment ont évolué les infractions entrainant la mort depuis 2020 à Montréal?
+  - Historique des vols dans les véhicules à moteur à Montréal
+  - Analyse de la tendance pluriannuelle des introductions par effraction à Montréal
+  - Les méfaits à Montréal, ça empire ou ça s'améliore?
+  - Vehicle theft trends in Montreal
+  - Break and enter trends over the years in Montreal
+  - Mischief trends year over year in Montreal
+  - Are car thefts increasing in Montreal?
+  - How have homicides evolved since 2020 in Montreal?
+  - History of thefts from motor vehicles in Montreal
+  - Robbery trend over the years in Montreal
+  - Is mischief getting better or worse in Montreal?
+  - Multi-year trend for break and enters in Montreal
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: actes_criminels
+    qualifiers: [categorie, tendances]
+  tags: [categorie, tendances, historique]
+
+- id: meurtres_10_ans
+  description: Nombre d'infractions entrainant la mort au cours des 10 dernières années
+  sql: |
+    SELECT categorie, EXTRACT(YEAR FROM date_evenement) AS annee, COUNT(*) AS total_incidents
+    FROM actes_criminels
+    WHERE categorie = 'Infractions entrainant la mort'
+      AND EXTRACT(YEAR FROM date_evenement) >= EXTRACT(YEAR FROM CURRENT_DATE) - 10
+    GROUP BY categorie, annee
+    ORDER BY annee
+  parameters: []
+  nl_examples:
+  - Combien de meurtres dans les 10 dernières années à Montréal?
+  - Homicides au cours de la dernière décennie à Montréal
+  - Nombre de morts criminelles par année récente à Montréal
+  - Combien d'infractions entrainant la mort depuis 10 ans à Montréal?
+  - Évolution des meurtres sur 10 ans à Montréal
+  - Y a-t-il eu une hausse des homicides ces dernières années à Montréal?
+  - Tendance des meurtres à Montréal sur la dernière décennie
+  - Combien de personnes ont été tuées chaque année à Montréal?
+  - Historique des infractions mortelles récentes à Montréal
+  - How many murders in the past 10 years in Montreal?
+  - Homicides over the last decade in Montreal
+  - Number of killings per year recently in Montreal
+  - How many deadly crimes in the past 10 years in Montreal?
+  - Murder trends over 10 years in Montreal
+  - Has there been an increase in homicides recently in Montreal?
+  - How many people have been killed each year in Montreal?
+  - History of fatal crimes in Montreal
+  - How much has violent crime decreased in Montreal over the past 10 years?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: actes_criminels
+    qualifiers: [meurtres, décennie, tendances]
+  tags: [meurtres, homicides, tendances, historique]
+
+# =============================================================================
+# PATTERNS MENSUELS ET JOUR DE SEMAINE
+# =============================================================================
+
+- id: pattern_mensuel
+  description: Distribution mensuelle des crimes pour une année donnée
+  sql: |
+    SELECT EXTRACT(MONTH FROM date_evenement) AS mois,
+      COUNT(*) AS total_incidents
+    FROM actes_criminels
+    WHERE EXTRACT(YEAR FROM date_evenement) = :annee
+    GROUP BY mois
+    ORDER BY mois
+  parameters:
+  - name: annee
+    type: integer
+    description: Année à analyser
+    required: false
+    default: 2025
+  nl_examples:
+  - Pattern mensuel des crimes à Montréal
+  - Quels mois ont le plus de crimes à Montréal?
+  - Distribution saisonnière à Montréal
+  - Crimes par mois à Montréal
+  - Y a-t-il plus de crimes en été qu'en hiver à Montréal?
+  - Quel mois est le pire pour la criminalité en 2024 à Montréal?
+  - Répartition mensuelle des actes criminels à Montréal en 2023
+  - Est-ce que la criminalité est saisonnière à Montréal?
+  - Analyse mois par mois des incidents criminels à Montréal
+  - Monthly crime patterns in Montreal
+  - Which months have the most crime in Montreal?
+  - Seasonal crime distribution in Montreal
+  - Crimes by month in Montreal
+  - Is there more crime in summer than winter in Montreal?
+  - What month is worst for crime in 2024 in Montreal?
+  - Monthly breakdown of criminal incidents in 2023 in Montreal
+  - Is crime seasonal in Montreal?
+  - Month-by-month crime analysis for Montreal
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: actes_criminels
+    qualifiers: [mensuel, patterns]
+  tags: [mensuel, saisonnier, patterns]
+
+- id: par_quart
+  description: Répartition des crimes par quart de travail (jour/soir/nuit) pour une année donnée
+  sql: |
+    SELECT quart, COUNT(*) AS total_incidents,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct
+    FROM actes_criminels
+    WHERE EXTRACT(YEAR FROM date_evenement) = :annee
+    GROUP BY quart
+    ORDER BY
+      CASE quart
+        WHEN 'jour' THEN 1
+        WHEN 'soir' THEN 2
+        WHEN 'nuit' THEN 3
+      END
+  parameters:
+  - name: annee
+    type: integer
+    description: Année à analyser
+    required: false
+    default: 2025
+  nl_examples:
+  - Crimes par quart de travail à Montréal
+  - Jour vs soir vs nuit à Montréal
+  - Quand les crimes se produisent-ils à Montréal?
+  - Répartition jour soir nuit à Montréal
+  - Est-ce qu'il y a plus de crimes la nuit ou le jour à Montréal?
+  - À quel moment de la journée les crimes sont-ils les plus fréquents en 2024 à Montréal?
+  - Ventilation des incidents à Montréal par période de la journée
+  - C'est quand le plus dangereux à Montréal, le jour ou le soir?
+  - Proportion des crimes selon le quart de travail à Montréal en 2023
+  - Crimes by shift (day/evening/night) in Montreal
+  - Day vs evening vs night crime in Montreal
+  - When do crimes happen in Montreal?
+  - Is there more crime at night or during the day in Montreal?
+  - What time of day are crimes most frequent in 2024 in Montreal?
+  - Crime breakdown by time of day in Montreal
+  - Is it more dangerous during the day or at night in Montreal?
+  - Crime distribution by shift in 2023 in Montreal
+  - Do more crimes happen at night in Montreal?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: actes_criminels
+    qualifiers: [quart, patterns]
+  tags: [quart, temporel, patterns]
+
+- id: categorie_par_quart
+  description: Répartition des catégories de crime par quart pour une année donnée
+  sql: |
+    SELECT categorie, quart, COUNT(*) AS total_incidents
+    FROM actes_criminels
+    WHERE EXTRACT(YEAR FROM date_evenement) = :annee
+    GROUP BY categorie, quart
+    ORDER BY categorie,
+      CASE quart
+        WHEN 'jour' THEN 1
+        WHEN 'soir' THEN 2
+        WHEN 'nuit' THEN 3
+      END
+  parameters:
+  - name: annee
+    type: integer
+    description: Année à analyser
+    required: false
+    default: 2025
+  nl_examples:
+  - Quels crimes se produisent la nuit à Montréal?
+  - Crimes de jour vs de nuit par catégorie à Montréal
+  - Vols de véhicules selon le quart à Montréal
+  - Est-ce que les introductions par effraction arrivent surtout la nuit à Montréal?
+  - Quels types de crimes sont plus fréquents le soir en 2024 à Montréal?
+  - Répartition des catégories criminelles selon le moment de la journée à Montréal
+  - Les vols qualifiés à Montréal, c'est plus le jour ou la nuit?
+  - Analyse croisée catégorie-quart pour Montréal en 2023
+  - Y a-t-il des crimes qui arrivent surtout de jour à Montréal?
+  - What crimes happen at night in Montreal?
+  - Day vs night crimes by category in Montreal
+  - Vehicle thefts by shift in Montreal
+  - Do break and enters happen mostly at night in Montreal?
+  - Which crime types are more common in the evening in 2024 in Montreal?
+  - Crime categories by time of day in Montreal
+  - Are robberies more common during the day or at night in Montreal?
+  - Cross-analysis of crime type and shift for 2023 in Montreal
+  - Are there crimes that mostly happen during the day in Montreal?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: actes_criminels
+    qualifiers: [categorie, quart]
+  tags: [categorie, quart, croisé]
+
+# =============================================================================
+# ANALYSE PAR ARRONDISSEMENT
+# =============================================================================
+
+- id: top_arrondissements
+  description: Arrondissements avec le plus de crimes pour une année donnée
+  sql: |
+    SELECT arrondissement, COUNT(*) AS total_incidents,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct
+    FROM actes_criminels
+    WHERE EXTRACT(YEAR FROM date_evenement) = :annee
+      AND arrondissement != 'Inconnu'
+    GROUP BY arrondissement
+    ORDER BY total_incidents DESC
+    LIMIT 15
+  parameters:
+  - name: annee
+    type: integer
+    description: Année à analyser
+    required: false
+    default: 2025
+  nl_examples:
+  - Quels arrondissements ont le plus de crimes à Montréal?
+  - Top arrondissements criminels de Montréal
+  - Zones les plus touchées à Montréal
+  - Où y a-t-il le plus de criminalité à Montréal?
+  - Classement des arrondissements par nombre d'incidents en 2024 à Montréal
+  - C'est où les quartiers les plus dangereux à Montréal?
+  - Quels sont les arrondissements les plus problématiques en 2023 à Montréal?
+  - Top 15 des secteurs de Montréal avec le plus d'actes criminels
+  - Quel arrondissement de Montréal a le taux de criminalité le plus élevé?
+  - Which boroughs have the most crime in Montreal?
+  - Top neighbourhoods for crime in Montreal
+  - Most affected areas in Montreal
+  - Where is there the most crime in Montreal?
+  - Ranking of Montreal boroughs by number of incidents in 2024
+  - What are the most dangerous neighbourhoods in Montreal?
+  - Which areas in Montreal are most problematic in 2023?
+  - Top 15 Montreal areas with the most criminal activity
+  - Which Montreal borough has the highest crime rate?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: actes_criminels
+    qualifiers: [arrondissement, classement]
+  tags: [arrondissement, classement, localisation]
+
+- id: par_arrondissement
+  description: Détails des crimes pour un arrondissement spécifique
+  sql: |
+    SELECT EXTRACT(YEAR FROM date_evenement) AS annee,
+      categorie, COUNT(*) AS total_incidents
+    FROM actes_criminels
+    WHERE arrondissement ILIKE '%' || :arrondissement || '%'
+    GROUP BY annee, categorie
+    ORDER BY annee DESC, total_incidents DESC
+  parameters:
+  - name: arrondissement
+    type: string
+    description: Nom de l'arrondissement (correspondance partielle)
+    required: true
+  nl_examples:
+  - Crimes dans Ville-Marie à Montréal
+  - Criminalité au Plateau-Mont-Royal à Montréal
+  - Statistiques pour Rosemont à Montréal
+  - Crimes à Côte-des-Neiges à Montréal
+  - Quels types de crimes sont commis à Mercier-Hochelaga-Maisonneuve à Montréal?
+  - Détail des actes criminels dans Ahuntsic-Cartierville à Montréal
+  - C'est quoi la situation à Villeray-Saint-Michel-Parc-Extension à Montréal?
+  - Portrait criminel de l'arrondissement du Sud-Ouest à Montréal
+  - Montre-moi les crimes dans Rivière-des-Prairies à Montréal
+  - Crimes in Ville-Marie, Montreal
+  - Crime in Plateau-Mont-Royal, Montreal
+  - Crime statistics for Rosemont, Montreal
+  - Crimes in Côte-des-Neiges, Montreal
+  - What types of crimes are committed in Mercier-Hochelaga-Maisonneuve, Montreal?
+  - Crime details in Ahuntsic-Cartierville, Montreal
+  - What is the situation in Villeray-Saint-Michel-Parc-Extension, Montreal?
+  - Crime profile for the Sud-Ouest borough in Montreal
+  - Show me crimes in Rivière-des-Prairies, Montreal
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: actes_criminels
+    qualifiers: [arrondissement]
+  tags: [arrondissement, détail, spécifique]
+
+- id: arrondissement_par_categorie
+  description: Arrondissements les plus touchés pour une catégorie spécifique
+  sql: |
+    SELECT arrondissement, COUNT(*) AS total_incidents,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct
+    FROM actes_criminels
+    WHERE categorie = :categorie
+      AND EXTRACT(YEAR FROM date_evenement) = :annee
+      AND arrondissement != 'Inconnu'
+    GROUP BY arrondissement
+    ORDER BY total_incidents DESC
+    LIMIT 15
+  parameters:
+  - name: categorie
+    type: string
+    description: "Catégorie de crime"
+    required: true
+  - name: annee
+    type: integer
+    description: Année à analyser
+    required: false
+    default: 2025
+  nl_examples:
+  - Où y a-t-il le plus de vols de véhicules à Montréal?
+  - Arrondissements avec le plus d'introductions par effraction à Montréal
+  - Vols qualifiés par arrondissement à Montréal
+  - Dans quels arrondissements vole-t-on le plus de voitures en 2024 à Montréal?
+  - Quels quartiers de Montréal sont les plus touchés par les méfaits?
+  - Classement des arrondissements pour les introductions par effraction en 2023 à Montréal
+  - C'est où qu'il y a le plus de vols qualifiés à Montréal?
+  - Répartition géographique des infractions entrainant la mort à Montréal
+  - Top arrondissements pour les vols dans les véhicules à Montréal
+  - Where are there the most vehicle thefts in Montreal?
+  - Montreal boroughs with the most break and enters
+  - Robberies by borough in Montreal
+  - Which Montreal boroughs have the most car thefts in 2024?
+  - Which Montreal neighbourhoods are most affected by mischief?
+  - Montreal borough ranking for break and enters in 2023
+  - Where are there the most robberies in Montreal?
+  - Geographic distribution of fatal crimes in Montreal
+  - Top Montreal boroughs for thefts from vehicles
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: actes_criminels
+    qualifiers: [arrondissement, categorie]
+  tags: [arrondissement, categorie, croisé]
+
+# =============================================================================
+# ANALYSE PAR PDQ
+# =============================================================================
+
+- id: top_pdq
+  description: Postes de quartier avec le plus de crimes pour une année donnée
+  sql: |
+    SELECT pdq, arrondissement, COUNT(*) AS total_incidents
+    FROM actes_criminels
+    WHERE EXTRACT(YEAR FROM date_evenement) = :annee
+      AND pdq IS NOT NULL
+    GROUP BY pdq, arrondissement
+    ORDER BY total_incidents DESC
+    LIMIT 15
+  parameters:
+  - name: annee
+    type: integer
+    description: Année à analyser
+    required: false
+    default: 2025
+  nl_examples:
+  - Quels postes de quartier ont le plus de crimes à Montréal?
+  - Top PDQ de Montréal
+  - Classement des postes de police par criminalité à Montréal
+  - Quels PDQ de Montréal sont les plus occupés en 2024?
+  - Postes de quartier avec le plus d'incidents en 2023 à Montréal
+  - Quel poste de police de Montréal dessert le secteur le plus criminalisé?
+  - C'est quel PDQ de Montréal qui a le plus de travail?
+  - Classement des postes de quartier de Montréal par volume d'actes criminels
+  - Quels sont les PDQ les plus sollicités à Montréal?
+  - Which police stations have the most crime in Montreal?
+  - Top police stations by crime in Montreal
+  - Ranking of Montreal police stations by criminal activity
+  - Which Montreal PDQ are busiest in 2024?
+  - Montreal police stations with the most incidents in 2023
+  - Which police station in Montreal serves the most crime-heavy area?
+  - Which Montreal PDQ has the most work?
+  - Montreal police station ranking by volume of criminal activity
+  - Which police stations are most in demand in Montreal?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: actes_criminels
+    qualifiers: [pdq, classement]
+  tags: [pdq, classement, police]
+
+# =============================================================================
+# COMPARAISON ANNÉE SUR ANNÉE
+# =============================================================================
+
+- id: comparaison_annuelle
+  description: Comparer le total des crimes entre deux années
+  sql: |
+    SELECT
+      :annee_courante AS annee_courante,
+      :annee_precedente AS annee_precedente,
+      (SELECT COUNT(*) FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee_courante) AS incidents_courants,
+      (SELECT COUNT(*) FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee_precedente) AS incidents_precedents,
+      ROUND(((SELECT COUNT(*) FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee_courante) -
+             (SELECT COUNT(*) FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee_precedente)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee_precedente), 0), 1) AS variation_pct
+  parameters:
+  - name: annee_courante
+    type: integer
+    description: Année courante à comparer
+    required: false
+    default: 2025
+  - name: annee_precedente
+    type: integer
+    description: Année précédente à comparer
+    required: false
+    default: 2024
+  nl_examples:
+  - Comparer 2024 à 2023 à Montréal
+  - Variation annuelle des crimes à Montréal
+  - La criminalité a-t-elle augmenté à Montréal?
+  - Comparaison année sur année à Montréal
+  - Est-ce que ça empire entre 2023 et 2024 à Montréal?
+  - Quelle est la variation du nombre de crimes entre 2022 et 2023 à Montréal?
+  - Y a-t-il eu plus ou moins de crimes cette année à Montréal par rapport à l'an dernier?
+  - Analyse comparative interannuelle de la criminalité à Montréal
+  - C'est mieux ou pire qu'avant à Montréal?
+  - Compare 2024 to 2023 crime in Montreal
+  - Year-over-year Montreal crime variation
+  - Has crime increased in Montreal?
+  - Montreal year-on-year comparison
+  - Is it getting worse between 2023 and 2024 in Montreal?
+  - What is the change in Montreal crime numbers between 2022 and 2023?
+  - Were there more or fewer crimes in Montreal this year compared to last year?
+  - Is crime in Montreal better or worse than before?
+  - How does this year compare to last year for crime in Montreal?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: actes_criminels
+    qualifiers: [annuel, variation]
+  tags: [comparaison, annuel, tendance]
+
+- id: comparaison_par_categorie
+  description: Comparaison année sur année par catégorie de crime
+  sql: |
+    WITH courant AS (
+      SELECT categorie, COUNT(*) AS cnt
+      FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee_courante
+      GROUP BY categorie
+    ),
+    precedent AS (
+      SELECT categorie, COUNT(*) AS cnt
+      FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee_precedente
+      GROUP BY categorie
+    )
+    SELECT
+      COALESCE(c.categorie, p.categorie) AS categorie,
+      COALESCE(c.cnt, 0) AS incidents_courants,
+      COALESCE(p.cnt, 0) AS incidents_precedents,
+      COALESCE(c.cnt, 0) - COALESCE(p.cnt, 0) AS variation,
+      ROUND((COALESCE(c.cnt, 0) - COALESCE(p.cnt, 0)) * 100.0 / NULLIF(COALESCE(p.cnt, 0), 0), 1) AS variation_pct
+    FROM courant c
+    FULL OUTER JOIN precedent p ON c.categorie = p.categorie
+    ORDER BY incidents_courants DESC
+  parameters:
+  - name: annee_courante
+    type: integer
+    description: Année courante
+    required: false
+    default: 2025
+  - name: annee_precedente
+    type: integer
+    description: Année précédente
+    required: false
+    default: 2024
+  nl_examples:
+  - Quelles catégories de crimes ont augmenté à Montréal?
+  - Comparaison par type de crime à Montréal
+  - Évolution des catégories 2024 vs 2023 à Montréal
+  - Quels types de crimes sont en hausse entre 2022 et 2023 à Montréal?
+  - Est-ce que les vols de véhicules ont augmenté par rapport à l'an passé à Montréal?
+  - Comparaison détaillée par catégorie d'une année à l'autre à Montréal
+  - Quelles infractions diminuent et lesquelles augmentent à Montréal?
+  - C'est quoi les catégories qui ont le plus changé à Montréal?
+  - Variation par type de crime entre 2023 et 2024 à Montréal
+  - Which crime categories have increased in Montreal?
+  - Comparison by crime type in Montreal
+  - Montreal crime category changes 2024 vs 2023
+  - Which types of crimes are rising between 2022 and 2023 in Montreal?
+  - Have vehicle thefts increased compared to last year in Montreal?
+  - Detailed comparison by category year over year in Montreal
+  - Which Montreal offences are decreasing and which are increasing?
+  - What Montreal categories have changed the most?
+  - Change by crime type between 2023 and 2024 in Montreal
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: actes_criminels
+    qualifiers: [categorie, annuel]
+  tags: [comparaison, categorie, annuel]
+
+# =============================================================================
+# DONNÉES DE RÉFÉRENCE
+# =============================================================================
+
+- id: liste_categories
+  description: Liste de toutes les catégories de crimes avec le nombre total
+  sql: |
+    SELECT categorie, COUNT(*) AS total_incidents
+    FROM actes_criminels
+    GROUP BY categorie
+    ORDER BY total_incidents DESC
+  parameters: []
+  nl_examples:
+  - Liste des catégories de crimes à Montréal
+  - Quels types de crimes sont suivis à Montréal?
+  - Catégories disponibles à Montréal
+  - Quelles sont toutes les catégories d'actes criminels à Montréal dans la base?
+  - Montre-moi les différents types de crimes répertoriés à Montréal
+  - C'est quoi les catégories de crimes à Montréal?
+  - Énumère les types d'infractions à Montréal avec leur fréquence
+  - Quels genres de crimes sont enregistrés par le SPVM à Montréal?
+  - Liste complète des types d'actes criminels à Montréal
+  - List of crime categories in Montreal
+  - What types of crimes are tracked in Montreal?
+  - Available crime categories in Montreal
+  - What are all the criminal offence categories in the Montreal database?
+  - Show me the different types of crimes recorded in Montreal
+  - What crime categories exist in Montreal?
+  - List of Montreal offence types with their frequency
+  - What kinds of crimes are recorded by the SPVM in Montreal?
+  - Complete list of Montreal criminal offence types
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: actes_criminels
+    qualifiers: [référence]
+  tags: [référence, catégories, métadonnées]
+
+- id: liste_arrondissements
+  description: Liste de tous les arrondissements avec le nombre de crimes
+  sql: |
+    SELECT arrondissement, COUNT(*) AS total_incidents
+    FROM actes_criminels
+    WHERE arrondissement != 'Inconnu'
+    GROUP BY arrondissement
+    ORDER BY total_incidents DESC
+  parameters: []
+  nl_examples:
+  - Liste des arrondissements à Montréal
+  - Quels arrondissements de Montréal sont couverts?
+  - Tous les arrondissements de Montréal avec des crimes
+  - Quels sont les arrondissements de Montréal dans les données?
+  - Montre-moi tous les quartiers de Montréal répertoriés
+  - Combien d'arrondissements de Montréal sont représentés dans la base?
+  - C'est quoi les arrondissements de Montréal disponibles?
+  - Donne-moi la liste des secteurs de Montréal avec leur nombre de crimes
+  - Quels territoires de Montréal sont couverts par les données du SPVM?
+  - List of boroughs in Montreal
+  - Which Montreal boroughs are covered?
+  - All Montreal boroughs with crime data
+  - What are the Montreal boroughs in the data?
+  - Show me all listed Montreal neighbourhoods
+  - How many Montreal boroughs are represented in the database?
+  - What Montreal boroughs are available?
+  - Give me the list of Montreal areas with their crime counts
+  - What Montreal territories are covered by the SPVM data?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: actes_criminels
+    qualifiers: [référence]
+  tags: [référence, arrondissements, métadonnées]
+
+- id: couverture_donnees
+  description: Résumé de la couverture des données
+  sql: |
+    SELECT
+      MIN(EXTRACT(YEAR FROM date_evenement)) AS premiere_annee,
+      MAX(EXTRACT(YEAR FROM date_evenement)) AS derniere_annee,
+      COUNT(*) AS total_enregistrements,
+      COUNT(DISTINCT arrondissement) AS arrondissements,
+      COUNT(DISTINCT categorie) AS categories
+    FROM actes_criminels
+  parameters: []
+  nl_examples:
+  - Quelles données sont disponibles pour Montréal?
+  - Couverture des données de Montréal
+  - Combien de données de Montréal avez-vous?
+  - De quand à quand vont les données de Montréal?
+  - Combien d'enregistrements au total dans la base de Montréal?
+  - Quelle est l'étendue temporelle du jeu de données de Montréal?
+  - C'est quoi la période couverte par les données de Montréal?
+  - Résumé de la base de données d'actes criminels de Montréal
+  - Combien d'arrondissements et de catégories sont dans les données de Montréal?
+  - What Montreal data is available?
+  - Montreal data coverage
+  - How much Montreal data do you have?
+  - What time period does the Montreal data cover?
+  - How many records total in the Montreal database?
+  - What is the time range of the Montreal dataset?
+  - What period is covered by the Montreal data?
+  - Summary of the Montreal criminal activity database
+  - How many Montreal boroughs and categories are in the data?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: actes_criminels
+    qualifiers: [référence, métadonnées]
+  tags: [référence, couverture, métadonnées]
+
+# =============================================================================
+# GÉNÉRATEURS D'APERÇUS
+# =============================================================================
+
+- id: points_chauds_arrondissements
+  description: Arrondissements avec la plus forte augmentation de criminalité
+  sql: |
+    WITH courant AS (
+      SELECT arrondissement, COUNT(*) AS cnt
+      FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee
+        AND arrondissement != 'Inconnu'
+      GROUP BY arrondissement
+    ),
+    precedent AS (
+      SELECT arrondissement, COUNT(*) AS cnt
+      FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee - 1
+        AND arrondissement != 'Inconnu'
+      GROUP BY arrondissement
+    )
+    SELECT
+      c.arrondissement,
+      c.cnt AS annee_courante,
+      COALESCE(p.cnt, 0) AS annee_precedente,
+      c.cnt - COALESCE(p.cnt, 0) AS variation,
+      ROUND((c.cnt - COALESCE(p.cnt, 0)) * 100.0 / NULLIF(COALESCE(p.cnt, 0), 0), 1) AS variation_pct
+    FROM courant c
+    LEFT JOIN precedent p ON c.arrondissement = p.arrondissement
+    ORDER BY c.cnt DESC
+    LIMIT 10
+  parameters:
+  - name: annee
+    type: integer
+    description: Année à analyser
+    required: false
+    default: 2025
+  nl_examples:
+  - Points chauds de criminalité à Montréal
+  - Arrondissements avec hausse de criminalité à Montréal
+  - Où la criminalité augmente à Montréal?
+  - Quels arrondissements ont vu la plus forte hausse en 2024 à Montréal?
+  - C'est où que ça empire le plus à Montréal?
+  - Quels secteurs de Montréal connaissent une augmentation marquée des crimes?
+  - Identification des zones à Montréal à risque croissant en 2023
+  - Quels quartiers de Montréal sont en train de devenir plus dangereux?
+  - Arrondissements de Montréal avec la plus grande variation de criminalité
+  - Crime hotspots in Montreal
+  - Montreal boroughs with rising crime
+  - Where is crime increasing in Montreal?
+  - Which Montreal boroughs saw the biggest increase in 2024?
+  - Where is it getting worse the most in Montreal?
+  - Which areas in Montreal are experiencing a sharp increase in crime?
+  - Identifying growing risk zones in 2023 in Montreal
+  - Which Montreal neighbourhoods are becoming more dangerous?
+  - Montreal boroughs with the greatest crime variation
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: actes_criminels
+    qualifiers: [points_chauds, arrondissement]
+  tags: [points_chauds, arrondissement, aperçu]
+
+- id: deviation_saisonniere
+  description: Identifie les mois avec un nombre de crimes significativement au-dessus de la moyenne historique
+  sql: |
+    WITH mensuel AS (
+      SELECT EXTRACT(MONTH FROM date_evenement) AS mois,
+        EXTRACT(YEAR FROM date_evenement) AS annee,
+        COUNT(*) AS cnt
+      FROM actes_criminels
+      GROUP BY mois, annee
+    ),
+    moyenne_mensuelle AS (
+      SELECT mois,
+        ROUND(AVG(cnt), 1) AS moyenne_incidents,
+        ROUND(STDDEV(cnt), 1) AS ecart_type
+      FROM mensuel
+      GROUP BY mois
+    ),
+    derniere AS (
+      SELECT mois, cnt
+      FROM mensuel
+      WHERE annee = :annee
+    )
+    SELECT
+      d.mois,
+      d.cnt AS incidents_cette_annee,
+      m.moyenne_incidents AS moyenne_historique,
+      ROUND((d.cnt - m.moyenne_incidents) / NULLIF(m.ecart_type, 0), 1) AS score_z
+    FROM derniere d
+    JOIN moyenne_mensuelle m ON d.mois = m.mois
+    ORDER BY score_z DESC
+  parameters:
+  - name: annee
+    type: integer
+    description: Année à analyser
+    required: false
+    default: 2025
+  nl_examples:
+  - Mois inhabituels pour les crimes à Montréal
+  - Anomalies saisonnières à Montréal
+  - Quels mois ont des crimes anormalement élevés à Montréal?
+  - Y a-t-il des pics de criminalité inhabituels en 2024 à Montréal?
+  - Quels mois à Montréal dévient de la moyenne historique?
+  - Détection d'anomalies dans les tendances mensuelles à Montréal en 2023
+  - Est-ce qu'un mois en particulier sort de l'ordinaire à Montréal?
+  - C'est quoi les mois les plus anormaux pour la criminalité à Montréal?
+  - Analyse des écarts saisonniers par rapport à la moyenne à Montréal
+  - Unusual months for crime in Montreal
+  - Seasonal anomalies in Montreal crime
+  - Which months have abnormally high crime in Montreal?
+  - Are there unusual Montreal crime spikes in 2024?
+  - Which months in Montreal deviate from the historical average?
+  - Anomaly detection in Montreal monthly trends for 2023
+  - Does any particular month stand out in Montreal?
+  - What are the most abnormal months for crime in Montreal?
+  - Analysis of seasonal deviations from the average in Montreal
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: actes_criminels
+    qualifiers: [saisonnier, anomalie]
+  tags: [saisonnier, anomalie, aperçu]
+
+- id: portrait_ville
+  description: Portrait global de la criminalité pour une année donnée
+  sql: |
+    SELECT
+      :annee AS annee,
+      (SELECT COUNT(*) FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee) AS total_incidents,
+      (SELECT COUNT(*) FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee - 1) AS incidents_annee_precedente,
+      ROUND(((SELECT COUNT(*) FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee) -
+             (SELECT COUNT(*) FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee - 1)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee - 1), 0), 1) AS variation_pct,
+      (SELECT categorie FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee GROUP BY categorie ORDER BY COUNT(*) DESC LIMIT 1) AS categorie_principale,
+      (SELECT arrondissement FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee AND arrondissement != 'Inconnu' GROUP BY arrondissement ORDER BY COUNT(*) DESC LIMIT 1) AS arrondissement_principal,
+      (SELECT quart FROM actes_criminels WHERE EXTRACT(YEAR FROM date_evenement) = :annee GROUP BY quart ORDER BY COUNT(*) DESC LIMIT 1) AS quart_principal
+  parameters:
+  - name: annee
+    type: integer
+    description: Année à analyser
+    required: false
+    default: 2025
+  nl_examples:
+  - Portrait de la criminalité à Montréal
+  - Résumé des crimes à Montréal
+  - Aperçu général à Montréal
+  - Vue d'ensemble de la criminalité à Montréal
+  - Donne-moi un sommaire de la criminalité en 2024 à Montréal
+  - C'est quoi le portrait global des crimes à Montréal?
+  - Tableau de bord de la criminalité pour 2023 à Montréal
+  - Résumé exécutif de la situation criminelle à Montréal
+  - Fais-moi un aperçu rapide de la criminalité à Montréal cette année
+  - Crime portrait for Montreal
+  - Crime summary in Montreal
+  - General overview of crime in Montreal
+  - Overall view of crime in Montreal
+  - Give me a Montreal crime summary for 2024
+  - What is the overall crime picture in Montreal?
+  - Montreal crime dashboard for 2023
+  - Executive summary of the Montreal crime situation
+  - Give me a quick overview of Montreal crime this year
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: actes_criminels
+    qualifiers: [portrait, aperçu]
+  tags: [portrait, aperçu, tableau_de_bord]
+
+- id: securite_arrondissement
+  description: Portrait de sécurité pour un arrondissement spécifique
+  sql: |
+    WITH stats_arrondissement AS (
+      SELECT arrondissement, COUNT(*) AS total_incidents,
+        RANK() OVER (ORDER BY COUNT(*) DESC) AS rang_ville
+      FROM actes_criminels
+      WHERE EXTRACT(YEAR FROM date_evenement) = :annee
+        AND arrondissement != 'Inconnu'
+      GROUP BY arrondissement
+    ),
+    precedent AS (
+      SELECT COUNT(*) AS incidents_precedents
+      FROM actes_criminels
+      WHERE arrondissement ILIKE '%' || :arrondissement || '%'
+        AND EXTRACT(YEAR FROM date_evenement) = :annee - 1
+    ),
+    top_crimes AS (
+      SELECT categorie, COUNT(*) AS cnt
+      FROM actes_criminels
+      WHERE arrondissement ILIKE '%' || :arrondissement || '%'
+        AND EXTRACT(YEAR FROM date_evenement) = :annee
+      GROUP BY categorie
+      ORDER BY cnt DESC
+      LIMIT 5
+    )
+    SELECT
+      s.arrondissement,
+      s.total_incidents,
+      s.rang_ville || ' sur ' || (SELECT COUNT(*) FROM stats_arrondissement) AS rang_parmi_arrondissements,
+      p.incidents_precedents,
+      s.total_incidents - p.incidents_precedents AS variation,
+      ROUND((s.total_incidents - p.incidents_precedents) * 100.0 / NULLIF(p.incidents_precedents, 0), 1) AS variation_pct,
+      (SELECT STRING_AGG(categorie || ' (' || cnt || ')', ', ' ORDER BY cnt DESC) FROM top_crimes) AS principaux_crimes
+    FROM stats_arrondissement s
+    CROSS JOIN precedent p
+    WHERE s.arrondissement ILIKE '%' || :arrondissement || '%'
+  parameters:
+  - name: arrondissement
+    type: string
+    description: Nom de l'arrondissement (correspondance partielle)
+    required: true
+  - name: annee
+    type: integer
+    description: Année à analyser
+    required: false
+    default: 2025
+  nl_examples:
+  - Est-ce que Ville-Marie est sécuritaire à Montréal?
+  - Sécurité du Plateau-Mont-Royal à Montréal
+  - Portrait de sécurité de Rosemont à Montréal
+  - Comment est la criminalité à Côte-des-Neiges à Montréal?
+  - C'est sécuritaire dans Mercier-Hochelaga-Maisonneuve à Montréal?
+  - Quel est le niveau de criminalité à Ahuntsic-Cartierville en 2024 à Montréal?
+  - Portrait de sécurité de Villeray-Saint-Michel-Parc-Extension à Montréal
+  - Est-ce que le Sud-Ouest est un arrondissement dangereux à Montréal?
+  - Analyse de la situation sécuritaire dans Verdun à Montréal
+  - Is Ville-Marie safe in Montreal?
+  - Safety in Plateau-Mont-Royal, Montreal
+  - Safety profile for Rosemont, Montreal
+  - How is crime in Côte-des-Neiges, Montreal?
+  - Is Mercier-Hochelaga-Maisonneuve safe in Montreal?
+  - What is the crime level in Ahuntsic-Cartierville in 2024, Montreal?
+  - Safety profile for Villeray-Saint-Michel-Parc-Extension, Montreal
+  - Is the Sud-Ouest borough dangerous in Montreal?
+  - Security analysis for Verdun, Montreal
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: actes_criminels
+    qualifiers: [arrondissement, sécurité, portrait]
+  tags: [arrondissement, sécurité, portrait, aperçu]

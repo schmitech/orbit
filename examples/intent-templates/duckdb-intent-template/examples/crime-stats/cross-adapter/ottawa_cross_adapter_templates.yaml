@@ -1,0 +1,45 @@
+# Cross-adapter templates for Ottawa-wide composite queries.
+# These templates are owned by the Ottawa composite retriever and trigger
+# parallel execution across multiple Ottawa child adapters.
+
+templates:
+  - id: ottawa_public_safety_snapshot
+    description: Summarize the most important Ottawa-wide public safety findings across datasets
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-ottawa-police-criminal-offences"
+        label: "Criminal Offences"
+      - adapter: "intent-duckdb-ottawa-police-auto-theft"
+        label: "Auto Theft"
+      - adapter: "intent-duckdb-ottawa-police-bicycle-theft"
+        label: "Bicycle Theft"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "Show me your biggest finding in Ottawa"
+      - "What is the biggest finding in Ottawa?"
+      - "What stands out most in Ottawa this year?"
+      - "Give me the main Ottawa public safety insight"
+      - "Show me an Ottawa public safety snapshot"
+      - "Give me an Ottawa crime summary for this year"
+      - "Quick overview of Ottawa criminal offences"
+      - "Crime snapshot for Ottawa"
+      - "City-wide Ottawa crime pulse"
+      - "What does the overall Ottawa crime picture look like in 2024?"
+      - "Give me a quick rundown of crime in Ottawa this year"
+      - "Quick overview of Ottawa vehicle theft"
+      - "Ottawa auto theft snapshot"
+      - "Give me a summary of Ottawa overdose calls"
+      - "Overall Ottawa overdose picture"
+      - "Summarize Ottawa shootings this year"
+      - "Give me a summary of Ottawa hate crimes"
+      - "Overall bike theft summary for Ottawa 2024"
+      - "Which Ottawa crimes are growing the fastest?"
+      - "Which Ottawa neighbourhoods saw the biggest increase in crime?"
+    tags:
+      - ottawa
+      - composite
+      - snapshot
+      - overview
+      - insight
+      - public-safety

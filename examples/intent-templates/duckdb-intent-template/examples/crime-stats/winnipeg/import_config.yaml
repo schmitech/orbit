@@ -1,0 +1,8 @@
+column_mapping:
+  year: "year"
+  month: "month"
+  neighbourhood: "Neighbourhood"
+  community: "Community"
+  count_stats: "count_stats"
+  crime_type: "crimetype_inc"
+  offence: "wpsrepcat_inc"

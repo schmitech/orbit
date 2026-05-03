@@ -1,0 +1,981 @@
+status: completed
+generated_at: '2026-03-22T19:45:00.000000'
+last_updated: '2026-03-22T19:45:00.000000'
+generator_version: 1.0.0
+total_templates: 24
+templates:
+# =============================================================================
+# CSI TRENDS & CATEGORY MIX
+# =============================================================================
+
+- id: yearly_csi_trends
+  description: Track year-over-year changes across all Community Safety Indicator incidents
+  sql: |
+    SELECT
+      report_year AS year,
+      COUNT(*) AS total_incidents,
+      COUNT(DISTINCT event_unique_id) AS distinct_events,
+      COUNT(DISTINCT csi_category) AS categories_present,
+      COUNT(DISTINCT neighbourhood_158) AS neighbourhoods_affected,
+      COUNT(DISTINCT division) AS divisions_affected
+    FROM safety_indicators
+    WHERE report_year IS NOT NULL
+    GROUP BY report_year
+    ORDER BY report_year DESC
+  parameters: []
+  nl_examples:
+  - How have Toronto major crime indicators changed over the years?
+  - Show me yearly Toronto community safety indicator trends
+  - Is major crime going up or down in Toronto?
+  - Annual Toronto CSI incident totals
+  - Track Toronto major crime indicators year over year
+  - How many Toronto CSI incidents were reported each year?
+  - Long-term trend for Toronto community safety indicators
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: safety_indicators
+    qualifiers: [trends, yearly]
+  tags: [trends, yearly, strategic, csi]
+
+- id: csi_category_breakdown
+  description: Compare CSI categories for a selected report year
+  sql: |
+    SELECT
+      csi_category,
+      COUNT(*) AS incident_count,
+      COUNT(DISTINCT event_unique_id) AS distinct_events,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM safety_indicators
+    WHERE report_year = :year
+      AND csi_category IS NOT NULL
+    GROUP BY csi_category
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What major crime categories are most common in Toronto?
+  - Show me the Toronto CSI category breakdown for 2025
+  - Compare Toronto assault, auto theft, robbery, and break and enter in the safety indicators data
+  - Which Toronto community safety indicators dominate in 2024?
+  - Major crime mix for Toronto in 2025
+  - What share of Toronto CSI incidents are assaults versus auto thefts?
+  - Breakdown of Toronto major crime indicators by category
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: safety_indicators
+    qualifiers: [csi-category, yearly]
+  tags: [category, comparison, csi, yearly]
+
+- id: csi_category_trends
+  description: Track how CSI categories have changed over time
+  sql: |
+    SELECT
+      report_year AS year,
+      csi_category,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY report_year), 1) AS pct_of_year
+    FROM safety_indicators
+    WHERE report_year IS NOT NULL
+      AND csi_category IS NOT NULL
+    GROUP BY report_year, csi_category
+    ORDER BY report_year DESC, incident_count DESC
+  parameters: []
+  nl_examples:
+  - How has the mix of Toronto major crime categories changed over time?
+  - Show me Toronto CSI category trends
+  - Are Toronto auto thefts taking a bigger share of major crime?
+  - Historical Toronto breakdown by community safety indicator
+  - Year-over-year category composition for Toronto CSI data
+  - Has robbery become a smaller share of Toronto major crime over time?
+  - Trends in Toronto assault versus break and enter versus auto theft in CSI data
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: safety_indicators
+    qualifiers: [csi-category, trends]
+  tags: [category, trends, csi, yearly]
+
+- id: incidents_by_month
+  description: Analyze monthly CSI patterns for a selected report year
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM report_date) AS month,
+      CASE EXTRACT(MONTH FROM report_date)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS incident_count,
+      COUNT(DISTINCT event_unique_id) AS distinct_events
+    FROM safety_indicators
+    WHERE report_year = :year
+      AND report_date IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM report_date)
+    ORDER BY month
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which months have the most major crime incidents in Toronto?
+  - Show me Toronto monthly CSI patterns for 2025
+  - When do Toronto community safety indicators peak during the year?
+  - Monthly Toronto major crime breakdown
+  - Is summer worse than winter for Toronto CSI incidents?
+  - What month had the most Toronto major crime reports in 2024?
+  - Seasonal pattern of Toronto major crime indicators
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: safety_indicators
+    qualifiers: [seasonal, monthly]
+  tags: [monthly, seasonal, csi, patterns]
+
+- id: incidents_by_weekday
+  description: Compare CSI incidents by day of week for a selected report year
+  sql: |
+    SELECT
+      TRIM(report_dow) AS weekday,
+      COUNT(*) AS incident_count,
+      COUNT(DISTINCT event_unique_id) AS distinct_events
+    FROM safety_indicators
+    WHERE report_year = :year
+      AND report_dow IS NOT NULL
+    GROUP BY TRIM(report_dow)
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which day of the week has the most major crime incidents in Toronto?
+  - Show me Toronto CSI incidents by weekday
+  - Are Toronto major crimes worse on weekends?
+  - Weekday breakdown for Toronto community safety indicators in 2025
+  - What day is busiest for Toronto major crime reports?
+  - Do Fridays have more Toronto CSI incidents than Mondays?
+  - Weekly pattern of Toronto major crime indicators
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: safety_indicators
+    qualifiers: [weekday, patterns]
+  tags: [weekday, patterns, csi, analysis]
+
+- id: incidents_by_hour
+  description: Analyze CSI incidents by occurrence hour for a selected year
+  sql: |
+    SELECT
+      occ_hour AS hour,
+      COUNT(*) AS incident_count,
+      COUNT(DISTINCT event_unique_id) AS distinct_events
+    FROM safety_indicators
+    WHERE report_year = :year
+      AND occ_hour IS NOT NULL
+    GROUP BY occ_hour
+    ORDER BY occ_hour
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What hour do most major crime incidents happen in Toronto?
+  - Show me Toronto CSI incidents by hour of day
+  - When during the day is Toronto major crime most common?
+  - Hourly pattern for Toronto community safety indicators
+  - What time is busiest for Toronto major crime in 2025?
+  - Are Toronto CSI incidents more common overnight or during the afternoon?
+  - Toronto major crime by hour for 2024
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: safety_indicators
+    qualifiers: [hourly, patterns]
+  tags: [hourly, time, csi, patterns]
+
+# =============================================================================
+# CATEGORY & OFFENCE ANALYSIS
+# =============================================================================
+
+- id: incidents_by_premises
+  description: Compare CSI incidents across premises types for a selected year
+  sql: |
+    SELECT
+      premises_type,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM safety_indicators
+    WHERE report_year = :year
+      AND premises_type IS NOT NULL
+    GROUP BY premises_type
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which premises types have the most major crime incidents in Toronto?
+  - Show me Toronto CSI incidents by premises type
+  - Are most Toronto major crimes outside or in apartments?
+  - Toronto major crime by premises in 2025
+  - What building types see the most Toronto CSI incidents?
+  - Compare Toronto apartment, house, and commercial major crime counts
+  - Where do Toronto major crimes happen by premises category?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: safety_indicators
+    qualifiers: [premises_type, category]
+  tags: [premises, category, csi, comparison]
+
+- id: incidents_by_location_type
+  description: Show the most common detailed location types for CSI incidents
+  sql: |
+    SELECT
+      location_type,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM safety_indicators
+    WHERE report_year = :year
+      AND location_type IS NOT NULL
+    GROUP BY location_type
+    ORDER BY incident_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to analyze
+    required: false
+    default: 2025
+  - name: limit
+    type: integer
+    description: Number of location types to return
+    required: false
+    default: 20
+  nl_examples:
+  - What detailed locations have the most major crime incidents in Toronto?
+  - Show me top Toronto CSI location types
+  - Are Toronto major crimes concentrated on streets or in apartments?
+  - Top Toronto place types for major crime in 2025
+  - Which exact Toronto settings see the most CSI incidents?
+  - Detailed location breakdown for Toronto major crime in 2024
+  - Where do Toronto major crime incidents happen most often by location type?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: safety_indicators
+    qualifiers: [location_type, ranking]
+  tags: [location-type, ranking, csi, place]
+
+- id: incidents_by_offence
+  description: Rank the most common offences in the CSI dataset for a selected year
+  sql: |
+    SELECT
+      offence,
+      csi_category,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM safety_indicators
+    WHERE report_year = :year
+      AND offence IS NOT NULL
+    GROUP BY offence, csi_category
+    ORDER BY incident_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to analyze
+    required: false
+    default: 2025
+  - name: limit
+    type: integer
+    description: Number of offences to return
+    required: false
+    default: 20
+  nl_examples:
+  - What offences are most common in Toronto major crime data?
+  - Show me the top Toronto CSI offences for 2025
+  - Rank major crime offences in Toronto
+  - Which Toronto offences dominate the community safety indicators dataset?
+  - Top specific Toronto crime indicator titles in 2024
+  - What offences drive Toronto major crime counts?
+  - Most common offences across Toronto CSI categories
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: safety_indicators
+    qualifiers: [offence, ranking]
+  tags: [offence, ranking, csi, category]
+
+- id: category_offence_breakdown
+  description: Show the offence mix within a selected CSI category
+  sql: |
+    SELECT
+      offence,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM safety_indicators
+    WHERE report_year = :year
+      AND csi_category = :csi_category
+      AND offence IS NOT NULL
+    GROUP BY offence
+    ORDER BY incident_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to analyze
+    required: false
+    default: 2025
+  - name: csi_category
+    type: string
+    description: CSI category to analyze
+    required: false
+    default: Assault
+  - name: limit
+    type: integer
+    description: Number of offences to return
+    required: false
+    default: 15
+  nl_examples:
+  - What offences make up the assault category in the Toronto CSI data for 2025?
+  - Show me the offence breakdown within Toronto auto theft for safety indicators
+  - "Within Toronto robbery, what major crime indicator offence labels appear most often?"
+  - Toronto CSI category offence mix for break and enter
+  - What offences are inside the Toronto theft over category in the CSI dataset?
+  - Toronto offence composition within a selected major crime category
+  - Drill into one Toronto CSI category by offence
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: safety_indicators
+    qualifiers: [csi-category, offence]
+  tags: [category, offence, csi, drilldown]
+
+# =============================================================================
+# LOCATION ANALYSIS
+# =============================================================================
+
+- id: incidents_by_neighbourhood
+  description: Rank neighbourhoods by CSI incident volume for a selected year
+  sql: |
+    SELECT
+      neighbourhood_158 AS neighbourhood,
+      hood_158 AS hood_code,
+      COUNT(*) AS incident_count,
+      COUNT(DISTINCT csi_category) AS categories_present
+    FROM safety_indicators
+    WHERE report_year = :year
+      AND neighbourhood_158 IS NOT NULL
+    GROUP BY neighbourhood_158, hood_158
+    ORDER BY incident_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to analyze
+    required: false
+    default: 2025
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which Toronto neighbourhoods have the most major crime incidents?
+  - Show me Toronto CSI hotspots by neighbourhood
+  - Top Toronto neighbourhoods for major crime in 2025
+  - Where are Toronto community safety indicator incidents concentrated?
+  - Which Toronto areas had the highest major crime counts in 2024?
+  - Rank Toronto neighbourhoods by CSI incident volume
+  - Toronto major crime hotspots by neighbourhood
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: safety_indicators
+    qualifiers: [neighbourhood, ranking]
+  tags: [neighbourhood, hotspots, ranking, csi]
+
+- id: incidents_by_division
+  description: Compare CSI incident volume across Toronto Police divisions
+  sql: |
+    SELECT
+      division,
+      COUNT(*) AS incident_count,
+      COUNT(DISTINCT csi_category) AS categories_present,
+      COUNT(DISTINCT neighbourhood_158) AS neighbourhoods_affected
+    FROM safety_indicators
+    WHERE report_year = :year
+      AND division IS NOT NULL
+    GROUP BY division
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which Toronto divisions have the most major crime incidents?
+  - Show me Toronto CSI incidents by division
+  - What Toronto division handles the most major crime in 2025?
+  - Division-level ranking for Toronto community safety indicators
+  - Compare Toronto major crime across divisions for 2024
+  - Which Toronto police districts carry the highest CSI burden?
+  - Toronto major crime distribution by division
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: safety_indicators
+    qualifiers: [division, ranking]
+  tags: [division, ranking, csi, operations]
+
+- id: neighbourhood_csi_history
+  description: Show yearly CSI history for a specific neighbourhood
+  sql: |
+    SELECT
+      report_year AS year,
+      COUNT(*) AS incident_count,
+      COUNT(DISTINCT csi_category) AS categories_present
+    FROM safety_indicators
+    WHERE neighbourhood_158 ILIKE '%' || :neighbourhood || '%'
+      AND report_year IS NOT NULL
+    GROUP BY report_year
+    ORDER BY report_year DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial, case-insensitive match on neighbourhood_158)
+    required: true
+  nl_examples:
+  - Show me the major crime trend for Toronto's Kensington-Chinatown (78)
+  - How have Toronto CSI incidents changed in Oakwood Village (107)?
+  - Toronto community safety indicator history for Regent Park (72)
+  - Annual Toronto major crime counts for West Hill (136)
+  - Compare one Toronto neighbourhood over time for CSI data
+  - Has Toronto's Etobicoke City Centre (159) improved on major crime?
+  - Yearly CSI history for a specific Toronto neighbourhood
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: safety_indicators
+    qualifiers: [neighbourhood, history]
+  tags: [neighbourhood, history, csi, lookup]
+
+- id: division_csi_history
+  description: Show yearly CSI history for a specific police division
+  sql: |
+    SELECT
+      report_year AS year,
+      COUNT(*) AS incident_count,
+      COUNT(DISTINCT csi_category) AS categories_present
+    FROM safety_indicators
+    WHERE division = :division
+      AND report_year IS NOT NULL
+    GROUP BY report_year
+    ORDER BY report_year DESC
+  parameters:
+  - name: division
+    type: string
+    description: Exact division code to analyze
+    required: true
+  nl_examples:
+  - Show me the major crime trend for Toronto Division D51
+  - How have Toronto CSI incidents changed in division D31?
+  - Toronto community safety indicator history for D43
+  - Annual Toronto major crime counts for D14
+  - Compare one Toronto police division over time for CSI data
+  - Has Toronto's D22 improved on major crime?
+  - Yearly CSI history for a Toronto Police division
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: safety_indicators
+    qualifiers: [division, history]
+  tags: [division, history, csi, lookup]
+
+# =============================================================================
+# COMPARISON & REFERENCE
+# =============================================================================
+
+- id: yoy_csi_comparison
+  description: Compare total CSI incidents between two selected report years
+  sql: |
+    WITH yearly AS (
+      SELECT
+        report_year,
+        COUNT(*) AS incident_count,
+        COUNT(DISTINCT event_unique_id) AS distinct_events
+      FROM safety_indicators
+      WHERE report_year IN (:year_a, :year_b)
+      GROUP BY report_year
+    )
+    SELECT
+      a.report_year AS base_year,
+      a.incident_count AS base_year_incidents,
+      a.distinct_events AS base_year_events,
+      b.report_year AS comparison_year,
+      b.incident_count AS comparison_year_incidents,
+      b.distinct_events AS comparison_year_events,
+      b.incident_count - a.incident_count AS absolute_change,
+      ROUND((b.incident_count - a.incident_count) * 100.0 / NULLIF(a.incident_count, 0), 1) AS pct_change
+    FROM yearly a
+    JOIN yearly b ON a.report_year = :year_a AND b.report_year = :year_b
+  parameters:
+  - name: year_a
+    type: integer
+    description: Base year
+    required: false
+    default: 2024
+  - name: year_b
+    type: integer
+    description: Comparison year
+    required: false
+    default: 2025
+  nl_examples:
+  - Compare Toronto major crime in 2024 vs 2025
+  - Toronto year over year CSI comparison
+  - How much did Toronto major crime change from 2023 to 2024?
+  - Show the difference in Toronto community safety indicators between two years
+  - Did Toronto have more CSI incidents in 2025 than 2024?
+  - Compare Toronto major crime totals for 2022 and 2025
+  - What was the year-over-year Toronto percentage change in CSI incidents?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: safety_indicators
+    qualifiers: [year-over-year, comparison]
+  tags: [comparison, yoy, csi, yearly]
+
+- id: list_categories
+  description: List CSI categories in the dataset with all-time counts
+  sql: |
+    SELECT
+      csi_category,
+      COUNT(*) AS total_incidents
+    FROM safety_indicators
+    WHERE csi_category IS NOT NULL
+    GROUP BY csi_category
+    ORDER BY total_incidents DESC
+  parameters: []
+  nl_examples:
+  - What Toronto CSI categories are in this dataset?
+  - List the Toronto major crime categories
+  - Show me the available Toronto community safety indicator categories
+  - Which Toronto crime indicator categories can I query?
+  - Give me the Toronto CSI category lookup list
+  - What category values exist in the Toronto CSI data?
+  - Available categories in the Toronto major crime indicators dataset
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: safety_indicators
+    qualifiers: [reference, category]
+  tags: [reference, category, csi, lookup]
+
+- id: list_neighbourhoods
+  description: List neighbourhoods in the CSI dataset with all-time counts
+  sql: |
+    SELECT
+      neighbourhood_158 AS neighbourhood,
+      hood_158 AS hood_code,
+      COUNT(*) AS total_incidents
+    FROM safety_indicators
+    WHERE neighbourhood_158 IS NOT NULL
+    GROUP BY neighbourhood_158, hood_158
+    ORDER BY neighbourhood ASC
+  parameters: []
+  nl_examples:
+  - List all neighbourhoods in the Toronto CSI dataset
+  - What Toronto neighbourhoods are available for major crime analysis?
+  - Show me Toronto neighbourhood names for community safety indicators
+  - Which Toronto areas can I query in the safety indicators dataset?
+  - Give me the Toronto neighbourhood lookup list for CSI data
+  - What neighbourhood values exist in the Toronto major crime data?
+  - Available Toronto neighbourhoods for CSI analysis
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: safety_indicators
+    qualifiers: [reference, neighbourhood]
+  tags: [reference, neighbourhood, csi, lookup]
+
+- id: list_divisions
+  description: List police divisions in the CSI dataset with all-time counts
+  sql: |
+    SELECT
+      division,
+      COUNT(*) AS total_incidents
+    FROM safety_indicators
+    WHERE division IS NOT NULL
+    GROUP BY division
+    ORDER BY division ASC
+  parameters: []
+  nl_examples:
+  - List all Toronto police divisions in the CSI dataset
+  - What Toronto police divisions are available for major crime analysis?
+  - Show me Toronto division codes for community safety indicators
+  - Which Toronto Police districts can I query for safety indicators?
+  - Give me the Toronto division lookup list for CSI data
+  - What division values exist in the Toronto CSI dataset?
+  - Available divisions for Toronto major crime analysis
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: safety_indicators
+    qualifiers: [reference, division]
+  tags: [reference, division, csi, lookup]
+
+- id: data_coverage
+  description: Summarize the time range and structural coverage of the CSI dataset
+  sql: |
+    SELECT
+      COUNT(*) AS total_records,
+      COUNT(DISTINCT event_unique_id) AS distinct_events,
+      MIN(report_date) AS first_report_date,
+      MAX(report_date) AS last_report_date,
+      MIN(report_year) AS first_report_year,
+      MAX(report_year) AS last_report_year,
+      MIN(occ_date) AS first_occurrence_date,
+      MAX(occ_date) AS last_occurrence_date,
+      COUNT(DISTINCT csi_category) AS category_count,
+      COUNT(DISTINCT neighbourhood_158) AS neighbourhoods_covered,
+      COUNT(DISTINCT division) AS divisions_covered,
+      SUM(CASE WHEN occ_year < 2014 THEN 1 ELSE 0 END) AS legacy_pre_2014_occurrence_rows
+    FROM safety_indicators
+  parameters: []
+  nl_examples:
+  - What period does the Toronto CSI dataset cover?
+  - Show me the data coverage for Toronto major crime indicators
+  - How many Toronto records and events are in the safety indicators dataset?
+  - What are the first and last dates in the Toronto community safety indicators data?
+  - Does the Toronto CSI dataset include legacy occurrence years before 2014?
+  - Give me a summary of Toronto CSI data coverage
+  - What category, neighbourhood, and division coverage does the Toronto safety indicators dataset have?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: safety_indicators
+    qualifiers: [reference, coverage]
+  tags: [reference, coverage, metadata, csi]
+
+# =============================================================================
+# INSIGHTS & POLICY ANALYTICS
+# =============================================================================
+
+- id: emerging_hotspots
+  description: Find neighbourhoods with the fastest year-over-year growth in CSI incidents
+  sql: |
+    WITH yearly AS (
+      SELECT
+        neighbourhood_158,
+        hood_158,
+        report_year,
+        COUNT(*) AS incident_count
+      FROM safety_indicators
+      WHERE neighbourhood_158 IS NOT NULL
+        AND report_year IN (:year - 1, :year)
+      GROUP BY neighbourhood_158, hood_158, report_year
+    )
+    SELECT
+      cur.neighbourhood_158 AS neighbourhood,
+      cur.hood_158 AS hood_code,
+      prev.incident_count AS previous_year_count,
+      cur.incident_count AS current_year_count,
+      cur.incident_count - prev.incident_count AS absolute_growth,
+      ROUND((cur.incident_count - prev.incident_count) * 100.0 / NULLIF(prev.incident_count, 0), 1) AS growth_pct
+    FROM yearly cur
+    JOIN yearly prev
+      ON cur.neighbourhood_158 = prev.neighbourhood_158
+     AND cur.hood_158 = prev.hood_158
+     AND cur.report_year = :year
+     AND prev.report_year = :year - 1
+    WHERE prev.incident_count >= :minimum_baseline
+      AND cur.incident_count > prev.incident_count
+    ORDER BY growth_pct DESC, current_year_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Current report year for the YoY comparison
+    required: false
+    default: 2025
+  - name: minimum_baseline
+    type: integer
+    description: Minimum prior-year count to suppress noise
+    required: false
+    default: 25
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 15
+  nl_examples:
+  - Which Toronto neighbourhoods are emerging major crime hotspots in 2025?
+  - Show me the fastest growing Toronto CSI areas
+  - What Toronto neighbourhoods had the biggest increase in major crime year over year?
+  - Emerging Toronto community safety indicator hotspots for 2024
+  - Which Toronto communities are getting worse for major crime?
+  - Find Toronto neighbourhoods with sharp growth in CSI incidents
+  - Where is major crime rising fastest in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: safety_indicators
+    qualifiers: [hotspots, neighbourhood, yoy]
+  tags: [policy, hotspots, neighbourhood, yoy, csi]
+
+- id: category_composition_shift
+  description: Show each CSI category's share of total incidents by year
+  sql: |
+    WITH yearly_totals AS (
+      SELECT
+        report_year,
+        COUNT(*) AS total_incidents
+      FROM safety_indicators
+      WHERE report_year IS NOT NULL
+      GROUP BY report_year
+    )
+    SELECT
+      s.report_year AS year,
+      s.csi_category,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / yt.total_incidents, 1) AS pct_of_year
+    FROM safety_indicators s
+    JOIN yearly_totals yt ON s.report_year = yt.report_year
+    WHERE s.report_year IS NOT NULL
+      AND s.csi_category IS NOT NULL
+    GROUP BY s.report_year, s.csi_category, yt.total_incidents
+    ORDER BY s.report_year DESC, incident_count DESC
+  parameters: []
+  nl_examples:
+  - Is assault taking a bigger share of Toronto major crime over time?
+  - Show me the composition shift of Toronto CSI categories
+  - How has the Toronto share of auto theft changed year over year in the CSI data?
+  - Toronto category share of total major crime by year
+  - Has robbery become a smaller part of Toronto CSI incidents?
+  - Strategic composition of Toronto major crime indicators
+  - Which Toronto major crime categories make up the largest share of total incidents each year?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: safety_indicators
+    qualifiers: [category-share, trends]
+  tags: [policy, category, composition, trends, csi]
+
+- id: fastest_growing_categories
+  description: Identify CSI categories with the strongest year-over-year growth
+  sql: |
+    WITH category_counts AS (
+      SELECT
+        csi_category,
+        SUM(CASE WHEN report_year = :year - 1 THEN 1 ELSE 0 END) AS previous_year_count,
+        SUM(CASE WHEN report_year = :year THEN 1 ELSE 0 END) AS current_year_count
+      FROM safety_indicators
+      WHERE report_year IN (:year - 1, :year)
+        AND csi_category IS NOT NULL
+      GROUP BY csi_category
+    )
+    SELECT
+      csi_category,
+      previous_year_count,
+      current_year_count,
+      current_year_count - previous_year_count AS absolute_growth,
+      ROUND((current_year_count - previous_year_count) * 100.0 / NULLIF(previous_year_count, 0), 1) AS growth_pct
+    FROM category_counts
+    WHERE previous_year_count >= :minimum_baseline
+      AND current_year_count > previous_year_count
+    ORDER BY growth_pct DESC, current_year_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Current report year for the YoY comparison
+    required: false
+    default: 2025
+  - name: minimum_baseline
+    type: integer
+    description: Minimum prior-year count to suppress noise
+    required: false
+    default: 100
+  nl_examples:
+  - Which Toronto major crime categories are growing fastest in 2025?
+  - Show me the fastest rising Toronto CSI categories
+  - What Toronto major crime categories surged year over year?
+  - Fastest growing Toronto community safety indicators for 2024
+  - Which Toronto categories are driving the latest major crime increase?
+  - Find Toronto CSI categories with the biggest percentage growth
+  - What Toronto major crime types are rising fastest?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: safety_indicators
+    qualifiers: [category-growth, yoy]
+  tags: [policy, category, growth, yoy, csi]
+
+- id: weekend_vs_weekday_by_category
+  description: Compare weekend and weekday intensity for each CSI category
+  sql: |
+    WITH category_day_split AS (
+      SELECT
+        csi_category,
+        SUM(CASE WHEN DAYOFWEEK(occ_date) IN (1, 7) THEN 1 ELSE 0 END) AS weekend_incidents,
+        SUM(CASE WHEN DAYOFWEEK(occ_date) BETWEEN 2 AND 6 THEN 1 ELSE 0 END) AS weekday_incidents
+      FROM safety_indicators
+      WHERE report_year = :year
+        AND occ_date IS NOT NULL
+        AND csi_category IS NOT NULL
+      GROUP BY csi_category
+    )
+    SELECT
+      csi_category,
+      weekend_incidents,
+      weekday_incidents,
+      ROUND(weekend_incidents / 2.0, 1) AS avg_per_weekend_day,
+      ROUND(weekday_incidents / 5.0, 1) AS avg_per_weekday,
+      ROUND((weekend_incidents / 2.0) / NULLIF(weekday_incidents / 5.0, 0), 2) AS weekend_to_weekday_ratio
+    FROM category_day_split
+    ORDER BY weekend_to_weekday_ratio DESC, weekend_incidents DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which Toronto major crime categories skew most toward weekends?
+  - Toronto weekend vs weekday CSI ratio by category
+  - Are Toronto robberies more weekend-driven than break and enter in the CSI data?
+  - Show me Toronto weekend intensity for major crime categories in 2025
+  - Compare Toronto weekend and weekday patterns by CSI category
+  - What Toronto major crime categories are more weekday-driven versus weekend-driven?
+  - Toronto weekend versus weekday major crime mix for 2024
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: safety_indicators
+    qualifiers: [weekend, weekday, category]
+  tags: [policy, weekend, weekday, category, csi]
+
+- id: city_snapshot
+  description: Return a one-row citywide dashboard summary for the CSI dataset
+  sql: |
+    SELECT
+      :year AS year,
+      (SELECT COUNT(*) FROM safety_indicators WHERE report_year = :year) AS total_incidents,
+      (SELECT COUNT(DISTINCT event_unique_id) FROM safety_indicators WHERE report_year = :year) AS distinct_events,
+      (SELECT COUNT(*) FROM safety_indicators WHERE report_year = :year - 1) AS previous_year_incidents,
+      ROUND(
+        (
+          (SELECT COUNT(*) FROM safety_indicators WHERE report_year = :year) -
+          (SELECT COUNT(*) FROM safety_indicators WHERE report_year = :year - 1)
+        ) * 100.0 /
+        NULLIF((SELECT COUNT(*) FROM safety_indicators WHERE report_year = :year - 1), 0),
+        1
+      ) AS yoy_pct_change,
+      (
+        SELECT csi_category
+        FROM safety_indicators
+        WHERE report_year = :year AND csi_category IS NOT NULL
+        GROUP BY csi_category
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      ) AS top_category,
+      (
+        SELECT neighbourhood_158
+        FROM safety_indicators
+        WHERE report_year = :year AND neighbourhood_158 IS NOT NULL
+        GROUP BY neighbourhood_158
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      ) AS top_neighbourhood,
+      (
+        SELECT division
+        FROM safety_indicators
+        WHERE report_year = :year AND division IS NOT NULL
+        GROUP BY division
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      ) AS top_division
+  parameters:
+  - name: year
+    type: integer
+    description: Report year to summarize
+    required: false
+    default: 2025
+  nl_examples:
+  - Give me a Toronto major crime snapshot for 2025
+  - Toronto citywide CSI dashboard for 2024
+  - Summarize the latest Toronto community safety indicator picture in one row
+  - What is the top category, neighbourhood, and division for Toronto CSI data?
+  - Quick Toronto major crime summary for 2025
+  - What does the Toronto citywide CSI snapshot look like?
+  - One-line overview of Toronto major crime this year
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: safety_indicators
+    qualifiers: [snapshot, dashboard, yearly]
+  tags: [policy, snapshot, dashboard, csi]

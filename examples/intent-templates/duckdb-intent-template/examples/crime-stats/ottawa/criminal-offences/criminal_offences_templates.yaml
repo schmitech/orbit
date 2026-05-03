@@ -1,0 +1,1454 @@
+status: completed
+generated_at: '2025-12-29T12:00:00.000000'
+last_updated: '2025-12-29T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 34
+templates:
+# =============================================================================
+# CRIME TRENDS & STATISTICS - Overall crime patterns
+# =============================================================================
+
+- id: yearly_crime_trends
+  description: Track year-over-year changes in criminal offences
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS total_offences,
+      COUNT(DISTINCT offence_category) AS unique_categories,
+      COUNT(DISTINCT neighbourhood) AS affected_neighbourhoods
+    FROM criminal_offences
+    GROUP BY year
+    ORDER BY year DESC
+  parameters: []
+  nl_examples:
+  - How has crime changed over the years in Ottawa?
+  - Show me yearly Ottawa crime trends
+  - What is the year-over-year Ottawa crime rate?
+  - Is crime increasing or decreasing in Ottawa?
+  - Track Ottawa criminal offences over time
+  - Year-over-year comparison of total criminal offences in Ottawa
+  - How bad was Ottawa crime in 2023 compared to previous years?
+  - Are things getting worse in Ottawa crime-wise?
+  - What does the long-term Ottawa crime trend look like?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [trends, yearly]
+  tags: [trends, yearly, strategic, crime-stats]
+
+- id: offences_by_month
+  description: Analyze monthly crime patterns to identify seasonal trends
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM occurred_date) AS month,
+      CASE EXTRACT(MONTH FROM occurred_date)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS offence_count
+    FROM criminal_offences
+    WHERE year = :year AND occurred_date IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM occurred_date)
+    ORDER BY month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which months have the most crime in Ottawa?
+  - Show me seasonal patterns in Ottawa criminal offences
+  - When do most Ottawa crimes happen?
+  - Ottawa monthly crime breakdown
+  - What are the peak Ottawa months for crime?
+  - Does crime go up in the summer months in Ottawa?
+  - Ottawa monthly offence counts for 2023
+  - Is there a seasonal pattern to crime in Ottawa in 2024?
+  - Which month had the fewest Ottawa criminal offences?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [seasonal, monthly]
+  tags: [seasonal, monthly, patterns, trends]
+
+- id: offences_by_time_of_day
+  description: Analyze when offences occur throughout the day
+  sql: |
+    SELECT
+      time_of_day,
+      COUNT(*) AS offence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE year = :year AND time_of_day IS NOT NULL
+    GROUP BY time_of_day
+    ORDER BY offence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - When do most crimes happen during the day in Ottawa?
+  - Show me Ottawa offences by time of day
+  - Are Ottawa crimes more common at night or during the day?
+  - What time are crimes most likely to occur in Ottawa?
+  - Time of day analysis for Ottawa criminal offences
+  - Do more Ottawa offences happen in the morning or at night in 2024?
+  - What percentage of Ottawa crime occurs during evening hours?
+  - Is nighttime crime a big problem in Ottawa?
+  - Breakdown of Ottawa criminal offences by time period
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [time, patterns]
+  tags: [time-of-day, patterns, prevention]
+
+- id: offences_by_weekday
+  description: Analyze which days of the week have the most offences
+  sql: |
+    SELECT
+      weekday,
+      COUNT(*) AS offence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE year = :year AND weekday IS NOT NULL
+    GROUP BY weekday
+    ORDER BY offence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which day of the week has the most crime in Ottawa?
+  - Show me Ottawa offences by day of week
+  - Are more crimes committed on weekends in Ottawa?
+  - What day are crimes most likely to occur in Ottawa?
+  - Ottawa weekday breakdown of criminal offences
+  - Is Friday worse for Ottawa crime than Monday?
+  - Do Ottawa weekends see more offences than weekdays in 2024?
+  - What day should I be most careful for criminal offences in Ottawa?
+  - Distribution of Ottawa criminal offences across days of the week
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [weekday, patterns]
+  tags: [weekday, patterns, prevention]
+
+# =============================================================================
+# OFFENCE TYPE ANALYSIS - What crimes are committed
+# =============================================================================
+
+- id: offences_by_summary
+  description: Breakdown of offences by high-level summary category
+  sql: |
+    SELECT
+      offence_summary,
+      COUNT(*) AS offence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE year = :year AND offence_summary IS NOT NULL
+    GROUP BY offence_summary
+    ORDER BY offence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What are the main types of crime in Ottawa?
+  - Show me Ottawa crimes by category
+  - Ottawa property crimes vs person crimes
+  - Ottawa high-level crime breakdown
+  - What kind of Ottawa offences are most common?
+  - Ottawa summary-level offence categories for 2024
+  - How do Ottawa violent crimes compare to property crimes?
+  - What proportion of Ottawa offences are crimes against persons?
+  - Give me a high-level overview of Ottawa crime types in 2023
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [offence_summary]
+  tags: [offence-type, breakdown, overview]
+
+- id: top_offence_categories
+  description: Identify the most common specific offence types
+  sql: |
+    SELECT
+      offence_category,
+      offence_summary,
+      COUNT(*) AS offence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE year = :year AND offence_category IS NOT NULL
+    GROUP BY offence_category, offence_summary
+    ORDER BY offence_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of categories to return
+    required: false
+    default: 15
+  nl_examples:
+  - What are the most common crimes in Ottawa?
+  - Top Ottawa offence types
+  - Which Ottawa crimes happen most often?
+  - Most frequent Ottawa criminal offences
+  - What Ottawa crimes are most prevalent?
+  - Rank the top 10 Ottawa offence categories in 2024
+  - What are the leading types of crime in Ottawa?
+  - Which Ottawa criminal offences occur most frequently in 2023?
+  - Show me the most reported Ottawa crime categories
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [offence_category, ranking]
+  tags: [offence-type, ranking, top]
+
+- id: assaults_analysis
+  description: Detailed analysis of assault offences
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS assault_count,
+      COUNT(DISTINCT neighbourhood) AS affected_neighbourhoods
+    FROM criminal_offences
+    WHERE offence_category = 'Assaults'
+    GROUP BY year
+    ORDER BY year DESC
+  parameters: []
+  nl_examples:
+  - How many assault offences are there each year in Ottawa?
+  - Show me Ottawa assault crime trends
+  - Ottawa assault offence statistics over time
+  - Ottawa violent crime analysis
+  - Track Ottawa assault criminal offences
+  - Are assault crimes getting worse in Ottawa?
+  - How many neighbourhoods in Ottawa had assault offences in 2024?
+  - Year-over-year Ottawa assault offence numbers
+  - How bad is the assault crime problem in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [assaults, trends]
+  tags: [assaults, violent-crime, trends]
+
+- id: property_crimes_breakdown
+  description: Breakdown of property-related crimes
+  sql: |
+    SELECT
+      offence_category,
+      COUNT(*) AS offence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE year = :year
+      AND offence_summary LIKE '%Property%'
+      AND offence_category IS NOT NULL
+    GROUP BY offence_category
+    ORDER BY offence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What property crimes are most common in Ottawa?
+  - Break down Ottawa property offences
+  - "Theft vs break and enter vs mischief in Ottawa: criminal offence breakdown"
+  - Ottawa property crime statistics
+  - Types of property crimes in Ottawa
+  - What kinds of property crime happen in Ottawa in 2024?
+  - How big a share of Ottawa property crime is theft versus B&E?
+  - Ottawa property offence breakdown for 2023
+  - Which property-related offences in Ottawa are most reported?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [property_crimes]
+  tags: [property-crimes, breakdown]
+
+# =============================================================================
+# LOCATION ANALYSIS - Where offences occur
+# =============================================================================
+
+- id: offences_by_neighbourhood
+  description: Identify neighbourhoods with the highest crime rates
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS offence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE year = :year AND neighbourhood IS NOT NULL
+    GROUP BY neighbourhood
+    ORDER BY offence_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which Ottawa neighbourhoods have the most crime?
+  - Where are Ottawa crimes most likely to happen?
+  - Top areas for criminal offences in Ottawa
+  - Highest crime neighbourhoods in Ottawa
+  - Ottawa crime hotspots
+  - What are the worst neighbourhoods for crime in Ottawa in 2024?
+  - Rank Ottawa neighbourhoods by number of offences
+  - Which areas in Ottawa should I avoid based on criminal offences?
+  - Where is Ottawa crime concentrated in 2023?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [neighbourhood, ranking]
+  tags: [neighbourhood, hotspots, location, ranking]
+
+- id: offences_by_ward
+  description: Analyze criminal offences by city ward
+  sql: |
+    SELECT
+      ward,
+      councillor,
+      COUNT(*) AS offence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE year = :year AND ward IS NOT NULL
+    GROUP BY ward, councillor
+    ORDER BY offence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Ottawa wards have the most crime?
+  - Show me Ottawa offences by ward
+  - Ottawa crime statistics by city ward
+  - Which Ottawa councillor's ward has most crime?
+  - Ottawa ward-level crime analysis
+  - How does Somerset Ward compare to other Ottawa wards for crime?
+  - Ottawa crime breakdown by ward in 2024
+  - Which Ottawa ward had the most offences in 2023?
+  - Show me crime numbers for each Ottawa councillor's ward
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [ward]
+  tags: [ward, location, political]
+
+- id: offences_by_division
+  description: Compare criminal offences across police divisions
+  sql: |
+    SELECT
+      division,
+      COUNT(*) AS offence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      COUNT(DISTINCT offence_category) AS unique_offence_types
+    FROM criminal_offences
+    WHERE year = :year AND division IS NOT NULL
+    GROUP BY division
+    ORDER BY offence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Ottawa police division has the most crime?
+  - Compare Ottawa East vs Central vs West divisions for criminal offences
+  - Show me Ottawa offences by police division
+  - Ottawa division-level crime comparison
+  - Where should Ottawa police focus crime prevention?
+  - How does Ottawa Central division compare to West division for offences in 2024?
+  - Which Ottawa police division handles the most offences?
+  - Ottawa crime distribution across divisions in 2023
+  - Is the Ottawa East division seeing more crime than others?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: criminal_offences
+    qualifiers: [division]
+  tags: [division, comparison, police]
+
+- id: offences_by_sector
+  description: Analyze criminal offences by police sector
+  sql: |
+    SELECT
+      sector,
+      division,
+      COUNT(*) AS offence_count
+    FROM criminal_offences
+    WHERE year = :year AND sector IS NOT NULL
+    GROUP BY sector, division
+    ORDER BY offence_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of sectors to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which Ottawa police sectors have the most crime?
+  - Show me Ottawa offences by sector
+  - Ottawa sector-level criminal offence analysis
+  - Top Ottawa sectors for criminal offences
+  - What are the highest-crime Ottawa police sectors in 2024?
+  - Rank Ottawa sectors by offence count
+  - Which Ottawa sector in the Central division has the most crime?
+  - Ottawa crime numbers by police sector in 2023
+  - How do Ottawa sectors compare across divisions for criminal offences?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [sector, ranking]
+  tags: [sector, location, police]
+
+# =============================================================================
+# SPECIFIC OFFENCE CATEGORY QUERIES
+# =============================================================================
+
+- id: theft_analysis
+  description: Analysis of theft offences
+  sql: |
+    SELECT
+      offence_category,
+      COUNT(*) AS offence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE year = :year
+      AND (offence_category LIKE '%Theft%' OR offence_category LIKE '%Stolen%')
+    GROUP BY offence_category
+    ORDER BY offence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Show me Ottawa theft offence statistics
+  - Types of Ottawa theft offences
+  - How much theft crime is there in Ottawa?
+  - Ottawa theft offence breakdown by type
+  - Analyze Ottawa theft crimes
+  - What types of Ottawa theft offences are most common in 2024?
+  - How bad is the Ottawa theft crime problem?
+  - "Ottawa theft under vs theft over: offence breakdown in 2023"
+  - How prevalent is shoplifting compared to auto theft in Ottawa criminal offence data?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [theft]
+  tags: [theft, property-crimes, breakdown]
+
+- id: break_and_enter_analysis
+  description: Analysis of break and enter offences
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS be_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE year = :year
+      AND offence_category = 'Break and Enter'
+      AND neighbourhood IS NOT NULL
+    GROUP BY neighbourhood
+    ORDER BY be_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 15
+  nl_examples:
+  - Where do most break and enter offences happen in Ottawa?
+  - Ottawa break and enter crime hotspots
+  - Ottawa B&E offences by neighbourhood
+  - Ottawa burglary crime statistics
+  - Ottawa break and enter offence analysis
+  - Which Ottawa neighbourhoods have the most break-in offences in 2024?
+  - Is B&E a big crime problem in Ottawa Centretown?
+  - Top Ottawa areas for burglary offences in 2023
+  - Where are Ottawa break and enter crimes concentrated?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [break_and_enter, neighbourhood]
+  tags: [break-and-enter, property-crimes, hotspots]
+
+- id: fraud_analysis
+  description: Analysis of fraud offences
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS fraud_count,
+      COUNT(DISTINCT neighbourhood) AS affected_neighbourhoods
+    FROM criminal_offences
+    WHERE offence_category = 'Fraud'
+    GROUP BY year
+    ORDER BY year DESC
+  parameters: []
+  nl_examples:
+  - How many fraud offences are there each year in Ottawa?
+  - Ottawa fraud crime trends over time
+  - Ottawa fraud offence statistics
+  - Is Ottawa fraud crime increasing?
+  - Track Ottawa fraud criminal offences
+  - How many Ottawa fraud offences were there in 2024?
+  - Is fraud crime getting worse in Ottawa?
+  - Year-over-year Ottawa fraud offence comparison
+  - How widespread are fraud crimes across Ottawa neighbourhoods?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [fraud, trends]
+  tags: [fraud, trends, financial-crime]
+
+- id: mischief_analysis
+  description: Analysis of mischief/vandalism offences
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS mischief_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE year = :year
+      AND offence_category = 'Mischief'
+      AND neighbourhood IS NOT NULL
+    GROUP BY neighbourhood
+    ORDER BY mischief_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 15
+  nl_examples:
+  - Where do most vandalism offences happen in Ottawa?
+  - Ottawa mischief crime hotspots
+  - Ottawa property damage offences by neighbourhood
+  - Ottawa vandalism offence statistics
+  - Ottawa mischief offence analysis
+  - Which Ottawa areas have the worst vandalism crime problem in 2024?
+  - Is Ottawa mischief a big offence issue in the Byward Market?
+  - Top Ottawa neighbourhoods for property damage crimes in 2023
+  - How bad is vandalism crime in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [mischief, neighbourhood]
+  tags: [mischief, vandalism, property-crimes]
+
+# =============================================================================
+# SPECIFIC QUERIES - Detailed lookups
+# =============================================================================
+
+- id: specific_neighbourhood_analysis
+  description: Get detailed crime statistics for a specific neighbourhood
+  sql: |
+    SELECT
+      offence_category,
+      COUNT(*) AS offence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE neighbourhood ILIKE '%' || :neighbourhood || '%'
+      AND year = :year
+    GROUP BY offence_category
+    ORDER BY offence_count DESC
+    LIMIT 20
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial match)
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Show me crime in Centretown Ottawa
+  - What crimes happen in Vanier Ottawa?
+  - Ottawa crime breakdown for Barrhaven
+  - Analyze offences in Orleans Ottawa
+  - Kanata Ottawa crime details
+  - What are the most common offences in the Byward Market in 2024 in Ottawa?
+  - Ottawa crime stats for Gloucester in 2023
+  - What types of Ottawa crime are reported in Sandy Hill?
+  - Give me a detailed Ottawa crime profile for Westboro
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [neighbourhood]
+  tags: [neighbourhood, detail, specific]
+
+- id: specific_offence_category_analysis
+  description: Get detailed statistics for a specific offence type
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS offence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM criminal_offences
+    WHERE offence_category ILIKE '%' || :offence_category || '%'
+      AND year = :year
+      AND neighbourhood IS NOT NULL
+    GROUP BY neighbourhood
+    ORDER BY offence_count DESC
+    LIMIT 20
+  parameters:
+  - name: offence_category
+    type: string
+    description: Offence category to analyze (e.g., Assaults, Theft, Fraud)
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Show me where Ottawa assault offences happen
+  - Where is theft crime most common in Ottawa?
+  - Ottawa fraud offences by neighbourhood
+  - Analyse Ottawa break and enter offence locations
+  - Where do Ottawa robbery crimes occur?
+  - Which Ottawa neighbourhoods have the most drug offences in 2024?
+  - Where are Ottawa sexual assault crimes concentrated?
+  - Top Ottawa areas for vehicle theft offences in 2023
+  - Ottawa neighbourhood ranking for a specific crime type
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [offence_category]
+  tags: [offence-type, detail, specific]
+
+- id: offence_in_neighbourhood
+  description: Year-by-year counts of a specific offence type in a specific neighbourhood
+  sql: |
+    WITH params AS (
+      SELECT
+        TRIM(REGEXP_REPLACE(
+          REGEXP_REPLACE(LOWER(:neighbourhood), '\b(ontario|ottawa|area|the|neighbourhood|city)\b', '', 'g'),
+          '\s+', ' ', 'g'
+        )) AS clean_neighbourhood,
+        SPLIT_PART(TRIM(REPLACE(:offence_category, '-', ' ')), ' ', 1) AS clean_offence
+    )
+    SELECT
+      year,
+      COUNT(*) AS offence_count
+    FROM criminal_offences, params
+    WHERE neighbourhood ILIKE '%' || clean_neighbourhood || '%'
+      AND (offence_category ILIKE '%' || clean_offence || '%'
+           OR offence_summary ILIKE '%' || clean_offence || '%')
+    GROUP BY year
+    ORDER BY year DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial, case-insensitive match)
+    required: true
+  - name: offence_category
+    type: string
+    description: Offence category or type (e.g., break and enter, theft, assault, fraud)
+    required: true
+  nl_examples:
+  - How many break-ins in Greely Ottawa?
+  - Break-ins in Greely Ontario area
+  - Ottawa break and enter count for Barrhaven
+  - Ottawa theft in Vanier by year
+  - Assaults in Ottawa Centretown over time
+  - How often does fraud happen in Orleans Ottawa?
+  - Yearly B&E numbers for Hintonburg Ottawa
+  - How many break-ins per year in the Byward Market Ottawa?
+  - Ottawa robbery counts in Sandy Hill over the years
+  - Ottawa mischief trend in Kanata
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [neighbourhood, offence_category, trends]
+  tags: [neighbourhood, offence-type, specific, detail]
+
+- id: year_over_year_comparison
+  description: Compare crime statistics between two years
+  sql: |
+    SELECT
+      :current_year AS current_year,
+      :previous_year AS previous_year,
+      (SELECT COUNT(*) FROM criminal_offences WHERE year = :current_year) AS current_offences,
+      (SELECT COUNT(*) FROM criminal_offences WHERE year = :previous_year) AS previous_offences,
+      ROUND(((SELECT COUNT(*) FROM criminal_offences WHERE year = :current_year) -
+             (SELECT COUNT(*) FROM criminal_offences WHERE year = :previous_year)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM criminal_offences WHERE year = :previous_year), 0), 1) AS change_pct
+  parameters:
+  - name: current_year
+    type: integer
+    description: Current year to compare
+    required: false
+    default: 2024
+  - name: previous_year
+    type: integer
+    description: Previous year to compare
+    required: false
+    default: 2023
+  nl_examples:
+  - Compare 2024 to 2023 Ottawa crime rates
+  - Year over year change in Ottawa crime
+  - How much has Ottawa crime increased?
+  - Compare this Ottawa year to last year for criminal offences
+  - Ottawa crime trend comparison
+  - What is the percentage change in Ottawa crime from 2022 to 2023?
+  - Did Ottawa crime go up or down between 2023 and 2024?
+  - How does Ottawa 2024 stack up against 2023 for total offences?
+  - Is Ottawa crime getting worse compared to last year?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: criminal_offences
+    qualifiers: [yearly, change]
+  tags: [comparison, yearly, trend]
+
+- id: offence_category_trends
+  description: Track trends for a specific offence category over time
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS offence_count
+    FROM criminal_offences
+    WHERE offence_category ILIKE '%' || :offence_category || '%'
+    GROUP BY year
+    ORDER BY year DESC
+  parameters:
+  - name: offence_category
+    type: string
+    description: Offence category to track (e.g., Assaults, Theft, Fraud)
+    required: true
+  nl_examples:
+  - Track Ottawa assault offence trends over time
+  - How has Ottawa theft crime changed over the years?
+  - Ottawa fraud offence trends by year
+  - Ottawa break and enter offences year over year
+  - Historical trend for a specific Ottawa crime
+  - Is Ottawa robbery crime increasing or decreasing over the years?
+  - How have Ottawa drug offences trended since 2020?
+  - Multi-year analysis of Ottawa mischief offences
+  - Are Ottawa sexual assault crimes going up or down?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [offence_category, trends]
+  tags: [trends, offence-type, historical]
+
+# =============================================================================
+# REFERENCE DATA - System information
+# =============================================================================
+
+- id: list_neighbourhoods
+  description: List all neighbourhoods with crime data
+  sql: |
+    SELECT DISTINCT
+      neighbourhood,
+      COUNT(*) AS offence_count,
+      MIN(year) AS data_from,
+      MAX(year) AS data_to
+    FROM criminal_offences
+    WHERE neighbourhood IS NOT NULL
+    GROUP BY neighbourhood
+    ORDER BY offence_count DESC
+  parameters: []
+  nl_examples:
+  - What Ottawa neighbourhoods have criminal offence data?
+  - List all areas in the Ottawa criminal offences database
+  - Which Ottawa neighbourhoods are covered for crime data?
+  - Show me all Ottawa neighbourhoods with offence records
+  - What Ottawa neighbourhoods are available in the crime data?
+  - List every Ottawa neighbourhood with offence records
+  - How many Ottawa neighbourhoods have crime data?
+  - Which Ottawa areas have the longest criminal offence data history?
+  - What Ottawa communities are tracked in the criminal offences dataset?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [reference]
+  tags: [reference, neighbourhoods, metadata]
+
+- id: list_offence_categories
+  description: List all offence categories in the database
+  sql: |
+    SELECT DISTINCT
+      offence_category,
+      offence_summary,
+      COUNT(*) AS offence_count
+    FROM criminal_offences
+    WHERE offence_category IS NOT NULL
+    GROUP BY offence_category, offence_summary
+    ORDER BY offence_count DESC
+  parameters: []
+  nl_examples:
+  - What Ottawa crime types are in the database?
+  - List all Ottawa offence categories
+  - What Ottawa crimes are tracked?
+  - Show me all Ottawa crime types
+  - What Ottawa offence categories does the dataset include?
+  - How many different types of crime are recorded in Ottawa?
+  - List every Ottawa offence type and its summary grouping
+  - What Ottawa criminal offence classifications are used?
+  - Which Ottawa crime categories have the most records?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [reference]
+  tags: [reference, offence-categories, metadata]
+
+- id: data_coverage
+  description: Show data coverage summary - years and records available
+  sql: |
+    SELECT
+      MIN(occurred_date) AS earliest_date,
+      MAX(occurred_date) AS latest_date,
+      COUNT(DISTINCT year) AS years_covered,
+      COUNT(*) AS total_records,
+      COUNT(DISTINCT neighbourhood) AS neighbourhoods,
+      COUNT(DISTINCT offence_category) AS offence_categories,
+      COUNT(DISTINCT ward) AS wards
+    FROM criminal_offences
+  parameters: []
+  nl_examples:
+  - What Ottawa criminal offence data is available?
+  - Show me Ottawa criminal offence data coverage
+  - How much historical Ottawa crime data exists?
+  - What is the date range of the Ottawa criminal offence data?
+  - Ottawa criminal offences database summary
+  - How far back does the Ottawa crime data go?
+  - What years are covered in the Ottawa criminal offences dataset?
+  - How many total records are in the Ottawa criminal offences database?
+  - Give me a summary of the Ottawa crime data available
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [reference, metadata]
+  tags: [reference, coverage, metadata]
+
+# =============================================================================
+# INSIGHT GENERATORS - High-value analytical templates
+# =============================================================================
+
+- id: emerging_hotspots
+  description: Neighbourhoods with the biggest year-over-year increase in criminal offences
+  sql: |
+    WITH yearly AS (
+      SELECT neighbourhood, year, COUNT(*) AS offences
+      FROM criminal_offences
+      WHERE neighbourhood IS NOT NULL
+      GROUP BY neighbourhood, year
+    ),
+    yoy AS (
+      SELECT
+        c.neighbourhood,
+        c.year,
+        c.offences AS current_offences,
+        p.offences AS previous_offences,
+        c.offences - p.offences AS absolute_change,
+        ROUND((c.offences - p.offences) * 100.0 / NULLIF(p.offences, 0), 1) AS pct_change
+      FROM yearly c
+      JOIN yearly p ON c.neighbourhood = p.neighbourhood AND c.year = p.year + 1
+    )
+    SELECT neighbourhood, current_offences, previous_offences, absolute_change, pct_change
+    FROM yoy
+    WHERE year = :year AND previous_offences >= :min_baseline
+    ORDER BY pct_change DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum offences in previous year to filter noise
+    required: false
+    default: 20
+  - name: limit
+    type: integer
+    description: Number of results
+    required: false
+    default: 100
+  nl_examples:
+  - Which Ottawa neighbourhoods saw the biggest increase in crime?
+  - Where is Ottawa crime surging?
+  - Emerging Ottawa crime hotspots
+  - Ottawa neighbourhoods getting worse for crime
+  - Where did Ottawa criminal offences spike this year?
+  - What Ottawa areas had the biggest jump in offences in 2024?
+  - Which Ottawa communities are seeing crime spikes?
+  - Ottawa neighbourhoods with rising crime rates compared to last year
+  - Where is crime growing the fastest in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [hotspots, change, emerging]
+  tags: [hotspots, trends, journalist, insight]
+
+- id: improving_areas
+  description: Neighbourhoods with the biggest year-over-year decrease in criminal offences
+  sql: |
+    WITH yearly AS (
+      SELECT neighbourhood, year, COUNT(*) AS offences
+      FROM criminal_offences
+      WHERE neighbourhood IS NOT NULL
+      GROUP BY neighbourhood, year
+    ),
+    yoy AS (
+      SELECT
+        c.neighbourhood,
+        c.year,
+        c.offences AS current_offences,
+        p.offences AS previous_offences,
+        c.offences - p.offences AS absolute_change,
+        ROUND((c.offences - p.offences) * 100.0 / NULLIF(p.offences, 0), 1) AS pct_change
+      FROM yearly c
+      JOIN yearly p ON c.neighbourhood = p.neighbourhood AND c.year = p.year + 1
+    )
+    SELECT neighbourhood, current_offences, previous_offences, absolute_change, pct_change
+    FROM yoy
+    WHERE year = :year AND previous_offences >= :min_baseline
+    ORDER BY pct_change ASC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum offences in previous year to filter noise
+    required: false
+    default: 20
+  - name: limit
+    type: integer
+    description: Number of results
+    required: false
+    default: 100
+  nl_examples:
+  - Which Ottawa neighbourhoods improved the most for criminal offences?
+  - Where is Ottawa crime declining?
+  - Ottawa areas getting safer from crime
+  - Biggest drops in Ottawa criminal offences
+  - Where did Ottawa crime decrease?
+  - What Ottawa neighbourhoods saw the largest drop in crime in 2024?
+  - Which Ottawa areas are becoming safer from criminal offences?
+  - Ottawa neighbourhoods with the best improvement in offence rates
+  - Where has Ottawa crime gone down the most compared to last year?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [improving, change]
+  tags: [improving, trends, journalist, insight]
+
+- id: record_breakers
+  description: Rank all years by total offences to see if records were set
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS total_offences,
+      RANK() OVER (ORDER BY COUNT(*) DESC) AS rank_worst,
+      COUNT(DISTINCT offence_category) AS offence_types,
+      COUNT(DISTINCT neighbourhood) AS neighbourhoods_affected
+    FROM criminal_offences
+    GROUP BY year
+    ORDER BY total_offences DESC
+  parameters: []
+  nl_examples:
+  - Is this the worst year for Ottawa crime?
+  - Record-breaking Ottawa crime years
+  - Which year had the most offences in Ottawa?
+  - All-time Ottawa crime ranking by year
+  - Has Ottawa crime hit a new record?
+  - Was 2024 the worst year ever for crime in Ottawa?
+  - Rank all Ottawa years from most to fewest offences
+  - Did Ottawa 2023 set any crime records?
+  - Which year saw the highest number of Ottawa criminal offences historically?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: criminal_offences
+    qualifiers: [records, ranking]
+  tags: [records, ranking, journalist, insight]
+
+- id: fastest_growing_crime_types
+  description: Which offence categories are growing the fastest year-over-year
+  sql: |
+    WITH yearly AS (
+      SELECT offence_category, year, COUNT(*) AS offences
+      FROM criminal_offences
+      WHERE offence_category IS NOT NULL
+      GROUP BY offence_category, year
+    ),
+    yoy AS (
+      SELECT
+        c.offence_category,
+        c.offences AS current_offences,
+        p.offences AS previous_offences,
+        c.offences - p.offences AS absolute_change,
+        ROUND((c.offences - p.offences) * 100.0 / NULLIF(p.offences, 0), 1) AS pct_change
+      FROM yearly c
+      JOIN yearly p ON c.offence_category = p.offence_category AND c.year = p.year + 1
+      WHERE c.year = :year
+    )
+    SELECT offence_category, current_offences, previous_offences, absolute_change, pct_change
+    FROM yoy
+    WHERE previous_offences >= :min_baseline
+    ORDER BY pct_change DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum offences in previous year to filter noise
+    required: false
+    default: 50
+  nl_examples:
+  - Which Ottawa crimes are growing the fastest?
+  - What Ottawa crime types are surging?
+  - Fastest increasing Ottawa offence categories
+  - Which Ottawa offences spiked this year?
+  - Ottawa crime types with biggest increase
+  - What Ottawa offence categories grew the most in 2024?
+  - Are any Ottawa crime types seeing a sudden jump?
+  - Year-over-year Ottawa growth rate by offence category
+  - Which types of crime are on the rise in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: criminal_offences
+    qualifiers: [growth, ranking, offence_category]
+  tags: [growth, offence-type, journalist, insight]
+
+- id: crime_concentration
+  description: How concentrated is crime — what percentage happens in the top neighbourhoods
+  sql: |
+    WITH ranked AS (
+      SELECT
+        neighbourhood,
+        COUNT(*) AS offences,
+        SUM(COUNT(*)) OVER () AS total,
+        ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rank
+      FROM criminal_offences
+      WHERE year = :year AND neighbourhood IS NOT NULL
+      GROUP BY neighbourhood
+    )
+    SELECT
+      CASE
+        WHEN rank <= 5 THEN 'Top 5 neighbourhoods'
+        WHEN rank <= 10 THEN 'Top 6-10'
+        WHEN rank <= 20 THEN 'Top 11-20'
+        ELSE 'All others'
+      END AS tier,
+      SUM(offences) AS offences,
+      ROUND(SUM(offences) * 100.0 / MAX(total), 1) AS pct_of_total,
+      COUNT(*) AS neighbourhood_count
+    FROM ranked
+    GROUP BY CASE
+      WHEN rank <= 5 THEN 'Top 5 neighbourhoods'
+      WHEN rank <= 10 THEN 'Top 6-10'
+      WHEN rank <= 20 THEN 'Top 11-20'
+      ELSE 'All others'
+    END
+    ORDER BY MIN(rank)
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How concentrated is crime across Ottawa neighbourhoods?
+  - Do a few Ottawa areas account for most crime?
+  - Ottawa crime concentration analysis
+  - What percentage of Ottawa crime happens in the top areas?
+  - Is Ottawa crime spread evenly or concentrated?
+  - What share of Ottawa offences come from the top 5 neighbourhoods in 2024?
+  - How much Ottawa crime do the worst areas account for?
+  - Is Ottawa crime concentrated in just a few places?
+  - Equity analysis of crime distribution across Ottawa neighbourhoods
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [concentration, equity]
+  tags: [concentration, policy, researcher, insight]
+
+- id: seasonal_deviation
+  description: Compare recent months to their historical average to spot anomalies
+  sql: |
+    WITH monthly_avg AS (
+      SELECT
+        month,
+        ROUND(AVG(cnt), 1) AS historical_avg
+      FROM (
+        SELECT EXTRACT(MONTH FROM occurred_date) AS month, year, COUNT(*) AS cnt
+        FROM criminal_offences
+        WHERE occurred_date IS NOT NULL AND year < :year
+        GROUP BY month, year
+      )
+      GROUP BY month
+    ),
+    current AS (
+      SELECT
+        EXTRACT(MONTH FROM occurred_date) AS month,
+        COUNT(*) AS current_count
+      FROM criminal_offences
+      WHERE year = :year AND occurred_date IS NOT NULL
+      GROUP BY EXTRACT(MONTH FROM occurred_date)
+    )
+    SELECT
+      c.month,
+      CASE c.month
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      c.current_count,
+      a.historical_avg,
+      c.current_count - a.historical_avg AS deviation,
+      ROUND((c.current_count - a.historical_avg) * 100.0 / NULLIF(a.historical_avg, 0), 1) AS deviation_pct
+    FROM current c
+    JOIN monthly_avg a ON c.month = a.month
+    ORDER BY ABS(c.current_count - a.historical_avg) DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare against historical average
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Ottawa months were unusual for crime this year?
+  - Is this month above or below average for criminal offences in Ottawa?
+  - Ottawa seasonal anomalies in crime
+  - Months that deviate from the historical Ottawa crime pattern
+  - Unusual Ottawa crime patterns this year
+  - Were any months in 2024 significantly above the historical average for Ottawa offences?
+  - Which Ottawa months had abnormal crime levels compared to past years?
+  - How does each month in 2023 compare to the long-term Ottawa crime average?
+  - Are there any outlier months for Ottawa criminal offences this year?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: criminal_offences
+    qualifiers: [seasonal, anomaly]
+  tags: [seasonal, anomaly, researcher, insight]
+
+- id: crime_composition_shift
+  description: How the mix of crime types has changed over time
+  sql: |
+    WITH totals AS (
+      SELECT year, COUNT(*) AS year_total
+      FROM criminal_offences
+      GROUP BY year
+    ),
+    by_type AS (
+      SELECT
+        c.year,
+        c.offence_summary,
+        COUNT(*) AS offences,
+        ROUND(COUNT(*) * 100.0 / t.year_total, 1) AS pct_of_total
+      FROM criminal_offences c
+      JOIN totals t ON c.year = t.year
+      WHERE c.offence_summary IS NOT NULL
+      GROUP BY c.year, c.offence_summary, t.year_total
+    )
+    SELECT year, offence_summary, offences, pct_of_total
+    FROM by_type
+    ORDER BY offence_summary, year DESC
+  parameters: []
+  nl_examples:
+  - How has the mix of Ottawa crime types changed over time?
+  - Ottawa crime composition shift over the years
+  - Are Ottawa property crimes becoming a bigger share?
+  - Is Ottawa violent crime growing as a proportion?
+  - How has the balance between Ottawa crime types changed?
+  - What percentage of total Ottawa crime does each category make up year by year?
+  - Has the share of Ottawa person crimes increased relative to property crimes?
+  - Proportional breakdown of Ottawa offence types across all years
+  - Is the composition of crime in Ottawa shifting?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: criminal_offences
+    qualifiers: [composition, shift]
+  tags: [composition, trends, researcher, policy, insight]
+
+- id: neighbourhood_safety_snapshot
+  description: Safety overview for a specific neighbourhood — total offences, YoY change, top crimes, and city-wide rank
+  sql: |
+    WITH neighbourhood_stats AS (
+      SELECT
+        neighbourhood,
+        COUNT(*) AS total_offences,
+        RANK() OVER (ORDER BY COUNT(*) DESC) AS city_rank
+      FROM criminal_offences
+      WHERE year = :year AND neighbourhood IS NOT NULL
+      GROUP BY neighbourhood
+    ),
+    previous AS (
+      SELECT COUNT(*) AS prev_offences
+      FROM criminal_offences
+      WHERE neighbourhood ILIKE '%' || :neighbourhood || '%'
+        AND year = :year - 1
+    ),
+    top_crimes AS (
+      SELECT offence_category, COUNT(*) AS cnt
+      FROM criminal_offences
+      WHERE neighbourhood ILIKE '%' || :neighbourhood || '%'
+        AND year = :year AND offence_category IS NOT NULL
+      GROUP BY offence_category
+      ORDER BY cnt DESC
+      LIMIT 5
+    )
+    SELECT
+      ns.neighbourhood,
+      ns.total_offences,
+      ns.city_rank || ' of ' || (SELECT COUNT(*) FROM neighbourhood_stats) AS rank_among_neighbourhoods,
+      p.prev_offences AS previous_year_offences,
+      ns.total_offences - p.prev_offences AS change,
+      ROUND((ns.total_offences - p.prev_offences) * 100.0 / NULLIF(p.prev_offences, 0), 1) AS change_pct,
+      (SELECT STRING_AGG(offence_category || ' (' || cnt || ')', ', ' ORDER BY cnt DESC) FROM top_crimes) AS top_offence_types
+    FROM neighbourhood_stats ns
+    CROSS JOIN previous p
+    WHERE ns.neighbourhood ILIKE '%' || :neighbourhood || '%'
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial match)
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How safe is the Byward Market in Ottawa based on criminal offences?
+  - Is Centretown Ottawa safe from crime?
+  - How dangerous is Vanier Ottawa for criminal offences?
+  - Safety of Ottawa Barrhaven based on crime data
+  - How is crime in Orleans Ottawa?
+  - Is Kanata an Ottawa safe neighbourhood for criminal offences?
+  - Give me an Ottawa crime safety snapshot for Sandy Hill in 2024
+  - How does Ottawa Westboro rank for crime among all neighbourhoods?
+  - Should I be worried about Ottawa crime in Gloucester?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [neighbourhood, safety, snapshot]
+  tags: [neighbourhood, safety, snapshot, public, insight]
+
+- id: neighbourhood_safety_trend
+  description: Is a specific neighbourhood getting safer or more dangerous over time
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS offences,
+      COUNT(DISTINCT offence_category) AS offence_types,
+      COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY year) AS change_from_prior,
+      ROUND((COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY year)) * 100.0 /
+        NULLIF(LAG(COUNT(*)) OVER (ORDER BY year), 0), 1) AS pct_change
+    FROM criminal_offences
+    WHERE neighbourhood ILIKE '%' || :neighbourhood || '%'
+    GROUP BY year
+    ORDER BY year DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial match)
+    required: true
+  nl_examples:
+  - Is Ottawa Centretown getting safer from crime?
+  - Ottawa crime trend for Barrhaven
+  - Is Vanier Ottawa getting worse for criminal offences?
+  - Multi-year Ottawa crime trend for Orleans
+  - How has crime changed in Kanata Ottawa?
+  - Is the Ottawa Byward Market improving or declining for crime safety?
+  - Year-over-year offence trend for Ottawa Sandy Hill
+  - Has crime been going up in Ottawa Gloucester over the past few years?
+  - Show me the historical Ottawa crime trajectory for Westboro
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [neighbourhood, safety, trend]
+  tags: [neighbourhood, safety, trend, public, insight]
+
+- id: city_snapshot
+  description: Quick city-wide pulse — total offences, trend direction, top concern, top area
+  sql: |
+    SELECT
+      :year AS year,
+      (SELECT COUNT(*) FROM criminal_offences WHERE year = :year) AS total_offences,
+      (SELECT COUNT(*) FROM criminal_offences WHERE year = :year - 1) AS previous_year_offences,
+      ROUND(((SELECT COUNT(*) FROM criminal_offences WHERE year = :year) -
+             (SELECT COUNT(*) FROM criminal_offences WHERE year = :year - 1)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM criminal_offences WHERE year = :year - 1), 0), 1) AS yoy_change_pct,
+      (SELECT offence_category FROM criminal_offences WHERE year = :year AND offence_category IS NOT NULL
+       GROUP BY offence_category ORDER BY COUNT(*) DESC LIMIT 1) AS top_offence_type,
+      (SELECT neighbourhood FROM criminal_offences WHERE year = :year AND neighbourhood IS NOT NULL
+       GROUP BY neighbourhood ORDER BY COUNT(*) DESC LIMIT 1) AS top_neighbourhood
+  parameters:
+  - name: year
+    type: integer
+    description: Year to summarize
+    required: false
+    default: 2024
+  nl_examples:
+  - Give me an Ottawa crime summary for this year
+  - Quick overview of Ottawa criminal offences
+  - Crime snapshot for Ottawa
+  - How is Ottawa crime doing this year?
+  - City-wide Ottawa crime pulse
+  - What does the overall Ottawa crime picture look like in 2024?
+  - Ottawa crime dashboard summary
+  - How many total Ottawa offences were there in 2023?
+  - Give me a quick rundown of crime in Ottawa this year
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: criminal_offences
+    qualifiers: [snapshot, overview]
+  tags: [snapshot, overview, public, dashboard, insight]

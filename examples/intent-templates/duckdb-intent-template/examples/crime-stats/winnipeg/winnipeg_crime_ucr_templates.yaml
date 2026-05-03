@@ -1,0 +1,607 @@
+status: completed
+generated_at: '2026-03-19T12:00:00.000000'
+last_updated: '2026-03-19T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 15
+templates:
+  # === TRENDS & STATISTICS ===
+  - id: yearly_crime_trends
+    description: Yearly crime incident trends
+    sql: |
+      SELECT 
+        year,
+        SUM(count_stats) as total_incidents
+      FROM winnipeg_crime_ucr
+      GROUP BY year
+      ORDER BY year DESC
+    nl_examples:
+    - How has crime changed in Winnipeg over the years?
+    - Show me the yearly crime trend in Winnipeg
+    - Is crime increasing or decreasing in Winnipeg?
+    - Annual crime statistics for Winnipeg
+    - Total incidents per year in Winnipeg
+    - Winnipeg crime trajectory from 2017 to 2025
+    - Yearly breakdown of Winnipeg police incidents
+    - Winnipeg crime counts by year
+    - Crime in Winnipeg from 2023 to 2025
+    - Whole Winnipeg crime stats 2023-2025
+    - All crime in Winnipeg 2023 2024 2025
+    - Total crime across all of Winnipeg
+    - Winnipeg overall crime numbers
+    - Winnipeg city-wide crime totals by year
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: calculate
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [trend, yearly]
+    tags: [trends, statistics]
+
+  - id: monthly_crime_patterns
+    description: Monthly crime distribution for a specific year
+    sql: |
+      SELECT 
+        month,
+        SUM(count_stats) as total_incidents
+      FROM winnipeg_crime_ucr
+      WHERE year = :year
+      GROUP BY month
+      ORDER BY month ASC
+    parameters:
+      - name: year
+        type: integer
+        description: Year to analyze
+        required: false
+        default: 2024
+    nl_examples:
+    - Monthly Winnipeg crime breakdown for 2024
+    - Which month had the most crime in Winnipeg in 2024?
+    - Seasonal crime patterns in Winnipeg during 2023
+    - Show Winnipeg incidents by month for last year
+    - Winnipeg crime distribution throughout the year 2022
+    - Monthly incident counts for Winnipeg in 2024
+    - What are the peak months for crime in Winnipeg?
+    - How does crime vary by month in 2024 in Winnipeg?
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: calculate
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [patterns, monthly]
+    tags: [trends, statistics]
+
+  # === CATEGORY ANALYSIS ===
+  - id: crime_type_breakdown
+    description: Breakdown of incidents by high-level crime type
+    sql: |
+      SELECT 
+        crime_type,
+        SUM(count_stats) as total_incidents,
+        ROUND(SUM(count_stats) * 100.0 / (SELECT SUM(count_stats) FROM winnipeg_crime_ucr WHERE year = :year), 2) as percentage
+      FROM winnipeg_crime_ucr
+      WHERE year = :year
+      GROUP BY crime_type
+      ORDER BY total_incidents DESC
+    parameters:
+      - name: year
+        type: integer
+        description: Year to analyze
+        required: false
+        default: 2024
+    nl_examples:
+    - What are the main types of crime in Winnipeg for 2024?
+    - Breakdown of Winnipeg crime categories in 2024
+    - Percentage of violent vs property crime in Winnipeg in 2024
+    - Distribution of crime types in Winnipeg
+    - Most common Winnipeg crime classifications in 2023
+    - Winnipeg crime type statistics for 2024
+    - How many property crimes vs violent crimes happened in Winnipeg in 2024?
+    - Show me the share of each Winnipeg crime type in 2024
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: calculate
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [categories, composition]
+    tags: [categories, statistics]
+
+  - id: top_offences
+    description: Most frequent specific offences
+    sql: |
+      SELECT 
+        offence,
+        crime_type,
+        SUM(count_stats) as total_incidents
+      FROM winnipeg_crime_ucr
+      WHERE year = :year
+      GROUP BY offence, crime_type
+      ORDER BY total_incidents DESC
+      LIMIT :limit
+    parameters:
+      - name: year
+        type: integer
+        description: Year to analyze
+        required: false
+        default: 2024
+      - name: limit
+        type: integer
+        description: Number of offences to show
+        required: false
+        default: 100
+    nl_examples:
+    - Top 10 crimes in Winnipeg for 2024
+    - What are the most frequent offences in Winnipeg?
+    - List the top 20 Winnipeg crime types in 2023
+    - Most common Winnipeg police incidents in 2024
+    - Which Winnipeg offences were most reported last year?
+    - Rank offences by frequency in Winnipeg
+    - Top 5 Winnipeg crimes in 2024
+    - Most prevalent offences in Winnipeg
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: sort
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [ranking, offences]
+    tags: [categories, ranking]
+
+  # === LOCATION ANALYSIS ===
+  - id: top_neighbourhoods
+    description: Neighbourhoods with highest crime counts
+    sql: |
+      SELECT 
+        neighbourhood,
+        community,
+        SUM(count_stats) as total_incidents
+      FROM winnipeg_crime_ucr
+      WHERE year = :year
+      GROUP BY neighbourhood, community
+      ORDER BY total_incidents DESC
+      LIMIT :limit
+    parameters:
+      - name: year
+        type: integer
+        description: Year to analyze
+        required: false
+        default: 2024
+      - name: limit
+        type: integer
+        description: Number of neighbourhoods to show
+        required: false
+        default: 100
+    nl_examples:
+    - Which neighbourhoods have the most crime in Winnipeg in 2024?
+    - Top 10 dangerous areas in Winnipeg for 2024
+    - Most incidents by Winnipeg neighbourhood in 2023
+    - List top neighbourhoods for crime in Winnipeg
+    - Where does most crime happen in Winnipeg?
+    - Highest crime areas in Winnipeg in 2024
+    - Winnipeg neighbourhood crime rankings for 2024
+    - Peak incident locations in Winnipeg
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: sort
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [ranking, location]
+    tags: [location, ranking]
+
+  - id: community_crime_stats
+    description: Crime stats by community area
+    sql: |
+      SELECT 
+        community,
+        SUM(count_stats) as total_incidents,
+        ROUND(SUM(count_stats) * 100.0 / (SELECT SUM(count_stats) FROM winnipeg_crime_ucr WHERE year = :year), 2) as percentage
+      FROM winnipeg_crime_ucr
+      WHERE year = :year
+      GROUP BY community
+      ORDER BY total_incidents DESC
+    parameters:
+      - name: year
+        type: integer
+        description: Year to analyze
+        required: false
+        default: 2024
+    nl_examples:
+    - Winnipeg crime breakdown by community area in 2024
+    - Which Winnipeg community area is the safest?
+    - Incident counts for Winnipeg St. Boniface vs Downtown
+    - Winnipeg community crime comparison 2024
+    - Most incidents by Winnipeg community in 2023
+    - Show me crime stats for Winnipeg communities
+    - Percentage of Winnipeg city crime in each community
+    - Rank Winnipeg communities by crime volume
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: calculate
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [location, community]
+    tags: [location, statistics]
+
+  # === SPECIFIC QUERIES ===
+  - id: neighbourhood_lookup
+    description: Detailed crime stats for a specific neighbourhood
+    sql: |
+      SELECT 
+        offence,
+        crime_type,
+        SUM(count_stats) as total_incidents
+      FROM winnipeg_crime_ucr
+      WHERE neighbourhood ILIKE :neighbourhood
+        AND year = :year
+      GROUP BY offence, crime_type
+      ORDER BY total_incidents DESC
+    parameters:
+      - name: neighbourhood
+        type: string
+        description: Name of the neighbourhood
+        required: true
+      - name: year
+        type: integer
+        description: Year to analyze
+        required: false
+        default: 2024
+    nl_examples:
+    - Winnipeg crime in West End for 2024
+    - How many incidents happened in Downtown Winnipeg last year?
+    - Show me crime stats for Point Douglas Winnipeg in 2024
+    - What are the most common crimes in St. Vital Winnipeg?
+    - List offences for Osborne Village Winnipeg in 2023
+    - Crime report for Transcona Winnipeg in 2024
+    - Is Winnipeg North End safe in 2024?
+    - Winnipeg incidents in River Heights for 2024
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: filter
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [lookup, location]
+    tags: [location, lookup]
+
+  # === YEAR-OVER-YEAR COMPARISON ===
+  - id: crime_yoy_comparison
+    description: Year-over-year change in crime by category
+    sql: |
+      WITH current_year AS (
+        SELECT crime_type, SUM(count_stats) as current_count
+        FROM winnipeg_crime_ucr
+        WHERE year = :year
+        GROUP BY crime_type
+      ),
+      previous_year AS (
+        SELECT crime_type, SUM(count_stats) as prev_count
+        FROM winnipeg_crime_ucr
+        WHERE year = :year - 1
+        GROUP BY crime_type
+      )
+      SELECT 
+        c.crime_type,
+        p.prev_count as "Count (Previous)",
+        c.current_count as "Count (Current)",
+        c.current_count - p.prev_count as net_change,
+        ROUND((c.current_count - p.prev_count) * 100.0 / NULLIF(p.prev_count, 0), 2) as pct_change
+      FROM current_year c
+      LEFT JOIN previous_year p ON c.crime_type = p.crime_type
+      ORDER BY pct_change DESC
+    parameters:
+      - name: year
+        type: integer
+        description: Current year for comparison
+        required: false
+        default: 2024
+    nl_examples:
+    - How does 2024 Winnipeg crime compare to 2023?
+    - YoY crime change in Winnipeg by category
+    - Is violent crime increasing in Winnipeg in 2024 compared to last year?
+    - Percentage change in Winnipeg crime types between 2023 and 2024
+    - Winnipeg crime growth rates 2024
+    - Compare Winnipeg this year's incidents to last year
+    - Which Winnipeg crime types increased the most in 2024?
+    - Growth or decline of crime in Winnipeg
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: compare
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [yoy, change]
+    tags: [comparison, statistics]
+
+  # === REFERENCE DATA ===
+  - id: list_communities
+    description: List all community areas in the dataset
+    sql: |
+      SELECT DISTINCT community
+      FROM winnipeg_crime_ucr
+      ORDER BY community ASC
+    nl_examples:
+    - What are the community areas in Winnipeg?
+    - List all communities in the Winnipeg police dataset
+    - Show me the list of Winnipeg community areas
+    - Which Winnipeg communities are covered by the crime data?
+    - Get all Winnipeg community names
+    - Enumerate communities in Winnipeg
+    - List available Winnipeg community areas
+    - What community names are used in this Winnipeg data?
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: list
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [metadata, location]
+    tags: [reference, location]
+
+  # === POLICY & STRATEGIC ANALYTICS ===
+  - id: fastest_growing_crimes
+    description: Crimes with the highest percentage growth (min 10 incidents)
+    sql: |
+      WITH yearly_offences AS (
+        SELECT 
+          offence,
+          SUM(CASE WHEN year = :year - 1 THEN count_stats ELSE 0 END) as prev_count,
+          SUM(CASE WHEN year = :year THEN count_stats ELSE 0 END) as current_count
+        FROM winnipeg_crime_ucr
+        WHERE year IN (:year, :year - 1)
+        GROUP BY offence
+      )
+      SELECT 
+        offence,
+        prev_count,
+        current_count,
+        current_count - prev_count as net_change,
+        ROUND((current_count - prev_count) * 100.0 / NULLIF(prev_count, 0), 2) as growth_pct
+      FROM yearly_offences
+      WHERE prev_count >= 10
+      ORDER BY growth_pct DESC
+      LIMIT 10
+    parameters:
+      - name: year
+        type: integer
+        description: Year to analyze
+        required: false
+        default: 2024
+    nl_examples:
+    - Which Winnipeg crimes are surging in 2024?
+    - Fastest growing offences in Winnipeg
+    - What Winnipeg crime types saw the biggest increase last year?
+    - Emerging Winnipeg crime threats in 2024
+    - Identify surging incident types in Winnipeg
+    - Winnipeg crimes with highest growth rate 2024
+    - Top increasing offences in Winnipeg
+    - Most significant YoY Winnipeg growth by crime type
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: calculate
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [policy, growth]
+    tags: [policy, statistics]
+
+  - id: crime_concentration
+    description: Concentration of crime among top neighbourhoods (Pareto Principle)
+    sql: |
+      WITH total AS (
+        SELECT SUM(count_stats) as city_total FROM winnipeg_crime_ucr WHERE year = :year
+      ),
+      neighbourhood_ranks AS (
+        SELECT 
+          neighbourhood,
+          SUM(count_stats) as total_incidents,
+          SUM(SUM(count_stats)) OVER (ORDER BY SUM(count_stats) DESC) as cumulative_incidents,
+          ROW_NUMBER() OVER (ORDER BY SUM(count_stats) DESC) as n_rank,
+          (SELECT COUNT(DISTINCT neighbourhood) FROM winnipeg_crime_ucr WHERE year = :year) as total_neighbourhoods
+        FROM winnipeg_crime_ucr
+        WHERE year = :year
+        GROUP BY neighbourhood
+      )
+      SELECT 
+        neighbourhood,
+        total_incidents,
+        ROUND(total_incidents * 100.0 / t.city_total, 2) as pct_of_city,
+        ROUND(cumulative_incidents * 100.0 / t.city_total, 2) as cumulative_pct,
+        CASE 
+          WHEN n_rank <= total_neighbourhoods * 0.05 THEN 'Top 5%'
+          WHEN n_rank <= total_neighbourhoods * 0.10 THEN 'Top 10%'
+          WHEN n_rank <= total_neighbourhoods * 0.20 THEN 'Top 20%'
+          ELSE 'Rest'
+        END as concentration_tier
+      FROM neighbourhood_ranks, total t
+      ORDER BY total_incidents DESC
+      LIMIT 20
+    parameters:
+      - name: year
+        type: integer
+        description: Year to analyze
+        required: false
+        default: 2024
+    nl_examples:
+    - How concentrated is crime in Winnipeg neighbourhoods?
+    - Does a small number of Winnipeg areas account for most crime?
+    - Pareto analysis of Winnipeg crime by location
+    - Winnipeg crime concentration in top neighbourhoods 2024
+    - Strategic hot-spot concentration in Winnipeg
+    - Distribution of crime volume across Winnipeg city locations
+    - Which Winnipeg areas account for the top 50% of crime?
+    - Crime inequality across Winnipeg neighbourhoods
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: calculate
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [policy, concentration]
+    tags: [policy, hot-spots]
+
+  - id: city_snapshot
+    description: High-level city dashboard snapshot
+    sql: |
+      SELECT 
+        (SELECT SUM(count_stats) FROM winnipeg_crime_ucr WHERE year = :year) as total_incidents,
+        (SELECT offence FROM (SELECT offence, SUM(count_stats) as c FROM winnipeg_crime_ucr WHERE year = :year GROUP BY offence ORDER BY c DESC LIMIT 1)) as top_offence,
+        (SELECT neighbourhood FROM (SELECT neighbourhood, SUM(count_stats) as c FROM winnipeg_crime_ucr WHERE year = :year GROUP BY neighbourhood ORDER BY c DESC LIMIT 1)) as top_neighbourhood,
+        ROUND(((SELECT SUM(count_stats) FROM winnipeg_crime_ucr WHERE year = :year) - (SELECT SUM(count_stats) FROM winnipeg_crime_ucr WHERE year = :year - 1)) * 100.0 / (SELECT SUM(count_stats) FROM winnipeg_crime_ucr WHERE year = :year - 1), 2) as yoy_change_pct
+    parameters:
+      - name: year
+        type: integer
+        description: Year for the snapshot
+        required: false
+        default: 2024
+    nl_examples:
+    - Winnipeg crime snapshot 2024
+    - Give me a summary of Winnipeg crime in 2024
+    - Winnipeg city-wide crime dashboard for last year
+    - Key crime metrics for Winnipeg 2024
+    - Quick stats on Winnipeg crime
+    - How did Winnipeg fare in 2024 regarding crime?
+    - Overview of 2024 Winnipeg police statistics
+    - What are the main Winnipeg stats for last year?
+    result_format: summary
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: calculate
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [policy, dashboard]
+    tags: [policy, dashboard]
+
+  - id: seasonal_deviation
+    description: Monthly crime deviation from annual average
+    sql: |
+      WITH monthly_counts AS (
+        SELECT 
+          month,
+          SUM(count_stats) as monthly_total
+        FROM winnipeg_crime_ucr
+        WHERE year = :year
+        GROUP BY month
+      ),
+      avg_stats AS (
+        SELECT AVG(monthly_total) as avg_monthly FROM monthly_counts
+      )
+      SELECT 
+        m.month,
+        m.monthly_total,
+        ROUND(m.monthly_total - a.avg_monthly, 0) as deviation,
+        ROUND((m.monthly_total - a.avg_monthly) * 100.0 / a.avg_monthly, 2) as pct_deviation
+      FROM monthly_counts m, avg_stats a
+      ORDER BY m.month ASC
+    parameters:
+      - name: year
+        type: integer
+        description: Year to analyze
+        required: false
+        default: 2024
+    nl_examples:
+    - Which months are above or below average for crime in Winnipeg in 2024?
+    - Seasonal deviation of crime in Winnipeg
+    - When is Winnipeg crime significantly higher than usual?
+    - Monthly Winnipeg crime variance from the mean in 2024
+    - Seasonal anomalies in Winnipeg crime 2024
+    - How does each month differ from the yearly Winnipeg average?
+    - Peak and trough months for Winnipeg crime 2024
+    - Winnipeg crime seasonality analysis 2024
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: calculate
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [policy, seasonality]
+    tags: [policy, trends]
+
+  - id: persistent_hotspots
+    description: Neighbourhoods consistently in the top 20 for crime
+    sql: |
+      WITH neighbourhood_yearly_ranks AS (
+        SELECT 
+          year,
+          neighbourhood,
+          RANK() OVER (PARTITION BY year ORDER BY SUM(count_stats) DESC) as city_rank
+        FROM winnipeg_crime_ucr
+        GROUP BY year, neighbourhood
+      )
+      SELECT 
+        neighbourhood,
+        COUNT(DISTINCT year) as years_in_top_20,
+        GROUP_CONCAT(year ORDER BY year DESC) as years_active
+      FROM neighbourhood_yearly_ranks
+      WHERE city_rank <= 20
+      GROUP BY neighbourhood
+      HAVING COUNT(DISTINCT year) >= 3
+      ORDER BY years_in_top_20 DESC, neighbourhood ASC
+    nl_examples:
+    - Which Winnipeg neighbourhoods are chronic crime hot-spots?
+    - Persistent high-crime areas in Winnipeg
+    - Winnipeg locations consistently in the top 20 for crime
+    - Chronic Winnipeg hot-spots across multiple years
+    - Which areas are always high-crime in Winnipeg?
+    - Winnipeg neighbourhoods with persistent crime issues
+    - List chronic Winnipeg hot-spots from 2017 to 2025
+    - Long-term high-crime locations in Winnipeg
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: calculate
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [policy, persistence]
+    tags: [policy, hot-spots]
+
+  - id: category_composition_shift #FIXME
+    description: Change in the share of each crime type over time
+    sql: |
+      WITH yearly_totals AS (
+        SELECT year, SUM(count_stats) as total_count
+        FROM winnipeg_crime_ucr
+        GROUP BY year
+      ),
+      category_yearly AS (
+        SELECT 
+          year,
+          crime_type,
+          SUM(count_stats) as category_count
+        FROM winnipeg_crime_ucr
+        GROUP BY year, crime_type
+      )
+      SELECT 
+        cy.year,
+        cy.crime_type,
+        cy.category_count,
+        ROUND(cy.category_count * 100.0 / yt.total_count, 2) as share_pct
+      FROM category_yearly cy
+      JOIN yearly_totals yt ON cy.year = yt.year
+      WHERE cy.crime_type = :crime_type
+      ORDER BY cy.year DESC
+    parameters:
+      - name: crime_type
+        type: string
+        description: Crime type to analyze (Violent, Property, etc.)
+        required: true
+    nl_examples:
+    - Is violent crime taking up a larger share of total Winnipeg crime?
+    - Shift in Winnipeg crime composition for Property crime
+    - How has the proportion of Winnipeg Drug offences changed over time?
+    - Share of Winnipeg violent incidents since 2017
+    - Winnipeg crime composition shift analysis
+    - Is Winnipeg's crime profile changing?
+    - Percentage of total Winnipeg crime that is Violent over the years
+    - Tracking the share of property crime in Winnipeg
+    result_format: table
+    version: 1.0.0
+    approved: true
+    semantic_tags:
+      action: calculate
+      primary_entity: winnipeg_crime_ucr
+      qualifiers: [policy, composition]
+    tags: [policy, trends]

@@ -1,0 +1,262 @@
+# Cross-adapter templates for multi-city comparison queries.
+# These templates are owned by the composite retriever and trigger
+# parallel execution across multiple child adapters.
+
+templates:
+  # ============================================================
+  # Auto Theft Cross-City Comparisons
+  # ============================================================
+  - id: compare_auto_theft_ottawa_toronto
+    description: Compare auto theft statistics between Ottawa and Toronto
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-ottawa-police-auto-theft"
+        label: "Ottawa"
+      - adapter: "intent-duckdb-toronto-police-auto-theft"
+        label: "Toronto"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare Ottawa and Toronto auto theft"
+      - "Ottawa vs Toronto auto theft"
+      - "how does auto theft compare between Ottawa and Toronto"
+      - "show me auto theft in Ottawa and Toronto"
+      - "Ottawa Toronto vehicle theft comparison"
+      - "which city has more auto theft Ottawa or Toronto"
+    tags:
+      - comparison
+      - cross-city
+      - auto-theft
+
+  - id: compare_auto_theft_ottawa_montreal
+    description: Compare auto theft statistics between Ottawa and Montreal
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-ottawa-police-auto-theft"
+        label: "Ottawa"
+      - adapter: "intent-duckdb-montreal-police-actes-criminels"
+        label: "Montreal"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare Ottawa and Montreal auto theft"
+      - "Ottawa vs Montreal auto theft"
+      - "how does auto theft compare between Ottawa and Montreal"
+      - "show me auto theft in Ottawa and Montreal"
+      - "Ottawa Montreal vehicle theft comparison"
+      - "which city has more auto theft Ottawa or Montreal"
+    tags:
+      - comparison
+      - cross-city
+      - auto-theft
+
+  - id: compare_auto_theft_toronto_montreal
+    description: Compare auto theft statistics between Toronto and Montreal
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-toronto-police-auto-theft"
+        label: "Toronto"
+      - adapter: "intent-duckdb-montreal-police-actes-criminels"
+        label: "Montreal"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare Toronto and Montreal auto theft"
+      - "Toronto vs Montreal auto theft"
+      - "how does auto theft compare between Toronto and Montreal"
+      - "show me auto theft in Toronto and Montreal"
+      - "Toronto Montreal vehicle theft comparison"
+      - "which city has more auto theft Toronto or Montreal"
+    tags:
+      - comparison
+      - cross-city
+      - auto-theft
+
+  - id: compare_auto_theft_all_cities
+    description: Compare auto theft statistics across all cities with auto theft data
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-ottawa-police-auto-theft"
+        label: "Ottawa"
+      - adapter: "intent-duckdb-toronto-police-auto-theft"
+        label: "Toronto"
+      - adapter: "intent-duckdb-montreal-police-actes-criminels"
+        label: "Montreal"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "auto theft across all cities"
+      - "compare auto theft nationwide"
+      - "auto theft in every city"
+      - "show me auto theft across Canada"
+      - "vehicle theft comparison all cities"
+      - "which Canadian city has the most auto theft"
+    tags:
+      - comparison
+      - cross-city
+      - auto-theft
+      - nationwide
+
+  # ============================================================
+  # Bicycle Theft Cross-City Comparisons
+  # ============================================================
+  - id: compare_bicycle_theft_ottawa_toronto
+    description: Compare bicycle theft statistics between Ottawa and Toronto
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-ottawa-police-bicycle-theft"
+        label: "Ottawa"
+      - adapter: "intent-duckdb-toronto-police-bicycle-theft"
+        label: "Toronto"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare Ottawa and Toronto bicycle theft"
+      - "Ottawa vs Toronto bicycle theft"
+      - "how does bicycle theft compare between Ottawa and Toronto"
+      - "show me bicycle theft in Ottawa and Toronto"
+      - "Ottawa Toronto bike theft comparison"
+      - "which city has more bicycle theft Ottawa or Toronto"
+    tags:
+      - comparison
+      - cross-city
+      - bicycle-theft
+
+  # ============================================================
+  # General Crime Cross-City Comparisons (multi-city)
+  # ============================================================
+  - id: compare_crime_edmonton_vancouver
+    description: Compare general crime statistics between Edmonton and Vancouver
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-edmonton-police-occurrences"
+        label: "Edmonton"
+      - adapter: "intent-duckdb-vancouver-police-crime"
+        label: "Vancouver"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare Edmonton and Vancouver crime"
+      - "Edmonton vs Vancouver crime"
+      - "how does crime compare between Edmonton and Vancouver"
+      - "show me crime in Edmonton and Vancouver"
+      - "Edmonton Vancouver crime comparison"
+    tags:
+      - comparison
+      - cross-city
+      - general-crime
+
+  - id: compare_crime_winnipeg_saskatoon
+    description: Compare crime statistics between Winnipeg and Saskatoon
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-winnipeg-police-crime-ucr"
+        label: "Winnipeg"
+      - adapter: "intent-duckdb-saskatoon-police-criminal-offences"
+        label: "Saskatoon"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare Winnipeg and Saskatoon crime"
+      - "Winnipeg vs Saskatoon crime"
+      - "how does crime compare between Winnipeg and Saskatoon"
+      - "show me crime in Winnipeg and Saskatoon"
+      - "Winnipeg Saskatoon crime comparison"
+      - "prairie cities crime comparison"
+    tags:
+      - comparison
+      - cross-city
+      - general-crime
+      - prairies
+
+  - id: compare_crime_toronto_montreal
+    description: Compare general crime statistics between Toronto and Montreal
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-toronto-police-safety-indicators"
+        label: "Toronto"
+      - adapter: "intent-duckdb-montreal-police-actes-criminels"
+        label: "Montreal"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare Toronto and Montreal crime"
+      - "Toronto vs Montreal crime"
+      - "Montréal vs Toronto crime"
+      - "what can you tell me about crime in Montreal vs Toronto"
+      - "what can you tell me about crime in Montréal vs Toronto"
+      - "how does crime compare between Toronto and Montreal"
+      - "show me crime in Montreal and Toronto"
+      - "show me crime in Montréal and Toronto"
+      - "Toronto Montreal crime comparison"
+      - "compare overall crime in Toronto and Montreal"
+    tags:
+      - comparison
+      - cross-city
+      - general-crime
+
+  - id: compare_crime_all_western_cities
+    description: Compare crime statistics across western Canadian cities
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-edmonton-police-occurrences"
+        label: "Edmonton"
+      - adapter: "intent-duckdb-vancouver-police-crime"
+        label: "Vancouver"
+      - adapter: "intent-duckdb-winnipeg-police-crime-ucr"
+        label: "Winnipeg"
+      - adapter: "intent-duckdb-saskatoon-police-criminal-offences"
+        label: "Saskatoon"
+      - adapter: "intent-duckdb-lethbridge-police-crime"
+        label: "Lethbridge"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "compare crime across western Canada"
+      - "crime in western Canadian cities"
+      - "western Canada crime comparison"
+      - "show me crime in Edmonton Vancouver Winnipeg Saskatoon Lethbridge"
+      - "compare crime across the prairies and BC"
+    tags:
+      - comparison
+      - cross-city
+      - general-crime
+      - western-canada
+
+  # ============================================================
+  # Ottawa Overall Safety / Aggregate Crime
+  # ============================================================
+  - id: ottawa_overall_safety_aggregate
+    description: Aggregate crime statistics across all Ottawa crime types for an overall safety picture
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-duckdb-ottawa-police-criminal-offences"
+        label: "Criminal Offences"
+      - adapter: "intent-duckdb-ottawa-police-auto-theft"
+        label: "Auto Theft"
+      - adapter: "intent-duckdb-ottawa-police-bicycle-theft"
+        label: "Bicycle Theft"
+      - adapter: "intent-duckdb-ottawa-police-hate-crimes"
+        label: "Hate Crimes"
+      - adapter: "intent-duckdb-ottawa-police-shootings"
+        label: "Shootings"
+      - adapter: "intent-duckdb-ottawa-police-overdose-calls"
+        label: "Overdose Calls"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "how does Ottawa rate as a city based on overall safety"
+      - "Ottawa overall crime statistics"
+      - "total crimes committed in Ottawa"
+      - "Ottawa safety rating"
+      - "give me an overall picture of crime in Ottawa"
+      - "how safe is Ottawa"
+      - "Ottawa crime summary across all categories"
+      - "show me all crime types in Ottawa"
+      - "Ottawa overall safety indicators"
+      - "break down all Ottawa crime by category"
+    tags:
+      - aggregate
+      - safety
+      - ottawa
+      - overall-crime

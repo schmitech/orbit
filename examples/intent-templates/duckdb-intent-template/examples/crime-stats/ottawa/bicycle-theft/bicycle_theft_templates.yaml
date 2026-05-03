@@ -1,0 +1,1067 @@
+status: completed
+generated_at: '2026-04-05T12:00:00.000000'
+last_updated: '2026-04-05T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 26
+templates:
+# =============================================================================
+# BICYCLE THEFT TRENDS & STATISTICS
+# =============================================================================
+
+- id: yearly_bicycle_theft_trends
+  description: Track year-over-year changes in bicycle theft incidents
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS total_incidents,
+      COUNT(CASE WHEN status = 'Stolen' THEN 1 END) AS stolen_count,
+      COUNT(CASE WHEN status = 'Recovered' THEN 1 END) AS recovered_count,
+      ROUND(COUNT(CASE WHEN status = 'Recovered' THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN status = 'Stolen' THEN 1 END), 0), 1) AS recovery_rate_pct,
+      ROUND(AVG(bicycle_value), 0) AS avg_bicycle_value
+    FROM bicycle_theft
+    GROUP BY year
+    ORDER BY year DESC
+  parameters: []
+  nl_examples:
+  - How has bicycle theft changed over the years in Ottawa?
+  - Show me yearly bike theft trends in Ottawa
+  - Is bicycle theft increasing or decreasing in Ottawa?
+  - Year-over-year comparison of stolen bicycles in Ottawa
+  - How many bike thefts were there each year?
+  - Is bike theft getting worse in Ottawa?
+  - Ottawa bicycle theft rate over time
+  - Annual bicycle theft statistics Ottawa
+  - Track bike theft trends across years in Ottawa
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [trends, yearly]
+  tags: [trends, yearly, strategic, bike-theft]
+
+- id: bicycle_theft_by_month
+  description: Analyze monthly bicycle theft patterns to identify seasonal trends
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM occurred_date) AS month,
+      CASE EXTRACT(MONTH FROM occurred_date)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS theft_count,
+      ROUND(AVG(bicycle_value), 0) AS avg_value
+    FROM bicycle_theft
+    WHERE year = :year AND occurred_date IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM occurred_date)
+    ORDER BY month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which months have the most bike thefts in Ottawa?
+  - Show me seasonal patterns in bicycle theft in Ottawa
+  - When do most bicycle thefts happen in Ottawa?
+  - Monthly bike theft breakdown Ottawa
+  - Peak months for bicycle theft in Ottawa
+  - Is bike theft more common in summer or winter in Ottawa?
+  - Monthly stolen bicycle counts for 2024
+  - Are there seasonal spikes in bike theft in Ottawa?
+  - Which month had the highest number of bicycle thefts in 2023?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [monthly, seasonal]
+  tags: [monthly, seasonal, trends, bike-theft]
+
+- id: bicycle_theft_by_weekday
+  description: Analyze bicycle theft patterns by day of the week
+  sql: |
+    SELECT
+      weekday,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bicycle_value), 0) AS avg_value
+    FROM bicycle_theft
+    WHERE year = :year AND weekday IS NOT NULL
+    GROUP BY weekday
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which day of the week has the most bike thefts in Ottawa?
+  - Bicycle theft by day of week in Ottawa
+  - Is Friday the worst day for bike theft in Ottawa?
+  - Are weekends worse for bicycle theft in Ottawa?
+  - Daily bike theft patterns in Ottawa
+  - What day do most bicycles get stolen in Ottawa?
+  - Weekday vs weekend bicycle theft comparison Ottawa
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [weekday, patterns]
+  tags: [weekday, patterns, trends, bike-theft]
+
+- id: bicycle_theft_by_time_of_day
+  description: Analyze bicycle theft patterns by time of day
+  sql: |
+    SELECT
+      time_of_day,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bicycle_value), 0) AS avg_value
+    FROM bicycle_theft
+    WHERE year = :year AND time_of_day IS NOT NULL AND time_of_day != ''
+    GROUP BY time_of_day
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What time of day do most bike thefts happen in Ottawa?
+  - Bicycle theft by time of day in Ottawa
+  - Are bike thefts more common at night or during the day in Ottawa?
+  - When are bicycles most likely to be stolen in Ottawa?
+  - Morning vs afternoon vs evening bicycle theft Ottawa
+  - Peak time for bike theft in Ottawa
+  - Do more bikes get stolen at night in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [time, patterns]
+  tags: [time, patterns, trends, bike-theft]
+
+# =============================================================================
+# CATEGORY ANALYSIS
+# =============================================================================
+
+- id: bicycle_theft_by_offence_category
+  description: Break down bicycle-related incidents by offence category
+  sql: |
+    SELECT
+      offence_category,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bicycle_value), 0) AS avg_value
+    FROM bicycle_theft
+    WHERE year = :year
+    GROUP BY offence_category
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What types of bicycle-related offences occur in Ottawa?
+  - Breakdown of bike theft by offence category in Ottawa
+  - How many bike thefts vs break and enters involving bicycles in Ottawa?
+  - What proportion of bicycle incidents are actual thefts vs recoveries in Ottawa?
+  - Offence categories for bicycle crime in Ottawa
+  - Types of bicycle-related crimes in Ottawa
+  - Are break and enters a big source of bike theft in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [offence, category]
+  tags: [offence, category, breakdown, bike-theft]
+
+- id: bicycle_theft_by_type
+  description: Break down bicycle theft by bicycle type (Mountain, Hybrid, Racer, etc.)
+  sql: |
+    SELECT
+      bicycle_type,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bicycle_value), 0) AS avg_value
+    FROM bicycle_theft
+    WHERE year = :year AND bicycle_type IS NOT NULL
+    GROUP BY bicycle_type
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What type of bicycle is stolen most often in Ottawa?
+  - Bike theft breakdown by bicycle type in Ottawa
+  - Are mountain bikes stolen more than road bikes in Ottawa?
+  - Which bicycle types are targeted most in Ottawa?
+  - Most commonly stolen bicycle types in Ottawa
+  - Mountain bike vs hybrid vs racer theft in Ottawa
+  - Bicycle theft by type in Ottawa 2024
+  - Do thieves target expensive bike types more in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [bicycle-type, breakdown]
+  tags: [bicycle-type, breakdown, category, bike-theft]
+
+- id: bicycle_theft_by_style
+  description: Break down bicycle theft by ownership style (Men's, Women's, Child's, etc.)
+  sql: |
+    SELECT
+      bicycle_style,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bicycle_value), 0) AS avg_value
+    FROM bicycle_theft
+    WHERE year = :year AND bicycle_style IS NOT NULL
+    GROUP BY bicycle_style
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - "Are men's or women's bikes stolen more in Ottawa?"
+  - Bicycle theft by style in Ottawa
+  - "How many children's bikes are stolen in Ottawa?"
+  - E-scooter theft in Ottawa statistics
+  - Bike theft breakdown by ownership style in Ottawa
+  - "What percentage of stolen bikes are women's bikes in Ottawa?"
+  - "Men's vs women's vs unisex bicycle theft Ottawa"
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [style, breakdown]
+  tags: [style, breakdown, category, bike-theft]
+
+- id: bicycle_theft_by_status
+  description: Break down bicycle incidents by status (Stolen, Found, Recovered, etc.)
+  sql: |
+    SELECT
+      status,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM bicycle_theft
+    WHERE year = :year
+    GROUP BY status
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How many stolen bikes are recovered in Ottawa?
+  - Bicycle theft recovery rate in Ottawa
+  - What percentage of stolen bicycles are found in Ottawa?
+  - Bike theft status breakdown Ottawa
+  - How often are stolen bikes recovered in Ottawa?
+  - Stolen vs recovered vs found bicycles in Ottawa
+  - What happens to stolen bikes in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [status, recovery]
+  tags: [status, recovery, breakdown, bike-theft]
+
+- id: top_stolen_bicycle_brands
+  description: Rank the most commonly stolen bicycle brands
+  sql: |
+    SELECT
+      TRIM(bicycle_make) AS brand,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bicycle_value), 0) AS avg_value
+    FROM bicycle_theft
+    WHERE year = :year
+      AND bicycle_make IS NOT NULL
+      AND TRIM(bicycle_make) != ''
+      AND status = 'Stolen'
+    GROUP BY TRIM(bicycle_make)
+    ORDER BY theft_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of brands to return
+    required: false
+    default: 20
+  nl_examples:
+  - What bicycle brands are stolen most in Ottawa?
+  - Top stolen bike brands in Ottawa
+  - Which bike makes are targeted by thieves in Ottawa?
+  - Most commonly stolen bicycle brands in Ottawa
+  - Are expensive bike brands stolen more in Ottawa?
+  - Rank bicycle manufacturers by theft count in Ottawa
+  - What brand of bike is most likely to be stolen in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [brand, ranking]
+  tags: [brand, ranking, top, bike-theft]
+
+# =============================================================================
+# LOCATION ANALYSIS
+# =============================================================================
+
+- id: bicycle_theft_by_neighbourhood
+  description: Rank neighbourhoods by bicycle theft volume
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bicycle_value), 0) AS avg_value
+    FROM bicycle_theft
+    WHERE year = :year AND neighbourhood IS NOT NULL
+    GROUP BY neighbourhood
+    ORDER BY theft_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which neighbourhoods have the most bike thefts in Ottawa?
+  - Top areas for bicycle theft in Ottawa
+  - Where do most bikes get stolen in Ottawa?
+  - Bicycle theft hotspots by neighbourhood in Ottawa
+  - Rank neighbourhoods by bike theft count in Ottawa
+  - Worst neighbourhoods for bicycle theft in Ottawa
+  - Most dangerous areas for bike theft in Ottawa
+  - Is Centretown the worst area for bike theft in Ottawa?
+  - Where should I be most careful locking my bike in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [neighbourhood, hotspots]
+  tags: [neighbourhood, hotspots, ranking, bike-theft]
+
+- id: bicycle_theft_by_division
+  description: Compare bicycle theft across police divisions
+  sql: |
+    SELECT
+      TRIM(division) AS division,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bicycle_value), 0) AS avg_value
+    FROM bicycle_theft
+    WHERE year = :year AND division IS NOT NULL AND TRIM(division) != ''
+    GROUP BY TRIM(division)
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which police division has the most bike thefts in Ottawa?
+  - Bicycle theft by division in Ottawa
+  - Compare Central vs East vs West division bike theft in Ottawa
+  - Division-level bicycle theft breakdown Ottawa
+  - Which division handles the most bicycle theft cases in Ottawa?
+  - Is Central division the worst for bike theft in Ottawa?
+  - Police division comparison for bicycle theft Ottawa
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [division, comparison]
+  tags: [division, comparison, location, bike-theft]
+
+- id: bicycle_theft_by_ward
+  description: Rank wards by bicycle theft volume
+  sql: |
+    SELECT
+      ward,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bicycle_value), 0) AS avg_value
+    FROM bicycle_theft
+    WHERE year = :year AND ward IS NOT NULL
+    GROUP BY ward
+    ORDER BY theft_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of wards to return
+    required: false
+    default: 25
+  nl_examples:
+  - Which wards have the most bike thefts in Ottawa?
+  - Bicycle theft by ward in Ottawa
+  - Top wards for bicycle theft in Ottawa
+  - Is Somerset ward the worst for bike theft in Ottawa?
+  - Ward-level bicycle theft ranking Ottawa
+  - Which councillor's ward has the most bicycle theft in Ottawa?
+  - Compare wards by bike theft count Ottawa
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [ward, ranking]
+  tags: [ward, ranking, location, bike-theft]
+
+- id: neighbourhood_bicycle_theft_detail
+  description: Get detailed bicycle theft statistics for a specific neighbourhood
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS total_incidents,
+      COUNT(CASE WHEN status = 'Stolen' THEN 1 END) AS stolen,
+      COUNT(CASE WHEN status = 'Recovered' THEN 1 END) AS recovered,
+      ROUND(AVG(bicycle_value), 0) AS avg_value,
+      COUNT(DISTINCT offence_category) AS offence_types
+    FROM bicycle_theft
+    WHERE neighbourhood ILIKE '%' || TRIM(REPLACE(REPLACE(:neighbourhood, 'Ottawa', ''), 'ottawa', '')) || '%'
+    GROUP BY year
+    ORDER BY year DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial match supported)
+    required: true
+  nl_examples:
+  - Bike theft details for Centretown Ottawa
+  - How much bicycle theft is there in Sandy Hill Ottawa?
+  - Bicycle theft history in the Byward Market Ottawa
+  - Is bike theft getting worse in Westboro Ottawa?
+  - Bicycle theft trends in the Glebe Ottawa
+  - How bad is bike theft in Lowertown Ottawa?
+  - Bike theft statistics for Hintonburg Ottawa
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [neighbourhood, detail]
+  tags: [neighbourhood, detail, specific, bike-theft]
+
+# =============================================================================
+# SPECIFIC QUERIES
+# =============================================================================
+
+- id: bicycle_value_analysis
+  description: Analyze the value distribution of stolen bicycles
+  sql: |
+    SELECT
+      CASE
+        WHEN bicycle_value IS NULL OR bicycle_value = 0 THEN 'Unknown/Not reported'
+        WHEN bicycle_value < 200 THEN 'Under $200'
+        WHEN bicycle_value < 500 THEN '$200-$499'
+        WHEN bicycle_value < 1000 THEN '$500-$999'
+        WHEN bicycle_value < 2000 THEN '$1,000-$1,999'
+        WHEN bicycle_value < 5000 THEN '$2,000-$4,999'
+        ELSE '$5,000+'
+      END AS value_range,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM bicycle_theft
+    WHERE year = :year AND status = 'Stolen'
+    GROUP BY value_range
+    ORDER BY MIN(bicycle_value)
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How valuable are the bikes being stolen in Ottawa?
+  - Bicycle theft value distribution Ottawa
+  - What is the average value of a stolen bike in Ottawa?
+  - Are expensive bikes stolen more often in Ottawa?
+  - How much are stolen bicycles worth in Ottawa?
+  - Value breakdown of stolen bikes Ottawa
+  - What price range of bicycles are stolen most in Ottawa?
+  - Do thieves target expensive bikes in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [value, distribution]
+  tags: [value, distribution, analysis, bike-theft]
+
+- id: bicycle_theft_hourly
+  description: Analyze bicycle theft by hour of occurrence
+  sql: |
+    SELECT
+      occurred_hour AS hour,
+      CASE
+        WHEN occurred_hour BETWEEN 0 AND 559 THEN 'Late Night (12am-6am)'
+        WHEN occurred_hour BETWEEN 600 AND 1159 THEN 'Morning (6am-12pm)'
+        WHEN occurred_hour BETWEEN 1200 AND 1759 THEN 'Afternoon (12pm-6pm)'
+        ELSE 'Evening (6pm-12am)'
+      END AS time_period,
+      COUNT(*) AS theft_count
+    FROM bicycle_theft
+    WHERE year = :year AND occurred_hour IS NOT NULL
+    GROUP BY occurred_hour
+    ORDER BY occurred_hour
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What hour do most bike thefts happen in Ottawa?
+  - Hourly bicycle theft breakdown Ottawa
+  - When exactly are bikes stolen in Ottawa?
+  - Peak hours for bicycle theft in Ottawa
+  - What time should I worry about my bike being stolen in Ottawa?
+  - Bike theft by hour in Ottawa
+  - Are bikes stolen more at night or during business hours in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [hourly, time]
+  tags: [hourly, time, patterns, bike-theft]
+
+# =============================================================================
+# YEAR-OVER-YEAR COMPARISON
+# =============================================================================
+
+- id: bicycle_theft_yoy_comparison
+  description: Compare bicycle theft between two consecutive years
+  sql: |
+    SELECT
+      'Bicycle Theft' AS metric,
+      (SELECT COUNT(*) FROM bicycle_theft WHERE year = :year - 1) AS previous_year,
+      (SELECT COUNT(*) FROM bicycle_theft WHERE year = :year) AS current_year,
+      ROUND(
+        ((SELECT COUNT(*) FROM bicycle_theft WHERE year = :year) -
+         (SELECT COUNT(*) FROM bicycle_theft WHERE year = :year - 1)) * 100.0
+        / NULLIF((SELECT COUNT(*) FROM bicycle_theft WHERE year = :year - 1), 0), 1
+      ) AS change_pct,
+      (SELECT COUNT(*) FROM bicycle_theft WHERE year = :year AND status = 'Stolen') AS current_stolen,
+      (SELECT ROUND(AVG(bicycle_value), 0) FROM bicycle_theft WHERE year = :year) AS current_avg_value
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare (will compare against previous year)
+    required: false
+    default: 2024
+  nl_examples:
+  - Compare bike theft this year to last year in Ottawa
+  - Year-over-year change in bicycle theft Ottawa
+  - Is bicycle theft up or down compared to last year in Ottawa?
+  - How does 2024 bike theft compare to 2023 in Ottawa?
+  - Bicycle theft change from 2023 to 2024 Ottawa
+  - Did bike theft increase in Ottawa this year?
+  - Year-over-year bicycle theft comparison Ottawa
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [yoy, comparison]
+  tags: [yoy, comparison, trends, bike-theft]
+
+- id: bicycle_theft_yoy_by_neighbourhood
+  description: Compare bicycle theft by neighbourhood between two consecutive years
+  sql: |
+    WITH current AS (
+      SELECT neighbourhood, COUNT(*) AS current_count
+      FROM bicycle_theft
+      WHERE year = :year AND neighbourhood IS NOT NULL
+      GROUP BY neighbourhood
+    ),
+    previous AS (
+      SELECT neighbourhood, COUNT(*) AS previous_count
+      FROM bicycle_theft
+      WHERE year = :year - 1 AND neighbourhood IS NOT NULL
+      GROUP BY neighbourhood
+    )
+    SELECT
+      COALESCE(c.neighbourhood, p.neighbourhood) AS neighbourhood,
+      COALESCE(p.previous_count, 0) AS previous_year,
+      COALESCE(c.current_count, 0) AS current_year,
+      COALESCE(c.current_count, 0) - COALESCE(p.previous_count, 0) AS change,
+      ROUND(
+        (COALESCE(c.current_count, 0) - COALESCE(p.previous_count, 0)) * 100.0
+        / NULLIF(COALESCE(p.previous_count, 0), 0), 1
+      ) AS change_pct
+    FROM current c
+    FULL OUTER JOIN previous p ON c.neighbourhood = p.neighbourhood
+    ORDER BY COALESCE(c.current_count, 0) DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare (compares against previous year)
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which neighbourhoods saw the biggest increase in bike theft in Ottawa?
+  - Emerging bicycle theft hotspots in Ottawa
+  - Where is bike theft getting worse in Ottawa?
+  - Neighbourhood bike theft changes year over year Ottawa
+  - Which areas improved for bicycle theft in Ottawa?
+  - Are new areas seeing more bike theft in Ottawa?
+  - Bicycle theft emerging hotspots by neighbourhood Ottawa
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [neighbourhood, yoy, hotspots]
+  tags: [neighbourhood, yoy, hotspots, emerging, bike-theft]
+
+# =============================================================================
+# REFERENCE DATA
+# =============================================================================
+
+- id: list_bicycle_theft_neighbourhoods
+  description: List all neighbourhoods in the bicycle theft dataset
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS total_incidents,
+      MIN(year) AS earliest_year,
+      MAX(year) AS latest_year
+    FROM bicycle_theft
+    WHERE neighbourhood IS NOT NULL
+    GROUP BY neighbourhood
+    ORDER BY neighbourhood
+  parameters: []
+  nl_examples:
+  - What neighbourhoods are in the bicycle theft dataset for Ottawa?
+  - List all areas with bicycle theft data in Ottawa
+  - Which neighbourhoods can I query for bike theft in Ottawa?
+  - Show all neighbourhoods in the Ottawa bike theft data
+  - What areas are covered by the bicycle theft dataset Ottawa?
+  - List Ottawa neighbourhoods with bike theft records
+  - Which communities have bicycle theft data in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [reference, neighbourhoods]
+  tags: [reference, neighbourhoods, list, bike-theft]
+
+- id: bicycle_theft_data_coverage
+  description: Show the data coverage of the bicycle theft dataset
+  sql: |
+    SELECT
+      MIN(year) AS earliest_year,
+      MAX(year) AS latest_year,
+      COUNT(*) AS total_records,
+      COUNT(DISTINCT neighbourhood) AS neighbourhoods_covered,
+      COUNT(DISTINCT ward) AS wards_covered,
+      COUNT(DISTINCT offence_category) AS offence_categories,
+      COUNT(DISTINCT bicycle_type) AS bicycle_types,
+      COUNT(CASE WHEN status = 'Stolen' THEN 1 END) AS total_stolen,
+      COUNT(CASE WHEN status = 'Recovered' THEN 1 END) AS total_recovered
+    FROM bicycle_theft
+  parameters: []
+  nl_examples:
+  - What bicycle theft data is available for Ottawa?
+  - How much bike theft data does Ottawa have?
+  - What years does the Ottawa bicycle theft dataset cover?
+  - Show me bicycle theft data coverage for Ottawa
+  - How many bicycle theft records are in the Ottawa database?
+  - What is the scope of the Ottawa bike theft dataset?
+  - Ottawa bicycle theft dataset summary
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [reference, coverage]
+  tags: [reference, coverage, summary, bike-theft]
+
+# =============================================================================
+# INSIGHT GENERATORS
+# =============================================================================
+
+- id: bicycle_theft_city_snapshot
+  description: Dashboard-style city snapshot of bicycle theft
+  sql: |
+    SELECT
+      (SELECT COUNT(*) FROM bicycle_theft WHERE year = :year) AS total_incidents,
+      (SELECT COUNT(*) FROM bicycle_theft WHERE year = :year - 1) AS previous_year_total,
+      ROUND(
+        ((SELECT COUNT(*) FROM bicycle_theft WHERE year = :year) -
+         (SELECT COUNT(*) FROM bicycle_theft WHERE year = :year - 1)) * 100.0
+        / NULLIF((SELECT COUNT(*) FROM bicycle_theft WHERE year = :year - 1), 0), 1
+      ) AS yoy_change_pct,
+      (SELECT neighbourhood FROM bicycle_theft WHERE year = :year AND neighbourhood IS NOT NULL GROUP BY neighbourhood ORDER BY COUNT(*) DESC LIMIT 1) AS top_neighbourhood,
+      (SELECT bicycle_type FROM bicycle_theft WHERE year = :year AND bicycle_type IS NOT NULL GROUP BY bicycle_type ORDER BY COUNT(*) DESC LIMIT 1) AS most_stolen_type,
+      (SELECT TRIM(division) FROM bicycle_theft WHERE year = :year AND division IS NOT NULL GROUP BY TRIM(division) ORDER BY COUNT(*) DESC LIMIT 1) AS top_division,
+      (SELECT ROUND(AVG(bicycle_value), 0) FROM bicycle_theft WHERE year = :year) AS avg_bicycle_value,
+      (SELECT ROUND(COUNT(CASE WHEN status = 'Recovered' THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN status = 'Stolen' THEN 1 END), 0), 1) FROM bicycle_theft WHERE year = :year) AS recovery_rate_pct
+  parameters:
+  - name: year
+    type: integer
+    description: Year for snapshot
+    required: false
+    default: 2024
+  nl_examples:
+  - Give me a bicycle theft snapshot for Ottawa
+  - Ottawa bike theft dashboard
+  - Overall bike theft summary for Ottawa 2024
+  - Quick overview of bicycle theft in Ottawa
+  - How bad is bike theft in Ottawa right now?
+  - Bicycle theft at a glance Ottawa
+  - City-wide bike theft summary Ottawa
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [snapshot, dashboard]
+  tags: [snapshot, dashboard, summary, bike-theft]
+
+- id: bicycle_theft_neighbourhood_safety_trend
+  description: Show year-over-year bicycle theft safety trend for a neighbourhood
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS theft_count,
+      LAG(COUNT(*)) OVER (ORDER BY year) AS previous_year_count,
+      COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY year) AS change,
+      ROUND(
+        (COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY year)) * 100.0
+        / NULLIF(LAG(COUNT(*)) OVER (ORDER BY year), 0), 1
+      ) AS change_pct
+    FROM bicycle_theft
+    WHERE neighbourhood ILIKE '%' || TRIM(REPLACE(REPLACE(:neighbourhood, 'Ottawa', ''), 'ottawa', '')) || '%'
+    GROUP BY year
+    ORDER BY year
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood to analyze (partial match supported)
+    required: true
+  nl_examples:
+  - Is bike theft getting better or worse in Centretown Ottawa?
+  - Bicycle theft trend for the Byward Market Ottawa
+  - Safety trend for bike theft in Sandy Hill Ottawa
+  - How is bicycle theft changing in the Glebe Ottawa?
+  - Year-over-year bicycle theft trend for Westboro Ottawa
+  - Is Lowertown improving for bike theft Ottawa?
+  - Bicycle theft direction in Hintonburg Ottawa
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [neighbourhood, safety, trend]
+  tags: [neighbourhood, safety, trend, bike-theft]
+
+# =============================================================================
+# POLICY & STRATEGIC ANALYTICS
+# =============================================================================
+
+- id: bicycle_theft_concentration
+  description: Analyze whether bicycle theft is concentrated in a few locations (Pareto analysis)
+  sql: |
+    WITH neighbourhood_counts AS (
+      SELECT
+        neighbourhood,
+        COUNT(*) AS theft_count,
+        ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rank
+      FROM bicycle_theft
+      WHERE year = :year AND neighbourhood IS NOT NULL
+      GROUP BY neighbourhood
+    ),
+    totals AS (
+      SELECT COUNT(*) AS total_neighbourhoods, SUM(theft_count) AS total_thefts
+      FROM neighbourhood_counts
+    )
+    SELECT
+      CASE
+        WHEN rank <= CEIL(total_neighbourhoods * 0.05) THEN 'Top 5%'
+        WHEN rank <= CEIL(total_neighbourhoods * 0.10) THEN 'Top 6-10%'
+        WHEN rank <= CEIL(total_neighbourhoods * 0.20) THEN 'Top 11-20%'
+        ELSE 'Remaining 80%'
+      END AS tier,
+      COUNT(*) AS neighbourhoods_in_tier,
+      SUM(theft_count) AS total_thefts,
+      ROUND(SUM(theft_count) * 100.0 / MAX(t.total_thefts), 1) AS pct_of_all_thefts
+    FROM neighbourhood_counts nc
+    CROSS JOIN totals t
+    GROUP BY tier
+    ORDER BY MIN(rank)
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Is bicycle theft concentrated in a few areas in Ottawa?
+  - Do a small number of neighbourhoods account for most bike thefts in Ottawa?
+  - Pareto analysis of bicycle theft hotspots Ottawa
+  - Bike theft concentration analysis Ottawa
+  - Does the 80/20 rule apply to bicycle theft in Ottawa?
+  - Are most bike thefts happening in the same few places in Ottawa?
+  - Bicycle theft geographic concentration Ottawa
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [concentration, pareto, policy]
+  tags: [concentration, pareto, policy, strategic, bike-theft]
+
+- id: bicycle_theft_type_seasonality
+  description: Analyze which bicycle types are stolen in which seasons
+  sql: |
+    SELECT
+      bicycle_type,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occurred_date) IN (12, 1, 2) THEN 1 ELSE 0 END) AS winter,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occurred_date) IN (3, 4, 5) THEN 1 ELSE 0 END) AS spring,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occurred_date) IN (6, 7, 8) THEN 1 ELSE 0 END) AS summer,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occurred_date) IN (9, 10, 11) THEN 1 ELSE 0 END) AS fall,
+      COUNT(*) AS total
+    FROM bicycle_theft
+    WHERE year = :year
+      AND bicycle_type IS NOT NULL
+      AND occurred_date IS NOT NULL
+    GROUP BY bicycle_type
+    HAVING COUNT(*) >= 5
+    ORDER BY total DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which bike types are stolen most in summer vs winter in Ottawa?
+  - Seasonal patterns of bicycle theft by type in Ottawa
+  - Are mountain bikes stolen more in spring in Ottawa?
+  - Bicycle theft seasonality by type Ottawa
+  - When are different types of bikes stolen in Ottawa?
+  - Do theft patterns differ by bike type across seasons in Ottawa?
+  - Seasonal bicycle theft breakdown by type Ottawa
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [seasonality, type, policy]
+  tags: [seasonality, type, policy, strategic, bike-theft]
+
+- id: bicycle_theft_persistent_hotspots
+  description: Identify neighbourhoods consistently in the top 20 for bicycle theft across years
+  sql: |
+    WITH yearly_ranks AS (
+      SELECT
+        neighbourhood,
+        year,
+        COUNT(*) AS theft_count,
+        RANK() OVER (PARTITION BY year ORDER BY COUNT(*) DESC) AS year_rank
+      FROM bicycle_theft
+      WHERE neighbourhood IS NOT NULL
+      GROUP BY neighbourhood, year
+    )
+    SELECT
+      neighbourhood,
+      COUNT(DISTINCT year) AS years_in_top_20,
+      SUM(theft_count) AS total_thefts,
+      ROUND(AVG(year_rank), 1) AS avg_rank,
+      MIN(year_rank) AS best_rank,
+      MAX(year_rank) AS worst_rank
+    FROM yearly_ranks
+    WHERE year_rank <= 20
+    GROUP BY neighbourhood
+    HAVING COUNT(DISTINCT year) >= 2
+    ORDER BY years_in_top_20 DESC, total_thefts DESC
+  parameters: []
+  nl_examples:
+  - Which areas are consistently bad for bike theft in Ottawa?
+  - Persistent bicycle theft hotspots in Ottawa
+  - What neighbourhoods always have high bike theft in Ottawa?
+  - Chronic bicycle theft problem areas in Ottawa
+  - Which Ottawa neighbourhoods are repeatedly in the top for bike theft?
+  - Long-term bike theft hotspots Ottawa
+  - Are the same areas always worst for bicycle theft in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [persistent, hotspots, policy]
+  tags: [persistent, hotspots, policy, strategic, bike-theft]
+
+- id: bicycle_theft_weekend_vs_weekday
+  description: Compare weekend vs weekday bicycle theft patterns
+  sql: |
+    WITH daily AS (
+      SELECT
+        weekday,
+        CASE WHEN weekday IN ('Saturday', 'Sunday') THEN 'Weekend' ELSE 'Weekday' END AS day_type,
+        COUNT(*) AS theft_count
+      FROM bicycle_theft
+      WHERE year = :year AND weekday IS NOT NULL
+      GROUP BY weekday
+    )
+    SELECT
+      day_type,
+      SUM(theft_count) AS total_thefts,
+      ROUND(SUM(theft_count) * 1.0 /
+        CASE day_type WHEN 'Weekend' THEN 2 ELSE 5 END, 1) AS avg_per_day,
+      ROUND(SUM(theft_count) * 100.0 / (SELECT SUM(theft_count) FROM daily), 1) AS percentage
+    FROM daily
+    GROUP BY day_type
+    ORDER BY avg_per_day DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Are bikes stolen more on weekends or weekdays in Ottawa?
+  - Weekend vs weekday bicycle theft in Ottawa
+  - Do more bike thefts happen on weekends in Ottawa?
+  - Bicycle theft weekend vs weekday comparison Ottawa
+  - Is my bike safer on weekends or weekdays in Ottawa?
+  - Weekday vs weekend bike theft rate Ottawa
+  - When are bikes more at risk weekday or weekend Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [weekend, weekday, patterns]
+  tags: [weekend, weekday, patterns, policy, bike-theft]
+
+- id: bicycle_theft_fastest_growing_neighbourhoods
+  description: Identify neighbourhoods with the fastest growth in bicycle theft
+  sql: |
+    WITH yearly AS (
+      SELECT
+        neighbourhood,
+        SUM(CASE WHEN year = :year - 1 THEN 1 ELSE 0 END) AS previous_count,
+        SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) AS current_count
+      FROM bicycle_theft
+      WHERE neighbourhood IS NOT NULL
+        AND year IN (:year - 1, :year)
+      GROUP BY neighbourhood
+      HAVING SUM(CASE WHEN year = :year - 1 THEN 1 ELSE 0 END) >= 5
+    )
+    SELECT
+      neighbourhood,
+      previous_count,
+      current_count,
+      current_count - previous_count AS change,
+      ROUND((current_count - previous_count) * 100.0 / previous_count, 1) AS growth_pct
+    FROM yearly
+    WHERE current_count > previous_count
+    ORDER BY growth_pct DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare (compares against previous year)
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of results to return
+    required: false
+    default: 15
+  nl_examples:
+  - Which areas are seeing the biggest surge in bike theft in Ottawa?
+  - Fastest growing bicycle theft neighbourhoods Ottawa
+  - Where is bike theft increasing the most in Ottawa?
+  - Emerging bicycle theft hotspots in Ottawa 2024
+  - Which Ottawa neighbourhoods are getting worse for bike theft?
+  - Biggest increases in bicycle theft by neighbourhood Ottawa
+  - Where is bike theft surging in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [growth, emerging, hotspots]
+  tags: [growth, emerging, hotspots, policy, bike-theft]

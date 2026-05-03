@@ -1,0 +1,1383 @@
+status: completed
+generated_at: '2026-03-19T12:00:00.000000'
+last_updated: '2026-03-19T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 33
+templates:
+# =============================================================================
+# TRENDS & STATISTICS - Overall crime patterns
+# =============================================================================
+
+- id: yearly_crime_trends
+  description: Track year-over-year changes in crime across Vancouver
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS total_crimes,
+      COUNT(DISTINCT crime_type) AS unique_types,
+      COUNT(DISTINCT neighbourhood) AS neighbourhoods_affected
+    FROM crime_data
+    GROUP BY year
+    ORDER BY year DESC
+  parameters: []
+  nl_examples:
+  - How has crime changed over the years in Vancouver?
+  - Show me Vancouver yearly crime trends
+  - Is crime increasing or decreasing in Vancouver?
+  - Total incidents per year in Vancouver
+  - Year-over-year crime stats Vancouver
+  - Give me the Vancouver crime totals for every year
+  - How many crimes were reported each year in Vancouver?
+  - Vancouver crime numbers by year
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [trends, yearly]
+  tags: [trends, yearly, strategic]
+
+- id: crimes_by_month
+  description: Analyze monthly crime patterns to identify seasonal trends
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM reported_date) AS month,
+      CASE EXTRACT(MONTH FROM reported_date)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS crime_count
+    FROM crime_data
+    WHERE year = :year AND reported_date IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM reported_date)
+    ORDER BY month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which months have the most crime in Vancouver?
+  - Show me seasonal crime patterns in Vancouver
+  - When do most incidents happen in Vancouver?
+  - Monthly crime breakdown Vancouver
+  - Peak months for crime in Vancouver
+  - What month had the highest crime in 2024 in Vancouver?
+  - Crime by month in Vancouver in 2023
+  - Is summer or winter worse for crime in Vancouver?
+  - Monthly incident count for Vancouver
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [seasonal, monthly]
+  tags: [seasonal, monthly, patterns]
+
+- id: crimes_by_weekday
+  description: Analyze which days of the week have the most crime
+  sql: |
+    SELECT
+      DAYNAME(reported_date) AS day_of_week,
+      COUNT(*) AS crime_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM crime_data
+    WHERE year = :year AND reported_date IS NOT NULL
+    GROUP BY DAYNAME(reported_date)
+    ORDER BY crime_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which days of the week have the most crime in Vancouver?
+  - Are weekends more dangerous in Vancouver?
+  - Vancouver weekday vs weekend crime comparison
+  - What day has the most incidents in Vancouver?
+  - Is Friday the busiest day for crime in Vancouver?
+  - Vancouver crime distribution by day of week in 2024
+  - Which day of the week is safest in Vancouver?
+  - Do more crimes happen on weekends or weekdays in Vancouver?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [weekday, patterns]
+  tags: [weekday, patterns, timing]
+
+- id: crimes_by_hour
+  description: Analyze crime by time of day (hour) to identify peak hours
+  sql: |
+    SELECT
+      hour,
+      CASE
+        WHEN hour BETWEEN 6 AND 11 THEN 'Morning'
+        WHEN hour BETWEEN 12 AND 17 THEN 'Afternoon'
+        WHEN hour BETWEEN 18 AND 23 THEN 'Evening'
+        ELSE 'Night'
+      END AS time_period,
+      COUNT(*) AS crime_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM crime_data
+    WHERE year = :year
+    GROUP BY hour
+    ORDER BY hour
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What time of day does crime happen most in Vancouver?
+  - Peak hours for crime in Vancouver
+  - Is crime worse at night in Vancouver?
+  - Hourly crime distribution in Vancouver
+  - When is Vancouver most dangerous?
+  - What hour has the most break-ins in Vancouver?
+  - Vancouver crime by time of day in 2024
+  - Is it safer during the day or at night in Vancouver?
+  - Late night crime in Vancouver
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [hourly, timing]
+  tags: [hourly, timing, patterns]
+
+# =============================================================================
+# CATEGORY ANALYSIS - Breakdowns by crime type
+# =============================================================================
+
+- id: crimes_by_type
+  description: Break down crimes by type with counts and percentages
+  sql: |
+    SELECT
+      crime_type,
+      COUNT(*) AS crime_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM crime_data
+    WHERE year = :year
+    GROUP BY crime_type
+    ORDER BY crime_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What types of crime are most common in Vancouver?
+  - Show Vancouver crime type breakdown
+  - Most frequent crimes in Vancouver
+  - Rank Vancouver crime types by frequency
+  - What crimes happen most often in Vancouver?
+  - Vancouver crime breakdown by type in 2023
+  - What kind of crimes are there in Vancouver?
+  - Top crimes in Vancouver this year
+  - How does Vancouver crime break down by category?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [type, breakdown]
+  tags: [type, breakdown, overview]
+
+- id: type_yearly_trends
+  description: Show how each crime type has changed over the years
+  sql: |
+    SELECT
+      year,
+      crime_type,
+      COUNT(*) AS crime_count
+    FROM crime_data
+    GROUP BY year, crime_type
+    ORDER BY year DESC, crime_count DESC
+  parameters: []
+  nl_examples:
+  - How have crime types changed over the years in Vancouver?
+  - Trend of different crime types over time in Vancouver
+  - Is theft increasing in Vancouver?
+  - Vancouver crime type trends over time
+  - Are Vancouver break and enters going up or down?
+  - Compare Vancouver crime types across all years
+  - How has vehicle theft trended in Vancouver?
+  - Long-term Vancouver crime type trends
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [type, trends]
+  tags: [type, trends, yearly]
+
+- id: specific_type_trends
+  description: Track a specific crime type over the years
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS crime_count
+    FROM crime_data
+    WHERE LOWER(crime_type) = LOWER(:crime_type)
+    GROUP BY year
+    ORDER BY year DESC
+  parameters:
+  - name: crime_type
+    type: string
+    description: "Specific crime type (e.g., Homicide, Mischief, Other Theft)"
+    required: true
+  nl_examples:
+  - How many homicides per year in Vancouver?
+  - Theft from vehicle trend over the years in Vancouver
+  - Show me Vancouver mischief numbers by year
+  - Track Vancouver break and enter residential over time
+  - How has bike theft changed over the years in Vancouver?
+  - Vancouver vehicle collision fatalities by year
+  - Is mischief going up in Vancouver?
+  - Yearly trend for other theft in Vancouver
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [type, trends]
+  tags: [type, trends, specific]
+
+# =============================================================================
+# LOCATION ANALYSIS - By neighbourhood and hundred block
+# =============================================================================
+
+- id: top_neighbourhoods
+  description: Find the neighbourhoods with the most crime
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS crime_count,
+      COUNT(DISTINCT crime_type) AS unique_types,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM crime_data
+    WHERE year = :year AND neighbourhood != ''
+    GROUP BY neighbourhood
+    ORDER BY crime_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which neighbourhoods have the most crime in Vancouver?
+  - Top crime hotspots by neighbourhood in Vancouver
+  - Where does the most crime happen in Vancouver?
+  - Most dangerous neighbourhoods in Vancouver
+  - Vancouver crime hotspot analysis by neighbourhood
+  - Safest and most dangerous areas in Vancouver
+  - Rank Vancouver neighbourhoods by crime in 2024
+  - Which Vancouver area has the highest crime rate?
+  - Vancouver neighbourhood crime ranking
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: crime_data
+    qualifiers: [neighbourhood, hotspots]
+  tags: [neighbourhood, hotspots, ranking]
+
+- id: neighbourhood_detail
+  description: Show crime breakdown for a specific neighbourhood
+  sql: |
+    SELECT
+      crime_type,
+      COUNT(*) AS crime_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM crime_data
+    WHERE LOWER(neighbourhood) = LOWER(:neighbourhood)
+      AND year = :year
+    GROUP BY crime_type
+    ORDER BY crime_count DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: "Neighbourhood name (e.g., West End, Strathcona, Central Business District)"
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What crimes happen in the West End?
+  - Show me crime breakdown for Strathcona
+  - Crime in the Vancouver Central Business District
+  - What happens in Kitsilano?
+  - Is the Vancouver West End safe?
+  - Crime types in Mount Pleasant Vancouver in 2024
+  - What kind of crime occurs in Grandview-Woodland?
+  - Tell me about crime in Hastings-Sunrise
+  - How bad is downtown Vancouver for crime?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: crime_data
+    qualifiers: [neighbourhood, specific]
+  tags: [neighbourhood, specific, detail]
+
+- id: top_neighbourhoods_all_time
+  description: All-time most reported neighbourhoods across all years
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS total_crimes,
+      MIN(year) AS first_year,
+      MAX(year) AS last_year,
+      COUNT(DISTINCT crime_type) AS unique_types,
+      ROUND(COUNT(*) * 1.0 / COUNT(DISTINCT year), 0) AS avg_per_year
+    FROM crime_data
+    WHERE neighbourhood != ''
+    GROUP BY neighbourhood
+    ORDER BY total_crimes DESC
+  parameters: []
+  nl_examples:
+  - All-time crime hotspots by neighbourhood in Vancouver
+  - Which Vancouver neighbourhoods have the most crime across all years?
+  - Historically most reported neighbourhoods in Vancouver
+  - Persistent crime hotspots in Vancouver
+  - What Vancouver neighbourhood has had the most crime since 2003?
+  - Overall Vancouver crime totals by neighbourhood
+  - Lifetime Vancouver crime ranking by area
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: crime_data
+    qualifiers: [neighbourhood, all-time]
+  tags: [neighbourhood, all-time, hotspots]
+
+- id: top_neighbourhoods_by_type
+  description: Find top neighbourhoods for a specific crime type
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS crime_count
+    FROM crime_data
+    WHERE LOWER(crime_type) = LOWER(:crime_type)
+      AND year = :year
+      AND neighbourhood != ''
+    GROUP BY neighbourhood
+    ORDER BY crime_count DESC
+  parameters:
+  - name: crime_type
+    type: string
+    description: "Specific crime type (e.g., Homicide, Theft of Vehicle)"
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Where do most vehicle thefts happen in Vancouver?
+  - Top Vancouver neighbourhoods for break and enter
+  - Where are homicides most common in Vancouver?
+  - Hotspots for bike theft in Vancouver
+  - Which Vancouver neighbourhood has the most mischief?
+  - Where do Vancouver car thefts happen most in 2024?
+  - Top Vancouver areas for theft from vehicle
+  - Vancouver neighbourhood ranking for a specific crime type
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: crime_data
+    qualifiers: [neighbourhood, type, hotspots]
+  tags: [neighbourhood, type, hotspots]
+
+- id: top_hundred_blocks
+  description: Find the hundred blocks with the most crime
+  sql: |
+    SELECT
+      hundred_block,
+      neighbourhood,
+      COUNT(*) AS crime_count,
+      COUNT(DISTINCT crime_type) AS unique_types
+    FROM crime_data
+    WHERE year = :year
+    GROUP BY hundred_block, neighbourhood
+    ORDER BY crime_count DESC
+    LIMIT 20
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which blocks have the most crime in Vancouver?
+  - Top street-level crime hotspots in Vancouver
+  - Most reported hundred blocks in Vancouver
+  - Where exactly does crime concentrate in Vancouver?
+  - Which Vancouver streets have the most incidents?
+  - Busiest blocks for Vancouver crime in 2024
+  - Street-level crime hotspots in Vancouver
+  - What are the worst blocks for crime in Vancouver?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: crime_data
+    qualifiers: [location, hundred_block, hotspots]
+  tags: [location, hundred_block, hotspots]
+
+- id: crimes_on_block
+  description: Crimes reported on a specific hundred block or street
+  sql: |
+    SELECT year, crime_type, COUNT(*) AS crime_count
+    FROM crime_data
+    WHERE UPPER(hundred_block) LIKE '%' || REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(UPPER(:block),
+      'STREET', 'ST'), 'AVENUE', 'AVE'), 'DRIVE', 'DR'), 'BOULEVARD', 'BLVD'),
+      'HIGHWAY', 'HWY'), 'CRESCENT', 'CRES'), 'ROAD', 'RD'), 'PLACE', 'PL') || '%'
+    GROUP BY year, crime_type
+    ORDER BY year DESC, crime_count DESC
+  parameters:
+  - name: block
+    type: string
+    description: "Street name or hundred block (e.g. Hastings Street, 21XX Grant St, Commercial Drive)"
+    required: true
+  nl_examples:
+  - How many crimes on Grant Street in Vancouver?
+  - Crimes reported on the 2100 block of Grant Street Vancouver
+  - What happened on Commercial Drive Vancouver?
+  - How many incidents on Main Street Vancouver?
+  - Crime on the 1000 block of Granville Street Vancouver
+  - What crimes were reported on Hastings Street Vancouver?
+  - How many break-ins on Beach Avenue Vancouver?
+  - Show me crimes on Kingsway Vancouver
+  - How many thefts on Robson Street Vancouver?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: crime_data
+    qualifiers: [location, hundred_block, specific]
+  tags: [location, hundred_block, specific, street]
+
+# =============================================================================
+# YEAR-OVER-YEAR COMPARISON
+# =============================================================================
+
+- id: yoy_comparison
+  description: Compare total crimes between two years by type
+  sql: |
+    SELECT
+      crime_type,
+      SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) AS current_year,
+      SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS previous_year,
+      SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) - SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS change,
+      CASE
+        WHEN SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) = 0 THEN NULL
+        ELSE ROUND((SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) - SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END)) * 100.0 / SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END), 1)
+      END AS change_pct
+    FROM crime_data
+    WHERE year IN (:year, :previous_year)
+    GROUP BY crime_type
+    ORDER BY current_year DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Current year to compare
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year to compare against
+    required: false
+    default: 2024
+  nl_examples:
+  - Compare 2025 to 2024 crime in Vancouver
+  - Year-over-year Vancouver crime comparison
+  - Did crime go up or down this year in Vancouver?
+  - How does this year compare to last year in Vancouver?
+  - Vancouver crime change between years
+  - Compare Vancouver crime in 2019 vs 2020
+  - Has Vancouver crime gotten better or worse since last year?
+  - What changed between 2023 and 2024 in Vancouver?
+  - Vancouver crime comparison year over year
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: crime_data
+    qualifiers: [yoy, comparison]
+  tags: [yoy, comparison, change]
+
+- id: yoy_neighbourhood_comparison
+  description: Compare crime by neighbourhood between two years
+  sql: |
+    SELECT
+      neighbourhood,
+      SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) AS current_year,
+      SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS previous_year,
+      SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) - SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS change,
+      CASE
+        WHEN SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) = 0 THEN NULL
+        ELSE ROUND((SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) - SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END)) * 100.0 / SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END), 1)
+      END AS change_pct
+    FROM crime_data
+    WHERE year IN (:year, :previous_year) AND neighbourhood != ''
+    GROUP BY neighbourhood
+    ORDER BY change DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Current year to compare
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year to compare against
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Vancouver neighbourhoods got worse year over year?
+  - Compare Vancouver neighbourhood crime 2025 vs 2024
+  - Vancouver neighbourhood crime changes
+  - Where is crime growing by neighbourhood in Vancouver?
+  - Which Vancouver areas improved from 2023 to 2024?
+  - Vancouver neighbourhood-level year-over-year comparison
+  - Where did crime increase the most by area in Vancouver?
+  - Compare Vancouver neighbourhoods between two years
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: crime_data
+    qualifiers: [yoy, neighbourhood, comparison]
+  tags: [yoy, neighbourhood, comparison]
+
+# =============================================================================
+# SPECIFIC QUERIES - Drilldowns by crime category
+# =============================================================================
+
+- id: property_crime_breakdown
+  description: Breakdown of property-related crimes (theft, B&E, vehicle crimes)
+  sql: |
+    SELECT
+      crime_type,
+      COUNT(*) AS crime_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM crime_data
+    WHERE crime_type IN ('Other Theft', 'Theft from Vehicle', 'Theft of Vehicle', 'Theft of Bicycle', 'Break and Enter Commercial', 'Break and Enter Residential/Other')
+      AND year = :year
+    GROUP BY crime_type
+    ORDER BY crime_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Property crime breakdown in Vancouver
+  - How much theft is there in Vancouver?
+  - Vancouver break and enter, theft, vehicle crime numbers
+  - Vancouver property crime analysis
+  - Theft statistics in Vancouver
+  - How bad is property crime in Vancouver in 2024?
+  - Vancouver B&E and theft numbers
+  - How many break and enters in Vancouver?
+  - Vancouver shoplifting and theft stats
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [property, breakdown]
+  tags: [property, theft, breakdown]
+
+- id: violent_crime_breakdown
+  description: Breakdown of violent and person-related crimes
+  sql: |
+    SELECT
+      crime_type,
+      COUNT(*) AS crime_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM crime_data
+    WHERE crime_type IN ('Offence Against a Person', 'Homicide')
+      AND year = :year
+    GROUP BY crime_type
+    ORDER BY crime_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - How much violent crime is there in Vancouver?
+  - Violent crime breakdown Vancouver
+  - Assaults and homicides in Vancouver
+  - Person offence statistics for Vancouver
+  - How safe is Vancouver from violent crime?
+  - How many assaults in Vancouver in 2024?
+  - Violent incidents in Vancouver
+  - How many homicides were there this year in Vancouver?
+  - Vancouver person offences and violent crime numbers
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [violent, breakdown]
+  tags: [violent, breakdown, safety]
+
+- id: vehicle_crime_breakdown
+  description: Breakdown of all vehicle-related crimes
+  sql: |
+    SELECT
+      crime_type,
+      COUNT(*) AS crime_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM crime_data
+    WHERE crime_type IN ('Theft of Vehicle', 'Theft from Vehicle', 'Vehicle Collision or Pedestrian Struck (with Fatality)', 'Vehicle Collision or Pedestrian Struck (with Injury)')
+      AND year = :year
+    GROUP BY crime_type
+    ORDER BY crime_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Vehicle-related crime breakdown in Vancouver
+  - How many vehicle thefts and collisions in Vancouver?
+  - Car crime statistics Vancouver
+  - Vancouver vehicle collision and theft numbers
+  - How many car thefts in Vancouver in 2024?
+  - Fatal and injury collisions in Vancouver
+  - Vancouver pedestrian struck incidents
+  - How many people were hit by cars in Vancouver?
+  - Vancouver auto theft and collision statistics
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [vehicle, breakdown]
+  tags: [vehicle, collisions, breakdown]
+
+# =============================================================================
+# REFERENCE DATA
+# =============================================================================
+
+- id: list_crime_types
+  description: List all crime types with total counts
+  sql: |
+    SELECT
+      crime_type,
+      COUNT(*) AS total_crimes,
+      MIN(year) AS first_year,
+      MAX(year) AS last_year
+    FROM crime_data
+    GROUP BY crime_type
+    ORDER BY total_crimes DESC
+  parameters: []
+  nl_examples:
+  - What types of crime are tracked in Vancouver?
+  - List all Vancouver crime types
+  - What categories does Vancouver police report?
+  - Show me all crime types in Vancouver
+  - What data do you have on Vancouver crime?
+  - What crimes are included in the Vancouver dataset?
+  - How many different crime types are in the Vancouver data?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: crime_data
+    qualifiers: [reference, types]
+  tags: [reference, types, listing]
+
+- id: list_neighbourhoods
+  description: List all Vancouver neighbourhoods with crime counts
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS total_crimes,
+      COUNT(DISTINCT crime_type) AS unique_types
+    FROM crime_data
+    WHERE neighbourhood != ''
+    GROUP BY neighbourhood
+    ORDER BY total_crimes DESC
+  parameters: []
+  nl_examples:
+  - What neighbourhoods are in the Vancouver crime data?
+  - List all Vancouver neighbourhoods
+  - Show me all areas covered in Vancouver
+  - Which Vancouver neighbourhoods are tracked?
+  - What areas does the VPD data cover?
+  - How many neighbourhoods are in the Vancouver dataset?
+  - Show me all the Vancouver communities
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: crime_data
+    qualifiers: [reference, neighbourhoods]
+  tags: [reference, neighbourhoods, listing]
+
+- id: data_coverage
+  description: Show the date range and volume of data available
+  sql: |
+    SELECT
+      MIN(reported_date) AS earliest_date,
+      MAX(reported_date) AS latest_date,
+      COUNT(*) AS total_records,
+      COUNT(DISTINCT year) AS years_covered,
+      COUNT(DISTINCT crime_type) AS unique_types,
+      COUNT(DISTINCT neighbourhood) AS unique_neighbourhoods
+    FROM crime_data
+  parameters: []
+  nl_examples:
+  - What data is available for Vancouver?
+  - How much Vancouver data do you have?
+  - What time period does the Vancouver crime data cover?
+  - Vancouver data coverage and range
+  - How far back does the Vancouver crime data go?
+  - How many records are in the Vancouver database?
+  - What Vancouver years are covered?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: crime_data
+    qualifiers: [reference, coverage]
+  tags: [reference, coverage, metadata]
+
+# =============================================================================
+# INSIGHT GENERATORS - Advanced analytics
+# =============================================================================
+
+- id: emerging_hotspots
+  description: Neighbourhoods with the largest year-over-year increase in crime
+  sql: |
+    WITH yearly AS (
+      SELECT
+        neighbourhood,
+        year,
+        COUNT(*) AS crimes
+      FROM crime_data
+      WHERE year IN (:year, :previous_year) AND neighbourhood != ''
+      GROUP BY neighbourhood, year
+    ),
+    yoy AS (
+      SELECT
+        c.neighbourhood,
+        c.crimes AS current_count,
+        COALESCE(p.crimes, 0) AS previous_count,
+        c.crimes - COALESCE(p.crimes, 0) AS change
+      FROM yearly c
+      LEFT JOIN yearly p ON c.neighbourhood = p.neighbourhood AND p.year = :previous_year
+      WHERE c.year = :year
+    )
+    SELECT
+      neighbourhood,
+      current_count,
+      previous_count,
+      change,
+      CASE WHEN previous_count = 0 THEN NULL
+           ELSE ROUND(change * 100.0 / previous_count, 1)
+      END AS change_pct
+    FROM yoy
+    WHERE change > 0
+    ORDER BY change DESC
+    LIMIT 15
+  parameters:
+  - name: year
+    type: integer
+    description: Current year
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year to compare
+    required: false
+    default: 2024
+  nl_examples:
+  - Which neighbourhoods are getting worse in Vancouver?
+  - Emerging crime hotspots in Vancouver
+  - Where is crime increasing the most in Vancouver?
+  - New problem areas in Vancouver
+  - What Vancouver areas saw the biggest jump in crime?
+  - Where did crime spike in 2024 in Vancouver?
+  - Rising crime neighbourhoods in Vancouver
+  - Which Vancouver areas are trending in the wrong direction?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: crime_data
+    qualifiers: [hotspots, emerging, yoy]
+  tags: [hotspots, emerging, yoy, insight]
+
+- id: city_snapshot
+  description: Dashboard-style overview of Vancouver crime for a given year
+  sql: |
+    SELECT
+      (SELECT COUNT(*) FROM crime_data WHERE year = :year) AS total_crimes,
+      (SELECT COUNT(*) FROM crime_data WHERE year = :previous_year) AS previous_year_total,
+      ROUND(((SELECT COUNT(*) FROM crime_data WHERE year = :year) -
+             (SELECT COUNT(*) FROM crime_data WHERE year = :previous_year)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM crime_data WHERE year = :previous_year), 0), 1) AS yoy_change_pct,
+      (SELECT crime_type FROM crime_data WHERE year = :year GROUP BY crime_type ORDER BY COUNT(*) DESC LIMIT 1) AS top_type,
+      (SELECT neighbourhood FROM crime_data WHERE year = :year AND neighbourhood != '' GROUP BY neighbourhood ORDER BY COUNT(*) DESC LIMIT 1) AS top_neighbourhood
+  parameters:
+  - name: year
+    type: integer
+    description: Year to summarize
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year for comparison
+    required: false
+    default: 2024
+  nl_examples:
+  - Give me an overview of crime in Vancouver
+  - Vancouver crime summary
+  - Crime snapshot for Vancouver
+  - How is Vancouver doing on crime?
+  - Vancouver crime dashboard
+  - Quick summary of Vancouver crime in 2024
+  - What does Vancouver crime look like this year?
+  - High-level crime stats for Vancouver
+  - Crime overview for Vancouver
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [snapshot, dashboard]
+  tags: [snapshot, dashboard, overview]
+
+- id: seasonal_deviation
+  description: Compare current year monthly counts to historical averages to find unusual months
+  sql: |
+    WITH monthly_avg AS (
+      SELECT
+        month,
+        ROUND(AVG(crimes), 1) AS avg_crimes
+      FROM (
+        SELECT
+          EXTRACT(MONTH FROM reported_date) AS month,
+          year,
+          COUNT(*) AS crimes
+        FROM crime_data
+        WHERE reported_date IS NOT NULL
+        GROUP BY EXTRACT(MONTH FROM reported_date), year
+      ) sub
+      GROUP BY month
+    ),
+    current AS (
+      SELECT
+        EXTRACT(MONTH FROM reported_date) AS month,
+        COUNT(*) AS crimes
+      FROM crime_data
+      WHERE year = :year AND reported_date IS NOT NULL
+      GROUP BY EXTRACT(MONTH FROM reported_date)
+    )
+    SELECT
+      c.month,
+      CASE c.month
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      c.crimes AS current_count,
+      a.avg_crimes AS historical_avg,
+      ROUND(c.crimes - a.avg_crimes, 1) AS deviation
+    FROM current c
+    JOIN monthly_avg a ON c.month = a.month
+    ORDER BY c.month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare against historical average
+    required: false
+    default: 2025
+  nl_examples:
+  - Are there unusual months for crime this year in Vancouver?
+  - Vancouver seasonal deviation analysis
+  - Which Vancouver months are above or below average?
+  - Compare this Vancouver year to historical averages
+  - Was any month unusually high for crime in 2024 in Vancouver?
+  - How does 2025 compare to the historical average by month in Vancouver?
+  - Which Vancouver months were abnormal for crime?
+  - Monthly anomalies in Vancouver crime
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: crime_data
+    qualifiers: [seasonal, deviation]
+  tags: [seasonal, deviation, insight]
+
+- id: neighbourhood_safety_trend
+  description: Track how a neighbourhood's crime count has changed year over year using LAG
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS crime_count,
+      LAG(COUNT(*)) OVER (ORDER BY year) AS previous_year_count,
+      COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY year) AS change,
+      ROUND((COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY year)) * 100.0 /
+            NULLIF(LAG(COUNT(*)) OVER (ORDER BY year), 0), 1) AS change_pct
+    FROM crime_data
+    WHERE LOWER(neighbourhood) = LOWER(:neighbourhood)
+    GROUP BY year
+    ORDER BY year DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: "Neighbourhood name (e.g., West End, Strathcona)"
+    required: true
+  nl_examples:
+  - How has crime changed in the Vancouver West End over time?
+  - Is Strathcona getting safer or more dangerous?
+  - Vancouver crime trend for Kitsilano
+  - Vancouver neighbourhood safety trend
+  - Has Mount Pleasant Vancouver gotten safer?
+  - Show me the crime trajectory for Grandview-Woodland
+  - Is downtown Vancouver getting worse over the years?
+  - Year-over-year change for a specific Vancouver neighbourhood
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: crime_data
+    qualifiers: [neighbourhood, safety, trend]
+  tags: [neighbourhood, safety, trend, insight]
+
+# =============================================================================
+# POLICY & STRATEGIC ANALYTICS - For law enforcement and policy analysts
+# =============================================================================
+
+- id: crime_concentration
+  description: "Pareto analysis: what percentage of neighbourhoods account for the majority of crime (hot-spots policing metric)"
+  sql: |
+    WITH ranked AS (
+      SELECT
+        neighbourhood,
+        COUNT(*) AS crimes,
+        ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rank
+      FROM crime_data
+      WHERE year = :year AND neighbourhood != ''
+      GROUP BY neighbourhood
+    ),
+    totals AS (
+      SELECT
+        COUNT(DISTINCT neighbourhood) AS total_neighbourhoods,
+        SUM(crimes) AS total_crimes
+      FROM ranked
+    )
+    SELECT
+      CASE
+        WHEN r.rank <= CEIL(t.total_neighbourhoods * 0.10) THEN 'Top 10%'
+        WHEN r.rank <= CEIL(t.total_neighbourhoods * 0.20) THEN 'Top 20%'
+        WHEN r.rank <= CEIL(t.total_neighbourhoods * 0.50) THEN 'Top 50%'
+        ELSE 'Bottom 50%'
+      END AS neighbourhood_tier,
+      COUNT(*) AS num_neighbourhoods,
+      SUM(r.crimes) AS total_crimes,
+      ROUND(SUM(r.crimes) * 100.0 / MAX(t.total_crimes), 1) AS pct_of_all_crime
+    FROM ranked r
+    CROSS JOIN totals t
+    GROUP BY
+      CASE
+        WHEN r.rank <= CEIL(t.total_neighbourhoods * 0.10) THEN 'Top 10%'
+        WHEN r.rank <= CEIL(t.total_neighbourhoods * 0.20) THEN 'Top 20%'
+        WHEN r.rank <= CEIL(t.total_neighbourhoods * 0.50) THEN 'Top 50%'
+        ELSE 'Bottom 50%'
+      END
+    ORDER BY MIN(r.rank)
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - How concentrated is crime in Vancouver?
+  - Do a few Vancouver neighbourhoods account for most crime?
+  - Vancouver crime concentration analysis
+  - Pareto analysis of Vancouver crime hotspots
+  - What percentage of Vancouver neighbourhoods have the most crime?
+  - Is crime spread evenly or concentrated in a few Vancouver areas?
+  - How many neighbourhoods make up most of the Vancouver crime?
+  - Crime distribution inequality in Vancouver
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [concentration, pareto, hotspots]
+  tags: [policy, concentration, pareto, resource-allocation]
+
+- id: type_composition_shift
+  description: How the mix of crime types has shifted over the years (share % per type per year)
+  sql: |
+    WITH yearly_totals AS (
+      SELECT year, COUNT(*) AS total
+      FROM crime_data
+      GROUP BY year
+    )
+    SELECT
+      c.year,
+      c.crime_type,
+      COUNT(*) AS crimes,
+      ROUND(COUNT(*) * 100.0 / yt.total, 1) AS share_pct
+    FROM crime_data c
+    JOIN yearly_totals yt ON c.year = yt.year
+    GROUP BY c.year, c.crime_type, yt.total
+    ORDER BY c.year DESC, share_pct DESC
+  parameters: []
+  nl_examples:
+  - How has the composition of crime changed over the years in Vancouver?
+  - Is theft becoming a larger share of total crime in Vancouver?
+  - Vancouver crime mix shift analysis
+  - Vancouver crime type share trends over time
+  - Has the proportion of violent crime changed in Vancouver?
+  - Are Vancouver property crimes taking up a bigger share now?
+  - How has the Vancouver crime mix evolved since 2003?
+  - Relative share of each Vancouver crime type over the years
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: crime_data
+    qualifiers: [composition, shift, trends]
+  tags: [policy, composition, share, strategic]
+
+- id: fastest_growing_types
+  description: Rank crime types by year-over-year growth rate to identify emerging threats
+  sql: |
+    WITH counts AS (
+      SELECT
+        crime_type,
+        SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) AS current,
+        SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS previous
+      FROM crime_data
+      WHERE year IN (:year, :previous_year)
+      GROUP BY crime_type
+      HAVING SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) >= 10
+    )
+    SELECT
+      crime_type,
+      previous AS previous_year,
+      current AS current_year,
+      current - previous AS change,
+      ROUND((current - previous) * 100.0 / previous, 1) AS growth_pct
+    FROM counts
+    WHERE current > previous
+    ORDER BY growth_pct DESC
+    LIMIT 15
+  parameters:
+  - name: year
+    type: integer
+    description: Current year
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year to compare
+    required: false
+    default: 2024
+  nl_examples:
+  - What crime types are growing fastest in Vancouver?
+  - Which Vancouver crimes are on the rise?
+  - Emerging crime threats in Vancouver
+  - Fastest increasing Vancouver crime types
+  - What should Vancouver police be concerned about?
+  - What Vancouver crimes surged the most in 2024?
+  - Which Vancouver crime types had the biggest increase?
+  - Rising crime threats in Vancouver
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: crime_data
+    qualifiers: [growth, emerging, ranking]
+  tags: [policy, growth, emerging-threats, strategic]
+
+- id: fastest_declining_types
+  description: Rank crime types by year-over-year decline to identify where interventions may be working
+  sql: |
+    WITH counts AS (
+      SELECT
+        crime_type,
+        SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) AS current,
+        SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS previous
+      FROM crime_data
+      WHERE year IN (:year, :previous_year)
+      GROUP BY crime_type
+      HAVING SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) >= 10
+    )
+    SELECT
+      crime_type,
+      previous AS previous_year,
+      current AS current_year,
+      current - previous AS change,
+      ROUND((current - previous) * 100.0 / previous, 1) AS decline_pct
+    FROM counts
+    WHERE current < previous
+    ORDER BY decline_pct ASC
+    LIMIT 15
+  parameters:
+  - name: year
+    type: integer
+    description: Current year
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year to compare
+    required: false
+    default: 2024
+  nl_examples:
+  - What crime types are declining in Vancouver?
+  - Which Vancouver crimes are going down?
+  - Where are Vancouver crime interventions working?
+  - Biggest drops in Vancouver crime types
+  - What is Vancouver improving on?
+  - What crimes decreased in 2024 in Vancouver?
+  - Which Vancouver crime types are falling?
+  - Good news about Vancouver crime trends
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: crime_data
+    qualifiers: [decline, improvement, ranking]
+  tags: [policy, decline, improvement, strategic]
+
+- id: crime_type_seasonality
+  description: "Seasonal heatmap: which crime types peak in which season (for staffing and resource planning)"
+  sql: |
+    SELECT
+      crime_type,
+      SUM(CASE WHEN EXTRACT(MONTH FROM reported_date) IN (12, 1, 2) THEN 1 ELSE 0 END) AS winter,
+      SUM(CASE WHEN EXTRACT(MONTH FROM reported_date) IN (3, 4, 5) THEN 1 ELSE 0 END) AS spring,
+      SUM(CASE WHEN EXTRACT(MONTH FROM reported_date) IN (6, 7, 8) THEN 1 ELSE 0 END) AS summer,
+      SUM(CASE WHEN EXTRACT(MONTH FROM reported_date) IN (9, 10, 11) THEN 1 ELSE 0 END) AS fall,
+      COUNT(*) AS total
+    FROM crime_data
+    WHERE year = :year AND reported_date IS NOT NULL
+    GROUP BY crime_type
+    HAVING COUNT(*) >= 20
+    ORDER BY total DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which crimes peak in summer vs winter in Vancouver?
+  - Vancouver seasonal crime patterns by type
+  - When should Vancouver police prepare for different crime types?
+  - Vancouver crime seasonality heatmap
+  - Do break-ins increase in winter in Vancouver?
+  - What crimes are more common in summer in Vancouver?
+  - Seasonal staffing needs for Vancouver police
+  - Which season has the most theft in Vancouver?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: crime_data
+    qualifiers: [seasonality, heatmap, type]
+  tags: [policy, seasonality, staffing, resource-allocation]
+
+- id: weekend_vs_weekday_by_type
+  description: Compare weekend vs weekday crime rates by type for shift planning
+  sql: |
+    WITH day_counts AS (
+      SELECT
+        COUNT(DISTINCT CASE WHEN DAYOFWEEK(reported_date) IN (1, 7) THEN reported_date END) AS weekend_days,
+        COUNT(DISTINCT CASE WHEN DAYOFWEEK(reported_date) NOT IN (1, 7) THEN reported_date END) AS weekday_days
+      FROM crime_data
+      WHERE year = :year AND reported_date IS NOT NULL
+    )
+    SELECT
+      c.crime_type,
+      SUM(CASE WHEN DAYOFWEEK(c.reported_date) IN (1, 7) THEN 1 ELSE 0 END) AS weekend_total,
+      SUM(CASE WHEN DAYOFWEEK(c.reported_date) NOT IN (1, 7) THEN 1 ELSE 0 END) AS weekday_total,
+      ROUND(SUM(CASE WHEN DAYOFWEEK(c.reported_date) IN (1, 7) THEN 1 ELSE 0 END) * 1.0 /
+            d.weekend_days, 1) AS avg_per_weekend_day,
+      ROUND(SUM(CASE WHEN DAYOFWEEK(c.reported_date) NOT IN (1, 7) THEN 1 ELSE 0 END) * 1.0 /
+            d.weekday_days, 1) AS avg_per_weekday,
+      ROUND(
+        (SUM(CASE WHEN DAYOFWEEK(c.reported_date) IN (1, 7) THEN 1 ELSE 0 END) * 1.0 / d.weekend_days) /
+        NULLIF(SUM(CASE WHEN DAYOFWEEK(c.reported_date) NOT IN (1, 7) THEN 1 ELSE 0 END) * 1.0 / d.weekday_days, 0)
+      , 2) AS weekend_to_weekday_ratio
+    FROM crime_data c
+    CROSS JOIN day_counts d
+    WHERE c.year = :year AND c.reported_date IS NOT NULL
+    GROUP BY c.crime_type, d.weekend_days, d.weekday_days
+    ORDER BY weekend_to_weekday_ratio DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Is there more crime on weekends in Vancouver?
+  - Vancouver weekend vs weekday crime comparison by type
+  - When should Vancouver police have more staff?
+  - Vancouver shift planning analysis
+  - Are vehicle thefts more common on weekends in Vancouver?
+  - Do more break-ins happen on weekdays or weekends in Vancouver?
+  - Vancouver weekend crime rates vs weekday in 2024
+  - Which Vancouver crimes spike on weekends?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: crime_data
+    qualifiers: [weekend, weekday, staffing]
+  tags: [policy, staffing, shift-planning, resource-allocation]
+
+- id: persistent_hotspot_neighbourhoods
+  description: Neighbourhoods that consistently rank in the top 10 across every year — chronic problem locations
+  sql: |
+    WITH yearly_ranked AS (
+      SELECT
+        neighbourhood,
+        year,
+        COUNT(*) AS crimes,
+        RANK() OVER (PARTITION BY year ORDER BY COUNT(*) DESC) AS year_rank
+      FROM crime_data
+      WHERE neighbourhood != ''
+      GROUP BY neighbourhood, year
+    )
+    SELECT
+      neighbourhood,
+      COUNT(DISTINCT year) AS years_in_top_10,
+      MIN(year_rank) AS best_rank,
+      MAX(year_rank) AS worst_rank,
+      SUM(crimes) AS total_crimes,
+      ROUND(AVG(crimes), 0) AS avg_per_year
+    FROM yearly_ranked
+    WHERE year_rank <= 10
+    GROUP BY neighbourhood
+    HAVING COUNT(DISTINCT year) >= 5
+    ORDER BY years_in_top_10 DESC, total_crimes DESC
+  parameters: []
+  nl_examples:
+  - Which neighbourhoods are persistently high-crime in Vancouver?
+  - Chronic crime hotspot neighbourhoods in Vancouver
+  - Where does crime never go away in Vancouver?
+  - Vancouver neighbourhoods that need sustained police attention
+  - Repeat problem neighbourhoods across years in Vancouver
+  - Which areas have been in the top 10 for crime every year in Vancouver?
+  - Long-term problem areas in Vancouver
+  - Vancouver neighbourhoods that are always high-crime
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: crime_data
+    qualifiers: [persistent, chronic, hotspots]
+  tags: [policy, persistent, chronic, intervention, strategic]
+
+- id: mischief_property_correlation
+  description: "Broken windows analysis: neighbourhoods with high mischief AND high property/violent crime, suggesting targeted intervention"
+  sql: |
+    WITH neighbourhood_stats AS (
+      SELECT
+        neighbourhood,
+        SUM(CASE WHEN crime_type = 'Mischief' THEN 1 ELSE 0 END) AS mischief_count,
+        SUM(CASE WHEN crime_type IN ('Offence Against a Person', 'Homicide') THEN 1 ELSE 0 END) AS violent_count,
+        SUM(CASE WHEN crime_type IN ('Other Theft', 'Theft from Vehicle', 'Theft of Vehicle', 'Theft of Bicycle', 'Break and Enter Commercial', 'Break and Enter Residential/Other') THEN 1 ELSE 0 END) AS property_count,
+        COUNT(*) AS total_count
+      FROM crime_data
+      WHERE year = :year AND neighbourhood != ''
+      GROUP BY neighbourhood
+      HAVING SUM(CASE WHEN crime_type = 'Mischief' THEN 1 ELSE 0 END) >= 10
+    )
+    SELECT
+      neighbourhood,
+      mischief_count,
+      violent_count,
+      property_count,
+      total_count,
+      ROUND(mischief_count * 100.0 / total_count, 1) AS mischief_share_pct,
+      ROUND(violent_count * 100.0 / total_count, 1) AS violent_share_pct
+    FROM neighbourhood_stats
+    ORDER BY mischief_count + violent_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Where do mischief and violent crime overlap in Vancouver?
+  - Broken windows analysis for Vancouver
+  - Which Vancouver neighbourhoods have both mischief and serious crime?
+  - Where should targeted Vancouver interventions focus?
+  - Vancouver disorder and crime correlation by neighbourhood
+  - Does vandalism correlate with violent crime in Vancouver?
+  - Vancouver neighbourhoods with high mischief and assault
+  - Where does Vancouver property damage lead to worse crime?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: crime_data
+    qualifiers: [correlation, mischief, intervention]
+  tags: [policy, broken-windows, intervention, strategic]

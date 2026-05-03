@@ -1,0 +1,1500 @@
+status: completed
+generated_at: '2026-04-10T12:00:00.000000'
+last_updated: '2026-04-10T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 34
+templates:
+# =============================================================================
+# BREAK AND ENTER TRENDS & STATISTICS
+# =============================================================================
+
+- id: yearly_break_and_enter_trends
+  description: Track year-over-year changes in break and enter incidents in Toronto
+  sql: |
+    SELECT
+      occ_year,
+      COUNT(*) AS total_incidents,
+      COUNT(DISTINCT neighbourhood_158) AS neighbourhoods_affected,
+      COUNT(DISTINCT division) AS divisions_affected
+    FROM break_and_enter
+    WHERE occ_year >= 2014
+    GROUP BY occ_year
+    ORDER BY occ_year DESC
+  parameters: []
+  nl_examples:
+  - How has break and enter changed over the years in Toronto?
+  - Show me yearly B&E trends in Toronto
+  - Is break and enter increasing or decreasing in Toronto?
+  - Year-over-year comparison of Toronto break-ins
+  - How many break and enters were there each year in Toronto?
+  - Are Toronto burglaries getting worse?
+  - Toronto break and enter rate over time
+  - Annual B&E statistics Toronto
+  - Track break and enter trends across years in Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [trends, yearly]
+  tags: [trends, yearly, strategic, break-and-enter]
+
+- id: break_and_enter_by_month
+  description: Analyze monthly break and enter patterns in Toronto
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM occ_date) AS month_num,
+      CASE EXTRACT(MONTH FROM occ_date)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS incident_count
+    FROM break_and_enter
+    WHERE occ_year = :year AND occ_date IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM occ_date)
+    ORDER BY month_num
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which months have the most break and enters in Toronto?
+  - Show me seasonal patterns in Toronto B&E
+  - When do most break-ins happen in Toronto?
+  - Monthly break and enter breakdown Toronto
+  - Peak months for burglary in Toronto
+  - Is break and enter more common in summer or winter in Toronto?
+  - Monthly B&E counts for Toronto 2024
+  - Are there seasonal spikes in Toronto break and enters?
+  - Which month had the most break-ins in Toronto 2023?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [monthly, seasonal]
+  tags: [trends, monthly, seasonal, break-and-enter]
+
+- id: break_and_enter_by_weekday
+  description: Analyze break and enter patterns by day of the week in Toronto
+  sql: |
+    SELECT
+      occ_dow AS day_of_week,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct_of_total
+    FROM break_and_enter
+    WHERE occ_year = :year AND occ_dow IS NOT NULL
+    GROUP BY occ_dow
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which day of the week has the most break-ins in Toronto?
+  - Show Toronto B&E patterns by day of the week
+  - Is Friday the worst day for break and enter in Toronto?
+  - Toronto break and enter by weekday
+  - Are break-ins more common on weekends in Toronto?
+  - Day of week analysis for Toronto burglaries
+  - When during the week do most Toronto B&Es happen?
+  - Weekday vs weekend break and enter in Toronto
+  - Which days have the least break-ins in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [weekday, patterns]
+  tags: [trends, weekday, patterns, break-and-enter]
+
+- id: break_and_enter_by_time_of_day
+  description: Analyze break and enter patterns by hour of the day in Toronto
+  sql: |
+    SELECT
+      occ_hour AS hour,
+      CASE
+        WHEN occ_hour BETWEEN 0 AND 5 THEN 'Late Night (12am-5am)'
+        WHEN occ_hour BETWEEN 6 AND 11 THEN 'Morning (6am-11am)'
+        WHEN occ_hour BETWEEN 12 AND 17 THEN 'Afternoon (12pm-5pm)'
+        ELSE 'Evening (6pm-11pm)'
+      END AS time_period,
+      COUNT(*) AS incident_count
+    FROM break_and_enter
+    WHERE occ_year = :year
+    GROUP BY occ_hour
+    ORDER BY occ_hour
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What time of day do most break-ins happen in Toronto?
+  - Show Toronto B&E patterns by hour
+  - Are break and enters more common at night in Toronto?
+  - Hourly break and enter distribution in Toronto
+  - When during the day do burglaries peak in Toronto?
+  - Toronto break-in time of day analysis
+  - Do most Toronto B&Es happen at night or during the day?
+  - Peak hours for break and enter in Toronto
+  - What hour has the most break-ins in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [hourly, time]
+  tags: [trends, hourly, time-of-day, break-and-enter]
+
+# =============================================================================
+# CATEGORY ANALYSIS
+# =============================================================================
+
+- id: break_and_enter_by_offence
+  description: Break down Toronto break and enter incidents by offence type
+  sql: |
+    SELECT
+      offence,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct_of_total
+    FROM break_and_enter
+    WHERE occ_year = :year
+    GROUP BY offence
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What types of break and enter are most common in Toronto?
+  - Show Toronto B&E breakdown by offence type
+  - How many B&E with intent vs regular B&E in Toronto?
+  - Toronto break and enter offence categories
+  - What's the split between B&E and B&E with intent in Toronto?
+  - Types of burglary in Toronto
+  - Toronto break-in offence type distribution
+  - "B&E vs B&E W'Intent in Toronto"
+  - How common is unlawfully in dwelling-house in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [offence, category]
+  tags: [category, offence, break-and-enter]
+
+- id: break_and_enter_by_premises
+  description: Analyze Toronto break and enter incidents by premises type
+  sql: |
+    SELECT
+      premises_type,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct_of_total
+    FROM break_and_enter
+    WHERE occ_year = :year
+    GROUP BY premises_type
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which premises types are targeted most by break-ins in Toronto?
+  - Show Toronto B&E by premises type
+  - Are apartments or houses targeted more for break and enter in Toronto?
+  - Toronto break-in premises breakdown
+  - Where do most burglaries happen in Toronto - houses or apartments?
+  - Commercial vs residential break and enter in Toronto
+  - Toronto break and enter by property type
+  - Are commercial properties targeted more for B&E in Toronto?
+  - What type of building has the most break-ins in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [premises, category]
+  tags: [category, premises, break-and-enter]
+
+- id: break_and_enter_by_location_type
+  description: Analyze Toronto break and enter incidents by detailed location type
+  sql: |
+    SELECT
+      location_type,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct_of_total
+    FROM break_and_enter
+    WHERE occ_year = :year
+    GROUP BY location_type
+    ORDER BY incident_count DESC
+    LIMIT 20
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What specific location types are most targeted for break-ins in Toronto?
+  - Show Toronto B&E by detailed location type
+  - Are condos or single homes broken into more in Toronto?
+  - Toronto break and enter location type analysis
+  - What kind of buildings are burglarized most in Toronto?
+  - Single homes vs apartments for B&E in Toronto
+  - Top location types for break and enter in Toronto
+  - Toronto break-in targets by location type
+  - Where exactly do break and enters happen in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [location, category]
+  tags: [category, location-type, break-and-enter]
+
+# =============================================================================
+# LOCATION ANALYSIS
+# =============================================================================
+
+- id: break_and_enter_by_neighbourhood
+  description: Show top neighbourhoods for break and enter in Toronto
+  sql: |
+    SELECT
+      neighbourhood_158 AS neighbourhood,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct_of_total
+    FROM break_and_enter
+    WHERE occ_year = :year AND neighbourhood_158 IS NOT NULL AND neighbourhood_158 != 'NSA'
+    GROUP BY neighbourhood_158
+    ORDER BY incident_count DESC
+    LIMIT 20
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Toronto neighbourhoods have the most break and enters?
+  - Top neighbourhoods for B&E in Toronto
+  - Where are break-ins most common in Toronto?
+  - Toronto break and enter hotspots by neighbourhood
+  - Worst Toronto neighbourhoods for burglary
+  - Which communities have the highest break-in rates in Toronto?
+  - Toronto B&E neighbourhood rankings
+  - Most targeted Toronto neighbourhoods for break and enter
+  - Where should I worry about break-ins in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: break_and_enter
+    qualifiers: [neighbourhood, ranking]
+  tags: [location, neighbourhood, ranking, break-and-enter]
+
+- id: break_and_enter_by_division
+  description: Show break and enter counts by police division in Toronto
+  sql: |
+    SELECT
+      division,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct_of_total,
+      COUNT(DISTINCT neighbourhood_158) AS neighbourhoods_in_division
+    FROM break_and_enter
+    WHERE occ_year = :year AND division != 'NSA'
+    GROUP BY division
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Toronto police divisions have the most break and enters?
+  - Show Toronto B&E by division
+  - Break and enter distribution across Toronto police divisions
+  - Which division handles the most burglary in Toronto?
+  - Toronto B&E by police district
+  - Division breakdown of break-ins in Toronto
+  - Compare Toronto divisions for break and enter
+  - Which police division in Toronto has the worst B&E problem?
+  - Toronto break and enter by D-division
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [division, ranking]
+  tags: [location, division, ranking, break-and-enter]
+
+- id: neighbourhood_break_and_enter_detail
+  description: Detailed break and enter analysis for a specific Toronto neighbourhood
+  sql: |
+    SELECT
+      occ_year,
+      COUNT(*) AS total_incidents,
+      COUNT(CASE WHEN offence = 'B&E' THEN 1 END) AS be_count,
+      COUNT(CASE WHEN offence = 'B&E W''Intent' THEN 1 END) AS be_with_intent,
+      COUNT(CASE WHEN offence = 'B&E Out' THEN 1 END) AS be_out,
+      COUNT(CASE WHEN premises_type = 'House' THEN 1 END) AS house_targets,
+      COUNT(CASE WHEN premises_type = 'Apartment' THEN 1 END) AS apartment_targets,
+      COUNT(CASE WHEN premises_type = 'Commercial' THEN 1 END) AS commercial_targets
+    FROM break_and_enter
+    WHERE neighbourhood_158 ILIKE '%' || TRIM(REPLACE(REPLACE(:neighbourhood, 'Toronto', ''), 'toronto', '')) || '%'
+      AND occ_year >= 2014
+    GROUP BY occ_year
+    ORDER BY occ_year DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name to search
+    required: true
+  nl_examples:
+  - Break and enter trends in the Annex Toronto
+  - How bad are break-ins in Roncesvalles Toronto?
+  - Toronto B&E stats for Moss Park
+  - Is Parkdale safe from break and enter in Toronto?
+  - Break and enter history in Rexdale Toronto
+  - Toronto neighbourhood break-in detail for Scarborough Village
+  - How many burglaries in the Beaches Toronto?
+  - Break and enter analysis for West Hill Toronto
+  - Toronto B&E breakdown for a specific neighbourhood
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: break_and_enter
+    qualifiers: [neighbourhood, detail]
+  tags: [location, neighbourhood, detail, break-and-enter]
+
+# =============================================================================
+# YEAR-OVER-YEAR COMPARISON
+# =============================================================================
+
+- id: break_and_enter_yoy_comparison
+  description: Compare break and enter between two years in Toronto
+  sql: |
+    WITH yearly AS (
+      SELECT
+        occ_year,
+        COUNT(*) AS total_incidents
+      FROM break_and_enter
+      WHERE occ_year IN (:year, :year - 1)
+      GROUP BY occ_year
+    )
+    SELECT
+      curr.occ_year AS current_year,
+      curr.total_incidents AS current_count,
+      prev.occ_year AS previous_year,
+      prev.total_incidents AS previous_count,
+      curr.total_incidents - prev.total_incidents AS change,
+      ROUND((curr.total_incidents - prev.total_incidents) * 100.0 / NULLIF(prev.total_incidents, 0), 1) AS change_pct
+    FROM yearly curr
+    JOIN yearly prev ON curr.occ_year = prev.occ_year + 1
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare (will compare against previous year)
+    required: false
+    default: 2024
+  nl_examples:
+  - Compare Toronto break and enter this year to last year
+  - Is break and enter up or down in Toronto compared to last year?
+  - Year-over-year change in Toronto B&E
+  - How do Toronto break-ins compare between 2024 and 2023?
+  - Toronto break and enter year-over-year comparison
+  - Are burglaries increasing in Toronto compared to last year?
+  - Toronto B&E change from previous year
+  - How much did break and enter change in Toronto?
+  - Compare 2023 vs 2024 break and enter in Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [yoy, comparison]
+  tags: [comparison, yoy, trends, break-and-enter]
+
+- id: break_and_enter_yoy_by_neighbourhood
+  description: Year-over-year break and enter change by neighbourhood in Toronto
+  sql: |
+    WITH yearly AS (
+      SELECT
+        neighbourhood_158 AS neighbourhood,
+        SUM(CASE WHEN occ_year = :year THEN 1 ELSE 0 END) AS current_year,
+        SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) AS previous_year
+      FROM break_and_enter
+      WHERE occ_year IN (:year, :year - 1) AND neighbourhood_158 IS NOT NULL AND neighbourhood_158 != 'NSA'
+      GROUP BY neighbourhood_158
+      HAVING SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) >= 5
+    )
+    SELECT
+      neighbourhood,
+      current_year,
+      previous_year,
+      current_year - previous_year AS change,
+      ROUND((current_year - previous_year) * 100.0 / NULLIF(previous_year, 0), 1) AS change_pct
+    FROM yearly
+    ORDER BY change DESC
+    LIMIT 20
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare (will compare against previous year)
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Toronto neighbourhoods saw the biggest increase in break and enter?
+  - Toronto B&E emerging hotspots by neighbourhood
+  - Where are break-ins growing fastest in Toronto?
+  - Year-over-year break and enter change by neighbourhood in Toronto
+  - Which Toronto communities have worsening burglary trends?
+  - Toronto neighbourhood B&E comparison year over year
+  - Emerging break and enter hotspots in Toronto
+  - Where is break and enter surging in Toronto?
+  - Toronto neighbourhoods with rising B&E rates
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [yoy, neighbourhood, emerging]
+  tags: [comparison, neighbourhood, emerging, break-and-enter]
+
+# =============================================================================
+# REFERENCE DATA
+# =============================================================================
+
+- id: list_break_and_enter_neighbourhoods
+  description: List all neighbourhoods with break and enter data in Toronto
+  sql: |
+    SELECT
+      neighbourhood_158 AS neighbourhood,
+      COUNT(*) AS total_incidents,
+      MIN(occ_year) AS earliest_year,
+      MAX(occ_year) AS latest_year
+    FROM break_and_enter
+    WHERE neighbourhood_158 IS NOT NULL AND neighbourhood_158 != 'NSA'
+    GROUP BY neighbourhood_158
+    ORDER BY neighbourhood_158
+  parameters: []
+  nl_examples:
+  - List all Toronto neighbourhoods with break and enter data
+  - Which neighbourhoods can I query in the Toronto B&E dataset?
+  - Show all areas covered by the Toronto break and enter data
+  - Toronto break and enter neighbourhood list
+  - What neighbourhoods have break-in data in Toronto?
+  - Available Toronto neighbourhoods for B&E queries
+  - All Toronto communities in the break and enter dataset
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: break_and_enter
+    qualifiers: [reference, neighbourhoods]
+  tags: [reference, neighbourhoods, break-and-enter]
+
+- id: break_and_enter_data_coverage
+  description: Show the data coverage and range for Toronto break and enter
+  sql: |
+    SELECT
+      COUNT(*) AS total_records,
+      MIN(occ_year) AS earliest_year,
+      MAX(occ_year) AS latest_year,
+      COUNT(DISTINCT occ_year) AS years_covered,
+      COUNT(DISTINCT neighbourhood_158) AS total_neighbourhoods,
+      COUNT(DISTINCT division) AS total_divisions,
+      COUNT(DISTINCT offence) AS offence_types,
+      COUNT(DISTINCT premises_type) AS premises_types
+    FROM break_and_enter
+  parameters: []
+  nl_examples:
+  - What break and enter data is available for Toronto?
+  - Show me Toronto B&E data coverage
+  - How much break and enter data does Toronto have?
+  - Toronto break-in dataset summary
+  - What years does the Toronto B&E data cover?
+  - Toronto break and enter data range and size
+  - Overview of the Toronto break and enter dataset
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: break_and_enter
+    qualifiers: [reference, coverage]
+  tags: [reference, coverage, break-and-enter]
+
+# =============================================================================
+# INSIGHT GENERATORS
+# =============================================================================
+
+- id: break_and_enter_city_snapshot
+  description: Dashboard-style snapshot of Toronto break and enter
+  sql: |
+    SELECT
+      (SELECT COUNT(*) FROM break_and_enter WHERE occ_year = :year) AS total_current_year,
+      (SELECT COUNT(*) FROM break_and_enter WHERE occ_year = :year - 1) AS total_previous_year,
+      ROUND(((SELECT COUNT(*) FROM break_and_enter WHERE occ_year = :year) -
+             (SELECT COUNT(*) FROM break_and_enter WHERE occ_year = :year - 1)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM break_and_enter WHERE occ_year = :year - 1), 0), 1) AS yoy_change_pct,
+      (SELECT offence FROM break_and_enter WHERE occ_year = :year GROUP BY offence ORDER BY COUNT(*) DESC LIMIT 1) AS top_offence,
+      (SELECT premises_type FROM break_and_enter WHERE occ_year = :year GROUP BY premises_type ORDER BY COUNT(*) DESC LIMIT 1) AS top_premises,
+      (SELECT neighbourhood_158 FROM break_and_enter WHERE occ_year = :year AND neighbourhood_158 != 'NSA' GROUP BY neighbourhood_158 ORDER BY COUNT(*) DESC LIMIT 1) AS top_neighbourhood,
+      (SELECT division FROM break_and_enter WHERE occ_year = :year AND division != 'NSA' GROUP BY division ORDER BY COUNT(*) DESC LIMIT 1) AS top_division
+  parameters:
+  - name: year
+    type: integer
+    description: Year for snapshot
+    required: false
+    default: 2024
+  nl_examples:
+  - Give me a Toronto break and enter overview
+  - Toronto B&E snapshot dashboard
+  - Summary of break and enter in Toronto
+  - Quick Toronto break-in stats
+  - Toronto break and enter at a glance
+  - How is break and enter looking in Toronto?
+  - Overall Toronto burglary statistics
+  - Toronto B&E dashboard for 2024
+  - What's the break and enter situation in Toronto?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [snapshot, dashboard]
+  tags: [insight, snapshot, dashboard, break-and-enter]
+
+- id: break_and_enter_neighbourhood_safety_trend
+  description: Safety trend for a specific neighbourhood using LAG window
+  sql: |
+    WITH yearly_counts AS (
+      SELECT
+        occ_year,
+        COUNT(*) AS incident_count
+      FROM break_and_enter
+      WHERE neighbourhood_158 ILIKE '%' || TRIM(REPLACE(REPLACE(:neighbourhood, 'Toronto', ''), 'toronto', '')) || '%'
+        AND occ_year >= 2014
+      GROUP BY occ_year
+    )
+    SELECT
+      occ_year,
+      incident_count,
+      LAG(incident_count) OVER (ORDER BY occ_year) AS previous_year_count,
+      incident_count - LAG(incident_count) OVER (ORDER BY occ_year) AS change,
+      ROUND((incident_count - LAG(incident_count) OVER (ORDER BY occ_year)) * 100.0 /
+            NULLIF(LAG(incident_count) OVER (ORDER BY occ_year), 0), 1) AS change_pct
+    FROM yearly_counts
+    ORDER BY occ_year DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name to search
+    required: true
+  nl_examples:
+  - Is the Annex getting safer from break and enter in Toronto?
+  - Break and enter safety trend for Roncesvalles Toronto
+  - Are break-ins improving in Moss Park Toronto?
+  - Toronto B&E trend for Parkdale over time
+  - Is burglary going up or down in Scarborough Village Toronto?
+  - Neighbourhood safety trend for break and enter in Toronto
+  - Year-over-year break-in changes in the Beaches Toronto
+  - How is break and enter trending in Rexdale Toronto?
+  - Toronto B&E safety trend for a specific neighbourhood
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [neighbourhood, safety, trend]
+  tags: [insight, neighbourhood, safety, trend, break-and-enter]
+
+- id: break_and_enter_hourly
+  description: Detailed hourly break and enter analysis in Toronto
+  sql: |
+    SELECT
+      occ_hour AS hour,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct_of_total,
+      COUNT(CASE WHEN premises_type = 'House' THEN 1 END) AS house_count,
+      COUNT(CASE WHEN premises_type = 'Apartment' THEN 1 END) AS apartment_count,
+      COUNT(CASE WHEN premises_type = 'Commercial' THEN 1 END) AS commercial_count
+    FROM break_and_enter
+    WHERE occ_year = :year
+    GROUP BY occ_hour
+    ORDER BY occ_hour
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What hour do most break and enters happen in Toronto?
+  - Hourly break-in analysis for Toronto
+  - Toronto B&E by hour of the day
+  - When are houses vs apartments broken into in Toronto?
+  - Peak break and enter hours in Toronto
+  - Detailed hourly B&E pattern in Toronto
+  - Time analysis for Toronto break-ins
+  - What time of day are commercial B&Es in Toronto?
+  - Hourly comparison of house vs apartment break-ins in Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [hourly, detailed]
+  tags: [trends, hourly, detailed, break-and-enter]
+
+# =============================================================================
+# POLICY & STRATEGIC ANALYTICS
+# =============================================================================
+
+- id: break_and_enter_concentration
+  description: Analyze crime concentration - do a few neighbourhoods account for most break and enters in Toronto?
+  sql: |
+    WITH ranked AS (
+      SELECT
+        neighbourhood_158 AS neighbourhood,
+        COUNT(*) AS incidents,
+        ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rank_num
+      FROM break_and_enter
+      WHERE occ_year = :year AND neighbourhood_158 IS NOT NULL AND neighbourhood_158 != 'NSA'
+      GROUP BY neighbourhood_158
+    ),
+    totals AS (
+      SELECT COUNT(*) AS total_count, COUNT(DISTINCT neighbourhood_158) AS total_hoods
+      FROM break_and_enter
+      WHERE occ_year = :year AND neighbourhood_158 IS NOT NULL AND neighbourhood_158 != 'NSA'
+    )
+    SELECT
+      CASE
+        WHEN r.rank_num <= CEIL(t.total_hoods * 0.05) THEN 'Top 5%'
+        WHEN r.rank_num <= CEIL(t.total_hoods * 0.10) THEN 'Top 6-10%'
+        WHEN r.rank_num <= CEIL(t.total_hoods * 0.20) THEN 'Top 11-20%'
+        ELSE 'Remaining 80%'
+      END AS tier,
+      COUNT(*) AS neighbourhood_count,
+      SUM(r.incidents) AS total_incidents,
+      ROUND(SUM(r.incidents) * 100.0 / MAX(t.total_count), 1) AS pct_of_all_incidents
+    FROM ranked r
+    CROSS JOIN totals t
+    GROUP BY
+      CASE
+        WHEN r.rank_num <= CEIL(t.total_hoods * 0.05) THEN 'Top 5%'
+        WHEN r.rank_num <= CEIL(t.total_hoods * 0.10) THEN 'Top 6-10%'
+        WHEN r.rank_num <= CEIL(t.total_hoods * 0.20) THEN 'Top 11-20%'
+        ELSE 'Remaining 80%'
+      END
+    ORDER BY MIN(r.rank_num)
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Do a few neighbourhoods account for most break-ins in Toronto?
+  - Toronto B&E concentration analysis
+  - Is break and enter concentrated in a few areas in Toronto?
+  - Toronto break and enter Pareto analysis
+  - How concentrated are burglaries across Toronto neighbourhoods?
+  - Do 5% of Toronto neighbourhoods have 50% of break-ins?
+  - Break and enter inequality across Toronto neighbourhoods
+  - Toronto B&E hotspot concentration
+  - Where is break and enter most concentrated in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [concentration, pareto, policy]
+  tags: [policy, concentration, strategic, break-and-enter]
+
+- id: break_and_enter_premises_shift
+  description: Track how premises type composition of B&E has shifted over time in Toronto
+  sql: |
+    WITH yearly_totals AS (
+      SELECT occ_year, COUNT(*) AS total
+      FROM break_and_enter
+      WHERE occ_year >= 2014
+      GROUP BY occ_year
+    )
+    SELECT
+      b.occ_year,
+      b.premises_type,
+      COUNT(*) AS incidents,
+      ROUND(COUNT(*) * 100.0 / yt.total, 1) AS share_pct
+    FROM break_and_enter b
+    JOIN yearly_totals yt ON b.occ_year = yt.occ_year
+    WHERE b.occ_year >= 2014
+    GROUP BY b.occ_year, b.premises_type, yt.total
+    ORDER BY b.occ_year DESC, incidents DESC
+  parameters: []
+  nl_examples:
+  - Is the mix of residential vs commercial break-ins changing in Toronto?
+  - Toronto B&E premises composition shift over time
+  - Are apartments being targeted more for break-ins over time in Toronto?
+  - How has the break and enter target profile changed in Toronto?
+  - Toronto premises type trend for break and enter
+  - Are commercial B&Es growing as a share in Toronto?
+  - Composition shift in Toronto break and enter targets
+  - Historical premises type breakdown for Toronto B&E
+  - Is the share of house break-ins declining in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [composition, shift, premises]
+  tags: [policy, composition, premises, strategic, break-and-enter]
+
+- id: break_and_enter_offence_shift
+  description: Track how offence type composition has shifted over time for Toronto B&E
+  sql: |
+    WITH yearly_totals AS (
+      SELECT occ_year, COUNT(*) AS total
+      FROM break_and_enter
+      WHERE occ_year >= 2014
+      GROUP BY occ_year
+    )
+    SELECT
+      b.occ_year,
+      b.offence,
+      COUNT(*) AS incidents,
+      ROUND(COUNT(*) * 100.0 / yt.total, 1) AS share_pct
+    FROM break_and_enter b
+    JOIN yearly_totals yt ON b.occ_year = yt.occ_year
+    WHERE b.occ_year >= 2014
+    GROUP BY b.occ_year, b.offence, yt.total
+    ORDER BY b.occ_year DESC, incidents DESC
+  parameters: []
+  nl_examples:
+  - Is the share of B&E with intent growing in Toronto?
+  - Toronto break and enter offence type composition over time
+  - How has the mix of B&E offence types changed in Toronto?
+  - Are more break-ins classified as B&E with intent now in Toronto?
+  - Toronto offence composition shift for break and enter
+  - Is unlawfully in dwelling-house becoming more common in Toronto?
+  - Trend of B&E vs B&E Out in Toronto
+  - Toronto break and enter category composition analysis
+  - How has the offence breakdown shifted for Toronto B&E?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [composition, shift, offence]
+  tags: [policy, composition, offence, strategic, break-and-enter]
+
+- id: break_and_enter_type_seasonality
+  description: Seasonal patterns of different premises types for Toronto B&E
+  sql: |
+    SELECT
+      premises_type,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occ_date) IN (12, 1, 2) THEN 1 ELSE 0 END) AS winter,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occ_date) IN (3, 4, 5) THEN 1 ELSE 0 END) AS spring,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occ_date) IN (6, 7, 8) THEN 1 ELSE 0 END) AS summer,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occ_date) IN (9, 10, 11) THEN 1 ELSE 0 END) AS fall,
+      COUNT(*) AS total
+    FROM break_and_enter
+    WHERE occ_year = :year AND occ_date IS NOT NULL
+    GROUP BY premises_type
+    ORDER BY total DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Do break and enter patterns differ by season in Toronto?
+  - Toronto B&E seasonality by premises type
+  - Are house break-ins more common in summer or winter in Toronto?
+  - Seasonal break and enter patterns by property type in Toronto
+  - When are commercial premises most vulnerable to B&E in Toronto?
+  - Toronto break-in seasonal analysis by premises
+  - Summer vs winter break and enter for different property types in Toronto
+  - Which season has the most apartment break-ins in Toronto?
+  - Seasonal variation in Toronto burglary by target type
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [seasonality, premises]
+  tags: [policy, seasonality, premises, break-and-enter]
+
+- id: break_and_enter_persistent_hotspots
+  description: Neighbourhoods consistently in top 20 for break and enter across years in Toronto
+  sql: |
+    WITH yearly_ranked AS (
+      SELECT
+        occ_year,
+        neighbourhood_158 AS neighbourhood,
+        COUNT(*) AS incidents,
+        RANK() OVER (PARTITION BY occ_year ORDER BY COUNT(*) DESC) AS year_rank
+      FROM break_and_enter
+      WHERE occ_year >= 2020 AND neighbourhood_158 IS NOT NULL AND neighbourhood_158 != 'NSA'
+      GROUP BY occ_year, neighbourhood_158
+    )
+    SELECT
+      neighbourhood,
+      COUNT(DISTINCT occ_year) AS years_in_top_20,
+      ROUND(AVG(incidents), 0) AS avg_annual_incidents,
+      MIN(year_rank) AS best_rank,
+      MAX(year_rank) AS worst_rank,
+      SUM(incidents) AS total_incidents
+    FROM yearly_ranked
+    WHERE year_rank <= 20
+    GROUP BY neighbourhood
+    HAVING COUNT(DISTINCT occ_year) >= 2
+    ORDER BY years_in_top_20 DESC, avg_annual_incidents DESC
+  parameters: []
+  nl_examples:
+  - Which Toronto neighbourhoods are persistent break and enter hotspots?
+  - Toronto B&E chronic problem areas
+  - Which neighbourhoods consistently rank high for break-ins in Toronto?
+  - Persistent burglary hotspots in Toronto
+  - Toronto break and enter locations that stay in the top 20
+  - Chronic break and enter problem neighbourhoods in Toronto
+  - Repeat B&E hotspots in Toronto
+  - Which Toronto areas have had break-in problems year after year?
+  - Toronto persistent break and enter hotspot analysis
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: break_and_enter
+    qualifiers: [persistent, hotspots]
+  tags: [policy, persistent, hotspots, break-and-enter]
+
+- id: break_and_enter_weekend_vs_weekday
+  description: Compare weekend vs weekday break and enter by premises type in Toronto
+  sql: |
+    SELECT
+      premises_type,
+      ROUND(SUM(CASE WHEN TRIM(occ_dow) IN ('Saturday', 'Sunday') THEN 1 ELSE 0 END) * 1.0 /
+            NULLIF(2, 0), 1) AS avg_per_weekend_day,
+      ROUND(SUM(CASE WHEN TRIM(occ_dow) NOT IN ('Saturday', 'Sunday') THEN 1 ELSE 0 END) * 1.0 /
+            NULLIF(5, 0), 1) AS avg_per_weekday,
+      ROUND(
+        (SUM(CASE WHEN TRIM(occ_dow) IN ('Saturday', 'Sunday') THEN 1 ELSE 0 END) * 1.0 / 2) /
+        NULLIF(SUM(CASE WHEN TRIM(occ_dow) NOT IN ('Saturday', 'Sunday') THEN 1 ELSE 0 END) * 1.0 / 5, 0),
+        2
+      ) AS weekend_to_weekday_ratio,
+      COUNT(*) AS total
+    FROM break_and_enter
+    WHERE occ_year = :year AND occ_dow IS NOT NULL
+    GROUP BY premises_type
+    ORDER BY total DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Are break-ins more common on weekends or weekdays in Toronto?
+  - Toronto B&E weekend vs weekday comparison by premises
+  - Do commercial break-ins happen more on weekends in Toronto?
+  - Weekend to weekday break and enter ratio in Toronto
+  - Are houses more vulnerable to B&E on weekdays in Toronto?
+  - Toronto break and enter weekday vs weekend pattern
+  - When are apartments more likely to be broken into in Toronto?
+  - Toronto B&E weekend vs weekday by property type
+  - Is there a difference in weekend and weekday burglary in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [weekend, weekday, premises]
+  tags: [policy, weekend, weekday, break-and-enter]
+
+- id: break_and_enter_fastest_growing_neighbourhoods
+  description: Neighbourhoods with the fastest growing break and enter rates in Toronto
+  sql: |
+    WITH neighbourhood_yoy AS (
+      SELECT
+        neighbourhood_158 AS neighbourhood,
+        SUM(CASE WHEN occ_year = :year THEN 1 ELSE 0 END) AS current_year,
+        SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) AS previous_year
+      FROM break_and_enter
+      WHERE occ_year IN (:year, :year - 1) AND neighbourhood_158 IS NOT NULL AND neighbourhood_158 != 'NSA'
+      GROUP BY neighbourhood_158
+      HAVING SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) >= 10
+    )
+    SELECT
+      neighbourhood,
+      previous_year,
+      current_year,
+      current_year - previous_year AS change,
+      ROUND((current_year - previous_year) * 100.0 / NULLIF(previous_year, 0), 1) AS growth_pct
+    FROM neighbourhood_yoy
+    WHERE current_year > previous_year
+    ORDER BY growth_pct DESC
+    LIMIT 15
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Toronto neighbourhoods have the fastest growing break and enter?
+  - Where are break-ins surging in Toronto?
+  - Toronto B&E fastest growing areas
+  - Neighbourhoods with biggest increase in burglary in Toronto
+  - Where is break and enter spiking in Toronto?
+  - Toronto fastest growing B&E neighbourhoods
+  - Early warning for break and enter in Toronto neighbourhoods
+  - Which areas are seeing break-in surges in Toronto?
+  - Toronto B&E growth ranking by neighbourhood
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [growth, neighbourhood, ranking]
+  tags: [policy, growth, neighbourhood, break-and-enter]
+
+# =============================================================================
+# ADVANCED POLICY & STRATEGIC ANALYTICS
+# =============================================================================
+
+- id: break_and_enter_fastest_growing_offence_types
+  description: Which B&E offence subtypes are surging or declining year over year in Toronto?
+  sql: |
+    WITH offence_yoy AS (
+      SELECT
+        offence,
+        SUM(CASE WHEN occ_year = :year THEN 1 ELSE 0 END) AS current_year,
+        SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) AS previous_year
+      FROM break_and_enter
+      WHERE occ_year IN (:year, :year - 1)
+      GROUP BY offence
+      HAVING SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) >= 10
+    )
+    SELECT
+      offence,
+      previous_year,
+      current_year,
+      current_year - previous_year AS change,
+      ROUND((current_year - previous_year) * 100.0 / NULLIF(previous_year, 0), 1) AS change_pct,
+      CASE
+        WHEN current_year > previous_year THEN 'Growing'
+        WHEN current_year < previous_year THEN 'Declining'
+        ELSE 'Stable'
+      END AS trend
+    FROM offence_yoy
+    ORDER BY change_pct DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare (compares against previous year)
+    required: false
+    default: 2024
+  nl_examples:
+  - Which break and enter offence types are growing fastest in Toronto?
+  - Is B&E with intent surging in Toronto?
+  - Toronto B&E offence type growth ranking
+  - Which types of break-in are increasing in Toronto?
+  - Are firearm-related B&Es growing in Toronto?
+  - Fastest growing B&E subtypes in Toronto
+  - Toronto break and enter offence type surge analysis
+  - Which B&E categories are on the rise in Toronto?
+  - "SURGE: Toronto break and enter offence types increasing"
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [growth, offence, ranking]
+  tags: [policy, growth, offence, early-warning, break-and-enter]
+
+- id: break_and_enter_fastest_declining_offence_types
+  description: Which B&E offence subtypes are declining — where are interventions working in Toronto?
+  sql: |
+    WITH offence_yoy AS (
+      SELECT
+        offence,
+        SUM(CASE WHEN occ_year = :year THEN 1 ELSE 0 END) AS current_year,
+        SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) AS previous_year
+      FROM break_and_enter
+      WHERE occ_year IN (:year, :year - 1)
+      GROUP BY offence
+      HAVING SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) >= 10
+    )
+    SELECT
+      offence,
+      previous_year,
+      current_year,
+      current_year - previous_year AS change,
+      ROUND((current_year - previous_year) * 100.0 / NULLIF(previous_year, 0), 1) AS decline_pct
+    FROM offence_yoy
+    WHERE current_year < previous_year
+    ORDER BY decline_pct ASC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare (compares against previous year)
+    required: false
+    default: 2024
+  nl_examples:
+  - Which break and enter types are declining in Toronto?
+  - Where are B&E interventions working in Toronto?
+  - Toronto break-in offence types that are improving
+  - Are any B&E categories dropping in Toronto?
+  - Toronto B&E offence type decline analysis
+  - Which types of break and enter are decreasing in Toronto?
+  - Good news in Toronto break and enter trends by offence
+  - Is plain B&E declining in Toronto?
+  - Toronto break and enter improvements by offence type
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [decline, offence, ranking]
+  tags: [policy, decline, offence, evaluation, break-and-enter]
+
+- id: break_and_enter_improving_neighbourhoods
+  description: Neighbourhoods with the largest decline in break and enter in Toronto
+  sql: |
+    WITH neighbourhood_yoy AS (
+      SELECT
+        neighbourhood_158 AS neighbourhood,
+        SUM(CASE WHEN occ_year = :year THEN 1 ELSE 0 END) AS current_year,
+        SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) AS previous_year
+      FROM break_and_enter
+      WHERE occ_year IN (:year, :year - 1) AND neighbourhood_158 IS NOT NULL AND neighbourhood_158 != 'NSA'
+      GROUP BY neighbourhood_158
+      HAVING SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) >= 10
+    )
+    SELECT
+      neighbourhood,
+      previous_year,
+      current_year,
+      current_year - previous_year AS change,
+      ROUND((current_year - previous_year) * 100.0 / NULLIF(previous_year, 0), 1) AS decline_pct
+    FROM neighbourhood_yoy
+    WHERE current_year < previous_year
+    ORDER BY decline_pct ASC
+    LIMIT 15
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Toronto neighbourhoods saw the biggest drop in break and enter?
+  - Where are break-ins improving in Toronto?
+  - Toronto B&E improving neighbourhoods
+  - Which areas have fewer burglaries this year in Toronto?
+  - Toronto neighbourhoods with declining break and enter
+  - Where is break and enter getting better in Toronto?
+  - Good news neighbourhoods for B&E in Toronto
+  - Toronto break-in decline ranking by neighbourhood
+  - Which Toronto communities improved on break and enter?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [decline, neighbourhood, ranking]
+  tags: [policy, decline, neighbourhood, evaluation, break-and-enter]
+
+- id: break_and_enter_daily_rate_by_month
+  description: Average break and enters per day per month in Toronto — capacity planning
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM occ_date) AS month_num,
+      CASE EXTRACT(MONTH FROM occ_date)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS total_incidents,
+      COUNT(DISTINCT occ_date) AS days_with_data,
+      ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT occ_date), 0), 1) AS avg_per_day,
+      MAX(COUNT(*)) OVER () AS peak_month_total,
+      ROUND(COUNT(*) * 100.0 / MAX(COUNT(*)) OVER (), 1) AS pct_of_peak
+    FROM break_and_enter
+    WHERE occ_year = :year AND occ_date IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM occ_date)
+    ORDER BY month_num
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How many break and enters per day on average each month in Toronto?
+  - Toronto B&E daily rate by month for capacity planning
+  - What's the average daily break-in volume per month in Toronto?
+  - Toronto break and enter workload by month
+  - Which month has the highest daily B&E rate in Toronto?
+  - Daily break and enter average per month Toronto
+  - Toronto B&E capacity planning by month
+  - Average break-ins per day in each month in Toronto
+  - Monthly workload analysis for Toronto break and enter
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [daily-rate, capacity, monthly]
+  tags: [policy, capacity, daily-rate, operational, break-and-enter]
+
+- id: break_and_enter_month_over_month_momentum
+  description: Month-over-month momentum within a year — detect acceleration or deceleration of Toronto B&E
+  sql: |
+    WITH monthly AS (
+      SELECT
+        EXTRACT(MONTH FROM occ_date) AS month_num,
+        CASE EXTRACT(MONTH FROM occ_date)
+          WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+          WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+          WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+          WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+        END AS month_name,
+        COUNT(*) AS incidents
+      FROM break_and_enter
+      WHERE occ_year = :year AND occ_date IS NOT NULL
+      GROUP BY EXTRACT(MONTH FROM occ_date)
+    )
+    SELECT
+      month_num,
+      month_name,
+      incidents,
+      LAG(incidents) OVER (ORDER BY month_num) AS prev_month,
+      incidents - LAG(incidents) OVER (ORDER BY month_num) AS change,
+      ROUND((incidents - LAG(incidents) OVER (ORDER BY month_num)) * 100.0 /
+            NULLIF(LAG(incidents) OVER (ORDER BY month_num), 0), 1) AS mom_change_pct
+    FROM monthly
+    ORDER BY month_num
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Is break and enter accelerating or decelerating month by month in Toronto?
+  - Toronto B&E month-over-month momentum
+  - Which months saw the biggest jumps in break-ins in Toronto?
+  - Toronto break and enter month-over-month trend
+  - Are break-ins accelerating this year in Toronto?
+  - Monthly momentum for Toronto B&E
+  - Month-to-month break and enter changes in Toronto
+  - Is Toronto B&E picking up speed or slowing down?
+  - Toronto break-in monthly acceleration analysis
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [momentum, monthly, acceleration]
+  tags: [policy, momentum, monthly, early-warning, break-and-enter]
+
+- id: break_and_enter_neighbourhood_disparity
+  description: Neighbourhood disparity analysis — above or below city average for Toronto B&E
+  sql: |
+    WITH neighbourhood_counts AS (
+      SELECT
+        neighbourhood_158 AS neighbourhood,
+        COUNT(*) AS incidents
+      FROM break_and_enter
+      WHERE occ_year = :year AND neighbourhood_158 IS NOT NULL AND neighbourhood_158 != 'NSA'
+      GROUP BY neighbourhood_158
+    ),
+    city_avg AS (
+      SELECT ROUND(AVG(incidents), 1) AS avg_incidents FROM neighbourhood_counts
+    )
+    SELECT
+      n.neighbourhood,
+      n.incidents,
+      c.avg_incidents AS city_average,
+      n.incidents - c.avg_incidents AS difference,
+      ROUND((n.incidents - c.avg_incidents) * 100.0 / NULLIF(c.avg_incidents, 0), 1) AS pct_above_below_avg,
+      CASE
+        WHEN n.incidents > c.avg_incidents * 2 THEN 'Far Above Average'
+        WHEN n.incidents > c.avg_incidents * 1.5 THEN 'Above Average'
+        WHEN n.incidents > c.avg_incidents THEN 'Slightly Above Average'
+        WHEN n.incidents > c.avg_incidents * 0.5 THEN 'Below Average'
+        ELSE 'Far Below Average'
+      END AS disparity_tier
+    FROM neighbourhood_counts n
+    CROSS JOIN city_avg c
+    ORDER BY n.incidents DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Toronto neighbourhoods are above or below average for break and enter?
+  - Toronto B&E neighbourhood disparity analysis
+  - How do Toronto neighbourhoods compare on break-ins relative to the city average?
+  - Toronto break and enter equity analysis by neighbourhood
+  - Which neighbourhoods have disproportionately high B&E in Toronto?
+  - Break and enter disparity across Toronto neighbourhoods
+  - Are break-ins evenly distributed across Toronto neighbourhoods?
+  - Toronto B&E above vs below average neighbourhoods
+  - Neighbourhood inequality for break and enter in Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: break_and_enter
+    qualifiers: [disparity, neighbourhood, equity]
+  tags: [policy, disparity, equity, neighbourhood, break-and-enter]
+
+- id: break_and_enter_premises_hour_heatmap
+  description: Premises type vulnerability by hour — when is each property type most at risk for Toronto B&E
+  sql: |
+    SELECT
+      premises_type,
+      SUM(CASE WHEN occ_hour BETWEEN 0 AND 5 THEN 1 ELSE 0 END) AS late_night_12am_5am,
+      SUM(CASE WHEN occ_hour BETWEEN 6 AND 11 THEN 1 ELSE 0 END) AS morning_6am_11am,
+      SUM(CASE WHEN occ_hour BETWEEN 12 AND 17 THEN 1 ELSE 0 END) AS afternoon_12pm_5pm,
+      SUM(CASE WHEN occ_hour BETWEEN 18 AND 23 THEN 1 ELSE 0 END) AS evening_6pm_11pm,
+      COUNT(*) AS total,
+      CASE
+        WHEN SUM(CASE WHEN occ_hour BETWEEN 0 AND 5 THEN 1 ELSE 0 END) >= SUM(CASE WHEN occ_hour BETWEEN 6 AND 11 THEN 1 ELSE 0 END)
+         AND SUM(CASE WHEN occ_hour BETWEEN 0 AND 5 THEN 1 ELSE 0 END) >= SUM(CASE WHEN occ_hour BETWEEN 12 AND 17 THEN 1 ELSE 0 END)
+         AND SUM(CASE WHEN occ_hour BETWEEN 0 AND 5 THEN 1 ELSE 0 END) >= SUM(CASE WHEN occ_hour BETWEEN 18 AND 23 THEN 1 ELSE 0 END)
+        THEN 'Late Night'
+        WHEN SUM(CASE WHEN occ_hour BETWEEN 6 AND 11 THEN 1 ELSE 0 END) >= SUM(CASE WHEN occ_hour BETWEEN 12 AND 17 THEN 1 ELSE 0 END)
+         AND SUM(CASE WHEN occ_hour BETWEEN 6 AND 11 THEN 1 ELSE 0 END) >= SUM(CASE WHEN occ_hour BETWEEN 18 AND 23 THEN 1 ELSE 0 END)
+        THEN 'Morning'
+        WHEN SUM(CASE WHEN occ_hour BETWEEN 12 AND 17 THEN 1 ELSE 0 END) >= SUM(CASE WHEN occ_hour BETWEEN 18 AND 23 THEN 1 ELSE 0 END)
+        THEN 'Afternoon'
+        ELSE 'Evening'
+      END AS peak_period
+    FROM break_and_enter
+    WHERE occ_year = :year
+    GROUP BY premises_type
+    ORDER BY total DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - When are houses vs apartments most vulnerable to break-ins in Toronto?
+  - Toronto B&E premises vulnerability by time of day
+  - What time period are commercial properties most at risk for B&E in Toronto?
+  - Premises type and hour heatmap for Toronto break and enter
+  - Are houses broken into more at night or during the day in Toronto?
+  - Toronto break-in timing by property type
+  - When do apartment break and enters peak in Toronto?
+  - Time-of-day vulnerability by premises for Toronto B&E
+  - Toronto B&E risk window by premises type
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [premises, hourly, heatmap]
+  tags: [policy, premises, hourly, operational, break-and-enter]
+
+- id: break_and_enter_cagr_by_offence
+  description: Compound annual growth rate by offence type — long-term trend direction for Toronto B&E
+  sql: |
+    WITH bounds AS (
+      SELECT
+        offence,
+        MIN(occ_year) AS first_year,
+        MAX(occ_year) AS last_year,
+        SUM(CASE WHEN occ_year = (SELECT MIN(occ_year) FROM break_and_enter WHERE occ_year >= 2014) THEN 1 ELSE 0 END) AS first_count,
+        SUM(CASE WHEN occ_year = (SELECT MAX(occ_year) FROM break_and_enter WHERE occ_year <= 2024) THEN 1 ELSE 0 END) AS last_count,
+        (SELECT MAX(occ_year) FROM break_and_enter WHERE occ_year <= 2024) -
+        (SELECT MIN(occ_year) FROM break_and_enter WHERE occ_year >= 2014) AS years_span
+      FROM break_and_enter
+      WHERE occ_year >= 2014 AND occ_year <= 2024
+      GROUP BY offence
+      HAVING SUM(CASE WHEN occ_year = (SELECT MIN(occ_year) FROM break_and_enter WHERE occ_year >= 2014) THEN 1 ELSE 0 END) >= 10
+    )
+    SELECT
+      offence,
+      first_count AS count_first_year,
+      last_count AS count_last_year,
+      years_span,
+      ROUND((POWER(last_count * 1.0 / NULLIF(first_count, 0), 1.0 / NULLIF(years_span, 0)) - 1) * 100, 1) AS cagr_pct,
+      CASE
+        WHEN last_count > first_count THEN 'Growing'
+        WHEN last_count < first_count THEN 'Declining'
+        ELSE 'Stable'
+      END AS trend_direction
+    FROM bounds
+    ORDER BY cagr_pct DESC
+  parameters: []
+  nl_examples:
+  - What is the long-term growth rate of each break and enter type in Toronto?
+  - Toronto B&E compound annual growth rate by offence
+  - Which B&E offence types have grown the most over the past decade in Toronto?
+  - Long-term break and enter trend by offence type in Toronto
+  - Toronto B&E CAGR analysis
+  - Are any break-in types shrinking over the long term in Toronto?
+  - Multi-year growth trend for Toronto B&E by offence
+  - Toronto break and enter long-term trajectory by type
+  - Compound growth rate of burglary types in Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [cagr, offence, long-term]
+  tags: [policy, cagr, long-term, strategic, break-and-enter]
+
+- id: break_and_enter_data_freshness
+  description: Data pipeline health check — most recent records and monthly counts for Toronto B&E
+  sql: |
+    WITH latest AS (
+      SELECT MAX(occ_year) AS latest_year FROM break_and_enter
+    )
+    SELECT
+      (SELECT MAX(occ_date) FROM break_and_enter) AS most_recent_occurrence,
+      (SELECT MAX(report_date) FROM break_and_enter) AS most_recent_report,
+      l.latest_year,
+      (SELECT COUNT(*) FROM break_and_enter WHERE occ_year = l.latest_year) AS latest_year_records,
+      monthly.month_name,
+      monthly.record_count
+    FROM latest l
+    JOIN (
+      SELECT
+        EXTRACT(MONTH FROM occ_date) AS month_num,
+        CASE EXTRACT(MONTH FROM occ_date)
+          WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+          WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+          WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+          WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+        END AS month_name,
+        COUNT(*) AS record_count
+      FROM break_and_enter
+      WHERE occ_year = (SELECT MAX(occ_year) FROM break_and_enter) AND occ_date IS NOT NULL
+      GROUP BY EXTRACT(MONTH FROM occ_date)
+      ORDER BY month_num
+    ) monthly ON TRUE
+  parameters: []
+  nl_examples:
+  - How fresh is the Toronto break and enter data?
+  - Toronto B&E data freshness check
+  - When was the most recent break and enter record in Toronto?
+  - Is the Toronto break and enter data up to date?
+  - Toronto B&E data pipeline health
+  - How many break and enter records this year in Toronto?
+  - Monthly record counts for current year Toronto B&E
+  - Toronto break and enter data quality check
+  - Is the Toronto B&E dataset current?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: break_and_enter
+    qualifiers: [freshness, data-quality]
+  tags: [reference, freshness, data-quality, break-and-enter]
+
+- id: break_and_enter_division_workload
+  description: Division workload comparison — ranked B&E volume with cumulative share for Toronto
+  sql: |
+    WITH division_counts AS (
+      SELECT
+        division,
+        COUNT(*) AS incidents,
+        COUNT(DISTINCT neighbourhood_158) AS neighbourhoods
+      FROM break_and_enter
+      WHERE occ_year = :year AND division != 'NSA'
+      GROUP BY division
+    ),
+    totals AS (
+      SELECT SUM(incidents) AS total FROM division_counts
+    )
+    SELECT
+      d.division,
+      d.incidents,
+      d.neighbourhoods,
+      ROUND(d.incidents * 100.0 / t.total, 1) AS pct_of_total,
+      ROUND(SUM(d.incidents) OVER (ORDER BY d.incidents DESC ROWS UNBOUNDED PRECEDING) * 100.0 / t.total, 1) AS cumulative_pct,
+      RANK() OVER (ORDER BY d.incidents DESC) AS workload_rank
+    FROM division_counts d
+    CROSS JOIN totals t
+    ORDER BY d.incidents DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Toronto police divisions handle the most break and enter workload?
+  - Toronto B&E division workload ranking
+  - Are some Toronto divisions overloaded with break-ins?
+  - Division workload comparison for break and enter in Toronto
+  - How is B&E workload distributed across Toronto police divisions?
+  - Toronto break and enter cumulative share by division
+  - Which divisions carry the heaviest break-in load in Toronto?
+  - Toronto police division B&E resource allocation analysis
+  - Break and enter workload equity across Toronto divisions
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: break_and_enter
+    qualifiers: [division, workload, ranking]
+  tags: [policy, division, workload, operational, break-and-enter]

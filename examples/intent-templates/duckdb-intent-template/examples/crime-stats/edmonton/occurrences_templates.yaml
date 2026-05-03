@@ -1,0 +1,1425 @@
+status: completed
+generated_at: '2026-03-18T12:00:00.000000'
+last_updated: '2026-03-18T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 33
+templates:
+# =============================================================================
+# TRENDS & STATISTICS - Overall occurrence patterns
+# =============================================================================
+
+- id: yearly_occurrence_trends
+  description: Track year-over-year changes in police occurrences
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS total_occurrences,
+      COUNT(DISTINCT occurrence_type) AS unique_types,
+      COUNT(DISTINCT occurrence_category) AS unique_categories
+    FROM occurrences
+    GROUP BY year
+    ORDER BY year DESC
+  parameters: []
+  nl_examples:
+  - How has crime changed over the years in Edmonton?
+  - Show me yearly occurrence trends for Edmonton
+  - Is crime increasing or decreasing in Edmonton?
+  - Total Edmonton incidents per year
+  - Year-over-year crime stats Edmonton
+  - How many offences were reported each year in Edmonton?
+  - What did Edmonton's annual occurrence totals look like in 2024 versus earlier years?
+  - Is it getting worse in Edmonton year after year?
+  - Give me a historical overview of police occurrences in Edmonton
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [trends, yearly]
+  tags: [trends, yearly, strategic]
+
+- id: occurrences_by_month
+  description: Analyze monthly occurrence patterns to identify seasonal trends
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM date_reported) AS month,
+      CASE EXTRACT(MONTH FROM date_reported)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS occurrence_count
+    FROM occurrences
+    WHERE year = :year AND date_reported IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM date_reported)
+    ORDER BY month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which months have the most crime in Edmonton?
+  - Show me seasonal crime patterns in Edmonton
+  - When do most incidents happen in Edmonton?
+  - Monthly crime breakdown Edmonton
+  - Peak months for crime in Edmonton
+  - What month had the highest number of occurrences in 2024 in Edmonton?
+  - Does crime spike during summer in Edmonton?
+  - How bad is January compared to July for incidents in Edmonton?
+  - Edmonton monthly occurrence counts for 2025
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [seasonal, monthly]
+  tags: [seasonal, monthly, patterns]
+
+- id: occurrences_by_weekday
+  description: Analyze which days of the week have the most occurrences
+  sql: |
+    SELECT
+      DAYNAME(date_reported) AS day_of_week,
+      COUNT(*) AS occurrence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM occurrences
+    WHERE year = :year AND date_reported IS NOT NULL
+    GROUP BY DAYNAME(date_reported)
+    ORDER BY occurrence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which days of the week have the most crime in Edmonton?
+  - Are weekends more dangerous in Edmonton?
+  - Edmonton weekday vs weekend crime comparison
+  - What day has the most incidents in Edmonton?
+  - Do more offences happen on Fridays or Saturdays in Edmonton?
+  - Which day of the week is safest in Edmonton?
+  - Day-of-week distribution of Edmonton police occurrences in 2025
+  - Are there more incidents reported on Mondays in Edmonton?
+  - How bad are Edmonton weekends compared to weekdays for crime?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [weekday, patterns]
+  tags: [weekday, patterns, timing]
+
+# =============================================================================
+# CATEGORY ANALYSIS - Breakdowns by classification
+# =============================================================================
+
+- id: occurrences_by_category
+  description: Break down occurrences by high-level category
+  sql: |
+    SELECT
+      occurrence_category,
+      COUNT(*) AS occurrence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM occurrences
+    WHERE year = :year
+    GROUP BY occurrence_category
+    ORDER BY occurrence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What types of crime are most common in Edmonton?
+  - Show Edmonton crime categories breakdown
+  - How much violent vs non-violent crime is there in Edmonton?
+  - Occurrence categories for Edmonton
+  - What proportion of Edmonton crime is violent?
+  - Break down 2024 Edmonton incidents by category
+  - What share of Edmonton offences are disorder-related versus traffic-related?
+  - How does violent crime compare to property crime in Edmonton?
+  - Category-level summary of Edmonton police occurrences
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [category, breakdown]
+  tags: [category, breakdown, overview]
+
+- id: occurrences_by_group
+  description: Break down occurrences by mid-level group within a category
+  sql: |
+    SELECT
+      occurrence_group,
+      occurrence_category,
+      COUNT(*) AS occurrence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM occurrences
+    WHERE year = :year
+    GROUP BY occurrence_group, occurrence_category
+    ORDER BY occurrence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Show me occurrence groups in Edmonton
+  - What are the most common Edmonton crime groups?
+  - Break down Edmonton crime by group
+  - Detailed Edmonton crime type breakdown
+  - What occurrence groups were most frequent in 2025 in Edmonton?
+  - How are incidents grouped in the Edmonton police data?
+  - Mid-level Edmonton crime classification breakdown
+  - Which Edmonton crime groups fall under the violent category?
+  - List Edmonton occurrence groups by volume
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [group, breakdown]
+  tags: [group, breakdown, detailed]
+
+- id: occurrences_by_type
+  description: Show the most common specific occurrence types
+  sql: |
+    SELECT
+      occurrence_type,
+      occurrence_category,
+      COUNT(*) AS occurrence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM occurrences
+    WHERE year = :year
+    GROUP BY occurrence_type, occurrence_category
+    ORDER BY occurrence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What are the most common crime types in Edmonton?
+  - Top Edmonton occurrence types
+  - Most frequent incidents in Edmonton
+  - Rank Edmonton crime types by frequency
+  - What crimes happen most often in Edmonton?
+  - Which specific Edmonton offences are reported the most in 2025?
+  - Top 10 occurrence types in Edmonton
+  - What types of incidents does Edmonton police deal with the most?
+  - Most reported Edmonton crime types last year
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [type, ranking]
+  tags: [type, ranking, frequency]
+
+- id: category_yearly_trends
+  description: Show how each occurrence category has changed over the years
+  sql: |
+    SELECT
+      year,
+      occurrence_category,
+      COUNT(*) AS occurrence_count
+    FROM occurrences
+    GROUP BY year, occurrence_category
+    ORDER BY year DESC, occurrence_count DESC
+  parameters: []
+  nl_examples:
+  - How have Edmonton crime categories changed over the years?
+  - Trend of violent vs non-violent crime in Edmonton
+  - Edmonton category trends over time
+  - Is violent crime increasing in Edmonton?
+  - Year-over-year comparison of Edmonton crime categories
+  - Are Edmonton disorder incidents rising or falling over the years?
+  - Show me how Edmonton traffic offences have trended annually
+  - Has non-violent crime in Edmonton gone up since 2020?
+  - Historical breakdown of occurrence categories in Edmonton
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [category, trends]
+  tags: [category, trends, yearly]
+
+- id: specific_type_trends
+  description: Track a specific occurrence type over the years
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS occurrence_count
+    FROM occurrences
+    WHERE LOWER(occurrence_type) = LOWER(:occurrence_type)
+    GROUP BY year
+    ORDER BY year DESC
+  parameters:
+  - name: occurrence_type
+    type: string
+    description: "Specific occurrence type (e.g., Assault, Theft Under $5000, Homicide)"
+    required: true
+  nl_examples:
+  - How many assaults per year in Edmonton?
+  - Edmonton theft trend over the years
+  - Show me Edmonton homicide numbers by year
+  - Track Edmonton break and enter residential over time
+  - Is robbery increasing year over year in Edmonton?
+  - How have Edmonton drug offences trended since 2020?
+  - Edmonton weapons violations by year
+  - What does the annual trend look like for fraud in Edmonton?
+  - Are Edmonton vehicle thefts getting worse each year?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [type, trends]
+  tags: [type, trends, specific]
+
+- id: type_count_for_year
+  description: Count of a specific occurrence type for a given year
+  sql: |
+    SELECT
+      occurrence_type,
+      COUNT(*) AS total_occurrences
+    FROM occurrences
+    WHERE LOWER(occurrence_type) = LOWER(:occurrence_type)
+      AND year = :year
+    GROUP BY occurrence_type
+  parameters:
+  - name: occurrence_type
+    type: string
+    description: "Specific occurrence type (e.g., Assault, Theft Under $5000, Homicide, Robbery)"
+    required: true
+  - name: year
+    type: integer
+    description: Year to query
+    required: false
+    default: 2025
+  nl_examples:
+  - How many assaults in Edmonton in 2024?
+  - Number of Edmonton homicides in 2023
+  - How many thefts were reported in Edmonton in 2025?
+  - Total Edmonton robberies in 2024
+  - How many Edmonton break and enters in 2023?
+  - Edmonton drug offences count for 2024
+  - How many frauds in Edmonton in 2025?
+  - Edmonton sexual assaults reported in 2024
+  - Edmonton weapons violations in 2023
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [type, count, year]
+  tags: [type, count, specific, year]
+
+- id: breakins_by_year
+  description: Count of break and enter occurrences (commercial and residential) for a given year
+  sql: |
+    SELECT
+      occurrence_type,
+      COUNT(*) AS total_occurrences
+    FROM occurrences
+    WHERE LOWER(occurrence_type) LIKE '%break and enter%'
+      AND year = :year
+    GROUP BY occurrence_type
+    ORDER BY total_occurrences DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to query
+    required: false
+    default: 2025
+  nl_examples:
+  - Edmonton breakins in 2025
+  - How many break-ins in Edmonton in 2024?
+  - Break and enters in Edmonton 2025
+  - Number of Edmonton break-ins last year
+  - How many Edmonton B&Es in 2024?
+  - Edmonton break and enter stats for 2025
+  - Residential and commercial break-ins in Edmonton 2024
+  - How many Edmonton properties were broken into in 2025?
+  - Total Edmonton break and enters in 2023
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [break and enter, count, year]
+  tags: [breakins, break and enter, count, year]
+
+# =============================================================================
+# LOCATION ANALYSIS - By intersection
+# =============================================================================
+
+- id: top_intersections
+  description: Find the intersections with the most occurrences
+  sql: |
+    SELECT
+      intersection,
+      COUNT(*) AS occurrence_count,
+      COUNT(DISTINCT occurrence_type) AS unique_types,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM occurrences
+    WHERE year = :year
+    GROUP BY intersection
+    ORDER BY occurrence_count DESC
+    LIMIT 20
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Where does the most crime happen in Edmonton?
+  - Top crime hotspots in Edmonton
+  - Which Edmonton intersections have the most incidents?
+  - Most dangerous locations in Edmonton
+  - Edmonton crime hotspot analysis
+  - What are the highest-crime intersections in 2025 in Edmonton?
+  - Which Edmonton streets have the most police occurrences?
+  - Where should I avoid in Edmonton based on crime data?
+  - Top 20 problem locations for offences in Edmonton
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: occurrences
+    qualifiers: [location, hotspots]
+  tags: [location, hotspots, ranking]
+
+- id: intersection_detail
+  description: Show occurrence breakdown for a specific intersection
+  sql: |
+    SELECT
+      occurrence_type,
+      occurrence_category,
+      COUNT(*) AS occurrence_count
+    FROM occurrences
+    WHERE intersection LIKE '%' ||
+      REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+        TRIM(UPPER(:intersection)),
+        'ROAD', 'RD'), 'AVENUE', 'AV'), 'STREET', 'ST'),
+        'DRIVE', 'DR'), 'BOULEVARD', 'BLVD'), 'CRESCENT', 'CRES'),
+        'TRAIL', 'TR'), 'HIGHWAY', 'HWY')
+      || '%'
+      AND year = :year
+    GROUP BY occurrence_type, occurrence_category
+    ORDER BY occurrence_count DESC
+  parameters:
+  - name: intersection
+    type: string
+    description: "Intersection or street name to search (e.g., 107 AV, WHYTE AV)"
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What crimes happen on Whyte Ave in Edmonton?
+  - Show me Edmonton incidents near 107 Ave
+  - Edmonton crime breakdown for Jasper Ave
+  - What happens at Kingsway Edmonton?
+  - What types of occurrences are reported near Stony Plain Road in Edmonton?
+  - How bad is crime on 118 Ave in Edmonton in 2025?
+  - Edmonton occurrence details for the area around Coliseum
+  - What offences are common at 97 Street Edmonton?
+  - Is Whyte Ave Edmonton getting safer or more dangerous?
+  - What are the most common crimes near 127th street and 137th avenue in Edmonton?
+  - Crime breakdown at the intersection of 118 Ave and 97 Street in Edmonton
+  - What incidents are reported near 156 Street and Stony Plain Road in Edmonton?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: occurrences
+    qualifiers: [location, specific]
+  tags: [location, specific, intersection]
+
+- id: top_intersections_all_time
+  description: All-time most reported intersections across all years
+  sql: |
+    SELECT
+      intersection,
+      COUNT(*) AS total_occurrences,
+      MIN(year) AS first_year,
+      MAX(year) AS last_year,
+      COUNT(DISTINCT occurrence_type) AS unique_types
+    FROM occurrences
+    GROUP BY intersection
+    ORDER BY total_occurrences DESC
+    LIMIT 20
+  parameters: []
+  nl_examples:
+  - All-time crime hotspots in Edmonton
+  - Which Edmonton locations have the most crime across all years?
+  - Historically most reported intersections in Edmonton
+  - Persistent Edmonton crime hotspots
+  - What Edmonton intersections have the highest cumulative incident count?
+  - Which Edmonton locations have always had a lot of crime?
+  - All-time top 20 locations for police occurrences in Edmonton
+  - Where has crime been concentrated historically in Edmonton?
+  - Lifetime Edmonton occurrence totals by intersection
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: occurrences
+    qualifiers: [location, all-time]
+  tags: [location, all-time, hotspots]
+
+- id: top_intersections_by_type
+  description: Find top intersections for a specific occurrence type
+  sql: |
+    SELECT
+      intersection,
+      COUNT(*) AS occurrence_count
+    FROM occurrences
+    WHERE LOWER(occurrence_type) = LOWER(:occurrence_type)
+      AND year = :year
+    GROUP BY intersection
+    ORDER BY occurrence_count DESC
+    LIMIT 15
+  parameters:
+  - name: occurrence_type
+    type: string
+    description: "Specific occurrence type (e.g., Assault, Theft Under $5000)"
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Where do most assaults happen in Edmonton?
+  - Top Edmonton locations for vehicle theft
+  - Where are break-ins most common in Edmonton?
+  - Edmonton hotspots for drug violations
+  - Which Edmonton intersections have the most robberies in 2025?
+  - Where does fraud happen most often in Edmonton?
+  - Top Edmonton locations for weapons offences
+  - What are the worst Edmonton intersections for theft under $5000?
+  - Where are homicides concentrated in Edmonton?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: occurrences
+    qualifiers: [location, type, hotspots]
+  tags: [location, type, hotspots]
+
+# =============================================================================
+# YEAR-OVER-YEAR COMPARISON
+# =============================================================================
+
+- id: yoy_comparison
+  description: Compare total occurrences between two years
+  sql: |
+    SELECT
+      occurrence_category,
+      SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) AS current_year,
+      SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS previous_year,
+      SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) - SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS change,
+      CASE
+        WHEN SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) = 0 THEN NULL
+        ELSE ROUND((SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) - SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END)) * 100.0 / SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END), 1)
+      END AS change_pct
+    FROM occurrences
+    WHERE year IN (:year, :previous_year)
+    GROUP BY occurrence_category
+    ORDER BY current_year DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Current year to compare
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year to compare against
+    required: false
+    default: 2024
+  nl_examples:
+  - Compare 2025 to 2024 crime in Edmonton
+  - Year-over-year Edmonton crime comparison
+  - Did crime go up or down this year in Edmonton?
+  - How does this year compare to last year in Edmonton?
+  - Edmonton crime change between years
+  - Is it getting worse in Edmonton compared to last year?
+  - Percentage change in Edmonton occurrences from 2024 to 2025
+  - How do Edmonton's this year's numbers stack up against the previous year?
+  - Year-over-year analysis of Edmonton occurrence categories
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: occurrences
+    qualifiers: [yoy, comparison]
+  tags: [yoy, comparison, change]
+
+- id: yoy_type_comparison
+  description: Compare specific occurrence types between two years
+  sql: |
+    SELECT
+      occurrence_type,
+      SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) AS current_year,
+      SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS previous_year,
+      SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) - SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS change,
+      CASE
+        WHEN SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) = 0 THEN NULL
+        ELSE ROUND((SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) - SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END)) * 100.0 / SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END), 1)
+      END AS change_pct
+    FROM occurrences
+    WHERE year IN (:year, :previous_year)
+    GROUP BY occurrence_type
+    HAVING SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) + SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) > 0
+    ORDER BY current_year DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Current year to compare
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year to compare against
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Edmonton crime types increased the most?
+  - Compare Edmonton crime types 2025 vs 2024
+  - What types of crime are rising in Edmonton?
+  - Biggest changes in Edmonton crime types year over year
+  - What specific Edmonton offences went up or down between 2024 and 2025?
+  - Which Edmonton incident types saw the largest percentage change?
+  - Year-over-year comparison of individual Edmonton crime types
+  - Did Edmonton assaults or thefts change more between years?
+  - Detailed type-level comparison of this year versus last year in Edmonton
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: occurrences
+    qualifiers: [yoy, type, comparison]
+  tags: [yoy, type, comparison]
+
+# =============================================================================
+# SPECIFIC QUERIES - Category and type drilldowns
+# =============================================================================
+
+- id: violent_crime_breakdown
+  description: Detailed breakdown of violent crime occurrences
+  sql: |
+    SELECT
+      occurrence_type,
+      COUNT(*) AS occurrence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM occurrences
+    WHERE occurrence_category = 'Violent'
+      AND year = :year
+    GROUP BY occurrence_type
+    ORDER BY occurrence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - How much violent crime is there in Edmonton?
+  - Edmonton violent crime breakdown
+  - What types of violent crime are most common in Edmonton?
+  - Edmonton assault, robbery, homicide numbers
+  - Edmonton violence statistics
+  - How bad is violent crime in Edmonton in 2025?
+  - What percentage of Edmonton violent occurrences are assaults versus robberies?
+  - Detailed breakdown of violent offences in Edmonton
+  - How many Edmonton homicides and sexual assaults were reported this year?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [violent, breakdown]
+  tags: [violent, breakdown, safety]
+
+- id: property_crime_breakdown
+  description: Detailed breakdown of property and non-violent crime
+  sql: |
+    SELECT
+      occurrence_type,
+      COUNT(*) AS occurrence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM occurrences
+    WHERE occurrence_category = 'Non-Violent'
+      AND year = :year
+    GROUP BY occurrence_type
+    ORDER BY occurrence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Edmonton property crime breakdown
+  - How much theft is there in Edmonton?
+  - Edmonton non-violent crime statistics
+  - Edmonton break and enter, theft, fraud numbers
+  - Edmonton property crime analysis
+  - What are the most common non-violent offences in Edmonton in 2024?
+  - How bad is Edmonton property crime right now?
+  - Breakdown of Edmonton theft, fraud, and mischief incidents
+  - What proportion of Edmonton non-violent crime is shoplifting versus break and enter?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [property, breakdown]
+  tags: [property, non-violent, breakdown]
+
+- id: disorder_breakdown
+  description: Breakdown of disorder-related occurrences
+  sql: |
+    SELECT
+      occurrence_type,
+      COUNT(*) AS occurrence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM occurrences
+    WHERE occurrence_category = 'Disorder'
+      AND year = :year
+    GROUP BY occurrence_type
+    ORDER BY occurrence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - How many disturbances in Edmonton?
+  - Edmonton disorder incidents breakdown
+  - What Edmonton disorder calls are most common?
+  - Edmonton mental health, missing person, disturbance numbers
+  - How bad is public disorder in Edmonton in 2025?
+  - What types of disorder-related occurrences are most reported in Edmonton?
+  - How many Edmonton missing persons reports were there this year?
+  - Breakdown of Edmonton nuisance and disturbance calls
+  - Are Edmonton disorder incidents increasing?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [disorder, breakdown]
+  tags: [disorder, breakdown, public-safety]
+
+- id: traffic_breakdown
+  description: Breakdown of traffic-related occurrences
+  sql: |
+    SELECT
+      occurrence_type,
+      COUNT(*) AS occurrence_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM occurrences
+    WHERE occurrence_category = 'Traffic'
+      AND year = :year
+    GROUP BY occurrence_type
+    ORDER BY occurrence_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - How many traffic incidents in Edmonton?
+  - Edmonton collision and impaired driving stats
+  - Edmonton traffic occurrence breakdown
+  - How many hit and runs in Edmonton?
+  - What are the most common Edmonton traffic offences in 2025?
+  - How bad is impaired driving in Edmonton?
+  - Breakdown of Edmonton collisions, hit and runs, and dangerous driving
+  - Traffic-related occurrence statistics for Edmonton
+  - Are Edmonton traffic incidents going up or down this year?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [traffic, breakdown]
+  tags: [traffic, collisions, breakdown]
+
+# =============================================================================
+# REFERENCE DATA
+# =============================================================================
+
+- id: list_occurrence_types
+  description: List all occurrence types with counts
+  sql: |
+    SELECT
+      occurrence_type,
+      occurrence_group,
+      occurrence_category,
+      COUNT(*) AS total_occurrences
+    FROM occurrences
+    GROUP BY occurrence_type, occurrence_group, occurrence_category
+    ORDER BY total_occurrences DESC
+  parameters: []
+  nl_examples:
+  - What types of occurrences are tracked in Edmonton?
+  - List all crime types in Edmonton
+  - What categories does Edmonton police report?
+  - Show me all Edmonton occurrence types
+  - What offences are in the Edmonton dataset?
+  - Give me a full list of Edmonton incident types and their categories
+  - How many distinct occurrence types does Edmonton police track?
+  - What Edmonton crime classifications are available in the data?
+  - Show every Edmonton occurrence type with its group and category
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: occurrences
+    qualifiers: [reference, types]
+  tags: [reference, types, listing]
+
+- id: data_coverage
+  description: Show the date range and volume of data available
+  sql: |
+    SELECT
+      MIN(date_reported) AS earliest_date,
+      MAX(date_reported) AS latest_date,
+      COUNT(*) AS total_records,
+      COUNT(DISTINCT year) AS years_covered,
+      COUNT(DISTINCT occurrence_type) AS unique_types,
+      COUNT(DISTINCT intersection) AS unique_intersections
+    FROM occurrences
+  parameters: []
+  nl_examples:
+  - What Edmonton data is available?
+  - How much Edmonton data do you have?
+  - What time period does the Edmonton data cover?
+  - Edmonton data coverage and range
+  - How far back does the Edmonton crime data go?
+  - What years are included in the Edmonton dataset?
+  - How many total records are in the Edmonton occurrences table?
+  - What is the earliest and latest date in the Edmonton data?
+  - How many unique Edmonton intersections and crime types are covered?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: occurrences
+    qualifiers: [reference, coverage]
+  tags: [reference, coverage, metadata]
+
+# =============================================================================
+# INSIGHT GENERATORS - Advanced analytics
+# =============================================================================
+
+- id: emerging_hotspots
+  description: Intersections with the largest year-over-year increase in occurrences
+  sql: |
+    WITH yearly AS (
+      SELECT
+        intersection,
+        year,
+        COUNT(*) AS occurrences
+      FROM occurrences
+      WHERE year IN (:year, :previous_year)
+      GROUP BY intersection, year
+    ),
+    yoy AS (
+      SELECT
+        c.intersection,
+        c.occurrences AS current_count,
+        COALESCE(p.occurrences, 0) AS previous_count,
+        c.occurrences - COALESCE(p.occurrences, 0) AS change
+      FROM yearly c
+      LEFT JOIN yearly p ON c.intersection = p.intersection AND p.year = :previous_year
+      WHERE c.year = :year
+    )
+    SELECT
+      intersection,
+      current_count,
+      previous_count,
+      change,
+      CASE WHEN previous_count = 0 THEN NULL
+           ELSE ROUND(change * 100.0 / previous_count, 1)
+      END AS change_pct
+    FROM yoy
+    WHERE change > 0
+    ORDER BY change DESC
+    LIMIT 15
+  parameters:
+  - name: year
+    type: integer
+    description: Current year
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year to compare
+    required: false
+    default: 2024
+  nl_examples:
+  - Which areas are getting worse in Edmonton?
+  - Emerging Edmonton crime hotspots
+  - Where is crime increasing the most in Edmonton?
+  - New problem areas in Edmonton
+  - What Edmonton intersections saw the biggest jump in incidents from 2024 to 2025?
+  - Which Edmonton locations are trending upward in crime?
+  - Are any new hotspots appearing in Edmonton?
+  - Where has crime spiked the most year over year in Edmonton?
+  - Edmonton locations with the largest increase in police occurrences
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: occurrences
+    qualifiers: [hotspots, emerging, yoy]
+  tags: [hotspots, emerging, yoy, insight]
+
+- id: city_snapshot
+  description: Dashboard-style overview of Edmonton crime for a given year
+  sql: |
+    SELECT
+      (SELECT COUNT(*) FROM occurrences WHERE year = :year) AS total_occurrences,
+      (SELECT COUNT(*) FROM occurrences WHERE year = :previous_year) AS previous_year_total,
+      ROUND(((SELECT COUNT(*) FROM occurrences WHERE year = :year) -
+             (SELECT COUNT(*) FROM occurrences WHERE year = :previous_year)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM occurrences WHERE year = :previous_year), 0), 1) AS yoy_change_pct,
+      (SELECT occurrence_type FROM occurrences WHERE year = :year GROUP BY occurrence_type ORDER BY COUNT(*) DESC LIMIT 1) AS top_type,
+      (SELECT occurrence_category FROM occurrences WHERE year = :year GROUP BY occurrence_category ORDER BY COUNT(*) DESC LIMIT 1) AS top_category,
+      (SELECT intersection FROM occurrences WHERE year = :year GROUP BY intersection ORDER BY COUNT(*) DESC LIMIT 1) AS top_intersection
+  parameters:
+  - name: year
+    type: integer
+    description: Year to summarize
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year for comparison
+    required: false
+    default: 2024
+  nl_examples:
+  - Give me an overview of crime in Edmonton
+  - Edmonton crime summary
+  - Crime snapshot for Edmonton
+  - How is Edmonton doing on crime?
+  - Edmonton crime dashboard
+  - What does the big picture look like for Edmonton crime in 2025?
+  - Quick summary of Edmonton incidents this year
+  - How bad is crime overall in Edmonton right now?
+  - Top-level crime stats for Edmonton
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [snapshot, dashboard]
+  tags: [snapshot, dashboard, overview]
+
+- id: seasonal_deviation
+  description: Compare current year monthly counts to historical averages to find unusual months
+  sql: |
+    WITH monthly_avg AS (
+      SELECT
+        month,
+        ROUND(AVG(occurrences), 1) AS avg_occurrences
+      FROM (
+        SELECT
+          EXTRACT(MONTH FROM date_reported) AS month,
+          year,
+          COUNT(*) AS occurrences
+        FROM occurrences
+        WHERE date_reported IS NOT NULL
+        GROUP BY EXTRACT(MONTH FROM date_reported), year
+      ) sub
+      GROUP BY month
+    ),
+    current AS (
+      SELECT
+        EXTRACT(MONTH FROM date_reported) AS month,
+        COUNT(*) AS occurrences
+      FROM occurrences
+      WHERE year = :year AND date_reported IS NOT NULL
+      GROUP BY EXTRACT(MONTH FROM date_reported)
+    )
+    SELECT
+      c.month,
+      CASE c.month
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      c.occurrences AS current_count,
+      a.avg_occurrences AS historical_avg,
+      ROUND(c.occurrences - a.avg_occurrences, 1) AS deviation
+    FROM current c
+    JOIN monthly_avg a ON c.month = a.month
+    ORDER BY c.month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare against historical average
+    required: false
+    default: 2025
+  nl_examples:
+  - Are there unusual months for crime in Edmonton this year?
+  - Edmonton seasonal deviation analysis
+  - Which Edmonton months are above or below average for crime?
+  - Compare this Edmonton year to historical averages
+  - Was any month in 2025 abnormally high for crime in Edmonton?
+  - How does this year's monthly pattern in Edmonton compare to the historical norm?
+  - Which Edmonton months deviated the most from average occurrence counts?
+  - Are there any anomalies in the 2024 Edmonton monthly crime data?
+  - Monthly deviation from the long-term average in Edmonton
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: occurrences
+    qualifiers: [seasonal, deviation]
+  tags: [seasonal, deviation, insight]
+
+# =============================================================================
+# POLICY & STRATEGIC ANALYTICS - For law enforcement and policy analysts
+# =============================================================================
+
+- id: crime_concentration
+  description: "Pareto analysis: what percentage of intersections account for the majority of crime (hot-spots policing metric)"
+  sql: |
+    WITH ranked AS (
+      SELECT
+        intersection,
+        COUNT(*) AS occurrences,
+        ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rank
+      FROM occurrences
+      WHERE year = :year
+      GROUP BY intersection
+    ),
+    totals AS (
+      SELECT
+        COUNT(DISTINCT intersection) AS total_locations,
+        SUM(occurrences) AS total_occurrences
+      FROM ranked
+    )
+    SELECT
+      CASE
+        WHEN r.rank <= CEIL(t.total_locations * 0.01) THEN 'Top 1%'
+        WHEN r.rank <= CEIL(t.total_locations * 0.05) THEN 'Top 5%'
+        WHEN r.rank <= CEIL(t.total_locations * 0.10) THEN 'Top 10%'
+        WHEN r.rank <= CEIL(t.total_locations * 0.20) THEN 'Top 20%'
+        ELSE 'Remaining 80%'
+      END AS location_tier,
+      COUNT(*) AS num_intersections,
+      SUM(r.occurrences) AS total_occurrences,
+      ROUND(SUM(r.occurrences) * 100.0 / MAX(t.total_occurrences), 1) AS pct_of_all_crime
+    FROM ranked r
+    CROSS JOIN totals t
+    GROUP BY
+      CASE
+        WHEN r.rank <= CEIL(t.total_locations * 0.01) THEN 'Top 1%'
+        WHEN r.rank <= CEIL(t.total_locations * 0.05) THEN 'Top 5%'
+        WHEN r.rank <= CEIL(t.total_locations * 0.10) THEN 'Top 10%'
+        WHEN r.rank <= CEIL(t.total_locations * 0.20) THEN 'Top 20%'
+        ELSE 'Remaining 80%'
+      END
+    ORDER BY MIN(r.rank)
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - How concentrated is crime in Edmonton?
+  - Do a few Edmonton locations account for most crime?
+  - Edmonton crime concentration analysis
+  - Pareto analysis of Edmonton crime hotspots
+  - What percentage of Edmonton locations have the most crime?
+  - Does the 80/20 rule apply to Edmonton crime locations?
+  - How much Edmonton crime comes from the top 5% of intersections?
+  - Is Edmonton crime spread out or concentrated in a few spots?
+  - Crime distribution analysis across Edmonton intersections
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [concentration, pareto, hotspots]
+  tags: [policy, concentration, pareto, resource-allocation]
+
+- id: category_composition_shift
+  description: How the mix of crime categories has shifted over the years (share % per category per year)
+  sql: |
+    WITH yearly_totals AS (
+      SELECT year, COUNT(*) AS total
+      FROM occurrences
+      GROUP BY year
+    )
+    SELECT
+      o.year,
+      o.occurrence_category,
+      COUNT(*) AS occurrences,
+      ROUND(COUNT(*) * 100.0 / yt.total, 1) AS share_pct
+    FROM occurrences o
+    JOIN yearly_totals yt ON o.year = yt.year
+    GROUP BY o.year, o.occurrence_category, yt.total
+    ORDER BY o.year DESC, share_pct DESC
+  parameters: []
+  nl_examples:
+  - How has the composition of Edmonton crime changed over the years?
+  - Is Edmonton violent crime becoming a larger share of total crime?
+  - Edmonton crime mix shift analysis
+  - Edmonton category share trends over time
+  - Has the proportion of Edmonton property crime changed?
+  - What percentage of total Edmonton occurrences is each category per year?
+  - Is the share of disorder incidents growing in Edmonton?
+  - How has the mix of Edmonton violent versus non-violent crime shifted since 2020?
+  - Year-by-year category proportion analysis for Edmonton
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: occurrences
+    qualifiers: [composition, shift, trends]
+  tags: [policy, composition, share, strategic]
+
+- id: fastest_growing_types
+  description: Rank occurrence types by year-over-year growth rate to identify emerging threats
+  sql: |
+    WITH counts AS (
+      SELECT
+        occurrence_type,
+        SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) AS current,
+        SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS previous
+      FROM occurrences
+      WHERE year IN (:year, :previous_year)
+      GROUP BY occurrence_type
+      HAVING SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) >= 10
+    )
+    SELECT
+      occurrence_type,
+      previous AS previous_year,
+      current AS current_year,
+      current - previous AS change,
+      ROUND((current - previous) * 100.0 / previous, 1) AS growth_pct
+    FROM counts
+    WHERE current > previous
+    ORDER BY growth_pct DESC
+    LIMIT 15
+  parameters:
+  - name: year
+    type: integer
+    description: Current year
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year
+    required: false
+    default: 2024
+  nl_examples:
+  - What Edmonton crime types are growing fastest?
+  - Which Edmonton crimes are on the rise?
+  - Emerging crime threats in Edmonton
+  - Fastest increasing Edmonton crime types
+  - What should Edmonton police be concerned about?
+  - Which Edmonton offences had the highest growth rate from 2024 to 2025?
+  - What incident types are surging in Edmonton?
+  - Top 15 fastest-growing Edmonton crime types year over year
+  - Are Edmonton drug offences or weapons violations growing faster?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: occurrences
+    qualifiers: [growth, emerging, ranking]
+  tags: [policy, growth, emerging-threats, strategic]
+
+- id: fastest_declining_types
+  description: Rank occurrence types by year-over-year decline to identify what interventions may be working
+  sql: |
+    WITH counts AS (
+      SELECT
+        occurrence_type,
+        SUM(CASE WHEN year = :year THEN 1 ELSE 0 END) AS current,
+        SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) AS previous
+      FROM occurrences
+      WHERE year IN (:year, :previous_year)
+      GROUP BY occurrence_type
+      HAVING SUM(CASE WHEN year = :previous_year THEN 1 ELSE 0 END) >= 10
+    )
+    SELECT
+      occurrence_type,
+      previous AS previous_year,
+      current AS current_year,
+      current - previous AS change,
+      ROUND((current - previous) * 100.0 / previous, 1) AS decline_pct
+    FROM counts
+    WHERE current < previous
+    ORDER BY decline_pct ASC
+    LIMIT 15
+  parameters:
+  - name: year
+    type: integer
+    description: Current year
+    required: false
+    default: 2025
+  - name: previous_year
+    type: integer
+    description: Previous year to compare
+    required: false
+    default: 2024
+  nl_examples:
+  - What Edmonton crime types are declining?
+  - Which Edmonton crimes are going down?
+  - Where are Edmonton crime interventions working?
+  - Biggest drops in Edmonton crime types
+  - What is Edmonton improving on?
+  - Which Edmonton offences saw the steepest decline from 2024 to 2025?
+  - What incident types are decreasing in Edmonton?
+  - Are any Edmonton crime types actually getting better?
+  - Top declining Edmonton occurrence types year over year
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: occurrences
+    qualifiers: [decline, improvement, ranking]
+  tags: [policy, decline, improvement, strategic]
+
+- id: disorder_crime_correlation
+  description: "Broken windows analysis: intersections with high disorder AND high violent/property crime, suggesting targeted intervention opportunities"
+  sql: |
+    WITH location_stats AS (
+      SELECT
+        intersection,
+        SUM(CASE WHEN occurrence_category = 'Disorder' THEN 1 ELSE 0 END) AS disorder_count,
+        SUM(CASE WHEN occurrence_category = 'Violent' THEN 1 ELSE 0 END) AS violent_count,
+        SUM(CASE WHEN occurrence_category = 'Non-Violent' THEN 1 ELSE 0 END) AS property_count,
+        COUNT(*) AS total_count
+      FROM occurrences
+      WHERE year = :year
+      GROUP BY intersection
+      HAVING SUM(CASE WHEN occurrence_category = 'Disorder' THEN 1 ELSE 0 END) >= 5
+    )
+    SELECT
+      intersection,
+      disorder_count,
+      violent_count,
+      property_count,
+      total_count,
+      ROUND(violent_count * 100.0 / total_count, 1) AS violent_share_pct
+    FROM location_stats
+    WHERE violent_count + property_count > 0
+    ORDER BY disorder_count + violent_count DESC
+    LIMIT 20
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Where do disorder and violent crime overlap in Edmonton?
+  - Broken windows analysis for Edmonton
+  - Which Edmonton locations have both disorder and serious crime?
+  - Where should targeted Edmonton interventions focus?
+  - Edmonton disorder and crime correlation by location
+  - Which Edmonton intersections have high disturbance calls and also violent incidents?
+  - Do Edmonton areas with lots of disorder also have property crime?
+  - Where do nuisance and serious offences co-occur in Edmonton?
+  - Identify Edmonton locations needing multi-pronged intervention in 2025
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: occurrences
+    qualifiers: [correlation, disorder, intervention]
+  tags: [policy, broken-windows, intervention, strategic]
+
+- id: crime_type_seasonality
+  description: "Seasonal heatmap: which crime types peak in which months (for staffing and resource planning)"
+  sql: |
+    SELECT
+      occurrence_type,
+      SUM(CASE WHEN EXTRACT(MONTH FROM date_reported) IN (12, 1, 2) THEN 1 ELSE 0 END) AS winter,
+      SUM(CASE WHEN EXTRACT(MONTH FROM date_reported) IN (3, 4, 5) THEN 1 ELSE 0 END) AS spring,
+      SUM(CASE WHEN EXTRACT(MONTH FROM date_reported) IN (6, 7, 8) THEN 1 ELSE 0 END) AS summer,
+      SUM(CASE WHEN EXTRACT(MONTH FROM date_reported) IN (9, 10, 11) THEN 1 ELSE 0 END) AS fall,
+      COUNT(*) AS total
+    FROM occurrences
+    WHERE year = :year AND date_reported IS NOT NULL
+    GROUP BY occurrence_type
+    HAVING COUNT(*) >= 20
+    ORDER BY total DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which crimes peak in summer vs winter in Edmonton?
+  - Edmonton seasonal crime patterns by type
+  - When should Edmonton police prepare for different crime types?
+  - Edmonton crime seasonality heatmap
+  - Do Edmonton assaults increase in summer?
+  - What Edmonton offences are more common in winter versus spring?
+  - Seasonal breakdown of Edmonton theft, robbery, and drug crimes
+  - Which Edmonton crime types are most seasonal in 2025?
+  - How do Edmonton occurrence types distribute across seasons?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: occurrences
+    qualifiers: [seasonality, heatmap, type]
+  tags: [policy, seasonality, staffing, resource-allocation]
+
+- id: weekend_vs_weekday_by_category
+  description: Compare weekend vs weekday occurrence rates by category for shift planning
+  sql: |
+    WITH day_counts AS (
+      SELECT
+        COUNT(DISTINCT CASE WHEN DAYOFWEEK(date_reported) IN (1, 7) THEN date_reported END) AS weekend_days,
+        COUNT(DISTINCT CASE WHEN DAYOFWEEK(date_reported) NOT IN (1, 7) THEN date_reported END) AS weekday_days
+      FROM occurrences
+      WHERE year = :year AND date_reported IS NOT NULL
+    )
+    SELECT
+      o.occurrence_category,
+      SUM(CASE WHEN DAYOFWEEK(o.date_reported) IN (1, 7) THEN 1 ELSE 0 END) AS weekend_total,
+      SUM(CASE WHEN DAYOFWEEK(o.date_reported) NOT IN (1, 7) THEN 1 ELSE 0 END) AS weekday_total,
+      ROUND(SUM(CASE WHEN DAYOFWEEK(o.date_reported) IN (1, 7) THEN 1 ELSE 0 END) * 1.0 /
+            d.weekend_days, 1) AS avg_per_weekend_day,
+      ROUND(SUM(CASE WHEN DAYOFWEEK(o.date_reported) NOT IN (1, 7) THEN 1 ELSE 0 END) * 1.0 /
+            d.weekday_days, 1) AS avg_per_weekday,
+      ROUND(
+        (SUM(CASE WHEN DAYOFWEEK(o.date_reported) IN (1, 7) THEN 1 ELSE 0 END) * 1.0 / d.weekend_days) /
+        NULLIF(SUM(CASE WHEN DAYOFWEEK(o.date_reported) NOT IN (1, 7) THEN 1 ELSE 0 END) * 1.0 / d.weekday_days, 0)
+      , 2) AS weekend_to_weekday_ratio
+    FROM occurrences o
+    CROSS JOIN day_counts d
+    WHERE o.year = :year AND o.date_reported IS NOT NULL
+    GROUP BY o.occurrence_category, d.weekend_days, d.weekday_days
+    ORDER BY weekend_to_weekday_ratio DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Is there more crime on weekends in Edmonton?
+  - Edmonton weekend vs weekday crime comparison by category
+  - When should Edmonton police have more staff?
+  - Edmonton shift planning analysis
+  - Are Edmonton violent crimes more common on weekends?
+  - What is the Edmonton weekend-to-weekday ratio for disorder incidents?
+  - Do property crimes happen more on weekdays or weekends in Edmonton?
+  - Average daily Edmonton occurrence rate for weekends vs weekdays in 2025
+  - How should Edmonton police allocate weekend versus weekday resources?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: occurrences
+    qualifiers: [weekend, weekday, staffing]
+  tags: [policy, staffing, shift-planning, resource-allocation]
+
+- id: persistent_hotspots
+  description: Intersections that consistently rank in the top 20 across every year — chronic problem locations requiring sustained intervention
+  sql: |
+    WITH yearly_ranked AS (
+      SELECT
+        intersection,
+        year,
+        COUNT(*) AS occurrences,
+        RANK() OVER (PARTITION BY year ORDER BY COUNT(*) DESC) AS year_rank
+      FROM occurrences
+      GROUP BY intersection, year
+    )
+    SELECT
+      intersection,
+      COUNT(DISTINCT year) AS years_in_top_20,
+      MIN(year_rank) AS best_rank,
+      MAX(year_rank) AS worst_rank,
+      SUM(occurrences) AS total_occurrences,
+      ROUND(AVG(occurrences), 0) AS avg_per_year
+    FROM yearly_ranked
+    WHERE year_rank <= 20
+    GROUP BY intersection
+    HAVING COUNT(DISTINCT year) >= 2
+    ORDER BY years_in_top_20 DESC, total_occurrences DESC
+  parameters: []
+  nl_examples:
+  - Which Edmonton locations are persistently high-crime across all years?
+  - Chronic Edmonton crime hotspots
+  - Where does crime never go away in Edmonton?
+  - Edmonton locations that need sustained police attention
+  - Repeat problem locations across years in Edmonton
+  - What Edmonton intersections have been in the top 20 every single year?
+  - Which Edmonton areas are always problematic regardless of the year?
+  - Identify chronic problem locations in Edmonton that rank high year after year
+  - Where in Edmonton has crime remained stubbornly high over time?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: occurrences
+    qualifiers: [persistent, chronic, hotspots]
+  tags: [policy, persistent, chronic, intervention, strategic]

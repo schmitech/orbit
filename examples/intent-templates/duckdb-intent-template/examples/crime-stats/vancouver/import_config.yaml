@@ -1,0 +1,11 @@
+auto_id: true
+column_mapping:
+  crime_type: "TYPE"
+  year: "YEAR"
+  month: "MONTH"
+  day: "DAY"
+  hour: "HOUR"
+  minute: "MINUTE"
+  hundred_block: "HUNDRED_BLOCK"
+  neighbourhood: "NEIGHBOURHOOD"
+  reported_date: "REPORTED_DATE"

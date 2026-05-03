@@ -1,0 +1,1066 @@
+status: completed
+generated_at: '2026-04-05T12:00:00.000000'
+last_updated: '2026-04-05T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 25
+templates:
+# =============================================================================
+# BICYCLE THEFT TRENDS & STATISTICS
+# =============================================================================
+
+- id: yearly_bicycle_theft_trends
+  description: Track year-over-year changes in bicycle theft incidents in Toronto
+  sql: |
+    SELECT
+      occ_year,
+      COUNT(*) AS total_incidents,
+      COUNT(CASE WHEN status = 'STOLEN' THEN 1 END) AS stolen_count,
+      COUNT(CASE WHEN status = 'RECOVERED' THEN 1 END) AS recovered_count,
+      ROUND(COUNT(CASE WHEN status = 'RECOVERED' THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN status = 'STOLEN' THEN 1 END), 0), 1) AS recovery_rate_pct,
+      ROUND(AVG(bike_cost), 0) AS avg_bike_cost
+    FROM bicycle_theft
+    WHERE occ_year >= 2014
+    GROUP BY occ_year
+    ORDER BY occ_year DESC
+  parameters: []
+  nl_examples:
+  - How has bicycle theft changed over the years in Toronto?
+  - Show me yearly bike theft trends in Toronto
+  - Is bicycle theft increasing or decreasing in Toronto?
+  - Year-over-year comparison of stolen bicycles in Toronto
+  - How many bike thefts were there each year in Toronto?
+  - Is bike theft getting worse in Toronto?
+  - Toronto bicycle theft rate over time
+  - Annual bicycle theft statistics Toronto
+  - Track bike theft trends across years in Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [trends, yearly]
+  tags: [trends, yearly, strategic, bike-theft]
+
+- id: bicycle_theft_by_month
+  description: Analyze monthly bicycle theft patterns in Toronto
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM occ_date) AS month_num,
+      CASE EXTRACT(MONTH FROM occ_date)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS theft_count,
+      ROUND(AVG(bike_cost), 0) AS avg_cost
+    FROM bicycle_theft
+    WHERE occ_year = :year AND occ_date IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM occ_date)
+    ORDER BY month_num
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which months have the most bike thefts in Toronto?
+  - Show me seasonal patterns in bicycle theft in Toronto
+  - When do most bicycle thefts happen in Toronto?
+  - Monthly bike theft breakdown Toronto
+  - Peak months for bicycle theft in Toronto
+  - Is bike theft more common in summer or winter in Toronto?
+  - Monthly stolen bicycle counts for Toronto 2024
+  - Are there seasonal spikes in bike theft in Toronto?
+  - Which month had the highest number of bicycle thefts in Toronto 2023?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [monthly, seasonal]
+  tags: [monthly, seasonal, trends, bike-theft]
+
+- id: bicycle_theft_by_weekday
+  description: Analyze bicycle theft patterns by day of the week in Toronto
+  sql: |
+    SELECT
+      occ_dow AS day_of_week,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bike_cost), 0) AS avg_cost
+    FROM bicycle_theft
+    WHERE occ_year = :year AND occ_dow IS NOT NULL
+    GROUP BY occ_dow
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which day of the week has the most bike thefts in Toronto?
+  - Bicycle theft by day of week in Toronto
+  - Is Friday the worst day for bike theft in Toronto?
+  - Are weekends worse for bicycle theft in Toronto?
+  - Daily bike theft patterns in Toronto
+  - What day do most bicycles get stolen in Toronto?
+  - Weekday vs weekend bicycle theft comparison Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [weekday, patterns]
+  tags: [weekday, patterns, trends, bike-theft]
+
+- id: bicycle_theft_by_hour
+  description: Analyze bicycle theft by hour of occurrence in Toronto
+  sql: |
+    SELECT
+      occ_hour AS hour,
+      CASE
+        WHEN occ_hour BETWEEN 0 AND 5 THEN 'Late Night (12am-6am)'
+        WHEN occ_hour BETWEEN 6 AND 11 THEN 'Morning (6am-12pm)'
+        WHEN occ_hour BETWEEN 12 AND 17 THEN 'Afternoon (12pm-6pm)'
+        ELSE 'Evening (6pm-12am)'
+      END AS time_period,
+      COUNT(*) AS theft_count
+    FROM bicycle_theft
+    WHERE occ_year = :year AND occ_hour IS NOT NULL
+    GROUP BY occ_hour
+    ORDER BY occ_hour
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What hour do most bike thefts happen in Toronto?
+  - Hourly bicycle theft breakdown Toronto
+  - When exactly are bikes stolen in Toronto?
+  - Peak hours for bicycle theft in Toronto
+  - What time should I worry about my bike being stolen in Toronto?
+  - Bike theft by hour in Toronto
+  - Are bikes stolen more at night or during business hours in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [hourly, time]
+  tags: [hourly, time, patterns, bike-theft]
+
+# =============================================================================
+# CATEGORY ANALYSIS
+# =============================================================================
+
+- id: bicycle_theft_by_offence
+  description: Break down bicycle-related incidents by primary offence type in Toronto
+  sql: |
+    SELECT
+      primary_offence,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bike_cost), 0) AS avg_cost
+    FROM bicycle_theft
+    WHERE occ_year = :year
+    GROUP BY primary_offence
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What types of bicycle-related offences occur in Toronto?
+  - Breakdown of bike theft by offence type in Toronto
+  - How many bike thefts vs break and enters involving bicycles in Toronto?
+  - Are e-bike thefts a big category in Toronto?
+  - Offence categories for bicycle crime in Toronto
+  - Types of bicycle-related crimes in Toronto
+  - How many e-bike thefts happen in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [offence, category]
+  tags: [offence, category, breakdown, bike-theft]
+
+- id: bicycle_theft_by_type
+  description: Break down bicycle theft by bicycle type in Toronto
+  sql: |
+    SELECT
+      bike_type,
+      CASE bike_type
+        WHEN 'MT' THEN 'Mountain'
+        WHEN 'RG' THEN 'Regular'
+        WHEN 'OT' THEN 'Other'
+        WHEN 'RC' THEN 'Racer'
+        WHEN 'EL' THEN 'Electric'
+        WHEN 'TO' THEN 'Touring'
+        WHEN 'SC' THEN 'Scooter'
+        WHEN 'BM' THEN 'BMX'
+        WHEN 'FO' THEN 'Folding'
+        WHEN 'TR' THEN 'Tricycle'
+        WHEN 'TA' THEN 'Tandem'
+        WHEN 'UN' THEN 'Unknown'
+        WHEN 'RE' THEN 'Recumbent'
+        ELSE bike_type
+      END AS type_name,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bike_cost), 0) AS avg_cost
+    FROM bicycle_theft
+    WHERE occ_year = :year AND bike_type IS NOT NULL
+    GROUP BY bike_type
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What type of bicycle is stolen most often in Toronto?
+  - Bike theft breakdown by bicycle type in Toronto
+  - Are mountain bikes stolen more than road bikes in Toronto?
+  - Which bicycle types are targeted most in Toronto?
+  - Most commonly stolen bicycle types in Toronto
+  - Mountain bike vs racer vs electric theft in Toronto
+  - How many e-bikes are stolen in Toronto?
+  - Do thieves target expensive bike types more in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [bicycle-type, breakdown]
+  tags: [bicycle-type, breakdown, category, bike-theft]
+
+- id: bicycle_theft_by_premises
+  description: Break down bicycle theft by premises type in Toronto
+  sql: |
+    SELECT
+      premises_type,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bike_cost), 0) AS avg_cost
+    FROM bicycle_theft
+    WHERE occ_year = :year AND premises_type IS NOT NULL
+    GROUP BY premises_type
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Where are bikes stolen from in Toronto?
+  - Bicycle theft by premises type in Toronto
+  - Are more bikes stolen from apartments or houses in Toronto?
+  - Is outside or commercial the most common place for bike theft in Toronto?
+  - Premises breakdown for bicycle theft in Toronto
+  - Where should I be most careful locking my bike in Toronto?
+  - Bike theft by location type in Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [premises, breakdown]
+  tags: [premises, breakdown, category, bike-theft]
+
+- id: bicycle_theft_by_status
+  description: Break down bicycle incidents by status in Toronto
+  sql: |
+    SELECT
+      status,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM bicycle_theft
+    WHERE occ_year = :year
+    GROUP BY status
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How many stolen bikes are recovered in Toronto?
+  - Bicycle theft recovery rate in Toronto
+  - What percentage of stolen bicycles are found in Toronto?
+  - Bike theft status breakdown Toronto
+  - How often are stolen bikes recovered in Toronto?
+  - Stolen vs recovered bicycles in Toronto
+  - What happens to stolen bikes in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [status, recovery]
+  tags: [status, recovery, breakdown, bike-theft]
+
+- id: top_stolen_bicycle_brands_toronto
+  description: Rank the most commonly stolen bicycle brands in Toronto
+  sql: |
+    SELECT
+      TRIM(bike_make) AS brand,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bike_cost), 0) AS avg_cost
+    FROM bicycle_theft
+    WHERE occ_year = :year
+      AND bike_make IS NOT NULL
+      AND TRIM(bike_make) != ''
+      AND status = 'STOLEN'
+    GROUP BY TRIM(bike_make)
+    ORDER BY theft_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of brands to return
+    required: false
+    default: 20
+  nl_examples:
+  - What bicycle brands are stolen most in Toronto?
+  - Top stolen bike brands in Toronto
+  - Which bike makes are targeted by thieves in Toronto?
+  - Most commonly stolen bicycle brands in Toronto
+  - Are expensive bike brands stolen more in Toronto?
+  - Rank bicycle manufacturers by theft count in Toronto
+  - What brand of bike is most likely to be stolen in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [brand, ranking]
+  tags: [brand, ranking, top, bike-theft]
+
+# =============================================================================
+# LOCATION ANALYSIS
+# =============================================================================
+
+- id: bicycle_theft_by_neighbourhood
+  description: Rank neighbourhoods by bicycle theft volume in Toronto
+  sql: |
+    SELECT
+      neighbourhood_158 AS neighbourhood,
+      hood_158 AS hood_code,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bike_cost), 0) AS avg_cost
+    FROM bicycle_theft
+    WHERE occ_year = :year AND neighbourhood_158 IS NOT NULL
+    GROUP BY neighbourhood_158, hood_158
+    ORDER BY theft_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which neighbourhoods have the most bike thefts in Toronto?
+  - Top areas for bicycle theft in Toronto
+  - Where do most bikes get stolen in Toronto?
+  - Bicycle theft hotspots by neighbourhood in Toronto
+  - Rank neighbourhoods by bike theft count in Toronto
+  - Worst neighbourhoods for bicycle theft in Toronto
+  - Most dangerous areas for bike theft in Toronto
+  - Where should I be most careful locking my bike in Toronto?
+  - Is the Annex bad for bike theft in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [neighbourhood, hotspots]
+  tags: [neighbourhood, hotspots, ranking, bike-theft]
+
+- id: bicycle_theft_by_division
+  description: Compare bicycle theft across police divisions in Toronto
+  sql: |
+    SELECT
+      division,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bike_cost), 0) AS avg_cost
+    FROM bicycle_theft
+    WHERE occ_year = :year AND division IS NOT NULL
+    GROUP BY division
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which police division has the most bike thefts in Toronto?
+  - Bicycle theft by division in Toronto
+  - Compare divisions for bike theft in Toronto
+  - Division-level bicycle theft breakdown Toronto
+  - Which division handles the most bicycle theft cases in Toronto?
+  - Is D14 or D52 worse for bike theft in Toronto?
+  - Police division comparison for bicycle theft Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [division, comparison]
+  tags: [division, comparison, location, bike-theft]
+
+- id: neighbourhood_bicycle_theft_detail
+  description: Get detailed bicycle theft statistics for a specific neighbourhood in Toronto
+  sql: |
+    SELECT
+      occ_year,
+      COUNT(*) AS total_incidents,
+      COUNT(CASE WHEN status = 'STOLEN' THEN 1 END) AS stolen,
+      COUNT(CASE WHEN status = 'RECOVERED' THEN 1 END) AS recovered,
+      ROUND(AVG(bike_cost), 0) AS avg_cost,
+      COUNT(DISTINCT primary_offence) AS offence_types
+    FROM bicycle_theft
+    WHERE neighbourhood_158 ILIKE '%' || TRIM(REPLACE(REPLACE(:neighbourhood, 'Toronto', ''), 'toronto', '')) || '%'
+      AND occ_year >= 2014
+    GROUP BY occ_year
+    ORDER BY occ_year DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial match supported)
+    required: true
+  nl_examples:
+  - Bike theft details for the Annex Toronto
+  - How much bicycle theft is there in Kensington-Chinatown Toronto?
+  - Bicycle theft history in Church-Wellesley Toronto
+  - Is bike theft getting worse in the Waterfront Toronto?
+  - Bicycle theft trends in Parkdale Toronto
+  - How bad is bike theft in University Toronto?
+  - Bike theft statistics for Trinity-Bellwoods Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [neighbourhood, detail]
+  tags: [neighbourhood, detail, specific, bike-theft]
+
+# =============================================================================
+# SPECIFIC QUERIES
+# =============================================================================
+
+- id: bicycle_value_analysis_toronto
+  description: Analyze the value distribution of stolen bicycles in Toronto
+  sql: |
+    SELECT
+      CASE
+        WHEN bike_cost IS NULL OR bike_cost = 0 THEN 'Unknown/Not reported'
+        WHEN bike_cost < 200 THEN 'Under $200'
+        WHEN bike_cost < 500 THEN '$200-$499'
+        WHEN bike_cost < 1000 THEN '$500-$999'
+        WHEN bike_cost < 2000 THEN '$1,000-$1,999'
+        WHEN bike_cost < 5000 THEN '$2,000-$4,999'
+        ELSE '$5,000+'
+      END AS value_range,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM bicycle_theft
+    WHERE occ_year = :year AND status = 'STOLEN'
+    GROUP BY value_range
+    ORDER BY MIN(bike_cost)
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How valuable are the bikes being stolen in Toronto?
+  - Bicycle theft value distribution Toronto
+  - What is the average value of a stolen bike in Toronto?
+  - Are expensive bikes stolen more often in Toronto?
+  - How much are stolen bicycles worth in Toronto?
+  - Value breakdown of stolen bikes Toronto
+  - What price range of bicycles are stolen most in Toronto?
+  - Do thieves target expensive bikes in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [value, distribution]
+  tags: [value, distribution, analysis, bike-theft]
+
+- id: bicycle_theft_location_detail
+  description: Break down bicycle theft by detailed location type in Toronto
+  sql: |
+    SELECT
+      location_type,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(AVG(bike_cost), 0) AS avg_cost
+    FROM bicycle_theft
+    WHERE occ_year = :year AND location_type IS NOT NULL
+    GROUP BY location_type
+    ORDER BY theft_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of locations to return
+    required: false
+    default: 15
+  nl_examples:
+  - What specific locations are bikes stolen from in Toronto?
+  - Detailed location breakdown for bike theft in Toronto
+  - Are parking lots or streets worse for bike theft in Toronto?
+  - Where exactly do bike thefts happen in Toronto?
+  - Are bikes stolen more from apartments or streets in Toronto?
+  - Top locations for bicycle theft in Toronto
+  - Bike theft at TTC stations in Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [location, detail]
+  tags: [location, detail, breakdown, bike-theft]
+
+# =============================================================================
+# YEAR-OVER-YEAR COMPARISON
+# =============================================================================
+
+- id: bicycle_theft_yoy_comparison
+  description: Compare bicycle theft between two consecutive years in Toronto
+  sql: |
+    SELECT
+      'Bicycle Theft' AS metric,
+      (SELECT COUNT(*) FROM bicycle_theft WHERE occ_year = :year - 1) AS previous_year,
+      (SELECT COUNT(*) FROM bicycle_theft WHERE occ_year = :year) AS current_year,
+      ROUND(
+        ((SELECT COUNT(*) FROM bicycle_theft WHERE occ_year = :year) -
+         (SELECT COUNT(*) FROM bicycle_theft WHERE occ_year = :year - 1)) * 100.0
+        / NULLIF((SELECT COUNT(*) FROM bicycle_theft WHERE occ_year = :year - 1), 0), 1
+      ) AS change_pct,
+      (SELECT COUNT(*) FROM bicycle_theft WHERE occ_year = :year AND status = 'STOLEN') AS current_stolen,
+      (SELECT ROUND(AVG(bike_cost), 0) FROM bicycle_theft WHERE occ_year = :year) AS current_avg_cost
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare (compares against previous year)
+    required: false
+    default: 2024
+  nl_examples:
+  - Compare bike theft this year to last year in Toronto
+  - Year-over-year change in bicycle theft Toronto
+  - Is bicycle theft up or down compared to last year in Toronto?
+  - How does 2024 bike theft compare to 2023 in Toronto?
+  - Bicycle theft change from 2023 to 2024 Toronto
+  - Did bike theft increase in Toronto this year?
+  - Year-over-year bicycle theft comparison Toronto
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [yoy, comparison]
+  tags: [yoy, comparison, trends, bike-theft]
+
+- id: bicycle_theft_yoy_by_neighbourhood
+  description: Compare bicycle theft by neighbourhood between two years in Toronto
+  sql: |
+    WITH current AS (
+      SELECT neighbourhood_158, COUNT(*) AS current_count
+      FROM bicycle_theft
+      WHERE occ_year = :year AND neighbourhood_158 IS NOT NULL
+      GROUP BY neighbourhood_158
+    ),
+    previous AS (
+      SELECT neighbourhood_158, COUNT(*) AS previous_count
+      FROM bicycle_theft
+      WHERE occ_year = :year - 1 AND neighbourhood_158 IS NOT NULL
+      GROUP BY neighbourhood_158
+    )
+    SELECT
+      COALESCE(c.neighbourhood_158, p.neighbourhood_158) AS neighbourhood,
+      COALESCE(p.previous_count, 0) AS previous_year,
+      COALESCE(c.current_count, 0) AS current_year,
+      COALESCE(c.current_count, 0) - COALESCE(p.previous_count, 0) AS change,
+      ROUND(
+        (COALESCE(c.current_count, 0) - COALESCE(p.previous_count, 0)) * 100.0
+        / NULLIF(COALESCE(p.previous_count, 0), 0), 1
+      ) AS change_pct
+    FROM current c
+    FULL OUTER JOIN previous p ON c.neighbourhood_158 = p.neighbourhood_158
+    ORDER BY COALESCE(c.current_count, 0) DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare (compares against previous year)
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which neighbourhoods saw the biggest increase in bike theft in Toronto?
+  - Emerging bicycle theft hotspots in Toronto
+  - Where is bike theft getting worse in Toronto?
+  - Neighbourhood bike theft changes year over year Toronto
+  - Which areas improved for bicycle theft in Toronto?
+  - Are new areas seeing more bike theft in Toronto?
+  - Bicycle theft emerging hotspots by neighbourhood Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [neighbourhood, yoy, hotspots]
+  tags: [neighbourhood, yoy, hotspots, emerging, bike-theft]
+
+# =============================================================================
+# REFERENCE DATA
+# =============================================================================
+
+- id: list_bicycle_theft_neighbourhoods_toronto
+  description: List all neighbourhoods in the Toronto bicycle theft dataset
+  sql: |
+    SELECT
+      neighbourhood_158 AS neighbourhood,
+      hood_158 AS hood_code,
+      COUNT(*) AS total_incidents,
+      MIN(occ_year) AS earliest_year,
+      MAX(occ_year) AS latest_year
+    FROM bicycle_theft
+    WHERE neighbourhood_158 IS NOT NULL AND occ_year >= 2014
+    GROUP BY neighbourhood_158, hood_158
+    ORDER BY neighbourhood_158
+  parameters: []
+  nl_examples:
+  - What neighbourhoods are in the bicycle theft dataset for Toronto?
+  - List all areas with bicycle theft data in Toronto
+  - Which neighbourhoods can I query for bike theft in Toronto?
+  - Show all neighbourhoods in the Toronto bike theft data
+  - What areas are covered by the bicycle theft dataset Toronto?
+  - List Toronto neighbourhoods with bike theft records
+  - Which communities have bicycle theft data in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [reference, neighbourhoods]
+  tags: [reference, neighbourhoods, list, bike-theft]
+
+- id: bicycle_theft_data_coverage_toronto
+  description: Show the data coverage of the Toronto bicycle theft dataset
+  sql: |
+    SELECT
+      MIN(occ_year) AS earliest_year,
+      MAX(occ_year) AS latest_year,
+      COUNT(*) AS total_records,
+      COUNT(DISTINCT neighbourhood_158) AS neighbourhoods_covered,
+      COUNT(DISTINCT division) AS divisions_covered,
+      COUNT(DISTINCT primary_offence) AS offence_types,
+      COUNT(DISTINCT bike_type) AS bicycle_types,
+      COUNT(CASE WHEN status = 'STOLEN' THEN 1 END) AS total_stolen,
+      COUNT(CASE WHEN status = 'RECOVERED' THEN 1 END) AS total_recovered
+    FROM bicycle_theft
+    WHERE occ_year >= 2014
+  parameters: []
+  nl_examples:
+  - What bicycle theft data is available for Toronto?
+  - How much bike theft data does Toronto have?
+  - What years does the Toronto bicycle theft dataset cover?
+  - Show me bicycle theft data coverage for Toronto
+  - How many bicycle theft records are in the Toronto database?
+  - What is the scope of the Toronto bike theft dataset?
+  - Toronto bicycle theft dataset summary
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [reference, coverage]
+  tags: [reference, coverage, summary, bike-theft]
+
+# =============================================================================
+# INSIGHT GENERATORS
+# =============================================================================
+
+- id: bicycle_theft_city_snapshot_toronto
+  description: Dashboard-style city snapshot of bicycle theft in Toronto
+  sql: |
+    SELECT
+      (SELECT COUNT(*) FROM bicycle_theft WHERE occ_year = :year) AS total_incidents,
+      (SELECT COUNT(*) FROM bicycle_theft WHERE occ_year = :year - 1) AS previous_year_total,
+      ROUND(
+        ((SELECT COUNT(*) FROM bicycle_theft WHERE occ_year = :year) -
+         (SELECT COUNT(*) FROM bicycle_theft WHERE occ_year = :year - 1)) * 100.0
+        / NULLIF((SELECT COUNT(*) FROM bicycle_theft WHERE occ_year = :year - 1), 0), 1
+      ) AS yoy_change_pct,
+      (SELECT neighbourhood_158 FROM bicycle_theft WHERE occ_year = :year AND neighbourhood_158 IS NOT NULL GROUP BY neighbourhood_158 ORDER BY COUNT(*) DESC LIMIT 1) AS top_neighbourhood,
+      (SELECT bike_type FROM bicycle_theft WHERE occ_year = :year AND bike_type IS NOT NULL GROUP BY bike_type ORDER BY COUNT(*) DESC LIMIT 1) AS most_stolen_type,
+      (SELECT division FROM bicycle_theft WHERE occ_year = :year AND division IS NOT NULL GROUP BY division ORDER BY COUNT(*) DESC LIMIT 1) AS top_division,
+      (SELECT ROUND(AVG(bike_cost), 0) FROM bicycle_theft WHERE occ_year = :year) AS avg_bike_cost,
+      (SELECT ROUND(COUNT(CASE WHEN status = 'RECOVERED' THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN status = 'STOLEN' THEN 1 END), 0), 1) FROM bicycle_theft WHERE occ_year = :year) AS recovery_rate_pct
+  parameters:
+  - name: year
+    type: integer
+    description: Year for snapshot
+    required: false
+    default: 2024
+  nl_examples:
+  - Give me a bicycle theft snapshot for Toronto
+  - Toronto bike theft dashboard
+  - Overall bike theft summary for Toronto 2024
+  - Quick overview of bicycle theft in Toronto
+  - How bad is bike theft in Toronto right now?
+  - Bicycle theft at a glance Toronto
+  - City-wide bike theft summary Toronto
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [snapshot, dashboard]
+  tags: [snapshot, dashboard, summary, bike-theft]
+
+- id: bicycle_theft_neighbourhood_safety_trend
+  description: Show year-over-year bicycle theft safety trend for a neighbourhood in Toronto
+  sql: |
+    SELECT
+      occ_year,
+      COUNT(*) AS theft_count,
+      LAG(COUNT(*)) OVER (ORDER BY occ_year) AS previous_year_count,
+      COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY occ_year) AS change,
+      ROUND(
+        (COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY occ_year)) * 100.0
+        / NULLIF(LAG(COUNT(*)) OVER (ORDER BY occ_year), 0), 1
+      ) AS change_pct
+    FROM bicycle_theft
+    WHERE neighbourhood_158 ILIKE '%' || TRIM(REPLACE(REPLACE(:neighbourhood, 'Toronto', ''), 'toronto', '')) || '%'
+      AND occ_year >= 2014
+    GROUP BY occ_year
+    ORDER BY occ_year
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood to analyze (partial match supported)
+    required: true
+  nl_examples:
+  - Is bike theft getting better or worse in the Annex Toronto?
+  - Bicycle theft trend for Kensington-Chinatown Toronto
+  - Safety trend for bike theft in Church-Wellesley Toronto
+  - How is bicycle theft changing in Parkdale Toronto?
+  - Year-over-year bicycle theft trend for Waterfront Toronto
+  - Is Trinity-Bellwoods improving for bike theft Toronto?
+  - Bicycle theft direction in University Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [neighbourhood, safety, trend]
+  tags: [neighbourhood, safety, trend, bike-theft]
+
+# =============================================================================
+# POLICY & STRATEGIC ANALYTICS
+# =============================================================================
+
+- id: bicycle_theft_concentration_toronto
+  description: Analyze whether bicycle theft is concentrated in a few locations in Toronto (Pareto analysis)
+  sql: |
+    WITH neighbourhood_counts AS (
+      SELECT
+        neighbourhood_158,
+        COUNT(*) AS theft_count,
+        ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rank
+      FROM bicycle_theft
+      WHERE occ_year = :year AND neighbourhood_158 IS NOT NULL
+      GROUP BY neighbourhood_158
+    ),
+    totals AS (
+      SELECT COUNT(*) AS total_neighbourhoods, SUM(theft_count) AS total_thefts
+      FROM neighbourhood_counts
+    )
+    SELECT
+      CASE
+        WHEN rank <= CEIL(total_neighbourhoods * 0.05) THEN 'Top 5%'
+        WHEN rank <= CEIL(total_neighbourhoods * 0.10) THEN 'Top 6-10%'
+        WHEN rank <= CEIL(total_neighbourhoods * 0.20) THEN 'Top 11-20%'
+        ELSE 'Remaining 80%'
+      END AS tier,
+      COUNT(*) AS neighbourhoods_in_tier,
+      SUM(theft_count) AS total_thefts,
+      ROUND(SUM(theft_count) * 100.0 / MAX(t.total_thefts), 1) AS pct_of_all_thefts
+    FROM neighbourhood_counts nc
+    CROSS JOIN totals t
+    GROUP BY tier
+    ORDER BY MIN(rank)
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Is bicycle theft concentrated in a few areas in Toronto?
+  - Do a small number of neighbourhoods account for most bike thefts in Toronto?
+  - Pareto analysis of bicycle theft hotspots Toronto
+  - Bike theft concentration analysis Toronto
+  - Does the 80/20 rule apply to bicycle theft in Toronto?
+  - Are most bike thefts happening in the same few places in Toronto?
+  - Bicycle theft geographic concentration Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: bicycle_theft
+    qualifiers: [concentration, pareto, policy]
+  tags: [concentration, pareto, policy, strategic, bike-theft]
+
+- id: bicycle_theft_type_seasonality_toronto
+  description: Analyze which bicycle types are stolen in which seasons in Toronto
+  sql: |
+    SELECT
+      bike_type,
+      CASE bike_type
+        WHEN 'MT' THEN 'Mountain'
+        WHEN 'RG' THEN 'Regular'
+        WHEN 'OT' THEN 'Other'
+        WHEN 'RC' THEN 'Racer'
+        WHEN 'EL' THEN 'Electric'
+        WHEN 'TO' THEN 'Touring'
+        WHEN 'SC' THEN 'Scooter'
+        WHEN 'BM' THEN 'BMX'
+        WHEN 'FO' THEN 'Folding'
+        ELSE bike_type
+      END AS type_name,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occ_date) IN (12, 1, 2) THEN 1 ELSE 0 END) AS winter,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occ_date) IN (3, 4, 5) THEN 1 ELSE 0 END) AS spring,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occ_date) IN (6, 7, 8) THEN 1 ELSE 0 END) AS summer,
+      SUM(CASE WHEN EXTRACT(MONTH FROM occ_date) IN (9, 10, 11) THEN 1 ELSE 0 END) AS fall,
+      COUNT(*) AS total
+    FROM bicycle_theft
+    WHERE occ_year = :year
+      AND bike_type IS NOT NULL
+      AND occ_date IS NOT NULL
+    GROUP BY bike_type
+    HAVING COUNT(*) >= 5
+    ORDER BY total DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which bike types are stolen most in summer vs winter in Toronto?
+  - Seasonal patterns of bicycle theft by type in Toronto
+  - Are mountain bikes stolen more in spring in Toronto?
+  - Bicycle theft seasonality by type Toronto
+  - When are different types of bikes stolen in Toronto?
+  - Do theft patterns differ by bike type across seasons in Toronto?
+  - Seasonal bicycle theft breakdown by type Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [seasonality, type, policy]
+  tags: [seasonality, type, policy, strategic, bike-theft]
+
+- id: bicycle_theft_persistent_hotspots_toronto
+  description: Identify neighbourhoods consistently in the top 20 for bicycle theft across years in Toronto
+  sql: |
+    WITH yearly_ranks AS (
+      SELECT
+        neighbourhood_158,
+        occ_year,
+        COUNT(*) AS theft_count,
+        RANK() OVER (PARTITION BY occ_year ORDER BY COUNT(*) DESC) AS year_rank
+      FROM bicycle_theft
+      WHERE neighbourhood_158 IS NOT NULL AND occ_year >= 2014
+      GROUP BY neighbourhood_158, occ_year
+    )
+    SELECT
+      neighbourhood_158 AS neighbourhood,
+      COUNT(DISTINCT occ_year) AS years_in_top_20,
+      SUM(theft_count) AS total_thefts,
+      ROUND(AVG(year_rank), 1) AS avg_rank,
+      MIN(year_rank) AS best_rank,
+      MAX(year_rank) AS worst_rank
+    FROM yearly_ranks
+    WHERE year_rank <= 20
+    GROUP BY neighbourhood_158
+    HAVING COUNT(DISTINCT occ_year) >= 3
+    ORDER BY years_in_top_20 DESC, total_thefts DESC
+  parameters: []
+  nl_examples:
+  - Which areas are consistently bad for bike theft in Toronto?
+  - Persistent bicycle theft hotspots in Toronto
+  - What neighbourhoods always have high bike theft in Toronto?
+  - Chronic bicycle theft problem areas in Toronto
+  - Which Toronto neighbourhoods are repeatedly in the top for bike theft?
+  - Long-term bike theft hotspots Toronto
+  - Are the same areas always worst for bicycle theft in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [persistent, hotspots, policy]
+  tags: [persistent, hotspots, policy, strategic, bike-theft]
+
+- id: bicycle_theft_weekend_vs_weekday_toronto
+  description: Compare weekend vs weekday bicycle theft patterns in Toronto
+  sql: |
+    WITH daily AS (
+      SELECT
+        occ_dow,
+        CASE WHEN occ_dow IN ('Saturday', 'Sunday') THEN 'Weekend' ELSE 'Weekday' END AS day_type,
+        COUNT(*) AS theft_count
+      FROM bicycle_theft
+      WHERE occ_year = :year AND occ_dow IS NOT NULL
+      GROUP BY occ_dow
+    )
+    SELECT
+      day_type,
+      SUM(theft_count) AS total_thefts,
+      ROUND(SUM(theft_count) * 1.0 /
+        CASE day_type WHEN 'Weekend' THEN 2 ELSE 5 END, 1) AS avg_per_day,
+      ROUND(SUM(theft_count) * 100.0 / (SELECT SUM(theft_count) FROM daily), 1) AS percentage
+    FROM daily
+    GROUP BY day_type
+    ORDER BY avg_per_day DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Are bikes stolen more on weekends or weekdays in Toronto?
+  - Weekend vs weekday bicycle theft in Toronto
+  - Do more bike thefts happen on weekends in Toronto?
+  - Bicycle theft weekend vs weekday comparison Toronto
+  - Is my bike safer on weekends or weekdays in Toronto?
+  - Weekday vs weekend bike theft rate Toronto
+  - When are bikes more at risk weekday or weekend Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: bicycle_theft
+    qualifiers: [weekend, weekday, patterns]
+  tags: [weekend, weekday, patterns, policy, bike-theft]
+
+- id: bicycle_theft_fastest_growing_neighbourhoods_toronto
+  description: Identify neighbourhoods with the fastest growth in bicycle theft in Toronto
+  sql: |
+    WITH yearly AS (
+      SELECT
+        neighbourhood_158,
+        SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) AS previous_count,
+        SUM(CASE WHEN occ_year = :year THEN 1 ELSE 0 END) AS current_count
+      FROM bicycle_theft
+      WHERE neighbourhood_158 IS NOT NULL
+        AND occ_year IN (:year - 1, :year)
+      GROUP BY neighbourhood_158
+      HAVING SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) >= 5
+    )
+    SELECT
+      neighbourhood_158 AS neighbourhood,
+      previous_count,
+      current_count,
+      current_count - previous_count AS change,
+      ROUND((current_count - previous_count) * 100.0 / previous_count, 1) AS growth_pct
+    FROM yearly
+    WHERE current_count > previous_count
+    ORDER BY growth_pct DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare (compares against previous year)
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of results to return
+    required: false
+    default: 15
+  nl_examples:
+  - Which areas are seeing the biggest surge in bike theft in Toronto?
+  - Fastest growing bicycle theft neighbourhoods Toronto
+  - Where is bike theft increasing the most in Toronto?
+  - Emerging bicycle theft hotspots in Toronto 2024
+  - Which Toronto neighbourhoods are getting worse for bike theft?
+  - Biggest increases in bicycle theft by neighbourhood Toronto
+  - Where is bike theft surging in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: bicycle_theft
+    qualifiers: [growth, emerging, hotspots]
+  tags: [growth, emerging, hotspots, policy, bike-theft]

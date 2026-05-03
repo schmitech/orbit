@@ -1,0 +1,1103 @@
+status: completed
+generated_at: '2026-03-29T12:00:00.000000'
+last_updated: '2026-03-29T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 28
+templates:
+# =============================================================================
+# ROBBERY TRENDS & STATISTICS
+# =============================================================================
+
+- id: yearly_robbery_trends
+  description: Track year-over-year changes in robbery incidents across Toronto
+  sql: |
+    SELECT
+      occ_year AS year,
+      COUNT(*) AS total_robberies,
+      COUNT(DISTINCT event_unique_id) AS distinct_events,
+      COUNT(DISTINCT neighbourhood_158) AS neighbourhoods_affected,
+      COUNT(DISTINCT division) AS divisions_affected
+    FROM robbery
+    WHERE occ_year IS NOT NULL
+    GROUP BY occ_year
+    ORDER BY occ_year DESC
+  parameters: []
+  nl_examples:
+  - How has robbery changed over the years in Toronto?
+  - Show me yearly Toronto robbery trends
+  - Is robbery getting worse or better over time in Toronto?
+  - Annual Toronto robbery counts
+  - Compare Toronto robbery totals year over year
+  - How many robbery incidents were there each year in Toronto?
+  - What does the long-term Toronto robbery trend look like?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [trends, yearly]
+  tags: [trends, yearly, strategic, crime-stats]
+
+- id: robberies_by_month
+  description: Analyze monthly robbery patterns for a selected year
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM occ_date) AS month,
+      CASE EXTRACT(MONTH FROM occ_date)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS robbery_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM robbery
+    WHERE occ_year = :year AND occ_date IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM occ_date)
+    ORDER BY month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which months have the most robberies in Toronto?
+  - Show me Toronto monthly robbery patterns for 2025
+  - When do robberies peak during the year in Toronto?
+  - Monthly Toronto robbery breakdown
+  - Is summer worse than winter for robberies in Toronto?
+  - What month had the highest Toronto robbery count in 2024?
+  - Seasonal pattern of robberies in Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [seasonal, monthly]
+  tags: [seasonal, monthly, trends, patterns]
+
+- id: robberies_by_weekday
+  description: Compare robbery volume by day of week for a selected year
+  sql: |
+    SELECT
+      TRIM(occ_dow) AS weekday,
+      COUNT(*) AS robbery_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM robbery
+    WHERE occ_year = :year AND occ_dow IS NOT NULL
+    GROUP BY TRIM(occ_dow)
+    ORDER BY robbery_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which day of the week has the most robberies in Toronto?
+  - Show me Toronto robberies by weekday
+  - Are robberies worse on weekends in Toronto?
+  - Day of week breakdown for Toronto robberies in 2025
+  - What day is most common for robbery in Toronto?
+  - Do Fridays have more robberies than Mondays in Toronto?
+  - Weekly pattern of Toronto robberies in 2024
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [weekday, patterns]
+  tags: [weekday, patterns, time, analysis]
+
+- id: robberies_by_hour
+  description: Analyze robbery incidents by hour of day for a selected year
+  sql: |
+    SELECT
+      occ_hour AS hour,
+      COUNT(*) AS robbery_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM robbery
+    WHERE occ_year = :year AND occ_hour IS NOT NULL
+    GROUP BY occ_hour
+    ORDER BY occ_hour
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What hour do most robberies happen in Toronto?
+  - Show me Toronto robberies by hour of day
+  - When during the day are robberies most common in Toronto?
+  - Hourly robbery pattern in Toronto
+  - What time is riskiest for robbery in 2025 in Toronto?
+  - Are robberies more common at night than in the afternoon in Toronto?
+  - Toronto robbery distribution by hour for 2024
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [hourly, patterns]
+  tags: [hourly, time, patterns, operational]
+
+# =============================================================================
+# CATEGORY ANALYSIS
+# =============================================================================
+
+- id: robberies_by_offence
+  description: Break down robbery incidents by specific offence type
+  sql: |
+    SELECT
+      offence,
+      COUNT(*) AS robbery_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM robbery
+    WHERE occ_year = :year AND offence IS NOT NULL
+    GROUP BY offence
+    ORDER BY robbery_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What types of robbery are most common in Toronto?
+  - Show me Toronto robbery offences for 2025
+  - Toronto robbery by offence category
+  - Are Toronto armed robberies increasing in the latest year?
+  - What share of Toronto robberies are business robberies?
+  - Breakdown of Toronto robbery offences in 2024
+  - Compare Toronto mugging versus robbery with weapon
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: robbery
+    qualifiers: [offence, category]
+  tags: [offence, category, comparison, violent-crime]
+
+- id: offence_trends
+  description: Track how the mix of robbery offences has changed over time
+  sql: |
+    SELECT
+      occ_year AS year,
+      offence,
+      COUNT(*) AS robbery_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY occ_year), 1) AS pct_of_year
+    FROM robbery
+    WHERE occ_year IS NOT NULL AND offence IS NOT NULL
+    GROUP BY occ_year, offence
+    ORDER BY occ_year DESC, robbery_count DESC
+  parameters: []
+  nl_examples:
+  - How has the mix of Toronto robbery offences changed over time?
+  - Show me offence trends for Toronto robberies
+  - Are Toronto robberies with weapons becoming a larger share?
+  - Historical Toronto robbery offence breakdown
+  - Which Toronto robbery categories are growing over the years?
+  - Year-over-year offence composition for Toronto robberies
+  - Has mugging become more common than business robbery in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [offence, trends]
+  tags: [offence, trends, yearly, strategic]
+
+- id: robberies_by_premises
+  description: Compare robbery incidents across premises types for a selected year
+  sql: |
+    SELECT
+      premises_type,
+      COUNT(*) AS robbery_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM robbery
+    WHERE occ_year = :year AND premises_type IS NOT NULL
+    GROUP BY premises_type
+    ORDER BY robbery_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which premises types have the most robberies in Toronto?
+  - Show me Toronto robberies by premises type
+  - Are Toronto robberies more common outside or in commercial buildings?
+  - Toronto robbery incidents by premises in 2025
+  - What building types see the most robberies in Toronto?
+  - Compare Toronto commercial, outside, and apartment robbery counts in 2024
+  - Where do robberies happen by premises category in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: robbery
+    qualifiers: [premises_type, category]
+  tags: [premises, category, location, comparison]
+
+# =============================================================================
+# LOCATION ANALYSIS
+# =============================================================================
+
+- id: robberies_by_neighbourhood
+  description: Rank Toronto neighbourhoods by robbery volume for a selected year
+  sql: |
+    SELECT
+      neighbourhood_158 AS neighbourhood,
+      hood_158 AS hood_code,
+      COUNT(*) AS robbery_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM robbery
+    WHERE occ_year = :year AND neighbourhood_158 IS NOT NULL
+    GROUP BY neighbourhood_158, hood_158
+    ORDER BY robbery_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which Toronto neighbourhoods have the most robberies?
+  - Show me Toronto robbery hotspots by neighbourhood
+  - Top Toronto neighbourhoods for robberies in 2025
+  - Where are robberies concentrated in Toronto?
+  - Which Toronto areas had the highest robbery counts in 2024?
+  - Rank Toronto neighbourhoods by robbery volume
+  - What are the robbery hotspots in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: robbery
+    qualifiers: [neighbourhood, ranking]
+  tags: [neighbourhood, hotspots, ranking, location]
+
+- id: robberies_by_division
+  description: Compare robbery volume across Toronto Police divisions for a selected year
+  sql: |
+    SELECT
+      division,
+      COUNT(*) AS robbery_count,
+      COUNT(DISTINCT neighbourhood_158) AS neighbourhoods_affected,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM robbery
+    WHERE occ_year = :year AND division IS NOT NULL
+    GROUP BY division
+    ORDER BY robbery_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Which Toronto police divisions have the most robberies?
+  - Show me Toronto robberies by division
+  - What Toronto division handles the most robbery incidents in 2025?
+  - Toronto division-level robbery ranking
+  - Compare Toronto robbery counts across divisions for 2024
+  - Which Toronto districts have the highest robbery burden?
+  - Robbery distribution by Toronto Police division
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: robbery
+    qualifiers: [division, ranking]
+  tags: [division, ranking, operations, location]
+
+- id: neighbourhood_robbery_history
+  description: Show the yearly robbery history for a specific neighbourhood
+  sql: |
+    SELECT
+      occ_year AS year,
+      COUNT(*) AS robbery_count,
+      COUNT(DISTINCT event_unique_id) AS distinct_events
+    FROM robbery
+    WHERE neighbourhood_158 ILIKE '%' || :neighbourhood || '%'
+      AND occ_year IS NOT NULL
+    GROUP BY occ_year
+    ORDER BY occ_year DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial, case-insensitive match on neighbourhood_158)
+    required: true
+  nl_examples:
+  - Show me the Toronto robbery trend for Moss Park
+  - How have robberies changed in Waterfront Communities-The Island?
+  - Toronto robbery history for Kensington-Chinatown
+  - What is the yearly robbery pattern in Oakwood Village (107)?
+  - Compare this Toronto neighbourhood over time for robberies
+  - Has Toronto's Regent Park improved on robberies over the years?
+  - Annual robbery counts for a specific Toronto neighbourhood
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: robbery
+    qualifiers: [neighbourhood, history]
+  tags: [neighbourhood, history, trends, lookup]
+
+# =============================================================================
+# COMPARISON & REFERENCE
+# =============================================================================
+
+- id: yoy_robbery_comparison
+  description: Compare total robbery incidents between two selected years
+  sql: |
+    WITH yearly AS (
+      SELECT occ_year, COUNT(*) AS robbery_count
+      FROM robbery
+      WHERE occ_year IN (:year_a, :year_b)
+      GROUP BY occ_year
+    )
+    SELECT
+      a.occ_year AS base_year,
+      a.robbery_count AS base_year_robberies,
+      b.occ_year AS comparison_year,
+      b.robbery_count AS comparison_year_robberies,
+      b.robbery_count - a.robbery_count AS absolute_change,
+      ROUND((b.robbery_count - a.robbery_count) * 100.0 / NULLIF(a.robbery_count, 0), 1) AS pct_change
+    FROM yearly a
+    JOIN yearly b ON a.occ_year = :year_a AND b.occ_year = :year_b
+  parameters:
+  - name: year_a
+    type: integer
+    description: Base year
+    required: false
+    default: 2024
+  - name: year_b
+    type: integer
+    description: Comparison year
+    required: false
+    default: 2025
+  nl_examples:
+  - Compare Toronto robberies in 2024 vs 2025
+  - Toronto year over year robbery comparison
+  - How much did Toronto robberies change from 2023 to 2024?
+  - Show the difference in Toronto robberies between two years
+  - Did Toronto have more robberies in 2025 than 2024?
+  - Compare Toronto robbery totals for 2022 and 2025
+  - What was the percentage change in Toronto robberies year over year?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: robbery
+    qualifiers: [year-over-year, comparison]
+  tags: [comparison, yoy, yearly, strategic]
+
+- id: list_neighbourhoods
+  description: List neighbourhoods that appear in the robbery dataset with all-time counts
+  sql: |
+    SELECT
+      neighbourhood_158 AS neighbourhood,
+      hood_158 AS hood_code,
+      COUNT(*) AS total_robberies
+    FROM robbery
+    WHERE neighbourhood_158 IS NOT NULL
+    GROUP BY neighbourhood_158, hood_158
+    ORDER BY neighbourhood ASC
+  parameters: []
+  nl_examples:
+  - List all Toronto neighbourhoods in the robbery dataset
+  - What Toronto neighbourhoods are available for robbery queries?
+  - Show me the Toronto neighbourhood names for robbery data
+  - Which Toronto areas can I query in the robbery dataset?
+  - Give me the Toronto robbery neighbourhood lookup list
+  - What Toronto neighbourhood values exist for robberies?
+  - Available Toronto neighbourhoods for robbery analysis
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: robbery
+    qualifiers: [reference, neighbourhood]
+  tags: [reference, neighbourhood, lookup]
+
+- id: data_coverage
+  description: Summarize the temporal and geographic coverage of the robbery dataset
+  sql: |
+    SELECT
+      COUNT(*) AS total_records,
+      COUNT(DISTINCT event_unique_id) AS distinct_events,
+      MIN(occ_date) AS first_occurrence_date,
+      MAX(occ_date) AS last_occurrence_date,
+      MIN(report_date) AS first_report_date,
+      MAX(report_date) AS last_report_date,
+      MIN(occ_year) AS first_occ_year,
+      MAX(occ_year) AS last_occ_year,
+      COUNT(DISTINCT neighbourhood_158) AS neighbourhoods_covered,
+      COUNT(DISTINCT division) AS divisions_covered
+    FROM robbery
+  parameters: []
+  nl_examples:
+  - What period does the Toronto robbery dataset cover?
+  - Show me the data coverage for Toronto robberies
+  - How many records are in this Toronto robbery dataset?
+  - What are the first and last dates in the Toronto robbery data?
+  - Give me a summary of Toronto robbery dataset coverage
+  - What neighbourhood and division coverage does the Toronto robbery data have?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [reference, coverage]
+  tags: [reference, coverage, metadata]
+
+# =============================================================================
+# INSIGHTS & POLICY ANALYTICS
+# =============================================================================
+
+- id: emerging_hotspots
+  description: Find neighbourhoods with the fastest year-over-year robbery growth
+  sql: |
+    WITH yearly AS (
+      SELECT
+        neighbourhood_158,
+        hood_158,
+        occ_year,
+        COUNT(*) AS robbery_count
+      FROM robbery
+      WHERE neighbourhood_158 IS NOT NULL
+        AND occ_year IN (:year - 1, :year)
+      GROUP BY neighbourhood_158, hood_158, occ_year
+    )
+    SELECT
+      cur.neighbourhood_158 AS neighbourhood,
+      cur.hood_158 AS hood_code,
+      prev.robbery_count AS previous_year_count,
+      cur.robbery_count AS current_year_count,
+      cur.robbery_count - prev.robbery_count AS absolute_growth,
+      ROUND((cur.robbery_count - prev.robbery_count) * 100.0 / NULLIF(prev.robbery_count, 0), 1) AS growth_pct
+    FROM yearly cur
+    JOIN yearly prev
+      ON cur.neighbourhood_158 = prev.neighbourhood_158
+     AND cur.hood_158 = prev.hood_158
+     AND cur.occ_year = :year
+     AND prev.occ_year = :year - 1
+    WHERE prev.robbery_count >= :minimum_baseline
+      AND cur.robbery_count > prev.robbery_count
+    ORDER BY growth_pct DESC, current_year_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Current year for the YoY comparison
+    required: false
+    default: 2025
+  - name: minimum_baseline
+    type: integer
+    description: Minimum prior-year count to suppress noise
+    required: false
+    default: 100
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 15
+  nl_examples:
+  - Which Toronto neighbourhoods are emerging robbery hotspots in 2025?
+  - Show me the fastest growing Toronto robbery areas
+  - What Toronto neighbourhoods had the biggest increase in robberies year over year?
+  - Emerging Toronto robbery hotspots for 2024
+  - Which Toronto communities are getting worse for robberies?
+  - Find Toronto neighbourhoods with sharp robbery growth
+  - Where is robbery rising fastest in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [hotspots, neighbourhood, yoy]
+  tags: [policy, hotspots, neighbourhood, yoy, strategic]
+
+- id: city_snapshot
+  description: Return a one-row citywide dashboard summary for a selected year
+  sql: |
+    SELECT
+      :year AS year,
+      (SELECT COUNT(*) FROM robbery WHERE occ_year = :year) AS total_robberies,
+      (SELECT COUNT(*) FROM robbery WHERE occ_year = :year - 1) AS previous_year_robberies,
+      ROUND(
+        (
+          (SELECT COUNT(*) FROM robbery WHERE occ_year = :year) -
+          (SELECT COUNT(*) FROM robbery WHERE occ_year = :year - 1)
+        ) * 100.0 /
+        NULLIF((SELECT COUNT(*) FROM robbery WHERE occ_year = :year - 1), 0),
+        1
+      ) AS yoy_pct_change,
+      (
+        SELECT offence
+        FROM robbery
+        WHERE occ_year = :year AND offence IS NOT NULL
+        GROUP BY offence
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      ) AS top_offence,
+      (
+        SELECT neighbourhood_158
+        FROM robbery
+        WHERE occ_year = :year AND neighbourhood_158 IS NOT NULL
+        GROUP BY neighbourhood_158
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      ) AS top_neighbourhood,
+      (
+        SELECT division
+        FROM robbery
+        WHERE occ_year = :year AND division IS NOT NULL
+        GROUP BY division
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      ) AS top_division
+  parameters:
+  - name: year
+    type: integer
+    description: Year to summarize
+    required: false
+    default: 2025
+  nl_examples:
+  - Give me a Toronto robbery snapshot for 2025
+  - Toronto citywide robbery dashboard for 2024
+  - Summarize the latest Toronto robbery picture in one row
+  - What is the top robbery offence, neighbourhood, and division in Toronto?
+  - Quick robbery summary for Toronto in 2025
+  - What does the Toronto citywide robbery snapshot look like?
+  - One-line overview of Toronto robberies this year
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [snapshot, dashboard, yearly]
+  tags: [policy, snapshot, dashboard, strategic]
+
+- id: crime_concentration
+  description: Analyze how concentrated robberies are across neighbourhoods (Pareto analysis)
+  sql: |
+    WITH neighbourhood_stats AS (
+      SELECT
+        neighbourhood_158,
+        COUNT(*) AS robbery_count,
+        ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS neighbourhood_rank,
+        COUNT(*) * 100.0 / SUM(COUNT(*)) OVER() AS pct_of_total
+      FROM robbery
+      WHERE occ_year = :year AND neighbourhood_158 IS NOT NULL
+      GROUP BY neighbourhood_158
+    )
+    SELECT
+      CASE
+        WHEN neighbourhood_rank <= 5 THEN 'Top 5 Neighbourhoods'
+        WHEN neighbourhood_rank <= 20 THEN 'Rank 6-20'
+        ELSE 'Remaining Neighbourhoods'
+      END AS concentration_tier,
+      COUNT(*) AS neighbourhood_count,
+      SUM(robbery_count) AS total_robberies,
+      ROUND(SUM(pct_of_total), 1) AS cumulative_pct
+    FROM neighbourhood_stats
+    GROUP BY 1
+    ORDER BY MIN(neighbourhood_rank)
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - Is robbery concentrated in a few neighbourhoods in Toronto?
+  - Show me robbery concentration across Toronto
+  - What percentage of Toronto robbery happens in the top 5 areas?
+  - Toronto concentration analysis for robberies in 2025
+  - Do a small number of Toronto neighbourhoods account for most robberies?
+  - Pareto analysis of Toronto robbery distribution
+  - How unevenly is robbery distributed in Toronto?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [concentration, ranking]
+  tags: [policy, concentration, ranking, strategic]
+
+- id: category_composition_shift
+  description: Track if violent robbery types (weapons) are increasing as a share of total
+  sql: |
+    WITH yearly_totals AS (
+      SELECT occ_year, COUNT(*) AS total_robberies
+      FROM robbery
+      WHERE occ_year IS NOT NULL
+      GROUP BY occ_year
+    ),
+    weapon_stats AS (
+      SELECT
+        occ_year,
+        COUNT(*) AS weapon_robbery_count
+      FROM robbery
+      WHERE offence LIKE '%Weapon%' OR offence LIKE '%Firearm%'
+      GROUP BY occ_year
+    )
+    SELECT
+      yt.occ_year AS year,
+      yt.total_robberies,
+      COALESCE(ws.weapon_robbery_count, 0) AS weapon_robberies,
+      ROUND(COALESCE(ws.weapon_robbery_count, 0) * 100.0 / yt.total_robberies, 1) AS weapon_share_pct
+    FROM yearly_totals yt
+    LEFT JOIN weapon_stats ws ON yt.occ_year = ws.occ_year
+    ORDER BY year DESC
+  parameters: []
+  nl_examples:
+  - Is armed robbery becoming a larger share of all Toronto robberies?
+  - Track the share of weapon-related robberies over time in Toronto
+  - Are violent Toronto robberies increasing proportionally?
+  - Historical shift in Toronto robbery composition
+  - Year over year change in Toronto robbery weapon share
+  - Is the percentage of armed robberies growing in Toronto?
+  - Compare Toronto weapon vs non-weapon robbery trends
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [offence, trends, composition]
+  tags: [policy, offence, trends, violent-crime]
+
+- id: seasonal_deviation
+  description: Compare monthly robbery volume to the historical monthly average
+  sql: |
+    WITH monthly_counts AS (
+      SELECT
+        occ_year,
+        EXTRACT(MONTH FROM occ_date) AS month,
+        COUNT(*) AS robbery_count
+      FROM robbery
+      WHERE occ_date IS NOT NULL
+      GROUP BY 1, 2
+    ),
+    averages AS (
+      SELECT
+        month,
+        AVG(robbery_count) AS avg_robberies
+      FROM monthly_counts
+      GROUP BY 1
+    )
+    SELECT
+      mc.occ_year AS year,
+      CASE mc.month
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      mc.robbery_count AS current_count,
+      ROUND(a.avg_robberies, 1) AS historical_avg,
+      mc.robbery_count - ROUND(a.avg_robberies, 1) AS deviation,
+      ROUND((mc.robbery_count - a.avg_robberies) * 100.0 / a.avg_robberies, 1) AS pct_deviation
+    FROM monthly_counts mc
+    JOIN averages a ON mc.month = a.month
+    WHERE mc.occ_year = :year
+    ORDER BY mc.month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - How did Toronto robberies in 2025 compare to historical averages?
+  - Show me seasonal deviation for Toronto robberies
+  - Was January 2025 worse than a typical January for Toronto robberies?
+  - Monthly Toronto robbery anomaly detection
+  - Compare current Toronto robbery counts to historical norms
+  - Is the latest Toronto robbery volume unusual for this time of year?
+  - Seasonal pattern deviation in Toronto robberies
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [seasonal, anomaly]
+  tags: [policy, seasonal, trends, analysis]
+
+- id: fastest_growing_types
+  description: Which robbery offence types are surging the most?
+  sql: |
+    WITH counts AS (
+      SELECT
+        offence,
+        SUM(CASE WHEN occ_year = :year - 1 THEN 1 ELSE 0 END) AS prev_count,
+        SUM(CASE WHEN occ_year = :year THEN 1 ELSE 0 END) AS curr_count
+      FROM robbery
+      WHERE occ_year IN (:year - 1, :year) AND offence IS NOT NULL
+      GROUP BY offence
+    )
+    SELECT
+      offence,
+      prev_count,
+      curr_count,
+      curr_count - prev_count AS growth,
+      ROUND((curr_count - prev_count) * 100.0 / NULLIF(prev_count, 0), 1) AS growth_pct
+    FROM counts
+    WHERE prev_count >= :min_baseline
+    ORDER BY growth_pct DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Current year
+    required: false
+    default: 2025
+  - name: min_baseline
+    type: integer
+    description: Minimum prior year count
+    required: false
+    default: 20
+  nl_examples:
+  - Which Toronto robbery types are surging?
+  - Fastest growing Toronto robbery offences
+  - What Toronto robbery categories have the highest growth?
+  - "SURGE: Toronto robbery types increasing in 2025"
+  - Which robberies are on the rise in Toronto?
+  - Compare Toronto robbery offence growth year over year
+  - Identifying surging robbery offences in Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [offence, growth]
+  tags: [policy, offence, growth, strategic]
+
+# =============================================================================
+# ADDITIONAL BUSINESS INSIGHT TEMPLATES
+# =============================================================================
+
+- id: robbery_count_for_year
+  description: Simple total count of robberies for a given year
+  sql: |
+    SELECT
+      occ_year AS year,
+      COUNT(*) AS total_robberies
+    FROM robbery
+    WHERE occ_year = :year
+    GROUP BY occ_year
+  parameters:
+  - name: year
+    type: integer
+    description: Year to query
+    required: false
+    default: 2025
+  nl_examples:
+  - How many robberies in Toronto in 2024?
+  - Total robberies in Toronto in 2025
+  - Number of robbery incidents in Toronto in 2023
+  - How many robberies happened in Toronto last year?
+  - Toronto robbery count for 2024
+  - What was the total number of robberies in Toronto in 2022?
+  - How many robberies were there in Toronto in 2025?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [count, year]
+  tags: [count, year, simple, quick-answer]
+
+- id: robberies_by_location_type
+  description: Break down robbery incidents by detailed location type for a selected year
+  sql: |
+    SELECT
+      location_type,
+      COUNT(*) AS robbery_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM robbery
+    WHERE occ_year = :year AND location_type IS NOT NULL
+    GROUP BY location_type
+    ORDER BY robbery_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  - name: limit
+    type: integer
+    description: Number of location types to return
+    required: false
+    default: 20
+  nl_examples:
+  - Where do robberies happen in Toronto?
+  - Toronto robberies by location type in 2025
+  - Which Toronto locations have the most robberies?
+  - Are Toronto convenience stores or banks robbed more often?
+  - How many robberies happen on the street vs in stores in Toronto?
+  - Toronto robbery breakdown by specific location type
+  - What types of places get robbed the most in Toronto?
+  - Do more Toronto robberies happen at gas stations or pharmacies?
+  - Location-level Toronto robbery analysis for 2024
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: robbery
+    qualifiers: [location_type, category]
+  tags: [location, category, comparison, operational]
+
+- id: transit_robbery_trends
+  description: Track TTC and transit-related robbery incidents over time
+  sql: |
+    SELECT
+      occ_year AS year,
+      location_type,
+      COUNT(*) AS robbery_count
+    FROM robbery
+    WHERE (premises_type = 'Transit'
+       OR location_type LIKE 'Ttc%'
+       OR location_type LIKE 'Go %'
+       OR location_type LIKE '%Transit%')
+      AND occ_year IS NOT NULL
+    GROUP BY occ_year, location_type
+    ORDER BY occ_year DESC, robbery_count DESC
+  parameters: []
+  nl_examples:
+  - How many robberies happen on the TTC in Toronto?
+  - Transit robbery trends in Toronto
+  - Are Toronto TTC robberies increasing?
+  - Toronto subway robberies over the years
+  - How safe is public transit in Toronto from robberies?
+  - Toronto subway vs bus robberies
+  - Is Toronto transit getting more dangerous for robberies?
+  - How many robberies happen at Toronto TTC stations?
+  - GO Train and TTC robbery comparison in Toronto
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [transit, ttc, trends]
+  tags: [transit, ttc, trends, public-safety, strategic]
+
+- id: home_invasion_carjacking_trends
+  description: Track home invasion and vehicle jacking robbery trends over time
+  sql: |
+    SELECT
+      occ_year AS year,
+      offence,
+      COUNT(*) AS robbery_count
+    FROM robbery
+    WHERE offence IN ('Robbery - Home Invasion', 'Robbery - Vehicle Jacking')
+      AND occ_year IS NOT NULL
+    GROUP BY occ_year, offence
+    ORDER BY occ_year DESC, offence
+  parameters: []
+  nl_examples:
+  - Are home invasion robberies increasing in Toronto?
+  - Toronto home invasion and carjacking robbery trends
+  - How many carjacking robberies happened each year in Toronto?
+  - Toronto vehicle jacking robbery trends
+  - Are Toronto carjacking robberies on the rise?
+  - Toronto home invasion robbery statistics over the years
+  - How many home invasion robberies in Toronto?
+  - Is Toronto vehicle jacking robbery getting worse?
+  - Toronto carjacking vs home invasion robbery trends
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [offence, trends, violent]
+  tags: [home-invasion, carjacking, trends, violent-crime, strategic]
+
+- id: neighbourhood_offence_profile
+  description: Show what types of robberies occur in a specific neighbourhood
+  sql: |
+    SELECT
+      offence,
+      COUNT(*) AS robbery_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM robbery
+    WHERE neighbourhood_158 ILIKE '%' || :neighbourhood || '%'
+      AND occ_year = :year
+      AND offence IS NOT NULL
+    GROUP BY offence
+    ORDER BY robbery_count DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial, case-insensitive match on neighbourhood_158)
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What types of robberies happen in Toronto's Moss Park?
+  - Toronto robbery offence breakdown for Waterfront Communities-The Island
+  - Is mugging or armed robbery more common in Toronto's Kensington-Chinatown?
+  - What kind of Toronto robberies occur in Regent Park?
+  - Robbery profile for a specific Toronto neighbourhood
+  - Are there more swarmings or muggings in Toronto's Church-Wellesley?
+  - What is the robbery mix in Toronto's Oakwood Village?
+  - Offence breakdown for robberies in Toronto's West Humber-Clairville
+  - Types of robbery in Toronto's downtown neighbourhoods
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: robbery
+    qualifiers: [neighbourhood, offence, profile]
+  tags: [neighbourhood, offence, profile, operational]
+
+- id: premises_trends
+  description: Track how the distribution of robberies across premises types has shifted over time
+  sql: |
+    SELECT
+      occ_year AS year,
+      premises_type,
+      COUNT(*) AS robbery_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY occ_year), 1) AS pct_of_year
+    FROM robbery
+    WHERE occ_year IS NOT NULL AND premises_type IS NOT NULL
+    GROUP BY occ_year, premises_type
+    ORDER BY occ_year DESC, robbery_count DESC
+  parameters: []
+  nl_examples:
+  - Are outdoor robberies in Toronto increasing as a share of total?
+  - How has the premises mix for Toronto robberies changed over time?
+  - Are Toronto transit robberies growing compared to commercial?
+  - Premises type trends for Toronto robberies
+  - Is the share of Toronto apartment robberies increasing?
+  - Where are Toronto robberies shifting to over the years?
+  - Historical Toronto breakdown of robberies by premises type
+  - Are Toronto commercial robberies declining as a share?
+  - Year-over-year premises composition for Toronto robberies
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [premises, trends, composition]
+  tags: [premises, trends, composition, strategic]
+
+- id: weapon_robbery_hotspots
+  description: Rank neighbourhoods by weapon/firearm robbery volume for a selected year
+  sql: |
+    SELECT
+      neighbourhood_158 AS neighbourhood,
+      hood_158 AS hood_code,
+      COUNT(*) AS weapon_robbery_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM robbery
+    WHERE occ_year = :year
+      AND (offence LIKE '%Weapon%' OR offence LIKE '%Firearm%')
+      AND neighbourhood_158 IS NOT NULL
+    GROUP BY neighbourhood_158, hood_158
+    ORDER BY weapon_robbery_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 20
+  nl_examples:
+  - What areas of Toronto are hotspots for robberies with guns?
+  - Which Toronto neighbourhoods have the most armed robberies?
+  - Where do weapon robberies happen most in Toronto?
+  - Top Toronto neighbourhoods for robberies with weapons in 2025
+  - Toronto gun robbery hotspots
+  - Which Toronto areas have the most firearm robberies?
+  - Rank Toronto neighbourhoods by armed robbery count
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: robbery
+    qualifiers: [neighbourhood, weapon, hotspots]
+  tags: [neighbourhood, weapon, hotspots, ranking, violent-crime]
+
+- id: premises_weapon_breakdown
+  description: Show what percentage of robberies at each premises type involve weapons
+  sql: |
+    SELECT
+      premises_type,
+      COUNT(*) AS total_robberies,
+      SUM(CASE WHEN offence LIKE '%Weapon%' OR offence LIKE '%Firearm%' THEN 1 ELSE 0 END) AS weapon_robberies,
+      ROUND(
+        SUM(CASE WHEN offence LIKE '%Weapon%' OR offence LIKE '%Firearm%' THEN 1 ELSE 0 END) * 100.0
+        / COUNT(*), 1
+      ) AS weapon_pct
+    FROM robbery
+    WHERE occ_year = :year AND premises_type IS NOT NULL
+    GROUP BY premises_type
+    ORDER BY weapon_pct DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2025
+  nl_examples:
+  - What percentage of residential robberies in Toronto involve a gun?
+  - How often do Toronto robberies involve weapons by premises type?
+  - Are Toronto commercial robberies more likely to involve a weapon than residential?
+  - Toronto weapon robbery percentage by premises type
+  - What share of Toronto apartment robberies involve a firearm?
+  - Do Toronto outside robberies involve weapons more than transit robberies?
+  - Toronto gun involvement rate across premises types
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: robbery
+    qualifiers: [premises, weapon, percentage]
+  tags: [premises, weapon, percentage, comparison, violent-crime]

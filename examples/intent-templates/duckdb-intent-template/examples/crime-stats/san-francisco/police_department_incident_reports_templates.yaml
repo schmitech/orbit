@@ -1,0 +1,2207 @@
+status: completed
+generated_at: '2026-04-11T12:00:00.000000'
+last_updated: '2026-04-11T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 48
+templates:
+# =============================================================================
+# CRIME TRENDS & STATISTICS - Overall crime patterns
+# =============================================================================
+
+- id: yearly_incident_trends
+  description: Track year-over-year changes in police incidents across San Francisco
+  sql: |
+    SELECT
+      incident_year,
+      COUNT(*) AS total_incidents,
+      COUNT(DISTINCT incident_category) AS unique_categories,
+      COUNT(DISTINCT analysis_neighborhood) AS affected_neighborhoods
+    FROM sf_incident_reports
+    GROUP BY incident_year
+    ORDER BY incident_year DESC
+  parameters: []
+  nl_examples:
+  - How has crime changed over the years in San Francisco?
+  - Show me yearly SF police incident trends
+  - What is the year-over-year San Francisco crime rate?
+  - Is crime increasing or decreasing in San Francisco?
+  - Track San Francisco police incidents over time
+  - Year-over-year comparison of total SF incidents
+  - How bad was San Francisco crime in 2023 compared to previous years?
+  - Are things getting worse in SF crime-wise?
+  - What does the long-term San Francisco crime trend look like?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [trends, yearly]
+  tags: [trends, yearly, strategic, crime-stats]
+
+- id: incidents_by_month
+  description: Analyze monthly crime patterns to identify seasonal trends in SF
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM incident_date) AS month,
+      CASE EXTRACT(MONTH FROM incident_date)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS incident_count
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND incident_date IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM incident_date)
+    ORDER BY month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which months have the most crime in San Francisco?
+  - Show me seasonal crime patterns in SF
+  - When do most incidents happen in San Francisco?
+  - Monthly crime breakdown for San Francisco
+  - Peak months for crime in SF
+  - What month had the highest crime in San Francisco in 2024?
+  - Crime by month in SF in 2023
+  - Is summer or winter worse for crime in San Francisco?
+  - Monthly incident count for San Francisco
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [seasonal, monthly]
+  tags: [seasonal, monthly, patterns, trends]
+
+- id: incidents_by_hour
+  description: Analyze when incidents occur throughout the day in San Francisco
+  sql: |
+    SELECT
+      CAST(LEFT(incident_time, 2) AS INTEGER) AS hour,
+      CASE
+        WHEN CAST(LEFT(incident_time, 2) AS INTEGER) BETWEEN 6 AND 11 THEN 'Morning'
+        WHEN CAST(LEFT(incident_time, 2) AS INTEGER) BETWEEN 12 AND 17 THEN 'Afternoon'
+        WHEN CAST(LEFT(incident_time, 2) AS INTEGER) BETWEEN 18 AND 23 THEN 'Evening'
+        ELSE 'Night'
+      END AS time_of_day,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND incident_time IS NOT NULL
+    GROUP BY hour
+    ORDER BY hour
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - When do most crimes happen during the day in San Francisco?
+  - Show me SF incidents by hour of day
+  - Are San Francisco crimes more common at night or during the day?
+  - What time are crimes most likely to occur in SF?
+  - Time of day analysis for San Francisco police incidents
+  - Do more SF incidents happen in the morning or at night in 2024?
+  - What hour has the most crime in San Francisco?
+  - Is nighttime crime a big problem in SF?
+  - Hourly breakdown of San Francisco police incidents
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [time, patterns]
+  tags: [time-of-day, patterns, prevention]
+
+- id: incidents_by_weekday
+  description: Analyze which days of the week have the most incidents in SF
+  sql: |
+    SELECT
+      incident_day_of_week,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND incident_day_of_week IS NOT NULL
+    GROUP BY incident_day_of_week
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which day of the week has the most crime in San Francisco?
+  - Show me SF incidents by day of week
+  - Are more crimes committed on weekends in San Francisco?
+  - What day are crimes most likely to occur in SF?
+  - Weekday breakdown of San Francisco police incidents
+  - Is Friday worse for SF crime than Monday?
+  - Do SF weekends see more incidents than weekdays in 2024?
+  - What day should I be most careful in San Francisco?
+  - Distribution of SF police incidents across days of the week
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [weekday, patterns]
+  tags: [weekday, patterns, prevention]
+
+# =============================================================================
+# INCIDENT TYPE ANALYSIS - What crimes are committed
+# =============================================================================
+
+- id: top_incident_categories
+  description: Identify the most common incident types in San Francisco
+  sql: |
+    SELECT
+      incident_category,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND incident_category IS NOT NULL
+    GROUP BY incident_category
+    ORDER BY incident_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of categories to return
+    required: false
+    default: 20
+  nl_examples:
+  - What are the most common crimes in San Francisco?
+  - Top SF incident categories
+  - Which crimes happen most often in San Francisco?
+  - Most frequent SF police incidents
+  - What crimes are most prevalent in SF?
+  - Rank the top 10 incident categories in San Francisco in 2024
+  - What are the leading types of crime in SF?
+  - Which SF incidents occur most frequently in 2023?
+  - Show me the most reported crime categories in San Francisco
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [incident_category, ranking]
+  tags: [incident-type, ranking, top]
+
+- id: incident_subcategories
+  description: Breakdown of incidents by subcategory in San Francisco
+  sql: |
+    SELECT
+      incident_subcategory,
+      incident_category,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND incident_subcategory IS NOT NULL
+    GROUP BY incident_subcategory, incident_category
+    ORDER BY incident_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of subcategories to return
+    required: false
+    default: 20
+  nl_examples:
+  - What are the most common specific crime types in San Francisco?
+  - Show me SF incident subcategories breakdown
+  - Detailed crime type analysis for San Francisco
+  - What specific incidents are most reported in SF?
+  - Top incident subcategories in San Francisco in 2024
+  - How does larceny from vehicle compare to shoplifting in SF?
+  - Most common specific crime descriptions in San Francisco in 2023
+  - Break down SF crime into detailed subcategories
+  - What are the top specific offense types in San Francisco?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [incident_subcategory, ranking]
+  tags: [incident-type, subcategory, breakdown]
+
+- id: larceny_theft_analysis
+  description: Detailed analysis of larceny theft incidents in San Francisco
+  sql: |
+    SELECT
+      incident_subcategory,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM sf_incident_reports
+    WHERE incident_year = :year
+      AND incident_category = 'Larceny Theft'
+    GROUP BY incident_subcategory
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What types of larceny theft happen in San Francisco?
+  - SF larceny theft breakdown by type
+  - How much car break-in theft is there in San Francisco?
+  - Larceny from vehicle vs shoplifting in SF
+  - San Francisco theft crime analysis
+  - What kinds of larceny theft are most common in SF in 2024?
+  - How bad is the shoplifting problem in San Francisco?
+  - Break down SF larceny theft incidents in 2023
+  - What percentage of SF theft is from vehicles?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [larceny_theft]
+  tags: [larceny-theft, property-crimes, breakdown]
+
+- id: assault_analysis
+  description: Detailed analysis of assault incidents in San Francisco
+  sql: |
+    SELECT
+      incident_year,
+      COUNT(*) AS assault_count,
+      SUM(CASE WHEN incident_subcategory = 'Aggravated Assault' THEN 1 ELSE 0 END) AS aggravated,
+      SUM(CASE WHEN incident_subcategory = 'Simple Assault' THEN 1 ELSE 0 END) AS simple,
+      COUNT(DISTINCT analysis_neighborhood) AS affected_neighborhoods
+    FROM sf_incident_reports
+    WHERE incident_category = 'Assault'
+    GROUP BY incident_year
+    ORDER BY incident_year DESC
+  parameters: []
+  nl_examples:
+  - How many assault incidents are there each year in San Francisco?
+  - Show me SF assault crime trends
+  - San Francisco assault incident statistics over time
+  - SF violent crime analysis
+  - Track San Francisco assault incidents
+  - Are assault crimes getting worse in San Francisco?
+  - How many SF neighborhoods had assault incidents in 2024?
+  - Aggravated vs simple assault trends in San Francisco
+  - How bad is the assault problem in SF?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [assault, trends]
+  tags: [assault, violent-crime, trends]
+
+- id: vehicle_theft_analysis
+  description: Analysis of motor vehicle theft incidents in San Francisco
+  sql: |
+    SELECT
+      incident_year,
+      COUNT(*) AS vehicle_theft_count,
+      COUNT(DISTINCT analysis_neighborhood) AS affected_neighborhoods
+    FROM sf_incident_reports
+    WHERE incident_category = 'Motor Vehicle Theft'
+    GROUP BY incident_year
+    ORDER BY incident_year DESC
+  parameters: []
+  nl_examples:
+  - How many car thefts are there each year in San Francisco?
+  - Show me SF motor vehicle theft trends
+  - San Francisco auto theft statistics over time
+  - Is car theft increasing in SF?
+  - Track San Francisco stolen vehicle incidents
+  - How bad is the car theft problem in San Francisco?
+  - Year-over-year motor vehicle theft numbers in SF
+  - Are auto thefts getting worse in San Francisco?
+  - How many SF neighborhoods are affected by car theft?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [vehicle_theft, trends]
+  tags: [vehicle-theft, property-crimes, trends]
+
+- id: burglary_analysis
+  description: Breakdown of burglary incidents by subcategory in San Francisco
+  sql: |
+    SELECT
+      incident_subcategory,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM sf_incident_reports
+    WHERE incident_year = :year
+      AND incident_category = 'Burglary'
+    GROUP BY incident_subcategory
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What types of burglary happen in San Francisco?
+  - SF burglary breakdown by type
+  - Residential vs commercial burglary in San Francisco
+  - How common are hot prowl burglaries in SF?
+  - San Francisco break-in crime analysis
+  - What kinds of burglary are most common in SF in 2024?
+  - How bad is the burglary problem in San Francisco?
+  - Breakdown of SF burglary types in 2023
+  - What percentage of SF burglary is residential vs commercial?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [burglary]
+  tags: [burglary, property-crimes, breakdown]
+
+- id: resolution_analysis
+  description: Analysis of incident resolutions and case clearance in San Francisco
+  sql: |
+    SELECT
+      resolution,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND resolution IS NOT NULL
+    GROUP BY resolution
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What percentage of SF crimes result in arrest?
+  - Show me San Francisco incident resolution rates
+  - How many SF cases are still open vs closed?
+  - San Francisco police case clearance rate
+  - What happens to reported crimes in SF?
+  - Are SF crimes being solved in 2024?
+  - How many San Francisco incidents lead to an arrest?
+  - SF incident resolution breakdown in 2023
+  - What is the arrest rate for San Francisco crimes?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [resolution]
+  tags: [resolution, clearance, performance]
+
+# =============================================================================
+# LOCATION ANALYSIS - Where incidents occur
+# =============================================================================
+
+- id: incidents_by_neighborhood
+  description: Identify neighborhoods with the highest crime rates in San Francisco
+  sql: |
+    SELECT
+      analysis_neighborhood,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND analysis_neighborhood IS NOT NULL
+    GROUP BY analysis_neighborhood
+    ORDER BY incident_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of neighborhoods to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which San Francisco neighborhoods have the most crime?
+  - Where are SF crimes most likely to happen?
+  - Top areas for police incidents in San Francisco
+  - Highest crime neighborhoods in SF
+  - San Francisco crime hotspots
+  - What are the worst neighborhoods for crime in SF in 2024?
+  - Rank San Francisco neighborhoods by number of incidents
+  - Which areas in SF should I avoid based on crime data?
+  - Where is SF crime concentrated in 2023?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [neighborhood, ranking]
+  tags: [neighborhood, hotspots, location, ranking]
+
+- id: incidents_by_police_district
+  description: Compare incidents across SFPD police districts
+  sql: |
+    SELECT
+      police_district,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      COUNT(DISTINCT incident_category) AS unique_incident_types
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND police_district IS NOT NULL
+    GROUP BY police_district
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which SF police district has the most crime?
+  - Compare San Francisco police districts for incidents
+  - Show me SF incidents by police district
+  - District-level crime comparison in San Francisco
+  - Where should SFPD focus crime prevention?
+  - How does the Mission district compare to the Tenderloin for crime in 2024?
+  - Which SF police district handles the most incidents?
+  - San Francisco crime distribution across districts in 2023
+  - Is the Southern district seeing more crime than others in SF?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [police_district]
+  tags: [police-district, comparison, police]
+
+- id: incidents_by_supervisor_district
+  description: Analyze incidents by Board of Supervisors district in San Francisco
+  sql: |
+    SELECT
+      supervisor_district,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND supervisor_district IS NOT NULL
+    GROUP BY supervisor_district
+    ORDER BY incident_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which SF supervisor district has the most crime?
+  - Show me San Francisco incidents by supervisor district
+  - SF crime statistics by Board of Supervisors district
+  - Which SF supervisor's district has the most crime?
+  - Supervisor district-level crime analysis for San Francisco
+  - How does District 6 compare to other SF supervisor districts for crime?
+  - San Francisco crime breakdown by supervisor district in 2024
+  - Which supervisor district had the most incidents in SF in 2023?
+  - Show me crime numbers for each SF Board of Supervisors district
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [supervisor_district]
+  tags: [supervisor-district, location, political]
+
+# =============================================================================
+# SPECIFIC QUERIES - Detailed lookups
+# =============================================================================
+
+- id: specific_neighborhood_analysis
+  description: Get detailed crime statistics for a specific San Francisco neighborhood
+  sql: |
+    SELECT
+      incident_category,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM sf_incident_reports
+    WHERE analysis_neighborhood LIKE '%' || :neighborhood || '%'
+      AND incident_year = :year
+    GROUP BY incident_category
+    ORDER BY incident_count DESC
+    LIMIT 20
+  parameters:
+  - name: neighborhood
+    type: string
+    description: Neighborhood name (partial match)
+    required: false
+    default: Mission
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Show me crime in the Mission neighborhood in San Francisco
+  - What crimes happen in the Tenderloin in SF?
+  - San Francisco crime breakdown for South of Market
+  - Analyze incidents in the Richmond district of SF
+  - Nob Hill San Francisco crime details
+  - What are the most common incidents in the Castro in SF in 2024?
+  - SF crime stats for Bayview Hunters Point in 2023
+  - What types of crime are reported in Pacific Heights in San Francisco?
+  - Give me a detailed crime profile for the Sunset in SF
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [neighborhood]
+  tags: [neighborhood, detail, specific]
+
+- id: specific_incident_category_analysis
+  description: Get detailed statistics for a specific incident type in San Francisco
+  sql: |
+    SELECT
+      analysis_neighborhood,
+      COUNT(*) AS incident_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM sf_incident_reports
+    WHERE incident_category LIKE '%' || :incident_category || '%'
+      AND incident_year = :year
+      AND analysis_neighborhood IS NOT NULL
+    GROUP BY analysis_neighborhood
+    ORDER BY incident_count DESC
+    LIMIT 20
+  parameters:
+  - name: incident_category
+    type: string
+    description: Incident category to analyze (e.g., Assault, Larceny Theft, Burglary)
+    required: false
+    default: Assault
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Show me where assault incidents happen in San Francisco
+  - Where is larceny theft most common in SF?
+  - San Francisco burglary incidents by neighborhood
+  - Analyze SF motor vehicle theft locations
+  - Where do robbery crimes occur in San Francisco?
+  - Which SF neighborhoods have the most drug offenses in 2024?
+  - Where are vandalism crimes concentrated in San Francisco?
+  - Top SF areas for fraud incidents in 2023
+  - San Francisco neighborhood ranking for a specific crime type
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [incident_category]
+  tags: [incident-type, detail, specific]
+
+- id: year_over_year_comparison
+  description: Compare crime statistics between two years in San Francisco
+  sql: |
+    SELECT
+      :current_year AS current_year,
+      :previous_year AS previous_year,
+      (SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :current_year) AS current_incidents,
+      (SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :previous_year) AS previous_incidents,
+      ROUND(((SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :current_year) -
+             (SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :previous_year)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :previous_year), 0), 1) AS change_pct
+  parameters:
+  - name: current_year
+    type: integer
+    description: Current year to compare
+    required: false
+    default: 2024
+  - name: previous_year
+    type: integer
+    description: Previous year to compare
+    required: false
+    default: 2023
+  nl_examples:
+  - Compare 2024 to 2023 SF crime rates
+  - Year over year change in San Francisco crime
+  - How much has SF crime increased?
+  - Compare this year to last year for San Francisco incidents
+  - San Francisco crime trend comparison
+  - What is the percentage change in SF crime from 2022 to 2023?
+  - Did San Francisco crime go up or down between 2023 and 2024?
+  - How does SF 2024 stack up against 2023 for total incidents?
+  - Is San Francisco crime getting worse compared to last year?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [yearly, change]
+  tags: [comparison, yearly, trend]
+
+- id: incident_category_trends
+  description: Track trends for a specific incident category over time in San Francisco
+  sql: |
+    SELECT
+      incident_year,
+      COUNT(*) AS incident_count
+    FROM sf_incident_reports
+    WHERE incident_category LIKE '%' || :incident_category || '%'
+    GROUP BY incident_year
+    ORDER BY incident_year DESC
+  parameters:
+  - name: incident_category
+    type: string
+    description: Incident category to track (e.g., Assault, Larceny Theft, Burglary)
+    required: false
+    default: Larceny Theft
+  nl_examples:
+  - Track San Francisco assault incident trends over time
+  - How has larceny theft changed over the years in SF?
+  - SF burglary incident trends by year
+  - San Francisco motor vehicle theft year over year
+  - Historical trend for a specific SF crime
+  - Is robbery crime increasing or decreasing in San Francisco over the years?
+  - How have drug offenses trended in SF since 2020?
+  - Multi-year analysis of vandalism incidents in San Francisco
+  - Are fraud crimes going up or down in SF?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [incident_category, trends]
+  tags: [trends, incident-type, historical]
+
+# =============================================================================
+# REFERENCE DATA - System information
+# =============================================================================
+
+- id: list_neighborhoods
+  description: List all neighborhoods with crime data in San Francisco
+  sql: |
+    SELECT DISTINCT
+      analysis_neighborhood,
+      COUNT(*) AS incident_count,
+      MIN(incident_year) AS data_from,
+      MAX(incident_year) AS data_to
+    FROM sf_incident_reports
+    WHERE analysis_neighborhood IS NOT NULL
+    GROUP BY analysis_neighborhood
+    ORDER BY incident_count DESC
+  parameters: []
+  nl_examples:
+  - What San Francisco neighborhoods have police incident data?
+  - List all areas in the SF police incidents database
+  - Which SF neighborhoods are covered for crime data?
+  - Show me all San Francisco neighborhoods with incident records
+  - What neighborhoods are available in the SF crime data?
+  - List every SF neighborhood with police incident records
+  - How many San Francisco neighborhoods have crime data?
+  - Which SF areas have the longest incident data history?
+  - What San Francisco communities are tracked in the police incidents dataset?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [reference]
+  tags: [reference, neighborhoods, metadata]
+
+- id: list_incident_categories
+  description: List all incident categories in the San Francisco database
+  sql: |
+    SELECT DISTINCT
+      incident_category,
+      COUNT(*) AS incident_count
+    FROM sf_incident_reports
+    WHERE incident_category IS NOT NULL
+    GROUP BY incident_category
+    ORDER BY incident_count DESC
+  parameters: []
+  nl_examples:
+  - What crime types are in the San Francisco database?
+  - List all SF incident categories
+  - What crimes are tracked in San Francisco?
+  - Show me all SF crime types
+  - What incident categories does the SF dataset include?
+  - How many different types of crime are recorded in San Francisco?
+  - List every SF incident type
+  - What San Francisco crime classifications are used?
+  - Which SF incident categories have the most records?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [reference]
+  tags: [reference, incident-categories, metadata]
+
+- id: list_police_districts
+  description: List all SFPD police districts with incident counts
+  sql: |
+    SELECT DISTINCT
+      police_district,
+      COUNT(*) AS incident_count,
+      MIN(incident_year) AS data_from,
+      MAX(incident_year) AS data_to
+    FROM sf_incident_reports
+    WHERE police_district IS NOT NULL
+    GROUP BY police_district
+    ORDER BY incident_count DESC
+  parameters: []
+  nl_examples:
+  - What are the SFPD police districts?
+  - List all San Francisco police districts with crime data
+  - Which SF districts are covered in the incident data?
+  - Show me all police districts in San Francisco
+  - How many police districts does SFPD have?
+  - List every SF police district with incident records
+  - What San Francisco police districts are in the crime database?
+  - Which SFPD districts have the most incident records?
+  - What police station areas are tracked in the SF data?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [reference]
+  tags: [reference, police-districts, metadata]
+
+- id: data_coverage
+  description: Show data coverage summary for San Francisco incidents
+  sql: |
+    SELECT
+      MIN(incident_date) AS earliest_date,
+      MAX(incident_date) AS latest_date,
+      COUNT(DISTINCT incident_year) AS years_covered,
+      COUNT(*) AS total_records,
+      COUNT(DISTINCT analysis_neighborhood) AS neighborhoods,
+      COUNT(DISTINCT incident_category) AS incident_categories,
+      COUNT(DISTINCT police_district) AS police_districts
+    FROM sf_incident_reports
+  parameters: []
+  nl_examples:
+  - What San Francisco police incident data is available?
+  - Show me SF crime data coverage
+  - How much historical San Francisco crime data exists?
+  - What is the date range of the SF incident data?
+  - San Francisco police incidents database summary
+  - How far back does the SF crime data go?
+  - What years are covered in the San Francisco incident dataset?
+  - How many total records are in the SF police incidents database?
+  - Give me a summary of the San Francisco crime data available
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [reference, metadata]
+  tags: [reference, coverage, metadata]
+
+# =============================================================================
+# INSIGHT GENERATORS - High-value analytical templates
+# =============================================================================
+
+- id: emerging_hotspots
+  description: SF neighborhoods with the biggest year-over-year increase in incidents
+  sql: |
+    WITH yearly AS (
+      SELECT analysis_neighborhood, incident_year, COUNT(*) AS incidents
+      FROM sf_incident_reports
+      WHERE analysis_neighborhood IS NOT NULL
+      GROUP BY analysis_neighborhood, incident_year
+    ),
+    yoy AS (
+      SELECT
+        c.analysis_neighborhood,
+        c.incident_year,
+        c.incidents AS current_incidents,
+        p.incidents AS previous_incidents,
+        c.incidents - p.incidents AS absolute_change,
+        ROUND((c.incidents - p.incidents) * 100.0 / NULLIF(p.incidents, 0), 1) AS pct_change
+      FROM yearly c
+      JOIN yearly p ON c.analysis_neighborhood = p.analysis_neighborhood AND c.incident_year = p.incident_year + 1
+    )
+    SELECT analysis_neighborhood, current_incidents, previous_incidents, absolute_change, pct_change
+    FROM yoy
+    WHERE incident_year = :year AND previous_incidents >= :min_baseline
+    ORDER BY pct_change DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum incidents in previous year to filter noise
+    required: false
+    default: 50
+  - name: limit
+    type: integer
+    description: Number of results
+    required: false
+    default: 10
+  nl_examples:
+  - Which SF neighborhoods saw the biggest increase in crime?
+  - Where is San Francisco crime surging?
+  - Emerging crime hotspots in SF
+  - San Francisco neighborhoods getting worse for crime
+  - Where did SF police incidents spike this year?
+  - What SF areas had the biggest jump in incidents in 2024?
+  - Which San Francisco communities are seeing crime spikes?
+  - SF neighborhoods with rising crime rates compared to last year
+  - Where is crime growing the fastest in San Francisco?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [hotspots, change, emerging]
+  tags: [hotspots, trends, journalist, insight]
+
+- id: improving_areas
+  description: SF neighborhoods with the biggest year-over-year decrease in incidents
+  sql: |
+    WITH yearly AS (
+      SELECT analysis_neighborhood, incident_year, COUNT(*) AS incidents
+      FROM sf_incident_reports
+      WHERE analysis_neighborhood IS NOT NULL
+      GROUP BY analysis_neighborhood, incident_year
+    ),
+    yoy AS (
+      SELECT
+        c.analysis_neighborhood,
+        c.incident_year,
+        c.incidents AS current_incidents,
+        p.incidents AS previous_incidents,
+        c.incidents - p.incidents AS absolute_change,
+        ROUND((c.incidents - p.incidents) * 100.0 / NULLIF(p.incidents, 0), 1) AS pct_change
+      FROM yearly c
+      JOIN yearly p ON c.analysis_neighborhood = p.analysis_neighborhood AND c.incident_year = p.incident_year + 1
+    )
+    SELECT analysis_neighborhood, current_incidents, previous_incidents, absolute_change, pct_change
+    FROM yoy
+    WHERE incident_year = :year AND previous_incidents >= :min_baseline
+    ORDER BY pct_change ASC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum incidents in previous year to filter noise
+    required: false
+    default: 50
+  - name: limit
+    type: integer
+    description: Number of results
+    required: false
+    default: 10
+  nl_examples:
+  - Which SF neighborhoods improved the most for crime?
+  - Where is San Francisco crime declining?
+  - SF areas getting safer from crime
+  - Biggest drops in San Francisco police incidents
+  - Where did SF crime decrease?
+  - What SF neighborhoods saw the largest drop in crime in 2024?
+  - Which San Francisco areas are becoming safer?
+  - SF neighborhoods with the best improvement in incident rates
+  - Where has crime gone down the most in San Francisco compared to last year?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [improving, change]
+  tags: [improving, trends, journalist, insight]
+
+- id: record_breakers
+  description: Rank all years by total incidents in San Francisco
+  sql: |
+    SELECT
+      incident_year,
+      COUNT(*) AS total_incidents,
+      RANK() OVER (ORDER BY COUNT(*) DESC) AS rank_worst,
+      COUNT(DISTINCT incident_category) AS incident_types,
+      COUNT(DISTINCT analysis_neighborhood) AS neighborhoods_affected
+    FROM sf_incident_reports
+    GROUP BY incident_year
+    ORDER BY total_incidents DESC
+  parameters: []
+  nl_examples:
+  - Is this the worst year for San Francisco crime?
+  - Record-breaking SF crime years
+  - Which year had the most incidents in San Francisco?
+  - All-time SF crime ranking by year
+  - Has San Francisco crime hit a new record?
+  - Was 2024 the worst year ever for crime in SF?
+  - Rank all SF years from most to fewest incidents
+  - Did 2023 set any crime records in San Francisco?
+  - Which year saw the highest number of SF police incidents historically?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [records, ranking]
+  tags: [records, ranking, journalist, insight]
+
+- id: fastest_growing_crime_types
+  description: Which incident categories are growing the fastest in SF year-over-year
+  sql: |
+    WITH yearly AS (
+      SELECT incident_category, incident_year, COUNT(*) AS incidents
+      FROM sf_incident_reports
+      WHERE incident_category IS NOT NULL
+      GROUP BY incident_category, incident_year
+    ),
+    yoy AS (
+      SELECT
+        c.incident_category,
+        c.incidents AS current_incidents,
+        p.incidents AS previous_incidents,
+        c.incidents - p.incidents AS absolute_change,
+        ROUND((c.incidents - p.incidents) * 100.0 / NULLIF(p.incidents, 0), 1) AS pct_change
+      FROM yearly c
+      JOIN yearly p ON c.incident_category = p.incident_category AND c.incident_year = p.incident_year + 1
+      WHERE c.incident_year = :year
+    )
+    SELECT incident_category, current_incidents, previous_incidents, absolute_change, pct_change
+    FROM yoy
+    WHERE previous_incidents >= :min_baseline
+    ORDER BY pct_change DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum incidents in previous year to filter noise
+    required: false
+    default: 100
+  nl_examples:
+  - Which SF crimes are growing the fastest?
+  - What crime types are surging in San Francisco?
+  - Fastest increasing incident categories in SF
+  - Which SF offenses spiked this year?
+  - San Francisco crime types with biggest increase
+  - What incident categories grew the most in SF in 2024?
+  - Are any SF crime types seeing a sudden jump?
+  - Year-over-year growth rate by incident category in San Francisco
+  - Which types of crime are on the rise in SF?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [growth, ranking, incident_category]
+  tags: [growth, incident-type, journalist, insight]
+
+- id: crime_concentration
+  description: How concentrated is crime across SF neighborhoods
+  sql: |
+    WITH ranked AS (
+      SELECT
+        analysis_neighborhood,
+        COUNT(*) AS incidents,
+        SUM(COUNT(*)) OVER () AS total,
+        ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rank
+      FROM sf_incident_reports
+      WHERE incident_year = :year AND analysis_neighborhood IS NOT NULL
+      GROUP BY analysis_neighborhood
+    )
+    SELECT
+      CASE
+        WHEN rank <= 5 THEN 'Top 5 neighborhoods'
+        WHEN rank <= 10 THEN 'Top 6-10'
+        WHEN rank <= 20 THEN 'Top 11-20'
+        ELSE 'All others'
+      END AS tier,
+      SUM(incidents) AS incidents,
+      ROUND(SUM(incidents) * 100.0 / MAX(total), 1) AS pct_of_total,
+      COUNT(*) AS neighborhood_count
+    FROM ranked
+    GROUP BY CASE
+      WHEN rank <= 5 THEN 'Top 5 neighborhoods'
+      WHEN rank <= 10 THEN 'Top 6-10'
+      WHEN rank <= 20 THEN 'Top 11-20'
+      ELSE 'All others'
+    END
+    ORDER BY MIN(rank)
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How concentrated is crime across San Francisco neighborhoods?
+  - Do a few SF areas account for most crime?
+  - San Francisco crime concentration analysis
+  - What percentage of SF crime happens in the top areas?
+  - Is San Francisco crime spread evenly or concentrated?
+  - What share of incidents come from the top 5 SF neighborhoods in 2024?
+  - How much SF crime do the worst areas account for?
+  - Is SF crime concentrated in just a few places?
+  - Equity analysis of crime distribution across San Francisco neighborhoods
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [concentration, equity]
+  tags: [concentration, policy, researcher, insight]
+
+- id: seasonal_deviation
+  description: Compare recent months to historical average in San Francisco
+  sql: |
+    WITH monthly_avg AS (
+      SELECT
+        month,
+        ROUND(AVG(cnt), 1) AS historical_avg
+      FROM (
+        SELECT EXTRACT(MONTH FROM incident_date) AS month, incident_year, COUNT(*) AS cnt
+        FROM sf_incident_reports
+        WHERE incident_date IS NOT NULL AND incident_year < :year
+        GROUP BY month, incident_year
+      )
+      GROUP BY month
+    ),
+    current AS (
+      SELECT
+        EXTRACT(MONTH FROM incident_date) AS month,
+        COUNT(*) AS current_count
+      FROM sf_incident_reports
+      WHERE incident_year = :year AND incident_date IS NOT NULL
+      GROUP BY EXTRACT(MONTH FROM incident_date)
+    )
+    SELECT
+      c.month,
+      CASE c.month
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      c.current_count,
+      a.historical_avg,
+      c.current_count - a.historical_avg AS deviation,
+      ROUND((c.current_count - a.historical_avg) * 100.0 / NULLIF(a.historical_avg, 0), 1) AS deviation_pct
+    FROM current c
+    JOIN monthly_avg a ON c.month = a.month
+    ORDER BY ABS(c.current_count - a.historical_avg) DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare against historical average
+    required: false
+    default: 2024
+  nl_examples:
+  - Which months were unusual for crime this year in San Francisco?
+  - Is this month above or below average for SF police incidents?
+  - San Francisco seasonal anomalies in crime
+  - Months that deviate from the historical SF crime pattern
+  - Unusual crime patterns in SF this year
+  - Were any months in 2024 significantly above the historical average for SF incidents?
+  - Which months in San Francisco had abnormal crime levels compared to past years?
+  - How does each month in 2023 compare to the long-term SF crime average?
+  - Are there any outlier months for San Francisco police incidents this year?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [seasonal, anomaly]
+  tags: [seasonal, anomaly, researcher, insight]
+
+- id: crime_composition_shift
+  description: How the mix of crime types has changed over time in San Francisco
+  sql: |
+    WITH totals AS (
+      SELECT incident_year, COUNT(*) AS year_total
+      FROM sf_incident_reports
+      GROUP BY incident_year
+    ),
+    by_type AS (
+      SELECT
+        c.incident_year,
+        c.incident_category,
+        COUNT(*) AS incidents,
+        ROUND(COUNT(*) * 100.0 / t.year_total, 1) AS pct_of_total
+      FROM sf_incident_reports c
+      JOIN totals t ON c.incident_year = t.incident_year
+      WHERE c.incident_category IS NOT NULL
+      GROUP BY c.incident_year, c.incident_category, t.year_total
+    )
+    SELECT incident_year, incident_category, incidents, pct_of_total
+    FROM by_type
+    WHERE incidents >= 100
+    ORDER BY incident_category, incident_year DESC
+  parameters: []
+  nl_examples:
+  - How has the mix of SF crime types changed over time?
+  - San Francisco crime composition shift over the years
+  - Is larceny theft becoming a bigger share of SF crime?
+  - Is violent crime growing as a proportion in San Francisco?
+  - How has the balance between SF crime types changed?
+  - What percentage of total SF crime does each category make up year by year?
+  - Has the share of assault increased relative to theft in San Francisco?
+  - Proportional breakdown of SF incident types across all years
+  - Is the composition of crime in San Francisco shifting?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [composition, shift]
+  tags: [composition, trends, researcher, policy, insight]
+
+- id: neighborhood_safety_snapshot
+  description: Safety overview for a specific SF neighborhood
+  sql: |
+    WITH neighborhood_stats AS (
+      SELECT
+        analysis_neighborhood,
+        COUNT(*) AS total_incidents,
+        RANK() OVER (ORDER BY COUNT(*) DESC) AS city_rank
+      FROM sf_incident_reports
+      WHERE incident_year = :year AND analysis_neighborhood IS NOT NULL
+      GROUP BY analysis_neighborhood
+    ),
+    previous AS (
+      SELECT COUNT(*) AS prev_incidents
+      FROM sf_incident_reports
+      WHERE analysis_neighborhood LIKE '%' || :neighborhood || '%'
+        AND incident_year = :year - 1
+    ),
+    top_crimes AS (
+      SELECT incident_category, COUNT(*) AS cnt
+      FROM sf_incident_reports
+      WHERE analysis_neighborhood LIKE '%' || :neighborhood || '%'
+        AND incident_year = :year AND incident_category IS NOT NULL
+      GROUP BY incident_category
+      ORDER BY cnt DESC
+      LIMIT 5
+    )
+    SELECT
+      ns.analysis_neighborhood,
+      ns.total_incidents,
+      ns.city_rank || ' of ' || (SELECT COUNT(*) FROM neighborhood_stats) AS rank_among_neighborhoods,
+      p.prev_incidents AS previous_year_incidents,
+      ns.total_incidents - p.prev_incidents AS change,
+      ROUND((ns.total_incidents - p.prev_incidents) * 100.0 / NULLIF(p.prev_incidents, 0), 1) AS change_pct,
+      (SELECT STRING_AGG(incident_category || ' (' || cnt || ')', ', ' ORDER BY cnt DESC) FROM top_crimes) AS top_incident_types
+    FROM neighborhood_stats ns
+    CROSS JOIN previous p
+    WHERE ns.analysis_neighborhood LIKE '%' || :neighborhood || '%'
+  parameters:
+  - name: neighborhood
+    type: string
+    description: Neighborhood name (partial match)
+    required: false
+    default: Mission
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How safe is the Mission in San Francisco based on police incidents?
+  - Is the Tenderloin safe in SF?
+  - How dangerous is South of Market in San Francisco for crime?
+  - Safety of the Sunset in SF based on incident data
+  - How is crime in the Castro in San Francisco?
+  - Is Pacific Heights a safe SF neighborhood based on incidents?
+  - Give me a San Francisco crime safety snapshot for Nob Hill in 2024
+  - How does the Richmond rank for crime among all SF neighborhoods?
+  - Should I be worried about crime in Bayview Hunters Point in SF?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [neighborhood, safety, snapshot]
+  tags: [neighborhood, safety, snapshot, public, insight]
+
+- id: neighborhood_safety_trend
+  description: Is a specific SF neighborhood getting safer or more dangerous over time
+  sql: |
+    SELECT
+      incident_year,
+      COUNT(*) AS incidents,
+      COUNT(DISTINCT incident_category) AS incident_types,
+      COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY incident_year) AS change_from_prior,
+      ROUND((COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY incident_year)) * 100.0 /
+        NULLIF(LAG(COUNT(*)) OVER (ORDER BY incident_year), 0), 1) AS pct_change
+    FROM sf_incident_reports
+    WHERE analysis_neighborhood LIKE '%' || :neighborhood || '%'
+    GROUP BY incident_year
+    ORDER BY incident_year DESC
+  parameters:
+  - name: neighborhood
+    type: string
+    description: Neighborhood name (partial match)
+    required: false
+    default: Mission
+  nl_examples:
+  - Is the Mission getting safer in San Francisco?
+  - SF crime trend for the Tenderloin
+  - Is South of Market getting worse for crime in San Francisco?
+  - Multi-year crime trend for the Richmond in SF
+  - How has crime changed in the Castro in San Francisco?
+  - Is the Sunset improving or declining for crime in SF?
+  - Year-over-year incident trend for Nob Hill in San Francisco
+  - Has crime been going up in Bayview in SF over the past few years?
+  - Show me the historical San Francisco crime trajectory for Pacific Heights
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [neighborhood, safety, trend]
+  tags: [neighborhood, safety, trend, public, insight]
+
+- id: city_snapshot
+  description: Quick city-wide pulse for San Francisco — total incidents, trend, top concern, top area
+  sql: |
+    SELECT
+      :year AS year,
+      (SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :year) AS total_incidents,
+      (SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :year - 1) AS previous_year_incidents,
+      ROUND(((SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :year) -
+             (SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :year - 1)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :year - 1), 0), 1) AS yoy_change_pct,
+      (SELECT incident_category FROM sf_incident_reports WHERE incident_year = :year AND incident_category IS NOT NULL
+       GROUP BY incident_category ORDER BY COUNT(*) DESC LIMIT 1) AS top_incident_type,
+      (SELECT analysis_neighborhood FROM sf_incident_reports WHERE incident_year = :year AND analysis_neighborhood IS NOT NULL
+       GROUP BY analysis_neighborhood ORDER BY COUNT(*) DESC LIMIT 1) AS top_neighborhood
+  parameters:
+  - name: year
+    type: integer
+    description: Year to summarize
+    required: false
+    default: 2024
+  nl_examples:
+  - Give me a San Francisco crime summary for this year
+  - Quick overview of SF police incidents
+  - Crime snapshot for San Francisco
+  - How is SF crime doing this year?
+  - City-wide San Francisco crime pulse
+  - What does the overall SF crime picture look like in 2024?
+  - San Francisco crime dashboard summary
+  - How many total incidents were there in SF in 2023?
+  - Give me a quick rundown of crime in San Francisco this year
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [snapshot, overview]
+  tags: [snapshot, overview, public, dashboard, insight]
+
+# =============================================================================
+# POLICY & STRATEGIC ANALYTICS - Advanced templates for leadership & analysts
+# =============================================================================
+
+- id: weekend_vs_weekday_by_category
+  description: Compare weekend vs weekday incident rates per category for shift staffing decisions
+  sql: |
+    WITH daily AS (
+      SELECT
+        incident_category,
+        incident_day_of_week,
+        CASE WHEN incident_day_of_week IN ('Saturday', 'Sunday') THEN 'Weekend' ELSE 'Weekday' END AS day_type,
+        COUNT(*) AS incidents
+      FROM sf_incident_reports
+      WHERE incident_year = :year AND incident_category IS NOT NULL
+      GROUP BY incident_category, incident_day_of_week
+    ),
+    averages AS (
+      SELECT
+        incident_category,
+        ROUND(SUM(CASE WHEN day_type = 'Weekend' THEN incidents ELSE 0 END) * 1.0 / 2, 1) AS avg_weekend_per_day,
+        ROUND(SUM(CASE WHEN day_type = 'Weekday' THEN incidents ELSE 0 END) * 1.0 / 5, 1) AS avg_weekday_per_day,
+        SUM(incidents) AS total
+      FROM daily
+      GROUP BY incident_category
+    )
+    SELECT
+      incident_category,
+      avg_weekend_per_day,
+      avg_weekday_per_day,
+      ROUND(avg_weekend_per_day / NULLIF(avg_weekday_per_day, 0), 2) AS weekend_to_weekday_ratio,
+      total
+    FROM averages
+    WHERE total >= 50
+    ORDER BY weekend_to_weekday_ratio DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which SF crimes are worse on weekends vs weekdays?
+  - Weekend vs weekday incident comparison in San Francisco
+  - Do more assaults happen on weekends in SF?
+  - San Francisco weekend crime ratio by category
+  - Should SFPD staff more officers on weekends based on incident data?
+  - Which SF incident types spike on weekends in 2024?
+  - Weekend-to-weekday crime ratio for San Francisco
+  - Are robberies more of a weekend problem in SF?
+  - SF shift staffing analysis based on weekend vs weekday incidents
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [weekend, weekday, staffing]
+  tags: [policy, staffing, operational, weekend]
+
+- id: crime_type_seasonality
+  description: Seasonal breakdown (winter/spring/summer/fall) by incident category for staffing
+  sql: |
+    SELECT
+      incident_category,
+      SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (12, 1, 2) THEN 1 ELSE 0 END) AS winter,
+      SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (3, 4, 5) THEN 1 ELSE 0 END) AS spring,
+      SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (6, 7, 8) THEN 1 ELSE 0 END) AS summer,
+      SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (9, 10, 11) THEN 1 ELSE 0 END) AS fall,
+      COUNT(*) AS total,
+      CASE
+        WHEN SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (6, 7, 8) THEN 1 ELSE 0 END) =
+             GREATEST(
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (12, 1, 2) THEN 1 ELSE 0 END),
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (3, 4, 5) THEN 1 ELSE 0 END),
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (6, 7, 8) THEN 1 ELSE 0 END),
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (9, 10, 11) THEN 1 ELSE 0 END)
+             ) THEN 'Summer'
+        WHEN SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (9, 10, 11) THEN 1 ELSE 0 END) =
+             GREATEST(
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (12, 1, 2) THEN 1 ELSE 0 END),
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (3, 4, 5) THEN 1 ELSE 0 END),
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (6, 7, 8) THEN 1 ELSE 0 END),
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (9, 10, 11) THEN 1 ELSE 0 END)
+             ) THEN 'Fall'
+        WHEN SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (3, 4, 5) THEN 1 ELSE 0 END) =
+             GREATEST(
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (12, 1, 2) THEN 1 ELSE 0 END),
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (3, 4, 5) THEN 1 ELSE 0 END),
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (6, 7, 8) THEN 1 ELSE 0 END),
+               SUM(CASE WHEN EXTRACT(MONTH FROM incident_date) IN (9, 10, 11) THEN 1 ELSE 0 END)
+             ) THEN 'Spring'
+        ELSE 'Winter'
+      END AS peak_season
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND incident_date IS NOT NULL AND incident_category IS NOT NULL
+    GROUP BY incident_category
+    HAVING COUNT(*) >= 50
+    ORDER BY total DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which SF crimes peak in summer vs winter?
+  - Seasonal crime patterns by category in San Francisco
+  - San Francisco crime seasonality analysis
+  - Do burglaries increase in summer in SF?
+  - When does motor vehicle theft peak seasonally in San Francisco?
+  - SF seasonal staffing analysis by incident type
+  - Which crime types are winter problems in San Francisco?
+  - Summer vs winter crime breakdown for SF in 2024
+  - What season has the most larceny theft in San Francisco?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [seasonal, staffing]
+  tags: [policy, seasonal, staffing, operational]
+
+- id: daily_rate_by_month
+  description: Average incidents per day per month for capacity planning in SF
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM incident_date) AS month,
+      CASE EXTRACT(MONTH FROM incident_date)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS total_incidents,
+      COUNT(DISTINCT incident_date) AS days_with_data,
+      ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT incident_date), 0), 1) AS avg_incidents_per_day
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND incident_date IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM incident_date)
+    ORDER BY month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How many SF incidents happen per day on average each month?
+  - Daily crime rate by month in San Francisco
+  - San Francisco incident capacity planning by month
+  - Which month has the highest daily incident rate in SF?
+  - Average daily crime count per month for San Francisco in 2024
+  - SF daily incident volume for capacity planning
+  - What is the busiest month for daily SF police incidents?
+  - How many reports per day does SFPD handle each month?
+  - Monthly daily rate of San Francisco police incidents in 2023
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [daily_rate, capacity]
+  tags: [policy, capacity, operational, daily-rate]
+
+- id: fastest_declining_types
+  description: Which SF incident categories are declining fastest — where interventions may be working
+  sql: |
+    WITH yearly AS (
+      SELECT incident_category, incident_year, COUNT(*) AS incidents
+      FROM sf_incident_reports
+      WHERE incident_category IS NOT NULL
+      GROUP BY incident_category, incident_year
+    ),
+    yoy AS (
+      SELECT
+        c.incident_category,
+        c.incidents AS current_incidents,
+        p.incidents AS previous_incidents,
+        c.incidents - p.incidents AS absolute_change,
+        ROUND((c.incidents - p.incidents) * 100.0 / NULLIF(p.incidents, 0), 1) AS pct_change
+      FROM yearly c
+      JOIN yearly p ON c.incident_category = p.incident_category AND c.incident_year = p.incident_year + 1
+      WHERE c.incident_year = :year
+    )
+    SELECT incident_category, current_incidents, previous_incidents, absolute_change, pct_change
+    FROM yoy
+    WHERE previous_incidents >= :min_baseline AND pct_change < 0
+    ORDER BY pct_change ASC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum incidents in previous year to filter noise
+    required: false
+    default: 100
+  nl_examples:
+  - Which SF crimes are declining the fastest?
+  - What crime types are dropping in San Francisco?
+  - Fastest declining incident categories in SF
+  - Where are SF crime interventions working?
+  - San Francisco crime types with biggest decrease
+  - What incident categories declined the most in SF in 2024?
+  - Which types of crime are going down in San Francisco?
+  - Year-over-year decline rate by incident category in SF
+  - What SF crimes saw the biggest drop compared to last year?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [decline, ranking, incident_category]
+  tags: [policy, decline, incident-type, intervention, insight]
+
+- id: month_over_month_momentum
+  description: Detect acceleration or deceleration of SF crime within the current year
+  sql: |
+    WITH monthly AS (
+      SELECT
+        EXTRACT(MONTH FROM incident_date) AS month,
+        COUNT(*) AS incidents
+      FROM sf_incident_reports
+      WHERE incident_year = :year AND incident_date IS NOT NULL
+      GROUP BY EXTRACT(MONTH FROM incident_date)
+    )
+    SELECT
+      month,
+      CASE month
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      incidents,
+      LAG(incidents) OVER (ORDER BY month) AS previous_month,
+      incidents - LAG(incidents) OVER (ORDER BY month) AS change,
+      ROUND((incidents - LAG(incidents) OVER (ORDER BY month)) * 100.0 /
+        NULLIF(LAG(incidents) OVER (ORDER BY month), 0), 1) AS pct_change
+    FROM monthly
+    ORDER BY month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Is SF crime accelerating or decelerating this year?
+  - Month-over-month crime momentum in San Francisco
+  - San Francisco monthly incident trend within 2024
+  - Which months saw the biggest jump in SF incidents?
+  - Is crime picking up or slowing down in San Francisco this year?
+  - Month-to-month change in SF police incidents
+  - San Francisco in-year crime acceleration analysis
+  - Are SF incidents increasing month by month in 2024?
+  - Monthly momentum of San Francisco police incidents
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [momentum, monthly]
+  tags: [policy, momentum, trends, early-warning]
+
+- id: persistent_hotspots
+  description: SF neighborhoods consistently in top 10 across multiple years — chronic problem areas
+  sql: |
+    WITH yearly_ranked AS (
+      SELECT
+        analysis_neighborhood,
+        incident_year,
+        COUNT(*) AS incidents,
+        RANK() OVER (PARTITION BY incident_year ORDER BY COUNT(*) DESC) AS year_rank
+      FROM sf_incident_reports
+      WHERE analysis_neighborhood IS NOT NULL AND incident_year >= :year - 4
+      GROUP BY analysis_neighborhood, incident_year
+    )
+    SELECT
+      analysis_neighborhood,
+      COUNT(DISTINCT incident_year) AS years_in_top_10,
+      ROUND(AVG(incidents), 0) AS avg_yearly_incidents,
+      MIN(year_rank) AS best_rank,
+      MAX(year_rank) AS worst_rank,
+      STRING_AGG(incident_year || ': #' || year_rank, ', ' ORDER BY incident_year) AS rank_history
+    FROM yearly_ranked
+    WHERE year_rank <= 10
+    GROUP BY analysis_neighborhood
+    HAVING COUNT(DISTINCT incident_year) >= 3
+    ORDER BY years_in_top_10 DESC, avg_yearly_incidents DESC
+  parameters:
+  - name: year
+    type: integer
+    description: End year of the 5-year window
+    required: false
+    default: 2024
+  nl_examples:
+  - Which SF neighborhoods are persistently high-crime?
+  - Chronic crime hotspots in San Francisco
+  - San Francisco neighborhoods consistently in top 10 for incidents
+  - Where are the long-term problem areas in SF?
+  - Which SF neighborhoods have been high-crime for multiple years?
+  - Persistent crime hotspots in San Francisco over the past 5 years
+  - Are the same SF neighborhoods always at the top for crime?
+  - San Francisco chronic high-crime areas analysis
+  - Which SF neighborhoods can't seem to reduce crime?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: sf_incident_reports
+    qualifiers: [persistent, hotspots]
+  tags: [policy, hotspots, chronic, location, insight]
+
+- id: resolution_rate_by_category
+  description: Case clearance rate by incident category — which SF crimes get solved?
+  sql: |
+    SELECT
+      incident_category,
+      COUNT(*) AS total_incidents,
+      SUM(CASE WHEN resolution = 'Cite or Arrest Adult' THEN 1 ELSE 0 END) AS arrests,
+      ROUND(SUM(CASE WHEN resolution = 'Cite or Arrest Adult' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS arrest_rate_pct,
+      SUM(CASE WHEN resolution = 'Open or Active' THEN 1 ELSE 0 END) AS open_cases,
+      ROUND(SUM(CASE WHEN resolution = 'Open or Active' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS open_rate_pct
+    FROM sf_incident_reports
+    WHERE incident_year = :year AND incident_category IS NOT NULL
+    GROUP BY incident_category
+    HAVING COUNT(*) >= 50
+    ORDER BY arrest_rate_pct DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What is the arrest rate for different SF crime types?
+  - Which crimes get solved most often in San Francisco?
+  - San Francisco case clearance rate by incident category
+  - How many SF larceny theft cases lead to arrest?
+  - SFPD resolution rates by crime type
+  - Which SF incident types have the lowest arrest rate in 2024?
+  - Are drug offenses more likely to result in arrest in San Francisco?
+  - SF police performance by crime type based on clearance
+  - What percentage of SF burglaries remain open vs arrested?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [resolution, performance]
+  tags: [policy, performance, resolution, clearance, insight]
+
+- id: location_disparity
+  description: Compare each SF neighborhood's crime rate to the citywide average — equity analysis
+  sql: |
+    WITH neighborhood_counts AS (
+      SELECT
+        analysis_neighborhood,
+        COUNT(*) AS incidents
+      FROM sf_incident_reports
+      WHERE incident_year = :year AND analysis_neighborhood IS NOT NULL
+      GROUP BY analysis_neighborhood
+    ),
+    city_avg AS (
+      SELECT ROUND(AVG(incidents), 1) AS avg_incidents FROM neighborhood_counts
+    )
+    SELECT
+      n.analysis_neighborhood,
+      n.incidents,
+      c.avg_incidents AS city_average,
+      n.incidents - c.avg_incidents AS difference,
+      ROUND((n.incidents - c.avg_incidents) * 100.0 / NULLIF(c.avg_incidents, 0), 1) AS pct_above_below_avg,
+      CASE
+        WHEN n.incidents > c.avg_incidents * 2 THEN 'Far above average'
+        WHEN n.incidents > c.avg_incidents * 1.25 THEN 'Above average'
+        WHEN n.incidents > c.avg_incidents * 0.75 THEN 'Near average'
+        WHEN n.incidents > c.avg_incidents * 0.5 THEN 'Below average'
+        ELSE 'Far below average'
+      END AS disparity_tier
+    FROM neighborhood_counts n
+    CROSS JOIN city_avg c
+    ORDER BY n.incidents DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which SF neighborhoods have crime far above the city average?
+  - San Francisco neighborhood crime disparity analysis
+  - How does each SF neighborhood compare to the citywide average for incidents?
+  - Crime equity analysis across San Francisco neighborhoods
+  - Which SF neighborhoods are above or below average for crime in 2024?
+  - Is the Tenderloin far above the SF average for police incidents?
+  - San Francisco neighborhood crime inequality
+  - Which SF areas get a disproportionate share of crime?
+  - Neighborhood-level disparity in San Francisco incident rates
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [disparity, equity]
+  tags: [policy, equity, disparity, location, insight]
+
+- id: type_distribution_by_neighborhood
+  description: What crime types dominate each SF neighborhood — reveals neighborhood character
+  sql: |
+    WITH ranked AS (
+      SELECT
+        analysis_neighborhood,
+        incident_category,
+        COUNT(*) AS incidents,
+        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY analysis_neighborhood), 1) AS pct_of_neighborhood,
+        ROW_NUMBER() OVER (PARTITION BY analysis_neighborhood ORDER BY COUNT(*) DESC) AS rank
+      FROM sf_incident_reports
+      WHERE incident_year = :year
+        AND analysis_neighborhood IS NOT NULL
+        AND incident_category IS NOT NULL
+      GROUP BY analysis_neighborhood, incident_category
+    )
+    SELECT
+      analysis_neighborhood,
+      MAX(CASE WHEN rank = 1 THEN incident_category || ' (' || pct_of_neighborhood || '%)' END) AS top_1_crime,
+      MAX(CASE WHEN rank = 2 THEN incident_category || ' (' || pct_of_neighborhood || '%)' END) AS top_2_crime,
+      MAX(CASE WHEN rank = 3 THEN incident_category || ' (' || pct_of_neighborhood || '%)' END) AS top_3_crime,
+      SUM(incidents) AS total_incidents
+    FROM ranked
+    WHERE rank <= 3
+    GROUP BY analysis_neighborhood
+    ORDER BY total_incidents DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What types of crime dominate each SF neighborhood?
+  - San Francisco crime profile by neighborhood
+  - What is the top crime in each SF neighborhood?
+  - Crime character of each San Francisco neighborhood in 2024
+  - Is the Tenderloin mostly drug offenses or larceny theft?
+  - Top 3 crime types per SF neighborhood
+  - What drives crime in each San Francisco neighborhood?
+  - How does the Mission's crime mix differ from the Richmond in SF?
+  - San Francisco neighborhood crime fingerprint analysis
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [distribution, neighborhood]
+  tags: [policy, neighborhood, distribution, character, insight]
+
+- id: multi_year_cagr_by_type
+  description: Compound annual growth rate for each SF incident category over the full dataset
+  sql: |
+    WITH first_last AS (
+      SELECT
+        incident_category,
+        MIN(incident_year) AS first_year,
+        MAX(incident_year) AS last_year,
+        SUM(CASE WHEN incident_year = (SELECT MIN(incident_year) FROM sf_incident_reports) THEN 1 ELSE 0 END) AS first_count,
+        SUM(CASE WHEN incident_year = :year THEN 1 ELSE 0 END) AS last_count
+      FROM sf_incident_reports
+      WHERE incident_category IS NOT NULL
+      GROUP BY incident_category
+      HAVING SUM(CASE WHEN incident_year = (SELECT MIN(incident_year) FROM sf_incident_reports) THEN 1 ELSE 0 END) >= 20
+         AND SUM(CASE WHEN incident_year = :year THEN 1 ELSE 0 END) >= 20
+    )
+    SELECT
+      incident_category,
+      first_count AS baseline_count,
+      last_count AS current_count,
+      :year - first_year AS years,
+      ROUND((POWER(last_count * 1.0 / NULLIF(first_count, 0), 1.0 / NULLIF(:year - first_year, 0)) - 1) * 100, 1) AS cagr_pct,
+      CASE
+        WHEN POWER(last_count * 1.0 / NULLIF(first_count, 0), 1.0 / NULLIF(:year - first_year, 0)) - 1 > 0.05 THEN 'Growing fast'
+        WHEN POWER(last_count * 1.0 / NULLIF(first_count, 0), 1.0 / NULLIF(:year - first_year, 0)) - 1 > 0 THEN 'Slowly growing'
+        WHEN POWER(last_count * 1.0 / NULLIF(first_count, 0), 1.0 / NULLIF(:year - first_year, 0)) - 1 > -0.05 THEN 'Slowly declining'
+        ELSE 'Declining fast'
+      END AS trend_direction
+    FROM first_last
+    ORDER BY cagr_pct DESC
+  parameters:
+  - name: year
+    type: integer
+    description: End year for CAGR calculation
+    required: false
+    default: 2024
+  nl_examples:
+  - What is the long-term growth rate for each SF crime type?
+  - San Francisco compound annual growth rate by incident category
+  - Which SF crimes have been growing steadily over the years?
+  - Long-term crime trend direction for each category in San Francisco
+  - CAGR analysis of San Francisco incident types
+  - Which SF crime types have the steepest long-term increase?
+  - Multi-year trend analysis for San Francisco crime categories
+  - Are burglaries in a long-term upward or downward trend in SF?
+  - What is the structural trend direction of each SF crime type?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [cagr, long_term]
+  tags: [policy, cagr, long-term, strategic, insight]
+
+- id: district_crime_character
+  description: Compare crime mix across SFPD police districts — what makes each district unique
+  sql: |
+    WITH district_totals AS (
+      SELECT police_district, COUNT(*) AS total
+      FROM sf_incident_reports
+      WHERE incident_year = :year AND police_district IS NOT NULL
+      GROUP BY police_district
+    ),
+    district_categories AS (
+      SELECT
+        r.police_district,
+        r.incident_category,
+        COUNT(*) AS incidents,
+        ROUND(COUNT(*) * 100.0 / dt.total, 1) AS pct_of_district
+      FROM sf_incident_reports r
+      JOIN district_totals dt ON r.police_district = dt.police_district
+      WHERE r.incident_year = :year AND r.incident_category IS NOT NULL
+      GROUP BY r.police_district, r.incident_category, dt.total
+    )
+    SELECT
+      police_district,
+      incident_category,
+      incidents,
+      pct_of_district,
+      RANK() OVER (PARTITION BY police_district ORDER BY incidents DESC) AS rank_in_district
+    FROM district_categories
+    QUALIFY rank_in_district <= 5
+    ORDER BY police_district, incidents DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What are the top crimes in each SFPD district?
+  - Compare crime mix across San Francisco police districts
+  - What makes the Tenderloin district different from Northern in SF?
+  - San Francisco police district crime profiles
+  - Top 5 incident types per SFPD district
+  - How does the Mission district's crime mix compare to Central in SF?
+  - What crime categories dominate each SF police district in 2024?
+  - SFPD district-level crime character analysis
+  - What does each San Francisco district deal with the most?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [district, character]
+  tags: [policy, district, comparison, character, insight]
+
+- id: data_freshness
+  description: Data pipeline health check — most recent data and monthly record counts for SF
+  sql: |
+    SELECT
+      MAX(incident_date) AS most_recent_date,
+      MIN(incident_date) AS earliest_date,
+      COUNT(*) AS total_records,
+      SUM(CASE WHEN incident_year = EXTRACT(YEAR FROM CURRENT_DATE) THEN 1 ELSE 0 END) AS current_year_records,
+      COUNT(DISTINCT incident_date) AS distinct_dates,
+      ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT incident_date), 0), 1) AS avg_records_per_day
+    FROM sf_incident_reports
+  parameters: []
+  nl_examples:
+  - How fresh is the San Francisco police incident data?
+  - When was the SF incident data last updated?
+  - San Francisco police data pipeline health check
+  - How current is the SF crime dataset?
+  - Is the San Francisco incident data up to date?
+  - What is the most recent date in the SF police data?
+  - How many SF records are there for the current year?
+  - San Francisco data freshness and completeness check
+  - Is the SF police incident dataset still being updated?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: sf_incident_reports
+    qualifiers: [data_quality, freshness]
+  tags: [reference, data-quality, freshness, metadata]
+
+# =============================================================================
+# YEAR-RANGE ANALYTICS - Compare across arbitrary year spans
+# =============================================================================
+
+- id: neighborhood_surge_by_range
+  description: Which SF neighborhoods saw the biggest crime surge between two arbitrary years
+  sql: |
+    WITH start_counts AS (
+      SELECT analysis_neighborhood, COUNT(*) AS start_incidents
+      FROM sf_incident_reports
+      WHERE incident_year = :start_year AND analysis_neighborhood IS NOT NULL
+      GROUP BY analysis_neighborhood
+    ),
+    end_counts AS (
+      SELECT analysis_neighborhood, COUNT(*) AS end_incidents
+      FROM sf_incident_reports
+      WHERE incident_year = :end_year AND analysis_neighborhood IS NOT NULL
+      GROUP BY analysis_neighborhood
+    )
+    SELECT
+      e.analysis_neighborhood,
+      s.start_incidents,
+      e.end_incidents,
+      e.end_incidents - s.start_incidents AS absolute_change,
+      ROUND((e.end_incidents - s.start_incidents) * 100.0 / NULLIF(s.start_incidents, 0), 1) AS pct_change
+    FROM end_counts e
+    JOIN start_counts s ON e.analysis_neighborhood = s.analysis_neighborhood
+    WHERE s.start_incidents >= :min_baseline
+    ORDER BY pct_change DESC
+    LIMIT :limit
+  parameters:
+  - name: start_year
+    type: integer
+    description: Start year of the range
+    required: false
+    default: 2018
+  - name: end_year
+    type: integer
+    description: End year of the range
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum incidents in start year to filter noise
+    required: false
+    default: 50
+  - name: limit
+    type: integer
+    description: Number of results
+    required: false
+    default: 15
+  nl_examples:
+  - Where was San Francisco crime surging between 2018 and 2022?
+  - Which SF neighborhoods had the biggest crime increase from 2019 to 2024?
+  - Compare neighborhood crime levels between two years in San Francisco
+  - SF neighborhoods with the most growth in incidents from 2020 to 2023
+  - Where did crime explode in San Francisco between 2018 and 2024?
+  - Which SF areas saw the steepest rise in crime over a multi-year period?
+  - Neighborhood crime surge from 2019 to 2022 in San Francisco
+  - Long-range crime growth by SF neighborhood
+  - Where did SF incidents increase the most between 2021 and 2024?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [neighborhood, surge, year_range]
+  tags: [policy, hotspots, year-range, comparison, insight]
+
+- id: neighborhood_improvement_by_range
+  description: Which SF neighborhoods saw the biggest crime drop between two arbitrary years
+  sql: |
+    WITH start_counts AS (
+      SELECT analysis_neighborhood, COUNT(*) AS start_incidents
+      FROM sf_incident_reports
+      WHERE incident_year = :start_year AND analysis_neighborhood IS NOT NULL
+      GROUP BY analysis_neighborhood
+    ),
+    end_counts AS (
+      SELECT analysis_neighborhood, COUNT(*) AS end_incidents
+      FROM sf_incident_reports
+      WHERE incident_year = :end_year AND analysis_neighborhood IS NOT NULL
+      GROUP BY analysis_neighborhood
+    )
+    SELECT
+      e.analysis_neighborhood,
+      s.start_incidents,
+      e.end_incidents,
+      e.end_incidents - s.start_incidents AS absolute_change,
+      ROUND((e.end_incidents - s.start_incidents) * 100.0 / NULLIF(s.start_incidents, 0), 1) AS pct_change
+    FROM end_counts e
+    JOIN start_counts s ON e.analysis_neighborhood = s.analysis_neighborhood
+    WHERE s.start_incidents >= :min_baseline
+    ORDER BY pct_change ASC
+    LIMIT :limit
+  parameters:
+  - name: start_year
+    type: integer
+    description: Start year of the range
+    required: false
+    default: 2018
+  - name: end_year
+    type: integer
+    description: End year of the range
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum incidents in start year to filter noise
+    required: false
+    default: 50
+  - name: limit
+    type: integer
+    description: Number of results
+    required: false
+    default: 15
+  nl_examples:
+  - Which SF neighborhoods improved the most between 2018 and 2024?
+  - Where did San Francisco crime drop the most from 2019 to 2023?
+  - SF neighborhoods with the biggest crime decline over a multi-year period
+  - Which areas got safer in San Francisco between 2020 and 2024?
+  - Long-range crime improvement by SF neighborhood
+  - Where did incidents decrease the most in SF from 2018 to 2022?
+  - San Francisco neighborhoods that reduced crime the most over 5 years
+  - Which SF areas saw the steepest drop in crime from 2019 to 2024?
+  - Multi-year crime reduction winners in San Francisco
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [neighborhood, improvement, year_range]
+  tags: [policy, improving, year-range, comparison, insight]
+
+- id: category_growth_by_range
+  description: Which SF crime types grew or shrank the most between two arbitrary years
+  sql: |
+    WITH start_counts AS (
+      SELECT incident_category, COUNT(*) AS start_incidents
+      FROM sf_incident_reports
+      WHERE incident_year = :start_year AND incident_category IS NOT NULL
+      GROUP BY incident_category
+    ),
+    end_counts AS (
+      SELECT incident_category, COUNT(*) AS end_incidents
+      FROM sf_incident_reports
+      WHERE incident_year = :end_year AND incident_category IS NOT NULL
+      GROUP BY incident_category
+    )
+    SELECT
+      COALESCE(e.incident_category, s.incident_category) AS incident_category,
+      COALESCE(s.start_incidents, 0) AS start_incidents,
+      COALESCE(e.end_incidents, 0) AS end_incidents,
+      COALESCE(e.end_incidents, 0) - COALESCE(s.start_incidents, 0) AS absolute_change,
+      ROUND((COALESCE(e.end_incidents, 0) - COALESCE(s.start_incidents, 0)) * 100.0 / NULLIF(s.start_incidents, 0), 1) AS pct_change
+    FROM start_counts s
+    FULL OUTER JOIN end_counts e ON s.incident_category = e.incident_category
+    WHERE COALESCE(s.start_incidents, 0) >= :min_baseline OR COALESCE(e.end_incidents, 0) >= :min_baseline
+    ORDER BY pct_change DESC
+  parameters:
+  - name: start_year
+    type: integer
+    description: Start year of the range
+    required: false
+    default: 2018
+  - name: end_year
+    type: integer
+    description: End year of the range
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum incidents to include
+    required: false
+    default: 50
+  nl_examples:
+  - Which SF crime types grew the most between 2018 and 2024?
+  - What crimes increased or decreased in San Francisco from 2019 to 2023?
+  - Compare incident categories between two years in SF
+  - Which SF crime categories changed the most from 2020 to 2024?
+  - Long-range crime type growth in San Francisco
+  - What types of crime are up or down in SF since 2018?
+  - Multi-year change by incident category in San Francisco
+  - Did motor vehicle theft grow between 2018 and 2022 in SF?
+  - Which SF crime types saw the biggest shift from 2019 to 2024?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [incident_category, growth, year_range]
+  tags: [policy, growth, year-range, incident-type, insight]
+
+- id: year_range_comparison
+  description: Compare overall SF crime totals between two arbitrary years with breakdown
+  sql: |
+    SELECT
+      :start_year AS start_year,
+      :end_year AS end_year,
+      (SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :start_year) AS start_incidents,
+      (SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :end_year) AS end_incidents,
+      (SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :end_year) -
+        (SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :start_year) AS absolute_change,
+      ROUND(((SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :end_year) -
+             (SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :start_year)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM sf_incident_reports WHERE incident_year = :start_year), 0), 1) AS pct_change,
+      (SELECT incident_category FROM sf_incident_reports WHERE incident_year = :end_year AND incident_category IS NOT NULL
+       GROUP BY incident_category ORDER BY COUNT(*) DESC LIMIT 1) AS top_category_end_year,
+      (SELECT analysis_neighborhood FROM sf_incident_reports WHERE incident_year = :end_year AND analysis_neighborhood IS NOT NULL
+       GROUP BY analysis_neighborhood ORDER BY COUNT(*) DESC LIMIT 1) AS top_neighborhood_end_year
+  parameters:
+  - name: start_year
+    type: integer
+    description: Start year to compare
+    required: false
+    default: 2018
+  - name: end_year
+    type: integer
+    description: End year to compare
+    required: false
+    default: 2024
+  nl_examples:
+  - How does SF crime in 2024 compare to 2018?
+  - Compare San Francisco crime between 2019 and 2023
+  - Total crime change in SF from 2018 to 2024
+  - How much has San Francisco crime changed between 2020 and 2024?
+  - San Francisco crime comparison across a multi-year span
+  - Did overall SF crime go up or down from 2018 to 2022?
+  - Compare total incidents in San Francisco between two specific years
+  - What is the percentage change in SF crime from 2019 to 2024?
+  - Multi-year overall crime change in San Francisco
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: sf_incident_reports
+    qualifiers: [year_range, overview]
+  tags: [comparison, year-range, overview, insight]

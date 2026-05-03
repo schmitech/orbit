@@ -1,0 +1,1462 @@
+status: completed
+generated_at: '2025-01-27T12:00:00.000000'
+last_updated: '2025-01-27T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 34
+templates:
+# =============================================================================
+# THEFT TRENDS & STATISTICS - Overall crime patterns
+# =============================================================================
+
+- id: yearly_theft_trends
+  description: Track year-over-year changes in auto theft incidents
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS total_thefts,
+      COUNT(CASE WHEN recovered = 'Y' THEN 1 END) AS recovered_count,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct,
+      ROUND(AVG(vehicle_value), 0) AS avg_vehicle_value
+    FROM auto_theft
+    GROUP BY year
+    ORDER BY year DESC
+  parameters: []
+  nl_examples:
+  - How has auto theft changed over the years in Ottawa?
+  - Show me yearly Ottawa auto theft trends
+  - What is the year-over-year Ottawa vehicle theft rate?
+  - Is auto theft increasing or decreasing in Ottawa?
+  - Track Ottawa vehicle theft over time
+  - How many auto thefts were there in Ottawa in 2023 compared to previous years?
+  - Is car theft getting worse in Ottawa?
+  - Year-over-year comparison of stolen vehicles in Ottawa
+  - How bad is the Ottawa auto theft problem historically?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [trends, yearly]
+  tags: [trends, yearly, strategic, crime-stats]
+
+- id: thefts_by_month
+  description: Analyze monthly theft patterns to identify seasonal trends
+  sql: |
+    SELECT
+      EXTRACT(MONTH FROM occurred_date) AS month,
+      CASE EXTRACT(MONTH FROM occurred_date)
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    WHERE year = :year AND occurred_date IS NOT NULL
+    GROUP BY EXTRACT(MONTH FROM occurred_date)
+    ORDER BY month
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which months have the most auto thefts in Ottawa?
+  - Show me seasonal patterns in Ottawa vehicle theft
+  - When do most Ottawa car thefts happen?
+  - Ottawa monthly auto theft breakdown
+  - What are the peak months for vehicle theft in Ottawa?
+  - Is car theft more common in summer or winter in Ottawa?
+  - Ottawa monthly stolen vehicle counts for 2024
+  - Are there seasonal spikes in Ottawa car theft?
+  - Which month had the highest number of Ottawa auto thefts in 2023?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [seasonal, monthly]
+  tags: [seasonal, monthly, patterns, trends]
+
+- id: thefts_by_time_of_day
+  description: Analyze when thefts occur throughout the day
+  sql: |
+    SELECT
+      time_of_day,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    WHERE year = :year AND time_of_day IS NOT NULL
+    GROUP BY time_of_day
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - When do most Ottawa car thefts happen during the day?
+  - Show me Ottawa auto thefts by time of day
+  - Does Ottawa car theft happen more at night or during the day?
+  - What time of day has the most Ottawa vehicle theft?
+  - Ottawa time of day analysis for auto theft
+  - Do car thefts mostly happen overnight in Ottawa?
+  - What time of day has the highest risk of car theft in Ottawa?
+  - Breakdown of Ottawa vehicle theft by morning, afternoon, evening, and night
+  - Are Ottawa stolen vehicles taken during daytime or after dark in 2024?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [time, patterns]
+  tags: [time-of-day, patterns, prevention]
+
+- id: thefts_by_weekday
+  description: Analyze which days of the week have the most thefts
+  sql: |
+    SELECT
+      weekday,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    WHERE year = :year AND weekday IS NOT NULL
+    GROUP BY weekday
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which day of the week has the most car thefts in Ottawa?
+  - Show me Ottawa vehicle thefts by day of week
+  - Is Ottawa car theft more common on weekends?
+  - What day of the week sees the most Ottawa vehicle theft?
+  - Ottawa weekday breakdown of auto theft
+  - Do more auto thefts happen on Fridays or Mondays in Ottawa?
+  - Is Ottawa car theft more likely on weekdays than weekends?
+  - Day-of-week distribution of Ottawa stolen vehicles in 2024
+  - Which days see the most Ottawa vehicle theft activity?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [weekday, patterns]
+  tags: [weekday, patterns, prevention]
+
+# =============================================================================
+# VEHICLE ANALYSIS - What vehicles are targeted
+# =============================================================================
+
+- id: most_stolen_vehicle_makes
+  description: Identify the most commonly stolen vehicle makes
+  sql: |
+    SELECT
+      vehicle_make,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct,
+      ROUND(AVG(vehicle_value), 0) AS avg_value
+    FROM auto_theft
+    WHERE year = :year AND vehicle_make IS NOT NULL
+    GROUP BY vehicle_make
+    ORDER BY theft_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of makes to return
+    required: false
+    default: 15
+  nl_examples:
+  - What are the most stolen car brands in Ottawa?
+  - Which vehicle makes have the most auto theft in Ottawa?
+  - Top Ottawa stolen car manufacturers
+  - Most targeted vehicle brands for auto theft in Ottawa
+  - What cars are targeted most for auto theft in Ottawa?
+  - Is Honda or Toyota auto theft more common in Ottawa?
+  - What makes of vehicle are most at risk of auto theft in Ottawa in 2024?
+  - Ranking of Ottawa car brands by auto theft frequency
+  - Which Ottawa auto manufacturers have the highest vehicle theft risk?
+  - How popular are Hondas in Ottawa auto theft?
+  - How popular are Audis as theft targets in Ottawa?
+  - How popular is Toyota for auto theft in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: auto_theft
+    qualifiers: [vehicle_make, ranking]
+  tags: [vehicle-make, ranking, prevention, top]
+
+- id: most_stolen_vehicle_models
+  description: Identify the most commonly stolen vehicle models
+  sql: |
+    SELECT
+      vehicle_make,
+      vehicle_model,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct,
+      ROUND(AVG(vehicle_value), 0) AS avg_value
+    FROM auto_theft
+    WHERE year = :year AND vehicle_make IS NOT NULL AND vehicle_model IS NOT NULL
+    GROUP BY vehicle_make, vehicle_model
+    ORDER BY theft_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of models to return
+    required: false
+    default: 20
+  nl_examples:
+  - What are the most stolen car models in Ottawa?
+  - Which specific Ottawa vehicle models see the most auto theft?
+  - Top stolen vehicle models in Ottawa
+  - Most targeted Ottawa car models for vehicle theft
+  - What exact car models are being stolen in Ottawa auto thefts?
+  - Which Honda or Toyota model has the most auto theft in Ottawa?
+  - Top 10 stolen vehicle models in Ottawa in 2024
+  - What specific car models should I avoid buying in Ottawa to reduce auto theft risk?
+  - Most frequently stolen Ottawa car make and model combinations
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: auto_theft
+    qualifiers: [vehicle_model, ranking]
+  tags: [vehicle-model, ranking, prevention, top]
+
+- id: thefts_by_vehicle_style
+  description: Compare theft rates across vehicle types (car, truck, SUV, etc.)
+  sql: |
+    SELECT
+      vehicle_style,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct,
+      ROUND(AVG(vehicle_value), 0) AS avg_value
+    FROM auto_theft
+    WHERE year = :year AND vehicle_style IS NOT NULL
+    GROUP BY vehicle_style
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Is auto theft more common for trucks or cars in Ottawa?
+  - Show me Ottawa auto thefts by vehicle type
+  - What type of Ottawa vehicles have the most auto theft?
+  - Compare car vs truck vs SUV auto theft rates in Ottawa
+  - Ottawa vehicle style breakdown for auto thefts
+  - Are SUVs targeted more than sedans for car theft in Ottawa?
+  - What body style of vehicle has the most auto theft in Ottawa in 2024?
+  - How do auto theft rates compare across Ottawa vehicle types like pickup trucks, vans, and coupes?
+  - Which Ottawa vehicle category has the highest car theft rate?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: auto_theft
+    qualifiers: [vehicle_style]
+  tags: [vehicle-style, comparison, prevention]
+
+- id: thefts_by_vehicle_age
+  description: Analyze which vehicle ages are most targeted
+  sql: |
+    SELECT
+      :year - vehicle_year AS vehicle_age,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct,
+      ROUND(AVG(vehicle_value), 0) AS avg_value
+    FROM auto_theft
+    WHERE year = :year AND vehicle_year IS NOT NULL AND vehicle_year > 1980
+    GROUP BY vehicle_age
+    HAVING COUNT(*) >= 10
+    ORDER BY theft_count DESC
+    LIMIT 20
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Is auto theft more common for older or newer cars in Ottawa?
+  - What age vehicles are targeted most for auto theft in Ottawa?
+  - Show me Ottawa vehicle thefts by vehicle age
+  - Do Ottawa car theft targets tend to be older or newer vehicles?
+  - Ottawa vehicle age analysis for auto theft
+  - Is auto theft more common with brand new cars or older beaters in Ottawa?
+  - What model year vehicles are most at risk of vehicle theft in Ottawa in 2024?
+  - How does vehicle age correlate with Ottawa auto theft likelihood?
+  - Is a 10-year-old car in Ottawa at higher risk of auto theft than a new one?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [vehicle_age]
+  tags: [vehicle-age, patterns, analysis]
+
+# =============================================================================
+# LOCATION ANALYSIS - Where thefts occur
+# =============================================================================
+
+- id: thefts_by_neighbourhood
+  description: Identify neighbourhoods with the highest auto theft rates
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    WHERE year = :year AND neighbourhood IS NOT NULL
+    GROUP BY neighbourhood
+    ORDER BY theft_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of neighbourhoods to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which neighbourhoods have the most car thefts in Ottawa?
+  - Where in Ottawa is car theft most likely?
+  - Top Ottawa areas for auto theft
+  - Highest Ottawa crime neighbourhoods for vehicle theft
+  - Ottawa auto theft hotspots
+  - How bad is car theft in Ottawa Centretown compared to other neighbourhoods?
+  - What are the worst Ottawa neighbourhoods for stolen vehicles in 2024?
+  - Where in Ottawa should I be most careful about parking my car to avoid auto theft?
+  - Ottawa neighbourhood ranking by number of auto thefts
+  - From what neighbourhood are vehicles most frequently stolen in Ottawa?
+  - Which neighbourhood has the most stolen vehicles in Ottawa?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: auto_theft
+    qualifiers: [neighbourhood, ranking]
+  tags: [neighbourhood, hotspots, location, ranking]
+
+- id: thefts_by_ward
+  description: Analyze auto theft by city ward
+  sql: |
+    SELECT
+      ward,
+      councillor,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    WHERE year = :year AND ward IS NOT NULL
+    GROUP BY ward, councillor
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Ottawa wards have the most car thefts?
+  - Show me Ottawa auto theft by ward
+  - Ottawa auto theft statistics by city ward
+  - Which Ottawa councillor's ward has most vehicle theft?
+  - Ottawa ward-level auto theft analysis
+  - How does Ottawa Rideau-Vanier ward compare for auto theft?
+  - What Ottawa ward has the most stolen vehicles in 2024?
+  - Ottawa car theft breakdown by city councillor ward
+  - Which Ottawa ward should be prioritizing auto theft prevention?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [ward]
+  tags: [ward, location, political]
+
+- id: thefts_by_division
+  description: Compare auto theft across police divisions
+  sql: |
+    SELECT
+      division,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct,
+      ROUND(AVG(vehicle_value), 0) AS avg_value
+    FROM auto_theft
+    WHERE year = :year AND division IS NOT NULL
+    GROUP BY division
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Ottawa police division has the most auto theft?
+  - Compare Ottawa East vs Central vs West divisions for auto theft
+  - Show me Ottawa auto theft by police division
+  - Ottawa division-level auto theft comparison
+  - Where should Ottawa police focus auto theft prevention?
+  - How do Ottawa police divisions rank for vehicle theft in 2024?
+  - Is the Ottawa East division worse for car theft than Central?
+  - Analytical comparison of Ottawa stolen vehicle incidents across police divisions
+  - Which OPS division handles the most Ottawa auto theft cases?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: auto_theft
+    qualifiers: [division]
+  tags: [division, comparison, police]
+
+- id: thefts_by_sector
+  description: Analyze auto theft by police sector
+  sql: |
+    SELECT
+      sector,
+      division,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    WHERE year = :year AND sector IS NOT NULL
+    GROUP BY sector, division
+    ORDER BY theft_count DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of sectors to return
+    required: false
+    default: 20
+  nl_examples:
+  - Which Ottawa police sectors have the most auto theft?
+  - Show me Ottawa auto theft by sector
+  - Ottawa sector-level auto theft analysis
+  - Top Ottawa sectors for vehicle theft
+  - What Ottawa police sector has the highest number of stolen cars in 2024?
+  - How do Ottawa sectors compare for auto theft?
+  - Which Ottawa OPS sectors are the worst for car theft?
+  - Ottawa sector-by-sector breakdown of vehicle theft incidents
+  - Where are the Ottawa auto theft hotspots at the sector level?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: auto_theft
+    qualifiers: [sector, ranking]
+  tags: [sector, location, police]
+
+# =============================================================================
+# RECOVERY ANALYSIS - Vehicle recovery patterns
+# =============================================================================
+
+- id: recovery_rate_by_vehicle_make
+  description: Compare vehicle recovery rates by manufacturer
+  sql: |
+    SELECT
+      vehicle_make,
+      COUNT(*) AS total_stolen,
+      COUNT(CASE WHEN recovered = 'Y' THEN 1 END) AS recovered_count,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    WHERE year = :year AND vehicle_make IS NOT NULL
+    GROUP BY vehicle_make
+    HAVING COUNT(*) >= :min_thefts
+    ORDER BY recovery_rate_pct DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: min_thefts
+    type: integer
+    description: Minimum thefts to include
+    required: false
+    default: 20
+  nl_examples:
+  - Which car brands have the best stolen vehicle recovery rates in Ottawa?
+  - For Ottawa auto theft, are Hondas recovered more often than Toyotas?
+  - Ottawa stolen vehicle recovery rate by vehicle make
+  - What Ottawa stolen cars are most likely to be found?
+  - Ottawa stolen vehicle recovery comparison by manufacturer
+  - What are the stolen vehicle recovery chances for a Honda in Ottawa?
+  - Which auto brands have the lowest stolen vehicle recovery rates in Ottawa in 2024?
+  - Do luxury car brands have better stolen vehicle recovery rates than economy brands in Ottawa?
+  - How does Ottawa stolen car recovery rate vary by manufacturer?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: auto_theft
+    qualifiers: [recovery, vehicle_make]
+  tags: [recovery, vehicle-make, comparison]
+
+- id: recovery_rate_by_neighbourhood
+  description: Compare vehicle recovery rates by neighbourhood
+  sql: |
+    SELECT
+      neighbourhood,
+      COUNT(*) AS total_stolen,
+      COUNT(CASE WHEN recovered = 'Y' THEN 1 END) AS recovered_count,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    WHERE year = :year AND neighbourhood IS NOT NULL
+    GROUP BY neighbourhood
+    HAVING COUNT(*) >= :min_thefts
+    ORDER BY recovery_rate_pct DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: min_thefts
+    type: integer
+    description: Minimum thefts to include
+    required: false
+    default: 100
+  nl_examples:
+  - Which Ottawa neighbourhoods have the best stolen car recovery rates?
+  - Where in Ottawa are stolen cars most likely to be found?
+  - Ottawa stolen vehicle recovery rate by area
+  - Ottawa neighbourhood stolen vehicle recovery comparison
+  - Ottawa areas with lowest stolen vehicle recovery rates
+  - Is it easier to recover a stolen car in Barrhaven than in Vanier in Ottawa?
+  - Which Ottawa neighbourhoods have the worst stolen vehicle recovery rates in 2024?
+  - Where in Ottawa are stolen vehicles least likely to be recovered?
+  - Ottawa stolen vehicle recovery rate analysis by neighbourhood for 2023
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: auto_theft
+    qualifiers: [recovery, neighbourhood]
+  tags: [recovery, neighbourhood, comparison]
+
+- id: overall_recovery_stats
+  description: Get overall vehicle recovery statistics
+  sql: |
+    SELECT
+      COUNT(*) AS total_thefts,
+      COUNT(CASE WHEN recovered = 'Y' THEN 1 END) AS recovered,
+      COUNT(CASE WHEN recovered = 'N' THEN 1 END) AS not_recovered,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct,
+      ROUND(AVG(CASE WHEN recovered = 'Y' THEN vehicle_year END), 0) AS avg_recovered_year,
+      ROUND(AVG(CASE WHEN recovered = 'N' THEN vehicle_year END), 0) AS avg_not_recovered_year
+    FROM auto_theft
+    WHERE year = :year
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - What is the overall Ottawa stolen vehicle recovery rate?
+  - How many Ottawa stolen cars are recovered?
+  - Show me Ottawa stolen vehicle recovery statistics
+  - What percentage of Ottawa stolen cars are found?
+  - Ottawa stolen vehicle recovery rate overview
+  - How likely is it that my stolen car gets recovered in Ottawa?
+  - What are the overall Ottawa stolen vehicle recovery stats for 2024?
+  - Are most stolen vehicles in Ottawa eventually found?
+  - What fraction of Ottawa auto thefts result in the vehicle being recovered?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [recovery, statistics]
+  tags: [recovery, statistics, overview]
+
+# =============================================================================
+# VALUE ANALYSIS - Financial impact
+# =============================================================================
+
+- id: total_value_stolen
+  description: Calculate total value of stolen vehicles
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS total_thefts,
+      COUNT(vehicle_value) AS with_value_reported,
+      ROUND(SUM(vehicle_value), 0) AS total_value_stolen,
+      ROUND(AVG(vehicle_value), 0) AS avg_value,
+      MAX(vehicle_value) AS max_value
+    FROM auto_theft
+    WHERE vehicle_value IS NOT NULL AND vehicle_value > 0
+    GROUP BY year
+    ORDER BY year DESC
+  parameters: []
+  nl_examples:
+  - What is the total value of stolen vehicles in Ottawa?
+  - How much have Ottawa auto thefts cost?
+  - Financial impact of Ottawa auto theft
+  - Average value of stolen cars in Ottawa
+  - Total dollar amount of stolen vehicles in Ottawa
+  - How much money in stolen vehicles was lost in Ottawa in 2024?
+  - What is the economic impact of car theft on the city of Ottawa?
+  - What was the average value of a stolen vehicle in Ottawa in 2023?
+  - Total financial losses from Ottawa auto theft year over year
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [value, financial]
+  tags: [value, financial, impact, yearly]
+
+- id: highest_value_thefts
+  description: Find the highest value vehicle thefts
+  sql: |
+    SELECT
+      occurred_date,
+      vehicle_year,
+      vehicle_make,
+      vehicle_model,
+      vehicle_style,
+      vehicle_value,
+      neighbourhood,
+      recovered
+    FROM auto_theft
+    WHERE year = :year AND vehicle_value IS NOT NULL
+    ORDER BY vehicle_value DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: limit
+    type: integer
+    description: Number of records to return
+    required: false
+    default: 20
+  nl_examples:
+  - What are the most expensive stolen cars in Ottawa?
+  - Show me highest value Ottawa auto thefts
+  - Most valuable stolen vehicles in Ottawa
+  - Biggest Ottawa auto theft losses
+  - Expensive car thefts in Ottawa
+  - What was the priciest stolen car in Ottawa in 2024?
+  - Which high-value vehicles were involved in Ottawa auto theft?
+  - Top 20 most expensive stolen cars in Ottawa this year
+  - Has auto theft targeted any luxury vehicles in Ottawa recently?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: auto_theft
+    qualifiers: [value, ranking]
+  tags: [value, ranking, high-value]
+
+# =============================================================================
+# SPECIFIC QUERIES - Detailed lookups
+# =============================================================================
+
+- id: specific_make_analysis
+  description: Get detailed theft statistics for a specific vehicle make
+  sql: |
+    SELECT
+      vehicle_model,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct,
+      ROUND(AVG(vehicle_value), 0) AS avg_value
+    FROM auto_theft
+    WHERE vehicle_make ILIKE '%' || :vehicle_make || '%'
+      AND year = :year
+      AND vehicle_model IS NOT NULL
+    GROUP BY vehicle_model
+    ORDER BY theft_count DESC
+  parameters:
+  - name: vehicle_make
+    type: string
+    description: Vehicle make to analyze (e.g., Honda, Toyota)
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Show me Ottawa Honda auto theft details
+  - What Toyota models have the most auto theft in Ottawa?
+  - Ottawa Ford auto theft statistics
+  - Analyze Ottawa Hyundai auto theft
+  - Which Honda models are targeted for auto theft in Ottawa?
+  - Give me a detailed breakdown of Ottawa Kia auto theft by model
+  - What Chevrolet models are most common in Ottawa car theft reports?
+  - Which specific Hyundai models are most at risk of auto theft in Ottawa in 2023?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: auto_theft
+    qualifiers: [vehicle_make]
+  tags: [vehicle-make, detail, specific]
+
+- id: theft_count_by_vehicle_make
+  description: Total auto thefts for a vehicle make (all records with that make, including unknown model)
+  sql: |
+    SELECT
+      :year AS year,
+      :vehicle_make AS vehicle_make_filter,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) AS recovery_rate_pct,
+      ROUND(AVG(vehicle_value), 0) AS avg_vehicle_value
+    FROM auto_theft
+    WHERE year = :year
+      AND vehicle_make IS NOT NULL
+      AND LOWER(vehicle_make) LIKE '%' || LOWER(:vehicle_make) || '%'
+  parameters:
+  - name: vehicle_make
+    type: string
+    description: Vehicle make to match (partial, case-insensitive), e.g. Toyota, Lexus, Honda
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How many Toyota auto thefts were there in Ottawa?
+  - How many Toyota vehicle thefts were reported in Ottawa in 2024?
+  - Total Lexus auto thefts in Ottawa
+  - How many Lexus car thefts have been reported in Ottawa?
+  - Count of Honda auto thefts in Ottawa this year
+  - How many Ford vehicle thefts were reported in Ottawa?
+  - Number of Hyundai auto thefts in Ottawa in 2023
+  - How many BMW auto thefts happened in Ottawa last year?
+  - Please give me the number of stolen Audis in Ottawa
+  - How many stolen Audis are there in Ottawa?
+  - Give me the count of stolen Toyotas in Ottawa
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [vehicle_make, count]
+  tags: [vehicle-make, count, total, specific]
+
+- id: theft_count_by_vehicle_style
+  description: Total auto thefts where body style matches a substring (e.g. sedan, SUV, pickup)
+  sql: |
+    SELECT
+      :year AS year,
+      :vehicle_style AS vehicle_style_filter,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) AS recovery_rate_pct,
+      ROUND(AVG(vehicle_value), 0) AS avg_vehicle_value
+    FROM auto_theft
+    WHERE year = :year
+      AND vehicle_style IS NOT NULL
+      AND LOWER(vehicle_style) LIKE '%' || LOWER(:vehicle_style) || '%'
+  parameters:
+  - name: vehicle_style
+    type: string
+    description: Body style substring (case-insensitive), e.g. sedan, SUV, truck, van, pickup
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How many sedan auto thefts were there in Ottawa?
+  - How many sedan car thefts in Ottawa in 2024?
+  - Count of stolen vehicle SUVs in Ottawa
+  - How many pickup truck auto thefts were reported in Ottawa?
+  - Number of van auto thefts in Ottawa this year
+  - How many Ottawa stolen vehicle reports involved coupes?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [vehicle_style, count]
+  tags: [vehicle-style, count, total, body-type]
+
+- id: specific_neighbourhood_analysis
+  description: Get detailed theft statistics for a specific neighbourhood
+  sql: |
+    SELECT
+      vehicle_make,
+      vehicle_style,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    WHERE neighbourhood ILIKE '%' || :neighbourhood || '%'
+      AND year = :year
+    GROUP BY vehicle_make, vehicle_style
+    ORDER BY theft_count DESC
+    LIMIT 20
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial match)
+    required: true
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - Show me auto thefts in Centretown Ottawa
+  - What Ottawa car thefts happen in Vanier?
+  - Ottawa auto theft in Barrhaven
+  - Analyze auto thefts in Orleans Ottawa
+  - Kanata Ottawa auto theft details
+  - What vehicle thefts are happening in Ottawa Gloucester in 2024?
+  - Break down car theft by make and type for Ottawa Nepean
+  - How bad is the stolen vehicle problem in Ottawa Sandy Hill?
+  - What kind of car theft is most common in the Ottawa Byward Market area?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: auto_theft
+    qualifiers: [neighbourhood]
+  tags: [neighbourhood, detail, specific]
+
+- id: year_over_year_comparison
+  description: Compare theft statistics between two years
+  sql: |
+    SELECT
+      :current_year AS current_year,
+      :previous_year AS previous_year,
+      (SELECT COUNT(*) FROM auto_theft WHERE year = :current_year) AS current_thefts,
+      (SELECT COUNT(*) FROM auto_theft WHERE year = :previous_year) AS previous_thefts,
+      ROUND(((SELECT COUNT(*) FROM auto_theft WHERE year = :current_year) -
+             (SELECT COUNT(*) FROM auto_theft WHERE year = :previous_year)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM auto_theft WHERE year = :previous_year), 0), 1) AS change_pct
+  parameters:
+  - name: current_year
+    type: integer
+    description: Current year to compare
+    required: false
+    default: 2024
+  - name: previous_year
+    type: integer
+    description: Previous year to compare
+    required: false
+    default: 2023
+  nl_examples:
+  - Compare 2024 to 2023 Ottawa auto theft
+  - Year over year change in Ottawa vehicle theft
+  - How much has Ottawa auto theft increased?
+  - Compare this Ottawa year to last year for auto theft
+  - Ottawa vehicle theft trend comparison
+  - Did car theft go up or down from 2023 to 2024 in Ottawa?
+  - What is the percentage change in Ottawa stolen vehicles between last year and this year?
+  - How does 2024 Ottawa auto theft compare to 2022?
+  - Is Ottawa vehicle theft getting better or worse compared to the previous year?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: auto_theft
+    qualifiers: [yearly, change]
+  tags: [comparison, yearly, trend]
+
+# =============================================================================
+# REFERENCE DATA - System information
+# =============================================================================
+
+- id: list_neighbourhoods
+  description: List all neighbourhoods with theft data
+  sql: |
+    SELECT DISTINCT
+      neighbourhood,
+      COUNT(*) AS theft_count,
+      MIN(year) AS data_from,
+      MAX(year) AS data_to
+    FROM auto_theft
+    WHERE neighbourhood IS NOT NULL
+    GROUP BY neighbourhood
+    ORDER BY theft_count DESC
+  parameters: []
+  nl_examples:
+  - What neighbourhoods have Ottawa auto theft data?
+  - List all areas in the Ottawa auto theft database
+  - Which neighbourhoods are covered in the Ottawa vehicle theft dataset?
+  - Show me all Ottawa neighbourhoods with stolen vehicle records
+  - What Ottawa neighbourhoods are included in the auto theft dataset?
+  - Give me a list of all Ottawa areas with auto theft records
+  - Which communities in Ottawa have reported stolen vehicles?
+  - How many Ottawa neighbourhoods have auto theft data available?
+  - What Ottawa areas can I query for car theft information?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: auto_theft
+    qualifiers: [reference]
+  tags: [reference, neighbourhoods, metadata]
+
+- id: list_vehicle_makes
+  description: List all vehicle makes in the database
+  sql: |
+    SELECT DISTINCT
+      vehicle_make,
+      COUNT(*) AS theft_count
+    FROM auto_theft
+    WHERE vehicle_make IS NOT NULL
+    GROUP BY vehicle_make
+    ORDER BY theft_count DESC
+    LIMIT 50
+  parameters: []
+  nl_examples:
+  - What car brands are in the Ottawa auto theft database?
+  - List all Ottawa stolen vehicle makes
+  - Which manufacturers have stolen vehicles in Ottawa?
+  - Show me all car brands in the Ottawa auto theft data
+  - What vehicle makes are tracked in the Ottawa auto theft data?
+  - Give me a complete list of car manufacturers in the Ottawa auto theft dataset
+  - How many different car brands appear in Ottawa auto theft records?
+  - Which automakers appear in the Ottawa stolen vehicle records?
+  - What makes of car can I look up in the Ottawa auto theft data?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: auto_theft
+    qualifiers: [reference]
+  tags: [reference, vehicle-makes, metadata]
+
+- id: data_coverage
+  description: Show data coverage summary - years and records available
+  sql: |
+    SELECT
+      MIN(occurred_date) AS earliest_date,
+      MAX(occurred_date) AS latest_date,
+      COUNT(DISTINCT year) AS years_covered,
+      COUNT(*) AS total_records,
+      COUNT(DISTINCT neighbourhood) AS neighbourhoods,
+      COUNT(DISTINCT vehicle_make) AS vehicle_makes,
+      COUNT(DISTINCT ward) AS wards
+    FROM auto_theft
+  parameters: []
+  nl_examples:
+  - What Ottawa auto theft data is available?
+  - Show me Ottawa auto theft data coverage
+  - How much historical Ottawa auto theft data exists?
+  - "What is the date range of the Ottawa auto theft data?"
+  - Ottawa auto theft database summary
+  - How far back does the Ottawa auto theft data go?
+  - What years are covered in the Ottawa stolen vehicle dataset?
+  - How many total records are in the Ottawa auto theft database?
+  - What is the scope of the vehicle theft data for Ottawa?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [reference, metadata]
+  tags: [reference, coverage, metadata]
+
+# =============================================================================
+# INSIGHT GENERATORS - High-value analytical templates
+# =============================================================================
+
+- id: emerging_hotspots
+  description: Neighbourhoods with the biggest year-over-year increase in auto theft
+  sql: |
+    WITH yearly AS (
+      SELECT neighbourhood, year, COUNT(*) AS thefts
+      FROM auto_theft
+      WHERE neighbourhood IS NOT NULL
+      GROUP BY neighbourhood, year
+    ),
+    yoy AS (
+      SELECT
+        c.neighbourhood,
+        c.year,
+        c.thefts AS current_thefts,
+        p.thefts AS previous_thefts,
+        c.thefts - p.thefts AS absolute_change,
+        ROUND((c.thefts - p.thefts) * 100.0 / NULLIF(p.thefts, 0), 1) AS pct_change
+      FROM yearly c
+      JOIN yearly p ON c.neighbourhood = p.neighbourhood AND c.year = p.year + 1
+    )
+    SELECT neighbourhood, current_thefts, previous_thefts, absolute_change, pct_change
+    FROM yoy
+    WHERE year = :year AND previous_thefts >= :min_baseline
+    ORDER BY pct_change DESC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum thefts in previous year to filter noise
+    required: false
+    default: 5
+  - name: limit
+    type: integer
+    description: Number of results
+    required: false
+    default: 100
+  nl_examples:
+  - Which Ottawa neighbourhoods saw the biggest increase in auto theft?
+  - Where in Ottawa is auto theft surging?
+  - Emerging Ottawa auto theft hotspots
+  - Ottawa neighbourhoods getting worse for car theft
+  - Where in Ottawa did vehicle theft spike this year?
+  - What areas in Ottawa are seeing the fastest growth in stolen vehicles in 2024?
+  - Which Ottawa communities went from low to high car theft?
+  - Where should Ottawa Police focus new auto theft resources?
+  - Are there any Ottawa neighbourhoods with a sudden jump in vehicle theft?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: auto_theft
+    qualifiers: [hotspots, change, emerging]
+  tags: [hotspots, trends, journalist, insight]
+
+- id: improving_areas
+  description: Neighbourhoods with the biggest year-over-year decrease in auto theft
+  sql: |
+    WITH yearly AS (
+      SELECT neighbourhood, year, COUNT(*) AS thefts
+      FROM auto_theft
+      WHERE neighbourhood IS NOT NULL
+      GROUP BY neighbourhood, year
+    ),
+    yoy AS (
+      SELECT
+        c.neighbourhood,
+        c.year,
+        c.thefts AS current_thefts,
+        p.thefts AS previous_thefts,
+        c.thefts - p.thefts AS absolute_change,
+        ROUND((c.thefts - p.thefts) * 100.0 / NULLIF(p.thefts, 0), 1) AS pct_change
+      FROM yearly c
+      JOIN yearly p ON c.neighbourhood = p.neighbourhood AND c.year = p.year + 1
+    )
+    SELECT neighbourhood, current_thefts, previous_thefts, absolute_change, pct_change
+    FROM yoy
+    WHERE year = :year AND previous_thefts >= :min_baseline
+    ORDER BY pct_change ASC
+    LIMIT :limit
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  - name: min_baseline
+    type: integer
+    description: Minimum thefts in previous year to filter noise
+    required: false
+    default: 5
+  - name: limit
+    type: integer
+    description: Number of results
+    required: false
+    default: 100
+  nl_examples:
+  - Which Ottawa neighbourhoods improved the most for auto theft?
+  - Where in Ottawa is auto theft declining?
+  - Ottawa areas getting safer from car theft
+  - Biggest drops in Ottawa vehicle theft
+  - Where in Ottawa did auto theft decrease?
+  - What Ottawa neighbourhoods saw fewer stolen vehicles in 2024?
+  - Which Ottawa areas are successfully reducing car theft?
+  - Where has Ottawa auto theft prevention been most effective?
+  - Are any Ottawa communities seeing a significant decline in vehicle theft?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: auto_theft
+    qualifiers: [improving, change]
+  tags: [improving, trends, journalist, insight]
+
+- id: record_breakers
+  description: Check if the current year set any records compared to all prior years
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS total_thefts,
+      RANK() OVER (ORDER BY COUNT(*) DESC) AS rank_worst,
+      ROUND(AVG(vehicle_year), 0) AS avg_vehicle_year,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    GROUP BY year
+    ORDER BY total_thefts DESC
+  parameters: []
+  nl_examples:
+  - Is this the worst year for auto theft in Ottawa?
+  - Record-breaking Ottawa auto theft years
+  - Which year had the most car thefts in Ottawa?
+  - All-time Ottawa auto theft ranking by year
+  - Has Ottawa auto theft hit a new record?
+  - Was 2024 a record year for stolen vehicles in Ottawa?
+  - What year had the highest number of Ottawa auto thefts ever?
+  - How does this year rank compared to all previous years for Ottawa car theft?
+  - Did Ottawa break any auto theft records recently?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: auto_theft
+    qualifiers: [records, ranking]
+  tags: [records, ranking, journalist, insight]
+
+- id: crime_concentration
+  description: How concentrated is auto theft — what percentage happens in the top neighbourhoods
+  sql: |
+    WITH ranked AS (
+      SELECT
+        neighbourhood,
+        COUNT(*) AS thefts,
+        SUM(COUNT(*)) OVER () AS total,
+        ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rank
+      FROM auto_theft
+      WHERE year = :year AND neighbourhood IS NOT NULL
+      GROUP BY neighbourhood
+    )
+    SELECT
+      CASE
+        WHEN rank <= 5 THEN 'Top 5 neighbourhoods'
+        WHEN rank <= 10 THEN 'Top 6-10'
+        WHEN rank <= 20 THEN 'Top 11-20'
+        ELSE 'All others'
+      END AS tier,
+      SUM(thefts) AS thefts,
+      ROUND(SUM(thefts) * 100.0 / MAX(total), 1) AS pct_of_total,
+      COUNT(*) AS neighbourhood_count
+    FROM ranked
+    GROUP BY CASE
+      WHEN rank <= 5 THEN 'Top 5 neighbourhoods'
+      WHEN rank <= 10 THEN 'Top 6-10'
+      WHEN rank <= 20 THEN 'Top 11-20'
+      ELSE 'All others'
+    END
+    ORDER BY MIN(rank)
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How concentrated is auto theft across Ottawa neighbourhoods?
+  - Do a few Ottawa areas account for most auto thefts?
+  - Ottawa auto theft concentration analysis
+  - What percentage of Ottawa vehicle theft happens in the top areas?
+  - Is Ottawa auto theft spread evenly or concentrated?
+  - Do the top 5 neighbourhoods account for most of Ottawa's car theft?
+  - How much of the Ottawa stolen vehicle problem is driven by a handful of areas?
+  - Is Ottawa vehicle theft a city-wide issue or localized to certain hotspots?
+  - What share of total Ottawa auto thefts come from the worst neighbourhoods in 2024?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [concentration, equity]
+  tags: [concentration, policy, researcher, insight]
+
+- id: seasonal_deviation
+  description: Compare recent months to their historical average to spot anomalies
+  sql: |
+    WITH monthly_avg AS (
+      SELECT
+        month,
+        ROUND(AVG(cnt), 1) AS historical_avg
+      FROM (
+        SELECT EXTRACT(MONTH FROM occurred_date) AS month, year, COUNT(*) AS cnt
+        FROM auto_theft
+        WHERE occurred_date IS NOT NULL AND year < :year
+        GROUP BY month, year
+      )
+      GROUP BY month
+    ),
+    current AS (
+      SELECT
+        EXTRACT(MONTH FROM occurred_date) AS month,
+        COUNT(*) AS current_count
+      FROM auto_theft
+      WHERE year = :year AND occurred_date IS NOT NULL
+      GROUP BY EXTRACT(MONTH FROM occurred_date)
+    )
+    SELECT
+      c.month,
+      CASE c.month
+        WHEN 1 THEN 'January' WHEN 2 THEN 'February' WHEN 3 THEN 'March'
+        WHEN 4 THEN 'April' WHEN 5 THEN 'May' WHEN 6 THEN 'June'
+        WHEN 7 THEN 'July' WHEN 8 THEN 'August' WHEN 9 THEN 'September'
+        WHEN 10 THEN 'October' WHEN 11 THEN 'November' WHEN 12 THEN 'December'
+      END AS month_name,
+      c.current_count,
+      a.historical_avg,
+      c.current_count - a.historical_avg AS deviation,
+      ROUND((c.current_count - a.historical_avg) * 100.0 / NULLIF(a.historical_avg, 0), 1) AS deviation_pct
+    FROM current c
+    JOIN monthly_avg a ON c.month = a.month
+    ORDER BY ABS(c.current_count - a.historical_avg) DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to compare against historical average
+    required: false
+    default: 2024
+  nl_examples:
+  - Which Ottawa months were unusual for auto theft this year?
+  - Is this month above or below average for Ottawa car theft?
+  - Ottawa seasonal anomalies in auto theft
+  - Ottawa months that deviate from the historical auto theft pattern
+  - Unusual Ottawa vehicle theft patterns this year
+  - Were any months in 2024 abnormally high for Ottawa stolen vehicles compared to the average?
+  - How does each month this year compare to the historical Ottawa norm for car theft?
+  - Did any month in Ottawa have a surprising spike or drop in auto theft?
+  - Which months in 2023 deviated most from their long-term Ottawa auto theft average?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: auto_theft
+    qualifiers: [seasonal, anomaly]
+  tags: [seasonal, anomaly, researcher, insight]
+
+- id: reporting_lag_analysis
+  description: Analyze the gap between when thefts occur and when they are reported
+  sql: |
+    SELECT
+      CASE
+        WHEN occurred_date = reported_date THEN 'Same day'
+        WHEN reported_date - occurred_date = 1 THEN 'Next day'
+        WHEN reported_date - occurred_date BETWEEN 2 AND 7 THEN '2-7 days'
+        WHEN reported_date - occurred_date BETWEEN 8 AND 30 THEN '8-30 days'
+        WHEN reported_date - occurred_date > 30 THEN 'Over 30 days'
+        ELSE 'Unknown'
+      END AS reporting_delay,
+      COUNT(*) AS theft_count,
+      ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS percentage,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    WHERE year = :year AND occurred_date IS NOT NULL AND reported_date IS NOT NULL
+    GROUP BY reporting_delay
+    ORDER BY theft_count DESC
+  parameters:
+  - name: year
+    type: integer
+    description: Year to analyze
+    required: false
+    default: 2024
+  nl_examples:
+  - How quickly are auto thefts reported in Ottawa?
+  - What is the reporting delay for Ottawa car theft?
+  - Time between Ottawa vehicle theft and report
+  - Are Ottawa auto thefts reported the same day?
+  - Does reporting delay affect Ottawa stolen vehicle recovery?
+  - How long does it take Ottawa residents to report a stolen vehicle?
+  - What percentage of Ottawa car thefts are reported within 24 hours in 2024?
+  - Does waiting to report a stolen car in Ottawa hurt the chances of recovery?
+  - Analyze the gap between when an Ottawa vehicle theft occurs and when police are notified
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [reporting, delay]
+  tags: [reporting, delay, researcher, insight]
+
+- id: neighbourhood_safety_trend
+  description: Is a specific neighbourhood getting safer or more dangerous over a 3-year window
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS thefts,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct,
+      COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY year) AS change_from_prior,
+      ROUND((COUNT(*) - LAG(COUNT(*)) OVER (ORDER BY year)) * 100.0 /
+        NULLIF(LAG(COUNT(*)) OVER (ORDER BY year), 0), 1) AS pct_change
+    FROM auto_theft
+    WHERE neighbourhood ILIKE '%' || :neighbourhood || '%'
+    GROUP BY year
+    ORDER BY year DESC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial match)
+    required: true
+  nl_examples:
+  - Is Ottawa Centretown getting safer from car theft?
+  - Ottawa auto theft trend for Barrhaven
+  - Is Ottawa Vanier getting worse for car theft?
+  - Multi-year Ottawa auto theft trend for Orleans
+  - How has Ottawa auto theft changed in Kanata?
+  - Is the Ottawa stolen vehicle problem in Gloucester improving or getting worse?
+  - Show me the 3-year Ottawa car theft trend for Nepean
+  - Has Ottawa auto theft gone up or down in Sandy Hill over the past few years?
+  - Year-over-year Ottawa auto theft safety trend for the Byward Market neighbourhood
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [neighbourhood, safety, trend]
+  tags: [neighbourhood, safety, trend, public, insight]
+
+- id: neighbourhood_thefts_year_range
+  description: Auto theft counts for a neighbourhood within an inclusive calendar-year range
+  sql: |
+    SELECT
+      year,
+      COUNT(*) AS thefts,
+      ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1) AS recovery_rate_pct
+    FROM auto_theft
+    WHERE neighbourhood ILIKE '%' || :neighbourhood || '%'
+      AND year BETWEEN :start_year AND :end_year
+    GROUP BY year
+    ORDER BY year ASC
+  parameters:
+  - name: neighbourhood
+    type: string
+    description: Neighbourhood name (partial match, e.g. Barrhaven)
+    required: true
+  - name: start_year
+    type: integer
+    description: First year in range (inclusive)
+    required: false
+    default: 2023
+  - name: end_year
+    type: integer
+    description: Last year in range (inclusive)
+    required: false
+    default: 2025
+  nl_examples:
+  - Ottawa auto thefts in Barrhaven 2023 to 2025
+  - How many car thefts were there in Ottawa Centretown from 2022 through 2024?
+  - Ottawa Vanier auto theft counts by year between 2021 and 2024
+  - Ottawa Orleans vehicle thefts 2023-2025 yearly breakdown
+  - Ottawa Kanata stolen cars per year from 2020 to 2024
+  - Ottawa Nepean auto theft 2023 through 2025
+  - Ottawa Gloucester car thefts by year 2022 to 2025
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [neighbourhood, yearly, range]
+  tags: [neighbourhood, yearly, range, location, insight]
+
+- id: city_snapshot
+  description: Quick city-wide pulse — total thefts, trend direction, top concern, top area
+  sql: |
+    SELECT
+      :year AS year,
+      (SELECT COUNT(*) FROM auto_theft WHERE year = :year) AS total_thefts,
+      (SELECT COUNT(*) FROM auto_theft WHERE year = :year - 1) AS previous_year_thefts,
+      ROUND(((SELECT COUNT(*) FROM auto_theft WHERE year = :year) -
+             (SELECT COUNT(*) FROM auto_theft WHERE year = :year - 1)) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM auto_theft WHERE year = :year - 1), 0), 1) AS yoy_change_pct,
+      (SELECT vehicle_make FROM auto_theft WHERE year = :year AND vehicle_make IS NOT NULL
+       GROUP BY vehicle_make ORDER BY COUNT(*) DESC LIMIT 1) AS most_stolen_make,
+      (SELECT neighbourhood FROM auto_theft WHERE year = :year AND neighbourhood IS NOT NULL
+       GROUP BY neighbourhood ORDER BY COUNT(*) DESC LIMIT 1) AS top_neighbourhood,
+      (SELECT ROUND(COUNT(CASE WHEN recovered = 'Y' THEN 1 END) * 100.0 / COUNT(*), 1)
+       FROM auto_theft WHERE year = :year) AS recovery_rate_pct
+  parameters:
+  - name: year
+    type: integer
+    description: Year to summarize
+    required: false
+    default: 2024
+  nl_examples:
+  - Give me an Ottawa auto theft summary for this year
+  - Quick overview of Ottawa vehicle theft
+  - Ottawa auto theft snapshot
+  - How is Ottawa auto theft doing this year?
+  - City-wide Ottawa auto theft pulse
+  - What does the auto theft picture look like in Ottawa for 2024?
+  - Give me a high-level Ottawa summary of stolen vehicles this year
+  - How bad is car theft in Ottawa right now?
+  - Quick Ottawa dashboard view of vehicle theft stats for the city
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: auto_theft
+    qualifiers: [snapshot, overview]
+  tags: [snapshot, overview, public, dashboard, insight]

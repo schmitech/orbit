@@ -1,0 +1,121 @@
+# =============================================================================
+# Orbit Adapters Database Configuration
+# =============================================================================
+# This file defines the datasets used to generate DuckDB databases.
+# It is read by `utils/duckdb/generate_duckdbs.py`.
+#
+# Field Reference:
+#   description:  Human-readable description of the dataset.
+#   url:          (Optional) URL to download the CSV from. Set to null to use local file only.
+#   csv_path:     Local path to the CSV file (source or download destination).
+#   schema_path:  Path to the SQL file containing CREATE TABLE/INDEX statements.
+#   output_path:  Path where the resulting DuckDB file will be saved.
+#   config_path:  (Optional) Path to a YAML file for advanced column mapping/transformations.
+#   split_size:   (Optional) Split CSVs larger than this (MB) into chunks before loading.
+# =============================================================================
+
+datasets:
+  ottawa-auto-theft:
+    description: "Ottawa Auto Theft (2018-present)"
+    url: null
+    csv_path: "./crime-stats/ottawa/auto-theft/Auto_Theft_Open_Data_2158590371504723284.csv"
+    schema_path: "./crime-stats/ottawa/auto-theft/auto_theft.sql"
+    output_path: "./crime-stats/ottawa/auto-theft/auto_theft.duckdb"
+    config_path: "./crime-stats/ottawa/auto-theft/import_config.yaml"
+
+  ottawa-criminal-offences:
+    description: "Ottawa Criminal Offences (2018-present)"
+    url: null
+    csv_path: "./crime-stats/ottawa/criminal-offences/Criminal_Offences_Open_Data_-621494644292511792.csv"
+    schema_path: "./crime-stats/ottawa/criminal-offences/criminal_offences.sql"
+    output_path: "./crime-stats/ottawa/criminal-offences/criminal_offences.duckdb"
+    config_path: "./crime-stats/ottawa/criminal-offences/import_config.yaml"
+
+  toronto-auto-theft:
+    description: "Toronto Auto Theft (2014-present)"
+    url: null
+    csv_path: "./crime-stats/toronto/auto-theft/Auto_Theft_Open_Data_3636037395679683176.csv"
+    schema_path: "./crime-stats/toronto/auto-theft/toronto_police_auto_theft.sql"
+    output_path: "./crime-stats/toronto/auto-theft/toronto_police_auto_theft.duckdb"
+    config_path: "./crime-stats/toronto/auto-theft/import_config.yaml"
+
+  toronto-safety-indicators:
+    description: "Toronto Safety Indicators / Major Crime Indicators (2014-2025 reports)"
+    url: null
+    csv_path: "./crime-stats/toronto/safety-indicators/Major_Crime_Indicators_Open_Data_-4289692410590149445.csv"
+    schema_path: "./crime-stats/toronto/safety-indicators/safety_indicators.sql"
+    output_path: "./crime-stats/toronto/safety-indicators/safety_indicators.duckdb"
+    config_path: "./crime-stats/toronto/safety-indicators/import_config.yaml"
+
+  montreal-actes-criminels:
+    description: "Montréal Actes Criminels (2015-2024)"
+    url: null
+    csv_path: "./crime-stats/montreal-police/actes-criminels-geo.csv"
+    schema_path: "./crime-stats/montreal-police/actes_criminels.sql"
+    output_path: "./crime-stats/montreal-police/actes_criminels.duckdb"
+    config_path: "./crime-stats/montreal-police/import_config.yaml"
+
+  edmonton-occurrences:
+    description: "Edmonton Crime Stats (2023-present)"
+    url: null
+    csv_path: "./crime-stats/edmonton-police/edmonton-occurrences.csv"
+    schema_path: "./crime-stats/edmonton-police/occurrences.sql"
+    output_path: "./crime-stats/edmonton-police/occurrences.duckdb"
+    config_path: "./crime-stats/edmonton-police/import_config.yaml"
+
+  vancouver-crime:
+    description: "Vancouver Crime Stats (2003-present)"
+    url: null
+    csv_path: "./crime-stats/vancouver/vancouver-crime.csv"
+    schema_path: "./crime-stats/vancouver/crime_data.sql"
+    output_path: "./crime-stats/vancouver/crime_data.duckdb"
+    config_path: "./crime-stats/vancouver/import_config.yaml"
+
+  toronto-robbery:
+    description: "Toronto Robbery Stats (2014-2025)"
+    url: null
+    csv_path: "./crime-stats/toronto/robbery/Robbery_Open_Data_1445483808884001275.csv"
+    schema_path: "./crime-stats/toronto/robbery/robbery.sql"
+    output_path: "./crime-stats/toronto/robbery/robbery.duckdb"
+    config_path: "./crime-stats/toronto/robbery/import_config.yaml"
+
+  winnipeg-crime-ucr:
+    description: "Winnipeg Crime Stats (2017-present)"
+    url: null
+    csv_path: "./crime-stats/winnipeg/ucr_stats_data_5YR_public_2mthlag.csv"
+    schema_path: "./crime-stats/winnipeg/winnipeg_crime_ucr.sql"
+    output_path: "./crime-stats/winnipeg/winnipeg_crime_ucr.duckdb"
+    config_path: "./crime-stats/winnipeg/import_config.yaml"
+
+  ottawa-bicycle-theft:
+    description: "Ottawa Bicycle Theft (2018-2024)"
+    url: null
+    csv_path: "./crime-stats/ottawa/bicycle-theft/Bike_Theft_Open_Data_5024407253597913667.csv"
+    schema_path: "./crime-stats/ottawa/bicycle-theft/bicycle_theft.sql"
+    output_path: "./crime-stats/ottawa/bicycle-theft/bicycle_theft.duckdb"
+    config_path: "./crime-stats/ottawa/bicycle-theft/import_config.yaml"
+
+  toronto-bicycle-theft:
+    description: "Toronto Bicycle Theft (2014-2025)"
+    url: null
+    csv_path: "./crime-stats/toronto/bicycle-theft/Bicycle_Thefts_Open_Data_-4169166835019958525.csv"
+    schema_path: "./crime-stats/toronto/bicycle-theft/bicycle_theft.sql"
+    output_path: "./crime-stats/toronto/bicycle-theft/bicycle_theft.duckdb"
+    config_path: "./crime-stats/toronto/bicycle-theft/import_config.yaml"
+
+  toronto-break-and-enter:
+    description: "Toronto Break and Enter (2014-2025)"
+    url: null
+    csv_path: "./crime-stats/toronto/break-and-enter/Break_and_Enter_Open_Data_1917561619063639397.csv"
+    schema_path: "./crime-stats/toronto/break-and-enter/break_and_enter.sql"
+    output_path: "./crime-stats/toronto/break-and-enter/break_and_enter.duckdb"
+    config_path: "./crime-stats/toronto/break-and-enter/import_config.yaml"
+
+  sf-police-incident-reports:
+    description: "San Francisco Incident Reports (2018-present)"
+    url: null
+    csv_path: "./crime-stats/san-francisco/Police_Department_Incident_Reports__2018_to_Present_20260411.csv"
+    schema_path: "./crime-stats/san-francisco/police_department_incident_reports.sql"
+    output_path: "./crime-stats/san-francisco/police_department_incident_reports.duckdb"
+    config_path: "./crime-stats/san-francisco/import_config.yaml"
+    split_size: 100

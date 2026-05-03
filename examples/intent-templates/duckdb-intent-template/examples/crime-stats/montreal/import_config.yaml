@@ -1,0 +1,11 @@
+column_mapping:
+  categorie: "CATEGORIE"
+  date_evenement: "DATE"
+  quart: "QUART"
+  pdq: "PDQ"
+  x: "X"
+  y: "Y"
+  longitude: "LONGITUDE"
+  latitude: "LATITUDE"
+  arrondissement: "arrondissement"
+auto_id: true
