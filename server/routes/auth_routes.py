@@ -200,13 +200,12 @@ async def get_current_user_info(
             detail=f"Internal server error while getting user info: {str(e)}"
         )
 
-@auth_router.get("/users", response_model=List[UserResponse])
+@auth_router.get("/users", response_model=List[UserResponse], dependencies=[Depends(require_admin)])
 async def list_users(
     role: Optional[str] = None,
     active_only: bool = False,
     limit: int = 100,
     offset: int = 0,
-    admin_user = Depends(require_admin),
     auth_service = Depends(get_auth_service)
 ):
     """
@@ -275,10 +274,9 @@ async def list_users(
             detail=f"Internal server error while listing users: {str(e)}"
         )
 
-@auth_router.get("/users/by-username", response_model=UserByUsernameResponse)
+@auth_router.get("/users/by-username", response_model=UserByUsernameResponse, dependencies=[Depends(require_admin)])
 async def get_user_by_username(
     username: str,
-    admin_user = Depends(require_admin),
     auth_service = Depends(get_auth_service)
 ):
     """

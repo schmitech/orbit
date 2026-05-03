@@ -903,9 +903,11 @@ class RouteConfigurator:
         """Include admin routes, auth routes, and health routes."""
         from routes.admin_routes import admin_router
         from routes.auth_routes import auth_router
-        
+        from routes.discovery_routes import discovery_router
+
         # Include existing routers
         app.include_router(admin_router)
+        app.include_router(discovery_router)
 
         # Authentication is always enabled - include auth router
         app.include_router(auth_router)

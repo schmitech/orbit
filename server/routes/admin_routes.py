@@ -14,19 +14,17 @@ import yaml
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
-from fastapi import APIRouter, Request, Depends, HTTPException, Header, Query, Body
+from typing import List, Optional
+from fastapi import APIRouter, Request, Depends, HTTPException, Query, Body
 import markdown
 import nh3
 
-from utils import is_true_value
 from models.schema import (
     ApiKeyCreate, ApiKeyResponse, ApiKeyUpdate,
     SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse,
-    ApiKeyPromptAssociate, ChatHistoryClearResponse, AdapterReloadResponse,
+    ApiKeyPromptAssociate, AdapterReloadResponse,
     TemplateReloadResponse, TemplateTestRequest, ApiKeyQuota, ApiKeyQuotaUpdate,
     ApiKeyUsage, ApiKeyQuotaResponse,
-    SkillInfo, SkillsResponse, AdapterSkillsResponse,
 )
 from config.config_manager import reload_adapters_config
 
@@ -164,11 +162,10 @@ async def admin_auth_check(
 
 
 # API Key Management Routes
-@admin_router.post("/api-keys", response_model=ApiKeyResponse)
+@admin_router.post("/api-keys", response_model=ApiKeyResponse, dependencies=[Depends(admin_auth_check)])
 async def create_api_key(
     api_key_data: ApiKeyCreate,
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Create a new API key for accessing the server.
@@ -223,7 +220,7 @@ async def create_api_key(
     return api_key_response
 
 
-@admin_router.get("/api-keys")
+@admin_router.get("/api-keys", dependencies=[Depends(admin_auth_check)])
 async def list_api_keys(
     request: Request,
     collection: Optional[str] = None,
@@ -231,7 +228,6 @@ async def list_api_keys(
     active_only: bool = False,
     limit: int = 100,
     offset: int = 0,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     List all API keys in the system with optional filtering and pagination.
@@ -361,11 +357,10 @@ async def list_api_keys(
         raise HTTPException(status_code=500, detail=f"Failed to list API keys: {str(e)}")
 
 
-@admin_router.get("/api-keys/{api_key_id}/detail")
+@admin_router.get("/api-keys/{api_key_id}/detail", dependencies=[Depends(admin_auth_check)])
 async def get_api_key_detail(
     api_key_id: str,
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Get admin-only detail for a specific API key record, including the raw key value."""
     api_key_service = getattr(request.app.state, 'api_key_service', None)
@@ -427,11 +422,10 @@ async def get_api_key_detail(
         raise HTTPException(status_code=500, detail=f"Failed to retrieve API key detail: {str(e)}")
 
 
-@admin_router.get("/api-keys/{api_key_id}/status")
+@admin_router.get("/api-keys/{api_key_id}/status", dependencies=[Depends(admin_auth_check)])
 async def get_api_key_status(
     api_key_id: str,
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Get the status of a specific API key.
@@ -450,12 +444,11 @@ async def get_api_key_status(
     return status
 
 
-@admin_router.patch("/api-keys/{api_key_id}/rename")
+@admin_router.patch("/api-keys/{api_key_id}/rename", dependencies=[Depends(admin_auth_check)])
 async def rename_api_key(
     api_key_id: str,
     new_api_key: str = Query(..., min_length=8, description="New API key value"),
     request: Request = None,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Rename an API key by record ID.
@@ -477,12 +470,11 @@ async def rename_api_key(
     return {"status": "success", "message": "API key renamed successfully", "new_api_key_masked": masked_new}
 
 
-@admin_router.put("/api-keys/{api_key_id}")
+@admin_router.put("/api-keys/{api_key_id}", dependencies=[Depends(admin_auth_check)])
 async def update_api_key(
     api_key_id: str,
     data: ApiKeyUpdate,
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Update editable API key metadata by record ID."""
     api_key_service = getattr(request.app.state, 'api_key_service', None)
@@ -508,11 +500,10 @@ async def update_api_key(
     return {"status": "success", "message": "API key updated successfully"}
 
 
-@admin_router.post("/api-keys/{api_key_id}/deactivate")
+@admin_router.post("/api-keys/{api_key_id}/deactivate", dependencies=[Depends(admin_auth_check)])
 async def deactivate_api_key(
     api_key_id: str,
     api_key_service = Depends(get_api_key_service),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Deactivate an API key by record ID."""
     success = await api_key_service.deactivate_api_key_by_id(api_key_id)
@@ -524,11 +515,10 @@ async def deactivate_api_key(
     return {"status": "success", "message": "API key deactivated"}
 
 
-@admin_router.delete("/api-keys/{api_key_id}")
+@admin_router.delete("/api-keys/{api_key_id}", dependencies=[Depends(admin_auth_check)])
 async def delete_api_key(
     api_key_id: str,
     api_key_service = Depends(get_api_key_service),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Delete an API key by record ID."""
     success = await api_key_service.delete_api_key_by_id(api_key_id)
@@ -540,47 +530,9 @@ async def delete_api_key(
     return {"status": "success", "message": "API key deleted"}
 
 
-async def _get_adapter_info_response(
-    request: Request,
-    x_api_key: str
-):
-    """
-    Shared handler for adapter info endpoints.
-    """
-    api_key_service = getattr(request.app.state, 'api_key_service', None)
-    check_service_availability(api_key_service, "API key service")
-
-    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-    adapter_info = await api_key_service.get_adapter_info(x_api_key, adapter_manager)
-    return adapter_info
-
-
-@admin_router.get("/api-keys/info")
-async def get_adapter_info(
-    request: Request,
-    x_api_key: str = Header(..., alias="X-API-Key")
-):
-    """
-    Get adapter information for the current API key.
-    """
-    return await _get_adapter_info_response(request, x_api_key)
-
-
-@admin_router.get("/adapters/info")
-async def get_adapter_info_alias(
-    request: Request,
-    x_api_key: str = Header(..., alias="X-API-Key")
-):
-    """
-    Alias for adapter info endpoint used by middleware proxies to reduce API key exposure.
-    """
-    return await _get_adapter_info_response(request, x_api_key)
-
-
-@admin_router.get("/adapters/capabilities")
+@admin_router.get("/adapters/capabilities", dependencies=[Depends(admin_auth_check)])
 async def get_adapter_capabilities(
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Return adapter capability metadata relevant to admin operations."""
     adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
@@ -609,224 +561,6 @@ async def get_adapter_capabilities(
     except Exception as e:
         logger.error(f"Failed to get adapter capabilities: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get adapter capabilities: {str(e)}")
-
-
-# ---------------------------------------------------------------------------
-# Model discovery endpoints
-# ---------------------------------------------------------------------------
-
-@admin_router.get("/models")
-async def list_available_models(
-    request: Request,
-    x_api_key: str = Header(..., alias="X-API-Key")
-):
-    """
-    List all inference models available in the system.
-
-    Requires a valid API key (X-API-Key header). No admin credentials needed.
-
-    Derives the list from enabled providers in config/inference.yaml.
-    Each enabled provider contributes its configured default model. Ollama
-    presets are included as additional entries.
-
-    Returns a flat list that clients can use to populate a model picker.
-    """
-    config = getattr(request.app.state, 'config', {})
-    inference_cfg = config.get('inference', {})
-
-    models = []
-    for provider_name, provider_cfg in inference_cfg.items():
-        if not isinstance(provider_cfg, dict):
-            continue
-        if not provider_cfg.get('enabled', False):
-            continue
-        model_name = provider_cfg.get('model') or provider_cfg.get('use_preset')
-        if not model_name:
-            continue
-        safe_model = model_name.replace('/', '-').replace(':', '-')
-        models.append({
-            "name": f"{provider_name}-{safe_model}",
-            "provider": provider_name,
-            "model": model_name,
-        })
-
-    # Include named Ollama presets as additional selectable entries
-    for preset_name, preset_cfg in config.get('ollama_presets', {}).items():
-        if not isinstance(preset_cfg, dict):
-            continue
-        preset_model = preset_cfg.get('model', preset_name)
-        models.append({
-            "name": f"ollama-{preset_name}",
-            "provider": "ollama",
-            "model": preset_model,
-            "preset": preset_name,
-        })
-
-    # Include named llama_cpp presets
-    for preset_name, preset_cfg in config.get('llama_cpp_presets', {}).items():
-        if not isinstance(preset_cfg, dict):
-            continue
-        preset_model = preset_cfg.get('model_path', preset_name)
-        models.append({
-            "name": f"llama_cpp-{preset_name}",
-            "provider": "llama_cpp",
-            "model": preset_model,
-            "preset": preset_name,
-        })
-
-    return {"models": models}
-
-
-@admin_router.get("/adapters/{adapter_name}/models")
-async def list_adapter_models(
-    adapter_name: str,
-    request: Request,
-    x_api_key: str = Header(..., alias="X-API-Key")
-):
-    """
-    List models available for a specific adapter.
-
-    Requires a valid API key (X-API-Key header). No admin credentials needed.
-
-    If the adapter defines a 'allowed_models' list in its config, that list
-    is returned and 'has_restrictions' is true.
-
-    If no 'allowed_models' are defined, the adapter's single default model
-    (inference_provider + model) is returned and 'has_restrictions' is false.
-
-    Clients can use this endpoint to build a per-adapter model picker.
-    """
-    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
-    if not adapter_manager:
-        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-    if not adapter_manager:
-        raise HTTPException(status_code=503, detail="Adapter manager is not available")
-
-    # Resolve the real adapter name from the API key (client-side IDs may differ from server config names)
-    resolved_name = adapter_name
-    api_key_service = getattr(request.app.state, 'api_key_service', None)
-    if api_key_service and x_api_key:
-        try:
-            is_valid, key_adapter_name, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
-            if is_valid and key_adapter_name:
-                resolved_name = key_adapter_name
-        except Exception:
-            pass
-
-    adapter_config = adapter_manager.get_adapter_config(resolved_name) if hasattr(adapter_manager, 'get_adapter_config') else None
-    if adapter_config is None:
-        raise HTTPException(status_code=404, detail=f"Adapter '{resolved_name}' not found")
-
-    allowed = adapter_config.get('allowed_models') or []
-
-    if allowed:
-        models = [
-            {"name": m.get('name', ''), "provider": m.get('provider', ''), "model": m.get('model', '')}
-            for m in allowed
-            if m.get('name') and m.get('provider') and m.get('model')
-        ]
-        return {
-            "adapter_name": resolved_name,
-            "has_restrictions": True,
-            "models": models,
-        }
-
-    # No allowed_models list — return the adapter's single default
-    inference_provider = adapter_config.get('inference_provider')
-    config = getattr(request.app.state, 'config', {})
-    default_provider = config.get('general', {}).get('inference_provider', 'default')
-    provider = inference_provider or default_provider
-    model = adapter_config.get('model', '')
-
-    if not model:
-        inference_cfg = config.get('inference', {}).get(provider, {})
-        model = inference_cfg.get('model', '')
-
-    safe_model = model.replace('/', '-').replace(':', '-') if model else ''
-    default_entry = {
-        "name": f"{provider}-{safe_model}" if safe_model else provider,
-        "provider": provider,
-        "model": model,
-    }
-
-    return {
-        "adapter_name": resolved_name,
-        "has_restrictions": False,
-        "models": [default_entry] if model else [],
-    }
-
-
-# ---------------------------------------------------------------------------
-# Skills endpoints
-# ---------------------------------------------------------------------------
-
-@admin_router.get("/skills", response_model=SkillsResponse)
-async def list_skills(request: Request):
-    """
-    List all skills registered in ORBIT.
-
-    A skill is an adapter marked with expose_as_skill: true in its config.
-    Returns name, description, adapter_name, and enabled state for each skill.
-    """
-    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
-    if not adapter_manager:
-        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-    if not adapter_manager:
-        raise HTTPException(status_code=503, detail="Adapter manager is not available")
-
-    raw_skills = (
-        adapter_manager.get_all_skills()
-        if hasattr(adapter_manager, 'get_all_skills')
-        else []
-    )
-    logger.debug("Admin skills list requested: %s registered skill(s)", len(raw_skills))
-    return SkillsResponse(
-        skills=[SkillInfo(**s) for s in raw_skills]
-    )
-
-
-@admin_router.get("/adapters/{adapter_name}/skills", response_model=AdapterSkillsResponse)
-async def list_adapter_skills(
-    adapter_name: str,
-    request: Request,
-    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
-):
-    """
-    List skills available to a specific adapter.
-
-    Returns the available_skills list from the adapter's capabilities config.
-    Requires a valid API key (X-API-Key header).
-    """
-    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
-    if not adapter_manager:
-        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-    if not adapter_manager:
-        raise HTTPException(status_code=503, detail="Adapter manager is not available")
-
-    # Resolve adapter name from API key (same pattern as list_adapter_models)
-    resolved_name = adapter_name
-    api_key_service = getattr(request.app.state, 'api_key_service', None)
-    if api_key_service and x_api_key:
-        try:
-            is_valid, key_adapter_name, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
-            if is_valid and key_adapter_name:
-                resolved_name = key_adapter_name
-        except Exception:
-            logger.debug("Adapter skills lookup failed API key validation for '%s'", adapter_name, exc_info=True)
-
-    adapter_config = adapter_manager.get_adapter_config(resolved_name) if hasattr(adapter_manager, 'get_adapter_config') else None
-    if adapter_config is None:
-        logger.warning("Adapter skills requested for unknown adapter '%s' (resolved from '%s')", resolved_name, adapter_name)
-        raise HTTPException(status_code=404, detail=f"Adapter '{resolved_name}' not found")
-
-    available_skills = adapter_config.get('capabilities', {}).get('available_skills', [])
-    logger.debug(
-        "Adapter skills requested: requested='%s', resolved='%s', available_skills=%s",
-        adapter_name,
-        resolved_name,
-        available_skills,
-    )
-    return AdapterSkillsResponse(adapter_name=resolved_name, available_skills=available_skills)
 
 
 # ---------------------------------------------------------------------------
@@ -912,10 +646,9 @@ def _backup_and_write(file_path: Path, new_content: str) -> str:
     return str(backup_path.resolve())
 
 
-@admin_router.get("/adapters/config")
+@admin_router.get("/adapters/config", dependencies=[Depends(admin_auth_check)])
 async def list_adapter_configs(
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """List all adapter config files with a summary of each adapter entry."""
     adapters_dir = _get_adapters_dir(request)
@@ -967,11 +700,10 @@ async def list_adapter_configs(
     return {"files": files, "imports": current_imports, "adapters_yaml": adapters_yaml_content}
 
 
-@admin_router.get("/adapters/config/entry/{adapter_name}")
+@admin_router.get("/adapters/config/entry/{adapter_name}", dependencies=[Depends(admin_auth_check)])
 async def get_adapter_entry(
     adapter_name: str,
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Return just the YAML block for a single adapter (preserves comments)."""
     adapters_dir = _get_adapters_dir(request)
@@ -988,11 +720,10 @@ async def get_adapter_entry(
     return {"content": block, "filename": file_path.name, "adapter_name": adapter_name}
 
 
-@admin_router.put("/adapters/config/entry/{adapter_name}")
+@admin_router.put("/adapters/config/entry/{adapter_name}", dependencies=[Depends(admin_auth_check)])
 async def save_adapter_entry(
     adapter_name: str,
     request: Request,
-    authorized: bool = Depends(admin_auth_check),
     body: dict = Body(...)
 ):
     """Replace a single adapter's YAML block in its source file."""
@@ -1024,11 +755,10 @@ async def save_adapter_entry(
     }
 
 
-@admin_router.patch("/adapters/config/entry/{adapter_name}/toggle")
+@admin_router.patch("/adapters/config/entry/{adapter_name}/toggle", dependencies=[Depends(admin_auth_check)])
 async def toggle_adapter_enabled(
     adapter_name: str,
     request: Request,
-    authorized: bool = Depends(admin_auth_check),
     body: dict = Body(...)
 ):
     """Toggle the enabled field of a single adapter in its YAML file."""
@@ -1107,11 +837,10 @@ async def toggle_adapter_enabled(
     }
 
 
-@admin_router.get("/adapters/config/{filename}")
+@admin_router.get("/adapters/config/{filename}", dependencies=[Depends(admin_auth_check)])
 async def get_adapter_config_file(
     filename: str,
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Read the raw YAML content of a specific adapter config file."""
     _validate_adapter_filename(filename)
@@ -1122,11 +851,10 @@ async def get_adapter_config_file(
     return {"content": content, "filename": filename}
 
 
-@admin_router.put("/adapters/config/{filename}")
+@admin_router.put("/adapters/config/{filename}", dependencies=[Depends(admin_auth_check)])
 async def save_adapter_config_file(
     filename: str,
     request: Request,
-    authorized: bool = Depends(admin_auth_check),
     body: dict = Body(...)
 ):
     """Validate, back up, and write an adapter config file."""
@@ -1152,12 +880,11 @@ async def save_adapter_config_file(
     }
 
 
-@admin_router.post("/api-keys/{api_key_id}/prompt")
+@admin_router.post("/api-keys/{api_key_id}/prompt", dependencies=[Depends(admin_auth_check)])
 async def associate_prompt_with_api_key(
     api_key_id: str,
     data: ApiKeyPromptAssociate,
     api_key_service = Depends(get_api_key_service),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Associate a system prompt with an API key by record ID."""
     success = await api_key_service.update_api_key_system_prompt(api_key_id, data.prompt_id)
@@ -1177,11 +904,10 @@ async def _resolve_api_key(request: Request, api_key_id: str) -> str:
     return doc["api_key"]
 
 
-@admin_router.get("/api-keys/{api_key_id}/quota", response_model=ApiKeyQuotaResponse)
+@admin_router.get("/api-keys/{api_key_id}/quota", response_model=ApiKeyQuotaResponse, dependencies=[Depends(admin_auth_check)])
 async def get_api_key_quota(
     api_key_id: str,
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Get quota configuration and current usage for an API key by record ID."""
     quota_service = getattr(request.app.state, 'quota_service', None)
@@ -1243,12 +969,11 @@ async def get_api_key_quota(
     )
 
 
-@admin_router.put("/api-keys/{api_key_id}/quota")
+@admin_router.put("/api-keys/{api_key_id}/quota", dependencies=[Depends(admin_auth_check)])
 async def update_api_key_quota(
     api_key_id: str,
     quota_data: ApiKeyQuotaUpdate,
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Update quota settings for an API key by record ID."""
     quota_service = getattr(request.app.state, 'quota_service', None)
@@ -1274,12 +999,11 @@ async def update_api_key_quota(
     return {"status": "success", "message": "Quota configuration updated successfully"}
 
 
-@admin_router.post("/api-keys/{api_key_id}/quota/reset")
+@admin_router.post("/api-keys/{api_key_id}/quota/reset", dependencies=[Depends(admin_auth_check)])
 async def reset_api_key_quota(
     api_key_id: str,
     request: Request,
     period: str = Query("daily", pattern="^(daily|monthly|all)$"),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Reset quota usage counters for an API key by record ID."""
     quota_service = getattr(request.app.state, 'quota_service', None)
@@ -1299,12 +1023,11 @@ async def reset_api_key_quota(
     return {"status": "success", "message": f"Quota usage ({period}) reset successfully"}
 
 
-@admin_router.get("/quotas/usage-report")
+@admin_router.get("/quotas/usage-report", dependencies=[Depends(admin_auth_check)])
 async def get_quota_usage_report(
     request: Request,
     period: str = Query("daily", pattern="^(daily|monthly)$"),
     limit: int = Query(100, ge=1, le=1000),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Get a usage report for all API keys.
@@ -1381,11 +1104,10 @@ async def get_quota_usage_report(
 
 
 # System Prompts Management Routes
-@admin_router.post("/prompts", response_model=SystemPromptResponse)
+@admin_router.post("/prompts", response_model=SystemPromptResponse, dependencies=[Depends(admin_auth_check)])
 async def create_prompt(
     prompt_data: SystemPromptCreate,
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Create a new system prompt"""
     # Check if prompt service is available
@@ -1416,13 +1138,12 @@ async def create_prompt(
     }
 
 
-@admin_router.get("/prompts")
+@admin_router.get("/prompts", dependencies=[Depends(admin_auth_check)])
 async def list_prompts(
     name_filter: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     prompt_service = Depends(get_prompt_service),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     List all system prompts with optional filtering and pagination.
@@ -1443,11 +1164,10 @@ async def list_prompts(
     return await prompt_service.list_prompts(name_filter=name_filter, limit=limit, offset=offset)
 
 
-@admin_router.get("/prompts/{prompt_id}")
+@admin_router.get("/prompts/{prompt_id}", dependencies=[Depends(admin_auth_check)])
 async def get_prompt(
     prompt_id: str,
     prompt_service = Depends(get_prompt_service),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Get a system prompt by ID"""
     prompt = await prompt_service.get_prompt_by_id(prompt_id)
@@ -1465,10 +1185,9 @@ async def get_prompt(
     return prompt
 
 
-@admin_router.post("/render-markdown")
+@admin_router.post("/render-markdown", dependencies=[Depends(admin_auth_check)])
 def render_markdown_preview(
     payload: dict = Body(...),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Render markdown to sanitized HTML for admin preview panels."""
     text = (payload or {}).get("markdown", "")
@@ -1500,13 +1219,12 @@ def render_markdown_preview(
         raise HTTPException(status_code=500, detail="Failed to render markdown preview")
 
 
-@admin_router.put("/prompts/{prompt_id}", response_model=SystemPromptResponse)
+@admin_router.put("/prompts/{prompt_id}", response_model=SystemPromptResponse, dependencies=[Depends(admin_auth_check)])
 async def update_prompt(
     prompt_id: str,
     prompt_data: SystemPromptUpdate,
     request: Request,
     prompt_service = Depends(get_prompt_service),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Update a system prompt"""
     success = await prompt_service.update_prompt(
@@ -1536,12 +1254,11 @@ async def update_prompt(
     }
 
 
-@admin_router.delete("/prompts/{prompt_id}")
+@admin_router.delete("/prompts/{prompt_id}", dependencies=[Depends(admin_auth_check)])
 async def delete_prompt(
     prompt_id: str,
     request: Request,
     prompt_service = Depends(get_prompt_service),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Delete a system prompt"""
     success = await prompt_service.delete_prompt(prompt_id)
@@ -1556,105 +1273,31 @@ async def delete_prompt(
 
 
 # Chat History Management (only available in inference-only mode)
-@admin_router.get("/chat-history/{session_id}")
+@admin_router.get("/chat-history/{session_id}", dependencies=[Depends(admin_auth_check)])
 async def get_chat_history(
     session_id: str,
     request: Request,
     limit: int = Query(50, ge=1, le=500),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Get chat history for a session"""
     chat_history_service = getattr(request.app.state, 'chat_history_service', None)
     if not chat_history_service:
         raise HTTPException(status_code=503, detail="Chat history service is not available")
-    
+
     history = await chat_history_service.get_conversation_history(
         session_id=session_id,
         limit=limit,
         include_metadata=True
     )
-    
+
     return {"session_id": session_id, "messages": history, "count": len(history)}
 
 
-@admin_router.delete("/chat-history/{session_id}", response_model=ChatHistoryClearResponse)
-async def clear_chat_history(
-    session_id: str,
-    request: Request,
-    x_api_key: str = Header(..., alias="X-API-Key"),
-    x_session_id: Optional[str] = Header(None, alias="X-Session-ID")
-):
-    """Clear chat history for a specific session."""
-    config = getattr(request.app.state, 'config', {})
-    chat_history_service = getattr(request.app.state, 'chat_history_service', None)
-
-    # Determine if conversational adapters are active
-    adapters_config = config.get('adapters', [])
-    conversational_adapter_enabled = any(
-        isinstance(adapter, dict)
-        and adapter.get('adapter') == 'conversational'
-        and is_true_value(adapter.get('enabled', True))
-        for adapter in adapters_config
-    )
-
-    if not conversational_adapter_enabled:
-        raise HTTPException(
-            status_code=503,
-            detail="Chat history management is only available with an active conversational adapter"
-        )
-
-    if not chat_history_service:
-        raise HTTPException(status_code=503, detail="Chat history service is not available")
-
-    if x_session_id and x_session_id != session_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Session ID in header does not match URL parameter"
-        )
-
-    if not x_api_key:
-        raise HTTPException(
-            status_code=400,
-            detail="API key is required for clearing conversation history"
-        )
-
-    api_key_service = getattr(request.app.state, 'api_key_service', None)
-    if not api_key_service:
-        raise HTTPException(status_code=503, detail="API key service is not available")
-
-    result = await chat_history_service.clear_conversation_history(
-        session_id=session_id,
-        api_key=x_api_key,
-        api_key_service=api_key_service
-    )
-
-    if not result.get("success"):
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to clear conversation history: {result.get('error', 'Unknown error')}"
-        )
-
-    logger.debug(
-        "Cleared conversation history for session %s: %s messages",
-        session_id,
-        result.get("deleted_count", 0)
-    )
-
-    return ChatHistoryClearResponse(
-        status="success",
-        message=f"Cleared {result['deleted_count']} messages from session {session_id}",
-        session_id=session_id,
-        deleted_count=result['deleted_count'],
-        timestamp=result['timestamp']
-    )
-
-
 # Adapter Hot Reload
-@admin_router.post("/reload-adapters", response_model=AdapterReloadResponse)
+@admin_router.post("/reload-adapters", response_model=AdapterReloadResponse, dependencies=[Depends(admin_auth_check)])
 async def reload_adapters(
     request: Request,
     adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload"),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Reload adapter configurations from adapters.yaml without server restart.
@@ -1748,11 +1391,10 @@ async def reload_adapters(
         )
 
 
-@admin_router.post("/reload-adapters/async")
+@admin_router.post("/reload-adapters/async", dependencies=[Depends(admin_auth_check)])
 async def reload_adapters_async(
     request: Request,
     adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload"),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Start adapter reload as a background admin job."""
     job = _create_admin_job(request, "reload_adapters", adapter_name)
@@ -1760,7 +1402,7 @@ async def reload_adapters_async(
     async def run_job():
         _update_admin_job(request, job["job_id"], status="running", message="Reloading adapters")
         try:
-            result = await reload_adapters(request=request, adapter_name=adapter_name, authorized=authorized)
+            result = await reload_adapters(request=request, adapter_name=adapter_name)
             _update_admin_job(
                 request,
                 job["job_id"],
@@ -1783,11 +1425,10 @@ async def reload_adapters_async(
 
 
 # Template Hot Reload
-@admin_router.post("/reload-templates", response_model=TemplateReloadResponse)
+@admin_router.post("/reload-templates", response_model=TemplateReloadResponse, dependencies=[Depends(admin_auth_check)])
 async def reload_templates(
     request: Request,
     adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload templates for"),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Reload intent templates from template library files without server restart.
@@ -1864,11 +1505,10 @@ async def reload_templates(
         )
 
 
-@admin_router.post("/reload-templates/async")
+@admin_router.post("/reload-templates/async", dependencies=[Depends(admin_auth_check)])
 async def reload_templates_async(
     request: Request,
     adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload templates for"),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Start template reload as a background admin job."""
     job = _create_admin_job(request, "reload_templates", adapter_name)
@@ -1876,7 +1516,7 @@ async def reload_templates_async(
     async def run_job():
         _update_admin_job(request, job["job_id"], status="running", message="Reloading templates")
         try:
-            result = await reload_templates(request=request, adapter_name=adapter_name, authorized=authorized)
+            result = await reload_templates(request=request, adapter_name=adapter_name)
             _update_admin_job(
                 request,
                 job["job_id"],
@@ -1898,12 +1538,11 @@ async def reload_templates_async(
     }
 
 
-@admin_router.post("/adapters/{adapter_name}/test-query")
+@admin_router.post("/adapters/{adapter_name}/test-query", dependencies=[Depends(require_admin)])
 async def test_adapter_query(
     adapter_name: str,
     body: TemplateTestRequest,
     request: Request,
-    admin_user: dict = Depends(require_admin)
 ):
     """
     Test a natural language query against an intent adapter's templates
@@ -1953,11 +1592,10 @@ async def test_adapter_query(
         raise HTTPException(status_code=500, detail=f"Test query failed: {e}")
 
 
-@admin_router.get("/jobs/{job_id}")
+@admin_router.get("/jobs/{job_id}", dependencies=[Depends(admin_auth_check)])
 async def get_admin_job_status(
     job_id: str,
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """Get status for an async admin job."""
     jobs = _get_admin_jobs(request)
@@ -1967,124 +1605,9 @@ async def get_admin_job_status(
     return job
 
 
-@admin_router.delete("/conversations/{session_id}")
-async def delete_conversation_with_files(
-    session_id: str,
-    request: Request,
-    x_api_key: str = Header(..., alias="X-API-Key"),
-    x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
-    file_ids: str = Query(default="", description="Comma-separated list of file IDs to delete")
-):
-    """
-    Delete a conversation and all associated files.
-
-    This endpoint performs a complete conversation deletion:
-    1. Deletes each file provided in file_ids (metadata, content, and vector store chunks)
-    2. Clears conversation history
-
-    File tracking is managed by the frontend (localStorage). The backend is stateless
-    and requires file_ids to be provided explicitly.
-
-    Args:
-        session_id: The session identifier for the conversation
-        file_ids: Comma-separated list of file IDs to delete (from frontend)
-        x_api_key: API key for authentication
-        x_session_id: Optional session ID header (must match URL parameter)
-
-    Returns:
-        Status message with deletion details
-
-    Raises:
-        HTTPException: If deletion fails or services unavailable
-    """
-    getattr(request.app.state, 'config', {})
-
-    # Validate session ID consistency
-    if x_session_id and x_session_id != session_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Session ID in header does not match URL parameter"
-        )
-
-    if not x_api_key:
-        raise HTTPException(
-            status_code=400,
-            detail="API key is required for deleting conversation"
-        )
-
-    # Get required services
-    chat_history_service = getattr(request.app.state, 'chat_history_service', None)
-    file_processing_service = getattr(request.app.state, 'file_processing_service', None)
-
-    # Parse file_ids from query parameter
-    file_ids_list = [fid.strip() for fid in file_ids.split(',') if fid.strip()] if file_ids else []
-
-    # Track deletion results
-    deleted_files_count = 0
-    deleted_messages_count = 0
-    file_deletion_errors = []
-
-    # Step 1: Delete provided files
-    if file_ids_list and file_processing_service:
-        logger.debug(f"Deleting {len(file_ids_list)} file(s) for session {session_id}")
-
-        for file_id in file_ids_list:
-            try:
-                # Delete file (includes metadata, content, and vector chunks)
-                success = await file_processing_service.delete_file(file_id, x_api_key)
-                if success:
-                    deleted_files_count += 1
-                    logger.debug(f"Deleted file {file_id}")
-                else:
-                    file_deletion_errors.append(file_id)
-                    logger.warning(f"Failed to delete file {file_id}")
-            except Exception as e:
-                logger.error(f"Error deleting file {file_id}: {e}")
-                file_deletion_errors.append(file_id)
-
-    # Step 2: Clear conversation history
-    if chat_history_service:
-        try:
-            api_key_service = getattr(request.app.state, 'api_key_service', None)
-            result = await chat_history_service.clear_conversation_history(
-                session_id=session_id,
-                api_key=x_api_key,
-                api_key_service=api_key_service
-            )
-
-            if result.get("success"):
-                deleted_messages_count = result.get("deleted_count", 0)
-                logger.debug(f"Cleared {deleted_messages_count} messages for session {session_id}")
-            else:
-                logger.warning(f"Failed to clear conversation history: {result.get('error')}")
-        except Exception as e:
-            logger.error(f"Error clearing conversation history: {e}")
-            # Don't fail the entire request if only history clearing fails
-
-    # Build response message
-    message_parts = []
-    if deleted_messages_count > 0:
-        message_parts.append(f"{deleted_messages_count} message(s)")
-    if deleted_files_count > 0:
-        message_parts.append(f"{deleted_files_count} file(s)")
-
-    message = f"Deleted conversation: {', '.join(message_parts) if message_parts else 'no data found'}"
-
-    return {
-        "status": "success",
-        "message": message,
-        "session_id": session_id,
-        "deleted_messages": deleted_messages_count,
-        "deleted_files": deleted_files_count,
-        "file_deletion_errors": file_deletion_errors if file_deletion_errors else None,
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-@admin_router.get("/info")
+@admin_router.get("/info", dependencies=[Depends(admin_auth_check)])
 async def get_server_info(
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Get server information including PID and status.
@@ -2104,10 +1627,9 @@ async def get_server_info(
     }
 
 
-@admin_router.get("/config")
+@admin_router.get("/config", dependencies=[Depends(admin_auth_check)])
 async def get_config(
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Read the raw config.yaml file content.
@@ -2122,10 +1644,9 @@ async def get_config(
     return {"content": content, "path": str(config_path.resolve())}
 
 
-@admin_router.put("/config")
+@admin_router.put("/config", dependencies=[Depends(admin_auth_check)])
 async def update_config(
     request: Request,
-    authorized: bool = Depends(admin_auth_check),
     body: dict = Body(...)
 ):
     """
@@ -2168,10 +1689,9 @@ async def update_config(
     }
 
 
-@admin_router.post("/shutdown")
+@admin_router.post("/shutdown", dependencies=[Depends(admin_auth_check)])
 async def shutdown_server(
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Gracefully shutdown the server.
@@ -2213,10 +1733,9 @@ async def shutdown_server(
     }
 
 
-@admin_router.post("/restart")
+@admin_router.post("/restart", dependencies=[Depends(admin_auth_check)])
 async def restart_server(
     request: Request,
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Restart the server process in place.
@@ -2243,11 +1762,10 @@ async def restart_server(
     }
 
 
-@admin_router.get("/logs/tail")
+@admin_router.get("/logs/tail", dependencies=[Depends(admin_auth_check)])
 def tail_log_file(
     request: Request,
     lines: int = Query(200, ge=10, le=500),
-    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Return the most recently updated ORBIT log file contents.
@@ -2288,7 +1806,7 @@ def tail_log_file(
 # Admin / Auth Audit Events
 # -------------------------------------------------------------------------
 
-@admin_router.get("/audit/events")
+@admin_router.get("/audit/events", dependencies=[Depends(admin_auth_check)])
 async def list_admin_audit_events(
     request: Request,
     limit: int = Query(50, ge=1, le=500),
@@ -2302,7 +1820,6 @@ async def list_admin_audit_events(
     q: Optional[str] = Query(None, description="Free-text search across actor_username, path, resource_id, ip"),
     since: Optional[str] = Query(None, description="ISO timestamp (inclusive lower bound)"),
     until: Optional[str] = Query(None, description="ISO timestamp (exclusive upper bound)"),
-    authorized: bool = Depends(admin_auth_check),
 ):
     """
     List audit ledger entries, most recent first.
