@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/schmitech/orbit">
-    <img src="docs/images/orbit-logo-github.png" alt="ORBIT Logo" width="200"/>
+    <img src="https://github.com/user-attachments/assets/e7beb0b9-59a2-4c0c-afaf-a72d445a264c" alt="ORBIT Logo" width="200"/>
   </a>
 
   <p>ORBIT — Open Retrieval-Based Inference Toolkit</p>
