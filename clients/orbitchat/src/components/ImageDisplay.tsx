@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Download, X, ZoomIn } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, X, ZoomIn } from 'lucide-react';
 
 interface ImageDisplayProps {
   image?: string;          // base64-encoded image data (present during live session)
@@ -20,6 +20,7 @@ interface ImageDisplayProps {
  */
 export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedPrompt }: ImageDisplayProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [promptExpanded, setPromptExpanded] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
 
@@ -152,31 +153,54 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
           </div>
         </div>
         {revisedPrompt && (
-          <div
-            style={{
-              marginTop: '8px',
-              padding: '8px 10px',
-              background: 'rgba(128,128,128,0.08)',
-              borderRadius: '6px',
-              maxWidth: '480px',
-            }}
-          >
-            <span
+          <div style={{ marginTop: '8px', maxWidth: '480px' }}>
+            <button
+              type="button"
+              onClick={() => setPromptExpanded((expanded) => !expanded)}
               style={{
-                display: 'block',
-                fontSize: '0.65rem',
-                fontWeight: 600,
-                opacity: 0.5,
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                marginBottom: '3px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: 0,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                opacity: 0.72,
               }}
+              aria-expanded={promptExpanded}
             >
-              Prompt
-            </span>
-            <span style={{ fontSize: '0.8rem', lineHeight: 1.45, opacity: 0.85 }}>
-              {revisedPrompt}
-            </span>
+              {promptExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {promptExpanded ? 'Hide prompt' : 'Show prompt'}
+            </button>
+            {promptExpanded && (
+              <div
+                style={{
+                  marginTop: '8px',
+                  padding: '8px 10px',
+                  background: 'rgba(128,128,128,0.08)',
+                  borderRadius: '6px',
+                }}
+              >
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.65rem',
+                    fontWeight: 600,
+                    opacity: 0.5,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    marginBottom: '3px',
+                  }}
+                >
+                  Prompt
+                </span>
+                <span style={{ fontSize: '0.8rem', lineHeight: 1.45, opacity: 0.85 }}>
+                  {revisedPrompt}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
