@@ -1109,3 +1109,7 @@ class FileProcessingService:
     async def list_files(self, api_key: str) -> List[Dict[str, Any]]:
         """List all files for an API key."""
         return await self.metadata_store.list_files(api_key)
+
+    async def get_generated_file_ids_for_session(self, session_id: str, api_key: str) -> List[str]:
+        """Return IDs of all server-persisted generated images for a conversation session."""
+        return await self.metadata_store.get_generated_file_ids_for_session(session_id, api_key)

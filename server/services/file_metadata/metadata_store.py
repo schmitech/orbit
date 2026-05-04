@@ -300,6 +300,28 @@ class FileMetadataStore:
             logger.error(f"Error listing files: {e}")
             return []
 
+    async def get_generated_file_ids_for_session(self, session_id: str, api_key: str) -> List[str]:
+        """Return IDs of all server-persisted generated images for a conversation session."""
+        await self._ensure_initialized()
+        try:
+            rows = await self._db_service.find_many(
+                'uploaded_files',
+                {'api_key': api_key},
+                limit=10000
+            )
+            result = []
+            for row in rows:
+                try:
+                    meta = json.loads(row.get('metadata_json') or '{}')
+                    if meta.get('generated') and meta.get('session_id') == session_id:
+                        result.append(row['_id'])
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            return result
+        except Exception as e:
+            logger.error(f"Error finding generated files for session {session_id}: {e}")
+            return []
+
     async def delete_file(self, file_id: str, skip_chunks: bool = False) -> bool:
         """
         Delete file and all associated chunks.

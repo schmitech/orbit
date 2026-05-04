@@ -388,9 +388,18 @@ async def delete_conversation_with_files(
     deleted_messages_count = 0
     file_deletion_errors = []
 
-    if file_ids_list and file_processing_service:
-        logger.debug("Deleting %s file(s) for session %s", len(file_ids_list), session_id)
-        for file_id in file_ids_list:
+    if file_processing_service:
+        # Merge explicit file IDs from the request with any generated images tracked server-side.
+        # Server-side lookup handles images the frontend couldn't collect (old sessions, multiple
+        # images where only the latest imageUrl was stored, etc.).
+        generated_ids = await file_processing_service.get_generated_file_ids_for_session(
+            session_id, x_api_key
+        )
+        all_file_ids = list(dict.fromkeys(file_ids_list + generated_ids))  # deduplicate, preserve order
+
+        if all_file_ids:
+            logger.debug("Deleting %s file(s) for session %s", len(all_file_ids), session_id)
+        for file_id in all_file_ids:
             try:
                 success = await file_processing_service.delete_file(file_id, x_api_key)
                 if success:

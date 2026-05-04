@@ -538,9 +538,10 @@ export function Message({
               {reply.audio && replyIsAssistant && !reply.isStreaming && (
                 <AudioPlayer audio={reply.audio} audioFormat={reply.audioFormat} autoPlay={false} />
               )}
-              {reply.image && replyIsAssistant && !reply.isStreaming && (
+              {(reply.image || reply.imageUrl) && replyIsAssistant && !reply.isStreaming && (
                 <ImageDisplay
                   image={reply.image}
+                  imageUrl={reply.imageUrl}
                   imageFormat={reply.imageFormat}
                   revisedPrompt={reply.imageRevisedPrompt}
                 />
@@ -579,9 +580,10 @@ export function Message({
             <AudioPlayer audio={message.audio} audioFormat={message.audioFormat} autoPlay={false} />
           )}
 
-          {message.image && isAssistant && !message.isStreaming && (
+          {(message.image || message.imageUrl) && isAssistant && !message.isStreaming && (
             <ImageDisplay
               image={message.image}
+              imageUrl={message.imageUrl}
               imageFormat={message.imageFormat}
               revisedPrompt={message.imageRevisedPrompt}
             />

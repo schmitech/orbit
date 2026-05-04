@@ -60,10 +60,10 @@ class ImageGenerationStep(PipelineStep):
             result = await image_service.generate_image(prompt)
             context.image = base64.b64encode(result["image_bytes"]).decode("utf-8")
             context.image_format = result.get("format", "png")
-            context.image_revised_prompt = result.get("revised_prompt")
-            # Set response to the rewritten prompt or revised prompt so history
-            # stores something meaningful.
-            context.response = context.image_revised_prompt or prompt
+            # Use provider-revised prompt if available (DALL-E 3), else the prompt we sent.
+            # Always populate image_revised_prompt so the UI can display it.
+            context.image_revised_prompt = result.get("revised_prompt") or prompt
+            context.response = context.image_revised_prompt
         except Exception as e:
             logger.error(f"Image generation failed: {e}", exc_info=True)
             context.set_error(f"Image generation failed: {e}")

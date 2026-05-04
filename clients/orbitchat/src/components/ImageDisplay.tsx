@@ -1,19 +1,76 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Download, X, ZoomIn } from 'lucide-react';
 
 interface ImageDisplayProps {
-  image: string;           // base64-encoded image data
+  image?: string;          // base64-encoded image data (present during live session)
+  imageUrl?: string;       // persistent server-side path (used after refresh)
   imageFormat?: string;    // "png", "jpeg", "webp"
   revisedPrompt?: string;  // provider-rewritten prompt (e.g. DALL-E 3)
 }
 
 /**
  * Renders a generated image with a download button and lightbox on click.
+ *
+ * Priority:
+ *  1. `image` (base64) — available immediately after generation, used for the
+ *     current session. Stripped from localStorage to avoid the 5 MB quota.
+ *  2. `imageUrl` — a relative path returned by the server once the image has
+ *     been persisted server-side. Survives localStorage and page refresh.
+ *     Fetched via JS so the Express proxy can inject the API key.
  */
-export function ImageDisplay({ image, imageFormat = 'png', revisedPrompt }: ImageDisplayProps) {
+export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedPrompt }: ImageDisplayProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
-  const dataUrl = `data:image/${imageFormat};base64,${image}`;
+  // Fetch the image from the server when we only have a URL (e.g. after refresh)
+  useEffect(() => {
+    if (image || !imageUrl) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const adapterName =
+          typeof window !== 'undefined'
+            ? window.localStorage.getItem('chat-adapter-name')
+            : null;
+
+        const res = await fetch(imageUrl, {
+          headers: adapterName ? { 'X-Adapter-Name': adapterName } : {},
+        });
+
+        if (!res.ok) {
+          // eslint-disable-next-line no-console
+          console.warn('[ImageDisplay] Server returned', res.status, 'for', imageUrl);
+          return;
+        }
+        if (cancelled) return;
+
+        const bytes = await res.arrayBuffer();
+        if (cancelled) return;
+
+        const blob = new Blob([bytes], { type: `image/${imageFormat}` });
+        const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
+        setBlobUrl(url);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[ImageDisplay] Failed to fetch image from', imageUrl, err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, [imageUrl, image, imageFormat]);
+
+  const dataUrl = image ? `data:image/${imageFormat};base64,${image}` : null;
+  const src = dataUrl ?? blobUrl;
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -24,11 +81,14 @@ export function ImageDisplay({ image, imageFormat = 'png', revisedPrompt }: Imag
 
   const handleDownload = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!src) return;
     const a = document.createElement('a');
-    a.href = dataUrl;
+    a.href = src;
     a.download = `generated-image.${imageFormat}`;
     a.click();
   };
+
+  if (!src) return null;
 
   return (
     <>
@@ -40,7 +100,7 @@ export function ImageDisplay({ image, imageFormat = 'png', revisedPrompt }: Imag
           title={revisedPrompt || 'Generated image — click to enlarge'}
         >
           <img
-            src={dataUrl}
+            src={src}
             alt={revisedPrompt || 'Generated image'}
             style={{
               maxWidth: '100%',
@@ -94,17 +154,32 @@ export function ImageDisplay({ image, imageFormat = 'png', revisedPrompt }: Imag
           </div>
         </div>
         {revisedPrompt && (
-          <p
+          <div
             style={{
-              fontSize: '0.72rem',
-              opacity: 0.6,
-              marginTop: '4px',
-              fontStyle: 'italic',
+              marginTop: '8px',
+              padding: '8px 10px',
+              background: 'rgba(128,128,128,0.08)',
+              borderRadius: '6px',
               maxWidth: '480px',
             }}
           >
-            {revisedPrompt}
-          </p>
+            <span
+              style={{
+                display: 'block',
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                opacity: 0.5,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginBottom: '3px',
+              }}
+            >
+              Prompt
+            </span>
+            <span style={{ fontSize: '0.8rem', lineHeight: 1.45, opacity: 0.85 }}>
+              {revisedPrompt}
+            </span>
+          </div>
         )}
       </div>
 
@@ -140,7 +215,7 @@ export function ImageDisplay({ image, imageFormat = 'png', revisedPrompt }: Imag
             <X size={20} />
           </button>
           <img
-            src={dataUrl}
+            src={src}
             alt={revisedPrompt || 'Generated image'}
             style={{ maxWidth: '92vw', maxHeight: '92vh', objectFit: 'contain', borderRadius: '8px' }}
             onClick={(e) => e.stopPropagation()}

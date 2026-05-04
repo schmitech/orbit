@@ -321,6 +321,7 @@ class ResponseProcessor:
         image: Optional[str] = None,
         image_format: Optional[str] = None,
         image_revised_prompt: Optional[str] = None,
+        image_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Build the final result dictionary.
@@ -382,6 +383,8 @@ class ResponseProcessor:
             result["image_format"] = image_format or "png"
             if image_revised_prompt:
                 result["image_revised_prompt"] = image_revised_prompt
+            if image_url:
+                result["image_url"] = image_url
 
         return result
     

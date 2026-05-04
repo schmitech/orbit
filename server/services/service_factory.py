@@ -216,6 +216,7 @@ class ServiceFactory:
         audit_service = getattr(app.state, 'audit_service', None)
         database_service = getattr(app.state, 'database_service', None)
         thread_dataset_service = getattr(app.state, 'thread_dataset_service', None)
+        file_processing_service = getattr(app.state, 'file_processing_service', None)
         app.state.chat_service = PipelineChatService(
             config=self.config,
             logger_service=app.state.logger_service,
@@ -229,7 +230,8 @@ class ServiceFactory:
             adapter_manager=adapter_manager,  # Pass shared adapter manager for reload support
             audit_service=audit_service,  # Pass audit service for audit trail storage
             database_service=database_service,  # Pass shared database service for thread operations
-            thread_dataset_service=thread_dataset_service  # Pass shared thread dataset service
+            thread_dataset_service=thread_dataset_service,  # Pass shared thread dataset service
+            file_processing_service=file_processing_service  # Pass for generated image persistence
         )
         # Initialize the pipeline provider
         try:

@@ -42,7 +42,8 @@ class PipelineChatService:
                  chat_history_service=None, moderator_service=None,
                  retriever=None, reranker_service=None, prompt_service=None, clock_service=None,
                  redis_service=None, adapter_manager=None, audit_service=None,
-                 database_service=None, thread_dataset_service=None):
+                 database_service=None, thread_dataset_service=None,
+                 file_processing_service=None):
         """
         Initialize the pipeline chat service.
 
@@ -71,6 +72,7 @@ class PipelineChatService:
         self.clock_service = clock_service
         self.redis_service = redis_service
         self.audit_service = audit_service
+        self.file_processing_service = file_processing_service
 
         self.pipeline_factory = PipelineFactory(config)
 
@@ -141,6 +143,44 @@ class PipelineChatService:
             await self.pipeline_factory.initialize_provider(self.pipeline.container)
             self._pipeline_initialized = True
             logger.info("Pipeline provider initialized")
+
+    # -------------------------------------------------------------------------
+    # Image persistence
+    # -------------------------------------------------------------------------
+
+    async def _persist_generated_image(self, context: ProcessingContext) -> None:
+        """Save generated image bytes to filesystem and set context.image_url."""
+        if not context.image or not self.file_processing_service:
+            return
+        import uuid
+        import base64 as _base64
+        try:
+            file_id = str(uuid.uuid4())
+            fmt = context.image_format or "png"
+            filename = f"generated_{file_id}.{fmt}"
+            mime_type = f"image/{fmt}"
+            image_bytes = _base64.b64decode(context.image)
+            api_key = context.api_key or "_generated"
+            storage_key = f"{api_key}/{file_id}/{filename}"
+
+            await self.file_processing_service.storage.put_file(
+                file_data=image_bytes,
+                key=storage_key,
+                metadata={"filename": filename, "mime_type": mime_type,
+                          "file_size": len(image_bytes), "generated": True}
+            )
+            await self.file_processing_service.metadata_store.record_file_upload(
+                file_id=file_id, api_key=api_key, filename=filename,
+                mime_type=mime_type, file_size=len(image_bytes),
+                storage_key=storage_key, storage_type="raw",
+                metadata={"generated": True, "format": fmt, "session_id": context.session_id or ""}
+            )
+            await self.file_processing_service.metadata_store.update_processing_status(
+                file_id=file_id, status="completed"
+            )
+            context.image_url = f"/api/files/{file_id}/content"
+        except Exception as e:
+            logger.warning(f"Failed to persist generated image: {e}")
 
     # -------------------------------------------------------------------------
     # Query burst cache helpers
@@ -523,6 +563,8 @@ class PipelineChatService:
                 result.response or "", None, adapter_name, tts_voice, language, return_audio
             )
 
+            await self._persist_generated_image(context)
+
             final_result = self.response_processor.build_result(
                 response=processed_response,
                 sources=result.sources,
@@ -536,6 +578,7 @@ class PipelineChatService:
                 image=result.image,
                 image_format=result.image_format,
                 image_revised_prompt=result.image_revised_prompt,
+                image_url=context.image_url,
             )
 
             if cache_key and not audio_data:
@@ -755,6 +798,8 @@ class PipelineChatService:
             accumulated_text=final_state.accumulated_text if final_state else "",
         )
 
+        await self._persist_generated_image(context)
+
         yield self.streaming_handler.build_done_chunk(
             state=final_state,
             audio_data=audio_data,
@@ -764,4 +809,5 @@ class PipelineChatService:
             image=context.image,
             image_format=context.image_format,
             image_revised_prompt=context.image_revised_prompt,
+            image_url=context.image_url,
         )

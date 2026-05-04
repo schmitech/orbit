@@ -545,6 +545,7 @@ class StreamingHandler:
         image: Optional[str] = None,
         image_format: Optional[str] = None,
         image_revised_prompt: Optional[str] = None,
+        image_url: Optional[str] = None,
     ) -> str:
         """
         Build the final done chunk with all metadata.
@@ -594,6 +595,8 @@ class StreamingHandler:
             done_chunk["image_format"] = image_format or "png"
             if image_revised_prompt:
                 done_chunk["image_revised_prompt"] = image_revised_prompt
+            if image_url:
+                done_chunk["image_url"] = image_url
 
         done_json = json.dumps(done_chunk)
 

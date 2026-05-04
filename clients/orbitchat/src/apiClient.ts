@@ -19,6 +19,7 @@ export interface StreamResponse {
   image?: string;  // Optional base64-encoded generated image
   image_format?: string;  // Image format (png, jpeg, webp)
   image_revised_prompt?: string;  // Provider-rewritten prompt (DALL-E 3)
+  image_url?: string;  // Persistent server-side URL for refresh
   assistant_message_id?: string;  // Database message ID for feedback
   threading?: {  // Optional threading metadata
     supports_threading: boolean;
@@ -266,6 +267,7 @@ function parseSseDataLine(line: string): StreamResponse | null {
       image: data.image,
       image_format: data.image_format,
       image_revised_prompt: data.image_revised_prompt,
+      image_url: data.image_url,
       assistant_message_id: data.assistant_message_id,
       threading: data.threading
     };

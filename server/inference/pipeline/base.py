@@ -90,6 +90,7 @@ class ProcessingContext:
     image: Optional[str] = None               # base64-encoded generated image
     image_format: Optional[str] = None        # "png", "jpeg", or "webp"
     image_revised_prompt: Optional[str] = None  # provider-rewritten prompt (e.g. DALL-E 3)
+    image_url: Optional[str] = None           # persistent server-side URL after storage
 
     def has_error(self) -> bool:
         """Check if the context has an error."""

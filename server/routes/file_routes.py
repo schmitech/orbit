@@ -329,6 +329,36 @@ def create_file_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error retrieving file info: {str(e)}")
     
     
+    @router.get("/api/files/{file_id}/content")
+    async def get_file_content(
+        file_id: str,
+        request: Request,
+        x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+        processing_service: FileProcessingService = Depends(get_processing_service)
+    ):
+        """
+        Return raw file bytes for a stored file (used for generated-image persistence).
+
+        Requires the same X-API-Key that was used when the file was stored.
+        """
+        from fastapi.responses import Response as FastAPIResponse
+        if not x_api_key:
+            raise HTTPException(status_code=401, detail="API key required")
+        try:
+            file_bytes = await processing_service.get_file(file_id, x_api_key)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="File not found")
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="Access denied")
+        except Exception as e:
+            logger.error(f"Error retrieving file content {file_id}: {e}")
+            raise HTTPException(status_code=500, detail="Error retrieving file")
+
+        file_info = await processing_service.metadata_store.get_file_info(file_id)
+        mime_type = file_info.get("mime_type", "application/octet-stream") if file_info else "application/octet-stream"
+        return FastAPIResponse(content=file_bytes, media_type=mime_type)
+
+
     @router.get("/api/files", response_model=List[FileInfoResponse])
     async def list_files(
         request: Request,

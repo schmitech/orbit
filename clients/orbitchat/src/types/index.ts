@@ -31,6 +31,7 @@ export interface Message {
   image?: string;  // Optional base64-encoded generated image
   imageFormat?: string;  // Image format (png, jpeg, webp)
   imageRevisedPrompt?: string;  // Provider-rewritten prompt (e.g. DALL-E 3)
+  imageUrl?: string;  // Persistent server-side URL (survives page refresh)
   threadInfo?: ThreadInfo;
   supportsThreading?: boolean;
   databaseMessageId?: string;  // Database message ID from server (used for thread creation and feedback)

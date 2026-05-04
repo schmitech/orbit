@@ -634,8 +634,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             adapterName: conversationAdapterName
           });
 
-          // Extract file IDs from attached files
-          const fileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
+          // Extract file IDs from attached files and generated images
+          const uploadedFileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
+          const imageFileIds = (conversation?.messages || [])
+            .map(m => m.imageUrl?.match(/\/api\/files\/([^/]+)\/content/)?.[1] ?? null)
+            .filter((id): id is string => id !== null);
+          const fileIds = [...uploadedFileIds, ...imageFileIds];
 
           debugLog(`🔧 Calling deleteConversationWithFiles for session: ${conversation.sessionId}`);
           debugLog(`🔧 File IDs to delete: ${fileIds.join(', ') || 'none'}`);
@@ -735,7 +739,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           adapterName: conversationAdapterName
         });
 
-        const fileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
+        const uploadedFileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
+        const imageFileIds = (conversation?.messages || [])
+          .map(m => m.imageUrl?.match(/\/api\/files\/([^/]+)\/content/)?.[1] ?? null)
+          .filter((id): id is string => id !== null);
+        const fileIds = [...uploadedFileIds, ...imageFileIds];
 
         if (apiClient.deleteConversationWithFiles) {
           await apiClient.deleteConversationWithFiles(conversation.sessionId, fileIds);
@@ -1251,6 +1259,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     image: response.image,
                     imageFormat: response.image_format || 'png',
                     imageRevisedPrompt: response.image_revised_prompt,
+                    imageUrl: response.image_url,
                   };
                 }
 
@@ -1761,6 +1770,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     image: response.image,
                     imageFormat: response.image_format || 'png',
                     imageRevisedPrompt: response.image_revised_prompt,
+                    imageUrl: response.image_url,
                   };
                 }
 
