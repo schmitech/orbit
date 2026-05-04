@@ -41,7 +41,6 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
         });
 
         if (!res.ok) {
-          // eslint-disable-next-line no-console
           console.warn('[ImageDisplay] Server returned', res.status, 'for', imageUrl);
           return;
         }
@@ -55,7 +54,6 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
         blobUrlRef.current = url;
         setBlobUrl(url);
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.warn('[ImageDisplay] Failed to fetch image from', imageUrl, err);
       }
     })();
