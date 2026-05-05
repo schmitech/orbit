@@ -86,7 +86,7 @@ class OllamaConfig:
         service_type: str,
     ) -> Dict[str, Any]:
         """Resolve inference.ollama.use_preset when config_manager has not already done it."""
-        if service_type != 'inference' or service_config.get('model'):
+        if service_type != 'inference':
             return service_config
 
         preset_name = service_config.get('use_preset')
@@ -311,7 +311,7 @@ class OllamaModelWarmer:
         Warm up the model by sending a test request.
 
         Args:
-            endpoint: API endpoint to use (generate, embeddings, chat)
+            endpoint: API endpoint to use (generate, embeddings, chat, image_generation)
             warmup_prompt: Test prompt to send
             timeout: Warmup timeout in seconds (default increased to 120s for cold starts)
             skip_if_loaded: If True, skip warm-up if model is already loaded
@@ -351,6 +351,21 @@ class OllamaModelWarmer:
                         "options": {"num_predict": 1},
                         "keep_alive": self.keep_alive
                     }
+                elif endpoint == "image_generation":
+                    base_url = self.base_url.rstrip("/")
+                    if base_url.endswith("/api"):
+                        base_url = base_url[:-4]
+                    if not base_url.endswith("/v1"):
+                        base_url = f"{base_url}/v1"
+
+                    url = f"{base_url}/images/generations"
+                    payload = {
+                        "model": self.model,
+                        "prompt": warmup_prompt,
+                        "n": 1,
+                        "size": "256x256",
+                        "response_format": "b64_json",
+                    }
                 else:  # generate
                     url = f"{self.base_url}/api/generate"
                     payload = {
@@ -369,6 +384,11 @@ class OllamaModelWarmer:
                         if endpoint == "embeddings" and data.get('embedding'):
                             logger.info(f"Model {self.model} warmed up successfully (keep_alive={self.keep_alive})")
                             return True
+                        elif endpoint == "image_generation":
+                            if (data.get('data') or [{}])[0].get('b64_json'):
+                                logger.info(f"Model {self.model} warmed up successfully (keep_alive={self.keep_alive})")
+                                return True
+                            raise Exception("Image warmup response did not include b64_json data")
                         elif endpoint in ["generate", "chat"] and (data.get('response') or data.get('message')):
                             logger.info(f"Model {self.model} warmed up successfully (keep_alive={self.keep_alive})")
                             return True

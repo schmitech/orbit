@@ -193,7 +193,8 @@ class OllamaBaseService(ProviderAIService):
             ServiceType.MODERATION: 'chat',
             ServiceType.RERANKING: 'generate',
             ServiceType.VISION: 'chat',
-            ServiceType.AUDIO: 'generate'
+            ServiceType.AUDIO: 'generate',
+            ServiceType.IMAGE_GENERATION: 'image_generation',
         }
         return endpoint_map.get(self.service_type, 'generate')
 

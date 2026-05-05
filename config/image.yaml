@@ -1,12 +1,12 @@
 # Global image generation configuration
 image:
-  provider: "gemini"  # Default image generation provider: openai, gemini
+  provider: "gemini"  # Default image generation provider: openai, gemini, ollama
   enabled: true        # Whether image generation is enabled globally
 
 # Provider-specific configurations
 image_generation:
   openai:
-    enabled: true
+    enabled: false
     api_key: ${OPENAI_API_KEY}
     api_base: "https://api.openai.com/v1"
     model: "dall-e-3"           # dall-e-3, dall-e-2, gpt-image-1
@@ -41,6 +41,27 @@ image_generation:
     retry:
       enabled: true
       max_retries: 2
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  ollama:
+    enabled: true
+    base_url: "http://localhost:11434"
+    model: "x/z-image-turbo"     # Example image models: x/z-image-turbo, x/flux2-klein
+    size: "1024x1024"
+    n: 1
+    quality: "standard"
+    style: null
+    # Timeout configuration
+    timeout:
+      connect: 10000
+      total: 180000
+      warmup: 180000
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 5
       initial_wait_ms: 2000
       max_wait_ms: 30000
       exponential_base: 2

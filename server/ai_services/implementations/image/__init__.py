@@ -4,6 +4,7 @@ Image generation service implementations.
 Available providers:
     - OpenAIImageService: OpenAI DALL-E 2/3 and GPT-Image-1
     - GeminiImageService: Google Imagen 3
+    - OllamaImageService: Ollama experimental image generation
 """
 
 import logging
@@ -15,6 +16,7 @@ __all__ = []
 _implementations = [
     ('openai_image_service', 'OpenAIImageService'),
     ('gemini_image_service', 'GeminiImageService'),
+    ('ollama_image_service', 'OllamaImageService'),
 ]
 
 for module_name, class_name in _implementations:

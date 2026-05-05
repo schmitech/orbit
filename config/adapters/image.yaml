@@ -5,14 +5,14 @@ adapters:
     enabled: true
     expose_as_skill: true
     skill_name: "image-generation"
-    skill_description: "Generate images from text descriptions using AI (DALL-E 3 or Imagen)"
+    skill_description: "Generate images from text descriptions using AI (DALL-E 3, Imagen, or Ollama)"
     type: "image_generation"
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     inference_provider: "ollama_cloud"    # Override default inference provider
     model: "gpt-oss-120b"            # Specific model for this adapter
-    image_provider: "gemini"              # Image generation provider (see image.yaml): openai, gemini
+    image_provider: "gemini"            # Optional adapter override; omit to use config/image.yaml
 
     capabilities:
       retrieval_behavior: "none"
