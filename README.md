@@ -27,16 +27,6 @@
   <a href="docs/cookbook/"><strong>Cookbook</strong></a>
 </p>
 
----
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/5118565d-5d44-45a6-990d-97bc18156ec0" controls muted playsinline width="75%"></video>
-  <br />
-  <em>The HR assistant answering workforce questions over employee, department, budget, and compensation data. Source available at <a href="examples/intent-templates/sql-intent-template/examples/sqlite/hr/">examples/intent-templates/sql-intent-template/examples/sqlite/hr</a>.</em>
-</p>
-
----
-
 ORBIT gives you one OpenAI-compatible API for private RAG, model routing, file Q&A, database copilots, voice agents, and MCP tools. Run it locally, connect your own data, and swap between hosted or local LLM providers without rewriting your app.
 
 If ORBIT looks useful, **[star the repo](https://github.com/schmitech/orbit)** to follow new adapters, recipes, voice features, and production-ready RAG workloads.
@@ -63,19 +53,11 @@ curl -X POST http://localhost:3000/v1/chat \
   }'
 ```
 
-That's it. ORBIT is listening on port 3000 with an admin panel at [localhost:3000/admin](http://localhost:3000/admin) (default login: `admin` / `admin123`).
+ORBIT listens on port 3000 with an admin panel at [localhost:3000/admin](http://localhost:3000/admin) (default login: `admin` / `admin123`).
 
 For GPU acceleration: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d`
 
 Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/) and [`examples/intent-templates/`](examples/intent-templates/).
-
----
-
-<p align="center">
-  <img width="700" alt="image generation skill" src="https://github.com/user-attachments/assets/e2588037-8b94-4351-b3cb-40ff41102add" />
-  <br />
-  <em>Invoke specialized cross-adapter skills like image generation at any point during a conversation to visualize data, generate charts, or create infographics directly from retrieval results. <a href="docs/adapters/skills.md">Learn more</a>.</em>
-</p>
 
 ---
 
@@ -93,7 +75,7 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 ---
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/994aaede-dcce-40b5-8622-47f28684cedd" controls muted playsinline width="75%"></video>
+  <video src="https://github.com/user-attachments/assets/bc85d24a-72dd-4a71-8c3d-017e5fadd219" controls muted playsinline width="75%"></video>
   <br />
   <em>The multimodal adapter lets you upload PDFs, documents, and images, then ask questions across all of them in a single conversation. Context is preserved across turns, and running it with a local model keeps every file and query entirely on your own infrastructure.</em>
 </p>
@@ -133,6 +115,14 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 
 ---
 
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/73671841-392f-47e6-9554-d97f975f0b75" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Invoke specialized cross-adapter skills like image generation at any point during a conversation to visualize data, generate charts, or create infographics directly from retrieval results. <a href="docs/adapters/skills.md">Learn more</a>.</em>
+</p>
+
+---
+
 ### Examples
 
 | Example | Start here |
@@ -147,7 +137,7 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 ---
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/bd1aa8d0-abe4-499d-a6bb-32b4520ac504" controls muted playsinline width="75%"></video>
+  <video src="https://github.com/user-attachments/assets/0f178992-ee7d-4347-b41a-ab27b4ab5709" controls muted playsinline width="75%"></video>
   <br />
   <em>OrbitChat rendering live charts from LLM output — bar, line, area, pie, scatter, composed, radar, funnel, radialbar, and horizontal bar — with no client-side charting code required. The model emits a fenced <code>chart</code> block, and the renderer handles the rest.</em>
 </p>
@@ -164,7 +154,7 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 | **Production controls** | API keys, RBAC, audit logs, rate limits, quotas, moderation, circuit breakers |
 | **Cross-adapter skills** | Invoke specialized adapters (image generation, and more) mid-conversation via a `skill` field — explicit allowlist per adapter, no separate auth |
 | **Agent + voice support** | MCP server, OpenClaw / Hermes / Claude Desktop / Cursor compatibility, full-duplex PersonaPlex voice |
-| **Clients** | Web chat, CLI, mobile app, Node SDK, Python client, or any OpenAI-compatible SDK |
+| **Clients** | Web chat, Node SDK, or any OpenAI-compatible SDK |
 
 <details>
 <summary><strong>Full provider and integration list</strong></summary>
@@ -185,9 +175,9 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 ---
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/4f291788-0c5c-4b06-947b-8147d746e508" controls muted playsinline width="75%"></video>
+  <video src="https://github.com/user-attachments/assets/268801ff-5e17-4358-9e69-b2667851d611" controls muted playsinline width="75%"></video>
   <br />
-  <em>Runtime model selection in action: the HR assistant queries a Canadian employee database in natural language. Switch between a local on-prem model and a cloud-hosted model mid-conversation — the selected model travels with every message, including thread replies and regenerations. No redeploy. No config change. Data residency stays in your control.</em>
+  <em>Image generation as a cross-adapter skill. ORBIT routes the request to the image adapter, enriching the prompt with conversation history and thread context before generating.</em>
 </p>
 
 ---
@@ -204,20 +194,11 @@ ORBIT is Apache 2.0, so you can build and sell commercial products on top of it 
 
 ---
 
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/268801ff-5e17-4358-9e69-b2667851d611" controls muted playsinline width="75%"></video>
-  <br />
-  <em>Image generation as a cross-adapter skill. ORBIT routes the request to the image adapter, enriching the prompt with conversation history and thread context before generating.</em>
-</p>
-
----
-
 ### Clients
 
 | Client | Description |
 | :--- | :--- |
 | **[Web Chat](clients/orbitchat/)** | React UI |
-| **[Mobile](clients/orbit-mobile/)** | iOS & Android (Expo) |
 | **[Node SDK](clients/node-api/)** | Or use any OpenAI-compatible SDK |
 
 ---
