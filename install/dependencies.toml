@@ -21,6 +21,7 @@ dependencies = [
     "anthropic>=0.89.0",
     "cohere>=5.21.1",
     "groq>=1.1.2",
+    "xai-sdk>=1.12.1",
     "replicate>=1.0.7",
     "zai-sdk>=0.2.2",
     "deepseek>=1.0.0",

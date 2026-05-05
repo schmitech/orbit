@@ -464,6 +464,7 @@ def register_image_generation_services(config: Dict[str, Any] = None) -> None:
         ("openai", "OpenAIImageService", "OpenAI"),
         ("gemini", "GeminiImageService", "Gemini"),
         ("ollama", "OllamaImageService", "Ollama"),
+        ("xai", "XAIImageService", "xAI (Grok)"),
     ]
 
     image_gen_config = config.get('image_generation', {}) if config else {}

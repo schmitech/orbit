@@ -5,6 +5,7 @@ Available providers:
     - OpenAIImageService: OpenAI DALL-E 2/3 and GPT-Image-1
     - GeminiImageService: Google Imagen 3
     - OllamaImageService: Ollama experimental image generation
+    - XAIImageService: xAI (Grok) image generation
 """
 
 import logging
@@ -17,6 +18,7 @@ _implementations = [
     ('openai_image_service', 'OpenAIImageService'),
     ('gemini_image_service', 'GeminiImageService'),
     ('ollama_image_service', 'OllamaImageService'),
+    ('xai_image_service', 'XAIImageService'),
 ]
 
 for module_name, class_name in _implementations:
