@@ -145,7 +145,7 @@ class MiddlewareConfigurator:
 
         try:
             from server.middleware.admin_audit_middleware import AdminAuditMiddleware
-            app.add_middleware(AdminAuditMiddleware)
+            app.add_middleware(AdminAuditMiddleware, config=config)
             _logger.info("Admin audit middleware configured successfully")
             logger.info("Admin audit middleware configured successfully")
         except ImportError as e:

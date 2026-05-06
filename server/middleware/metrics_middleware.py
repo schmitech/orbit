@@ -54,7 +54,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             duration = time.perf_counter() - start_time
             
             # Record metrics if service is available
-            if metrics_service:
+            if metrics_service and getattr(metrics_service, 'enabled', False):
                 try:
                     # Record the request using normalized template
                     endpoint = route_template

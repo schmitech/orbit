@@ -150,6 +150,17 @@ def _match_route(method: str, path: str):
 # IP parsing (mirror of LoggerService / AuditService logic)
 # ---------------------------------------------------------------------------
 
+def _parse_trusted_networks(proxies: List[str]) -> List[Any]:
+    """Parse CIDR strings into network objects for proxy trust validation."""
+    networks = []
+    for proxy in proxies:
+        try:
+            networks.append(ipaddress.ip_network(proxy, strict=False))
+        except ValueError:
+            logger.warning(f"AdminAuditMiddleware: invalid trusted proxy address '{proxy}'")
+    return networks
+
+
 def _is_local_ip(ip: str) -> bool:
     try:
         addr = ipaddress.ip_address(ip)
@@ -158,15 +169,36 @@ def _is_local_ip(ip: str) -> bool:
         return False
 
 
-def _extract_ip(request: Request) -> Tuple[str, Dict[str, Any]]:
-    """Return (ip_address, ip_metadata) for the request."""
+def _extract_ip(
+    request: Request,
+    trust_proxy: bool = False,
+    trusted_networks: Optional[List[Any]] = None,
+) -> Tuple[str, Dict[str, Any]]:
+    """Return (ip_address, ip_metadata) for the request.
+
+    Proxy headers are only honoured when trust_proxy=True AND the direct
+    connection originates from a network listed in trusted_networks.  When
+    trusted_networks is empty and trust_proxy is True, proxy headers are
+    rejected (deny-by-default) to prevent IP spoofing in audit records.
+    """
+    direct_ip = request.client.host if request.client else None
+
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
+    use_proxy_header = False
+    if forwarded and trust_proxy and trusted_networks:
+        try:
+            addr = ipaddress.ip_address(direct_ip or "")
+            if any(addr in net for net in trusted_networks):
+                use_proxy_header = True
+        except ValueError:
+            pass
+
+    if use_proxy_header:
         raw = forwarded
         clean = forwarded.split(",")[0].strip()
         source = "proxy"
     else:
-        clean = request.client.host if request.client else "unknown"
+        clean = direct_ip or "unknown"
         raw = clean
         source = "direct"
 
@@ -211,18 +243,21 @@ def _extract_ip(request: Request) -> Tuple[str, Dict[str, Any]]:
 
 async def _read_and_replay_body(request: Request) -> bytes:
     """
-    Read the request body into memory and patch `_receive` so the downstream
-    handler can still consume it. Capped at `_MAX_BODY_BYTES` — oversized
-    bodies are passed through without capture.
+    Read the request body for audit capture.  Starlette caches the body in
+    request._body after the first read, so the downstream handler can still
+    consume it via request.body() / request.json().
+
+    Skips reading entirely when Content-Length signals an oversized payload,
+    avoiding unnecessary memory allocation.
     """
+    content_length = int(request.headers.get("content-length", 0) or 0)
+    if content_length > _MAX_BODY_BYTES:
+        return b""
+
     body = await request.body()
     if len(body) > _MAX_BODY_BYTES:
-        body = b""  # don't buffer huge bodies; handler still has original stream
+        return b""
 
-    async def receive():
-        return {"type": "http.request", "body": body, "more_body": False}
-
-    request._receive = receive
     return body
 
 
@@ -259,6 +294,15 @@ def _build_request_summary(body: Optional[Dict[str, Any]], allowed: Any) -> Opti
 
 class AdminAuditMiddleware(BaseHTTPMiddleware):
     """Captures admin/auth mutations and routes them to AuditService."""
+
+    def __init__(self, app, config: Optional[Dict[str, Any]] = None):
+        super().__init__(app)
+        security_cfg = (config or {}).get("security", {}) or {}
+        rate_cfg = security_cfg.get("rate_limiting", {}) or {}
+        self._trust_proxy = rate_cfg.get("trust_proxy_headers", False)
+        self._trusted_networks = _parse_trusted_networks(
+            rate_cfg.get("trusted_proxies", [])
+        )
 
     async def dispatch(self, request: Request, call_next: Callable):
         path = request.url.path
@@ -346,7 +390,11 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
                 resource_id = actor_id
 
         # IP + metadata
-        ip, ip_metadata = _extract_ip(request)
+        ip, ip_metadata = _extract_ip(
+            request,
+            trust_proxy=self._trust_proxy,
+            trusted_networks=self._trusted_networks,
+        )
 
         status_code = response.status_code
         success = status_code < 400

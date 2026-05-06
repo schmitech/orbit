@@ -34,7 +34,7 @@ class SelectiveGZipMiddleware:
         app: ASGIApp,
         minimum_size: int = 2048,
         excluded_paths: Optional[List[str]] = None,
-        compresslevel: int = 9
+        compresslevel: int = 6
     ):
         """
         Initialize the selective GZip middleware.

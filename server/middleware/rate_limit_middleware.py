@@ -106,6 +106,12 @@ return current
         self.trusted_proxies = self._parse_trusted_proxies(
             rate_config.get('trusted_proxies', [])
         )
+        if self.trust_proxy_headers and not self.trusted_proxies:
+            logger.warning(
+                "trust_proxy_headers is enabled but trusted_proxies is empty — "
+                "all X-Forwarded-For headers will be trusted unconditionally. "
+                "Set trusted_proxies to the CIDR(s) of your reverse proxy."
+            )
 
         # IP limits
         ip_limits = rate_config.get('ip_limits', {}) or {}
@@ -352,10 +358,10 @@ return current
 
             # Calculate remaining (use the more restrictive limit)
             minute_remaining = limit_per_minute - minute_count
-            limit_per_hour - hour_count
+            hour_remaining   = limit_per_hour   - hour_count
 
-            # Use minute window for headers (more relevant for clients)
-            remaining = max(0, minute_remaining)
+            # Use minute window for reset time (more relevant for clients)
+            remaining = max(0, min(minute_remaining, hour_remaining))
             reset_time = (current_minute + 1) * 60
 
             return True, remaining, limit_per_minute, reset_time

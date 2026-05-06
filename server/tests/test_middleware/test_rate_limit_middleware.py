@@ -368,6 +368,28 @@ class TestRateLimitMiddlewareClientIP:
         assert middleware._get_client_ip(mock_request) == "1.2.3.4"
 
 
+@pytest.fixture
+def mock_redis_service():
+    """Create a mock Redis service with counter tracking."""
+    mock_service = Mock()
+    mock_service.enabled = True
+    mock_service.initialized = True
+
+    counters = {}
+
+    async def mock_script_call(keys, args):
+        key = keys[0]
+        counters[key] = counters.get(key, 0) + 1
+        return counters[key]
+
+    mock_script = AsyncMock(side_effect=mock_script_call)
+    mock_service.client = Mock()
+    mock_service.client.register_script = Mock(return_value=mock_script)
+    mock_service._counters = counters
+
+    return mock_service
+
+
 class TestRateLimitMiddlewareWithRedis:
     """Tests for rate limiting with Redis mock."""
 
@@ -660,6 +682,107 @@ class TestRateLimitMiddlewareRedisFailure:
         # Request should succeed even when Redis fails to initialize
         response = client.get("/test")
         assert response.status_code == 200
+
+
+class TestRateLimitMiddlewareRemainingHeader:
+    """Tests that X-RateLimit-Remaining reflects the more restrictive window."""
+
+    @pytest.mark.asyncio
+    async def test_remaining_uses_min_of_minute_and_hour(self, mock_redis_service):
+        """When hour window is tighter, remaining should reflect hourly headroom."""
+        app = FastAPI()
+
+        # Minute limit generous (100), hour limit tight (5).
+        # After 3 requests: minute_remaining=97, hour_remaining=2 → header should be 2.
+        config = {
+            'security': {
+                'rate_limiting': {
+                    'enabled': True,
+                    'ip_limits': {'requests_per_minute': 100, 'requests_per_hour': 5},
+                }
+            }
+        }
+
+        app.add_middleware(RateLimitMiddleware, config=config)
+
+        @app.get("/test")
+        def test_endpoint():
+            return {"ok": True}
+
+        app.state.redis_service = mock_redis_service
+
+        client = TestClient(app)
+        for _ in range(3):
+            response = client.get("/test")
+            assert response.status_code == 200
+
+        remaining = int(response.headers["X-RateLimit-Remaining"])
+        # minute_remaining=97, hour_remaining=2 → min is 2
+        assert remaining == 2
+
+
+class TestRateLimitMiddlewareTrustProxyWarning:
+    """Tests for the misconfiguration warning when trusted_proxies is empty."""
+
+    def test_warns_when_trust_proxy_headers_without_trusted_proxies(self, caplog):
+        import logging
+        with caplog.at_level(logging.WARNING, logger="middleware.rate_limit_middleware"):
+            app = FastAPI()
+            config = {
+                'security': {
+                    'rate_limiting': {
+                        'enabled': True,
+                        'trust_proxy_headers': True,
+                        'trusted_proxies': [],
+                    }
+                }
+            }
+            RateLimitMiddleware(app, config)
+
+        assert any(
+            "trust_proxy_headers is enabled but trusted_proxies is empty" in r.message
+            for r in caplog.records
+        )
+
+    def test_no_warning_when_trusted_proxies_configured(self, caplog):
+        import logging
+        with caplog.at_level(logging.WARNING, logger="middleware.rate_limit_middleware"):
+            app = FastAPI()
+            config = {
+                'security': {
+                    'rate_limiting': {
+                        'enabled': True,
+                        'trust_proxy_headers': True,
+                        'trusted_proxies': ['10.0.0.0/8'],
+                    }
+                }
+            }
+            RateLimitMiddleware(app, config)
+
+        assert not any(
+            "trusted_proxies is empty" in r.message
+            for r in caplog.records
+        )
+
+    def test_no_warning_when_trust_proxy_headers_disabled(self, caplog):
+        import logging
+        with caplog.at_level(logging.WARNING, logger="middleware.rate_limit_middleware"):
+            app = FastAPI()
+            config = {
+                'security': {
+                    'rate_limiting': {
+                        'enabled': True,
+                        'trust_proxy_headers': False,
+                        'trusted_proxies': [],
+                    }
+                }
+            }
+            RateLimitMiddleware(app, config)
+
+        assert not any(
+            "trusted_proxies is empty" in r.message
+            for r in caplog.records
+        )
 
 
 class TestRateLimitMiddlewareConcurrencySafety:

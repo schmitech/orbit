@@ -316,8 +316,9 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
             monthly_remaining = None if monthly_limit is None else max(0, monthly_limit - monthly_used)
 
             # Calculate reset timestamps
-            daily_reset_at = time.time() + daily_reset_seconds
-            monthly_reset_at = time.time() + monthly_reset_seconds
+            now = time.time()
+            daily_reset_at   = now + daily_reset_seconds
+            monthly_reset_at = now + monthly_reset_seconds
 
             # Check if quota is exceeded (hard limit)
             quota_exceeded = False
@@ -331,7 +332,8 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
                 exceeded_type = 'monthly'
 
             if quota_exceeded:
-                logger.warning(f"Quota exceeded for API key ({exceeded_type}): {api_key[:8]}...")
+                from utils.text_utils import mask_api_key
+                logger.warning(f"Quota exceeded for API key ({exceeded_type}): {mask_api_key(api_key, show_last=True, num_chars=6)}")
                 response = JSONResponse(
                     status_code=429,
                     content={
