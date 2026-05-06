@@ -15,6 +15,12 @@ from services.file_processing.processor_registry import FileProcessorRegistry
 from services.file_processing.chunking import (
     FixedSizeChunker, SemanticChunker, TokenChunker, RecursiveChunker, Chunk
 )
+from services.file_processing.magika_detector import (
+    FileValidationError,
+    MagikaDetector,
+    canonicalize_label,
+    canonicalize_mime_type,
+)
 from services.file_storage.filesystem_storage import FilesystemStorage
 from services.file_metadata.metadata_store import FileMetadataStore
 
@@ -54,6 +60,8 @@ class FileProcessingService:
         self.metadata_store = FileMetadataStore(config=config)
         self.processor_registry = FileProcessorRegistry(config=config)
         self.chunker = self._init_chunker()
+        self.magika_config = processing_config.get('magika', {})
+        self.magika_detector = self._init_magika_detector()
 
         # Configuration - get from adapter config first, then files.processing, then default
         self.max_file_size = config.get('max_file_size') or \
@@ -166,6 +174,23 @@ class FileProcessingService:
             model = provider_config.get('stt_model', provider_config.get('model_size', 'default'))
             logger.info(f"Default STT service configured: provider={self.default_audio_provider}, model={model}")
             logger.info("STT provider can be overridden per-upload based on API key's adapter configuration")
+
+    def _init_magika_detector(self) -> Optional[MagikaDetector]:
+        """Initialize Magika upload inspection if configured."""
+        if not self.magika_config.get('enabled', False):
+            return None
+
+        detector = MagikaDetector(
+            enabled=True,
+            prediction_mode=self.magika_config.get('prediction_mode', 'HIGH_CONFIDENCE'),
+            log_detection_details=self.magika_config.get('log_detection_details', True),
+        )
+        logger.info(
+            "Magika upload inspection enabled (enforcement=%s, prediction_mode=%s)",
+            self.magika_config.get('enforcement', 'block'),
+            self.magika_config.get('prediction_mode', 'HIGH_CONFIDENCE'),
+        )
+        return detector
     
     def _init_storage(self) -> FilesystemStorage:
         """Initialize storage backend."""
@@ -227,6 +252,7 @@ class FileProcessingService:
             )
             logger.debug(f"  Semantic chunker configured: use_advanced={use_advanced}, model={model_name or 'none'}")
             return chunker
+
         elif strategy == 'token':
             # Token-based chunking
             chunker = TokenChunker(
@@ -258,6 +284,87 @@ class FileProcessingService:
                 mode = "token-based" if use_tokens else "character-based"
                 logger.debug(f"  Fixed-size chunker configured: mode={mode}")
             return chunker
+
+    def _resolve_supported_type(self, mime_type: Optional[str], label: Optional[str] = None) -> Optional[str]:
+        """Resolve a MIME type or Magika label to one of the configured supported types."""
+        candidates = []
+
+        canonical_mime = canonicalize_mime_type(mime_type)
+        if canonical_mime:
+            candidates.append(canonical_mime)
+
+        canonical_label = canonicalize_label(label)
+        if canonical_label and canonical_label not in candidates:
+            candidates.append(canonical_label)
+
+        if mime_type and mime_type not in candidates:
+            candidates.append(mime_type)
+
+        for candidate in candidates:
+            if candidate in self.supported_types:
+                return candidate
+
+        return None
+
+    def inspect_upload(
+        self,
+        *,
+        file_data: bytes,
+        filename: str,
+        claimed_mime_type: str,
+    ) -> str:
+        """
+        Validate an upload and return the MIME type that should be used downstream.
+        """
+        if len(file_data) > self.max_file_size:
+            raise ValueError(f"File size exceeds maximum {self.max_file_size} bytes")
+
+        if not self.magika_detector:
+            return claimed_mime_type
+
+        detection = self.magika_detector.identify_bytes(file_data)
+        if detection is None:
+            return claimed_mime_type
+
+        if self.magika_config.get('log_detection_details', True):
+            logger.debug(
+                "Magika upload inspection: filename=%s claimed_mime=%s detected_label=%s detected_mime=%s score=%.4f generic=%s",
+                filename,
+                claimed_mime_type,
+                detection.label,
+                detection.mime_type,
+                detection.score,
+                detection.is_generic,
+            )
+
+        if detection.is_generic_text and not self.magika_config.get('allow_generic_text_fallback', False):
+            raise FileValidationError(
+                "Uploaded file content could not be confidently classified beyond generic text"
+            )
+
+        if detection.is_generic_binary and not self.magika_config.get('allow_generic_binary_fallback', False):
+            raise FileValidationError(
+                "Uploaded file content could not be confidently classified and appears to be unknown binary data"
+            )
+
+        detected_type = self._resolve_supported_type(detection.mime_type, detection.label)
+        if not detected_type:
+            raise FileValidationError(
+                f"Uploaded file content was detected as unsupported type '{detection.label or detection.mime_type}'"
+            )
+
+        claimed_type = self._resolve_supported_type(claimed_mime_type)
+        if claimed_type and claimed_type != detected_type:
+            raise FileValidationError(
+                "Uploaded file content does not match the declared file type"
+            )
+
+        if not claimed_type and claimed_mime_type != 'application/octet-stream':
+            raise FileValidationError(
+                "Uploaded file content does not match the declared file type"
+            )
+
+        return detected_type
 
     async def _get_vision_provider_for_api_key(self, api_key: str) -> str:
         """

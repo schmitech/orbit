@@ -457,6 +457,16 @@ files:
       # Enable third-party plugins (default: false for security)
       enable_plugins: true
 
+    # Magika upload inspection
+    # Disabled by default for backward compatibility; enable to verify upload contents
+    magika:
+      enabled: false
+      enforcement: "block"
+      prediction_mode: "HIGH_CONFIDENCE"
+      allow_generic_text_fallback: false
+      allow_generic_binary_fallback: false
+      log_detection_details: true
+
     # CSV processor settings
     csv:
       # For small CSVs, include ALL rows to enable exact lookups (e.g., "find ID X")

@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from services.file_processing.file_processing_service import FileProcessingService
+from services.file_processing.magika_detector import FileValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +200,12 @@ def create_file_router() -> APIRouter:
             # Log MIME type detection for debugging
             if mime_type == 'application/octet-stream':
                 logger.warning(f"Could not determine MIME type for file: {file.filename}")
+
+            mime_type = processing_service.inspect_upload(
+                file_data=file_data,
+                filename=file.filename,
+                claimed_mime_type=mime_type,
+            )
             
             # For images and audio files, store file and process in background to avoid blocking
             # (API calls can take time for vision transcription and audio transcription)
@@ -257,6 +264,8 @@ def create_file_router() -> APIRouter:
         except HTTPException:
             # Re-raise HTTP exceptions (like 401 for invalid API key)
             raise
+        except FileValidationError as e:
+            raise HTTPException(status_code=e.status_code, detail=str(e))
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
@@ -597,4 +606,3 @@ def create_file_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error querying file: {str(e)}")
     
     return router
-

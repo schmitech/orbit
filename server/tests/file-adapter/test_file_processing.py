@@ -8,6 +8,7 @@ import pytest
 import pytest_asyncio
 import sys
 import warnings
+import types
 from pathlib import Path
 
 # Suppress SWIG-related deprecation warnings from dependencies (FAISS, numpy, etc.)
@@ -28,6 +29,7 @@ from services.file_processing.text_processor import TextProcessor
 from services.file_processing.processor_registry import FileProcessorRegistry
 from services.file_processing.file_processing_service import FileProcessingService
 from services.file_processing.chunking import FixedSizeChunker, SemanticChunker
+from services.file_processing.magika_detector import FileValidationError
 
 
 def create_test_config(tmp_path, db_name="test_orbit.db", **extra_config):
@@ -60,6 +62,48 @@ def cleanup_metadata_store(test_db_path):
 # Sample file content
 SAMPLE_TEXT = "This is a test document with multiple lines.\nSecond line here.\nThird line."
 SAMPLE_PDF_CONTENT = b"%PDF-1.4\n%Test PDF content"
+
+
+class FakePredictionMode:
+    HIGH_CONFIDENCE = "HIGH_CONFIDENCE"
+
+
+class FakeMagikaResult:
+    def __init__(
+        self,
+        *,
+        label: str,
+        mime_type: str,
+        score: float = 0.99,
+        is_text: bool = True,
+        group: str = "document",
+        description: str = "Fake result"
+    ):
+        self.ok = True
+        self.output = types.SimpleNamespace(
+            label=label,
+            mime_type=mime_type,
+            is_text=is_text,
+            group=group,
+            description=description,
+        )
+        self.score = score
+
+
+class FakeMagika:
+    next_result = FakeMagikaResult(label="txt", mime_type="text/plain")
+    last_prediction_mode = None
+
+    def __init__(self, prediction_mode=None, **_kwargs):
+        FakeMagika.last_prediction_mode = prediction_mode
+
+    def identify_bytes(self, _file_data):
+        return FakeMagika.next_result
+
+
+def install_fake_magika(monkeypatch):
+    fake_module = types.SimpleNamespace(Magika=FakeMagika, PredictionMode=FakePredictionMode)
+    monkeypatch.setitem(sys.modules, "magika", fake_module)
 
 
 def test_text_processor_supports_mime_types():
@@ -1041,6 +1085,263 @@ async def test_config_supported_types_from_global(tmp_path):
     assert 'text/plain' in service.supported_types
     assert 'application/custom' in service.supported_types
     assert 'image/png' in service.supported_types
+
+    service.metadata_store.close()
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_config_magika_enabled_initializes_detector(tmp_path, monkeypatch):
+    """Test that Magika is initialized from global config when enabled."""
+    test_db_path = str(tmp_path / "test_config.db")
+    install_fake_magika(monkeypatch)
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    config = {
+        'files': {
+            'processing': {
+                'magika': {
+                    'enabled': True,
+                    'prediction_mode': 'HIGH_CONFIDENCE',
+                }
+            }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
+    assert service.magika_detector is not None
+    assert FakeMagika.last_prediction_mode == FakePredictionMode.HIGH_CONFIDENCE
+
+    service.metadata_store.close()
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_inspect_upload_disabled_preserves_claimed_type(tmp_path):
+    """Test that disabled Magika keeps current MIME behavior."""
+    test_db_path = str(tmp_path / "test_config.db")
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    config = {
+        'supported_types': ['text/plain', 'text/markdown'],
+        'files': {
+            'processing': {
+                'magika': {
+                    'enabled': False,
+                }
+            }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
+    assert service.inspect_upload(
+        file_data=b"# heading\n",
+        filename="test.md",
+        claimed_mime_type="text/markdown",
+    ) == "text/markdown"
+
+    service.metadata_store.close()
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_inspect_upload_uses_detected_type_for_octet_stream(tmp_path, monkeypatch):
+    """Test that generic client MIME can be replaced by Magika's supported type."""
+    test_db_path = str(tmp_path / "test_config.db")
+    install_fake_magika(monkeypatch)
+    FakeMagika.next_result = FakeMagikaResult(label="markdown", mime_type="text/markdown")
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    config = {
+        'supported_types': ['text/plain', 'text/markdown'],
+        'files': {
+            'processing': {
+                'magika': {
+                    'enabled': True,
+                }
+            }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
+    resolved = service.inspect_upload(
+        file_data=b"# heading\n",
+        filename="test.md",
+        claimed_mime_type="application/octet-stream",
+    )
+
+    assert resolved == "text/markdown"
+
+    service.metadata_store.close()
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_inspect_upload_rejects_mismatch(tmp_path, monkeypatch):
+    """Test that Magika blocks declared MIME mismatches."""
+    test_db_path = str(tmp_path / "test_config.db")
+    install_fake_magika(monkeypatch)
+    FakeMagika.next_result = FakeMagikaResult(label="png", mime_type="image/png", is_text=False, group="image")
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    config = {
+        'supported_types': ['text/plain', 'image/png'],
+        'files': {
+            'processing': {
+                'magika': {
+                    'enabled': True,
+                }
+            }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
+    with pytest.raises(FileValidationError, match="does not match the declared file type"):
+        service.inspect_upload(
+            file_data=b"fake png bytes",
+            filename="test.txt",
+            claimed_mime_type="text/plain",
+        )
+
+    service.metadata_store.close()
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_inspect_upload_rejects_generic_text(tmp_path, monkeypatch):
+    """Test that generic text fallback is blocked by default."""
+    test_db_path = str(tmp_path / "test_config.db")
+    install_fake_magika(monkeypatch)
+    FakeMagika.next_result = FakeMagikaResult(label="txt", mime_type="text/plain")
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    config = {
+        'supported_types': ['text/plain'],
+        'files': {
+            'processing': {
+                'magika': {
+                    'enabled': True,
+                }
+            }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
+    with pytest.raises(FileValidationError, match="generic text"):
+        service.inspect_upload(
+            file_data=b"plain text",
+            filename="test.txt",
+            claimed_mime_type="text/plain",
+        )
+
+    service.metadata_store.close()
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_inspect_upload_rejects_unknown_binary(tmp_path, monkeypatch):
+    """Test that unknown binary fallback is blocked by default."""
+    test_db_path = str(tmp_path / "test_config.db")
+    install_fake_magika(monkeypatch)
+    FakeMagika.next_result = FakeMagikaResult(
+        label="unknown",
+        mime_type="application/octet-stream",
+        is_text=False,
+        group="unknown",
+        description="Unknown binary data",
+    )
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    config = {
+        'supported_types': ['text/plain', 'image/png'],
+        'files': {
+            'processing': {
+                'magika': {
+                    'enabled': True,
+                }
+            }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': test_db_path
+                }
+            }
+        }
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
+    with pytest.raises(FileValidationError, match="unknown binary data"):
+        service.inspect_upload(
+            file_data=b"\x00\x01\x02",
+            filename="payload.bin",
+            claimed_mime_type="application/octet-stream",
+        )
 
     service.metadata_store.close()
     cleanup_metadata_store(test_db_path)
