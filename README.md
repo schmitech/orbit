@@ -33,6 +33,14 @@ If ORBIT looks useful, **[star the repo](https://github.com/schmitech/orbit)** t
 
 ---
 
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/a3fd7308-64be-4216-823b-954e2e37bad2" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Model overriding in action. Easily switch from model to model during the conversation, including chat history.</em>
+</p>
+
+---
+
 ### Get running in 60 seconds
 
 ```bash
