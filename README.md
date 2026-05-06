@@ -34,9 +34,9 @@ If ORBIT looks useful, **[star the repo](https://github.com/schmitech/orbit)** t
 ---
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/a3fd7308-64be-4216-823b-954e2e37bad2" controls muted playsinline width="75%"></video>
+  <video src="https://github.com/user-attachments/assets/bc85d24a-72dd-4a71-8c3d-017e5fadd219" controls muted playsinline width="75%"></video>
   <br />
-  <em>Model overriding in action. Easily switch from model to model during the conversation, including chat history.</em>
+  <em>The multimodal adapter lets you upload PDFs, documents, and images, then ask questions across all of them in a single conversation. Context is preserved across turns, and running it with a local model keeps every file and query entirely on your own infrastructure.</em>
 </p>
 
 ---
@@ -69,6 +69,14 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 
 ---
 
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/565275fa-8f54-4bd6-94de-3fb27a66a5ab" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Private local AI model analyzing sensitive PII data completely offline. No cloud. No external API. No data leaving your infrastructure.</em>
+</p>
+
+---
+
 ### Why ORBIT?
 
 | Without ORBIT | With ORBIT |
@@ -83,9 +91,9 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 ---
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/bc85d24a-72dd-4a71-8c3d-017e5fadd219" controls muted playsinline width="75%"></video>
+  <video src="https://github.com/user-attachments/assets/a3fd7308-64be-4216-823b-954e2e37bad2" controls muted playsinline width="75%"></video>
   <br />
-  <em>The multimodal adapter lets you upload PDFs, documents, and images, then ask questions across all of them in a single conversation. Context is preserved across turns, and running it with a local model keeps every file and query entirely on your own infrastructure.</em>
+  <em>Model overriding in action. Easily switch from model to model during the conversation, including chat history.</em>
 </p>
 
 ---
