@@ -4,7 +4,7 @@ Gemini inference service implementation using unified architecture.
 Uses the google-genai SDK (replacement for deprecated google-generativeai).
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator, List, Optional, Tuple
 import asyncio
 import logging
 
@@ -51,7 +51,7 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             self._genai_client = genai.Client()
         return self._genai_client
 
-    def _build_config(self, **kwargs):
+    def _build_config(self, system_instruction: Optional[str] = None, **kwargs):
         """Build GenerateContentConfig from parameters."""
         from google.genai import types
 
@@ -62,6 +62,9 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             "top_k": kwargs.get('top_k', self.top_k),
         }
 
+        if system_instruction:
+            config_params["system_instruction"] = system_instruction
+
         if self.disable_safety:
             config_params["safety_settings"] = [
                 types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
@@ -71,6 +74,30 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             ]
 
         return types.GenerateContentConfig(**config_params)
+
+    @staticmethod
+    def _extract_system_and_contents(
+        messages: List[Dict[str, Any]],
+    ) -> Tuple[Optional[str], List[Dict[str, Any]]]:
+        """Split an OpenAI-format messages list into a Gemini system instruction and contents.
+
+        Gemini requires:
+        - system prompt passed separately as system_instruction (not in contents)
+        - role "assistant" renamed to "model"
+        - each turn wrapped as {"role": ..., "parts": [{"text": ...}]}
+        """
+        system_instruction = None
+        contents = []
+        for msg in messages:
+            role = msg.get('role', 'user')
+            content = msg.get('content', '')
+            if role == 'system':
+                system_instruction = content
+            elif role == 'user':
+                contents.append({"role": "user", "parts": [{"text": content}]})
+            elif role == 'assistant':
+                contents.append({"role": "model", "parts": [{"text": content}]})
+        return system_instruction, contents
 
     def _extract_text(self, response) -> str:
         """Extract text from a Gemini response, with error checking."""
@@ -103,16 +130,21 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             await self.initialize()
 
         try:
-            # Pop api_key to avoid passing it to config builder;
-            # client uses env-var-based auth set in _get_client()
             kwargs.pop('api_key', None)
+            messages = kwargs.pop('messages', None)
             client = self._get_client()
-            config = self._build_config(**kwargs)
+
+            if messages:
+                system_instruction, contents = self._extract_system_and_contents(messages)
+                config = self._build_config(system_instruction=system_instruction, **kwargs)
+            else:
+                contents = prompt
+                config = self._build_config(**kwargs)
 
             response = await asyncio.to_thread(
                 client.models.generate_content,
                 model=self.model,
-                contents=prompt,
+                contents=contents,
                 config=config,
             )
 
@@ -129,13 +161,19 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
 
         try:
             kwargs.pop('api_key', None)
+            messages = kwargs.pop('messages', None)
             client = self._get_client()
-            config = self._build_config(**kwargs)
 
-            # Use synchronous streaming wrapped in to_thread for each chunk
+            if messages:
+                system_instruction, contents = self._extract_system_and_contents(messages)
+                config = self._build_config(system_instruction=system_instruction, **kwargs)
+            else:
+                contents = prompt
+                config = self._build_config(**kwargs)
+
             response_iter = client.models.generate_content_stream(
                 model=self.model,
-                contents=prompt,
+                contents=contents,
                 config=config,
             )
 

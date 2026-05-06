@@ -165,10 +165,28 @@ class ChatHistoryService:
         """
         return max(1, len(content) // 3)
     
+    def _resolve_preset_config(self, provider: str, provider_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge preset values into provider_config when a use_preset reference is present.
+
+        Some providers (e.g. llama_cpp) store the actual context/token settings in a
+        named preset rather than inline in inference.yaml. Without resolving the preset,
+        _calculate_max_token_budget falls back to tiny provider-type defaults (4096 for
+        llama_cpp) even when the real preset declares n_ctx=32768+.
+        """
+        use_preset = provider_config.get('use_preset')
+        if not use_preset:
+            return provider_config
+        preset_key = f"{provider}_presets"
+        preset = self.config.get(preset_key, {}).get(use_preset, {})
+        if not preset:
+            return provider_config
+        # Preset values are the base; explicit inference.yaml keys override them
+        return {**preset, **{k: v for k, v in provider_config.items() if k != 'use_preset'}}
+
     def _calculate_max_token_budget(self) -> int:
         """
         Calculate the maximum token budget for conversation history.
-        
+
         Returns:
             Maximum tokens available for conversation history
         """
@@ -176,7 +194,11 @@ class ChatHistoryService:
             # Get the active inference provider
             inference_provider = self.config.get('general', {}).get('inference_provider', 'ollama')
             inference_config = self.config.get('inference', {}).get(inference_provider, {})
-            
+
+            # Resolve preset references (e.g. llama_cpp use_preset) so that
+            # context-window and max-token settings are actually visible here.
+            inference_config = self._resolve_preset_config(inference_provider, inference_config)
+
             # Extract context window size
             context_window = self._get_context_window_size(inference_provider, inference_config)
 
