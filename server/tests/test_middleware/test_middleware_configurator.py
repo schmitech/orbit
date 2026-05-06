@@ -24,6 +24,8 @@ sys.path.insert(0, str(SERVER_DIR))
 
 from config.middleware_configurator import MiddlewareConfigurator, SecurityHeadersMiddleware
 
+_CONFIGURATOR_LOGGER = "config.middleware_configurator"
+
 
 class TestSecurityHeadersMiddleware:
     """Tests for SecurityHeadersMiddleware class."""
@@ -81,7 +83,6 @@ class TestSecurityHeadersMiddleware:
         assert response.status_code == 200
         assert response.headers.get("X-Content-Type-Options") == "nosniff"
         assert response.headers.get("X-Frame-Options") == "DENY"
-        # These should not be present
         assert response.headers.get("Content-Security-Policy") is None
         assert response.headers.get("Strict-Transport-Security") is None
 
@@ -89,9 +90,7 @@ class TestSecurityHeadersMiddleware:
         """Test that middleware handles empty config gracefully."""
         app = FastAPI()
 
-        headers_config = {}
-
-        app.add_middleware(SecurityHeadersMiddleware, headers_config=headers_config)
+        app.add_middleware(SecurityHeadersMiddleware, headers_config={})
 
         @app.get("/test")
         def test_endpoint():
@@ -101,7 +100,6 @@ class TestSecurityHeadersMiddleware:
         response = client.get("/test")
 
         assert response.status_code == 200
-        # No security headers should be added
         assert response.headers.get("X-Content-Type-Options") is None
 
     def test_security_headers_on_error_response(self):
@@ -125,7 +123,6 @@ class TestSecurityHeadersMiddleware:
         response = client.get("/error")
 
         assert response.status_code == 400
-        # Security headers should be present on handled error responses
         assert response.headers.get("X-Content-Type-Options") == "nosniff"
         assert response.headers.get("X-Frame-Options") == "SAMEORIGIN"
 
@@ -142,11 +139,7 @@ class TestSecurityHeadersMiddleware:
 
         @app.exception_handler(ValueError)
         async def value_error_handler(request: Request, exc: ValueError):
-            return Response(
-                content=str(exc),
-                status_code=422,
-                media_type="text/plain"
-            )
+            return Response(content=str(exc), status_code=422, media_type="text/plain")
 
         @app.get("/custom-error")
         def custom_error_endpoint():
@@ -163,16 +156,15 @@ class TestSecurityHeadersMiddleware:
 class TestCORSConfiguration:
     """Tests for CORS middleware configuration."""
 
-    def test_cors_with_wildcard_origins_disables_credentials(self):
+    def test_cors_with_wildcard_origins_disables_credentials(self, caplog):
         """Test that credentials are automatically disabled when wildcard origins are used."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
         config = {
             'security': {
                 'cors': {
                     'allowed_origins': ["*"],
-                    'allow_credentials': True,  # This should be overridden
+                    'allow_credentials': True,
                     'allowed_methods': ["GET", "POST"],
                     'allowed_headers': ["Authorization"],
                     'expose_headers': [],
@@ -181,22 +173,15 @@ class TestCORSConfiguration:
             }
         }
 
-        MiddlewareConfigurator._configure_cors_middleware(app, config, logger)
+        with caplog.at_level(logging.WARNING, logger=_CONFIGURATOR_LOGGER):
+            MiddlewareConfigurator._configure_cors_middleware(app, config)
 
-        # Verify warning was logged about disabling credentials
-        warning_calls = [call for call in logger.warning.call_args_list
-                        if 'Automatically disabling' in str(call)]
-        assert len(warning_calls) > 0
+        assert any("Automatically disabling" in r.message for r in caplog.records)
+        assert any("wildcard origin" in r.message for r in caplog.records)
 
-        # Verify wildcard warning was logged
-        wildcard_warning_calls = [call for call in logger.warning.call_args_list
-                                  if 'wildcard origin' in str(call)]
-        assert len(wildcard_warning_calls) > 0
-
-    def test_cors_with_specific_origins_allows_credentials(self):
+    def test_cors_with_specific_origins_allows_credentials(self, caplog):
         """Test that credentials can be enabled with specific origins."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
         config = {
             'security': {
@@ -211,22 +196,15 @@ class TestCORSConfiguration:
             }
         }
 
-        MiddlewareConfigurator._configure_cors_middleware(app, config, logger)
+        with caplog.at_level(logging.INFO, logger=_CONFIGURATOR_LOGGER):
+            MiddlewareConfigurator._configure_cors_middleware(app, config)
 
-        # Verify info about credentials with specific origins was logged
-        info_calls = [call for call in logger.info.call_args_list
-                     if 'credentials enabled for specific origins' in str(call)]
-        assert len(info_calls) > 0
+        assert any("credentials enabled for specific origins" in r.message for r in caplog.records)
+        assert not any("Automatically disabling" in r.message for r in caplog.records)
 
-        # Verify no warning about disabling credentials
-        warning_calls = [call for call in logger.warning.call_args_list
-                        if 'Automatically disabling' in str(call)]
-        assert len(warning_calls) == 0
-
-    def test_cors_configuration_logging(self):
-        """Test that CORS configuration is logged correctly."""
+    def test_cors_configuration_logging(self, caplog):
+        """Test that CORS configuration details are logged."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
         config = {
             'security': {
@@ -241,23 +219,20 @@ class TestCORSConfiguration:
             }
         }
 
-        MiddlewareConfigurator._configure_cors_middleware(app, config, logger)
+        with caplog.at_level(logging.INFO, logger=_CONFIGURATOR_LOGGER):
+            MiddlewareConfigurator._configure_cors_middleware(app, config)
 
-        # Verify all configuration details were logged
-        log_messages = [str(call) for call in logger.info.call_args_list]
+        messages = [r.message for r in caplog.records]
+        assert any("CORS Configuration" in m for m in messages)
+        assert any("Allowed Origins" in m for m in messages)
+        assert any("Allow Credentials" in m for m in messages)
+        assert any("Allowed Methods" in m for m in messages)
+        assert any("Max Age" in m for m in messages)
 
-        assert any("CORS Configuration" in msg for msg in log_messages)
-        assert any("Allowed Origins" in msg for msg in log_messages)
-        assert any("Allow Credentials" in msg for msg in log_messages)
-        assert any("Allowed Methods" in msg for msg in log_messages)
-        assert any("Max Age" in msg for msg in log_messages)
-
-    def test_cors_with_legacy_config_fallback(self):
+    def test_cors_with_legacy_config_fallback(self, caplog):
         """Test that legacy cors config is used when security.cors is not present."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
-        # Legacy configuration (no security section)
         config = {
             'cors': {
                 'allowed_origins': ["https://legacy.example.com"],
@@ -267,29 +242,23 @@ class TestCORSConfiguration:
             }
         }
 
-        MiddlewareConfigurator._configure_cors_middleware(app, config, logger)
+        with caplog.at_level(logging.INFO, logger=_CONFIGURATOR_LOGGER):
+            MiddlewareConfigurator._configure_cors_middleware(app, config)
 
-        # Should work without errors
-        assert logger.info.called
+        assert any(r.levelno == logging.INFO for r in caplog.records)
 
-    def test_cors_with_empty_config_uses_defaults(self):
+    def test_cors_with_empty_config_uses_defaults(self, caplog):
         """Test that secure defaults are used when no config is provided."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
-        config = {}
+        with caplog.at_level(logging.WARNING, logger=_CONFIGURATOR_LOGGER):
+            MiddlewareConfigurator._configure_cors_middleware(app, {})
 
-        MiddlewareConfigurator._configure_cors_middleware(app, config, logger)
-
-        # Should use secure defaults and warn about wildcard
-        warning_calls = [call for call in logger.warning.call_args_list
-                        if 'wildcard origin' in str(call)]
-        assert len(warning_calls) > 0
+        assert any("wildcard origin" in r.message for r in caplog.records)
 
     def test_cors_middleware_added_to_app(self):
         """Test that CORS middleware is actually added to the FastAPI app."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
         config = {
             'security': {
@@ -305,79 +274,51 @@ class TestCORSConfiguration:
         }
 
         initial_middleware_count = len(app.user_middleware)
-        MiddlewareConfigurator._configure_cors_middleware(app, config, logger)
+        MiddlewareConfigurator._configure_cors_middleware(app, config)
 
-        # Verify middleware was added
         assert len(app.user_middleware) > initial_middleware_count
 
 
 class TestSecurityHeadersConfiguration:
     """Tests for security headers middleware configuration."""
 
-    def test_security_headers_enabled_by_default(self):
+    def test_security_headers_enabled_by_default(self, caplog):
         """Test that security headers middleware is enabled by default."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
-        config = {
-            'security': {
-                'headers': {
-                    'enabled': True,
-                    'x_content_type_options': "nosniff"
-                }
-            }
-        }
+        config = {'security': {'headers': {'enabled': True, 'x_content_type_options': "nosniff"}}}
 
         initial_middleware_count = len(app.user_middleware)
-        MiddlewareConfigurator._configure_security_headers_middleware(app, config, logger)
 
-        # Verify middleware was added
+        with caplog.at_level(logging.INFO, logger=_CONFIGURATOR_LOGGER):
+            MiddlewareConfigurator._configure_security_headers_middleware(app, config)
+
         assert len(app.user_middleware) > initial_middleware_count
+        assert any("Security headers middleware configured" in r.message for r in caplog.records)
 
-        # Verify success message was logged
-        info_calls = [call for call in logger.info.call_args_list
-                     if 'Security headers middleware configured' in str(call)]
-        assert len(info_calls) > 0
-
-    def test_security_headers_can_be_disabled(self):
+    def test_security_headers_can_be_disabled(self, caplog):
         """Test that security headers middleware can be disabled (with warning)."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
-        config = {
-            'security': {
-                'headers': {
-                    'enabled': False
-                }
-            }
-        }
+        config = {'security': {'headers': {'enabled': False}}}
 
         initial_middleware_count = len(app.user_middleware)
-        MiddlewareConfigurator._configure_security_headers_middleware(app, config, logger)
 
-        # Verify middleware was NOT added
+        with caplog.at_level(logging.WARNING, logger=_CONFIGURATOR_LOGGER):
+            MiddlewareConfigurator._configure_security_headers_middleware(app, config)
+
         assert len(app.user_middleware) == initial_middleware_count
-
-        # Verify warning was logged
-        warning_calls = [call for call in logger.warning.call_args_list
-                        if 'DISABLED' in str(call)]
-        assert len(warning_calls) > 0
+        assert any("DISABLED" in r.message for r in caplog.records)
 
     def test_security_headers_empty_config_enables_by_default(self):
         """Test that empty headers config still enables the middleware."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
-        config = {
-            'security': {
-                'headers': {}
-            }
-        }
+        config = {'security': {'headers': {}}}
 
         initial_middleware_count = len(app.user_middleware)
-        MiddlewareConfigurator._configure_security_headers_middleware(app, config, logger)
+        MiddlewareConfigurator._configure_security_headers_middleware(app, config)
 
-        # Middleware should be added (enabled by default)
         assert len(app.user_middleware) > initial_middleware_count
 
 
@@ -409,11 +350,9 @@ class TestFullMiddlewareConfiguration:
         initial_middleware_count = len(app.user_middleware)
         MiddlewareConfigurator.configure_middleware(app, config, logger)
 
-        # Should have added at least 2 middleware (security headers + CORS)
-        # Plus the logging middleware added by http decorator
         assert len(app.user_middleware) >= initial_middleware_count + 2
 
-    def test_configure_middleware_order(self):
+    def test_configure_middleware_order(self, caplog):
         """Test that middleware is configured in the correct order."""
         app = FastAPI()
         logger = Mock(spec=logging.Logger)
@@ -435,15 +374,12 @@ class TestFullMiddlewareConfiguration:
             }
         }
 
-        MiddlewareConfigurator.configure_middleware(app, config, logger)
+        with caplog.at_level(logging.INFO, logger=_CONFIGURATOR_LOGGER):
+            MiddlewareConfigurator.configure_middleware(app, config, logger)
 
-        # Verify that all middleware configuration methods were called
-        info_logs = [str(call) for call in logger.info.call_args_list]
-
-        # Security headers should be configured
-        assert any("Security headers middleware configured" in log for log in info_logs)
-        # CORS should be configured
-        assert any("CORS middleware configured" in log for log in info_logs)
+        messages = [r.message for r in caplog.records]
+        assert any("Security headers middleware configured" in m for m in messages)
+        assert any("CORS middleware configured" in m for m in messages)
 
     def test_metrics_middleware_handles_import_error(self):
         """Test that metrics middleware gracefully handles import errors."""
@@ -451,8 +387,7 @@ class TestFullMiddlewareConfiguration:
         logger = Mock(spec=logging.Logger)
 
         with patch('config.middleware_configurator.MiddlewareConfigurator._configure_metrics_middleware') as mock_metrics:
-            # Simulate ImportError in metrics middleware
-            mock_metrics.side_effect = lambda app, logger: logger.warning("MetricsMiddleware not available")
+            mock_metrics.side_effect = lambda app: None
 
             config = {
                 'security': {
@@ -464,23 +399,19 @@ class TestFullMiddlewareConfiguration:
                         'expose_headers': [],
                         'max_age': 600
                     },
-                    'headers': {
-                        'enabled': True
-                    }
+                    'headers': {'enabled': True}
                 }
             }
 
-            # Should not raise an exception
             MiddlewareConfigurator.configure_middleware(app, config, logger)
 
 
 class TestCORSSecurityEdgeCases:
     """Tests for edge cases and security scenarios."""
 
-    def test_cors_with_multiple_origins_including_wildcard(self):
+    def test_cors_with_multiple_origins_including_wildcard(self, caplog):
         """Test that wildcard is detected even when mixed with other origins."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
         config = {
             'security': {
@@ -495,17 +426,14 @@ class TestCORSSecurityEdgeCases:
             }
         }
 
-        MiddlewareConfigurator._configure_cors_middleware(app, config, logger)
+        with caplog.at_level(logging.WARNING, logger=_CONFIGURATOR_LOGGER):
+            MiddlewareConfigurator._configure_cors_middleware(app, config)
 
-        # Should detect wildcard and disable credentials
-        warning_calls = [call for call in logger.warning.call_args_list
-                        if 'Automatically disabling' in str(call)]
-        assert len(warning_calls) > 0
+        assert any("Automatically disabling" in r.message for r in caplog.records)
 
     def test_cors_with_empty_origins_list(self):
         """Test CORS configuration with empty origins list."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
         config = {
             'security': {
@@ -520,13 +448,11 @@ class TestCORSSecurityEdgeCases:
             }
         }
 
-        # Should not raise an exception
-        MiddlewareConfigurator._configure_cors_middleware(app, config, logger)
+        MiddlewareConfigurator._configure_cors_middleware(app, config)
 
-    def test_cors_preserves_all_settings(self):
-        """Test that all CORS settings are properly preserved."""
+    def test_cors_preserves_all_settings(self, caplog):
+        """Test that all CORS settings are properly logged."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
         config = {
             'security': {
@@ -541,18 +467,12 @@ class TestCORSSecurityEdgeCases:
             }
         }
 
-        MiddlewareConfigurator._configure_cors_middleware(app, config, logger)
+        with caplog.at_level(logging.INFO, logger=_CONFIGURATOR_LOGGER):
+            MiddlewareConfigurator._configure_cors_middleware(app, config)
 
-        # Verify all settings were logged
-        info_calls = [str(call) for call in logger.info.call_args_list]
-
-        # Check methods were logged
-        methods_logged = any("GET" in msg and "POST" in msg and "PUT" in msg for msg in info_calls)
-        assert methods_logged
-
-        # Check max_age was logged
-        max_age_logged = any("7200" in msg for msg in info_calls)
-        assert max_age_logged
+        messages = [r.message for r in caplog.records]
+        assert any("GET" in m and "POST" in m and "PUT" in m for m in messages)
+        assert any("7200" in m for m in messages)
 
 
 class TestIntegrationScenarios:
@@ -566,7 +486,7 @@ class TestIntegrationScenarios:
         config = {
             'security': {
                 'cors': {
-                    'allowed_origins': ["http://testclient"],  # TestClient uses this origin
+                    'allowed_origins': ["http://testclient"],
                     'allow_credentials': False,
                     'allowed_methods': ["GET", "POST"],
                     'allowed_headers': ["Content-Type"],
@@ -592,7 +512,6 @@ class TestIntegrationScenarios:
         response = client.get("/api/test")
 
         assert response.status_code == 200
-        # Security headers should be present
         assert response.headers.get("X-Content-Type-Options") == "nosniff"
         assert response.headers.get("X-Frame-Options") == "DENY"
         assert response.headers.get("Referrer-Policy") == "no-referrer"
@@ -627,7 +546,6 @@ class TestIntegrationScenarios:
 
         client = TestClient(app)
 
-        # Send OPTIONS preflight request
         response = client.options(
             "/api/data",
             headers={
@@ -637,7 +555,6 @@ class TestIntegrationScenarios:
             }
         )
 
-        # Preflight should succeed
         assert response.status_code == 200
 
 
@@ -649,48 +566,31 @@ class TestConfigurationValidation:
         app = FastAPI()
         logger = Mock(spec=logging.Logger)
 
-        config = {
-            'general': {
-                'port': 3000
-            }
-        }
+        MiddlewareConfigurator.configure_middleware(app, {'general': {'port': 3000}}, logger)
 
-        # Should not raise an exception
-        MiddlewareConfigurator.configure_middleware(app, config, logger)
-
-    def test_partial_cors_config_uses_defaults_for_missing(self):
+    def test_partial_cors_config_uses_defaults_for_missing(self, caplog):
         """Test that partial CORS config uses defaults for missing values."""
         app = FastAPI()
-        logger = Mock(spec=logging.Logger)
 
         config = {
             'security': {
                 'cors': {
                     'allowed_origins': ["https://example.com"]
-                    # Missing: allow_credentials, allowed_methods, etc.
                 }
             }
         }
 
-        MiddlewareConfigurator._configure_cors_middleware(app, config, logger)
+        with caplog.at_level(logging.INFO, logger=_CONFIGURATOR_LOGGER):
+            MiddlewareConfigurator._configure_cors_middleware(app, config)
 
-        # Should use defaults for missing values
-        info_calls = [str(call) for call in logger.info.call_args_list]
-
-        # Default methods should be used
-        assert any("GET" in msg for msg in info_calls)
+        messages = [r.message for r in caplog.records]
+        assert any("GET" in m for m in messages)
 
     def test_none_values_in_config_handled_gracefully(self):
         """Test that None values in config are handled without errors."""
         app = FastAPI()
         logger = Mock(spec=logging.Logger)
 
-        config = {
-            'security': {
-                'cors': None,
-                'headers': None
-            }
-        }
+        config = {'security': {'cors': None, 'headers': None}}
 
-        # Should not raise an exception
         MiddlewareConfigurator.configure_middleware(app, config, logger)
