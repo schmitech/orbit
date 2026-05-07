@@ -6,14 +6,18 @@ image:
 # Provider-specific configurations
 image_generation:
   openai:
-    enabled: false
+    enabled: true
     api_key: ${OPENAI_API_KEY}
     api_base: "https://api.openai.com/v1"
-    model: "dall-e-3"           # dall-e-3, dall-e-2, gpt-image-1
-    size: "1024x1024"           # 256x256, 512x512, 1024x1024, 1792x1024, 1024x1792
-    quality: "standard"         # standard, hd (dall-e-3 only)
-    style: "vivid"              # vivid, natural (dall-e-3 only)
-    # response_format is always b64_json (no URL expiry, self-hosted friendly)
+    model: "gpt-image-2"        # gpt-image-2, gpt-image-1.5, gpt-image-1, dall-e-3, dall-e-2
+    size: "1024x1024"           # gpt-image-2 also supports other valid resolutions such as 1536x1024, 1024x1536
+    quality: "auto"             # gpt-image: auto, low, medium, high; dall-e-3: standard, hd
+    output_format: "png"        # gpt-image only: png, jpeg, webp
+    output_compression: null    # gpt-image jpeg/webp only: 0-100
+    background: null            # gpt-image only: opaque, auto
+    moderation: null            # gpt-image only: auto, low
+    style: "vivid"              # dall-e-3 only: vivid, natural
+    # GPT Image returns b64_json by default; DALL-E requests b64_json explicitly.
     # Timeout configuration
     timeout:
       connect: 15000   # 15 seconds
