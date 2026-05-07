@@ -4,7 +4,7 @@
 
 adapters:
   - name: "intent-sql-postgres"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "postgres"
     adapter: "intent"
