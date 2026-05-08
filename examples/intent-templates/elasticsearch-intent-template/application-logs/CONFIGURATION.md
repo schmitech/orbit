@@ -40,9 +40,12 @@ The Elasticsearch adapter uses a three-layer configuration architecture:
 ```yaml
 datasources:
   elasticsearch:
-    node: 'https://your-elastic-cloud.es.io:9200'
+    node: ${DATASOURCE_ELASTICSEARCH_NODE}
     verify_certs: true
     timeout: 30
+    max_retries: 3
+    retry_on_timeout: true
+    http_compress: true
     auth:
       username: ${DATASOURCE_ELASTICSEARCH_USERNAME}
       password: ${DATASOURCE_ELASTICSEARCH_PASSWORD}
@@ -56,7 +59,7 @@ datasources:
 
 ## Layer 2: Domain Configuration
 
-**File**: `utils/elasticsearch-intent-template/examples/application-logs/logs_domain.yaml`
+**File**: `examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_domain.yaml`
 
 **Purpose**: Domain-specific schema and knowledge about the data
 
@@ -138,9 +141,9 @@ adapters:
     embedding_provider: "openai"
     config:
       # Domain references
-      domain_config_path: "utils/elasticsearch-intent-template/examples/application-logs/logs_domain.yaml"
+      domain_config_path: "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_domain.yaml"
       template_library_path:
-        - "utils/elasticsearch-intent-template/examples/application-logs/logs_templates.yaml"
+        - "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_templates.yaml"
 
       # Vector store for template matching
       template_collection_name: "elasticsearch_logs_templates"
@@ -153,8 +156,8 @@ adapters:
       # Adapter-specific Elasticsearch settings
       index_pattern: "logs-app-*"  # Can override domain default
       use_query_dsl: true
-      enable_aggregations: true
-      enable_highlighting: true
+      enable_aggregations: false
+      enable_highlighting: false
       default_size: 100
 ```
 
@@ -208,12 +211,12 @@ adapters:
   - name: "logs-prod"
     datasource: "elasticsearch-prod"  # Points to prod
     config:
-      domain_config_path: "utils/.../logs_domain.yaml"  # Same domain
+      domain_config_path: "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_domain.yaml"
 
   - name: "logs-dev"
     datasource: "elasticsearch-dev"  # Points to dev
     config:
-      domain_config_path: "utils/.../logs_domain.yaml"  # Same domain
+      domain_config_path: "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_domain.yaml"
 ```
 
 ### Scenario 2: Multiple Domains, Same Cluster
@@ -226,13 +229,13 @@ adapters:
   - name: "logs-adapter"
     datasource: "elasticsearch"  # Same datasource
     config:
-      domain_config_path: "utils/.../logs_domain.yaml"
+      domain_config_path: "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_domain.yaml"
       index_pattern: "logs-*"
 
   - name: "metrics-adapter"
     datasource: "elasticsearch"  # Same datasource, shared connection
     config:
-      domain_config_path: "utils/.../metrics_domain.yaml"
+      domain_config_path: "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/metrics_domain.yaml"
       index_pattern: "metrics-*"
 ```
 
@@ -315,10 +318,10 @@ Use these commands to validate your configuration:
 
 ```bash
 # Test datasource connection
-python utils/elasticsearch-intent-template/validate_data.py
+python examples/intent-templates/elasticsearch-intent-template/application-logs/validate_data.py
 
 # Generate sample data (tests datasource + adapter)
-python utils/elasticsearch-intent-template/generate_sample_data.py --count 10
+python examples/intent-templates/elasticsearch-intent-template/application-logs/generate_sample_data.py --count 10
 
 # Test adapter through ORBIT API
 curl -X POST http://localhost:8000/v1/chat/completions \

@@ -61,71 +61,6 @@ adapters:
       enable_query_monitoring: true
       query_timeout: 5000  # 5 seconds
 
-  # Elasticsearch Intent Adapter - Application Logs
-  # This adapter demonstrates Elasticsearch Query DSL generation from natural language
-  # Connection parameters are inherited from config/datasources.yaml
-  - name: "intent-elasticsearch-app-logs"
-    enabled: false
-    type: "retriever"
-    datasource: "elasticsearch"  # References datasources.yaml elasticsearch config
-    adapter: "intent"
-    implementation: "retrievers.implementations.intent.IntentElasticsearchRetriever"
-    inference_provider: "gemini"
-    model: "gemini-3.1-pro-preview"
-    embedding_provider: "ollama"
-    embedding_model: "nomic-embed-text:latest"
-    # reranker_provider: "ollama"
-    
-    capabilities:
-      retrieval_behavior: "always"
-      formatting_style: "standard"
-      supports_file_ids: false
-      supports_session_tracking: false
-      supports_threading: true
-      supports_autocomplete: true
-      requires_api_key_validation: true
-      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
-      context_max_tokens: 8000
-      numeric_precision:
-        decimal_places: 2
-    
-    config:
-      # Domain and template configuration
-      domain_config_path: "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_domain.yaml"
-      template_library_path:
-        - "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_templates.yaml"
-
-      # reranker_top_n: 3      # Optional: limit reranked results (overrides return_results)
-      # Vector store configuration for template matching
-      template_collection_name: "elasticsearch_logs_templates"
-      store_name: "chroma"  # References stores.yaml
-
-      # Intent matching configuration
-      confidence_threshold: 0.4
-      max_templates: 5
-      return_results: 10
-
-      # Template loading settings
-      reload_templates_on_start: false
-      force_reload_templates: false
-
-      # Elasticsearch-specific configuration
-      # Note: Connection parameters (node, auth, verify_certs) are in datasources.yaml
-      # Only adapter-specific settings go here
-      index_pattern: "application-logs-demo"  # Default index pattern for queries
-      use_query_dsl: true  # Enable Query DSL processing
-      enable_aggregations: false  # Enable aggregation support
-      enable_highlighting: false  # Enable search result highlighting
-      default_size: 100  # Default number of results to return
-
-    # Example fault tolerance settings (optional)
-    fault_tolerance:
-      operation_timeout: 30.0
-      failure_threshold: 5
-      recovery_timeout: 60.0
-      max_retries: 3
-      retry_delay: 1.0
-
   # HTTP JSON API Adapter - JSONPlaceholder (Simple Testing API)
   # This adapter uses a fake REST API for testing and debugging HTTP adapter functionality
   # No authentication required - perfect for isolating parameter extraction issues
@@ -197,8 +132,8 @@ adapters:
     datasource: "http"  # Uses HTTP datasource placeholder
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentHTTPJSONRetriever"
-    inference_provider: "openai"
-    model: "gpt-5.4-mini"
+    inference_provider: "openrouter"
+    #model: "gpt-oss:20b"
     embedding_provider: "ollama"
     capabilities:
       retrieval_behavior: "always"
@@ -351,81 +286,6 @@ adapters:
       recovery_timeout: 60.0
       max_retries: 2
       retry_delay: 2.0
-
-  # MongoDB Intent Retriever for Sample MFlix Database
-  - name: "intent-mongodb-mflix"
-    enabled: true
-    type: "retriever"
-    datasource: "mongodb"
-    adapter: "intent"
-    implementation: "retrievers.implementations.intent.intent_mongodb_retriever.IntentMongoDBRetriever"
-    inference_provider: "openai"
-    model: "gpt-5.4-mini"
-    embedding_provider: "ollama"
-    embedding_model: "nomic-embed-text:latest"
-    reranker_provider: "anthropic"
-    capabilities:
-      retrieval_behavior: "always"
-      formatting_style: "standard"
-      supports_file_ids: false
-      supports_session_tracking: false
-      supports_threading: true
-      supports_autocomplete: true  # Enable autocomplete from template nl_examples
-      requires_api_key_validation: true
-      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
-      context_max_tokens: 8000
-      numeric_precision:
-        decimal_places: 2
-    config:
-      reranker_top_n: 10
-      # Domain and template configuration
-      domain_config_path: "examples/intent-templates/mongodb-intent-template/sample_mflix/templates/mflix_domain.yaml"
-      template_library_path:
-        - "examples/intent-templates/mongodb-intent-template/sample_mflix/templates/mflix_templates.yaml"
-        - "examples/intent-templates/mongodb-intent-template/sample_mflix/templates/mflix_advanced_templates.yaml"
-
-      # Vector store configuration for template matching
-      template_collection_name: "intent_mongodb_templates"
-      store_name: "chroma"  # References stores.yaml
-
-      # Intent matching configuration
-      confidence_threshold: 0.4
-      max_templates: 5
-      return_results: 50
-
-      # Template loading settings
-      reload_templates_on_start: false
-      force_reload_templates: false
-
-      # MongoDB-specific configuration
-      # Note: Connection parameters (connection_string, host, port, auth) are in datasources.yaml
-      # Only adapter-specific settings go here
-      database: "sample_mflix"  # Database name (can override datasource default)
-      default_collection: "movies"  # Default collection for queries
-      default_limit: 100  # Default number of results to return
-      max_limit: 1000  # Maximum allowed limit
-      enable_text_search: true  # Enable text search with regex
-      case_insensitive_regex: true  # Case-insensitive regex by default
-
-      # Placeholder base_url to satisfy parent class
-      base_url: "http://localhost:27017"
-
-    # Fault tolerance settings
-    fault_tolerance:
-      operation_timeout: 15.0
-      failure_threshold: 10
-      recovery_timeout: 30.0
-      success_threshold: 5
-      max_recovery_timeout: 120.0
-      enable_exponential_backoff: true
-      enable_thread_isolation: false
-      enable_process_isolation: false
-      max_retries: 3
-      retry_delay: 1.0
-      cleanup_interval: 3600.0
-      retention_period: 86400.0
-      event_handler:
-        type: "default"
 
   # GraphQL Intent Adapter - SpaceX API
   # This adapter demonstrates GraphQL query generation from natural language

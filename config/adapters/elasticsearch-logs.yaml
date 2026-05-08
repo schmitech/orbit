@@ -1,0 +1,89 @@
+# Elasticsearch Intent Adapter - Application Logs
+# This adapter demonstrates Elasticsearch Query DSL generation from natural language
+# Connection parameters are inherited from config/datasources.yaml
+adapters:
+  - name: "intent-elasticsearch-app-logs"
+    enabled: true
+    type: "retriever"
+    datasource: "elasticsearch"  # References datasources.yaml elasticsearch config
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentElasticsearchRetriever"
+    inference_provider: "gemini"
+    model: "gemini-3.1-pro-preview"
+    embedding_provider: "gemini"
+    embedding_model: "gemini-embedding-2-preview"
+    # reranker_provider: "ollama"
+    allowed_models:
+      - name: "cohere-command-a"
+        provider: "cohere"
+        model: "command-a-03-2025"
+      - name: "grok-grok-4.3"
+        provider: "xai"
+        model: "grok-4.3"
+      - name: "llama-cpp-gemma4"
+        provider: "llama_cpp"
+        model: "gemma4-e2b-direct-cpu"
+      - name: "ollama-gemma4-e2b"
+        provider: "ollama"
+        model: "gemma4-e2b-cpu"
+      - name: "ollama-gpt-oss-120b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:20b"
+      - name: "openai-gpt-5.4-mini"
+        provider: "openai"
+        model: "gpt-5.4-mini"
+      - name: "anthropic-claude-haiku"
+        provider: "anthropic"
+        model: "claude-haiku-4-5-20251001"
+      - name: "gemini-3.1-pro-preview"
+        provider: "gemini"
+        model: "gemini-3.1-pro-preview"
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true
+      requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+    
+    config:
+      # Domain and template configuration
+      domain_config_path: "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/elasticsearch-intent-template/application-logs/templates/logs_templates.yaml"
+
+      # reranker_top_n: 3      # Optional: limit reranked results (overrides return_results)
+      # Vector store configuration for template matching
+      template_collection_name: "elasticsearch_logs_templates"
+      store_name: "chroma"  # References stores.yaml
+
+      # Intent matching configuration
+      confidence_threshold: 0.4
+      max_templates: 5
+      return_results: 10
+
+      # Template loading settings
+      reload_templates_on_start: false
+      force_reload_templates: false
+
+      # Elasticsearch-specific configuration
+      # Note: Connection parameters (node, auth, verify_certs) are in datasources.yaml
+      # Only adapter-specific settings go here
+      index_pattern: "application-logs-demo"  # Default index pattern for queries
+      use_query_dsl: true  # Enable Query DSL processing
+      enable_aggregations: false  # Enable aggregation support
+      enable_highlighting: false  # Enable search result highlighting
+      default_size: 100  # Default number of results to return
+
+    # Example fault tolerance settings (optional)
+    fault_tolerance:
+      operation_timeout: 30.0
+      failure_threshold: 5
+      recovery_timeout: 60.0
+      max_retries: 3
+      retry_delay: 1.0

@@ -1,0 +1,97 @@
+# MongoDB Intent Retriever for Sample MFlix Database
+adapters:
+  - name: "intent-mongodb-mflix"
+    enabled: true
+    type: "retriever"
+    datasource: "mongodb"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.intent_mongodb_retriever.IntentMongoDBRetriever"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+    reranker_provider: "anthropic"
+    allowed_models:
+      - name: "llama-cpp-gemma4"
+        provider: "llama_cpp"
+        model: "gemma4-e2b-direct-cpu"
+      - name: "ollama-gemma4-e2b"
+        provider: "ollama"
+        model: "gemma4-e2b-cpu"
+      - name: "grok-grok-4.3"
+        provider: "xai"
+        model: "grok-4.3"
+      - name: "openrouter-llama-3.1-8b"
+        provider: "openrouter"
+        model: "meta-llama/llama-3.1-8b-instruct"
+      - name: "ollama-gpt-oss-120b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:20b"
+      - name: "claude-sonnet-4-5"
+        provider: "anthropic"
+        model: "claude-sonnet-4-5-20250929"
+      - name: "gemini-3.1-pro-preview"
+        provider: "gemini"
+        model: "gemini-3.1-pro-preview"
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true  # Enable autocomplete from template nl_examples
+      requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+    config:
+      reranker_top_n: 10
+      # Domain and template configuration
+      domain_config_path: "examples/intent-templates/mongodb-intent-template/sample_mflix/templates/mflix_domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/mongodb-intent-template/sample_mflix/templates/mflix_templates.yaml"
+        - "examples/intent-templates/mongodb-intent-template/sample_mflix/templates/mflix_advanced_templates.yaml"
+
+      # Vector store configuration for template matching
+      template_collection_name: "intent_mongodb_templates"
+      store_name: "chroma"  # References stores.yaml
+
+      # Intent matching configuration
+      confidence_threshold: 0.4
+      max_templates: 5
+      return_results: 50
+
+      # Template loading settings
+      reload_templates_on_start: false
+      force_reload_templates: false
+
+      # MongoDB-specific configuration
+      # Note: Connection parameters (connection_string, host, port, auth) are in datasources.yaml
+      # Only adapter-specific settings go here
+      database: "sample_mflix"  # Database name (can override datasource default)
+      default_collection: "movies"  # Default collection for queries
+      default_limit: 100  # Default number of results to return
+      max_limit: 1000  # Maximum allowed limit
+      enable_text_search: true  # Enable text search with regex
+      case_insensitive_regex: true  # Case-insensitive regex by default
+
+      # Placeholder base_url to satisfy parent class
+      base_url: "http://localhost:27017"
+
+    # Fault tolerance settings
+    fault_tolerance:
+      operation_timeout: 15.0
+      failure_threshold: 10
+      recovery_timeout: 30.0
+      success_threshold: 5
+      max_recovery_timeout: 120.0
+      enable_exponential_backoff: true
+      enable_thread_isolation: false
+      enable_process_isolation: false
+      max_retries: 3
+      retry_delay: 1.0
+      cleanup_interval: 3600.0
+      retention_period: 86400.0
+      event_handler:
+        type: "default"

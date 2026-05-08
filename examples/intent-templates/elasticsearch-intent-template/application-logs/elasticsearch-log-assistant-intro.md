@@ -6,4 +6,4 @@
 - 🔍 "Find any TimeoutExceptions across the production environment"
 - 📈 "Compare the error rate between staging and production this morning"
 - 📊 "Summarize the health of all services over the last 24 hours"
-- 🛠️ "What are the most frequent log messages for auth-service today?"
+- 🛠️ "Who are the most active users in production today?"

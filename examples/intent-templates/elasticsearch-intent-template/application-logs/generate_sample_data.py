@@ -6,7 +6,7 @@ Generates realistic synthetic application log data and indexes it into Elasticse
 Uses Faker for data generation and optionally uses AI for realistic log messages.
 
 USAGE:
-    python utils/elasticsearch-intent-template/generate_sample_data.py [options]
+    python generate_sample_data.py [options]
 
 REQUIRED SETUP:
     1. Set environment variables:
@@ -25,6 +25,7 @@ OPTIONAL ARGUMENTS:
     --ai-usage-rate Percentage of records to generate with AI (default: 50)
     --days-back     Generate logs spanning this many days back (default: 7)
     --error-rate    Percentage of error logs (default: 30)
+    --seed          Random seed for reproducible output (default: None)
 
 DATA PATTERNS:
     The generator creates realistic patterns for testing:
@@ -294,7 +295,8 @@ class SampleDataGenerator:
     """Generates realistic application log data"""
 
     def __init__(self, config_path: str = "../../../../config/config.yaml",
-                 use_ai: bool = False, provider: str = None, ai_usage_rate: float = 50.0):
+                 use_ai: bool = False, provider: str = None, ai_usage_rate: float = 50.0,
+                 seed: Optional[int] = None):
         """Initialize the generator
 
         Args:
@@ -302,13 +304,19 @@ class SampleDataGenerator:
             use_ai: Whether to use AI for message generation
             provider: Inference provider for AI generation
             ai_usage_rate: Percentage of records to generate with AI (0-100)
+            seed: Optional random seed for reproducible output
         """
         self.config = self._load_config(config_path)
         self.use_ai = use_ai
         self.provider = provider or 'openai'
         self.ai_usage_rate = ai_usage_rate / 100.0  # Convert to 0-1 range
         self.inference_client = None
-        self.fake = Faker()
+        if seed is not None:
+            random.seed(seed)
+            self.fake = Faker()
+            self.fake.seed_instance(seed)
+        else:
+            self.fake = Faker()
         self.es_datasource = None
         self.es_client = None
 
@@ -603,12 +611,16 @@ Generate one log message:"""
         # Determine log level based on error rate
         # Ensure good distribution: ERROR, WARN, INFO, DEBUG
         # If error_rate = 0.25, distribution: 25% ERROR, 15% WARN, 50% INFO, 10% DEBUG
+        # Distribute remaining probability (after ERROR) as 20% WARN, 5% DEBUG, 75% INFO
         rand = random.random()
+        remaining = 1.0 - adjusted_error_rate
+        warn_prob = adjusted_error_rate + remaining * 0.20
+        debug_prob = warn_prob + remaining * 0.05
         if rand < adjusted_error_rate:
             level = "ERROR"
-        elif rand < adjusted_error_rate + (adjusted_error_rate * 0.6):  # 60% of error_rate for WARN
+        elif rand < warn_prob:
             level = "WARN"
-        elif rand < adjusted_error_rate + (adjusted_error_rate * 0.6) + 0.1:  # 10% DEBUG
+        elif rand < debug_prob:
             level = "DEBUG"
         else:
             level = "INFO"
@@ -645,11 +657,13 @@ Generate one log message:"""
         # Use realistic logger names
         logger_name = random.choice(LOGGER_NAMES)
 
+        host = f"{service_name}-{random.randint(1, 10)}.{environment}.local"
         context = {
             'service_name': service_name,
             'user_id': user_id,
             'environment': environment,
-            'logger_name': logger_name
+            'logger_name': logger_name,
+            'host': host
         }
 
         # Generate message
@@ -657,7 +671,7 @@ Generate one log message:"""
             message = await self.generate_ai_message(level, context)
         else:
             message = self._generate_template_message(level, context)
-        
+
         # Add small delay between records to reduce AI call rate
         if self.use_ai:
             await asyncio.sleep(random.uniform(0.1, 0.3))
@@ -670,7 +684,7 @@ Generate one log message:"""
             "logger": f"{service_name}.{logger_name}",
             "service_name": service_name,
             "environment": environment,
-            "host": f"{service_name}-{random.randint(1, 10)}.{environment}.local",
+            "host": host,
             "request_id": self.fake.uuid4()
         }
 
@@ -1005,7 +1019,11 @@ Generate one log message:"""
             }
         }
 
-        await self.es_client.indices.create(index=index_name, body=mapping)
+        await self.es_client.indices.create(
+            index=index_name,
+            settings=mapping["settings"],
+            mappings=mapping["mappings"]
+        )
         logger.info(f"✅ Index {index_name} created")
 
     async def index_records(self, records: List[Dict[str, Any]],
@@ -1099,6 +1117,8 @@ async def main():
                        help='Percentage of records to generate with AI (0-100, default: 50)')
     parser.add_argument('--dry-run', action='store_true',
                        help='Generate data without connecting to Elasticsearch')
+    parser.add_argument('--seed', type=int, default=None,
+                       help='Random seed for reproducible data generation')
 
     args = parser.parse_args()
 
@@ -1113,7 +1133,8 @@ async def main():
         config_path=args.config,
         use_ai=args.use_ai,
         provider=args.provider,
-        ai_usage_rate=args.ai_usage_rate
+        ai_usage_rate=args.ai_usage_rate,
+        seed=args.seed
     )
 
     try:

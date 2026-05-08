@@ -18,13 +18,8 @@ templates:
         "query": {
           "bool": {
             "must": [
-              {
-                "match": {
-                  "level": "ERROR"
-                }
-              }
               {% if message %}
-              ,{
+              {
                 "match": {
                   "message": {
                     "query": "{{message}}",
@@ -34,22 +29,13 @@ templates:
                 }
               }
               {% endif %}
-              {% if user_id %}
-              ,{
-                "term": {
-                  "user_id": "{{user_id}}"
-                }
-              }
-              {% endif %}
-              {% if service_name %}
-              ,{
-                "term": {
-                  "service_name": "{{service_name}}"
-                }
-              }
-              {% endif %}
             ],
             "filter": [
+              {
+                "term": {
+                  "level": "ERROR"
+                }
+              },
               {
                 "range": {
                   "timestamp": {
@@ -68,6 +54,20 @@ templates:
                   }
                 }
               }
+              {% if user_id %}
+              ,{
+                "term": {
+                  "user_id": "{{user_id}}"
+                }
+              }
+              {% endif %}
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name.keyword": "{{service_name}}"
+                }
+              }
+              {% endif %}
               {% if environment %}
               ,{
                 "term": {
@@ -230,14 +230,12 @@ templates:
       {
         "query": {
           "bool": {
-            "must": [
+            "filter": [
               {
-                "match": {
+                "term": {
                   "level": "ERROR"
                 }
-              }
-            ],
-            "filter": [
+              },
               {
                 "range": {
                   "timestamp": {
@@ -347,14 +345,12 @@ templates:
       {
         "query": {
           "bool": {
-            "must": [
+            "filter": [
               {
-                "match": {
+                "term": {
                   "level": "ERROR"
                 }
-              }
-            ],
-            "filter": [
+              },
               {
                 "range": {
                   "timestamp": {
@@ -376,7 +372,7 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -406,7 +402,7 @@ templates:
             "aggs": {
               "by_level": {
                 "terms": {
-                  "field": "level.keyword",
+                  "field": "level",
                   "size": 5
                 }
               }
@@ -521,7 +517,7 @@ templates:
               {% if endpoint %}
               ,{
                 "wildcard": {
-                  "endpoint.keyword": "*{{endpoint}}*"
+                  "endpoint": "*{{endpoint}}*"
                 }
               }
               {% endif %}
@@ -634,13 +630,8 @@ templates:
         "query": {
           "bool": {
             "must": [
-              {
-                "match": {
-                  "level": "ERROR"
-                }
-              }
               {% if message %}
-              ,{
+              {
                 "match": {
                   "message": "{{message}}"
                 }
@@ -648,6 +639,11 @@ templates:
               {% endif %}
             ],
             "filter": [
+              {
+                "term": {
+                  "level": "ERROR"
+                }
+              },
               {
                 "range": {
                   "timestamp": {
@@ -773,14 +769,12 @@ templates:
       {
         "query": {
           "bool": {
-            "must": [
+            "filter": [
               {
-                "match": {
+                "term": {
                   "level": "ERROR"
                 }
-              }
-            ],
-            "filter": [
+              },
               {
                 "range": {
                   "timestamp": {
@@ -792,7 +786,7 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -805,22 +799,21 @@ templates:
             "date_histogram": {
               "field": "timestamp",
               "fixed_interval": "{{interval}}",
-              "min_doc_count": 0
+              "min_doc_count": 0,
+              "extended_bounds": {
+                "min": "{{start_time}}",
+                "max": "{{end_time}}"
+              }
             },
             "aggs": {
-              "error_count": {
-                "value_count": {
-                  "field": "level"
-                }
-              },
               "error_rate_derivative": {
                 "derivative": {
-                  "buckets_path": "error_count"
+                  "buckets_path": "_count"
                 }
               },
               "cumulative_errors": {
                 "cumulative_sum": {
-                  "buckets_path": "error_count"
+                  "buckets_path": "_count"
                 }
               }
             }
@@ -1020,30 +1013,18 @@ templates:
               "min_doc_count": 0
             },
             "aggs": {
-              "total_logs": {
-                "value_count": {
-                  "field": "level"
-                }
-              },
               "error_logs": {
                 "filter": {
-                  "match": {
+                  "term": {
                     "level": "ERROR"
-                  }
-                },
-                "aggs": {
-                  "count": {
-                    "value_count": {
-                      "field": "level"
-                    }
                   }
                 }
               },
               "error_rate": {
                 "bucket_script": {
                   "buckets_path": {
-                    "errors": "error_logs>count",
-                    "total": "total_logs"
+                    "errors": "error_logs._count",
+                    "total": "_count"
                   },
                   "script": "params.total > 0 ? (params.errors / params.total) * 100 : 0"
                 }
@@ -1124,10 +1105,18 @@ templates:
       {
         "query": {
           "bool": {
-            "must": [
+            "filter": [
               {
                 "wildcard": {
-                  "endpoint.keyword": "*{{endpoint_pattern}}*"
+                  "endpoint": "*{{endpoint_pattern}}*"
+                }
+              },
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
                 }
               }
               {% if level %}
@@ -1137,20 +1126,10 @@ templates:
                 }
               }
               {% endif %}
-            ],
-            "filter": [
-              {
-                "range": {
-                  "timestamp": {
-                    "gte": "{{start_time}}",
-                    "lte": "{{end_time}}"
-                  }
-                }
-              }
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -1284,7 +1263,7 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -1295,7 +1274,7 @@ templates:
         "aggs": {
           "by_endpoint": {
             "terms": {
-              "field": "endpoint.keyword",
+              "field": "endpoint",
               "size": {{agg_size}},
               "order": {
                 "avg_response_time": "desc"
@@ -1444,7 +1423,7 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -1560,7 +1539,7 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -1578,7 +1557,7 @@ templates:
         "aggs": {
           "by_user": {
             "terms": {
-              "field": "user_id.keyword",
+              "field": "user_id",
               "size": {{agg_size}},
               "order": {
                 "_count": "desc"
@@ -1587,7 +1566,7 @@ templates:
             "aggs": {
               "unique_endpoints": {
                 "cardinality": {
-                  "field": "endpoint.keyword"
+                  "field": "endpoint"
                 }
               },
               "services_used": {
@@ -1784,7 +1763,7 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -1918,7 +1897,7 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -2030,7 +2009,7 @@ templates:
             "aggs": {
               "total_requests": {
                 "value_count": {
-                  "field": "request_id.keyword"
+                  "field": "request_id"
                 }
               },
               "error_count": {
@@ -2060,7 +2039,7 @@ templates:
               },
               "unique_hosts": {
                 "cardinality": {
-                  "field": "host.keyword"
+                  "field": "host"
                 }
               },
               "status_codes": {
@@ -2142,7 +2121,7 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -2153,18 +2132,18 @@ templates:
         "aggs": {
           "by_environment": {
             "terms": {
-              "field": "environment.keyword",
+              "field": "environment",
               "size": 5
             },
             "aggs": {
               "total_logs": {
                 "value_count": {
-                  "field": "level.keyword"
+                  "field": "level"
                 }
               },
               "by_level": {
                 "terms": {
-                  "field": "level.keyword",
+                  "field": "level",
                   "size": 5
                 }
               },
@@ -2248,14 +2227,12 @@ templates:
       {
         "query": {
           "bool": {
-            "must": [
+            "filter": [
               {
                 "wildcard": {
-                  "host.keyword": "*{{host_pattern}}*"
+                  "host": "*{{host_pattern}}*"
                 }
-              }
-            ],
-            "filter": [
+              },
               {
                 "range": {
                   "timestamp": {
@@ -2363,7 +2340,7 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -2381,7 +2358,7 @@ templates:
         "aggs": {
           "by_host": {
             "terms": {
-              "field": "host.keyword",
+              "field": "host",
               "size": {{agg_size}},
               "order": {
                 "_count": "desc"
@@ -2390,7 +2367,7 @@ templates:
             "aggs": {
               "by_level": {
                 "terms": {
-                  "field": "level.keyword",
+                  "field": "level",
                   "size": 5
                 }
               },
@@ -2482,14 +2459,12 @@ templates:
       {
         "query": {
           "bool": {
-            "must": [
+            "filter": [
               {
                 "wildcard": {
-                  "logger.keyword": "*{{logger_pattern}}*"
+                  "logger": "*{{logger_pattern}}*"
                 }
-              }
-            ],
-            "filter": [
+              },
               {
                 "range": {
                   "timestamp": {
@@ -2611,14 +2586,14 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
               {% if endpoint %}
               ,{
                 "wildcard": {
-                  "endpoint.keyword": "*{{endpoint}}*"
+                  "endpoint": "*{{endpoint}}*"
                 }
               }
               {% endif %}
@@ -2731,7 +2706,7 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -2864,14 +2839,14 @@ templates:
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
               {% if endpoint %}
               ,{
                 "wildcard": {
-                  "endpoint.keyword": "*{{endpoint}}*"
+                  "endpoint": "*{{endpoint}}*"
                 }
               }
               {% endif %}

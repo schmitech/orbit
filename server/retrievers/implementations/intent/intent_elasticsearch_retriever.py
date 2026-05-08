@@ -243,7 +243,9 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
                         # Add sub-aggregations if present
                         for sub_agg_name, sub_agg_data in bucket.items():
                             if sub_agg_name not in ['key', 'key_as_string', 'doc_count']:
-                                if 'buckets' in sub_agg_data:
+                                if not isinstance(sub_agg_data, dict):
+                                    result[f'{sub_agg_name}_value'] = sub_agg_data
+                                elif 'buckets' in sub_agg_data:
                                     # Sub-terms aggregation
                                     result[f'{sub_agg_name}_buckets'] = [
                                         {
