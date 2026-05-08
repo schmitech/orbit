@@ -53,11 +53,11 @@
   --md-error-text: #ff6b6b;
 
   /* Chart-specific colors for dark mode */
-  --md-chart-bg: var(--md-bg-secondary);
+  --md-chart-bg: #000000;
   --md-chart-text: #ececf1;
   --md-chart-grid: #3c3f4a;
   --md-chart-axis: #bfc2cd;
-  --md-chart-tooltip-bg: #212121;
+  --md-chart-tooltip-bg: #000000;
   --md-chart-tooltip-border: #3c3f4a;
   --md-chart-tooltip-text: #ececf1;
 }
@@ -83,11 +83,11 @@
     --md-error-text: #ff6b6b;
 
     /* Chart-specific colors for dark mode */
-    --md-chart-bg: var(--md-bg-secondary);
+    --md-chart-bg: #000000;
     --md-chart-text: #ececf1;
     --md-chart-grid: #3c3f4a;
     --md-chart-axis: #bfc2cd;
-    --md-chart-tooltip-bg: #212121;
+    --md-chart-tooltip-bg: #000000;
     --md-chart-tooltip-border: #3c3f4a;
     --md-chart-tooltip-text: #ececf1;
   }
@@ -594,6 +594,22 @@
 [data-theme="dark"] .markdown-content .graph-container {
   background-color: #1a1b1e;
   border-color: #2d2f36;
+}
+
+.markdown-content.dark .chart-container,
+.markdown-content.dark .mermaid-container,
+.markdown-content.dark .music-container,
+.markdown-content.dark .svg-container,
+.dark .markdown-content .chart-container,
+.dark .markdown-content .mermaid-container,
+.dark .markdown-content .music-container,
+.dark .markdown-content .svg-container,
+[data-theme="dark"] .markdown-content .chart-container,
+[data-theme="dark"] .markdown-content .mermaid-container,
+[data-theme="dark"] .markdown-content .music-container,
+[data-theme="dark"] .markdown-content .svg-container {
+  background-color: var(--md-chart-bg);
+  border-color: #242424;
 }
 
 .markdown-content.dark .graph-container:hover,

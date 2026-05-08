@@ -29,7 +29,7 @@ const DEFAULT_THEME_VARIABLES: Record<MermaidTheme, Record<string, string>> = {
     pieLegendTextColor: '#374151',
   },
   dark: {
-    background: '#1e293b',
+    background: '#000000',
     primaryColor: '#3b82f6',
     secondaryColor: '#8b5cf6',
     tertiaryColor: '#6366f1',
@@ -46,7 +46,7 @@ const DEFAULT_THEME_VARIABLES: Record<MermaidTheme, Record<string, string>> = {
     pie6: '#22d3ee',
     pie7: '#818cf8',
     pie8: '#f87171',
-    pieStrokeColor: '#1e293b',
+    pieStrokeColor: '#000000',
     pieStrokeWidth: '2px',
     pieTitleTextColor: '#f1f5f9',
     pieLegendTextColor: '#e2e8f0',
@@ -111,7 +111,9 @@ const resolveThemeVariables = (theme: MermaidTheme, element: Element | null) => 
   }
 
   const overrides: Record<string, string | undefined> = {
-    background: readCSSVariable(element, '--md-bg-primary'),
+    background: theme === 'dark'
+      ? readCSSVariable(element, '--md-chart-bg') ?? readCSSVariable(element, '--md-bg-primary')
+      : readCSSVariable(element, '--md-bg-primary'),
     primaryColor: readCSSVariable(element, '--md-bg-secondary'),
     secondaryColor: readCSSVariable(element, '--md-bg-tertiary'),
     tertiaryColor: readCSSVariable(element, '--md-bg-primary'),
