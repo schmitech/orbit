@@ -3142,8 +3142,8 @@
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "100" });
     var versionInput = el("input", { type: "text", value: "1.0", maxlength: "25" });
-    var textArea = el("textarea", { rows: "5", required: "true", maxlength: "10000" });
-    var textCounter = characterCount(textArea, 10000);
+    var textArea = el("textarea", { rows: "5", required: "true", maxlength: "25000" });
+    var textCounter = characterCount(textArea, 25000);
     var createKeySelect = el("select", null, el("option", { value: "" }, "Loading API keys..."));
     var createBtn = el("button", { type: "button" }, "Create Persona");
 
@@ -3434,8 +3434,8 @@
     var isEditingPrompt = false;
     var nameInput = el("input", { type: "text", value: prompt.name || "", maxlength: "100", readonly: "true", "aria-readonly": "true" });
     var vInput = el("input", { type: "text", value: prompt.version || "1.0", maxlength: "25", readonly: "true", "aria-readonly": "true" });
-    var tArea = el("textarea", { rows: "8", maxlength: "10000", readonly: "true", "aria-readonly": "true" }, prompt.prompt || "");
-    var tCounter = characterCount(tArea, 10000);
+    var tArea = el("textarea", { rows: "8", maxlength: "25000", readonly: "true", "aria-readonly": "true" }, prompt.prompt || "");
+    var tCounter = characterCount(tArea, 25000);
     var saveBtn = el("button", { type: "button" }, "Save Changes");
     saveBtn.style.display = "none";
     saveBtn.addEventListener("click", function () {

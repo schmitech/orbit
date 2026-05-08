@@ -129,13 +129,13 @@ class ApiKeyQuotaResponse(BaseModel):
 class SystemPromptCreate(BaseModel):
     """System prompt creation request model"""
     name: str
-    prompt: str = Field(min_length=1, max_length=10000)
+    prompt: str = Field(min_length=1, max_length=25000)
     version: str = "1.0"
 
 
 class SystemPromptUpdate(BaseModel):
     """System prompt update request model"""
-    prompt: str = Field(min_length=1, max_length=10000)
+    prompt: str = Field(min_length=1, max_length=25000)
     version: Optional[str] = None
 
 
