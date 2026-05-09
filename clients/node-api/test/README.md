@@ -32,7 +32,7 @@ npm run test-query "your query here" "http://localhost:3000"
 npm run test:npm -- "your message here" "http://your-api-server.com"
 
 # Live integration test with env vars
-ORBIT_TEST_API_URL="https://orbit.schmitech.ai" \
+ORBIT_TEST_API_URL="https://orbit.schmitech.ca" \
 ORBIT_TEST_API_KEY="default-key" \
 npm run test:live
 ```

@@ -22,15 +22,13 @@ TEST_API_KEY = "files"
 TEST_SERVER_URL = "http://localhost:3000"
 
 # Sample test content
-TEST_FILE_CONTENT = """From https://schmitech.ai/en/about:
+TEST_FILE_CONTENT = """Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
+Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
 
-Leading Schmitech is Remsy Schmilinsky, a seasoned technology architect with over two decades of experience delivering mission-critical systems across North America's public and private sectors.
+Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. 
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. 
 
-At Schmitech, Remsy applies his background in cloud architecture and enterprise integration to help organizations make AI more accessible and genuinely useful. He focuses on practical, secure implementations that align with each client's unique goals.
-
-From predictive analytics to automation and AI agents, his work centers on building reliable, scalable solutions that bridge cutting-edge technology with real-world business needs—without overcomplicating things.
-
-Fluent in English, French, and Spanish, Remsy collaborates across borders to support teams in building future-ready systems while maintaining data privacy, security, and compliance every step of the way.
+Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 """
 
 
@@ -318,7 +316,7 @@ async def test_delete_file_cleans_vector_store_chunks(http_client, test_file, se
     query_before = await http_client.post(
         f"{TEST_SERVER_URL}/api/files/{file_id}/query",
         headers=query_headers,
-        json={"query": "Remsy", "max_results": 5}
+        json={"query": "Lorem", "max_results": 5}
     )
     assert query_before.status_code == 200
     results_before = query_before.json()["results"]
@@ -336,7 +334,7 @@ async def test_delete_file_cleans_vector_store_chunks(http_client, test_file, se
     query_after = await http_client.post(
         f"{TEST_SERVER_URL}/api/files/{file_id}/query",
         headers=query_headers,
-        json={"query": "Remsy", "max_results": 5}
+        json={"query": "Lorem", "max_results": 5}
     )
     assert query_after.status_code == 404, "File chunks should be removed from vector store"
 
@@ -497,7 +495,7 @@ async def test_complete_file_lifecycle(http_client, test_file, server_health_che
     query_response = await http_client.post(
         f"{TEST_SERVER_URL}/api/files/{file_id}/query",
         headers=query_headers,
-        json={"query": "What is Remsy's background?", "max_results": 3}
+        json={"query": "Lorem ipsum", "max_results": 3}
     )
     assert query_response.status_code == 200
     query_data = query_response.json()

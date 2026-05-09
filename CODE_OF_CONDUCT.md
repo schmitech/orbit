@@ -69,7 +69,7 @@ To maintain a healthy and productive development environment, we expect contribu
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project team at info@schmitech.ai. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to remsy.schmilinsky@schmitech.ca. All complaints will be reviewed and investigated promptly and fairly.
 
 The project team is obligated to respect the privacy and security of the reporter of any incident.
 

@@ -206,7 +206,7 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 - **Voice-first copilots** for call centers, field service, kiosks, and internal operations.
 - **MCP tools for agent platforms** that expose domain-specific data and actions to Claude Desktop, Cursor, OpenClaw, or custom agents.
 
-ORBIT is Apache 2.0, so you can build and sell commercial products on top of it without royalties or per-seat licensing back to the project. If you build something, [open an issue](https://github.com/schmitech/orbit/issues) and we'll feature it.
+ORBIT is Apache 2.0, so you can build and sell commercial products on top of it. If you build something, [open an issue](https://github.com/schmitech/orbit/issues) and we'll feature it.
 
 ---
 

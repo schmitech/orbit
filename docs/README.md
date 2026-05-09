@@ -4,7 +4,6 @@ Welcome to the official documentation for **ORBIT** (Open Retrieval-Based Infere
 
 <p align="center">
   <a href="https://github.com/schmitech/orbit">GitHub</a> •
-  <a href="https://schmitech.ai/en">Commercial Support</a> •
   <a href="https://github.com/schmitech/orbit/issues">Report an Issue</a>
 </p>
 
@@ -30,8 +29,7 @@ Welcome to the official documentation for **ORBIT** (Open Retrieval-Based Infere
     - [Performance \& Reliability](#performance--reliability)
     - [Protocols \& Extensions](#protocols--extensions)
   - [🛠️ Development](#️-development)
-  - [🏢 Commercial Support](#-commercial-support)
-    - [Services Available](#services-available)
+  - [🏢 Support \& Community](#-support--community)
   - [📄 License](#-license)
 
 ---
@@ -43,7 +41,6 @@ New to ORBIT? Start here.
 | Guide | Description |
 |-------|-------------|
 | [Quick Start](../README.md#-start-in-minutes) | Get ORBIT running in minutes with Docker or manual installation |
-| [Articles & Case Studies](https://schmitech.ai/en/orbit/articles) | Deep dives into configuration and real-world use cases |
 | [Tutorial](tutorial.md) | Step-by-step guide to chat with your data |
 | [Server Setup](server.md) | Detailed server configuration and deployment options |
 | [Configuration Guide](configuration.md) | Complete configuration reference |
@@ -207,27 +204,9 @@ Contribute to ORBIT or extend its capabilities.
 Need help getting started?
 - **[Step-by-Step Tutorial](tutorial.md)** — Learn how to connect your data.
 - **[GitHub Discussions](https://github.com/schmitech/orbit/discussions)** — Get help from the community.
-- **[Commercial Support](https://schmitech.ai/en)** — Enterprise-grade assistance from Schmitech.
-
-### Commercial Services Available
-
-- **Managed Hosting** — Fully managed deployments with SLA guarantees
-- **Custom Development** — Custom adapters, integrations, and model tuning
-- **Enterprise Integration** — Connect to your databases, APIs, and SSO
-- **Installation & Setup** — On-premise and cloud deployment assistance
-- **Training & Workshops** — Hands-on training for your team
-- **Dedicated Support** — Priority response and dedicated support engineer
-
-👉 **[Contact Schmitech](https://schmitech.ai/en/contact)** to discuss your requirements.
 
 ---
 
 ## 📄 License
 
 ORBIT is open source under the [Apache 2.0 License](../LICENSE).
-
----
-
-<p align="center">
-  <sub>Built with ❤️ by <a href="https://schmitech.ai">Schmitech</a></sub>
-</p>
