@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.6.7] - 2026-05-08
+
+### Core System Updates
+- Image Generation: End-to-end support for image generation across multiple providers (OpenAI, Gemini/Imagen 4, Ollama, xAI); pipeline integration with image-specific generation steps and file-backed persistence in SQLite; integrated into Chat thread renderer
+- Skills System: Skill discovery and invocation framework (slash-command based picker), persistence in composer, and runtime enrichment of image prompts with conversation/thread context
+- Configuration: Added runtime model selection (`allowed_models`) per adapter for dynamic model overriding; new `image.yaml` for provider configuration
+- Security & Hardening: Magika-based server-side file upload inspection; security patches for rate-limiting, audit-log IP validation, and middleware configuration; cleaned up duplicate logger outputs
+- Refactoring: Extracted client-facing discovery endpoints into `discovery_routes.py`; centralized provider resolution logic in LLM inference
+
+### Chat-app & UI Improvements
+- orbitchat v3.8.0: Major UI updates; rendering of generated images in chat threads; collapsible prompt captions for images; improved chart rendering with new types (radar, funnel, radialbar, horizontal bar); fixed UI regressions (dark mode backgrounds for charts/renderers, persona text field expansion, x-axis label overlaps)
+
+### Bug Fixes & Technical Improvements
+- Context Management: Resolved thread context loss by fixing session ID tracking; fixed history context issues during model switching
+- Performance & Correctness: Fixed Elasticsearch logs example; updated customer order samples; invalidated persona caches on admin mutations
+- Linting/Deps: Resolved ESLint errors; updated/fixed Gemini TTS model integration; fixed OpenAI GPT Image request parameters
+
+
 ## [2.6.6] - 2026-04-19
 
 ### Core System Updates

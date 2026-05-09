@@ -19,6 +19,9 @@ adapters:
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
     allowed_models:
+      - name: "grok-grok-4.3"
+        provider: "xai"
+        model: "grok-4.3"
       - name: "llama-cpp-gemma4"
         provider: "llama_cpp"
         model: "gemma4-e2b-direct-cpu"

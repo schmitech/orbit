@@ -18,7 +18,7 @@ vector_stores:
       distance_function: "cosine"  # cosine, l2, ip
       allow_reset: false
       # Note: dimension is dynamically set based on embedding provider
-    pool_size: 5
+    pool_size: 15
     timeout: 30
     cache_ttl: 1800  # 30 minutes
     ephemeral: false
@@ -54,7 +54,7 @@ vector_stores:
     enabled: false
     connection_params:
       persist_directory: "./faiss_db"
-    pool_size: 5
+    pool_size: 15
     timeout: 30
     auto_cleanup: true
 
@@ -65,7 +65,7 @@ vector_stores:
       api_key: "${DATASOURCE_WEAVIATE_API_KEY}"
       # port: 8080 # for local instance
       # grpc_port: 50051 # for local instance
-    pool_size: 5
+    pool_size: 15
     timeout: 30
     auto_cleanup: true
 
@@ -73,7 +73,7 @@ vector_stores:
     enabled: false
     connection_params:
       uri: "./milvus.db"
-    pool_size: 5
+    pool_size: 15
     timeout: 30
     auto_cleanup: true
 
@@ -82,7 +82,7 @@ vector_stores:
     connection_params:
       url: "http://localhost:8882"
       model: "hf/all_datasets_v4_MiniLM-L6"
-    pool_size: 5
+    pool_size: 15
     timeout: 30
     cache_ttl: 1800
     ephemeral: false
@@ -92,7 +92,7 @@ vector_stores:
     enabled: false
     connection_params:
       connection_string: "${DATASOURCE_PGVECTOR_CONNECTION_STRING}"
-    pool_size: 5
+    pool_size: 15
     timeout: 30
     cache_ttl: 1800
     ephemeral: false
@@ -104,6 +104,6 @@ vector_stores:
       database_path: "./duckdb_db/orbit.duckdb"
       read_only: false
       threads: null
-    pool_size: 5
+    pool_size: 15
     timeout: 30
     auto_cleanup: true

@@ -10,9 +10,7 @@ adapters:
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    inference_provider: "ollama_cloud"    # Override default inference provider
-    model: "gpt-oss:120b"            # Specific model for this adapter
-    image_provider: "gemini"            # Optional adapter override; omit to use config/image.yaml
+    image_provider: "openai"            # Optional adapter override; omit to use config/image.yaml
 
     capabilities:
       retrieval_behavior: "none"

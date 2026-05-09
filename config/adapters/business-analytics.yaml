@@ -1,6 +1,9 @@
 adapters:
   - name: "intent-duckdb-analytics"
     enabled: true
+    expose_as_skill: true
+    skill_name: "business-analytics"
+    skill_description: "Business analytics skill"
     type: "retriever"
     datasource: "duckdb"
     adapter: "intent"
@@ -10,6 +13,28 @@ adapters:
     model: "gpt-oss:120b"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
+    allowed_models:
+      - name: "llama-cpp-gemma4"
+        provider: "llama_cpp"
+        model: "gemma4-e2b-direct-cpu"
+      - name: "ollama-gemma4-e2b"
+        provider: "ollama"
+        model: "gemma4-e2b-cpu"
+      - name: "grok-grok-4.3"
+        provider: "xai"
+        model: "grok-4.3"
+      - name: "openrouter-llama-3.1-8b"
+        provider: "openrouter"
+        model: "meta-llama/llama-3.1-8b-instruct"
+      - name: "ollama-gpt-oss-120b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:20b"
+      - name: "claude-sonnet-4-5"
+        provider: "anthropic"
+        model: "claude-sonnet-4-5-20250929"
+      - name: "gemini-3.1-pro-preview"
+        provider: "gemini"
+        model: "gemini-3.1-pro-preview"
     capabilities:
       retrieval_behavior: "always"
       available_skills:

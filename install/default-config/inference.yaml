@@ -15,7 +15,7 @@ inference:
   # ═══════════════════════════════════════════════════════════════════════════
   ollama:
     enabled: true
-    use_preset: "smollm2-1.7b-cpu"  # Reference to preset in config/ollama.yaml
+    use_preset: "gemma4-e2b-cpu"  # Reference to preset in config/ollama.yaml
   ollama_cloud:
     enabled: false
     api_key: ${OLLAMA_CLOUD_API_KEY}
@@ -39,7 +39,7 @@ inference:
     # Random seed for reproducible outputs
     seed: null
   ollama_remote:
-    enabled: false
+    enabled: true
     # Remote Ollama server URL (e.g., AWS EC2, self-hosted server)
     base_url: "http://your-remote-server:11434"
     # Optional API key for secured remote servers (leave null if not required)
@@ -154,7 +154,7 @@ inference:
       max_wait_ms: 30000
       exponential_base: 2
   tensorrt:
-    enabled: false
+    enabled: true
     # Mode: "direct" (load model locally with TensorRT-LLM) or "api" (connect to trtllm-serve)
     mode: "direct"
 
@@ -250,45 +250,11 @@ inference:
       exponential_base: 2
   llama_cpp:
     enabled: false
-    # Mode: "direct" (load model locally with Python bindings) or "api" (connect to llama.cpp server)
-    mode: "direct"
-
-    # Direct mode configuration
-    model_path: "models/granite-4.0-1b-Q4_K_M.gguf"
-    chat_format: null  # Auto-detect chat format from model (Granite uses custom format)
-    verbose: false
-
-    # API mode configuration
-    base_url: "http://localhost:8080"  # llama.cpp server URL (OpenAI-compatible API)
-    model: "granite4:1b"  # Model name to request from the server (for API mode)
-    api_key: null  # Optional API key for secured servers
-
-    # Generation parameters - Optimized for Granite 4.0-1B on CPU laptop
-    temperature: 0.4  # Balanced for creative yet factual outputs with 1B model
-    top_p: 0.9  # Good diversity while maintaining coherence
-    top_k: 50  # Slightly higher for better token selection with larger model
-    max_tokens: 4096  # Longer responses leveraging 1B model's improved capabilities
-    repeat_penalty: 1.2  # Higher penalty to prevent repetition in longer contexts
-
-    # Context and threading - Optimized for Granite 4.0-1B (supports 128K, using 32K for llama.cpp CPU efficiency)
-    n_ctx: 32768  # 32K context - large enough for chat history, practical for llama.cpp on CPU
-    n_threads: 8  # Optimal for 1B model on modern laptop CPUs
-    stream: true
-
-    # GPU settings (direct mode only)
-    n_gpu_layers: 0  # For GPU/Metal support (0 = CPU only)
-    main_gpu: 0
-    tensor_split: null
-
-    # Stop tokens - Granite uses <|end_of_text|> and role tokens
-    stop_tokens: [
-      "<|end_of_text|>",
-      "<|end_of_role|>"
-    ]   
+    use_preset: "gemma4-e2b-direct-cpu"  # Reference to preset in config/llama_cpp.yaml
   gemini:
-    enabled: false
+    enabled: true
     api_key: ${GOOGLE_API_KEY}
-    model: "gemini-3-pro-preview"
+    model: "gemini-3.1-pro-preview"
     context_window: 1000000  # Gemini supports up to 1M tokens (input context)
     temperature: 0.1
     top_p: 0.8
@@ -351,9 +317,9 @@ inference:
     stream: true
     verbose: true
   openai:
-    enabled: false
+    enabled: true
     api_key: ${OPENAI_API_KEY}
-    model: "gpt-5"
+    model: "gpt-5.4-mini"
     context_window: 128000  # GPT-4 Turbo/GPT-4o supports 128K context
     temperature: 1
     top_p: 0.8
@@ -370,10 +336,10 @@ inference:
     max_tokens: 1024
     stream: true
   anthropic:
-    enabled: false
+    enabled: true
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
-    model: "claude-sonnet-4-20250514"
+    model: "claude-sonnet-4-6"
     context_window: 200000  # Claude 3/4 supports 200K context
     temperature: 0.1
     max_tokens: 1024
@@ -393,7 +359,7 @@ inference:
     enabled: false
     api_key: ${XAI_API_KEY}
     api_base: "https://api.x.ai/v1"
-    model: "grok-4-1-fast"
+    model: "grok-4.3"
     context_window: 131072  # Grok supports 128K context
     temperature: 0.1
     top_p: 0.8
@@ -601,3 +567,76 @@ inference:
       initial_wait_ms: 1000
       max_wait_ms: 30000
       exponential_base: 2
+  cerebras:
+    enabled: false
+    api_key: ${CEREBRAS_API_KEY}
+    model: "llama-3.3-70b"
+    context_window: 131072  # Cerebras supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 8192
+    stream: true
+  deepinfra:
+    enabled: false
+    api_key: ${DEEPINFRA_API_KEY}
+    model: "meta-llama/Meta-Llama-3.1-70B-Instruct"
+    context_window: 131072  # Llama 3.1 supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
+  lmstudio:
+    enabled: false
+    api_key: "lm-studio"  # Placeholder — LM Studio local server ignores auth
+    base_url: "http://localhost:1234/v1"
+    model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF"  # Update to match loaded model
+    context_window: 32768
+    temperature: 0.7
+    top_p: 0.9
+    max_tokens: 4096
+    stream: true
+  moonshot:
+    enabled: false
+    api_key: ${MOONSHOT_API_KEY}
+    model: "moonshot-v1-128k"
+    context_window: 131072  # Kimi supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
+  minimax:
+    enabled: false
+    api_key: ${MINIMAX_API_KEY}
+    model: "MiniMax-Text-01"
+    context_window: 1000000  # MiniMax-Text-01 supports 1M context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
+  nebius:
+    enabled: false
+    api_key: ${NEBIUS_API_KEY}
+    model: "meta-llama/Meta-Llama-3.1-70B-Instruct"
+    context_window: 131072  # Llama 3.1 supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
+  venice:
+    enabled: false
+    api_key: ${VENICE_API_KEY}
+    model: "llama-3.3-70b"
+    context_window: 131072  # Llama 3.3 supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
+  scaleway:
+    enabled: false
+    api_key: ${SCALEWAY_API_KEY}
+    model: "llama-3.3-70b-instruct"
+    context_window: 131072  # Llama 3.3 supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true

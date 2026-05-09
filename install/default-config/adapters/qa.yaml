@@ -1,12 +1,12 @@
 adapters:
-- name: qa-sql
-  enabled: false
-  type: retriever
-  datasource: sqlite
-  adapter: qa
-  implementation: retrievers.implementations.qa.QASSQLRetriever
-  inference_provider: "ollama"
-  model: "granite-cpu"
+- name: "qa-sql"
+  enabled: true
+  type: "retriever"
+  datasource: "sqlite"
+  adapter: "qa"
+  implementation: "retrievers.implementations.qa.QASSQLRetriever"
+  inference_provider: "llama_cpp"
+  model: "gemma4-e2b-direct-cpu"
   # reranker_provider: cohere
   # reranker_model: rerank-english-v3.0
   capabilities:
@@ -23,9 +23,9 @@ adapters:
     max_results: 5
     return_results: 3
     # reranker_top_n: 5
-    use_connection_pool: false
-    pool_size: 1
-    connection_timeout: 30
+    use_connection_pool: true
+    pool_size: 10
+    connection_timeout: 5
     enable_query_monitoring: true
     query_timeout: 5000
     table: city
@@ -33,11 +33,9 @@ adapters:
     - id
     - question
     - answer
-    - category
-    - confidence
-    security_filter: active = 1
+    - question_tokens
+    - source
     cache_ttl: 1800
-    test_timestamp: '1765467550.5618649'
   fault_tolerance:
     operation_timeout: 15.0
     failure_threshold: 10
@@ -55,15 +53,15 @@ adapters:
       type: default
 
 - name: qa-vector-chroma
-  enabled: false
+  enabled: true
   type: retriever
   datasource: chroma
   adapter: qa
   implementation: retrievers.implementations.qa.QAChromaRetriever
-  inference_provider: "ollama"
-  model: "granite-cpu"
-  embedding_provider: ollama
-  embedding_model: nomic-embed-text
+  inference_provider: "ollama_cloud"
+  model: "gpt-oss:20b"
+  embedding_provider: openrouter
+  embedding_model: openai/text-embedding-3-small
   capabilities:
     retrieval_behavior: always
     formatting_style: standard
@@ -79,6 +77,29 @@ adapters:
     collection: city
     confidence_threshold: 0.3
     distance_scaling_factor: 2.0
+    max_results: 50
+    return_results: 3
+    timezone: America/Toronto
+
+- name: qa-vector-qdrant-demo
+  enabled: false
+  type: "retriever"
+  datasource: "qdrant"
+  adapter: "qa"
+  implementation: "retrievers.implementations.qa.QAQdrantRetriever"
+  inference_provider: "llama_cpp"
+  embedding_provider: "gemma4-e2b-direct-cpu"
+  capabilities:
+    retrieval_behavior: always
+    formatting_style: standard
+    supports_file_ids: false
+    supports_session_tracking: false
+    supports_threading: false
+    requires_api_key_validation: false
+  config:
+    collection: city
+    confidence_threshold: 0.3
+    score_scaling_factor: 1.0
     max_results: 5
     return_results: 3
     timezone: America/Toronto

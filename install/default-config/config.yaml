@@ -1,5 +1,6 @@
 import:
   - "ollama.yaml"
+  - "llama_cpp.yaml"
   - "adapters.yaml"
   - "inference.yaml"
   - "datasources.yaml"
@@ -9,6 +10,7 @@ import:
   - "moderators.yaml"
   - "guardrails.yaml"
   - "vision.yaml"
+  - "image.yaml"
   - "tts.yaml"
   - "stt.yaml"
   - "personaplex.yaml"
@@ -455,10 +457,10 @@ files:
     # MarkItDown-specific options
     markitdown:
       # Enable third-party plugins (default: false for security)
-      enable_plugins: true
+      enable_plugins: false
 
     # Magika upload inspection
-    # Disabled by default for backward compatibility; enable to verify upload contents
+    # Verifies uploaded content against the declared MIME type before processing
     magika:
       enabled: false
       enforcement: "block"
