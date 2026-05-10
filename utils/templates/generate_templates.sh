@@ -79,7 +79,6 @@
 #     Pre-configured domain configs are available in configs/:
 #
 #     - configs/contact-config.yaml            Simple single-table schemas
-#     - configs/classified-data-config.yaml    Security/classified data systems
 #     - configs/ecommerce-config.yaml          E-commerce applications
 #     - configs/financial-config.yaml          Financial/accounting systems
 #     - configs/library-config.yaml            Library management systems
@@ -266,9 +265,6 @@ OPTIONAL OPTIONS:
     --help               Show this help message
 
 EXAMPLES:
-    # Basic usage with specific configuration
-    ./generate_templates.sh --schema database-schema.sql --queries test_queries.md --domain configs/classified-data-config.yaml
-
     # Contact example (recommended for testing)
     ./generate_templates.sh --schema examples/contact.sql --queries examples/contact_test_queries.md --domain configs/contact-config.yaml
 
@@ -286,7 +282,6 @@ EXAMPLES:
 
 DOMAIN CONFIGURATION FILES:
     configs/contact-config.yaml            - For ultra-simple single-table schemas
-    configs/classified-data-config.yaml    - For security/classified data systems
     configs/ecommerce-config.yaml          - For e-commerce systems
     configs/financial-config.yaml          - For financial/accounting systems
     configs/library-config.yaml            - For library management systems

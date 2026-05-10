@@ -299,7 +299,6 @@ For specialized queries, manually add templates following the seed template stru
 ### 3. Expand to Other Schemas
 
 Apply this enrichment approach to your other examples:
-- classified-data
 - customer-orders
 - library
 

@@ -71,15 +71,6 @@ python template_generator.py \
     --config configs/contact-config.yaml
 ```
 
-#### Classified Data Management System
-```bash
-python template_generator.py \
-    --schema examples/classified-data.sql \
-    --queries examples/classified-data_test_queries.md \
-    --output classified-templates.yaml \
-    --config configs/classified-data-config.yaml
-```
-
 #### Library Management System
 ```bash
 python template_generator.py \
