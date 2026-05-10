@@ -184,6 +184,14 @@ fi
 # Create example directory if it doesn't exist
 mkdir -p "${EXAMPLE_DIR}"
 
+# Auto-generate if no templates exist yet
+if [ "$MODE" == "default" ] && [ ! -f "${OUTPUT_FILE}" ]; then
+  echo -e "${YELLOW}No existing templates found — running generator automatically.${NC}"
+  echo -e "${YELLOW}Re-run with --generate at any time to regenerate.${NC}"
+  echo ""
+  MODE="generate"
+fi
+
 if [ "$MODE" == "default" ]; then
   echo -e "${GREEN}Running Customer Order Example (Default Mode)...${NC}"
   echo ""
@@ -214,8 +222,6 @@ if [ "$MODE" == "default" ]; then
     if [ $TEMPLATE_COUNT -gt 0 ]; then
       echo -e "${GREEN}✓ Found existing templates: ${TEMPLATE_COUNT} templates${NC}"
     fi
-  else
-    echo -e "${YELLOW}Note: No existing templates found. Use --generate to create templates.${NC}"
   fi
 
 else
@@ -223,14 +229,14 @@ else
   echo ""
   echo "This will:"
   echo "  • Parse the customer-order database schema (customers and orders tables)"
-  echo "  • Analyze 669 test queries from customer-order_test_queries.md"
+  QUERY_COUNT_DISPLAY=$(grep -c '^[0-9]\+\.' "${QUERIES_FILE}" 2>/dev/null || echo "0")
+  echo "  • Analyze ${QUERY_COUNT_DISPLAY} test queries from customer-order_test_queries.md"
   echo "  • Generate SQL templates from queries using AI"
   echo "  • Create a domain configuration file"
   echo "  • Output: ${OUTPUT_FILE}"
   echo "  • Time: 2-5 minutes (depending on LLM speed)"
   echo ""
 
-  # Count queries
   QUERY_COUNT=$(grep -c '^[0-9]\+\.' "${QUERIES_FILE}" 2>/dev/null || echo "0")
   echo -e "${BLUE}Found ${QUERY_COUNT} test queries${NC}"
   echo ""
@@ -245,7 +251,7 @@ else
     --domain-name "Customer Order Management" \
     --domain-type general \
     --domain-output "${DOMAIN_OUTPUT}" \
-    "${REFERENCE_ARGS[@]}"
+    --dialect postgres
 
   echo -e "${GREEN}✓ Template generation complete${NC}"
 fi
@@ -295,8 +301,6 @@ echo ""
 echo -e "${BLUE}To try with your own database:${NC}"
 echo "  python template_generator.py --help"
 echo ""
-if [ "$MODE" == "default" ]; then
-  echo -e "${YELLOW}Want to generate templates from queries?${NC}"
-  echo "  ./run_customer_order_example.sh --generate"
-  echo ""
-fi
+echo -e "${YELLOW}To regenerate templates from scratch:${NC}"
+echo "  ./run_customer_order_example.sh --generate"
+echo ""
