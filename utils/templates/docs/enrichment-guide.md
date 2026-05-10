@@ -25,8 +25,8 @@ We've created three resources to fix this:
    - Can be used directly or merged with auto-generated templates
    - Serves as quality benchmark
 
-### 3. **Updated Configuration** (`configs/contact-config.yaml`)
-   - Lowered similarity threshold: 0.7 → 0.3
+### 3. **Lowered Similarity Threshold**
+   - Default threshold: 0.7 → 0.3 (edit `SIMILARITY_THRESHOLD` in `template_generator.py`)
    - Reweighted grouping features to emphasize differentiators
    - Reduced examples per template: 8 → 5
 
@@ -38,9 +38,9 @@ We've created three resources to fix this:
 
 ```bash
 # From the orbit root directory
-python utils/sql-intent-template/template_generator.py \
-  --schema utils/sql-intent-template/examples/contact.sql \
-  --queries utils/sql-intent-template/examples/contact_test_queries_enriched.md \
+python utils/templates/template_generator.py \
+  --schema utils/templates/examples/contact.sql \
+  --queries utils/templates/examples/contact_test_queries_enriched.md \
   --domain config/sql_intent_templates/examples/contact/contact-domain.yaml \
   --output config/sql_intent_templates/examples/contact/contact-templates-enriched.yaml \
   --config config/config.yaml \
@@ -66,7 +66,7 @@ The seed templates are production-ready and can be used immediately:
 
 ```bash
 # Copy seed templates to your active config
-cp utils/sql-intent-template/examples/contact_seed_templates.yaml \
+cp utils/templates/examples/contact_seed_templates.yaml \
    config/sql_intent_templates/examples/contact/contact-templates.yaml
 ```
 
@@ -86,9 +86,9 @@ Combine seed templates with auto-generated ones:
 
 ```bash
 # 1. Generate new templates from enriched queries
-python utils/sql-intent-template/template_generator.py \
-  --schema utils/sql-intent-template/examples/contact.sql \
-  --queries utils/sql-intent-template/examples/contact_test_queries_enriched.md \
+python utils/templates/template_generator.py \
+  --schema utils/templates/examples/contact.sql \
+  --queries utils/templates/examples/contact_test_queries_enriched.md \
   --domain config/sql_intent_templates/examples/contact/contact-domain.yaml \
   --output /tmp/contact-auto-generated.yaml \
   --config config/config.yaml
@@ -213,14 +213,7 @@ Then test queries and check logs for template matching details.
 
 ### Increase Template Diversity Further
 
-If you still want MORE specific templates, adjust these settings:
-
-```yaml
-# In configs/contact-config.yaml
-generation:
-  similarity_threshold: 0.2  # Lower = more templates (was 0.3)
-  max_examples_per_template: 3  # Fewer examples = more templates (was 5)
-```
+If you still want MORE specific templates, lower the `SIMILARITY_THRESHOLD` constant in `template_generator.py` (e.g. 0.3 → 0.2 produces more templates at the cost of more duplicates).
 
 ### Add Your Own Query Categories
 
@@ -237,16 +230,7 @@ Get users in their 40s
 
 ### Tune Grouping Weights
 
-Adjust feature weights to emphasize what matters:
-
-```yaml
-# In configs/contact-config.yaml
-grouping:
-  feature_weights:
-    search_field: 0.40  # Increase if field differences are most important
-    filter_type: 0.30   # Increase if filter type (exact vs range) is key
-    intent: 0.15        # Decrease if most queries have same intent
-```
+Grouping feature weights are defined in `template_generator.py` in the `QueryGrouper` class. Edit the `feature_weights` dict directly to emphasize what matters for your schema (e.g. increase `search_field` weight when field differences are the primary differentiator).
 
 ---
 
@@ -320,7 +304,7 @@ Apply this enrichment approach to your other examples:
 - 25 categorized query groups → 20-25 specific templates ✅
 
 **Key Changes:**
-1. ✅ Lowered similarity threshold (0.7 → 0.3)
+1. ✅ Lowered similarity threshold (0.7 → 0.3 in `template_generator.py`)
 2. ✅ Reweighted grouping features (emphasize differentiators)
 3. ✅ Created categorized test queries
 4. ✅ Provided seed templates as quality benchmark

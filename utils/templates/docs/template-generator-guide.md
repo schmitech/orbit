@@ -23,7 +23,7 @@ The template generator is included in the Orbit server utilities. No additional 
 ### Basic Command
 
 ```bash
-python server/utils/template_generator.py \
+python utils/templates/template_generator.py \
   --schema examples/postgres/customer-order.sql \
   --queries examples/postgres/test/test_queries.md \
   --output examples/postgres/generated_templates.yaml
@@ -32,11 +32,12 @@ python server/utils/template_generator.py \
 ### Full Command with Options
 
 ```bash
-python server/utils/template_generator.py \
+python utils/templates/template_generator.py \
   --schema path/to/schema.sql \
   --queries path/to/test_queries.md \
   --output path/to/output_templates.yaml \
-  --domain path/to/domain_config.yaml \
+  --dialect postgres \
+  --domain path/to/domain_context.yaml \
   --config config/config.yaml \
   --provider ollama \
   --limit 50
@@ -47,9 +48,10 @@ python server/utils/template_generator.py \
 - `--schema` (required): Path to SQL schema file containing CREATE TABLE statements
 - `--queries` (required): Path to markdown file containing test queries
 - `--output` (required): Path where generated templates will be saved
-- `--domain`: Path to domain configuration file (optional, provides additional context)
-- `--config`: Path to main configuration file (default: `config/config.yaml`)
-- `--provider`: Inference provider to use (default: `ollama`)
+- `--dialect`: SQL dialect — `sqlite`, `postgres`, `mysql`, `mariadb`, `oracle`, `sqlserver` (default: `postgres`)
+- `--domain`: Path to domain context YAML file (optional, enriches prompts with business vocabulary)
+- `--config`: Path to main configuration file (default: `../../config/config.yaml`)
+- `--provider`: Inference provider to use (default: from `config.yaml`)
 - `--limit`: Limit the number of queries to process (useful for testing)
 
 ## How It Works

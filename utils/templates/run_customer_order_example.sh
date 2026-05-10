@@ -163,26 +163,7 @@ SCHEMA_FILE="${EXAMPLE_DIR}/customer-order.sql"
 QUERIES_FILE="${EXAMPLE_DIR}/customer-order_test_queries.md"
 OUTPUT_FILE="${EXAMPLE_DIR}/customer-order-templates.yaml"
 DOMAIN_OUTPUT="${EXAMPLE_DIR}/customer-order-domain.yaml"
-REFERENCE_TEMPLATES=(
-  "${EXAMPLE_DIR}/advanced_analytics_templates.yaml"
-  "${EXAMPLE_DIR}/business_intelligence_templates.yaml"
-  "${EXAMPLE_DIR}/comparative_analysis_templates.yaml"
-)
-
-# Collect existing reference templates for few-shot guidance
-REFERENCE_TEMPLATE_PATHS=()
-for template_path in "${REFERENCE_TEMPLATES[@]}"; do
-  if [ -f "${template_path}" ]; then
-    REFERENCE_TEMPLATE_PATHS+=("${template_path}")
-  else
-    echo -e "${YELLOW}Warning: Reference template not found (skipping): ${template_path}${NC}"
-  fi
-done
-
 REFERENCE_ARGS=()
-if [ ${#REFERENCE_TEMPLATE_PATHS[@]} -gt 0 ]; then
-  REFERENCE_ARGS=(--reference-templates "${REFERENCE_TEMPLATE_PATHS[@]}")
-fi
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  SQL Template Generator - Customer Order${NC}"
@@ -245,9 +226,6 @@ else
   echo "  • Analyze 669 test queries from customer-order_test_queries.md"
   echo "  • Generate SQL templates from queries using AI"
   echo "  • Create a domain configuration file"
-  if [ ${#REFERENCE_TEMPLATE_PATHS[@]} -gt 0 ]; then
-    echo "  • Reuse ${#REFERENCE_TEMPLATE_PATHS[@]} stored template files as few-shot guidance"
-  fi
   echo "  • Output: ${OUTPUT_FILE}"
   echo "  • Time: 2-5 minutes (depending on LLM speed)"
   echo ""

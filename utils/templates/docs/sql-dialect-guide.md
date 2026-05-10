@@ -17,11 +17,13 @@ The template generator automatically adapts to different SQL databases. Simply s
 
 ## Configuration
 
-Just add this to your config file (e.g., `configs/my-config.yaml`):
+Pass `--dialect <type>` when running the generator:
 
-```yaml
-sql_dialect:
-  type: sqlite  # Change to: postgres, mysql, mariadb, oracle, sqlserver
+```bash
+./generate_templates.sh \
+  --schema my_schema.sql \
+  --queries my_queries.md \
+  --dialect sqlite
 ```
 
 **That's it!** The generator automatically handles:
@@ -36,11 +38,8 @@ sql_dialect:
 ## Examples
 
 ### SQLite Example
-```yaml
-sql_dialect:
-  type: sqlite
-```
-Generated SQL uses:
+
+Use `--dialect sqlite`. Generated SQL uses:
 - `?` placeholders
 - `LIMIT` and `OFFSET`
 - `||` for string concat
@@ -48,11 +47,8 @@ Generated SQL uses:
 - `0/1` for booleans
 
 ### PostgreSQL Example
-```yaml
-sql_dialect:
-  type: postgres
-```
-Generated SQL uses:
+
+Use `--dialect postgres`. Generated SQL uses:
 - `%(name)s` placeholders
 - `LIMIT` and `OFFSET`
 - `||` for string concat
@@ -61,11 +57,8 @@ Generated SQL uses:
 - `RETURNING` clause support
 
 ### MySQL Example
-```yaml
-sql_dialect:
-  type: mysql
-```
-Generated SQL uses:
+
+Use `--dialect mysql`. Generated SQL uses:
 - `%s` placeholders
 - `LIMIT` and `OFFSET`
 - `CONCAT()` for strings
@@ -74,11 +67,8 @@ Generated SQL uses:
 - Backticks for identifiers
 
 ### Oracle Example
-```yaml
-sql_dialect:
-  type: oracle
-```
-Generated SQL uses:
+
+Use `--dialect oracle`. Generated SQL uses:
 - `:param_name` placeholders
 - `ROWNUM` or `ROW_NUMBER()` for pagination
 - `||` for string concat
@@ -86,11 +76,8 @@ Generated SQL uses:
 - `SEQUENCE` for auto-increment
 
 ### SQL Server Example
-```yaml
-sql_dialect:
-  type: sqlserver
-```
-Generated SQL uses:
+
+Use `--dialect sqlserver`. Generated SQL uses:
 - `?` placeholders
 - `OFFSET`/`FETCH NEXT` for pagination
 - `+` for string concat
@@ -105,53 +92,44 @@ Generated SQL uses:
   --schema examples/contact.sql \
   --queries examples/contact_test_queries.md \
   --output contact-templates.yaml \
-  --domain configs/contact-config.yaml  # Set type: sqlite
+  --dialect sqlite
 ```
 
 ### For PostgreSQL (production web apps)
 ```bash
-# Just change sql_dialect.type to 'postgres' in your config file
 ./generate_templates.sh \
   --schema examples/ecommerce.sql \
   --queries examples/ecommerce_queries.md \
   --output ecommerce-templates.yaml \
-  --domain configs/ecommerce-config.yaml  # Set type: postgres
+  --dialect postgres
 ```
 
 ### For MySQL (legacy systems)
 ```bash
-# Just change sql_dialect.type to 'mysql' in your config file
 ./generate_templates.sh \
   --schema examples/legacy.sql \
   --queries examples/legacy_queries.md \
   --output legacy-templates.yaml \
-  --domain configs/legacy-config.yaml  # Set type: mysql
+  --dialect mysql
 ```
 
 ## Switching Databases
 
-To switch from one database to another:
+To switch from one database to another, simply change the `--dialect` flag and re-run the generator:
 
-1. Open your config file (e.g., `configs/my-config.yaml`)
-2. Change `sql_dialect.type` to your target database
-3. Re-run the template generator
-4. New templates will use the correct syntax automatically!
+```bash
+# Before (SQLite)
+./generate_templates.sh --schema my.sql --queries queries.md --dialect sqlite
 
-```yaml
-# Before
-sql_dialect:
-  type: sqlite
-
-# After
-sql_dialect:
-  type: postgres
+# After (PostgreSQL)
+./generate_templates.sh --schema my.sql --queries queries.md --dialect postgres
 ```
 
 No other changes needed!
 
 ## Default Behavior
 
-If no `sql_dialect` is specified, the generator defaults to **PostgreSQL** syntax, as it's the most feature-complete open-source database.
+If `--dialect` is omitted, the generator defaults to **PostgreSQL** syntax, as it's the most feature-complete open-source database.
 
 ## Best Practices
 

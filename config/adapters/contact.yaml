@@ -1,0 +1,57 @@
+adapters:
+  - name: "intent-sql-sqlite-contact"
+    enabled: true
+    type: "retriever"
+    datasource: "sqlite"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
+    database: "utils/templates/examples/sqlite/contact/contact.db"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text"
+    allowed_models:
+      - name: "ollama-gpt-oss-120b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:20b"
+      - name: "claude-sonnet-4-5"
+        provider: "anthropic"
+        model: "claude-sonnet-4-5-20250929"
+      - name: "gemini-3.1-pro-preview"
+        provider: "gemini"
+        model: "gemini-3.1-pro-preview"
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      requires_api_key_validation: true
+      supports_autocomplete: true
+      context_format: "toon"
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+    config:
+      check_same_thread: false
+
+      domain_config_path: "utils/templates/examples/sqlite/contact/contact-domain.yaml"
+      template_library_path:
+        - "utils/templates/examples/sqlite/contact/contact-templates.yaml"
+
+      template_collection_name: "contact_intent_templates"
+      store_name: "chroma"
+      confidence_threshold: 0.4
+
+      max_templates: 5
+      return_results: 10
+
+      reload_templates_on_start: false
+      force_reload_templates: false
+
+      use_connection_pool: false
+      pool_size: 1
+      connection_timeout: 30
+
+      enable_query_monitoring: true
+      query_timeout: 5000

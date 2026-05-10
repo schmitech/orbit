@@ -72,11 +72,6 @@ NOTES:
     - The script requires proper database schema with CREATE TABLE statements
 """
 
-#!/usr/bin/env python3
-
-# Print immediately to verify script starts
-print("🔄 Starting template generator script...", flush=True)
-
 import asyncio
 import json
 import yaml
@@ -91,8 +86,6 @@ import os
 import random
 import time
 
-print("✅ Basic imports complete", flush=True)
-
 from dotenv import load_dotenv
 
 # Add parent directory to path for imports
@@ -101,28 +94,17 @@ sys.path.append(str(project_root))
 # Add server directory to path so that adapters can be imported
 sys.path.append(str(project_root / "server"))
 
-print("✅ Path configured", flush=True)
-
 # Load environment variables from .env file (two levels up in parent Orbit directory)
 load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
 
-print("✅ Environment loaded", flush=True)
-
-print("🔄 Importing UnifiedProviderFactory (this may take a moment)...", flush=True)
 from server.inference.pipeline.providers.unified_provider_factory import UnifiedProviderFactory
-print("✅ UnifiedProviderFactory imported", flush=True)
 
-# Configure logging with console output and flushing
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
-# Force flush after each log message
-for handler in logging.root.handlers:
-    handler.flush = lambda: sys.stdout.flush()
 
 logger = logging.getLogger(__name__)
 
@@ -287,6 +269,7 @@ class TemplateGenerator:
         if self.reference_templates:
             logger.info(f"📚 Loaded {len(self.reference_templates)} reference template(s) for prompt guidance")
         self.reference_examples_prompt = self._build_reference_examples_prompt(self.reference_templates)
+        self._schema_summary: Optional[str] = None
         
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from YAML file"""
@@ -370,7 +353,10 @@ class TemplateGenerator:
                 if env_value is not None:
                     return env_value
                 else:
-                    logger.warning(f"Environment variable {env_var_name} not found")
+                    logger.warning(
+                        f"Environment variable '{env_var_name}' is not set. "
+                        f"Add it to your .env file or export it before running."
+                    )
                     return ""
             return value
 
@@ -558,6 +544,7 @@ class TemplateGenerator:
                     })
         
         self.schema = tables
+        self._schema_summary = None  # Invalidate cache when schema changes
         logger.info(f"Parsed {len(tables)} tables from schema")
         sys.stdout.flush()
         return tables
@@ -690,10 +677,17 @@ class TemplateGenerator:
                 in_other_section = True
                 continue
             if in_other_section and line.strip() and not line.startswith('#'):
-                # Clean up the line
                 query = line.strip()
-                if query and not query.startswith('"'):
-                    other_queries.append(query)
+                # Skip markdown artifacts: bullets, table separators, short fragments, code fences
+                if (not query
+                        or query.startswith('"')
+                        or query.startswith('-')
+                        or query.startswith('*')
+                        or query.startswith('|')
+                        or query.startswith('`')
+                        or len(query) < 5):
+                    continue
+                other_queries.append(query)
         
         all_queries = queries + additional_queries + other_queries
         
@@ -709,6 +703,55 @@ class TemplateGenerator:
         sys.stdout.flush()
         return unique_queries
     
+    async def _llm_call_with_retry(
+        self,
+        prompt: str,
+        timeout_seconds: int = 120,
+        context: str = "LLM call"
+    ) -> str:
+        """Call the LLM with exponential-backoff retry on rate-limit or timeout errors.
+
+        Args:
+            prompt: Prompt to send to the LLM.
+            timeout_seconds: Per-attempt timeout in seconds.
+            context: Short label used in log messages (e.g. "Query analysis").
+
+        Returns:
+            Raw response string from the LLM.
+
+        Raises:
+            Exception: If all retries are exhausted or the error is not retryable.
+        """
+        max_retries = 3
+        for attempt in range(max_retries):
+            # Small random delay to spread load / avoid rate-limiting
+            await asyncio.sleep(random.uniform(0.5, 2.0))
+            try:
+                return await asyncio.wait_for(
+                    self.inference_client.generate(prompt),
+                    timeout=timeout_seconds
+                )
+            except asyncio.TimeoutError:
+                error_msg = f"Request timed out after {timeout_seconds} seconds"
+            except Exception as e:
+                error_msg = str(e)
+
+            is_rate_limit = '500' in error_msg or 'Internal Server Error' in error_msg or 'rate limit' in error_msg.lower()
+            is_timeout = 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower()
+
+            if (is_rate_limit or is_timeout) and attempt < max_retries - 1:
+                wait_time = (2 ** attempt) + random.uniform(0, 1)
+                error_type = "Rate limited" if is_rate_limit else "Timeout"
+                logger.warning(f"   ⚠️  {error_type} ({context}, attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...")
+                sys.stdout.flush()
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"   ❌ {context} failed after {attempt + 1} attempt(s): {error_msg}")
+                sys.stdout.flush()
+                raise Exception(error_msg)
+
+        raise Exception(f"{context}: exhausted {max_retries} retries")
+
     async def analyze_query(self, query: str) -> Dict[str, Any]:
         """Analyze a natural language query to extract intent and parameters
 
@@ -754,45 +797,8 @@ Example response:
 
 JSON Response:"""
 
-        # Add rate limiting and retry logic
-        max_retries = 3
-        response = None
-        timeout_seconds = 120  # 2 minute timeout per request
+        response = await self._llm_call_with_retry(prompt, context="Query analysis")
 
-        for attempt in range(max_retries):
-            try:
-                # Add random delay to avoid rate limiting (0.5-2 seconds)
-                delay = random.uniform(0.5, 2.0)
-                await asyncio.sleep(delay)
-
-                # Add timeout to prevent infinite hangs
-                try:
-                    response = await asyncio.wait_for(
-                        self.inference_client.generate(prompt),
-                        timeout=timeout_seconds
-                    )
-                    break  # Success, exit retry loop
-                except asyncio.TimeoutError:
-                    raise Exception(f"Request timed out after {timeout_seconds} seconds")
-
-            except Exception as e:
-                error_msg = str(e)
-                is_rate_limit_error = '500' in error_msg or 'Internal Server Error' in error_msg or 'rate limit' in error_msg.lower()
-                is_timeout = 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower()
-
-                if (is_rate_limit_error or is_timeout) and attempt < max_retries - 1:
-                    # Exponential backoff with jitter
-                    wait_time = (2 ** attempt) + random.uniform(0, 1)
-                    error_type = "Rate limited" if is_rate_limit_error else "Timeout"
-                    logger.warning(f"   ⚠️  {error_type} (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...")
-                    sys.stdout.flush()
-                    await asyncio.sleep(wait_time)
-                else:
-                    # Either not a recoverable error, or we've exhausted retries
-                    logger.error(f"   ❌ Error analyzing query after {attempt + 1} attempts: {error_msg}")
-                    sys.stdout.flush()
-                    raise
-        
         # Extract JSON from response
         try:
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
@@ -813,17 +819,23 @@ JSON Response:"""
             return {}
     
     def _create_schema_summary(self) -> str:
-        """Create a summary of the database schema"""
+        """Create a summary of the database schema (cached until schema changes)"""
+        if self._schema_summary is not None:
+            return self._schema_summary
+
         summary = []
         for table_name, table_info in self.schema.items():
             cols = [f"{c['name']} ({c['type']})" for c in table_info['columns']]
-            summary.append(f"{table_name}: {', '.join(cols[:5])}...")
-            
+            all_cols = ', '.join(cols)
+            suffix = '...' if len(table_info['columns']) > 5 else ''
+            summary.append(f"{table_name}: {', '.join(cols[:5])}{suffix}")
+
             if 'foreign_keys' in table_info:
                 for fk in table_info['foreign_keys']:
                     summary.append(f"  FK: {fk['column']} -> {fk['references_table']}.{fk['references_column']}")
-        
-        return '\n'.join(summary)
+
+        self._schema_summary = '\n'.join(summary)
+        return self._schema_summary
     
     async def generate_sql_template(self, query: str, analysis: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Generate SQL template from query analysis
@@ -932,14 +944,21 @@ Response format:
             "type": "string|integer|date|decimal",
             "description": "Parameter description",
             "required": false,
-            "default": <actual_value_NOT_null>
+            "default": <actual_value_NOT_null>,
+            "aliases": ["alt_name1", "alt_name2", "alt_name3"],
+            "example": "sample_value"
         }}
     ],
     "nl_examples": [
         "Example query 1",
         "Example query 2"
     ],
-    "result_format": "table|summary"
+    "result_format": "table|summary",
+    "semantic_tags": {{
+        "action": "find|lookup|calculate|filter|count|sort",
+        "primary_entity": "entity_name",
+        "qualifiers": ["by_field", "with_filter"]
+    }}
 }}
 
 CRITICAL REQUIREMENTS:
@@ -968,55 +987,19 @@ Example CORRECT template for SQLite:
     "description": "Find users filtered by optional city parameter",
     "sql": "SELECT id, name, email FROM users WHERE (? = '' OR city = ?) LIMIT ? OFFSET ?",
     "parameters": [
-        {{"name": "city_filter", "type": "string", "description": "City to filter by (empty = all)", "required": false, "default": ""}},
-        {{"name": "city_filter", "type": "string", "description": "City value for comparison", "required": false, "default": ""}},
-        {{"name": "limit", "type": "integer", "description": "Max records", "required": false, "default": 100}},
-        {{"name": "offset", "type": "integer", "description": "Skip records", "required": false, "default": 0}}
+        {{"name": "city_filter", "type": "string", "description": "City to filter by (empty = all)", "required": false, "default": "", "aliases": ["city", "location", "place", "town"], "example": "Boston"}},
+        {{"name": "city_filter", "type": "string", "description": "City value for comparison", "required": false, "default": "", "aliases": ["city", "location", "place", "town"], "example": "Boston"}},
+        {{"name": "limit", "type": "integer", "description": "Max records", "required": false, "default": 100, "aliases": ["max", "count", "top", "n"], "example": "50"}},
+        {{"name": "offset", "type": "integer", "description": "Skip records", "required": false, "default": 0, "aliases": ["skip", "start", "page_offset"], "example": "0"}}
     ],
     "nl_examples": ["Show users", "Find users in Boston"],
-    "result_format": "table"
+    "result_format": "table",
+    "semantic_tags": {{"action": "find", "primary_entity": "user", "qualifiers": ["by_city", "optional_filter"]}}
 }}
 
 JSON Response:"""
 
-        # Add rate limiting and retry logic
-        max_retries = 3
-        response = None
-        timeout_seconds = 120  # 2 minute timeout per request
-
-        for attempt in range(max_retries):
-            try:
-                # Add random delay to avoid rate limiting (0.5-2 seconds)
-                delay = random.uniform(0.5, 2.0)
-                await asyncio.sleep(delay)
-
-                # Add timeout to prevent infinite hangs
-                try:
-                    response = await asyncio.wait_for(
-                        self.inference_client.generate(prompt),
-                        timeout=timeout_seconds
-                    )
-                    break  # Success, exit retry loop
-                except asyncio.TimeoutError:
-                    raise Exception(f"Request timed out after {timeout_seconds} seconds")
-
-            except Exception as e:
-                error_msg = str(e)
-                is_rate_limit_error = '500' in error_msg or 'Internal Server Error' in error_msg or 'rate limit' in error_msg.lower()
-                is_timeout = 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower()
-
-                if (is_rate_limit_error or is_timeout) and attempt < max_retries - 1:
-                    # Exponential backoff with jitter
-                    wait_time = (2 ** attempt) + random.uniform(0, 1)
-                    error_type = "Rate limited" if is_rate_limit_error else "Timeout"
-                    logger.warning(f"   ⚠️  {error_type} (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...")
-                    sys.stdout.flush()
-                    await asyncio.sleep(wait_time)
-                else:
-                    # Either not a recoverable error, or we've exhausted retries
-                    logger.error(f"   ❌ Error generating template after {attempt + 1} attempts: {error_msg}")
-                    sys.stdout.flush()
-                    raise
+        response = await self._llm_call_with_retry(prompt, context="Template generation")
 
         try:
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
@@ -1029,12 +1012,13 @@ JSON Response:"""
                 template['created_at'] = datetime.now().isoformat()
                 template['created_by'] = "template_generator"
                 
-                # Add semantic tags based on analysis
+                # Merge semantic tags: prefer LLM-provided values (qualifiers especially), fill gaps from analysis
+                llm_tags = template.get('semantic_tags') or {}
                 template['semantic_tags'] = {
-                    'action': analysis.get('intent', 'find'),
-                    'primary_entity': analysis.get('primary_entity', ''),
-                    'secondary_entity': analysis.get('secondary_entity', ''),
-                    'qualifiers': []
+                    'action': llm_tags.get('action') or analysis.get('intent', 'find'),
+                    'primary_entity': llm_tags.get('primary_entity') or analysis.get('primary_entity', ''),
+                    'secondary_entity': llm_tags.get('secondary_entity') or analysis.get('secondary_entity', ''),
+                    'qualifiers': llm_tags.get('qualifiers') or []
                 }
                 
                 # Add tags for better matching
@@ -1258,7 +1242,9 @@ JSON Response:"""
 
         # Check if we have cached analyses for queries that haven't been turned into templates yet
         queries_with_cached_analysis = set(cached_analyses.keys())
-        [q for q in queries if q not in queries_with_cached_analysis]
+        queries_needing_analysis = [q for q in queries if q not in queries_with_cached_analysis]
+        if queries_needing_analysis:
+            logger.debug(f"   {len(queries_needing_analysis)} queries need fresh analysis")
 
         # Filter out queries that are already in completed templates
         remaining_queries = [q for q in queries if q not in processed_queries]
@@ -1428,14 +1414,23 @@ JSON Response:"""
 
             template = await self.generate_sql_template(repr_query, repr_analysis)
             if template:
-                # Add all example queries from the group
-                all_examples = [q for q, _ in group_queries[:10]]  # Limit to 10 examples
-                template['nl_examples'] = all_examples
+                # Merge LLM-generated nl_examples with group queries; dedup, cap at 10
+                llm_examples = template.get('nl_examples') or []
+                group_examples = [q for q, _ in group_queries]
+                seen_ex: set = set()
+                merged_examples: List[str] = []
+                for ex in llm_examples + group_examples:
+                    if ex not in seen_ex:
+                        seen_ex.add(ex)
+                        merged_examples.append(ex)
+                        if len(merged_examples) >= 10:
+                            break
+                template['nl_examples'] = merged_examples
 
                 templates.append(template)
                 group_gen_time = time.time() - group_gen_start
                 logger.info(f"   ✅ Template generated: {template.get('id', 'unknown')} ({group_gen_time:.1f}s)")
-                logger.info(f"   📊 Parameters: {len(template.get('parameters', []))}, Examples: {len(all_examples)}")
+                logger.info(f"   📊 Parameters: {len(template.get('parameters', []))}, Examples: {len(merged_examples)}")
 
                 # Save incrementally after each template
                 if output_path:
@@ -1525,9 +1520,6 @@ JSON Response:"""
             analyses_cache: Cached analyses for resume support
         """
         try:
-            # Deduplicate IDs before saving
-            all_templates = self._deduplicate_template_ids(all_templates)
-
             # Create output structure with in_progress status
             output = {
                 'status': 'in_progress',
@@ -1642,7 +1634,119 @@ JSON Response:"""
 
         logger.info(f"Saved {len(valid_templates)} templates to: {output_path}")
 
-    def generate_domain_config(self, domain_name: str = None, domain_type: str = "general") -> Dict[str, Any]:
+    async def _generate_vocabulary_with_llm(self) -> Dict[str, Any]:
+        """Use LLM to generate entity and field synonyms from schema.
+
+        Returns:
+            Dict with 'entity_synonyms' and 'field_synonyms' keys, or empty dicts on failure.
+        """
+        if not self.inference_client or not self.schema:
+            return {'entity_synonyms': {}, 'field_synonyms': {}}
+
+        table_names = list(self.schema.keys())
+        # Collect representative columns (skip id/fk columns)
+        key_columns: List[str] = []
+        for table_info in self.schema.values():
+            for col in table_info['columns']:
+                cname = col['name'].lower()
+                if cname not in ('id',) and not cname.endswith('_id') and cname not in key_columns:
+                    key_columns.append(col['name'])
+                if len(key_columns) >= 20:
+                    break
+
+        prompt = f"""Given these database tables and columns, generate the natural language synonyms
+that users would say when querying them in plain English.
+
+Tables: {', '.join(table_names)}
+Key columns: {', '.join(key_columns[:20])}
+
+For each table, provide 4-6 everyday synonyms a user might say instead.
+For each key column, provide 2-4 plain-English aliases.
+
+Return ONLY valid JSON in this exact format:
+{{
+    "entity_synonyms": {{
+        "table_name": ["synonym1", "synonym2", "synonym3"]
+    }},
+    "field_synonyms": {{
+        "column_name": ["alias1", "alias2"]
+    }}
+}}
+
+JSON:"""
+
+        try:
+            response = await asyncio.wait_for(
+                self.inference_client.generate(prompt),
+                timeout=60
+            )
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group())
+                return {
+                    'entity_synonyms': result.get('entity_synonyms', {}),
+                    'field_synonyms': result.get('field_synonyms', {})
+                }
+        except Exception as e:
+            logger.warning(f"LLM vocabulary generation failed (using empty synonyms): {e}")
+
+        return {'entity_synonyms': {}, 'field_synonyms': {}}
+
+    async def _enrich_status_enums_with_llm(self, semantic_types: Dict[str, Any]) -> None:
+        """Ask LLM for realistic enum values for status/type/category columns.
+
+        Updates semantic_types['status_value']['enum_values'] in place.
+        Falls back silently on any failure.
+        """
+        if not self.inference_client or 'status_value' not in semantic_types:
+            return
+
+        status_like = ('status', 'state', 'type', 'category', 'stage', 'condition')
+        status_columns = [
+            f"{table_name}.{col['name']}"
+            for table_name, table_info in self.schema.items()
+            for col in table_info['columns']
+            if any(p in col['name'].lower() for p in status_like)
+        ]
+        if not status_columns:
+            return
+
+        prompt = f"""Given these database table.column pairs that hold status or category values,
+provide the realistic enum values that would actually appear in each column.
+
+Columns: {', '.join(status_columns)}
+
+Return ONLY valid JSON mapping each column to its likely values (4-8 per column):
+{{
+    "table.column": ["value1", "value2", ...]
+}}
+
+JSON:"""
+
+        try:
+            response = await asyncio.wait_for(
+                self.inference_client.generate(prompt),
+                timeout=60
+            )
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if not json_match:
+                return
+            result = json.loads(json_match.group())
+            seen: set = set()
+            all_values: List[str] = []
+            for values in result.values():
+                if isinstance(values, list):
+                    for v in values:
+                        if isinstance(v, str) and v.lower() not in seen:
+                            seen.add(v.lower())
+                            all_values.append(v)
+            if all_values:
+                semantic_types['status_value']['enum_values'] = all_values
+                logger.info(f"✅ LLM status enums: {len(all_values)} values across {len(result)} column(s)")
+        except Exception as e:
+            logger.warning(f"LLM status enum enrichment failed (enum_values left empty): {e}")
+
+    async def generate_domain_config(self, domain_name: str = None, domain_type: str = "general") -> Dict[str, Any]:
         """Generate domain configuration file from schema
 
         Args:
@@ -1662,13 +1766,27 @@ JSON Response:"""
 
         logger.info(f"Generating domain configuration: {domain_name}")
 
+        # Build base vocabulary then enrich with LLM synonyms
+        vocabulary = self._generate_vocabulary()
+        llm_vocab = await self._generate_vocabulary_with_llm()
+        if llm_vocab['entity_synonyms']:
+            vocabulary['entity_synonyms'] = llm_vocab['entity_synonyms']
+            logger.info(f"✅ LLM vocabulary: {len(llm_vocab['entity_synonyms'])} entity synonym groups")
+        if llm_vocab['field_synonyms']:
+            vocabulary['field_synonyms'] = llm_vocab['field_synonyms']
+
+        # Build semantic types then enrich status/type/category enums via LLM
+        semantic_types = self._generate_semantic_types()
+        await self._enrich_status_enums_with_llm(semantic_types)
+        sys.stdout.flush()
+
         # Create domain config structure
         domain_config = {
             'domain_name': domain_name,
             'description': f"{domain_name} database schema",
             'domain_type': domain_type,
-            'semantic_types': self._generate_semantic_types(),
-            'vocabulary': self._generate_vocabulary(),
+            'semantic_types': semantic_types,
+            'vocabulary': vocabulary,
             'entities': {},
             'fields': {},
             'relationships': self._generate_relationships(),
@@ -1741,6 +1859,32 @@ JSON Response:"""
                 if any(pattern in col_name for pattern in definition['patterns']):
                     semantic_types[sem_type] = definition
                     break
+
+        # Add person_name if schema has name columns (exact match to avoid false positives like table_name)
+        _name_cols_set = {'first_name', 'last_name', 'full_name', 'name'}
+        name_cols = [c['name'] for c in all_columns if c['name'].lower() in _name_cols_set]
+        if name_cols:
+            semantic_types['person_name'] = {
+                'description': 'Person or entity name',
+                'patterns': ['name', 'customer', 'employee', 'person', 'user'],
+                'regex_patterns': [
+                    r'"([^"]+)"',
+                    r"'([^']+)'",
+                    r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b',
+                ]
+            }
+
+        # Add salary/compensation type if schema has pay columns
+        salary_cols = [c['name'] for c in all_columns if any(p in c['name'].lower() for p in ['salary', 'pay', 'compensation', 'wage', 'earning'])]
+        if salary_cols:
+            semantic_types['salary'] = {
+                'description': 'Salary or compensation amount',
+                'patterns': ['salary', 'pay', 'compensation', 'wage', 'earnings'],
+                'regex_patterns': [
+                    r'\$\d+[,\d]*',
+                    r'\d+[,\d]*\s*(?:dollars?|USD)',
+                ]
+            }
 
         return semantic_types
 
@@ -1947,7 +2091,10 @@ async def main():
     parser.add_argument('--schema', required=True, help='Path to SQL schema file')
     parser.add_argument('--queries', required=True, help='Path to test queries file')
     parser.add_argument('--output', required=True, help='Path to output YAML file')
-    parser.add_argument('--domain', help='Path to domain configuration file')
+    parser.add_argument('--domain', help='Path to domain configuration file (provides business context for prompts)')
+    parser.add_argument('--dialect', default=None,
+                        choices=list(SQL_DIALECTS.keys()),
+                        help='SQL dialect to use (default: postgres). Overrides dialect set in --domain file.')
     parser.add_argument('--config', default='../../config/config.yaml', help='Path to main config file')
     parser.add_argument('--provider', help='Inference provider to use (default: from config.yaml)')
     parser.add_argument('--limit', type=int, help='Limit number of queries to process')
@@ -1987,6 +2134,15 @@ async def main():
     logger.info(f"✅ Schema parsed: {len(generator.schema)} tables ({schema_time:.1f}s)")
     sys.stdout.flush()
 
+    # Warn if --generate-domain and --domain are both supplied (the generated file won't be loaded)
+    if args.generate_domain and args.domain:
+        logger.warning(
+            "⚠️  Both --generate-domain and --domain are set. "
+            "The newly generated domain file will NOT be automatically loaded as context. "
+            "Re-run without --generate-domain and pass the generated file via --domain to use it."
+        )
+        sys.stdout.flush()
+
     # Generate domain config if requested
     if args.generate_domain:
         # Determine output path
@@ -1999,7 +2155,7 @@ async def main():
         logger.info(f"🏗️  Generating domain configuration: {domain_output_path}")
         sys.stdout.flush()
         domain_start = time.time()
-        domain_config = generator.generate_domain_config(args.domain_name, args.domain_type)
+        domain_config = await generator.generate_domain_config(args.domain_name, args.domain_type)
         generator.save_domain_config(domain_config, domain_output_path)
         domain_time = time.time() - domain_start
         logger.info(f"✅ Domain configuration saved ({domain_time:.1f}s)")
@@ -2010,6 +2166,12 @@ async def main():
         logger.info(f"📖 Loading domain configuration: {args.domain}")
         sys.stdout.flush()
         generator.load_domain_config(args.domain)
+
+    # --dialect overrides whatever the domain file set (or sets dialect without a domain file)
+    if args.dialect:
+        generator.sql_dialect = SQL_DIALECTS[args.dialect]
+        generator.sql_dialect_type = args.dialect
+        logger.info(f"SQL Dialect (override): {args.dialect}")
 
     # Parse test queries
     logger.info("📝 Parsing test queries...")

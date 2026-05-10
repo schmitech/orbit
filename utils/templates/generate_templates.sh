@@ -16,14 +16,17 @@
 #     - Support multiple SQL dialects (SQLite, PostgreSQL, MySQL, etc.)
 #
 # USAGE:
-#     ./generate_templates.sh --schema <schema.sql> --queries <queries.md> --domain <config.yaml> [options]
+#     ./generate_templates.sh --schema <schema.sql> --queries <queries.md> [options]
 #
 # REQUIRED ARGUMENTS:
 #     --schema FILE      Path to SQL schema file (CREATE TABLE statements)
 #     --queries FILE     Path to markdown file with test queries
-#     --domain FILE      Path to domain configuration file (with sql_dialect settings)
 #
 # OPTIONAL ARGUMENTS:
+#     --dialect NAME             SQL dialect: sqlite, postgres, mysql, mariadb, oracle, sqlserver
+#                                (default: postgres)
+#     --domain FILE              Path to domain context file for enriched prompts
+#                                (provides business context; NOT a generator config)
 #     --output FILE              Output YAML file path (default: auto-generated with timestamp)
 #     --provider NAME            Override inference provider (default: from config.yaml)
 #     --limit NUMBER             Limit number of queries to process (useful for testing)
@@ -36,68 +39,50 @@
 #
 # EXAMPLES:
 #
-#     1. Quick Start - Contact Example:
-#        ./run_contact_example.sh
-#
-#     2. Basic Usage:
+#     1. SQLite database (HR schema):
 #        ./generate_templates.sh \
-#          --schema examples/contact.sql \
-#          --queries examples/contact_test_queries.md \
-#          --domain configs/contact-config.yaml
+#          --schema hr.sql \
+#          --queries hr_test_queries.md \
+#          --dialect sqlite
 #
-#     3. Generate Domain Config Automatically:
+#     2. PostgreSQL database:
 #        ./generate_templates.sh \
-#          --schema examples/contact.sql \
-#          --queries examples/contact_test_queries.md \
-#          --domain configs/contact-config.yaml \
+#          --schema customer_orders.sql \
+#          --queries customer_orders_queries.md \
+#          --dialect postgres
+#
+#     3. Generate domain config automatically:
+#        ./generate_templates.sh \
+#          --schema hr.sql \
+#          --queries hr_queries.md \
+#          --dialect sqlite \
 #          --generate-domain \
-#          --domain-name "Contact Management" \
-#          --domain-type general
+#          --domain-name "Human Resources" \
+#          --domain-type hr
 #
-#     4. Limit Queries for Testing:
+#     4. Limit queries for testing:
 #        ./generate_templates.sh \
 #          --schema database.sql \
 #          --queries test_queries.md \
-#          --domain configs/myconfig.yaml \
+#          --dialect sqlite \
 #          --limit 5
 #
-#     5. Custom Output Location:
+#     5. Use existing domain context file to enrich prompts:
 #        ./generate_templates.sh \
-#          --schema examples/ecommerce.sql \
-#          --queries examples/ecommerce_queries.md \
-#          --domain configs/ecommerce-config.yaml \
-#          --output my-templates.yaml
-#
-#     6. Verbose Mode for Debugging:
-#        ./generate_templates.sh \
-#          --schema database.sql \
+#          --schema customer_orders.sql \
 #          --queries queries.md \
-#          --domain config.yaml \
-#          --verbose
-#
-# DOMAIN CONFIGURATION FILES:
-#     Pre-configured domain configs are available in configs/:
-#
-#     - configs/contact-config.yaml            Simple single-table schemas
-#     - configs/ecommerce-config.yaml          E-commerce applications
-#     - configs/financial-config.yaml          Financial/accounting systems
-#     - configs/library-config.yaml            Library management systems
-#
-#     Each config includes sql_dialect settings for target database type.
+#          --dialect postgres \
+#          --domain customer_order_domain.yaml
 #
 # SQL DIALECT SUPPORT:
-#     Set in your domain config file (e.g., configs/contact-config.yaml):
+#     Pass --dialect to set the target database type:
 #
-#     sql_dialect:
-#       type: sqlite        # Options: sqlite, postgres, mysql, mariadb, oracle, sqlserver
-#
-#     The generator automatically uses correct:
-#     - Parameter placeholders (?, %(name)s, %s, :name)
-#     - SQL syntax for target database
-#     - Pagination methods (LIMIT/OFFSET, ROWNUM, etc.)
-#     - Date functions and operators
-#
-#     See SQL_DIALECT_GUIDE.md for complete dialect documentation.
+#       --dialect sqlite      Uses ? placeholders, strftime(), AUTOINCREMENT
+#       --dialect postgres    Uses %(name)s placeholders, TO_CHAR(), SERIAL
+#       --dialect mysql       Uses %s placeholders, DATE_FORMAT(), AUTO_INCREMENT
+#       --dialect mariadb     Like mysql with RETURNING support
+#       --dialect oracle      Uses :name placeholders, ROWNUM pagination
+#       --dialect sqlserver   Uses ? placeholders, OFFSET/FETCH NEXT
 #
 # WORKFLOW:
 #     1. Loads environment variables from ../../.env
@@ -198,7 +183,8 @@ NC='\033[0m' # No Color
 SCHEMA_FILE=""
 QUERIES_FILE=""
 OUTPUT_FILE=""
-DOMAIN_CONFIG_FILE=""
+DOMAIN_CONTEXT_FILE=""
+DIALECT=""
 PROVIDER=""
 LIMIT=""
 VERBOSE=false
@@ -251,9 +237,10 @@ USAGE:
 REQUIRED OPTIONS:
     --schema FILE        Path to SQL schema file
     --queries FILE       Path to test queries markdown file
-    --domain FILE        Path to domain configuration file
 
 OPTIONAL OPTIONS:
+    --dialect NAME       SQL dialect: sqlite, postgres, mysql, mariadb, oracle, sqlserver (default: postgres)
+    --domain FILE        Path to domain context YAML file (enriches prompts, not a generator config)
     --output FILE        Path to output YAML file (default: auto-generated)
     --provider NAME      Override inference provider (default: from config.yaml)
     --limit NUMBER       Limit number of queries to process
@@ -265,26 +252,17 @@ OPTIONAL OPTIONS:
     --help               Show this help message
 
 EXAMPLES:
-    # Contact example (recommended for testing)
-    ./generate_templates.sh --schema examples/contact.sql --queries examples/contact_test_queries.md --domain configs/contact-config.yaml
+    # SQLite schema (e.g. HR)
+    ./generate_templates.sh --schema hr.sql --queries hr_queries.md --dialect sqlite
 
-    # Library management example
-    ./generate_templates.sh --schema examples/library_management.sql --queries examples/library_test_queries.md --domain configs/library-config.yaml
+    # PostgreSQL schema
+    ./generate_templates.sh --schema orders.sql --queries orders_queries.md --dialect postgres
 
     # Test with limited queries
-    ./generate_templates.sh --schema database-schema.sql --queries test_queries.md --domain configs/contact-config.yaml --limit 10
+    ./generate_templates.sh --schema database.sql --queries test_queries.md --dialect sqlite --limit 10
 
-    # Verbose output
-    ./generate_templates.sh --schema database-schema.sql --queries test_queries.md --domain configs/contact-config.yaml --verbose
-
-    # Generate domain configuration file from schema
-    ./generate_templates.sh --schema examples/contact.sql --queries examples/contact_test_queries.md --domain configs/contact-config.yaml --generate-domain --domain-name "Contact Management" --domain-type general
-
-DOMAIN CONFIGURATION FILES:
-    configs/contact-config.yaml            - For ultra-simple single-table schemas
-    configs/ecommerce-config.yaml          - For e-commerce systems
-    configs/financial-config.yaml          - For financial/accounting systems
-    configs/library-config.yaml            - For library management systems
+    # Auto-generate domain config
+    ./generate_templates.sh --schema hr.sql --queries hr_queries.md --dialect sqlite --generate-domain --domain-name "Human Resources" --domain-type hr
 
 EOF
 }
@@ -316,8 +294,15 @@ run_template_generator() {
         "--queries" "$QUERIES_FILE"
         "--output" "$OUTPUT_FILE"
         "--config" "$MAIN_CONFIG_FILE"
-        "--domain" "$DOMAIN_CONFIG_FILE"
     )
+
+    if [ -n "$DIALECT" ]; then
+        cmd+=("--dialect" "$DIALECT")
+    fi
+
+    if [ -n "$DOMAIN_CONTEXT_FILE" ]; then
+        cmd+=("--domain" "$DOMAIN_CONTEXT_FILE")
+    fi
 
     if [ -n "$PROVIDER" ]; then
         cmd+=("--provider" "$PROVIDER")
@@ -365,7 +350,8 @@ show_results() {
     if [ -f "$OUTPUT_FILE" ]; then
         print_info "Results summary:"
         echo "  Output file: $OUTPUT_FILE"
-        echo "  Domain configuration: $DOMAIN_CONFIG_FILE"
+        if [ -n "$DIALECT" ]; then echo "  Dialect: $DIALECT"; fi
+        if [ -n "$DOMAIN_CONTEXT_FILE" ]; then echo "  Domain context: $DOMAIN_CONTEXT_FILE"; fi
         echo "  Provider: $PROVIDER"
         if [ -n "$LIMIT" ]; then
             echo "  Query limit: $LIMIT"
@@ -449,7 +435,11 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --domain)
-            DOMAIN_CONFIG_FILE="$2"
+            DOMAIN_CONTEXT_FILE="$2"
+            shift 2
+            ;;
+        --dialect)
+            DIALECT="$2"
             shift 2
             ;;
         --provider)
@@ -493,8 +483,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate required arguments
-if [ -z "$SCHEMA_FILE" ] || [ -z "$QUERIES_FILE" ] || [ -z "$DOMAIN_CONFIG_FILE" ]; then
-    print_error "Missing required arguments"
+if [ -z "$SCHEMA_FILE" ] || [ -z "$QUERIES_FILE" ]; then
+    print_error "Missing required arguments (--schema and --queries)"
     show_usage
     exit 1
 fi
@@ -503,8 +493,10 @@ fi
 check_file "$SCHEMA_FILE"
 check_file "$QUERIES_FILE"
 
-# Check if domain config file exists
-check_file "$DOMAIN_CONFIG_FILE"
+# Check domain context file only if provided
+if [ -n "$DOMAIN_CONTEXT_FILE" ]; then
+    check_file "$DOMAIN_CONTEXT_FILE"
+fi
 
 # Set provider from config if not provided
 if [ -z "$PROVIDER" ]; then
@@ -550,7 +542,8 @@ print_info "Starting template generation..."
 print_info "Schema: $SCHEMA_FILE"
 print_info "Queries: $QUERIES_FILE"
 print_info "Output: $OUTPUT_FILE"
-print_info "Domain Config: $DOMAIN_CONFIG_FILE"
+if [ -n "$DIALECT" ]; then print_info "Dialect: $DIALECT"; fi
+if [ -n "$DOMAIN_CONTEXT_FILE" ]; then print_info "Domain context: $DOMAIN_CONTEXT_FILE"; fi
 
 run_template_generator
 show_results

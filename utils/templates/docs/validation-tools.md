@@ -86,9 +86,9 @@ python test_adapter_loading.py <domain_config.yaml> <templates.yaml>
 ```bash
 # Must run from Orbit project root!
 cd /path/to/orbit
-python utils/sql-intent-template/test_adapter_loading.py \
-  utils/sql-intent-template/contact-example-domain.yaml \
-  utils/sql-intent-template/contact-example-output.yaml
+python utils/templates/test_adapter_loading.py \
+  utils/templates/contact-example-domain.yaml \
+  utils/templates/contact-example-output.yaml
 ```
 
 **What it checks:**
@@ -135,9 +135,9 @@ python compare_structures.py \
 ### Step 3: Test Adapter Loading
 ```bash
 cd ../../  # Go to Orbit root
-python utils/sql-intent-template/test_adapter_loading.py \
-  utils/sql-intent-template/my-domain.yaml \
-  utils/sql-intent-template/my-templates.yaml
+python utils/templates/test_adapter_loading.py \
+  utils/templates/my-domain.yaml \
+  utils/templates/my-templates.yaml
 ```
 **Expected:** ✅ ALL ADAPTER LOADING TESTS PASSED
 

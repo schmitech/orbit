@@ -76,8 +76,7 @@ head -80 validate_output.py
 - **REQUIRED ARGUMENTS** - Must-have parameters
 - **OPTIONAL ARGUMENTS** - All optional flags
 - **EXAMPLES** - 6 real-world usage examples
-- **DOMAIN CONFIGURATION FILES** - Available pre-built configs
-- **SQL DIALECT SUPPORT** - Database compatibility
+- **SQL DIALECT SUPPORT** - Database compatibility (`--dialect` flag)
 - **WORKFLOW** - Step-by-step process
 - **REQUIREMENTS** - Dependencies and prerequisites
 - **OUTPUT FILES** - What gets generated
@@ -292,7 +291,7 @@ All scripts follow these documentation standards:
 4. **Compare documentation versions:**
    ```bash
    head -50 generate_templates.sh > current.txt
-   git show HEAD:utils/sql-intent-template/generate_templates.sh | head -50 > previous.txt
+   git show HEAD:utils/templates/generate_templates.sh | head -50 > previous.txt
    diff current.txt previous.txt
    ```
 

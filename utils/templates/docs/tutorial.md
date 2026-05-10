@@ -100,7 +100,7 @@ The SQL Intent Template Generator follows this workflow:
 Navigate to the template generator directory:
 
 ```bash
-cd utils/sql-intent-template
+cd utils/templates
 ```
 
 ### 1.1 Review the Contact Schema
@@ -231,7 +231,7 @@ For more control over the process:
   --schema examples/contact.sql \
   --queries examples/contact_test_queries.md \
   --output contact-templates.yaml \
-  --domain configs/contact-config.yaml \
+  --dialect sqlite \
   --generate-domain \
   --domain-name "Contact Management" \
   --domain-type general \
@@ -245,7 +245,7 @@ For more control over the process:
 | `--schema` | SQL schema file | `examples/contact.sql` |
 | `--queries` | Natural language queries | `examples/contact_test_queries.md` |
 | `--output` | Where to save SQL templates | `contact-templates.yaml` |
-| `--domain` | Domain config for SQL dialect | `configs/contact-config.yaml` |
+| `--dialect` | SQL dialect for generated SQL | `sqlite`, `postgres`, `mysql`, etc. |
 | `--generate-domain` | Auto-generate domain config | (flag only) |
 | `--domain-name` | Name for your domain | `"Contact Management"` |
 | `--domain-type` | Domain category | `general` or `specialized` |
@@ -478,7 +478,7 @@ ID    Name                 Email                          Age   City            
 ### 4.5 Return to Template Directory
 
 ```bash
-cd ../..  # Back to utils/sql-intent-template
+cd ../..  # Back to utils/templates
 ```
 
 ---
@@ -510,7 +510,7 @@ Edit `../../config/datasources.yaml`:
 datasources:
   sqlite:
     type: "sqlite"
-    path: "utils/sql-intent-template/examples/sqlite/contact.db"
+    path: "utils/templates/examples/sqlite/contact.db"
     check_same_thread: false
 ```
 
@@ -595,7 +595,7 @@ Now it's time to test your natural language SQL queries!
 ### 6.1 Navigate to Orbit Root
 
 ```bash
-cd ../..  # From utils/sql-intent-template to orbit root
+cd ../..  # From utils/templates to orbit root
 ```
 
 ### 6.2 Start Orbit Server
@@ -772,7 +772,7 @@ Before deploying templates, validate them:
 #### 1. Structure Validation
 
 ```bash
-cd utils/sql-intent-template
+cd utils/templates
 
 python validate_output.py \
   contact-domain.yaml \
@@ -804,7 +804,7 @@ python compare_structures.py \
 ```bash
 cd ../..  # Back to orbit root
 
-python utils/sql-intent-template/test_adapter_loading.py \
+python utils/templates/test_adapter_loading.py \
   config/sql_intent_templates/examples/contact/contact-domain.yaml \
   config/sql_intent_templates/examples/contact/contact-templates.yaml
 ```
@@ -896,18 +896,12 @@ SQL syntax error: unrecognized token "?"
    - SQLite adapter → SQLite placeholders (`?`)
    - PostgreSQL adapter → PostgreSQL placeholders (`%(name)s`)
 
-2. **Verify dialect in domain config:**
-   ```yaml
-   # In configs/contact-config.yaml
-   dialect: sqlite  # or postgres, mysql, etc.
-   ```
-
-3. **Regenerate templates with correct dialect:**
+2. **Regenerate templates with the correct dialect flag:**
    ```bash
    ./generate_templates.sh \
      --schema examples/contact.sql \
      --queries examples/contact_test_queries.md \
-     --domain configs/postgres-config.yaml  # Use correct config
+     --dialect sqlite \
      --output contact-templates.yaml
    ```
 
@@ -923,22 +917,22 @@ ERROR: Unable to connect to database: contact.db
 1. **Check database path in datasources.yaml:**
    ```yaml
    sqlite:
-     path: "utils/sql-intent-template/examples/sqlite/contact.db"
+     path: "utils/templates/examples/sqlite/contact.db"
    ```
 
 2. **Verify database exists:**
    ```bash
-   ls -la utils/sql-intent-template/examples/sqlite/contact.db
+   ls -la utils/templates/examples/sqlite/contact.db
    ```
 
 3. **Check file permissions:**
    ```bash
-   chmod 644 utils/sql-intent-template/examples/sqlite/contact.db
+   chmod 644 utils/templates/examples/sqlite/contact.db
    ```
 
 4. **Test database directly:**
    ```bash
-   sqlite3 utils/sql-intent-template/examples/sqlite/contact.db "SELECT COUNT(*) FROM users;"
+   sqlite3 utils/templates/examples/sqlite/contact.db "SELECT COUNT(*) FROM users;"
    ```
 
 #### Issue 5: Missing API Keys
@@ -1034,7 +1028,7 @@ vim examples/contact_test_queries.md
   --schema examples/contact.sql \
   --queries examples/contact_test_queries.md \
   --output contact-templates.yaml \
-  --domain configs/contact-config.yaml
+  --dialect sqlite
 ```
 
 #### 2. Create Additional Templates
@@ -1117,17 +1111,6 @@ mysqldump --no-data your_database > my_schema.sql
 sqlite3 your_database.db .schema > my_schema.sql
 ```
 
-#### 2. Create Domain-Specific Configuration
-
-Copy and modify a config template:
-
-```bash
-cp configs/contact-config.yaml configs/my-database-config.yaml
-
-# Edit dialect and settings
-vim configs/my-database-config.yaml
-```
-
 #### 3. Write Domain-Specific Queries
 
 Create queries based on YOUR use cases:
@@ -1149,7 +1132,7 @@ vim my_queries.md
 ./generate_templates.sh \
   --schema my_schema.sql \
   --queries my_queries.md \
-  --domain configs/my-database-config.yaml \
+  --dialect postgres \
   --output my-templates.yaml \
   --generate-domain \
   --domain-name "My Business Domain" \
@@ -1322,7 +1305,6 @@ Before going to production, verify:
 | `examples/contact_test_queries.md` | 150 example queries |
 | `examples/sqlite/contact.db` | Generated sample database |
 | `examples/prompts/contact-assistant-prompt.txt` | System prompt for contact assistant |
-| `configs/contact-config.yaml` | SQLite configuration |
 
 ### Script Reference
 
