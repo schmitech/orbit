@@ -1,8 +1,7 @@
 """
-HTTP adapter for HTTP-based datasources (REST APIs, webhooks, etc.)
+HTTP adapter for HTTP-based datasources (REST APIs, webhooks, etc.).
 
-This adapter manages domain-specific knowledge for HTTP intent retrievers,
-following the same architecture as IntentAdapter but for HTTP endpoints.
+Base class for template-driven adapters (HttpAdapter, IntentAdapter, ElasticsearchAdapter).
 """
 
 import yaml
@@ -36,7 +35,7 @@ class HttpAdapter(DocumentAdapter):
                  auth_config: Optional[Dict[str, Any]] = None,
                  confidence_threshold: float = 0.1,
                  config: Dict[str, Any] = None,
-                 **kwargs):
+                 **_kwargs):
         """
         Initialize the HTTP adapter.
 
@@ -74,12 +73,12 @@ class HttpAdapter(DocumentAdapter):
             else:
                 self.template_library = self._load_yaml_config(template_library_path, "template library")
 
-        logger.info(f"HttpAdapter initialized with confidence_threshold={confidence_threshold}")
+        logger.info(f"{self.__class__.__name__} initialized with confidence_threshold={confidence_threshold}")
         if self.domain_config:
             logger.info(f"Loaded domain: {self.domain_config.get('domain_name', 'Unknown')}")
         if self.template_library:
             template_count = len(self.template_library.get('templates', {}))
-            logger.info(f"Loaded {template_count} HTTP templates")
+            logger.info(f"Loaded {template_count} templates")
 
     def _load_yaml_config(self, path: str, config_type: str) -> Optional[Dict[str, Any]]:
         """
@@ -307,7 +306,7 @@ class HttpAdapter(DocumentAdapter):
 
     def apply_domain_specific_filtering(self,
                                        context_items: List[Dict[str, Any]],
-                                       query: str) -> List[Dict[str, Any]]:
+                                       _query: str) -> List[Dict[str, Any]]:
         """
         Apply HTTP-specific filtering/ranking.
 

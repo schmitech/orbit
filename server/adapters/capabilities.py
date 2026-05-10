@@ -196,12 +196,9 @@ class AdapterCapabilities:
         if self.retrieval_behavior == RetrievalBehavior.ALWAYS:
             return True
 
-        if self.retrieval_behavior == RetrievalBehavior.CONDITIONAL:
-            # Check if files are present when required
-            if self.skip_when_no_files and not context.file_ids:
-                return False
-            return True
-
+        # CONDITIONAL: retrieve unless files are required but absent
+        if self.skip_when_no_files and not context.file_ids:
+            return False
         return True
 
     def build_retriever_kwargs(self, context: Any) -> Dict[str, Any]:
@@ -272,17 +269,8 @@ class AdapterCapabilityRegistry:
         return adapter_name in self._capabilities
 
     def unregister(self, adapter_name: str) -> None:
-        """
-        Unregister capabilities for an adapter.
-
-        This should be called when an adapter is removed or reloaded
-        to ensure capabilities are re-inferred from the new configuration.
-
-        Args:
-            adapter_name: Name of the adapter to unregister
-        """
-        if adapter_name in self._capabilities:
-            del self._capabilities[adapter_name]
+        """Unregister capabilities for an adapter."""
+        self._capabilities.pop(adapter_name, None)
 
     def clear(self) -> None:
         """
