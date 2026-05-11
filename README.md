@@ -4,7 +4,7 @@
   </a>
 
   <p>ORBIT — Open Retrieval-Based Inference Toolkit</p>
-  <h3>A self-hosted AI gateway for private, production-ready RAG across LLMs, databases, APIs, and files.</h3>
+  <h3>Self-hosted AI infrastructure for private RAG and multi-model applications.</h3>
 </div>
 
 <br/>
@@ -42,6 +42,16 @@ ORBIT gives you one OpenAI-compatible gateway for private RAG, model routing, re
 - Private RAG over documents, databases, APIs, and internal knowledge sources.
 - OpenAI-compatible applications that can switch between local models and hosted providers.
 - Agent and MCP tools that expose controlled access to business data and actions.
+
+---
+
+## A Typical ORBIT Workflow
+
+1. Connect Postgres, internal PDFs, and a REST API.
+2. Run ORBIT on your own infrastructure.
+3. Query those sources through one OpenAI-compatible API.
+4. Keep sensitive data under your control.
+5. Switch between local and hosted models without changing your app.
 
 ---
 
@@ -110,31 +120,31 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 
 ### AI Gateway
 
-- OpenAI-compatible chat API for existing clients and SDKs.
-- Runtime model selection across local models and hosted providers.
-- Streaming, provider failover, moderation hooks, and rate limiting.
-- Web chat, Node SDK, and compatibility with OpenAI-style clients.
+- Route requests across local and hosted models.
+- Use one OpenAI-compatible chat API with existing clients and SDKs.
+- Stream responses with failover, moderation hooks, and rate limiting.
+- Connect through the web chat, Node SDK, or OpenAI-style clients.
 
 ### Retrieval And Adapters
 
-- Intent-based retrieval for natural-language questions over structured data.
-- SQL, NoSQL, REST, GraphQL, file, web, vector store, embedding, and reranker integrations.
-- Composite adapters that fan one prompt across multiple sources and merge the answer.
-- Template diagnostics and autocomplete for building reliable data-backed assistants.
+- Retrieve context from databases, APIs, files, web content, and vector stores.
+- Use intent-based retrieval for natural-language questions over structured data.
+- Fan one prompt across multiple sources with composite adapters.
+- Build and debug data-backed assistants with template diagnostics and autocomplete.
 
 ### Private RAG And Conversations
 
-- File-upload RAG for PDFs, documents, images, manuals, contracts, and knowledge bases.
-- Conversation threading with cached datasets so follow-ups can reuse retrieved context.
-- Multilingual conversation handling across 100+ languages.
-- Self-hosted operation for privacy-sensitive and regulated environments.
+- Run private RAG over PDFs, documents, images, manuals, contracts, and knowledge bases.
+- Reuse retrieved context through conversation threading and cached datasets.
+- Handle multilingual conversations across 100+ languages.
+- Keep deployments self-hosted for privacy-sensitive environments.
 
 ### Tools, Agents, And Production Controls
 
-- MCP endpoint for OpenClaw, Hermes, Claude Desktop, Cursor, and other MCP clients.
-- Cross-adapter skills that can invoke specialized adapters during a conversation.
-- API keys, RBAC, quotas, audit logging, admin UI, and circuit breakers.
-- Voice assistant support through audio adapters.
+- Expose controlled tools through MCP for agent clients.
+- Invoke specialized adapters during a conversation with cross-adapter skills.
+- Operate with API keys, RBAC, quotas, audit logs, rate limits, and circuit breakers.
+- Add voice assistant support through audio adapters.
 
 ---
 
@@ -155,7 +165,7 @@ ORBIT is probably more than you need if you only want a thin wrapper around one 
 ORBIT is not only a model router. It handles the layers that usually become custom infrastructure in production RAG systems: retrieval, tools, adapters, conversations, access control, and operational safeguards.
 
 - **Retrieval beyond vector search:** use intent templates and adapters for structured databases, APIs, files, web content, and vector stores. [Intent SQL RAG](docs/intent-sql-rag-system.md)
-- **Real-world data source support:** query SQL, MongoDB, Elasticsearch, REST, GraphQL, DuckDB, files, and composite sources through one gateway. [Composite adapters](docs/adapters/composite-intent-retriever.md)
+- **Data source support:** query SQL, MongoDB, Elasticsearch, REST, GraphQL, DuckDB, files, and composite sources through one gateway. [Composite adapters](docs/adapters/composite-intent-retriever.md)
 - **Local and hosted models:** run private workloads on Ollama, llama.cpp, vLLM, or other local providers, while still supporting hosted LLMs where appropriate.
 - **Production controls included:** use API keys, RBAC, quotas, audit logging, moderation, rate limits, and circuit breakers. [Rate limiting](docs/rate-limiting-architecture.md)
 - **Agent-ready protocol support:** expose ORBIT-backed chat, RAG, and adapter tools through MCP. [MCP / OpenClaw walkthrough](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md)
@@ -189,18 +199,19 @@ ORBIT sits between clients, models, and data sources. Clients call the OpenAI-co
 | **Operations** | API keys, RBAC, audit logs, quotas, rate limits, moderation, circuit breakers, admin UI |
 
 <details>
-<summary><strong>Full provider and integration list</strong></summary>
+<summary><strong>Compatibility overview</strong></summary>
 
-| Layer | Coverage |
-| :--- | :--- |
-| **LLM and inference** | 37 providers — OpenAI, Anthropic, Gemini, Cohere, Groq, DeepSeek, Mistral, xAI, AWS Bedrock, Azure, Vertex, Together, Fireworks, Perplexity, Replicate, OpenRouter, Watson, NVIDIA, Hugging Face, Ollama (local/cloud/remote), vLLM, TensorRT-LLM, llama.cpp, Shimmy, BitNet (1.58-bit), Transformers, Z.ai, Cerebras, DeepInfra, LM Studio, Moonshot AI, MiniMax, Nebius, Venice AI, Scaleway |
-| **Data sources** | 17 — Postgres, MySQL, MariaDB, SQL Server, Oracle, SQLite, MongoDB, Redis, Cassandra, DuckDB, Athena, Elasticsearch, Supabase + HTTP/REST, GraphQL, Firecrawl |
-| **Vector stores** | Chroma, Qdrant, Pinecone, Milvus, Weaviate, Elasticsearch |
-| **Embeddings** | 10 providers — OpenAI, Cohere, Jina, Voyage, Mistral, Gemini, OpenRouter, Ollama, llama.cpp, Sentence-Transformers |
-| **Rerankers** | 6 providers — Cohere, Jina, Voyage, OpenAI, Anthropic, Ollama |
-| **Moderation and guardrails** | OpenAI, Anthropic, Llama Guard (local), pluggable chain |
-| **Voice** | Full-duplex speech-to-speech via PersonaPlex; STT with Whisper, Google, Gemini; TTS with OpenAI, ElevenLabs, Coqui |
-| **Protocols** | OpenAI-compatible chat API and MCP for OpenClaw, Hermes, Claude Desktop, Cursor, or any MCP client |
+ORBIT supports:
+
+- Local and hosted LLM providers.
+- SQL and NoSQL databases.
+- REST and GraphQL APIs.
+- File, web, and vector-based retrieval.
+- Local and hosted embedding providers.
+- Reranking, moderation, and guardrail integrations.
+- OpenAI-compatible clients and MCP-compatible tools.
+
+See the [Documentation](docs/) and [Cookbook](docs/cookbook/) for full setup details and integration coverage.
 
 </details>
 
