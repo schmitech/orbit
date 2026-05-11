@@ -193,6 +193,18 @@ export interface ApiFunctions {
   stopChat?: (sessionId: string, requestId: string) => Promise<boolean>;
 }
 
+export class ApiRequestError extends Error {
+  status: number;
+  statusText: string;
+
+  constructor(message: string, response: Response) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = response.status;
+    this.statusText = response.statusText;
+  }
+}
+
 async function buildHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     'X-User-ID': await getUserIdHeaderValue(),
@@ -610,7 +622,7 @@ function createProxyApi(): ApiFunctions {
             details: errorText || undefined
           });
 
-          throw new Error(friendlyMessage);
+          throw new ApiRequestError(friendlyMessage, response);
         }
         return response.json();
       },

@@ -30,9 +30,11 @@ export function useFocusTrap<T extends HTMLElement>(
 
     const container = containerRef.current;
     const previousActiveElement = document.activeElement as HTMLElement | null;
+    // Snapshot is fixed for the active trap lifetime; dynamic children require
+    // reactivation or a future MutationObserver-based refresh.
     const focusableElements = Array.from(
       container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
-    ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1);
+    ).filter((el) => el.tabIndex !== -1);
 
     const first = focusableElements[0] || container;
     const last = focusableElements[focusableElements.length - 1] || container;

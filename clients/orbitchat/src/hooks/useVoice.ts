@@ -103,7 +103,7 @@ export function useVoice(
       return;
     }
     lastEmittedTranscriptRef.current = normalized;
-    onResult(' ' + normalized);
+    onResult(normalized);
   }, [normalizeTranscript, onResult]);
 
   const flushPendingTranscript = useCallback(() => {
@@ -246,27 +246,27 @@ export function useVoice(
   const stopListening = useCallback(() => {
     debugLog('Stopping speech recognition...');
     if (recognitionRef.current) {
-      // Remove event handlers before stopping to prevent race conditions
       const recognition = recognitionRef.current;
-      recognition.onend = null;
-      recognition.onerror = null;
-      recognition.onresult = null;
       recognition.onstart = null;
+      recognition.onerror = null;
       
       try {
         recognition.stop();
       } catch (err) {
         // Recognition might already be stopped, ignore errors
         debugLog('Recognition already stopped or error stopping:', err);
+        clearSilenceTimer();
+        flushPendingTranscript();
+        recognition.onend = null;
+        recognition.onresult = null;
+        recognitionRef.current = null;
+        setIsListening(false);
+        notifyCompletion();
       }
-      
-      recognitionRef.current = null;
     }
     clearSilenceTimer();
-    flushPendingTranscript();
     setIsListening(false);
     setError(null);
-    notifyCompletion();
     debugLog('Speech recognition stopped, isListening set to false');
   }, [clearSilenceTimer, flushPendingTranscript, notifyCompletion]);
 

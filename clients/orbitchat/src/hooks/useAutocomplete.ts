@@ -7,12 +7,32 @@ const MIN_QUERY_LENGTH = 3;
 const MAX_SUGGESTIONS = 5;
 const UNSUPPORTED_ADAPTER_TTL_MS = 60_000;
 
+function sanitizeSuggestionText(text: unknown): AutocompleteSuggestion | null {
+  if (typeof text !== 'string') {
+    return null;
+  }
+  const normalized = text
+    .replace(/[\r\n\u2028\u2029]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  return { text: normalized };
+}
+
 export interface AutocompleteSuggestion {
   text: string;
 }
 
 export interface UseAutocompleteOptions {
   enabled?: boolean;
+  /**
+   * Retained for parity with other hook options. Autocomplete requests must
+   * still go through the same-origin OrbitChat proxy for API-key injection.
+   */
   apiUrl?: string | null;
   adapterName?: string | null;
   sessionId?: string | null;
@@ -66,6 +86,7 @@ export function useAutocomplete(
 
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deferredClearTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const suppressedQueryRef = useRef<string | null>(null);
   const latestRequestIdRef = useRef(0);
@@ -76,22 +97,6 @@ export function useAutocomplete(
   useEffect(() => {
     suggestionsRef.current = suggestions;
   }, [suggestions]);
-
-  const sanitizeSuggestionText = useCallback((text: unknown): AutocompleteSuggestion | null => {
-    if (typeof text !== 'string') {
-      return null;
-    }
-    const normalized = text
-      .replace(/[\r\n\u2028\u2029]+/g, ' ')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-
-    if (!normalized) {
-      return null;
-    }
-
-    return { text: normalized };
-  }, []);
 
   const isAdapterTemporarilySuppressed = useCallback((name: string): boolean => {
     const expiresAt = unsupportedAdaptersRef.current.get(name);
@@ -141,6 +146,9 @@ export function useAutocomplete(
       lastNonEmptySuggestionsRef.current = [];
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
+      }
+      if (deferredClearTimeoutRef.current) {
+        clearTimeout(deferredClearTimeoutRef.current);
       }
       setIsLoading(false);
       return;
@@ -197,6 +205,9 @@ export function useAutocomplete(
       const params = new URLSearchParams();
       params.set('q', searchQuery);
       params.set('limit', String(MAX_SUGGESTIONS));
+      // Keep browser requests on the OrbitChat proxy. The proxy uses
+      // X-Adapter-Name to route to the adapter's configured apiUrl and injects
+      // the backend API key; direct adapter-host calls fail CORS and leak policy.
       const requestUrl = `/api/v1/autocomplete?${params.toString()}`;
 
       const response = await fetch(requestUrl, {
@@ -275,7 +286,6 @@ export function useAutocomplete(
     adapterName,
     sessionId,
     adapterSupportsAutocomplete,
-    sanitizeSuggestionText,
     getFallbackSuggestions,
     isAdapterTemporarilySuppressed
   ]);
@@ -295,6 +305,16 @@ export function useAutocomplete(
       }
       setIsLoading(false);
     };
+    const scheduleClearSuggestions = () => {
+      if (deferredClearTimeoutRef.current) {
+        clearTimeout(deferredClearTimeoutRef.current);
+      }
+      deferredClearTimeoutRef.current = setTimeout(() => {
+        deferredClearTimeoutRef.current = null;
+        setSuggestions([]);
+        cleanupActiveRequests();
+      }, 0);
+    };
 
     if (
       !enabled ||
@@ -302,19 +322,13 @@ export function useAutocomplete(
       adapterSupportsAutocomplete === false ||
       (adapterName ? isAdapterTemporarilySuppressed(adapterName) : false)
     ) {
-      setTimeout(() => {
-        setSuggestions([]);
-        cleanupActiveRequests();
-      }, 0);
+      scheduleClearSuggestions();
       return;
     }
 
     if (suppressedQueryRef.current) {
       if (query === suppressedQueryRef.current) {
-        setTimeout(() => {
-          setSuggestions([]);
-          cleanupActiveRequests();
-        }, 0);
+        scheduleClearSuggestions();
         return;
       }
       suppressedQueryRef.current = null;
@@ -327,6 +341,10 @@ export function useAutocomplete(
     return () => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
+      }
+      if (deferredClearTimeoutRef.current) {
+        clearTimeout(deferredClearTimeoutRef.current);
+        deferredClearTimeoutRef.current = null;
       }
     };
   }, [query, fetchSuggestions, enabled, adapterName, adapterSupportsAutocomplete, isAdapterTemporarilySuppressed]);
@@ -401,8 +419,8 @@ export function useAutocomplete(
     }
   }, [inputRef]);
 
-  const suppressUntilQueryChange = useCallback((query: string) => {
-    suppressedQueryRef.current = query;
+  const suppressUntilQueryChange = useCallback((suppressedQuery: string) => {
+    suppressedQueryRef.current = suppressedQuery;
   }, []);
 
   return {

@@ -10,8 +10,6 @@ interface CacheEntry {
   expiresAt: number;
 }
 
-const skillsCache = new Map<string, CacheEntry>();
-
 export interface UseSkillsOptions {
   adapterName?: string | null;
   enabled?: boolean;
@@ -42,10 +40,11 @@ export function useSkills(options: UseSkillsOptions = {}): UseSkillsResult {
   const [loadedAdapterName, setLoadedAdapterName] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<SkillInfo | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const skillsCacheRef = useRef<Map<string, CacheEntry>>(new Map());
 
   const fetchSkills = useCallback(async (adapter: string) => {
     const cacheKey = adapter;
-    const cached = skillsCache.get(cacheKey);
+    const cached = skillsCacheRef.current.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       setSkills(cached.skills);
       setLoadedAdapterName(adapter);
@@ -67,7 +66,7 @@ export function useSkills(options: UseSkillsOptions = {}): UseSkillsResult {
       if (abortRef.current?.signal.aborted) return;
 
       const available = allSkills.filter(s => availableNames.includes(s.name) && s.enabled);
-      skillsCache.set(cacheKey, { skills: available, expiresAt: Date.now() + CACHE_TTL_MS });
+      skillsCacheRef.current.set(cacheKey, { skills: available, expiresAt: Date.now() + CACHE_TTL_MS });
       setSkills(available);
       setLoadedAdapterName(adapter);
       debugLog('[useSkills] Loaded', available.length, 'skills for adapter', adapter);

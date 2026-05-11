@@ -252,7 +252,8 @@ export function MessageInput({
     error: voiceError
   } = useVoice((text) => {
     setMessage(prev => {
-      const updated = (prev + text).slice(0, AppConfig.maxMessageLength);
+      const separator = prev.length > 0 && !/\s$/.test(prev) ? ' ' : '';
+      const updated = (prev + separator + text).slice(0, AppConfig.maxMessageLength);
       voiceMessageRef.current = updated;
       return updated;
     });

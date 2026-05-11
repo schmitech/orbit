@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { getApi } from '../apiClient';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ApiRequestError, getApi } from '../apiClient';
 import { useChatStore, debouncedSaveToLocalStorage } from '../stores/chatStore';
 import type { Conversation } from '../types';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
@@ -48,10 +48,21 @@ export function useChatAgentSelection({
   const [isAgentSelectionVisible, setIsAgentSelectionVisible] = useState(() => !isSingleAdapterMode && showEmptyState && !initialPathSlug);
   const adapterInfoLoadedRef = useRef<string | null>(null);
   const adapterInfoRetryTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const locationSyncVersionRef = useRef(0);
   const adapterInfoRateLimitCooldownMs = 30000;
-  const currentConversationHasDraftContent = !!currentConversation && (
-    currentConversation.messages.length > 0 ||
-    (currentConversation.attachedFiles?.length || 0) > 0
+  const hasCurrentConversation = !!currentConversation;
+  const currentConversationMessageCount = currentConversation?.messages.length ?? 0;
+  const currentConversationAttachedFileCount = currentConversation?.attachedFiles?.length ?? 0;
+  const currentConversationHasDraftContent = useMemo(
+    () => hasCurrentConversation && (
+      currentConversationMessageCount > 0 ||
+      currentConversationAttachedFileCount > 0
+    ),
+    [
+      currentConversationAttachedFileCount,
+      currentConversationMessageCount,
+      hasCurrentConversation
+    ]
   );
 
   const persistChatState = useCallback(() => {
@@ -108,13 +119,16 @@ export function useChatAgentSelection({
   }, [persistChatState]);
 
   const getAdapterInfoErrorMessage = useCallback((error: unknown): string => {
-    if (error instanceof Error) {
-      if (error.message.includes('401')) {
+    if (error instanceof ApiRequestError) {
+      if (error.status === 401) {
         return 'We couldn’t load this agent. It may not exist or you might not have access to it.';
       }
-      if (error.message.includes('404')) {
+      if (error.status === 404) {
         return 'This agent was not found on the server. Please pick another agent.';
       }
+      return error.message;
+    }
+    if (error instanceof Error) {
       return error.message;
     }
     return 'Unable to load agent overview right now.';
@@ -342,44 +356,45 @@ export function useChatAgentSelection({
     shouldShowAgentSelectionList
   ]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const synchronizeFromLocation = useCallback(async () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const syncVersion = ++locationSyncVersionRef.current;
 
-    const synchronizeFromLocation = async () => {
-      if (typeof window === 'undefined') {
-        return;
-      }
-
-      if (isSingleAdapterMode) {
-        replaceAgentSlug(null);
-        setPendingInitialPathSlug(null);
-        return;
-      }
-
-      const slug = getAgentSlugFromPath(window.location.pathname);
-      if (!slug) {
-        return;
-      }
-      const adapterName = await resolveAdapterNameFromSlug(slug);
-      if (cancelled) {
-        return;
-      }
-      if (!adapterName) {
-        ensureConversationReadyForAgent();
-        replaceAgentSlug(null);
-        clearCurrentConversationAdapter();
-        setIsAgentSelectionVisible(true);
-        setPendingInitialPathSlug(null);
-        return;
-      }
-      ensureConversationReadyForAgent();
-      setIsAgentSelectionVisible(false);
-      replaceAgentSlug(slug);
-      await handleEmptyStateAdapterChange(adapterName);
+    if (isSingleAdapterMode) {
+      replaceAgentSlug(null);
       setPendingInitialPathSlug(null);
-    };
+      return;
+    }
 
-    void synchronizeFromLocation();
+    const slug = getAgentSlugFromPath(window.location.pathname);
+    if (!slug) {
+      return;
+    }
+    const adapterName = await resolveAdapterNameFromSlug(slug);
+    if (syncVersion !== locationSyncVersionRef.current) {
+      return;
+    }
+    if (!adapterName) {
+      ensureConversationReadyForAgent();
+      replaceAgentSlug(null);
+      clearCurrentConversationAdapter();
+      setIsAgentSelectionVisible(true);
+      setPendingInitialPathSlug(null);
+      return;
+    }
+    ensureConversationReadyForAgent();
+    setIsAgentSelectionVisible(false);
+    replaceAgentSlug(slug);
+    await handleEmptyStateAdapterChange(adapterName);
+    setPendingInitialPathSlug(null);
+  }, [clearCurrentConversationAdapter, ensureConversationReadyForAgent, handleEmptyStateAdapterChange, isSingleAdapterMode]);
+
+  useEffect(() => {
+    const syncTimer = window.setTimeout(() => {
+      void synchronizeFromLocation();
+    }, 0);
 
     const handlePopState = () => {
       void synchronizeFromLocation();
@@ -387,10 +402,16 @@ export function useChatAgentSelection({
 
     window.addEventListener('popstate', handlePopState);
     return () => {
-      cancelled = true;
+      window.clearTimeout(syncTimer);
+      locationSyncVersionRef.current += 1;
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [clearCurrentConversationAdapter, ensureConversationReadyForAgent, handleEmptyStateAdapterChange, isSingleAdapterMode]);
+  }, [synchronizeFromLocation]);
+
+  const singleAdapterConversationId = currentConversation?.id;
+  const singleAdapterConversationAdapterName = currentConversation?.adapterName;
+  const singleAdapterConversationApiUrl = currentConversation?.apiUrl;
+  const singleAdapterConversationHasInfo = !!currentConversation?.adapterInfo;
 
   useEffect(() => {
     if (!isSingleAdapterMode) {
@@ -401,14 +422,14 @@ export function useChatAgentSelection({
       return;
     }
 
-    if (!showEmptyState || !currentConversation || currentConversationHasDraftContent || isConfiguringAdapter) {
+    if (!showEmptyState || !singleAdapterConversationId || currentConversationHasDraftContent || isConfiguringAdapter) {
       return;
     }
 
-    const targetAdapterId = currentConversation.adapterName?.trim() || singleAdapterId;
+    const targetAdapterId = singleAdapterConversationAdapterName?.trim() || singleAdapterId;
     const requiresConfiguration =
-      currentConversation.adapterName?.trim() !== targetAdapterId ||
-      !currentConversation.adapterInfo;
+      singleAdapterConversationAdapterName?.trim() !== targetAdapterId ||
+      !singleAdapterConversationHasInfo;
 
     if (!targetAdapterId || !requiresConfiguration) {
       return;
@@ -419,17 +440,17 @@ export function useChatAgentSelection({
     const configureSingleAdapter = async () => {
       setIsConfiguringAdapter(true);
       setAdapterNotesAsyncError(null);
-      clearConversationAdapterError(currentConversation.id);
+      clearConversationAdapterError(singleAdapterConversationId);
 
       try {
-        const runtimeApiUrl = currentConversation.apiUrl || getApiUrl();
+        const runtimeApiUrl = singleAdapterConversationApiUrl || getApiUrl();
         await configureApiSettings(runtimeApiUrl, undefined, targetAdapterId);
         clearError();
       } catch (error) {
         if (!cancelled) {
           const friendlyMessage = getAdapterInfoErrorMessage(error);
-          setAdapterNotesAsyncError({ conversationId: currentConversation.id, message: friendlyMessage });
-          markConversationAdapterError(currentConversation.id, friendlyMessage);
+          setAdapterNotesAsyncError({ conversationId: singleAdapterConversationId, message: friendlyMessage });
+          markConversationAdapterError(singleAdapterConversationId, friendlyMessage);
         }
       } finally {
         if (!cancelled) {
@@ -447,28 +468,18 @@ export function useChatAgentSelection({
     clearConversationAdapterError,
     clearError,
     configureApiSettings,
-    currentConversation,
-    currentConversation?.adapterName,
-    currentConversation?.apiUrl,
-    currentConversation?.id,
     currentConversationHasDraftContent,
     getAdapterInfoErrorMessage,
     isConfiguringAdapter,
     isSingleAdapterMode,
     markConversationAdapterError,
     showEmptyState,
+    singleAdapterConversationAdapterName,
+    singleAdapterConversationApiUrl,
+    singleAdapterConversationHasInfo,
+    singleAdapterConversationId,
     singleAdapterId
   ]);
-
-  useEffect(() => {
-    debugLog('[ChatInterface] Conversation state:', {
-      hasConversation: !!currentConversation,
-      adapterName: currentConversation?.adapterName,
-      hasAdapterInfo: !!currentConversation?.adapterInfo,
-      hasNotes: !!currentConversation?.adapterInfo?.notes,
-      notes: currentConversation?.adapterInfo?.notes?.substring(0, 50) + '...'
-    });
-  }, [currentConversation]);
 
   useEffect(() => {
     const loadMissingAdapterInfo = async () => {
@@ -522,15 +533,7 @@ export function useChatAgentSelection({
     };
 
     void loadMissingAdapterInfo();
-  }, [
-    fetchAdapterInfoForConversation,
-    currentConversation,
-    currentConversation?.adapterInfo,
-    currentConversation?.adapterLoadError,
-    currentConversation?.adapterName,
-    currentConversation?.apiUrl,
-    currentConversation?.id
-  ]);
+  }, [fetchAdapterInfoForConversation, currentConversation]);
 
   useEffect(() => {
     const retryTimers = adapterInfoRetryTimersRef.current;
