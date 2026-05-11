@@ -424,26 +424,58 @@ class InferenceServer:
             except Exception as e:
                 logger.error(f"Error shutting down thread pool manager: {str(e)}")
 
-    def create_ssl_context(self) -> Optional[ssl.SSLContext]:
+    def _validate_ssl_config(self, https_config: dict) -> None:
         """
-        Create an SSL context from certificate and key files.
-        
-        Returns:
-            An SSL context if HTTPS is enabled, None otherwise
+        Validate SSL certificate and key files before starting uvicorn.
+
+        Raises:
+            ValueError: If required config keys are missing or cert/key don't match
+            FileNotFoundError: If cert or key file cannot be found
         """
-        if not is_true_value(self.config.get('general', {}).get('https', {}).get('enabled', False)):
-            return None
-        
+        import os
+        import datetime
+
+        cert_file = https_config.get('cert_file')
+        key_file = https_config.get('key_file')
+        key_password = https_config.get('key_password')
+
+        if not cert_file:
+            raise ValueError("HTTPS enabled but 'cert_file' not set in config")
+        if not key_file:
+            raise ValueError("HTTPS enabled but 'key_file' not set in config")
+        if not os.path.isfile(cert_file):
+            raise FileNotFoundError(f"TLS certificate not found: {cert_file}")
+        if not os.path.isfile(key_file):
+            raise FileNotFoundError(f"TLS key file not found: {key_file}")
+
+        # Verify cert and key are a matched pair (raises ssl.SSLError on mismatch)
         try:
-            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            ssl_context.load_cert_chain(
-                certfile=self.config['general']['https']['cert_file'],
-                keyfile=self.config['general']['https']['key_file']
-            )
-            return ssl_context
-        except Exception as e:
-            logger.error(f"Failed to create SSL context: {str(e)}")
-            raise
+            probe = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            probe.load_cert_chain(cert_file, key_file, password=key_password)
+        except ssl.SSLError as e:
+            raise ValueError(f"TLS cert/key validation failed: {e}") from e
+
+        logger.info("TLS certificate and key validated successfully")
+
+        # Best-effort expiry check (requires the 'cryptography' package)
+        try:
+            from cryptography import x509 as _x509  # type: ignore[import]
+            with open(cert_file, 'rb') as f:
+                cert = _x509.load_pem_x509_certificate(f.read())
+            try:
+                expiry = cert.not_valid_after_utc  # cryptography >= 42
+            except AttributeError:
+                expiry = cert.not_valid_after.replace(tzinfo=datetime.timezone.utc)
+            now = datetime.datetime.now(datetime.timezone.utc)
+            days_remaining = (expiry - now).days
+            if days_remaining < 0:
+                raise ValueError(f"TLS certificate expired {abs(days_remaining)} days ago ({expiry.date()})")
+            if days_remaining < 30:
+                logger.warning("TLS certificate expires in %d days (%s)", days_remaining, expiry.date())
+            else:
+                logger.info("TLS certificate valid for %d more days", days_remaining)
+        except ImportError:
+            pass  # 'cryptography' not available — skipping expiry check
 
     def run(self) -> None:
         """
@@ -480,17 +512,22 @@ class InferenceServer:
 
         # Use HTTPS if enabled in config
         https_enabled = is_true_value(self.config.get('general', {}).get('https', {}).get('enabled', False))
-        
+
         # Set SSL params based on config
         ssl_keyfile = None
         ssl_certfile = None
+        ssl_keyfile_password = None
         port_to_use = port
-        
+
         if https_enabled:
-            ssl_keyfile = self.config['general']['https']['key_file']
-            ssl_certfile = self.config['general']['https']['cert_file']
-            port_to_use = int(self.config['general']['https'].get('port', 3443))
-        
+            https_config = self.config.get('general', {}).get('https', {}) or {}
+            ssl_certfile = https_config.get('cert_file')
+            ssl_keyfile = https_config.get('key_file')
+            ssl_keyfile_password = https_config.get('key_password')
+            port_to_use = int(https_config.get('port', 3443))
+            # Validate cert/key files early so errors are clear before uvicorn starts
+            self._validate_ssl_config(https_config)
+
         # Get performance configuration
         perf_config = self.config.get('performance', {})
         workers = perf_config.get('workers', 1)  # Default to 1 worker for backward compatibility
@@ -502,6 +539,9 @@ class InferenceServer:
             port=port_to_use,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
+            ssl_keyfile_password=ssl_keyfile_password,
+            # Forward-secrecy only; excludes NULL, RC4, 3DES, MD5, export grades (no-op when SSL disabled)
+            ssl_ciphers="ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!eNULL:!MD5:!RC4:!3DES",
             workers=workers if workers > 1 else None,  # Only use workers if > 1
             loop="asyncio",
             timeout_keep_alive=perf_config.get('keep_alive_timeout', 30),

@@ -34,9 +34,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     - Permissions-Policy
     """
 
-    def __init__(self, app, headers_config: Dict[str, Any]):
+    def __init__(self, app, headers_config: Dict[str, Any], https_enabled: bool = False):
         super().__init__(app)
         self.headers_config = headers_config
+        self.https_enabled = https_enabled
 
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -44,7 +45,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if self.headers_config.get('content_security_policy'):
             response.headers['Content-Security-Policy'] = self.headers_config['content_security_policy']
 
-        if self.headers_config.get('strict_transport_security'):
+        # HSTS is only meaningful (and safe) over HTTPS — suppress on plain HTTP per RFC 6797
+        if self.https_enabled and self.headers_config.get('strict_transport_security'):
             response.headers['Strict-Transport-Security'] = self.headers_config['strict_transport_security']
 
         if self.headers_config.get('x_content_type_options'):
@@ -146,9 +148,11 @@ class MiddlewareConfigurator:
         """Configure security headers middleware for enhanced security."""
         security_config = config.get('security', {}) or {}
         headers_config = security_config.get('headers', {}) or {}
+        https_cfg = (config.get('general', {}) or {}).get('https', {}) or {}
+        https_enabled = bool(https_cfg.get('enabled', False))
 
         if headers_config.get('enabled', True):
-            app.add_middleware(SecurityHeadersMiddleware, headers_config=headers_config)
+            app.add_middleware(SecurityHeadersMiddleware, headers_config=headers_config, https_enabled=https_enabled)
             _logger.info("Security headers middleware configured successfully")
         else:
             _logger.warning("Security headers middleware is DISABLED - this is not recommended for production")

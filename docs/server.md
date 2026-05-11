@@ -438,84 +438,125 @@ These endpoints are enabled by default in development. Set `ENVIRONMENT=producti
 
 ## 🔒 HTTPS Configuration
 
-The server supports HTTPS connections using TLS (Transport Layer Security). Here's how to configure it:
+ORBIT serves HTTPS natively via uvicorn. When enabled, the server binds exclusively on the TLS port (default 3443) using TLS 1.2+ with forward-secrecy cipher suites. TLS 1.0 and 1.1 are not negotiated.
 
-### Using Let's Encrypt with Azure Domain
+### Configuration Reference
+
+All HTTPS options live under `general.https` in `config.yaml`:
+
+```yaml
+general:
+  https:
+    enabled: true
+    port: 3443                  # TLS listener port (HTTP port is not opened when HTTPS is on)
+    cert_file: "/path/to/fullchain.pem"
+    key_file: "/path/to/privkey.pem"
+    key_password: ${ORBIT_TLS_KEY_PASSWORD}  # optional: passphrase for encrypted private key
+```
+
+`key_password` is optional and only needed when the private key is passphrase-protected. Set it via the `ORBIT_TLS_KEY_PASSWORD` environment variable rather than storing it in the config file.
+
+### Startup Validation
+
+Before the server accepts any connections, ORBIT validates the TLS configuration:
+
+- Checks that `cert_file` and `key_file` exist and are readable.
+- Loads the cert and key together to confirm they are a matched pair (a mismatched pair is rejected immediately with a clear error).
+- If the `cryptography` package is installed, checks the certificate expiry date — an expired cert raises an error; a cert expiring within 30 days logs a warning.
+
+A misconfigured certificate produces a descriptive error at startup rather than an opaque SSL failure at connection time.
+
+### Security Headers
+
+When HTTPS is enabled, ORBIT includes the `Strict-Transport-Security` (HSTS) header on all responses, instructing browsers to always use HTTPS for the domain. This header is suppressed when running in plain HTTP mode, as browsers ignore HSTS delivered over unencrypted connections (RFC 6797).
+
+### HTTP → HTTPS Redirect
+
+ORBIT does not open a second HTTP listener for redirects. HTTP-to-HTTPS redirection should be handled by a reverse proxy (nginx, Caddy, HAProxy) sitting in front of ORBIT. This is the recommended production topology regardless, as a reverse proxy handles TLS termination, load balancing, and rate limiting at the edge.
+
+**nginx example** (`/etc/nginx/sites-available/orbit`):
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name your-domain.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/your-domain.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3443;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+Alternatively, if you prefer ORBIT to terminate TLS directly (without nginx), simply leave port 80 closed — clients connecting to HTTP will get a connection refused rather than a redirect.
+
+### Obtaining a Certificate with Let's Encrypt
 
 1. Install Certbot:
 ```bash
 # Ubuntu/Debian
-sudo apt-get update
-sudo apt-get install certbot
+sudo apt-get update && sudo apt-get install certbot python3-certbot-nginx
 ```
 
-2. If your server runs on port 3000, you'll need to route requests from port 80 to port 3000 for the certificate verification:
+2. Issue a certificate (HTTP challenge, requires port 80 to be reachable):
 ```bash
-sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000
+sudo certbot certonly --standalone -d your-domain.example.com
 ```
 
-3. Obtain TLS certificate using DNS challenge (since we can't use HTTP challenge with Azure domain):
+   For domains where port 80 is blocked, use the DNS challenge instead:
 ```bash
-sudo certbot certonly --manual --preferred-challenges http -d your-azure-domain.cloudapp.azure.com
+sudo certbot certonly --manual --preferred-challenges dns -d your-domain.example.com
 ```
 
-4. When prompted by certbot, you'll need to:
-   - Create a `.well-known/acme-challenge` directory in your server project
-   - Add the verification file with the content provided by certbot
-   - Add this route to your server.ts:
-   ```typescript
-   app.use('/.well-known/acme-challenge', express.static(path.join(__dirname, '../.well-known/acme-challenge')));
-   ```
-   - Keep this route for future certificate renewals
-
-5. Update your `config.yaml`:
+3. Update `config.yaml`:
 ```yaml
 general:
   https:
     enabled: true
     port: 3443
-    cert_file: "/etc/letsencrypt/live/schmitech-chatbot.canadacentral.cloudapp.azure.com/fullchain.pem"
-    key_file: "/etc/letsencrypt/live/schmitech-chatbot.canadacentral.cloudapp.azure.com/privkey.pem"
+    cert_file: "/etc/letsencrypt/live/your-domain.example.com/fullchain.pem"
+    key_file: "/etc/letsencrypt/live/your-domain.example.com/privkey.pem"
 ```
 
-6. Set proper permissions for the certificate files:
+4. Set file permissions so the ORBIT process can read the certificates:
 ```bash
-sudo chown -R $USER:$USER /etc/letsencrypt/live/your-azure-domain.cloudapp.azure.com
-sudo chown -R $USER:$USER /etc/letsencrypt/archive/your-azure-domain.cloudapp.azure.com
-sudo chmod -R 755 /etc/letsencrypt/live
-sudo chmod -R 755 /etc/letsencrypt/archive
-sudo chmod 644 /etc/letsencrypt/archive/your-azure-domain.cloudapp.azure.com/*.pem
+sudo chown -R $USER:$USER /etc/letsencrypt/live/your-domain.example.com
+sudo chown -R $USER:$USER /etc/letsencrypt/archive/your-domain.example.com
+sudo chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive
+sudo chmod 644 /etc/letsencrypt/archive/your-domain.example.com/*.pem
 ```
 
-7. Configure Azure Network Security Group:
+5. Test the HTTPS endpoint:
 ```bash
-# Add inbound security rules
-- Priority: 100
-  Port: 3443
-  Protocol: TCP
-  Source: * (or your specific IP range)
-  Destination: *
-  Action: Allow
-  Description: Allow HTTPS traffic (TLS)
-
-- Priority: 110
-  Port: 80
-  Protocol: TCP
-  Source: * (or your specific IP range)
-  Destination: *
-  Action: Allow
-  Description: Allow HTTP traffic for certificate verification
+curl -I https://your-domain.example.com:3443/health
 ```
 
-8. Test your HTTPS setup:
-```bash
-# Test with curl (replace with your domain)
-curl -I https://your-azure-domain.cloudapp.azure.com:3443/health
-```
-
-Note: The certificates from Let's Encrypt expire after 90 days. You'll need to renew them using:
+Let's Encrypt certificates expire after 90 days. Renew them with:
 ```bash
 sudo certbot renew
+```
+
+Consider adding a cron job or systemd timer to run `certbot renew` automatically (e.g. twice daily).
+
+### Using Let's Encrypt with Azure
+
+If your domain is an Azure-managed domain (`*.cloudapp.azure.com`), the DNS challenge is required since Azure manages the domain's DNS zone. See [Azure DNS challenge documentation](https://certbot-dns-azure.readthedocs.io/) for the Azure DNS plugin setup.
+
+After obtaining the certificate, open the HTTPS port in your Azure Network Security Group:
+
+```
+Priority: 100 | Port: 3443 | Protocol: TCP | Action: Allow  (HTTPS)
+Priority: 110 | Port: 80   | Protocol: TCP | Action: Allow  (HTTP — only needed during cert issuance)
 ```
 
 ---
