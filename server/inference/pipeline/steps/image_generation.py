@@ -84,13 +84,39 @@ class ImageGenerationStep(PipelineStep):
     async def _resolve_rewrite_provider(self, context: ProcessingContext):
         """Resolve the LLM provider for prompt rewriting.
 
-        Prefers the original (retrieval) adapter's inference provider because
-        it is already configured for text tasks and handles the data context
-        well.  Falls back to the skill adapter's provider, then the global one.
+        Priority:
+        1. Explicit `rewrite_provider` field on the skill adapter config.
+        2. Original (retrieval) adapter's inference provider (e.g. openai on customer-orders).
+        3. Skill adapter's inference_provider.
+        4. Global llm_provider fallback.
         """
         if self.container.has('adapter_manager'):
             adapter_manager = self.container.get('adapter_manager')
-            # Prefer the original adapter's text LLM (e.g. openai on customer-orders)
+
+            # 1. Explicit rewrite_provider wins — avoids picking a provider that
+            #    returns empty for text completions (e.g. ollama_cloud/image models).
+            if context.adapter_name:
+                skill_config = adapter_manager.get_adapter_config(context.adapter_name)
+                if skill_config:
+                    rewrite_provider_name = skill_config.get('rewrite_provider')
+                    if rewrite_provider_name:
+                        try:
+                            provider = await adapter_manager.get_overridden_provider(
+                                rewrite_provider_name, context.adapter_name
+                            )
+                            if provider:
+                                logger.debug(
+                                    "Using rewrite_provider '%s' for prompt rewrite",
+                                    rewrite_provider_name,
+                                )
+                                return provider
+                        except Exception as e:
+                            logger.debug(
+                                "Could not resolve rewrite_provider '%s': %s",
+                                rewrite_provider_name, e,
+                            )
+
+            # 2 & 3. Try original adapter's provider, then skill adapter's provider.
             for adapter_name in (context.original_adapter_name, context.adapter_name):
                 if not adapter_name:
                     continue
@@ -111,6 +137,7 @@ class ImageGenerationStep(PipelineStep):
                             return provider
                     except Exception as e:
                         logger.debug("Could not resolve provider for '%s': %s", adapter_name, e)
+
         return self.container.get_or_none('llm_provider')
 
     async def _rewrite_prompt(self, context: ProcessingContext) -> str:
