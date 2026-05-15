@@ -497,8 +497,13 @@ class FileVectorRetriever(AbstractVectorRetriever):
             
             collection_name = file_info.get('collection_name')
             if not collection_name:
-                logger.warning(f"File {file_id} has no collection_name, skipping vector store deletion")
-                # Still delete from metadata store
+                # Generated images and other non-vectorized files have no collection — expected.
+                mime_type = file_info.get('mime_type', '')
+                is_image = mime_type.startswith('image/') or file_info.get('metadata', {}).get('generated')
+                if is_image:
+                    logger.debug(f"File {file_id} is a generated image, no vector collection to delete")
+                else:
+                    logger.warning(f"File {file_id} has no collection_name, skipping vector store deletion")
                 return await self.metadata_store.delete_file_chunks(file_id)
             
             # Get all chunks for file before deleting from metadata store
