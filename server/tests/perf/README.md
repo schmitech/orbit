@@ -121,6 +121,104 @@ python advanced_performance_test.py --scenario ramp --start-rps 1 --end-rps 50 -
 python advanced_performance_test.py --scenario chat --duration 300 --rps 10 --api-key YOUR_API_KEY
 ```
 
+### Option 5: Memray Leak Profiling
+
+Use `memray_leak_test.py` when you want to profile allocations in the server
+process while driving one of the existing advanced performance scenarios. This
+is intentionally separate from the normal runners because memray adds profiling
+overhead and writes larger binary/HTML artifacts.
+
+```bash
+cd server/tests/perf
+
+# Profile the server during a lightweight mixed workload
+python memray_leak_test.py --scenario mixed --duration 120 --rps 5
+
+# Profile authenticated chat traffic
+python memray_leak_test.py \
+  --scenario chat \
+  --duration 300 \
+  --rps 2 \
+  --api-key YOUR_API_KEY
+```
+
+The script starts `server/main.py` through memray, waits for `/health`, runs the
+selected workload, gracefully stops the server, and writes reports under
+`server/tests/perf/results/memray/`:
+
+- `orbit_memray.bin` - raw memray capture
+- `memray_summary.txt` and `memray_stats.txt` - terminal summaries
+- `memray_peak_flamegraph.html` - peak allocation flamegraph
+- `memray_leaks_flamegraph.html` and `memray_leaks_table.html` - allocations
+  still live at process exit
+- `server.log` and `workload_summary.txt` - run context
+
+Stop any server already listening on the target `--base-url` before running the
+script; otherwise the workload could hit the wrong process. If your config uses
+a non-default port, pass the matching URL with `--base-url`.
+
+If you see this message:
+
+```text
+http://127.0.0.1:3000/health is already reachable. Stop the existing server or choose a config/base URL with a free port before profiling.
+```
+
+it means something is already responding on port `3000`. The script stops at
+that point because it profiles only the server process it starts itself; if it
+continued, the workload might hit an existing unprofiled server and produce a
+misleading memray report.
+
+You can either stop the existing server:
+
+```bash
+# From the project root
+./bin/orbit.sh stop
+
+cd server/tests/perf
+python memray_leak_test.py --scenario mixed --duration 120 --rps 5
+```
+
+or run the profiled server on a different port. The `--base-url` value must
+match the port in the config file passed with `--config`:
+
+```bash
+cd server/tests/perf
+python memray_leak_test.py \
+  --config ../../../config/config-memray.yaml \
+  --base-url http://127.0.0.1:3001 \
+  --scenario mixed \
+  --duration 120 \
+  --rps 5
+```
+
+To see what is using port `3000`:
+
+```bash
+lsof -i :3000
+```
+
+For focused leak hunts in `server/inference`, keep `performance.workers: 1` in
+the active server config. Memray reports are per process; multiple uvicorn
+workers split allocations across processes and make attribution harder. If you
+prefer a manual command, use the configured app factory rather than the bare
+global app:
+
+```bash
+cd server
+OIS_CONFIG_PATH=../config/config.yaml \
+  python -m memray run --native -o output.bin \
+  -m uvicorn main:create_app --factory --host 0.0.0.0 --port 3000
+```
+
+Then drive traffic from another shell with Locust or
+`advanced_performance_test.py`, stop the server, and generate leak views:
+
+```bash
+python -m memray flamegraph --leaks output.bin
+python -m memray table --leaks output.bin
+python -m memray summary output.bin
+```
+
 ## 📊 Understanding Results
 
 ### Locust Results

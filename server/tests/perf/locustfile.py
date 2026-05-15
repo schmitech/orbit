@@ -10,9 +10,18 @@ This file contains performance tests for various endpoints including:
 Run with: locust -f locustfile.py --host=http://localhost:3000
 """
 
+import os
 import random
 import time
 from locust import HttpUser, task, between, events
+
+
+PERF_API_KEY_ENV = "ORBIT_PERF_API_KEY"
+
+
+def get_perf_api_key():
+    """Return the API key supplied by run_performance_tests.sh, if any."""
+    return os.environ.get(PERF_API_KEY_ENV) or None
 
 
 class OrbitInferenceServerUser(HttpUser):
@@ -30,13 +39,16 @@ class OrbitInferenceServerUser(HttpUser):
     
     def on_start(self):
         """Initialize user state when starting."""
-        self.api_key = None
+        self.api_key = get_perf_api_key()
         self.session_id = None
         self.user_id = None
         self.admin_token = None
-        
-        # Try to authenticate if auth is enabled
-        self._try_authenticate()
+
+        if self.api_key:
+            self.client.headers.update({"X-API-Key": self.api_key})
+        else:
+            # Try to authenticate if auth is enabled
+            self._try_authenticate()
     
     def _try_authenticate(self):
         """Attempt to authenticate the user."""
@@ -101,22 +113,14 @@ class OrbitInferenceServerUser(HttpUser):
         # Generate a unique session ID
         self.session_id = f"perf_session_{int(time.time())}_{random.randint(1000, 9999)}"
         
-        # MCP protocol chat request
         chat_data = {
-            "jsonrpc": "2.0",
-            "method": "tools/call",
-            "params": {
-                "name": "chat",
-                "arguments": {
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": "Hello, this is a performance test message."
-                        }
-                    ]
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Hello, this is a performance test message."
                 }
-            },
-            "id": random.randint(1, 10000)
+            ],
+            "stream": False
         }
         
         headers = {
@@ -195,9 +199,12 @@ class ChatUser(HttpUser):
     
     def on_start(self):
         """Initialize chat user."""
-        self.api_key = None
+        self.api_key = get_perf_api_key()
         self.session_id = None
-        self._try_get_api_key()
+        if self.api_key:
+            self.client.headers.update({"X-API-Key": self.api_key})
+        else:
+            self._try_get_api_key()
     
     def _try_get_api_key(self):
         """Try to get an existing API key."""
@@ -221,20 +228,13 @@ class ChatUser(HttpUser):
         self.session_id = f"chat_user_{int(time.time())}_{random.randint(1000, 9999)}"
         
         chat_data = {
-            "jsonrpc": "2.0",
-            "method": "tools/call",
-            "params": {
-                "name": "chat",
-                "arguments": {
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": "This is a performance test chat message. Please respond briefly."
-                        }
-                    ]
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "This is a performance test chat message. Please respond briefly."
                 }
-            },
-            "id": random.randint(1, 10000)
+            ],
+            "stream": False
         }
         
         headers = {

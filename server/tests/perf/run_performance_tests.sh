@@ -1,7 +1,40 @@
 #!/bin/bash
 
 # Performance Test Runner for Orbit Inference Server
-# This script runs different performance test scenarios
+# ----------------------------------------------------
+# This script runs Locust-based performance scenarios against an already-running
+# Orbit server. It does not start or stop the server for you.
+#
+# Basic usage:
+#   cd server/tests/perf
+#   ./run_performance_tests.sh --scenario health --users 10 --run-time 3m
+#   ./run_performance_tests.sh --scenario basic --users 20 --run-time 5m
+#   ./run_performance_tests.sh --scenario chat --api-key default-key --users 10 --run-time 5m
+#
+# Scenarios:
+#   health     Only calls unauthenticated health/readiness endpoints.
+#   basic      Runs the default mixed Locust user. This includes admin/chat tasks.
+#   chat       Runs ChatUser only. Current locustfile.py tries to discover an
+#              API key by listing /admin/api-keys.
+#   admin      Exercises admin endpoints.
+#   stress     Multiplies the requested users/spawn rate for higher load.
+#   endurance  Runs a longer fixed 30 minute test.
+#
+# Authentication note:
+#   Logging in with bin/orbit.py or ./bin/orbit.sh does not automatically
+#   authenticate Locust. CLI login stores credentials for the CLI/admin UI, but
+#   these Locust users start as fresh HTTP clients and do not read that saved
+#   token or cookie.
+#
+#   Use --api-key for chat/basic scenarios that need authenticated /v1 traffic.
+#   If --api-key is not provided, the Locust users may try /admin/api-keys and
+#   receive 401 responses from servers that require admin auth. Use the health
+#   scenario for an auth-free smoke/perf check:
+#     ./run_performance_tests.sh --scenario health
+#
+# Output:
+#   Results are written to a timestamped directory under --output, defaulting to
+#   server/tests/perf/results/<scenario>_<timestamp>/.
 
 set -e
 
@@ -19,6 +52,7 @@ SPAWN_RATE=2
 RUN_TIME="5m"
 OUTPUT_DIR="results"
 SCENARIO="basic"
+API_KEY=""
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,6 +85,7 @@ show_usage() {
     echo "  -t, --run-time TIME      Test run time (default: 5m)"
     echo "  -o, --output DIR         Output directory (default: results)"
     echo "  -S, --scenario SCENARIO  Test scenario (default: basic)"
+    echo "  --api-key KEY            Existing API key for authenticated chat/basic tests"
     echo "  --help                   Show this help message"
     echo ""
     echo "Available scenarios:"
@@ -63,6 +98,7 @@ show_usage() {
     echo ""
     echo "Examples:"
     echo "  $0 --scenario stress --users 50 --run-time 10m"
+    echo "  $0 --scenario chat --api-key YOUR_API_KEY --users 10 --run-time 5m"
     echo "  $0 -h http://192.168.1.100:3000 -u 20 -t 15m"
 }
 
@@ -96,6 +132,7 @@ create_output_dir() {
 # Function to run basic performance test
 run_basic_test() {
     print_status "Running basic performance test..."
+    export ORBIT_PERF_API_KEY="$API_KEY"
     
     locust \
         --locustfile="$SCRIPT_DIR/locustfile.py" \
@@ -136,9 +173,10 @@ run_chat_test() {
     
     # Override user classes to focus on chat
     export LOCUST_USER_CLASSES="ChatUser"
+    export ORBIT_PERF_API_KEY="$API_KEY"
     
     locust \
-        --locustfile=locustfile.py \
+        --locustfile="$SCRIPT_DIR/locustfile.py" \
         --host="$HOST" \
         --users="$USERS" \
         --spawn-rate="$SPAWN_RATE" \
@@ -153,6 +191,7 @@ run_chat_test() {
 # Function to run admin-focused test
 run_admin_test() {
     print_status "Running admin endpoints focused test..."
+    export ORBIT_PERF_API_KEY="$API_KEY"
     
     # Use all user classes but focus on admin operations
     locust \
@@ -171,6 +210,7 @@ run_admin_test() {
 # Function to run stress test
 run_stress_test() {
     print_status "Running high load stress test..."
+    export ORBIT_PERF_API_KEY="$API_KEY"
     
     # Increase load for stress testing
     STRESS_USERS=$((USERS * 3))
@@ -192,6 +232,7 @@ run_stress_test() {
 # Function to run endurance test
 run_endurance_test() {
     print_status "Running long duration endurance test..."
+    export ORBIT_PERF_API_KEY="$API_KEY"
     
     # Longer run time for endurance testing
     ENDURANCE_TIME="30m"
@@ -225,6 +266,7 @@ Test Configuration:
 - Spawn Rate: $SPAWN_RATE
 - Run Time: $RUN_TIME
 - Scenario: $SCENARIO
+- API Key Provided: $([ -n "$API_KEY" ] && echo "yes" || echo "no")
 - Timestamp: $(date)
 
 Test Results:
@@ -269,6 +311,10 @@ while [[ $# -gt 0 ]]; do
             SCENARIO="$2"
             shift 2
             ;;
+        --api-key)
+            API_KEY="$2"
+            shift 2
+            ;;
         --help)
             show_usage
             exit 0
@@ -289,6 +335,11 @@ main() {
     print_status "Spawn Rate: $SPAWN_RATE"
     print_status "Run Time: $RUN_TIME"
     print_status "Scenario: $SCENARIO"
+    if [ -n "$API_KEY" ]; then
+        print_status "API Key: provided"
+    else
+        print_status "API Key: not provided"
+    fi
     
     # Check if locust is installed
     if ! command -v locust &> /dev/null; then
