@@ -53,8 +53,19 @@ class ImageGenerationStep(PipelineStep):
 
         # Refine prompt using conversation history or retrieved context if available
         prompt = context.message
+        logger.info(
+            "Image generation context: context_messages=%d, formatted_context_len=%d",
+            len(context.context_messages),
+            len(context.formatted_context),
+        )
         if context.context_messages or context.formatted_context:
+            if context.context_messages and not context.formatted_context:
+                logger.debug(
+                    "Image generation has conversation history but no structured retrieval "
+                    "context (not in a thread). Prompt rewrite will use conversation text only."
+                )
             prompt = await self._rewrite_prompt(context)
+            logger.info("Image generation prompt after rewrite: %r", prompt[:200])
 
         try:
             result = await image_service.generate_image(prompt)
@@ -70,13 +81,46 @@ class ImageGenerationStep(PipelineStep):
 
         return context
 
+    async def _resolve_rewrite_provider(self, context: ProcessingContext):
+        """Resolve the LLM provider for prompt rewriting.
+
+        Prefers the original (retrieval) adapter's inference provider because
+        it is already configured for text tasks and handles the data context
+        well.  Falls back to the skill adapter's provider, then the global one.
+        """
+        if self.container.has('adapter_manager'):
+            adapter_manager = self.container.get('adapter_manager')
+            # Prefer the original adapter's text LLM (e.g. openai on customer-orders)
+            for adapter_name in (context.original_adapter_name, context.adapter_name):
+                if not adapter_name:
+                    continue
+                adapter_config = adapter_manager.get_adapter_config(adapter_name)
+                if not adapter_config:
+                    continue
+                inference_provider = adapter_config.get('inference_provider')
+                if inference_provider:
+                    try:
+                        provider = await adapter_manager.get_overridden_provider(
+                            inference_provider, adapter_name
+                        )
+                        if provider:
+                            logger.debug(
+                                "Using inference provider '%s' (adapter '%s') for prompt rewrite",
+                                inference_provider, adapter_name,
+                            )
+                            return provider
+                    except Exception as e:
+                        logger.debug("Could not resolve provider for '%s': %s", adapter_name, e)
+        return self.container.get_or_none('llm_provider')
+
     async def _rewrite_prompt(self, context: ProcessingContext) -> str:
         """Rewrite the user's message into a descriptive image prompt using history and context."""
         if not context.context_messages and not context.formatted_context:
             return context.message
 
-        llm_provider = self.container.get_or_none('llm_provider')
+        llm_provider = await self._resolve_rewrite_provider(context)
         if not llm_provider:
+            logger.warning("No llm_provider available — skipping prompt rewrite for image generation")
             return context.message
 
         # Cap history to last 6 turns to avoid blowing the context window.
@@ -122,9 +166,13 @@ class ImageGenerationStep(PipelineStep):
             if rewritten and len(rewritten) >= 10:
                 logger.debug(f"Rewrote skill prompt: '{context.message}' -> '{rewritten}'")
                 return rewritten
+            logger.warning(
+                "Prompt rewrite returned too-short response (%d chars) — using raw message",
+                len(rewritten) if rewritten else 0,
+            )
         except Exception as e:
             logger.warning(f"Failed to rewrite skill prompt: {e}")
-        
+
         return context.message
 
     async def _get_image_service(self, context: ProcessingContext):

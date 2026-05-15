@@ -256,11 +256,16 @@ class ContextRetrievalStep(PipelineStep):
                         context.session_id = thread_info.get('thread_session_id', context.session_id)
                     
                     context.retrieved_docs = docs
-                    
+
                     logger.debug(f"Loaded {len(docs)} documents from thread {context.thread_id}")
-                    
-                    # Format context for LLM
-                    capabilities = self._get_capabilities(context.adapter_name)
+
+                    # Format context for LLM.
+                    # When serving a skill request, use the original adapter's capabilities
+                    # so the data is formatted the same way it was at retrieval time
+                    # (e.g. toon/table format, numeric precision) rather than the skill
+                    # adapter's passthrough defaults.
+                    formatting_adapter = context.original_adapter_name or context.adapter_name
+                    capabilities = self._get_capabilities(formatting_adapter)
                     truncation_info = self._get_truncation_info(docs)
                     context.formatted_context = self._format_context(
                         docs,

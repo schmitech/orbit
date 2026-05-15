@@ -21,6 +21,7 @@ import hashlib
 
 from utils.text_utils import mask_api_key
 from services.database_service import DatabaseService
+from adapters.capabilities import AdapterCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -458,7 +459,16 @@ class ApiKeyService:
         capabilities = adapter_config.get('capabilities', {})
         supports_file_ids = capabilities.get('supports_file_ids', False)
         adapter_info['isFileSupported'] = bool(supports_file_ids)
-        adapter_info['supportsThreading'] = bool(capabilities.get('supports_threading', False))
+
+        # For supportsThreading: honour explicit YAML config; otherwise infer from adapter
+        # name using the same logic as ContextRetrievalStep._infer_capabilities(), so that
+        # intent-* and qa-* adapters suppress the skill picker in the main conversation even
+        # when the YAML doesn't include an explicit supports_threading: true entry.
+        if 'supports_threading' in capabilities:
+            adapter_info['supportsThreading'] = bool(capabilities['supports_threading'])
+        else:
+            inferred = AdapterCapabilities.for_standard_retriever(adapter_name)
+            adapter_info['supportsThreading'] = inferred.supports_threading
 
         if debug_enabled:
             logger.debug(
