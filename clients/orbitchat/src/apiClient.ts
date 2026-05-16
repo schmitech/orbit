@@ -20,6 +20,10 @@ export interface StreamResponse {
   image_format?: string;  // Image format (png, jpeg, webp)
   image_revised_prompt?: string;  // Provider-rewritten prompt (DALL-E 3)
   image_url?: string;  // Persistent server-side URL for refresh
+  video?: string;  // Optional base64-encoded generated video
+  video_format?: string;  // Video format (mp4)
+  video_revised_prompt?: string;  // Provider-rewritten prompt
+  video_url?: string;  // Persistent server-side URL for refresh
   assistant_message_id?: string;  // Database message ID for feedback
   threading?: {  // Optional threading metadata
     supports_threading: boolean;
@@ -289,6 +293,10 @@ function parseSseDataLine(line: string): StreamResponse | null {
       image_format: data.image_format,
       image_revised_prompt: data.image_revised_prompt,
       image_url: data.image_url,
+      video: data.video,
+      video_format: data.video_format,
+      video_revised_prompt: data.video_revised_prompt,
+      video_url: data.video_url,
       assistant_message_id: data.assistant_message_id,
       threading: data.threading
     };

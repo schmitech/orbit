@@ -36,14 +36,14 @@ export const debouncedSaveToLocalStorage = (getState: () => { conversations: Con
     localStorageSaveTimeout = null;
     try {
       const currentState = getState();
-      // Exclude large binary data (audio, image) from persistence to reduce localStorage size
+      // Exclude large binary data (audio, image, video) from persistence to reduce localStorage size
       const conversationsForStorage = currentState.conversations.map(conv => ({
         ...conv,
         messages: conv.messages.map(msg => {
-          const hasLargeData = msg.audio || msg.image;
+          const hasLargeData = msg.audio || msg.image || msg.video;
           if (!hasLargeData) return msg;
           return Object.fromEntries(
-            Object.entries(msg).filter(([k]) => k !== 'audio' && k !== 'image')
+            Object.entries(msg).filter(([k]) => k !== 'audio' && k !== 'image' && k !== 'video')
           ) as typeof msg;
         })
       }));
@@ -1267,7 +1267,32 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               })
             }));
           }
-          
+
+          // Handle generated video in done chunk
+          if ((response.video || response.video_url) && response.done) {
+            receivedAnyText = true; // video counts as a valid response
+            set(state => ({
+              conversations: state.conversations.map(conv => {
+                if (conv.id !== streamingConversationId) return conv;
+
+                const messages = [...conv.messages];
+                const lastMessage = messages[messages.length - 1];
+
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  messages[messages.length - 1] = {
+                    ...lastMessage,
+                    video: response.video,
+                    videoFormat: response.video_format || 'mp4',
+                    videoRevisedPrompt: response.video_revised_prompt,
+                    videoUrl: response.video_url,
+                  };
+                }
+
+                return { ...conv, messages, updatedAt: new Date() };
+              })
+            }));
+          }
+
           if (response.done) {
             debugLog(`[chatStore] Stream completed, receivedAnyText:`, receivedAnyText);
             debugLog(`[chatStore] Done chunk received:`, { 
@@ -1771,6 +1796,31 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     imageFormat: response.image_format || 'png',
                     imageRevisedPrompt: response.image_revised_prompt,
                     imageUrl: response.image_url,
+                  };
+                }
+
+                return { ...conv, messages, updatedAt: new Date() };
+              })
+            }));
+          }
+
+          // Handle generated video if present
+          if ((response.video || response.video_url) && response.done) {
+            receivedAnyText = true; // video counts as a valid response
+            set(state => ({
+              conversations: state.conversations.map(conv => {
+                if (conv.id !== regeneratingConversationId) return conv;
+
+                const messages = [...conv.messages];
+                const lastMessage = messages[messages.length - 1];
+
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  messages[messages.length - 1] = {
+                    ...lastMessage,
+                    video: response.video,
+                    videoFormat: response.video_format || 'mp4',
+                    videoRevisedPrompt: response.video_revised_prompt,
+                    videoUrl: response.video_url,
                   };
                 }
 

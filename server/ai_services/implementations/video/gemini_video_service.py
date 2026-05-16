@@ -63,7 +63,7 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
         number_of_videos = kwargs.get("number_of_videos", self.number_of_videos)
         person_generation = kwargs.get("person_generation", self.person_generation)
 
-        def _run_sync() -> bytes:
+        def _run_sync() -> tuple[bytes, str]:
             from google.genai import types as genai_types
 
             client = self._get_client()
@@ -71,7 +71,7 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
             operation = client.models.generate_videos(
                 model=self.model,
                 prompt=prompt,
-                config=genai_types.GenerateVideoConfig(
+                config=genai_types.GenerateVideosConfig(
                     aspect_ratio=aspect_ratio,
                     number_of_videos=number_of_videos,
                     person_generation=person_generation,
@@ -82,17 +82,26 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
                 time.sleep(5)
                 operation = client.operations.get(operation)
 
-            generated = operation.response.generated_videos
-            if not generated:
+            generated = (operation.response or operation.result or {})
+            videos = getattr(generated, 'generated_videos', None) or []
+            if not videos:
                 raise ValueError("Gemini Veo returned no videos")
 
-            return client.files.download(file=generated[0].video)
+            video_obj = videos[0].video
+            video_bytes = video_obj.video_bytes
+            if not video_bytes:
+                # API returned a URI — download the bytes explicitly
+                video_bytes = client.files.download(file=video_obj)
+
+            mime = video_obj.mime_type or "video/mp4"
+            fmt = mime.split("/")[-1] if "/" in mime else "mp4"
+            return video_bytes, fmt
 
         try:
-            video_bytes = await asyncio.to_thread(_run_sync)
+            video_bytes, fmt = await asyncio.to_thread(_run_sync)
             return {
                 "video_bytes": video_bytes,
-                "format": "mp4",
+                "format": fmt,
                 "duration": None,
                 "revised_prompt": None,
             }

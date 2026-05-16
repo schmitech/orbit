@@ -322,6 +322,9 @@ class ResponseProcessor:
         image_format: Optional[str] = None,
         image_revised_prompt: Optional[str] = None,
         image_url: Optional[str] = None,
+        video_url: Optional[str] = None,
+        video_format: Optional[str] = None,
+        video_revised_prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Build the final result dictionary.
@@ -385,6 +388,13 @@ class ResponseProcessor:
                 result["image_revised_prompt"] = image_revised_prompt
             if image_url:
                 result["image_url"] = image_url
+
+        # Add generated video URL if present
+        if video_url:
+            result["video_url"] = video_url
+            result["video_format"] = video_format or "mp4"
+            if video_revised_prompt:
+                result["video_revised_prompt"] = video_revised_prompt
 
         return result
     

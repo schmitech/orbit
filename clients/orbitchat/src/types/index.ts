@@ -32,6 +32,10 @@ export interface Message {
   imageFormat?: string;  // Image format (png, jpeg, webp)
   imageRevisedPrompt?: string;  // Provider-rewritten prompt (e.g. DALL-E 3)
   imageUrl?: string;  // Persistent server-side URL (survives page refresh)
+  video?: string;  // Optional base64-encoded generated video
+  videoFormat?: string;  // Video format (mp4)
+  videoRevisedPrompt?: string;  // Provider-rewritten prompt
+  videoUrl?: string;  // Persistent server-side URL (survives page refresh)
   threadInfo?: ThreadInfo;
   supportsThreading?: boolean;
   databaseMessageId?: string;  // Database message ID from server (used for thread creation and feedback)

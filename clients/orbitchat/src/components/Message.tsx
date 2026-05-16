@@ -19,6 +19,7 @@ import { debugError } from '../utils/debug';
 import { getEnableFeedbackButtons, getEnableConversationThreads, getIsAuthConfigured } from '../utils/runtimeConfig';
 import { AudioPlayer } from './AudioPlayer';
 import { ImageDisplay } from './ImageDisplay';
+import { VideoDisplay } from './VideoDisplay';
 import { ConfirmationModal } from './ConfirmationModal';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { AppConfig } from '../utils/config';
@@ -546,6 +547,14 @@ export function Message({
                   revisedPrompt={reply.imageRevisedPrompt}
                 />
               )}
+              {(reply.video || reply.videoUrl) && replyIsAssistant && !reply.isStreaming && (
+                <VideoDisplay
+                  video={reply.video}
+                  videoUrl={reply.videoUrl}
+                  videoFormat={reply.videoFormat}
+                  revisedPrompt={reply.videoRevisedPrompt}
+                />
+              )}
             </div>
             {replyIsAssistant && !reply.isStreaming && getEnableFeedbackButtons() && (
               <ThreadReplyFeedback reply={reply} />
@@ -586,6 +595,15 @@ export function Message({
               imageUrl={message.imageUrl}
               imageFormat={message.imageFormat}
               revisedPrompt={message.imageRevisedPrompt}
+            />
+          )}
+
+          {(message.video || message.videoUrl) && isAssistant && !message.isStreaming && (
+            <VideoDisplay
+              video={message.video}
+              videoUrl={message.videoUrl}
+              videoFormat={message.videoFormat}
+              revisedPrompt={message.videoRevisedPrompt}
             />
           )}
         </div>

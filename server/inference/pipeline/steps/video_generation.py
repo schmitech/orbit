@@ -64,7 +64,7 @@ class VideoGenerationStep(PipelineStep):
                     "context. Prompt rewrite will use conversation text only."
                 )
             prompt = await self._rewrite_prompt(context)
-            logger.info("Video generation prompt after rewrite: %r", prompt[:200])
+            logger.debug("Video generation prompt after rewrite: %r", prompt[:200])
 
         try:
             result = await video_service.generate_video(prompt)

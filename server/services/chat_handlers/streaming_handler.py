@@ -546,6 +546,9 @@ class StreamingHandler:
         image_format: Optional[str] = None,
         image_revised_prompt: Optional[str] = None,
         image_url: Optional[str] = None,
+        video_url: Optional[str] = None,
+        video_format: Optional[str] = None,
+        video_revised_prompt: Optional[str] = None,
     ) -> str:
         """
         Build the final done chunk with all metadata.
@@ -597,6 +600,13 @@ class StreamingHandler:
                 done_chunk["image_revised_prompt"] = image_revised_prompt
             if image_url:
                 done_chunk["image_url"] = image_url
+
+        # Include generated video URL if present (bytes are never sent inline)
+        if video_url:
+            done_chunk["video_url"] = video_url
+            done_chunk["video_format"] = video_format or "mp4"
+            if video_revised_prompt:
+                done_chunk["video_revised_prompt"] = video_revised_prompt
 
         done_json = json.dumps(done_chunk)
 

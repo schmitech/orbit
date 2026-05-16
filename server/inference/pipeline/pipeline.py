@@ -194,12 +194,10 @@ class InferencePipeline:
                 return
 
             # If video generation already produced a result, short-circuit here.
+            # Don't include video bytes — they are persisted by pipeline_chat_service
+            # and delivered via video_url instead of inline base64.
             if context.video:
                 done_payload = {"response": context.response or "", "done": True}
-                done_payload["video"] = context.video
-                done_payload["video_format"] = context.video_format or "mp4"
-                if context.video_revised_prompt:
-                    done_payload["video_revised_prompt"] = context.video_revised_prompt
                 yield json.dumps(done_payload)
                 total_time = time.perf_counter() - start_time
                 self.monitor.record_pipeline_metrics(total_time, True)
