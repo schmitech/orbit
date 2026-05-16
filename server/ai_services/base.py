@@ -29,6 +29,7 @@ class ServiceType(Enum):
     AUDIO = "audio"
     SPEECH_TO_SPEECH = "speech_to_speech"
     IMAGE_GENERATION = "image_generation"
+    VIDEO_GENERATION = "video_generation"
 
 
 class AIService(ABC, Generic[T]):

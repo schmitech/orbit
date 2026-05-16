@@ -1,0 +1,25 @@
+# Global video generation configuration
+video:
+  provider: "gemini"  # Default video generation provider
+  enabled: true        # Whether video generation is enabled globally
+
+# Provider-specific configurations
+video_generation:
+  gemini:
+    enabled: true
+    api_key: ${GOOGLE_API_KEY}
+    model: "veo-2.0-generate-001"
+    aspect_ratio: "16:9"         # 16:9, 9:16, 1:1
+    number_of_videos: 1
+    person_generation: "allow_adult"  # allow_adult, disallow
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 300000    # 5 minutes (video generation is slow)
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 1
+      initial_wait_ms: 5000
+      max_wait_ms: 60000
+      exponential_base: 2

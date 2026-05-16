@@ -101,8 +101,8 @@ class ContextRetrievalStep(PipelineStep):
         if not adapter_name:
             adapter_name = adapter_config.get('name', '')
 
-        # Image generation adapters never need context retrieval
-        if adapter_type == 'image_generation':
+        # Image and video generation adapters never need context retrieval
+        if adapter_type in ('image_generation', 'video_generation'):
             return AdapterCapabilities.for_passthrough(supports_file_retrieval=False)
 
         # Passthrough adapters

@@ -13,7 +13,7 @@ from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep
 
 logger = logging.getLogger(__name__)
 
@@ -193,6 +193,18 @@ class InferencePipeline:
                 self.monitor.record_pipeline_metrics(total_time, True)
                 return
 
+            # If video generation already produced a result, short-circuit here.
+            if context.video:
+                done_payload = {"response": context.response or "", "done": True}
+                done_payload["video"] = context.video
+                done_payload["video_format"] = context.video_format or "mp4"
+                if context.video_revised_prompt:
+                    done_payload["video_revised_prompt"] = context.video_revised_prompt
+                yield json.dumps(done_payload)
+                total_time = time.perf_counter() - start_time
+                self.monitor.record_pipeline_metrics(total_time, True)
+                return
+
             # Find the LLM step for streaming
             llm_step = None
             for step in self.steps:
@@ -336,7 +348,10 @@ class InferencePipelineBuilder:
         # Image generation — executes instead of LLM for image_generation adapters
         steps.append(ImageGenerationStep(container))
 
-        # LLM inference is always needed (skips image_generation adapters)
+        # Video generation — executes instead of LLM for video_generation adapters
+        steps.append(VideoGenerationStep(container))
+
+        # LLM inference is always needed (skips image/video generation adapters)
         steps.append(LLMInferenceStep(container))
         
         # Response validation only if moderator service is available

@@ -493,6 +493,52 @@ def register_image_generation_services(config: Dict[str, Any] = None) -> None:
             )
 
 
+def register_video_generation_services(config: Dict[str, Any] = None) -> None:
+    """
+    Register all video generation service implementations with the factory.
+
+    Services that are disabled in config are not registered.
+
+    Args:
+        config: Optional configuration dictionary. If provided, only enabled providers
+                will be registered based on config['video_generation'][provider]['enabled']
+    """
+    if config:
+        video_config = config.get('video', {})
+        if not video_config.get('enabled', False):
+            logger.info("Video generation is globally disabled - skipping registration.")
+            return
+
+    services = [
+        ("gemini", "GeminiVideoService", "Gemini"),
+    ]
+
+    video_gen_config = config.get('video_generation', {}) if config else {}
+
+    for provider_key, class_name, display_name in services:
+        if config:
+            provider_config = video_gen_config.get(provider_key, {})
+            enabled = provider_config.get('enabled', False)
+            if enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false'):
+                logger.info(f"Skipping {display_name} video generation service - disabled in config")
+                continue
+
+        try:
+            module = __import__('ai_services.implementations.video', fromlist=[class_name])
+            service_class = getattr(module, class_name)
+
+            AIServiceFactory.register_service(
+                ServiceType.VIDEO_GENERATION,
+                provider_key,
+                service_class
+            )
+            logger.info(f"Registered {display_name} video generation service")
+        except (ImportError, AttributeError) as e:
+            logger.debug(
+                f"Skipping {display_name} video generation service - missing dependencies: {e}"
+            )
+
+
 def register_all_services(config: Dict[str, Any] = None) -> None:
     """
     Register all available service implementations.
@@ -532,6 +578,7 @@ def register_all_services(config: Dict[str, Any] = None) -> None:
         register_reranking_services(config)
         register_vision_services(config)
         register_image_generation_services(config)
+        register_video_generation_services(config)
         register_audio_services(config)
         register_speech_to_speech_services(config)
 

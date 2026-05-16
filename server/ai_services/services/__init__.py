@@ -57,6 +57,7 @@ from .speech_to_speech_service import (
 )
 
 from .image_generation_service import ImageGenerationService
+from .video_generation_service import VideoGenerationService
 
 __all__ = [
     # Embedding
@@ -96,4 +97,7 @@ __all__ = [
 
     # Image Generation
     'ImageGenerationService',
+
+    # Video Generation
+    'VideoGenerationService',
 ]

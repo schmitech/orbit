@@ -115,6 +115,17 @@ def register_adapters():
         config={}
     )
 
+    # Register multimodal adapter for video_generation type so that
+    # adapters with type: video_generation and adapter: multimodal can be loaded.
+    # VideoGenerationStep handles the actual generation; the domain adapter is the same.
+    ADAPTER_REGISTRY.register(
+        adapter_type="video_generation",
+        datasource="none",
+        adapter_name="multimodal",
+        factory_func=_create_multimodal_adapter,
+        config={}
+    )
+
     logger.info("Registered multimodal passthrough adapter")
 
     # Register PersonaPlex speech-to-speech adapter

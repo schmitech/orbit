@@ -11,6 +11,7 @@ from .document_reranking import DocumentRerankingStep
 from .llm_inference import LLMInferenceStep
 from .response_validation import ResponseValidationStep
 from .image_generation import ImageGenerationStep
+from .video_generation import VideoGenerationStep
 
 __all__ = [
     'SafetyFilterStep',
@@ -20,4 +21,5 @@ __all__ = [
     'LLMInferenceStep',
     'ResponseValidationStep',
     'ImageGenerationStep',
+    'VideoGenerationStep',
 ]

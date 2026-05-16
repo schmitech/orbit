@@ -92,6 +92,12 @@ class ProcessingContext:
     image_revised_prompt: Optional[str] = None  # provider-rewritten prompt (e.g. DALL-E 3)
     image_url: Optional[str] = None           # persistent server-side URL after storage
 
+    # Video generation output
+    video: Optional[str] = None               # base64-encoded generated video
+    video_format: Optional[str] = None        # "mp4"
+    video_revised_prompt: Optional[str] = None  # provider-rewritten prompt
+    video_url: Optional[str] = None           # reserved for future persistence
+
     def has_error(self) -> bool:
         """Check if the context has an error."""
         return self.is_blocked or self.error is not None
