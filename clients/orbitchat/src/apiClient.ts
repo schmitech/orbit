@@ -217,6 +217,15 @@ async function buildHeaders(extra: Record<string, string> = {}): Promise<Record<
   return headers;
 }
 
+function encodePathSegment(value: string): string {
+  return encodeURIComponent(value);
+}
+
+function buildFileIdsQuery(fileIds?: string[]): string {
+  if (!fileIds || fileIds.length === 0) return '';
+  return `?file_ids=${fileIds.map(encodeURIComponent).join(',')}`;
+}
+
 async function buildErrorMessage(response: Response): Promise<string> {
   const baseMessage = `API request failed: ${response.status} ${response.statusText}`;
 
@@ -414,7 +423,7 @@ function createProxyApi(): ApiFunctions {
       },
 
       async getThreadInfo(threadId: string) {
-        const response = await fetch(`/api/threads/${threadId}`, {
+        const response = await fetch(`/api/threads/${encodePathSegment(threadId)}`, {
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
           }),
@@ -424,7 +433,7 @@ function createProxyApi(): ApiFunctions {
       },
 
       async deleteThread(threadId: string) {
-        const response = await fetch(`/api/threads/${threadId}`, {
+        const response = await fetch(`/api/threads/${encodePathSegment(threadId)}`, {
           method: 'DELETE',
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
@@ -449,7 +458,7 @@ function createProxyApi(): ApiFunctions {
       },
 
       async getSessionFeedback(sessionId: string) {
-        const response = await fetch(`/api/feedback/${sessionId}`, {
+        const response = await fetch(`/api/feedback/${encodePathSegment(sessionId)}`, {
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
           }),
@@ -459,7 +468,11 @@ function createProxyApi(): ApiFunctions {
       },
 
       async clearConversationHistory(sessId?: string) {
-        const response = await fetch(`/api/admin/chat-history/${sessId || clientSessionId}`, {
+        const targetSession = sessId || clientSessionId;
+        if (!targetSession) {
+          throw new Error('No session ID available for clearing conversation history');
+        }
+        const response = await fetch(`/api/admin/chat-history/${encodePathSegment(targetSession)}`, {
           method: 'DELETE',
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
@@ -478,7 +491,7 @@ function createProxyApi(): ApiFunctions {
           typeof limit === 'number' && Number.isFinite(limit) && limit > 0
             ? `?limit=${Math.floor(limit)}`
             : '';
-        const response = await fetch(`/api/admin/chat-history/${targetSession}${limitParam}`, {
+        const response = await fetch(`/api/admin/chat-history/${encodePathSegment(targetSession)}${limitParam}`, {
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
           }),
@@ -489,8 +502,11 @@ function createProxyApi(): ApiFunctions {
 
       async deleteConversationWithFiles(sessId?: string, fileIds?: string[]) {
         const targetSession = sessId || clientSessionId;
-        const fileIdsParam = fileIds && fileIds.length > 0 ? `?file_ids=${fileIds.join(',')}` : '';
-        const response = await fetch(`/api/admin/conversations/${targetSession}${fileIdsParam}`, {
+        if (!targetSession) {
+          throw new Error('No session ID available for deleting conversation');
+        }
+        const fileIdsParam = buildFileIdsQuery(fileIds);
+        const response = await fetch(`/api/admin/conversations/${encodePathSegment(targetSession)}${fileIdsParam}`, {
           method: 'DELETE',
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
@@ -528,7 +544,7 @@ function createProxyApi(): ApiFunctions {
       },
 
       async getFileInfo(fileId: string) {
-        const response = await fetch(`/api/files/${fileId}`, {
+        const response = await fetch(`/api/files/${encodePathSegment(fileId)}`, {
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
           }),
@@ -538,7 +554,7 @@ function createProxyApi(): ApiFunctions {
       },
 
       async queryFile(fileId: string, query: string, maxResults?: number) {
-        const response = await fetch(`/api/files/${fileId}/query`, {
+        const response = await fetch(`/api/files/${encodePathSegment(fileId)}/query`, {
           method: 'POST',
           headers: await buildHeaders({
             'Content-Type': 'application/json',
@@ -551,7 +567,7 @@ function createProxyApi(): ApiFunctions {
       },
 
       async deleteFile(fileId: string) {
-        const response = await fetch(`/api/files/${fileId}`, {
+        const response = await fetch(`/api/files/${encodePathSegment(fileId)}`, {
           method: 'DELETE',
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
@@ -562,7 +578,7 @@ function createProxyApi(): ApiFunctions {
       },
 
       async validateApiKey() {
-        const response = await fetch(`/api/admin/api-keys/${clientAdapterName}/status`, {
+        const response = await fetch(`/api/admin/api-keys/${encodePathSegment(clientAdapterName)}/status`, {
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
           }),

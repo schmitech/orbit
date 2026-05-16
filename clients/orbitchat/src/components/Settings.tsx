@@ -12,6 +12,67 @@ interface SettingsProps {
   onClose: () => void;
 }
 
+const AUTH_STORAGE_KEY_PATTERNS = [
+  '@@auth0spajs@@',
+  'a0.spajs',
+  'auth0',
+  'com.auth0',
+];
+
+function isAuthStorageKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+  return AUTH_STORAGE_KEY_PATTERNS.some(pattern => normalized.includes(pattern.toLowerCase()));
+}
+
+function removeAuthStorageKeys(storage: Storage): void {
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i);
+    if (key && isAuthStorageKey(key)) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach(key => storage.removeItem(key));
+}
+
+function clearStorage(storage: Storage): void {
+  try {
+    removeAuthStorageKeys(storage);
+    storage.clear();
+  } catch (error) {
+    console.warn('[Settings] Failed to clear browser storage during reset.', error);
+  }
+}
+
+function clearSameOriginCookies(): void {
+  if (typeof document === 'undefined' || !document.cookie) return;
+
+  const cookieDomains = new Set<string | undefined>([undefined]);
+  const hostname = window.location.hostname;
+  const canUseDomain = hostname && hostname !== 'localhost' && !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
+  if (canUseDomain) {
+    cookieDomains.add(hostname);
+    cookieDomains.add(`.${hostname}`);
+  }
+
+  document.cookie.split(';').forEach((cookie) => {
+    const eqPos = cookie.indexOf('=');
+    const cookieName = (eqPos > -1 ? cookie.slice(0, eqPos) : cookie).trim();
+    if (!cookieName) return;
+
+    cookieDomains.forEach((domain) => {
+      const domainPart = domain ? `;domain=${domain}` : '';
+      document.cookie = `${cookieName}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/${domainPart}`;
+    });
+  });
+}
+
+function clearBrowserAuthArtifacts(): void {
+  clearStorage(localStorage);
+  clearStorage(sessionStorage);
+  clearSameOriginCookies();
+}
+
 export function Settings({ isOpen, onClose }: SettingsProps) {
   const { theme, updateTheme } = useTheme();
   const { settings, updateSettings } = useSettings();
@@ -44,39 +105,8 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
     setAuthenticatedUserId(null);
     useLoginPromptStore.getState().closeLoginPrompt();
 
-    // Clear all persisted app data and auth/session artifacts.
-    localStorage.clear();
-    sessionStorage.clear();
-
-    // Remove known Auth0/Auth SPA keys explicitly in case clear() is constrained.
-    const clearAuthStorageKeys = (storage: Storage) => {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < storage.length; i++) {
-        const key = storage.key(i);
-        if (!key) continue;
-        if (
-          key.startsWith('@@auth0spajs@@') ||
-          key.startsWith('a0.spajs') ||
-          key.includes('auth0')
-        ) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach(key => storage.removeItem(key));
-    };
-
-    clearAuthStorageKeys(localStorage);
-    clearAuthStorageKeys(sessionStorage);
-
-    // Best-effort cleanup of same-origin cookies (Auth0 SDK may set helper cookies).
-    if (typeof document !== 'undefined' && document.cookie) {
-      document.cookie.split(';').forEach((cookie) => {
-        const eqPos = cookie.indexOf('=');
-        const cookieName = (eqPos > -1 ? cookie.slice(0, eqPos) : cookie).trim();
-        if (!cookieName) return;
-        document.cookie = `${cookieName}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-      });
-    }
+    // Clear all persisted app data plus Auth0/Auth SPA cache and same-origin cookies.
+    clearBrowserAuthArtifacts();
 
     window.location.reload();
   };

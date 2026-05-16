@@ -35,6 +35,22 @@ function decodeJwtPayload(token: string): JwtPayload | null {
   }
 }
 
+function createGuestUserId(): string {
+  const cryptoApi = globalThis.crypto;
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return `guest:orbitchat:${cryptoApi.randomUUID()}`;
+  }
+
+  if (!cryptoApi || typeof cryptoApi.getRandomValues !== 'function') {
+    throw new Error('Secure random number generation is unavailable');
+  }
+
+  const bytes = new Uint8Array(16);
+  cryptoApi.getRandomValues(bytes);
+  const id = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  return `guest:orbitchat:${id}`;
+}
+
 function getGuestUserId(): string {
   if (typeof window === 'undefined') {
     return 'guest:orbitchat:server';
@@ -45,7 +61,7 @@ function getGuestUserId(): string {
     return stored;
   }
 
-  const guestUserId = `guest:orbitchat:${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  const guestUserId = createGuestUserId();
   window.localStorage.setItem(GUEST_USER_ID_KEY, guestUserId);
   return guestUserId;
 }

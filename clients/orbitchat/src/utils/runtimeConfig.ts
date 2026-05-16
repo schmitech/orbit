@@ -300,15 +300,26 @@ function buildRuntimeConfig(): RuntimeConfig {
 
   // Config injected by the CLI server at runtime
   const injected = (typeof window !== 'undefined' && window.ORBIT_CHAT_CONFIG) || {};
+  const hasRuntimeInjectedConfig = Boolean(
+    typeof window !== 'undefined' && window.ORBIT_CHAT_CONFIG
+  );
 
   // Merge: DEFAULTS < viteConfig < injected
   let merged = deepMerge(DEFAULTS, viteConfig);
   merged = deepMerge(merged, injected);
 
-  // Overlay auth secrets from VITE_AUTH_* env vars (always available from .env)
-  if (import.meta.env.VITE_AUTH_DOMAIN) merged.auth.domain = import.meta.env.VITE_AUTH_DOMAIN;
-  if (import.meta.env.VITE_AUTH_CLIENT_ID) merged.auth.clientId = import.meta.env.VITE_AUTH_CLIENT_ID;
-  if (import.meta.env.VITE_AUTH_AUDIENCE) merged.auth.audience = import.meta.env.VITE_AUTH_AUDIENCE;
+  // Overlay auth secrets from VITE_AUTH_* env vars in Vite dev/static builds.
+  // When the CLI injects runtime config, prefer that runtime value over any
+  // VITE_AUTH_* value that may have been baked into a previously built dist.
+  if (!hasRuntimeInjectedConfig || !merged.auth.domain) {
+    if (import.meta.env.VITE_AUTH_DOMAIN) merged.auth.domain = import.meta.env.VITE_AUTH_DOMAIN;
+  }
+  if (!hasRuntimeInjectedConfig || !merged.auth.clientId) {
+    if (import.meta.env.VITE_AUTH_CLIENT_ID) merged.auth.clientId = import.meta.env.VITE_AUTH_CLIENT_ID;
+  }
+  if (!hasRuntimeInjectedConfig || !merged.auth.audience) {
+    if (import.meta.env.VITE_AUTH_AUDIENCE) merged.auth.audience = import.meta.env.VITE_AUTH_AUDIENCE;
+  }
 
   // Normalize outOfServiceMessage
   merged.outOfServiceMessage = normalizeOutOfServiceMessage(merged.outOfServiceMessage);

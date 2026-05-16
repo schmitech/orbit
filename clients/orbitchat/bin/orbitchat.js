@@ -500,9 +500,13 @@ function createServer(distPath, config, serverConfig = {}) {
             proxyReq.setHeader('X-API-Key', adapter.apiKey);
           }
           proxyReq.removeHeader('x-adapter-name');
+          proxyReq.removeHeader('x-user-id');
           ['content-type', 'x-session-id', 'x-thread-id', 'accept', 'content-length', 'authorization'].forEach(h => {
             if (reqIncoming.headers[h]) proxyReq.setHeader(h, reqIncoming.headers[h]);
           });
+          if (!reqIncoming.headers.authorization && reqIncoming.headers['x-user-id']) {
+            proxyReq.setHeader('X-User-ID', reqIncoming.headers['x-user-id']);
+          }
         },
         error: (err, _req, resProxy) => {
           console.error('[Proxy] Proxy error:', err);

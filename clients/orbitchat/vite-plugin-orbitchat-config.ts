@@ -468,11 +468,16 @@ export function orbitchatConfigPlugin(): Plugin {
           on: {
             proxyReq: (proxyReq: ClientRequest, reqIncoming: IncomingMessage) => {
               proxyReq.removeHeader('x-adapter-name');
+              proxyReq.removeHeader('x-user-id');
               proxyReq.setHeader('X-API-Key', adapter.apiKey);
               ['content-type', 'x-session-id', 'x-thread-id', 'accept', 'content-length', 'authorization'].forEach(h => {
                 const val = reqIncoming.headers[h];
                 if (val) proxyReq.setHeader(h, Array.isArray(val) ? val[0] : val);
               });
+              const userId = reqIncoming.headers['x-user-id'];
+              if (!reqIncoming.headers.authorization && userId) {
+                proxyReq.setHeader('X-User-ID', Array.isArray(userId) ? userId[0] : userId);
+              }
             },
             error: (err, _req, resProxy) => {
               console.error('[Vite Proxy] Proxy error:', err);
