@@ -24,7 +24,6 @@ dependencies = [
     "xai-sdk>=1.12.1",
     "replicate>=1.0.7",
     "zai-sdk>=0.2.2",
-    "deepseek>=1.0.0",
     "mistralai>=2.3.0",
     "openrouter>=0.8.1",
     "together>=2.7.0",
