@@ -42,6 +42,7 @@ ORBIT gives you one OpenAI-compatible gateway for private RAG, model routing, re
 - Private RAG over documents, databases, APIs, and internal knowledge sources.
 - OpenAI-compatible applications that can switch between local models and hosted providers.
 - Agent and MCP tools that expose controlled access to business data and actions.
+- AI media generation pipelines — images and videos from text prompts — wired into the same adapter and conversation system.
 
 ---
 
@@ -96,6 +97,12 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 </p>
 
 <p align="center">
+  <video src="https://github.com/user-attachments/assets/0f0c88f2-20b2-4617-9e5f-7efd823fc164" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Text-to-video generation using Google Veo 2, invoked as a cross-adapter skill. The prompt is automatically enriched with motion, camera movement, and lighting detail before generation. Video is persisted server-side and streamed back without sending raw bytes over the wire.</em>
+</p>
+
+<p align="center">
   <img width="1773" alt="admin panel dashboard" src="https://github.com/user-attachments/assets/87593829-ef9e-4306-b090-780e34ea47d9" />
   <br />
   <em>Admin dashboard for managing ORBIT locally.</em>
@@ -138,6 +145,13 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 - Reuse retrieved context through conversation threading and cached datasets.
 - Handle multilingual conversations across 100+ languages.
 - Keep deployments self-hosted for privacy-sensitive environments.
+
+### Media Generation
+
+- Generate images from text prompts using DALL-E, Stability AI, and other providers.
+- Generate videos from text prompts using Google Veo 2 — prompts are automatically enriched with motion, camera movement, and lighting detail before generation.
+- Generated media is persisted server-side and delivered via stable URLs, keeping large binary payloads off the wire.
+- Image and video generation follow the same adapter type system as every other capability — no special-casing required.
 
 ### Tools, Agents, And Production Controls
 
@@ -183,6 +197,7 @@ ORBIT is not only a model router. It handles the layers that usually become cust
 | Deploy a private AI gateway for regulated data | [Private gateway cookbook](docs/cookbook/deploy-private-ai-gateway-for-regulated-data-with-orbit.md) |
 | Run ORBIT as an MCP tool server for agents | [MCP / OpenClaw walkthrough](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md) |
 | Build a full-duplex voice assistant | [PersonaPlex voice assistant](docs/cookbook/orbit-personaplex-full-duplex-voice-assistant.md) |
+| Generate images and videos from text prompts | [Cross-adapter skills](docs/adapters/skills.md) |
 
 ---
 
@@ -196,6 +211,7 @@ ORBIT sits between clients, models, and data sources. Clients call the OpenAI-co
 | **Model routing** | Hosted providers, local providers, streaming, failover, runtime model selection |
 | **Retrieval adapters** | SQL, NoSQL, REST, GraphQL, files, web content, vector stores, composite adapters |
 | **RAG workflow** | Intent templates, diagnostics, autocomplete, cached datasets, conversation threading |
+| **Media generation** | Images (DALL-E, Stability AI), videos (Google Veo 2), server-side persistence, URL delivery |
 | **Operations** | API keys, RBAC, audit logs, quotas, rate limits, moderation, circuit breakers, admin UI |
 
 <details>
