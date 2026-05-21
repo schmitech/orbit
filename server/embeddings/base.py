@@ -176,7 +176,8 @@ class EmbeddingServiceFactory:
             'sentence_transformers': 'SentenceTransformersEmbeddingService',
             'openrouter': 'OpenRouterEmbeddingService',
             'gemini': 'GeminiEmbeddingService',
-            'voyage': 'VoyageEmbeddingService'
+            'voyage': 'VoyageEmbeddingService',
+            'nvidia': 'NvidiaEmbeddingService'
         }
 
         if provider_name not in class_name_map:

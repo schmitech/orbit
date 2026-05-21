@@ -12,6 +12,7 @@ Available providers:
     - OpenRouterEmbeddingService: OpenRouter embeddings
     - GeminiEmbeddingService: Gemini embeddings
     - VoyageEmbeddingService: Voyage AI embeddings
+    - NvidiaEmbeddingService: NVIDIA NIM embeddings
 """
 
 import logging
@@ -31,6 +32,7 @@ _implementations = [
     ('openrouter_embedding_service', 'OpenRouterEmbeddingService'),
     ('gemini_embedding_service', 'GeminiEmbeddingService'),
     ('voyage_embedding_service', 'VoyageEmbeddingService'),
+    ('nvidia_embedding_service', 'NvidiaEmbeddingService'),
 ]
 
 for module_name, class_name in _implementations:

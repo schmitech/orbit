@@ -1,6 +1,6 @@
 # Global embedding configuration
 embedding:
-  provider: "ollama"  # Default embedding provider: ollama, openai, cohere, mistral, jina, llama_cpp
+  provider: "openai"  # Default embedding provider: ollama, openai, cohere, mistral, jina, llama_cpp
   enabled: true       # Whether embeddings are enabled globally
 
 # Provider-specific configurations
@@ -79,6 +79,14 @@ embeddings:
     model: "openai/text-embedding-3-small"
     dimensions: 1536
     batch_size: 10
+  nvidia:
+    api_key: ${NVIDIA_API_KEY}
+    base_url: "https://integrate.api.nvidia.com/v1"
+    model: "nvidia/nv-embed-v1"
+    dimensions: 4096
+    batch_size: 10
+    truncate: "NONE"
+    # Other models: nvidia/llama-3.2-nv-embedqa-1b-v2 (2048 dims), nvidia/nv-embedqa-mistral-7b-v2 (4096 dims)
   sentence_transformers:
     mode: "local"  # "local" for model inference, "remote" for HF API
     model: "BAAI/bge-m3"
