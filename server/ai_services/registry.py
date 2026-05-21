@@ -114,6 +114,7 @@ def register_inference_services(config: Dict[str, Any] = None) -> None:
         ("lmstudio", "LMStudioInferenceService", "LM Studio"),
         ("moonshot", "MoonshotInferenceService", "Moonshot AI"),
         ("minimax", "MiniMaxInferenceService", "MiniMax"),
+        ("nearai", "NearAIInferenceService", "NEAR AI Cloud"),
         ("nebius", "NebiusInferenceService", "Nebius AI Studio"),
         ("venice", "VeniceInferenceService", "Venice AI"),
         ("scaleway", "ScalewayInferenceService", "Scaleway"),

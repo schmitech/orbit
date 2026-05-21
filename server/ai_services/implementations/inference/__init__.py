@@ -36,6 +36,7 @@ Available providers:
     - LMStudioInferenceService: LM Studio local inference
     - MoonshotInferenceService: Moonshot AI (Kimi) inference
     - MiniMaxInferenceService: MiniMax inference
+    - NearAIInferenceService: NEAR AI Cloud TEE inference
     - NebiusInferenceService: Nebius AI Studio inference
     - VeniceInferenceService: Venice AI privacy-focused inference
     - ScalewayInferenceService: Scaleway European cloud inference
@@ -82,6 +83,7 @@ _implementations = [
     ('lmstudio_inference_service', 'LMStudioInferenceService'),
     ('moonshot_inference_service', 'MoonshotInferenceService'),
     ('minimax_inference_service', 'MiniMaxInferenceService'),
+    ('nearai_inference_service', 'NearAIInferenceService'),
     ('nebius_inference_service', 'NebiusInferenceService'),
     ('venice_inference_service', 'VeniceInferenceService'),
     ('scaleway_inference_service', 'ScalewayInferenceService'),

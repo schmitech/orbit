@@ -613,6 +613,15 @@ inference:
     top_p: 0.8
     max_tokens: 4096
     stream: true
+  nearai:
+    enabled: false
+    api_key: ${NEARAI_API_KEY}
+    model: "zai-org/GLM-5.1-FP8"
+    context_window: 202752  # NEAR AI Cloud TEE model catalog, fetched 2026-05-21
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
   nebius:
     enabled: false
     api_key: ${NEBIUS_API_KEY}
