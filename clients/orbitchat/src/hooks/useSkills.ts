@@ -10,6 +10,11 @@ interface CacheEntry {
   expiresAt: number;
 }
 
+interface SelectedSkillEntry {
+  adapterName: string | null;
+  skill: SkillInfo;
+}
+
 export interface UseSkillsOptions {
   adapterName?: string | null;
   enabled?: boolean;
@@ -38,7 +43,7 @@ export function useSkills(options: UseSkillsOptions = {}): UseSkillsResult {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadedAdapterName, setLoadedAdapterName] = useState<string | null>(null);
-  const [selectedSkill, setSelectedSkill] = useState<SkillInfo | null>(null);
+  const [selectedSkillEntry, setSelectedSkillEntry] = useState<SelectedSkillEntry | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const skillsCacheRef = useRef<Map<string, CacheEntry>>(new Map());
 
@@ -97,17 +102,18 @@ export function useSkills(options: UseSkillsOptions = {}): UseSkillsResult {
     };
   }, [enabled, adapterName, fetchSkills]);
 
-  useEffect(() => {
-    setSelectedSkill(null);
+  const selectSkill = useCallback((skill: SkillInfo | null) => {
+    setSelectedSkillEntry(skill ? { adapterName: adapterName ?? null, skill } : null);
   }, [adapterName]);
 
-  const selectSkill = useCallback((skill: SkillInfo | null) => {
-    setSelectedSkill(skill);
+  const clearSkill = useCallback(() => {
+    setSelectedSkillEntry(null);
   }, []);
 
-  const clearSkill = useCallback(() => {
-    setSelectedSkill(null);
-  }, []);
+  const selectedSkill =
+    selectedSkillEntry?.adapterName === (adapterName ?? null)
+      ? selectedSkillEntry.skill
+      : null;
 
   return {
     skills: isActive && loadedAdapterName === adapterName ? skills : [],

@@ -66,6 +66,12 @@ const PLACEHOLDER_VERTICAL_OFFSET = 0;
 const INLINE_SUGGESTION_VERTICAL_OFFSET = 0;
 const TEXTAREA_HORIZONTAL_PADDING = 2;
 
+interface SkillAutocompleteAdapterResolution {
+  skillName: string;
+  skillAdapterName: string;
+  adapterName: string | null;
+}
+
 function resolveAutocompleteSupport(adapterInfo: unknown): boolean | null {
   if (!adapterInfo || typeof adapterInfo !== 'object') {
     return null;
@@ -241,7 +247,8 @@ export function MessageInput({
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
   const [showSkillPicker, setShowSkillPicker] = useState(false);
   const [activeSkillIndex, setActiveSkillIndex] = useState(0);
-  const [skillAutocompleteAdapterName, setSkillAutocompleteAdapterName] = useState<string | null>(null);
+  const [skillAutocompleteAdapterResolution, setSkillAutocompleteAdapterResolution] =
+    useState<SkillAutocompleteAdapterResolution | null>(null);
   const [textareaVerticalPadding, setTextareaVerticalPadding] = useState(() => ({
     top: DEFAULT_TEXTAREA_VERTICAL_PADDING + VERTICAL_ALIGNMENT_OFFSET,
     bottom: Math.max(DEFAULT_TEXTAREA_VERTICAL_PADDING - VERTICAL_ALIGNMENT_OFFSET, 0)
@@ -304,8 +311,18 @@ export function MessageInput({
     supportsThreading: currentConversation?.adapterInfo?.supportsThreading ?? false,
   });
 
+  const selectedSkillAdapterName = selectedSkill?.adapter_name?.trim() || null;
+  const resolvedSkillAutocompleteAdapterName =
+    selectedSkill && selectedSkillAdapterName
+      ? skillAutocompleteAdapterResolution?.skillName === selectedSkill.name &&
+        skillAutocompleteAdapterResolution.skillAdapterName === selectedSkillAdapterName
+        ? skillAutocompleteAdapterResolution.adapterName
+        : null
+      : selectedSkill
+        ? currentConversation?.adapterName || null
+        : null;
   const autocompleteAdapterName = selectedSkill
-    ? skillAutocompleteAdapterName
+    ? resolvedSkillAutocompleteAdapterName
     : currentConversation?.adapterName || null;
   const adapterSupportsAutocomplete =
     selectedSkill && autocompleteAdapterName !== currentConversation?.adapterName
@@ -322,7 +339,7 @@ export function MessageInput({
     focusInputAfterSelection,
     suppressUntilQueryChange
   } = useAutocomplete(message, {
-    enabled: autocompleteEnabled && !isListening && (!selectedSkill || Boolean(skillAutocompleteAdapterName)),
+    enabled: autocompleteEnabled && !isListening && (!selectedSkill || Boolean(autocompleteAdapterName)),
     apiUrl: currentConversation?.apiUrl,
     adapterName: autocompleteAdapterName,
     sessionId: currentConversation?.sessionId,
@@ -401,13 +418,11 @@ export function MessageInput({
 
   useEffect(() => {
     if (!selectedSkill) {
-      setSkillAutocompleteAdapterName(null);
       return;
     }
 
     const skillAdapterName = selectedSkill.adapter_name?.trim();
     if (!skillAdapterName) {
-      setSkillAutocompleteAdapterName(currentConversation?.adapterName || null);
       return;
     }
 
@@ -424,9 +439,11 @@ export function MessageInput({
           adapterMatchesSkill(adapter, selectedSkill.name, skillAdapterName)
         );
 
-        setSkillAutocompleteAdapterName(
-          semanticMatch?.id || currentConversation?.adapterName || null
-        );
+        setSkillAutocompleteAdapterResolution({
+          skillName: selectedSkill.name,
+          skillAdapterName,
+          adapterName: semanticMatch?.id || currentConversation?.adapterName || null
+        });
       })
       .catch((error) => {
         debugLog(
@@ -434,7 +451,11 @@ export function MessageInput({
           error instanceof Error ? error.message : String(error)
         );
         if (!cancelled) {
-          setSkillAutocompleteAdapterName(currentConversation?.adapterName || null);
+          setSkillAutocompleteAdapterResolution({
+            skillName: selectedSkill.name,
+            skillAdapterName,
+            adapterName: currentConversation?.adapterName || null
+          });
         }
       });
 
