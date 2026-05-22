@@ -10,6 +10,7 @@ import {
   getDefaultInputPlaceholder,
   getIsAuthConfigured,
   getEnableHeader,
+  getEnableFooter,
   getAdapterDisplayName,
 } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
@@ -18,6 +19,7 @@ import { MarkdownRenderer } from './markdown';
 import { useTheme } from '../contexts/ThemeContext';
 import { AgentSelectionList } from './AgentSelectionList';
 import { AuthStatus } from './AuthStatus';
+import { AppFooter } from './AppFooter';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { useChatAgentSelection } from '../hooks/useChatAgentSelection';
 import { useAgentHomeNav } from '../hooks/useAgentHomeNav';
@@ -265,6 +267,13 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
       : '';
   const headerClasses = `${MOBILE_HEADER_CLASSES} ${headerBorderClass} ${compactSelectionHeaderSpacingClass}`.trim();
   const effectiveHeaderClasses = headerClasses;
+  const footerEnabled = getEnableFooter();
+  const sidebarHasFooter = conversations.some(
+    conversation =>
+      (conversation.messages.length > 0 || (conversation.attachedFiles?.length ?? 0) > 0) &&
+      !conversation.adapterLoadError
+  );
+  const showInlineFooter = footerEnabled && !sidebarHasFooter;
   const emptyStateTopSpacingClass = shouldShowAgentSelectionList
     ? 'pt-0 md:pt-0'
     : 'pt-4 md:pt-6';
@@ -614,6 +623,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                       />
                     </div>
                   </div>
+                </div>
+              )}
+              {showInlineFooter && (
+                <div className="shrink-0 pt-5 md:pt-6">
+                  <AppFooter compact />
                 </div>
               )}
             </div>
