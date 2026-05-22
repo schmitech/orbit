@@ -3,6 +3,7 @@ Video generation service implementations.
 
 Available providers:
     - GeminiVideoService: Google Veo 2
+    - XAIVideoService: xAI (Grok) video generation
 """
 
 import logging
@@ -13,6 +14,7 @@ __all__ = []
 
 _implementations = [
     ('gemini_video_service', 'GeminiVideoService'),
+    ('xai_video_service', 'XAIVideoService'),
 ]
 
 for module_name, class_name in _implementations:

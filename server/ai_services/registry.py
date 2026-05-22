@@ -512,6 +512,7 @@ def register_video_generation_services(config: Dict[str, Any] = None) -> None:
 
     services = [
         ("gemini", "GeminiVideoService", "Gemini"),
+        ("xai", "XAIVideoService", "xAI (Grok)"),
     ]
 
     video_gen_config = config.get('video_generation', {}) if config else {}

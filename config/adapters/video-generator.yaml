@@ -10,7 +10,7 @@ adapters:
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    video_provider: "gemini"            # Optional adapter override; omit to use config/video.yaml
+    video_provider: "xai"            # Optional adapter override; omit to use config/video.yaml
     rewrite_provider: "deepseek"          # Text LLM used to enrich prompts before video generation
 
     capabilities:

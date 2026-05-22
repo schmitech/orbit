@@ -11,6 +11,7 @@ import:
   - "guardrails.yaml"
   - "vision.yaml"
   - "image.yaml"
+  - "video.yaml"
   - "tts.yaml"
   - "stt.yaml"
   - "personaplex.yaml"
@@ -22,6 +23,7 @@ general:
     port: 3443
     cert_file: "./cert.pem"
     key_file: "./key.pem"
+    key_password: ${ORBIT_TLS_KEY_PASSWORD}  # optional: passphrase for encrypted private key
   session_id:
     header_name: "X-Session-ID"
     required: true
