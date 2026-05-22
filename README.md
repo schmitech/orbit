@@ -103,9 +103,9 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 </p>
 
 <p align="center">
-  <img width="1773" alt="admin panel dashboard" src="https://github.com/user-attachments/assets/87593829-ef9e-4306-b090-780e34ea47d9" />
+  <video src="https://github.com/user-attachments/assets/f85fb880-9f76-471a-8875-a16d615c3aa8" controls muted playsinline width="75%"></video>
   <br />
-  <em>Admin dashboard for managing ORBIT locally.</em>
+  <em>The ORBIT Admin Panel provides real-time monitoring of system health, adapter states, and inference performance.</em>
 </p>
 
 ---
