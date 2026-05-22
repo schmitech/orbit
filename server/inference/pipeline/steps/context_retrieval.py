@@ -59,25 +59,28 @@ class ContextRetrievalStep(PipelineStep):
 
         adapter_manager = self.container.get('adapter_manager')
 
-        # Get all adapter configurations
-        adapter_configs = adapter_manager._adapter_configs if hasattr(
-            adapter_manager, '_adapter_configs'
-        ) else {}
+        # Use public API so this works with any adapter manager implementation
+        if not (hasattr(adapter_manager, 'get_available_adapters') and
+                hasattr(adapter_manager, 'get_adapter_config')):
+            logger.debug(
+                "Adapter manager lacks get_available_adapters/get_adapter_config, "
+                "skipping capability initialization. Capabilities will be inferred on-demand."
+            )
+            return
 
-        for adapter_name, adapter_config in adapter_configs.items():
-            # Check if capabilities are explicitly defined in config
+        adapter_names = adapter_manager.get_available_adapters()
+        for adapter_name in adapter_names:
+            adapter_config = adapter_manager.get_adapter_config(adapter_name)
+            if not adapter_config:
+                continue
             if 'capabilities' in adapter_config:
-                # Load from config
-                self._capability_registry.register_from_config(
-                    adapter_name, adapter_config
-                )
+                self._capability_registry.register_from_config(adapter_name, adapter_config)
             else:
-                # Infer capabilities from adapter type and config
                 capabilities = self._infer_capabilities(adapter_config)
                 self._capability_registry.register(adapter_name, capabilities)
 
         logger.info(
-            f"Initialized capabilities for {len(adapter_configs)} adapters"
+            f"Initialized capabilities for {len(adapter_names)} adapters"
         )
 
     def _infer_capabilities(self, adapter_config: Dict[str, Any], adapter_name: Optional[str] = None) -> AdapterCapabilities:

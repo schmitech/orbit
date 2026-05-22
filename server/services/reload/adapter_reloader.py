@@ -125,6 +125,7 @@ class AdapterReloader:
                     logger.info(f"Preloading adapter '{adapter_name}' to apply new configuration...")
                     adapter = await self.adapter_loader.load_adapter(adapter_name, adapter_config_full)
                     self.adapter_cache.put(adapter_name, adapter)
+                    self._register_capabilities(adapter_name, adapter_config_full)
                     logger.info(f"Successfully preloaded adapter '{adapter_name}' with new configuration")
             except ValueError as e:
                 error_msg = str(e)
@@ -264,6 +265,7 @@ class AdapterReloader:
 
             adapter = await self.adapter_loader.load_adapter(adapter_name, adapter_config)
             self.adapter_cache.put(adapter_name, adapter)
+            self._register_capabilities(adapter_name, adapter_config)
 
             logger.debug(f"Successfully preloaded {action_desc} adapter '{adapter_name}'")
         except ValueError as e:
@@ -272,3 +274,20 @@ class AdapterReloader:
         except Exception as e:
             logger.warning(f"Failed to preload {action_desc} adapter '{adapter_name}': {str(e)}. "
                           f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
+
+    def _register_capabilities(self, adapter_name: str, adapter_config: Dict[str, Any]) -> None:
+        """Re-register adapter capabilities (including available_skills) after reload."""
+        try:
+            from adapters.capabilities import get_capability_registry
+            capability_registry = get_capability_registry()
+            if 'capabilities' in adapter_config:
+                capability_registry.register_from_config(adapter_name, adapter_config)
+                available_skills = adapter_config.get('capabilities', {}).get('available_skills', [])
+                logger.debug(
+                    f"Registered capabilities for '{adapter_name}' "
+                    f"(available_skills={available_skills})"
+                )
+            else:
+                capability_registry.unregister(adapter_name)
+        except Exception as e:
+            logger.warning(f"Failed to register capabilities for adapter '{adapter_name}': {e}")
