@@ -97,6 +97,10 @@ export function useSkills(options: UseSkillsOptions = {}): UseSkillsResult {
     };
   }, [enabled, adapterName, fetchSkills]);
 
+  useEffect(() => {
+    setSelectedSkill(null);
+  }, [adapterName]);
+
   const selectSkill = useCallback((skill: SkillInfo | null) => {
     setSelectedSkill(skill);
   }, []);
