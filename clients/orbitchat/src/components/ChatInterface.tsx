@@ -91,7 +91,7 @@ function ModelPicker({ defaultModel, availableModels, selectedModel, onSelect }:
         <div
           role="listbox"
           aria-label="Select model"
-          className="absolute left-0 top-full z-50 mt-1.5 min-w-[200px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-[#4a4b54] dark:bg-[#2a2b38]"
+          className="absolute left-0 top-full z-50 mt-1.5 min-w-[200px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-[#2f303d] dark:bg-[#111111]"
         >
           {availableModels.map(m => {
             const isActive = (selectedModel ?? defaultModel) === m.name;
@@ -104,8 +104,8 @@ function ModelPicker({ defaultModel, availableModels, selectedModel, onSelect }:
                 onClick={() => { onSelect(m.name); setOpen(false); }}
                 className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors ${
                   isActive
-                    ? 'bg-gray-100 text-gray-900 dark:bg-[#343541] dark:text-[#ececf1]'
-                    : 'text-gray-700 hover:bg-gray-50 dark:text-[#bfc2cd] dark:hover:bg-[#313240]'
+                    ? 'bg-gray-100 text-gray-900 dark:bg-[#1f1f1f] dark:text-[#ececf1]'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-[#bfc2cd] dark:hover:bg-[#1a1a1a]'
                 }`}
               >
                 <span className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border ${
