@@ -12,6 +12,7 @@ import:
   - "vision.yaml"
   - "image.yaml"
   - "video.yaml"
+  - "document.yaml"
   - "tts.yaml"
   - "stt.yaml"
   - "personaplex.yaml"

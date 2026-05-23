@@ -126,6 +126,17 @@ def register_adapters():
         config={}
     )
 
+    # Register multimodal adapter for document_generation type so that
+    # adapters with type: document_generation and adapter: multimodal can be loaded.
+    # DocumentGenerationStep handles the actual generation; the domain adapter is the same.
+    ADAPTER_REGISTRY.register(
+        adapter_type="document_generation",
+        datasource="none",
+        adapter_name="multimodal",
+        factory_func=_create_multimodal_adapter,
+        config={}
+    )
+
     logger.info("Registered multimodal passthrough adapter")
 
     # Register PersonaPlex speech-to-speech adapter

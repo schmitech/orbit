@@ -13,7 +13,7 @@ from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +203,15 @@ class InferencePipeline:
                 self.monitor.record_pipeline_metrics(total_time, True)
                 return
 
+            # If document generation produced a result, short-circuit here.
+            # Bytes are persisted by pipeline_chat_service and delivered via document_url.
+            if context.document:
+                done_payload = {"response": context.response or "", "done": True}
+                yield json.dumps(done_payload)
+                total_time = time.perf_counter() - start_time
+                self.monitor.record_pipeline_metrics(total_time, True)
+                return
+
             # Find the LLM step for streaming
             llm_step = None
             for step in self.steps:
@@ -349,7 +358,10 @@ class InferencePipelineBuilder:
         # Video generation — executes instead of LLM for video_generation adapters
         steps.append(VideoGenerationStep(container))
 
-        # LLM inference is always needed (skips image/video generation adapters)
+        # Document generation — executes instead of LLM for document_generation adapters
+        steps.append(DocumentGenerationStep(container))
+
+        # LLM inference is always needed (skips image/video/document generation adapters)
         steps.append(LLMInferenceStep(container))
         
         # Response validation only if moderator service is available

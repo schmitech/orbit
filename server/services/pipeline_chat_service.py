@@ -216,6 +216,41 @@ class PipelineChatService:
         except Exception as e:
             logger.warning(f"Failed to persist generated video: {e}")
 
+    async def _persist_generated_document(self, context: ProcessingContext) -> None:
+        """Save generated document bytes to filesystem and set context.document_url."""
+        if not context.document or not self.file_processing_service:
+            return
+        import uuid
+        import base64 as _base64
+        from ai_services.services.document_generation_service import MIME_TYPES
+        try:
+            file_id = str(uuid.uuid4())
+            fmt = context.document_format or "pdf"
+            filename = f"generated_{file_id}.{fmt}"
+            mime_type = MIME_TYPES.get(fmt, "application/octet-stream")
+            document_bytes = _base64.b64decode(context.document)
+            api_key = context.api_key or "_generated"
+            storage_key = f"{api_key}/{file_id}/{filename}"
+
+            await self.file_processing_service.storage.put_file(
+                file_data=document_bytes,
+                key=storage_key,
+                metadata={"filename": filename, "mime_type": mime_type,
+                          "file_size": len(document_bytes), "generated": True}
+            )
+            await self.file_processing_service.metadata_store.record_file_upload(
+                file_id=file_id, api_key=api_key, filename=filename,
+                mime_type=mime_type, file_size=len(document_bytes),
+                storage_key=storage_key, storage_type="raw",
+                metadata={"generated": True, "format": fmt, "session_id": context.session_id or ""}
+            )
+            await self.file_processing_service.metadata_store.update_processing_status(
+                file_id=file_id, status="completed"
+            )
+            context.document_url = f"/api/files/{file_id}/content"
+        except Exception as e:
+            logger.warning(f"Failed to persist generated document: {e}")
+
     # -------------------------------------------------------------------------
     # Query burst cache helpers
     # -------------------------------------------------------------------------
@@ -599,6 +634,7 @@ class PipelineChatService:
 
             await self._persist_generated_image(context)
             await self._persist_generated_video(context)
+            await self._persist_generated_document(context)
 
             final_result = self.response_processor.build_result(
                 response=processed_response,
@@ -617,6 +653,9 @@ class PipelineChatService:
                 video_url=context.video_url,
                 video_format=context.video_format,
                 video_revised_prompt=context.video_revised_prompt,
+                document_url=context.document_url,
+                document_format=context.document_format,
+                document_revised_prompt=context.document_revised_prompt,
             )
 
             if cache_key and not audio_data:
@@ -734,17 +773,18 @@ class PipelineChatService:
                 yield f"data: {json.dumps({'error': str(stream_error), 'done': True})}\n\n"
                 return
 
-            # Image/video generation: the pipeline emits a single {"done":true,...} chunk.
+            # Image/video/document generation: the pipeline emits a single {"done":true,...} chunk.
             # streaming_handler consumes it internally (accumulates text, sets stream_completed)
             # but yields zero items, so final_state is never assigned above.
             # Synthesise a minimal state so _process_post_stream runs and sends the done chunk.
-            if final_state is None and (context.image or context.video):
+            if final_state is None and (context.image or context.video or context.document):
                 final_state = StreamingState()
                 final_state.accumulated_text = context.response or ""
                 final_state.stream_completed = True
 
             if not (final_state and final_state.stream_completed
-                    and (final_state.accumulated_text or context.image or context.video)):
+                    and (final_state.accumulated_text or context.image or context.video
+                         or context.document)):
                 return
 
             async for chunk in self._process_post_stream(
@@ -838,6 +878,7 @@ class PipelineChatService:
 
         await self._persist_generated_image(context)
         await self._persist_generated_video(context)
+        await self._persist_generated_document(context)
 
         yield self.streaming_handler.build_done_chunk(
             state=final_state,
@@ -852,4 +893,7 @@ class PipelineChatService:
             video_url=context.video_url,
             video_format=context.video_format,
             video_revised_prompt=context.video_revised_prompt,
+            document_url=context.document_url,
+            document_format=context.document_format,
+            document_revised_prompt=context.document_revised_prompt,
         )

@@ -12,6 +12,7 @@ from .llm_inference import LLMInferenceStep
 from .response_validation import ResponseValidationStep
 from .image_generation import ImageGenerationStep
 from .video_generation import VideoGenerationStep
+from .document_generation import DocumentGenerationStep
 
 __all__ = [
     'SafetyFilterStep',
@@ -22,4 +23,5 @@ __all__ = [
     'ResponseValidationStep',
     'ImageGenerationStep',
     'VideoGenerationStep',
+    'DocumentGenerationStep',
 ]

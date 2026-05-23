@@ -98,6 +98,12 @@ class ProcessingContext:
     video_revised_prompt: Optional[str] = None  # provider-rewritten prompt
     video_url: Optional[str] = None           # reserved for future persistence
 
+    # Document generation output
+    document: Optional[str] = None            # base64-encoded generated document
+    document_format: Optional[str] = None     # "pdf", "docx", "xlsx", "pptx"
+    document_revised_prompt: Optional[str] = None  # title / final prompt used
+    document_url: Optional[str] = None        # persistent server-side URL after storage
+
     def has_error(self) -> bool:
         """Check if the context has an error."""
         return self.is_blocked or self.error is not None

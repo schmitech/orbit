@@ -1,0 +1,28 @@
+# PowerPoint generation adapter — converts text/data into .pptx files via python-pptx.
+# Handled by DocumentGenerationStep; LLMInferenceStep is skipped for this adapter type.
+adapters:
+  - name: "pptx-generator"
+    enabled: true
+    expose_as_skill: true
+    skill_name: "pptx-generation"
+    skill_description: "Generate PowerPoint presentations (.pptx) from text descriptions or structured data"
+    type: "document_generation"
+    document_format: "pptx"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    rewrite_provider: "openai"     # LLM used to produce the JSON document spec
+
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"
+
+    config:
+      storage_backend: "filesystem"
+      storage_root: "./uploads"

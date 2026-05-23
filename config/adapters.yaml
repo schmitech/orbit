@@ -68,3 +68,7 @@ import:
   - "adapters/file.yaml"
   - "adapters/image-generator.yaml"
   - "adapters/video-generator.yaml"
+  - "adapters/pdf-generator.yaml"
+  - "adapters/word-generator.yaml"
+  - "adapters/excel-generator.yaml"
+  - "adapters/pptx-generator.yaml"
