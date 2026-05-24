@@ -70,3 +70,4 @@ results/
 .firecrawl_cache
 .claude
 *.yaml.bak
+.antigravitycli

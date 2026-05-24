@@ -24,6 +24,10 @@ export interface StreamResponse {
   video_format?: string;  // Video format (mp4)
   video_revised_prompt?: string;  // Provider-rewritten prompt
   video_url?: string;  // Persistent server-side URL for refresh
+  document?: string;  // Optional base64-encoded generated document
+  document_format?: string;  // Document format (pdf, docx, xlsx, pptx)
+  document_revised_prompt?: string;  // Title / final prompt used
+  document_url?: string;  // Persistent server-side URL for refresh
   assistant_message_id?: string;  // Database message ID for feedback
   threading?: {  // Optional threading metadata
     supports_threading: boolean;
@@ -297,6 +301,10 @@ function parseSseDataLine(line: string): StreamResponse | null {
       video_format: data.video_format,
       video_revised_prompt: data.video_revised_prompt,
       video_url: data.video_url,
+      document: data.document,
+      document_format: data.document_format,
+      document_revised_prompt: data.document_revised_prompt,
+      document_url: data.document_url,
       assistant_message_id: data.assistant_message_id,
       threading: data.threading
     };
@@ -412,7 +420,26 @@ function createProxyApi(): ApiFunctions {
         } else {
           // Non-streaming response
           const data = await response.json();
-          yield { text: data.message || data.response || '', done: true };
+          yield {
+            text: data.message || data.response || '',
+            done: true,
+            audio: data.audio,
+            audioFormat: data.audio_format || data.audioFormat,
+            image: data.image,
+            image_format: data.image_format,
+            image_revised_prompt: data.image_revised_prompt,
+            image_url: data.image_url,
+            video: data.video,
+            video_format: data.video_format,
+            video_revised_prompt: data.video_revised_prompt,
+            video_url: data.video_url,
+            document: data.document,
+            document_format: data.document_format,
+            document_revised_prompt: data.document_revised_prompt,
+            document_url: data.document_url,
+            assistant_message_id: data.assistant_message_id,
+            threading: data.threading
+          };
         }
       },
 

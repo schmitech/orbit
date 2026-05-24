@@ -36,6 +36,10 @@ export interface Message {
   videoFormat?: string;  // Video format (mp4)
   videoRevisedPrompt?: string;  // Provider-rewritten prompt
   videoUrl?: string;  // Persistent server-side URL (survives page refresh)
+  document?: string;  // Optional base64-encoded generated document
+  documentFormat?: string;  // Document format (pdf, docx, xlsx, pptx)
+  documentRevisedPrompt?: string;  // Title / final prompt used
+  documentUrl?: string;  // Persistent server-side URL (survives page refresh)
   threadInfo?: ThreadInfo;
   supportsThreading?: boolean;
   databaseMessageId?: string;  // Database message ID from server (used for thread creation and feedback)

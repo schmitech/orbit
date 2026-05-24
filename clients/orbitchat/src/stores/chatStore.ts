@@ -36,14 +36,14 @@ export const debouncedSaveToLocalStorage = (getState: () => { conversations: Con
     localStorageSaveTimeout = null;
     try {
       const currentState = getState();
-      // Exclude large binary data (audio, image, video) from persistence to reduce localStorage size
+      // Exclude large binary data (audio, image, video, document) from persistence to reduce localStorage size
       const conversationsForStorage = currentState.conversations.map(conv => ({
         ...conv,
         messages: conv.messages.map(msg => {
-          const hasLargeData = msg.audio || msg.image || msg.video;
+          const hasLargeData = msg.audio || msg.image || msg.video || msg.document;
           if (!hasLargeData) return msg;
           return Object.fromEntries(
-            Object.entries(msg).filter(([k]) => k !== 'audio' && k !== 'image' && k !== 'video')
+            Object.entries(msg).filter(([k]) => k !== 'audio' && k !== 'image' && k !== 'video' && k !== 'document')
           ) as typeof msg;
         })
       }));
@@ -155,6 +155,18 @@ const generateUniqueSessionId = (): string => {
 
 const countNonStreamingMessages = (messages: Message[]): number => {
   return messages.filter(m => !m.isThreadMessage && !(m.role === 'assistant' && m.isStreaming)).length;
+};
+
+const extractGeneratedFileIds = (messages: Message[]): string[] => {
+  const urls = messages.flatMap(message => [
+    message.imageUrl,
+    message.videoUrl,
+    message.documentUrl,
+  ]);
+
+  return urls
+    .map(url => url?.match(/\/api\/files\/([^/]+)\/content/)?.[1] ?? null)
+    .filter((id): id is string => id !== null);
 };
 
 const toDateOrFallback = (
@@ -634,12 +646,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             adapterName: conversationAdapterName
           });
 
-          // Extract file IDs from attached files and generated images
+          // Extract file IDs from uploaded files and generated media/documents
           const uploadedFileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
-          const imageFileIds = (conversation?.messages || [])
-            .map(m => m.imageUrl?.match(/\/api\/files\/([^/]+)\/content/)?.[1] ?? null)
-            .filter((id): id is string => id !== null);
-          const fileIds = [...uploadedFileIds, ...imageFileIds];
+          const generatedFileIds = extractGeneratedFileIds(conversation?.messages || []);
+          const fileIds = [...uploadedFileIds, ...generatedFileIds];
 
           debugLog(`🔧 Calling deleteConversationWithFiles for session: ${conversation.sessionId}`);
           debugLog(`🔧 File IDs to delete: ${fileIds.join(', ') || 'none'}`);
@@ -740,10 +750,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         });
 
         const uploadedFileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
-        const imageFileIds = (conversation?.messages || [])
-          .map(m => m.imageUrl?.match(/\/api\/files\/([^/]+)\/content/)?.[1] ?? null)
-          .filter((id): id is string => id !== null);
-        const fileIds = [...uploadedFileIds, ...imageFileIds];
+        const generatedFileIds = extractGeneratedFileIds(conversation?.messages || []);
+        const fileIds = [...uploadedFileIds, ...generatedFileIds];
 
         if (apiClient.deleteConversationWithFiles) {
           await apiClient.deleteConversationWithFiles(conversation.sessionId, fileIds);
@@ -1293,6 +1301,31 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             }));
           }
 
+          // Handle generated document in done chunk
+          if ((response.document || response.document_url) && response.done) {
+            receivedAnyText = true; // document counts as a valid response
+            set(state => ({
+              conversations: state.conversations.map(conv => {
+                if (conv.id !== streamingConversationId) return conv;
+
+                const messages = [...conv.messages];
+                const lastMessage = messages[messages.length - 1];
+
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  messages[messages.length - 1] = {
+                    ...lastMessage,
+                    document: response.document,
+                    documentFormat: response.document_format || 'pdf',
+                    documentRevisedPrompt: response.document_revised_prompt,
+                    documentUrl: response.document_url,
+                  };
+                }
+
+                return { ...conv, messages, updatedAt: new Date() };
+              })
+            }));
+          }
+
           if (response.done) {
             debugLog(`[chatStore] Stream completed, receivedAnyText:`, receivedAnyText);
             debugLog(`[chatStore] Done chunk received:`, { 
@@ -1821,6 +1854,31 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     videoFormat: response.video_format || 'mp4',
                     videoRevisedPrompt: response.video_revised_prompt,
                     videoUrl: response.video_url,
+                  };
+                }
+
+                return { ...conv, messages, updatedAt: new Date() };
+              })
+            }));
+          }
+
+          // Handle generated document if present
+          if ((response.document || response.document_url) && response.done) {
+            receivedAnyText = true; // document counts as a valid response
+            set(state => ({
+              conversations: state.conversations.map(conv => {
+                if (conv.id !== regeneratingConversationId) return conv;
+
+                const messages = [...conv.messages];
+                const lastMessage = messages[messages.length - 1];
+
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  messages[messages.length - 1] = {
+                    ...lastMessage,
+                    document: response.document,
+                    documentFormat: response.document_format || 'pdf',
+                    documentRevisedPrompt: response.document_revised_prompt,
+                    documentUrl: response.document_url,
                   };
                 }
 

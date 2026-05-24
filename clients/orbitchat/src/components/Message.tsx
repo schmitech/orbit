@@ -20,6 +20,7 @@ import { getEnableFeedbackButtons, getEnableConversationThreads, getIsAuthConfig
 import { AudioPlayer } from './AudioPlayer';
 import { ImageDisplay } from './ImageDisplay';
 import { VideoDisplay } from './VideoDisplay';
+import { DocumentDisplay } from './DocumentDisplay';
 import { ConfirmationModal } from './ConfirmationModal';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { AppConfig } from '../utils/config';
@@ -555,6 +556,14 @@ export function Message({
                   revisedPrompt={reply.videoRevisedPrompt}
                 />
               )}
+              {(reply.document || reply.documentUrl) && replyIsAssistant && !reply.isStreaming && (
+                <DocumentDisplay
+                  document={reply.document}
+                  documentUrl={reply.documentUrl}
+                  documentFormat={reply.documentFormat}
+                  revisedPrompt={reply.documentRevisedPrompt}
+                />
+              )}
             </div>
             {replyIsAssistant && !reply.isStreaming && getEnableFeedbackButtons() && (
               <ThreadReplyFeedback reply={reply} />
@@ -604,6 +613,15 @@ export function Message({
               videoUrl={message.videoUrl}
               videoFormat={message.videoFormat}
               revisedPrompt={message.videoRevisedPrompt}
+            />
+          )}
+
+          {(message.document || message.documentUrl) && isAssistant && !message.isStreaming && (
+            <DocumentDisplay
+              document={message.document}
+              documentUrl={message.documentUrl}
+              documentFormat={message.documentFormat}
+              revisedPrompt={message.documentRevisedPrompt}
             />
           )}
         </div>
