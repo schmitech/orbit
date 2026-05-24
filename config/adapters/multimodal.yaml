@@ -12,8 +12,8 @@ adapters:
     # Provider overrides (optional - use when you want different providers than global defaults)
     inference_provider: "ollama_cloud"    # Override default inference provider
     model: "gpt-oss:120b"            # Specific model for this adapter
-    embedding_provider: "openrouter"
-    embedding_model: "openai/text-embedding-3-small"
+    embedding_provider: "openai"
+    embedding_model: "text-embedding-3-small"
     vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
     stt_provider: "whisper"               # STT provider for audio transcription (see stt.yaml) - local, free!
     # Optional: clients may request any of these models at runtime via the "model" field.
@@ -42,6 +42,12 @@ adapters:
       retrieval_behavior: "conditional"  # Only retrieves when file_ids are present
       available_skills:
         - "image-generation"
+        - "video-generation"
+        - "pdf-generation"
+        - "word-generation"
+        - "excel-generation"
+        - "pptx-generation"
+        - "customer-orders"
       formatting_style: "clean"          # Clean format (no citations) to prevent LLM citation markers
       supports_threading: false
       supports_file_ids: true            # Accepts file_ids parameter for filtering

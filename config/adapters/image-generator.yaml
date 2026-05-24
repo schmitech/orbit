@@ -5,12 +5,13 @@ adapters:
     enabled: true
     expose_as_skill: true
     skill_name: "image-generation"
-    skill_description: "Generate images from text descriptions using AI (DALL-E 3, Imagen, or Ollama)"
+    skill_description: "Generate images from text descriptions using AI (imagine, Imagen, or Ollama)"
     type: "image_generation"
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    image_provider: "openai"            # Optional adapter override; omit to use config/image.yaml
+    image_provider: "xai"               # Optional adapter override; omit to use config/image.yaml
+    rewrite_provider: "openai"          # Text LLM used to enrich prompts before image generation
 
     capabilities:
       retrieval_behavior: "none"
