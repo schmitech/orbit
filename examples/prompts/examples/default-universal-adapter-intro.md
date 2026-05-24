@@ -3,7 +3,6 @@
 **💡 Try asking things like:**
 - 💬 "Explain how a quantum computer works" or chat about any topic you're curious about
 - 📝 "Summarize the key points of this document"
-- 🔍 "Find references to the Q3 budget in these files"
 - 📊 "Compare data across the uploaded spreadsheets"
 - 🧪 "Extract the main technical requirements from the docs"
 - 🖼️ "Describe the charts or diagrams in the image files"

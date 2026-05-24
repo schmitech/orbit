@@ -130,6 +130,7 @@ export function Message({
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
   const [showThreadSkillPicker, setShowThreadSkillPicker] = useState(false);
+  const [activeThreadSkillIndex, setActiveThreadSkillIndex] = useState(0);
   const [showClearThreadConfirmation, setShowClearThreadConfirmation] = useState(false);
   const [isClearingThread, setIsClearingThread] = useState(false);
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
@@ -172,6 +173,26 @@ export function Message({
     adapterName: currentConversation?.adapterName,
     enabled: threadsEnabled && Boolean(message.threadInfo),
   });
+  const threadSkillQuery = threadInput.startsWith('/') ? threadInput.slice(1) : '';
+  const normalizedThreadSkillQuery = threadSkillQuery.toLowerCase().replace(/-/g, ' ');
+  const filteredThreadSkills = normalizedThreadSkillQuery
+    ? skills.filter(skill =>
+        skill.name.replace(/-/g, ' ').toLowerCase().includes(normalizedThreadSkillQuery) ||
+        skill.description.toLowerCase().includes(normalizedThreadSkillQuery)
+      )
+    : skills;
+  const safeActiveThreadSkillIndex =
+    filteredThreadSkills.length > 0 ? Math.min(activeThreadSkillIndex, filteredThreadSkills.length - 1) : 0;
+  const activeThreadSkill = filteredThreadSkills[safeActiveThreadSkillIndex] ?? null;
+  const activeThreadSkillDisplayName = activeThreadSkill?.name.replace(/-/g, ' ') ?? '';
+  const threadSkillInlineSuggestion =
+    showThreadSkillPicker &&
+    activeThreadSkill &&
+    threadInput.startsWith('/') &&
+    activeThreadSkillDisplayName.toLowerCase().startsWith(threadSkillQuery.toLowerCase()) &&
+    activeThreadSkillDisplayName.length > threadSkillQuery.length
+      ? activeThreadSkillDisplayName.slice(threadSkillQuery.length)
+      : null;
 
   const forcedThemeClass =
     theme.mode === 'dark' ? 'dark' : theme.mode === 'light' ? 'light' : '';
@@ -351,7 +372,6 @@ export function Message({
     setShowThreadSkillPicker(false);
     try {
       await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed, selectedSkill?.name);
-      clearSkill();
       // Refocus the thread input field after sending
       setTimeout(() => {
         if (threadTextareaRef.current) {
@@ -375,10 +395,65 @@ export function Message({
     }
   };
 
+  const selectThreadSkillAndClose = useCallback((skill: typeof skills[number]) => {
+    selectSkill(skill);
+    setShowThreadSkillPicker(false);
+    setThreadInput('');
+    setActiveThreadSkillIndex(0);
+    threadTextareaRef.current?.focus();
+  }, [selectSkill]);
+
+  const closeThreadSkillPicker = useCallback(() => {
+    setShowThreadSkillPicker(false);
+    setThreadInput('');
+    setActiveThreadSkillIndex(0);
+    threadTextareaRef.current?.focus();
+  }, []);
+
   const handleThreadKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Escape' && showThreadSkillPicker) {
-      setShowThreadSkillPicker(false);
-      return;
+    if (showThreadSkillPicker) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveThreadSkillIndex(prev => {
+          if (filteredThreadSkills.length === 0) {
+            return 0;
+          }
+          return (prev + 1) % filteredThreadSkills.length;
+        });
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveThreadSkillIndex(prev => {
+          if (filteredThreadSkills.length === 0) {
+            return 0;
+          }
+          return (prev - 1 + filteredThreadSkills.length) % filteredThreadSkills.length;
+        });
+        return;
+      }
+      if (event.key === 'Home') {
+        event.preventDefault();
+        setActiveThreadSkillIndex(0);
+        return;
+      }
+      if (event.key === 'End') {
+        event.preventDefault();
+        setActiveThreadSkillIndex(Math.max(filteredThreadSkills.length - 1, 0));
+        return;
+      }
+      if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
+        if (activeThreadSkill) {
+          event.preventDefault();
+          selectThreadSkillAndClose(activeThreadSkill);
+          return;
+        }
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeThreadSkillPicker();
+        return;
+      }
     }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -775,7 +850,7 @@ export function Message({
                 >
                   <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-[#242424] dark:bg-[#101010]">
                     {selectedSkill && (
-                      <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200">
+                      <div className="flex h-8 shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200">
                         <Sparkles className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
                         <span className="min-w-0 truncate font-medium capitalize">
                           {selectedSkill.name.replace(/-/g, ' ')}
@@ -790,35 +865,49 @@ export function Message({
                         </button>
                       </div>
                     )}
-                    <label htmlFor={threadInputId} className="sr-only">
-                      Reply in thread
-                    </label>
-                    <textarea
-                      id={threadInputId}
-                      ref={threadTextareaRef}
-                      className="flex-1 w-full sm:w-auto min-w-0 resize-none bg-transparent px-0 py-1.5 sm:py-1 text-base sm:text-sm text-[#353740] placeholder-slate-500 outline-none transition focus:outline-none disabled:opacity-60 dark:text-[#ececf1] dark:placeholder-[#70707c]"
-                      placeholder={threadPlaceholder}
-                      aria-label="Reply in thread"
-                      value={threadInput}
-                      onChange={e => {
-                        const value = e.target.value;
-                        setThreadInput(value);
-                        setShowThreadSkillPicker(value.startsWith('/'));
-                      }}
-                      onKeyDown={handleThreadKeyDown}
-                      disabled={threadComposerDisabled}
-                      rows={1}
-                      maxLength={threadCharLimit}
-                      style={{
-                        minHeight: '36px',
-                        maxHeight: '120px',
-                        outline: 'none',
-                        boxShadow: 'none',
-                        WebkitAppearance: 'none',
-                        MozAppearance: 'none',
-                        appearance: 'none'
-                      }}
-                    />
+                    <div className="relative flex min-h-8 flex-1 items-center min-w-0">
+                      <label htmlFor={threadInputId} className="sr-only">
+                        Reply in thread
+                      </label>
+                      {threadSkillInlineSuggestion && (
+                        <div
+                          className="pointer-events-none absolute inset-0 whitespace-pre-wrap px-0 py-0 text-base leading-8 text-gray-400 dark:text-[#8e8ea0] sm:text-sm sm:leading-8"
+                          aria-hidden="true"
+                        >
+                          <span className="invisible">{threadInput}</span>
+                          <span>{threadSkillInlineSuggestion}</span>
+                        </div>
+                      )}
+                      <textarea
+                        id={threadInputId}
+                        ref={threadTextareaRef}
+                        className="relative z-10 block h-8 w-full min-w-0 resize-none overflow-hidden bg-transparent px-0 py-0 text-base leading-8 text-[#353740] placeholder-slate-500 outline-none transition focus:outline-none disabled:opacity-60 dark:text-[#ececf1] dark:placeholder-[#70707c] sm:text-sm sm:leading-8"
+                        placeholder={threadPlaceholder}
+                        aria-label="Reply in thread"
+                        value={threadInput}
+                        onChange={e => {
+                          const value = e.target.value;
+                          setThreadInput(value);
+                          if (value.startsWith('/')) {
+                            setActiveThreadSkillIndex(0);
+                          }
+                          setShowThreadSkillPicker(value.startsWith('/'));
+                        }}
+                        onKeyDown={handleThreadKeyDown}
+                        disabled={threadComposerDisabled}
+                        rows={1}
+                        maxLength={threadCharLimit}
+                        style={{
+                          minHeight: '32px',
+                          maxHeight: '120px',
+                          outline: 'none',
+                          boxShadow: 'none',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          appearance: 'none'
+                        }}
+                      />
+                    </div>
                     <div className="flex items-center justify-between sm:justify-end gap-2">
                       {threadInput.trim().length > 0 && (
                         <button
@@ -839,18 +928,16 @@ export function Message({
                         skills={skills}
                         isLoading={skillsLoading}
                         selectedSkill={selectedSkill}
-                        query={threadInput.startsWith('/') ? threadInput.slice(1) : ''}
-                        onSelect={(skill) => {
-                          selectSkill(skill);
-                          setShowThreadSkillPicker(false);
-                          setThreadInput('');
-                          threadTextareaRef.current?.focus();
+                        activeSkillName={activeThreadSkill?.name}
+                        query={threadSkillQuery}
+                        onActiveSkillChange={(skill) => {
+                          const nextIndex = filteredThreadSkills.findIndex(item => item.name === skill.name);
+                          if (nextIndex >= 0) {
+                            setActiveThreadSkillIndex(nextIndex);
+                          }
                         }}
-                        onClose={() => {
-                          setShowThreadSkillPicker(false);
-                          setThreadInput('');
-                          threadTextareaRef.current?.focus();
-                        }}
+                        onSelect={selectThreadSkillAndClose}
+                        onClose={closeThreadSkillPicker}
                       />
                     </div>
                   )}

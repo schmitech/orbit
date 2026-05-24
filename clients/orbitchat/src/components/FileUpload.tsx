@@ -549,19 +549,19 @@ export function FileUpload({
       <div
         key={key}
         className={`group relative w-full flex items-center gap-3 rounded-lg px-3 py-2.5 overflow-hidden transition-colors ${
-          isError ? 'bg-red-50 dark:bg-red-950/30' : 'bg-gray-50 dark:bg-[#1f1f24]'
+          isError ? 'border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-[#101010]' : 'border border-gray-200 bg-gray-50 dark:border-[#242424] dark:bg-[#101010]'
         }`}
       >
         {/* Animated progress background fill */}
         {!isError && (
           <div
-            className="absolute inset-0 bg-blue-50 dark:bg-blue-900/15 transition-all duration-500 ease-out rounded-lg"
+            className="absolute inset-0 bg-blue-50 dark:bg-white/[0.04] transition-all duration-500 ease-out rounded-lg"
             style={{ width: `${progress.progress}%` }}
           />
         )}
         <div className="relative flex items-center gap-3 w-full min-w-0">
           <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
-            isError ? 'bg-red-100 dark:bg-red-900/30' : 'bg-blue-100 dark:bg-blue-900/30'
+            isError ? 'bg-red-100 dark:bg-red-500/15' : 'bg-blue-100 dark:bg-white/[0.06]'
           }`}>
             {isError ? (
               <CircleAlert className="h-4 w-4 text-red-500 dark:text-red-400" />
@@ -579,7 +579,7 @@ export function FileUpload({
               </p>
             ) : (
               <div className="mt-1 flex items-center gap-2">
-                <div className="flex-1 bg-gray-200 dark:bg-[#3c3f4a] rounded-full h-1">
+                <div className="flex-1 bg-gray-200 dark:bg-[#242424] rounded-full h-1">
                   <div
                     className="bg-blue-500 dark:bg-blue-400 h-1 rounded-full transition-all duration-500 ease-out"
                     style={{ width: `${progress.progress}%` }}
@@ -625,12 +625,12 @@ export function FileUpload({
           onDrop={handleDrop}
           disabled={disabled}
           className={`
-            group relative w-full max-w-full rounded-lg p-4 transition-all duration-200 text-left overflow-hidden
+            group relative w-full max-w-full rounded-lg border p-4 transition-all duration-200 text-left overflow-hidden
             ${isDragging
-              ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400 dark:ring-blue-500 ring-inset'
+              ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-400 ring-inset dark:border-blue-500/40 dark:bg-[#101010] dark:ring-blue-500'
               : disabled
-              ? 'bg-gray-50 dark:bg-[#1f1f24] cursor-not-allowed opacity-50'
-              : 'bg-gray-50 dark:bg-[#1f1f24] hover:bg-gray-100 dark:hover:bg-[#252530] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-inset'
+              ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-50 dark:border-[#242424] dark:bg-[#101010]'
+              : 'border-gray-200 bg-gray-50 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-inset dark:border-[#242424] dark:bg-[#101010] dark:hover:bg-[#1a1a1a]'
             }
           `}
           aria-label={disabled ? 'File upload disabled' : 'Upload files'}
@@ -648,8 +648,8 @@ export function FileUpload({
           <div className="flex items-center gap-3">
             <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 ${
               isDragging
-                ? 'bg-blue-100 dark:bg-blue-800/40'
-                : 'bg-gray-200/70 dark:bg-[#2d2f39] group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30'
+                ? 'bg-blue-100 dark:bg-blue-500/15'
+                : 'bg-gray-200/70 dark:bg-[#1a1a1a] group-hover:bg-blue-100 dark:group-hover:bg-[#242424]'
             }`}>
               <Upload className={`h-5 w-5 transition-colors duration-200 ${
                 isDragging
@@ -674,7 +674,7 @@ export function FileUpload({
       )}
 
       {otherUploadingConversations.length > 0 && (
-        <div className="w-full max-w-full space-y-2 rounded-lg bg-gray-50 dark:bg-[#1f1f24] p-2.5">
+        <div className="w-full max-w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 dark:border-[#242424] dark:bg-[#101010]">
           <p className="text-xs font-medium text-gray-500 dark:text-[#8e8ea0] px-1">
             Other conversations
           </p>

@@ -217,6 +217,7 @@ export function MessageInput({
   const agentInfoModalRef = useRef<HTMLDivElement>(null);
   const uploadPanelRef = useRef<HTMLDivElement>(null);
   const autocompletePanelRef = useRef<HTMLDivElement>(null);
+  const skillPickerPanelRef = useRef<HTMLDivElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
   const voiceMessageRef = useRef('');
   const pendingVoiceAutoSendRef = useRef(false);
@@ -352,17 +353,23 @@ export function MessageInput({
 
   const skillQuery = message.startsWith('/') ? message.slice(1) : '';
   const normalizedSkillQuery = skillQuery.toLowerCase().replace(/-/g, ' ');
-  const filteredSkills = useMemo(() => {
-    if (!normalizedSkillQuery) {
-      return skills;
-    }
-    return skills.filter(skill =>
-      skill.name.replace(/-/g, ' ').toLowerCase().includes(normalizedSkillQuery) ||
-      skill.description.toLowerCase().includes(normalizedSkillQuery)
-    );
-  }, [normalizedSkillQuery, skills]);
+  const filteredSkills = normalizedSkillQuery
+    ? skills.filter(skill =>
+        skill.name.replace(/-/g, ' ').toLowerCase().includes(normalizedSkillQuery) ||
+        skill.description.toLowerCase().includes(normalizedSkillQuery)
+      )
+    : skills;
   const safeActiveSkillIndex = filteredSkills.length > 0 ? Math.min(activeSkillIndex, filteredSkills.length - 1) : 0;
   const activeSkill = filteredSkills[safeActiveSkillIndex] ?? null;
+  const activeSkillDisplayName = activeSkill?.name.replace(/-/g, ' ') ?? '';
+  const skillInlineSuggestion =
+    showSkillPicker &&
+    activeSkill &&
+    message.startsWith('/') &&
+    activeSkillDisplayName.toLowerCase().startsWith(skillQuery.toLowerCase()) &&
+    activeSkillDisplayName.length > skillQuery.length
+      ? activeSkillDisplayName.slice(skillQuery.length)
+      : null;
   const activeSuggestionIndex = selectedIndex >= 0 ? selectedIndex : 0;
   const activeSuggestion = hasSuggestions ? suggestions[activeSuggestionIndex] : null;
   const inlineSuggestion = useMemo(() => {
@@ -379,7 +386,8 @@ export function MessageInput({
     }
     return null;
   }, [activeSuggestion, message]);
-  const showCustomPlaceholder = message.trim().length === 0 && !inlineSuggestion;
+  const activeInlineSuggestion = skillInlineSuggestion ?? inlineSuggestion;
+  const showCustomPlaceholder = message.trim().length === 0 && !activeInlineSuggestion;
   const renderSuggestionText = useCallback((suggestionText: string) => {
     if (!message) {
       return <span className="line-clamp-1 text-current">{suggestionText}</span>;
@@ -1340,7 +1348,7 @@ export function MessageInput({
 
   const adapterInputPlaceholder = getAdapterInputPlaceholder(currentConversation?.adapterName);
   const basePlaceholder = (hasProcessingFiles || isUploading)
-    ? 'Files are uploading/processing, please wait...'
+    ? 'Files are uploading, please wait...'
     : adapterInputPlaceholder
     ? adapterInputPlaceholder
     : canUseFileUploads
@@ -1416,6 +1424,17 @@ export function MessageInput({
     });
   }, [showAutocompletePanel]);
 
+  // Auto-scroll skill suggestions into view when opened near the bottom of the page.
+  useEffect(() => {
+    if (!showSkillPicker) {
+      return;
+    }
+    skillPickerPanelRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end'
+    });
+  }, [showSkillPicker, filteredSkills.length]);
+
   const contentMaxWidth = maxWidthClass;
   const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
 
@@ -1478,7 +1497,7 @@ export function MessageInput({
             } bg-gray-50 dark:bg-[#111111]`}
           >
           {selectedSkill && (
-            <div className="flex max-w-[45%] shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200 sm:max-w-[38%] md:max-w-[32%]">
+            <div className="flex h-8 max-w-[45%] shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200 sm:max-w-[38%] md:max-w-[32%]">
               <Sparkles className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
               <span className="min-w-0 truncate font-medium capitalize">
                 {selectedSkill.name.replace(/-/g, ' ')}
@@ -1514,7 +1533,7 @@ export function MessageInput({
                 {effectivePlaceholder}
               </div>
             )}
-            {inlineSuggestion && isFocused && (
+            {activeInlineSuggestion && isFocused && (
               <div
                 className="pointer-events-none absolute inset-0 whitespace-pre-wrap text-base md:text-sm text-gray-400 dark:text-[#8e8ea0]"
                 style={{
@@ -1527,7 +1546,7 @@ export function MessageInput({
                 aria-hidden="true"
               >
                 <span className="invisible">{message}</span>
-                <span>{inlineSuggestion}</span>
+                <span>{activeInlineSuggestion}</span>
               </div>
             )}
             <textarea
@@ -1604,7 +1623,7 @@ export function MessageInput({
                       : fileLimitActive && workspaceFileLimitReached && AppConfig.maxTotalFiles !== null
                       ? `Workspace limit of ${AppConfig.maxTotalFiles} total files reached. Remove files from other conversations first.`
                       : isInputDisabled
-                      ? 'Files are uploading/processing. Please wait...'
+                      ? 'Files are uploading. Please wait...'
                       : visibleAttachedFiles.length > 0
                       ? `${visibleAttachedFiles.length} file(s) attached`
                       : 'Attach files'
@@ -1672,7 +1691,7 @@ export function MessageInput({
                       }`}
                       title={
                         isInputDisabled
-                          ? 'Files are uploading/processing. Please wait...'
+                          ? 'Files are uploading. Please wait...'
                           : isListening
                           ? 'Stop recording'
                           : 'Start voice input'
@@ -1906,7 +1925,7 @@ export function MessageInput({
 
         {/* Skill picker panel - shown when user types / */}
         {showSkillPicker && (
-          <div className="w-full pt-1">
+          <div ref={skillPickerPanelRef} className="w-full pt-1">
             <SkillPicker
               skills={skills}
               isLoading={skillsLoading}
