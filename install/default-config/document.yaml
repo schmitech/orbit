@@ -1,0 +1,16 @@
+# Document generation configuration
+# Controls default format and renderer settings for the document-generation skill.
+# Unlike image/video generation, document generation uses native Python libraries
+# (reportlab, python-docx, openpyxl, python-pptx) and requires no external API key.
+
+document:
+  default_format: "pdf"    # Fallback when adapter config omits document_format
+
+document_generation:
+  native:
+    enabled: true
+    timeout:
+      total: 60000          # 60 s — sufficient for local rendering
+    retry:
+      enabled: true
+      max_retries: 2

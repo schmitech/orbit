@@ -11,6 +11,8 @@ import:
   - "guardrails.yaml"
   - "vision.yaml"
   - "image.yaml"
+  - "video.yaml"
+  - "document.yaml"
   - "tts.yaml"
   - "stt.yaml"
   - "personaplex.yaml"
@@ -22,6 +24,7 @@ general:
     port: 3443
     cert_file: "./cert.pem"
     key_file: "./key.pem"
+    key_password: ${ORBIT_TLS_KEY_PASSWORD}  # optional: passphrase for encrypted private key
   session_id:
     header_name: "X-Session-ID"
     required: true
@@ -437,7 +440,7 @@ files:
     # When disabled, docling will not be initialized until actually needed (lazy initialization)
     # PDF layout uses RT-DETR (PyTorch + torchvision). Intel macOS only gets PyPI torch up to 2.2.x; use files profile / setup.sh for matching pins.
     # Default: true (enabled)
-    docling_enabled: false
+    docling_enabled: true
 
     # MarkItDown processor configuration (Microsoft's document-to-markdown converter)
     # Set to true to enable MarkItDown as an alternative/fallback document processor
@@ -462,7 +465,7 @@ files:
     # Magika upload inspection
     # Verifies uploaded content against the declared MIME type before processing
     magika:
-      enabled: false
+      enabled: true
       enforcement: "block"
       prediction_mode: "HIGH_CONFIDENCE"
       allow_generic_text_fallback: false
