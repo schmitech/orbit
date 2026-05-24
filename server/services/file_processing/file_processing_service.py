@@ -661,7 +661,9 @@ class FileProcessingService:
             try:
                 transcribed_text = await audio_service.transcribe(
                     audio=file_data,
-                    language=transcription_language
+                    language=transcription_language,
+                    filename=filename,
+                    mime_type=mime_type
                 )
             except asyncio.TimeoutError as e:
                 logger.error(f"Audio transcription API timeout for {filename}: {e}")

@@ -229,6 +229,8 @@ class GeminiAudioService(AudioService, GoogleBaseService):
                 "Install it with: pip install google-genai"
             )
             raise
+        except ValueError:
+            raise
         except Exception as e:
             self._handle_google_error(e, "text-to-speech")
             raise
@@ -255,9 +257,36 @@ class GeminiAudioService(AudioService, GoogleBaseService):
             if isinstance(audio, str):
                 audio_format = self._get_audio_format(audio)
             else:
-                logger.debug(f"Wrapping raw PCM audio ({len(audio_data)} bytes) in WAV format for Gemini STT")
-                audio_data = self._wrap_in_wav(audio_data, sample_rate=24000)
-                audio_format = 'wav'
+                # Check for format parameters in kwargs
+                filename = kwargs.pop('filename', None)
+                mime_type_param = kwargs.pop('mime_type', None)
+                audio_format = kwargs.pop('audio_format', kwargs.pop('format', None))
+
+                if audio_format:
+                    pass
+                elif filename:
+                    audio_format = self._get_audio_format(filename)
+                elif mime_type_param:
+                    # extract format from mime_type
+                    audio_format = mime_type_param.split('/')[-1].replace('x-', '').replace('mpeg', 'mp3').replace('mp4', 'm4a')
+                else:
+                    # Detect format from magic bytes
+                    if len(audio_data) > 12 and audio_data[:4] == b"RIFF" and audio_data[8:12] == b"WAVE":
+                        audio_format = 'wav'
+                    elif len(audio_data) > 3 and (audio_data[:3] == b"ID3" or (audio_data[0] == 0xFF and (audio_data[1] & 0xE0) == 0xE0)):
+                        audio_format = 'mp3'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"fLaC":
+                        audio_format = 'flac'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"OggS":
+                        audio_format = 'ogg'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"\x1a\x45\xdf\xa3":
+                        audio_format = 'webm'
+                    elif len(audio_data) > 8 and audio_data[4:8] == b"ftyp":
+                        audio_format = 'm4a'
+                    else:
+                        logger.debug(f"Wrapping raw PCM audio ({len(audio_data)} bytes) in WAV format for Gemini STT")
+                        audio_data = self._wrap_in_wav(audio_data, sample_rate=24000)
+                        audio_format = 'wav'
 
             mime_type = f"audio/{audio_format}"
 
@@ -277,6 +306,8 @@ class GeminiAudioService(AudioService, GoogleBaseService):
 
             return self._extract_text(response)
 
+        except ValueError:
+            raise
         except Exception as e:
             self._handle_google_error(e, "speech-to-text")
             raise
@@ -308,7 +339,40 @@ class GeminiAudioService(AudioService, GoogleBaseService):
 
             # Prepare audio data
             audio_data = self._prepare_audio(audio)
-            audio_format = self._get_audio_format(audio) if isinstance(audio, str) else 'wav'
+            
+            # Get audio format
+            if isinstance(audio, str):
+                audio_format = self._get_audio_format(audio)
+            else:
+                # Check for format parameters in kwargs
+                filename = kwargs.pop('filename', None)
+                mime_type_param = kwargs.pop('mime_type', None)
+                audio_format = kwargs.pop('audio_format', kwargs.pop('format', None))
+
+                if audio_format:
+                    pass
+                elif filename:
+                    audio_format = self._get_audio_format(filename)
+                elif mime_type_param:
+                    # extract format from mime_type
+                    audio_format = mime_type_param.split('/')[-1].replace('x-', '').replace('mpeg', 'mp3').replace('mp4', 'm4a')
+                else:
+                    # Detect format from magic bytes
+                    if len(audio_data) > 12 and audio_data[:4] == b"RIFF" and audio_data[8:12] == b"WAVE":
+                        audio_format = 'wav'
+                    elif len(audio_data) > 3 and (audio_data[:3] == b"ID3" or (audio_data[0] == 0xFF and (audio_data[1] & 0xE0) == 0xE0)):
+                        audio_format = 'mp3'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"fLaC":
+                        audio_format = 'flac'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"OggS":
+                        audio_format = 'ogg'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"\x1a\x45\xdf\xa3":
+                        audio_format = 'webm'
+                    elif len(audio_data) > 8 and audio_data[4:8] == b"ftyp":
+                        audio_format = 'm4a'
+                    else:
+                        audio_format = 'wav'  # Default fallback for Gemini translation
+
             mime_type = f"audio/{audio_format}"
 
             # Create prompt for translation
@@ -327,6 +391,8 @@ class GeminiAudioService(AudioService, GoogleBaseService):
 
             return self._extract_text(response)
 
+        except ValueError:
+            raise
         except Exception as e:
             self._handle_google_error(e, "audio translation")
             raise

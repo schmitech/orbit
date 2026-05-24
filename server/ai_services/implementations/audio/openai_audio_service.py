@@ -96,6 +96,8 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
 
             return audio_data
 
+        except ValueError:
+            raise
         except Exception as e:
             self._handle_openai_error(e, "text-to-speech")
             raise
@@ -186,13 +188,40 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
             if isinstance(audio, str):
                 audio_format = self._get_audio_format(audio)
             else:
-                # Raw bytes - assume raw PCM and wrap in WAV format
-                # WebSocket clients send raw 16-bit PCM at 24kHz
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.debug(f"Wrapping raw PCM audio ({len(audio_data)} bytes) in WAV format for OpenAI Whisper")
-                audio_data = self._wrap_in_wav(audio_data, sample_rate=24000)
-                audio_format = 'wav'
+                # Check for format parameters in kwargs
+                filename = kwargs.pop('filename', None)
+                mime_type = kwargs.pop('mime_type', None)
+                audio_format = kwargs.pop('audio_format', kwargs.pop('format', None))
+
+                if audio_format:
+                    pass
+                elif filename:
+                    audio_format = self._get_audio_format(filename)
+                elif mime_type:
+                    # extract format from mime_type, e.g., 'audio/wav' -> 'wav'
+                    audio_format = mime_type.split('/')[-1].replace('x-', '').replace('mpeg', 'mp3').replace('mp4', 'm4a')
+                else:
+                    # Detect format from magic bytes
+                    if len(audio_data) > 12 and audio_data[:4] == b"RIFF" and audio_data[8:12] == b"WAVE":
+                        audio_format = 'wav'
+                    elif len(audio_data) > 3 and (audio_data[:3] == b"ID3" or (audio_data[0] == 0xFF and (audio_data[1] & 0xE0) == 0xE0)):
+                        audio_format = 'mp3'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"fLaC":
+                        audio_format = 'flac'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"OggS":
+                        audio_format = 'ogg'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"\x1a\x45\xdf\xa3":
+                        audio_format = 'webm'
+                    elif len(audio_data) > 8 and audio_data[4:8] == b"ftyp":
+                        audio_format = 'm4a'
+                    else:
+                        # Raw bytes - assume raw PCM and wrap in WAV format
+                        # WebSocket clients send raw 16-bit PCM at 24kHz
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.debug(f"Wrapping raw PCM audio ({len(audio_data)} bytes) in WAV format for OpenAI Whisper")
+                        audio_data = self._wrap_in_wav(audio_data, sample_rate=24000)
+                        audio_format = 'wav'
 
             # Create file-like object for OpenAI API
             audio_file = BytesIO(audio_data)
@@ -208,6 +237,8 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
 
             return transcript.text
 
+        except ValueError:
+            raise
         except Exception as e:
             self._handle_openai_error(e, "speech-to-text")
             raise
@@ -237,7 +268,37 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
             audio_data = self._prepare_audio(audio)
             
             # Get audio format
-            audio_format = self._get_audio_format(audio) if isinstance(audio, str) else 'mp3'
+            if isinstance(audio, str):
+                audio_format = self._get_audio_format(audio)
+            else:
+                # Check for format parameters in kwargs
+                filename = kwargs.pop('filename', None)
+                mime_type = kwargs.pop('mime_type', None)
+                audio_format = kwargs.pop('audio_format', kwargs.pop('format', None))
+
+                if audio_format:
+                    pass
+                elif filename:
+                    audio_format = self._get_audio_format(filename)
+                elif mime_type:
+                    # extract format from mime_type
+                    audio_format = mime_type.split('/')[-1].replace('x-', '').replace('mpeg', 'mp3').replace('mp4', 'm4a')
+                else:
+                    # Detect format from magic bytes
+                    if len(audio_data) > 12 and audio_data[:4] == b"RIFF" and audio_data[8:12] == b"WAVE":
+                        audio_format = 'wav'
+                    elif len(audio_data) > 3 and (audio_data[:3] == b"ID3" or (audio_data[0] == 0xFF and (audio_data[1] & 0xE0) == 0xE0)):
+                        audio_format = 'mp3'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"fLaC":
+                        audio_format = 'flac'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"OggS":
+                        audio_format = 'ogg'
+                    elif len(audio_data) > 4 and audio_data[:4] == b"\x1a\x45\xdf\xa3":
+                        audio_format = 'webm'
+                    elif len(audio_data) > 8 and audio_data[4:8] == b"ftyp":
+                        audio_format = 'm4a'
+                    else:
+                        audio_format = 'mp3'  # Default fallback for translate
 
             # Create file-like object for OpenAI API
             audio_file = BytesIO(audio_data)
@@ -262,6 +323,8 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
                 # This is a limitation of OpenAI's audio API
                 return transcript
 
+        except ValueError:
+            raise
         except Exception as e:
             self._handle_openai_error(e, "audio translation")
             raise

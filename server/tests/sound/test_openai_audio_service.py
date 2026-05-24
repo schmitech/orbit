@@ -331,6 +331,48 @@ class TestOpenAIAudioService:
         call_kwargs = mock_client.audio.speech.create.call_args[1]
         assert "instructions" not in call_kwargs
 
+    @pytest.mark.asyncio
+    async def test_speech_to_text_with_formatted_wav(self, service):
+        """Test speech-to-text with WAV bytes (RIFF/WAVE header), verifying it is not wrapped."""
+        mock_client = MagicMock()
+        mock_transcript = MagicMock()
+        mock_transcript.text = "WAV Transcription"
+        mock_client.audio.transcriptions.create = AsyncMock(return_value=mock_transcript)
+        service.client = mock_client
+        service.initialized = True
+
+        # Valid WAV mock header
+        audio_data = b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x80\x3e\x00\x00\x00\x7d\x00\x00\x02\x00\x10\x00data\x00\x00\x00\x00"
+        result = await service.speech_to_text(audio_data)
+
+        assert result == "WAV Transcription"
+        mock_client.audio.transcriptions.create.assert_called_once()
+        call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
+        
+        # Verify it wasn't double-wrapped in wrap_in_wav
+        assert call_kwargs["file"].name == "audio.wav"
+        file_content = call_kwargs["file"].read()
+        assert file_content == audio_data
+
+    @pytest.mark.asyncio
+    async def test_speech_to_text_with_metadata(self, service):
+        """Test speech-to-text with mime_type/filename/audio_format, verifying it doesn't wrap and uses correct format."""
+        mock_client = MagicMock()
+        mock_transcript = MagicMock()
+        mock_transcript.text = "Metadata Transcription"
+        mock_client.audio.transcriptions.create = AsyncMock(return_value=mock_transcript)
+        service.client = mock_client
+        service.initialized = True
+
+        audio_data = b"some MP3 raw data"
+        result = await service.speech_to_text(audio_data, filename="voice.mp3")
+
+        assert result == "Metadata Transcription"
+        mock_client.audio.transcriptions.create.assert_called_once()
+        call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
+        assert call_kwargs["file"].name == "audio.mp3"
+        assert call_kwargs["file"].read() == audio_data
+
 
 class TestOpenAIAudioServiceConfiguration:
     """Test OpenAI audio service configuration."""
