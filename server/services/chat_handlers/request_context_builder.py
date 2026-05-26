@@ -176,8 +176,13 @@ class RequestContextBuilder:
                         f"Model '{requested_model}' is not allowed for adapter '{adapter_name}'. "
                         f"Allowed models: {allowed}"
                     )
-                runtime_provider = match['provider']
-                runtime_model_name = match['model']
+                runtime_provider = match.get('provider')
+                runtime_model_name = match.get('model')
+                if not runtime_provider or not runtime_model_name:
+                    raise ValueError(
+                        f"Adapter '{adapter_name}' has an invalid allowed_models entry for "
+                        f"'{requested_model}'. Each entry must include 'name', 'provider', and 'model'."
+                    )
                 logger.debug(
                     f"Runtime model override: '{requested_model}' → "
                     f"{runtime_provider}/{runtime_model_name} for adapter '{adapter_name}'"
