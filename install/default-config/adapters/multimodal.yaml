@@ -10,7 +10,7 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama-gemma4-e2b"    # Override default inference provider
+    inference_provider: "ollama"    # Override default inference provider
     model: "gemma4-e2b-cpu"            # Specific model for this adapter
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text"
@@ -40,8 +40,9 @@ adapters:
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
       retrieval_behavior: "conditional"  # Only retrieves when file_ids are present
-      # available_skills: # Optional: enable skills
-      #   - "image-generation"
+      available_skills: # Optional: enable skills
+        - "pdf-generation"
+        - "word-generation"
       formatting_style: "clean"          # Clean format (no citations) to prevent LLM citation markers
       supports_threading: false
       supports_file_ids: true            # Accepts file_ids parameter for filtering

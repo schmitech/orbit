@@ -1,14 +1,16 @@
 # Changelog
 
-## [2.6.8] - 2026-05-24
+## [2.6.8] - 2026-05-26
 
 ### Core System Updates
 - Document Generation: Introduced document generation skill and adapter supporting PDF, DOCX, and other formats.
 - Video Generation: Added xAI (Grok) video generation provider with support for duration, resolution, and aspect ratio settings.
 - Adapter Management: Fixed capability re-registration during adapter hot-reloads (#167); updated sample adapter configurations with new settings.
+- Audit & Security: Hardened user ID resolution to ensure OAuth-authenticated requests retain proper user attribution in audit logs; updated admin audit UI for principal identity display.
+- Error Handling: Improved resilience by handling malformed YAML configurations gracefully.
 
 ### Chat-app & UI Improvements
-- orbitchat v3.8.5: Published latest release with various UI refinements and UX improvements.
+- orbitchat v3.8.6: Published latest release with various UI refinements and UX improvements.
 - Document Previews: Integrated document generation previews (PDF, DOCX, XLSX) with lazy-loaded viewers and download support.
 - Skills UI: Improved skill picker UI; routed skill autocomplete through configured adapters and cleared stale routing on adapter change.
 - General UX: Improved model list background for dark mode; ensured footer visibility for agents and initial conversation states (#181).
@@ -16,6 +18,7 @@
 ### Bug Fixes & Technical Improvements
 - Audio & STT: Resolved STT issues affecting audio transcription reliability.
 - Capabilities: Fixed silent failure in capability registration during startup and re-registration on reload.
+- Inference: Fixed inference stream to display the correct provider and model associated with the request (#189).
 
 ## [2.6.7] - 2026-05-08
 

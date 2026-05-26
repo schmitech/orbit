@@ -20,7 +20,7 @@ adapters:
     #   - name: "cohere-command-a"
     #     provider: "cohere"
     #     model: "command-a-03-2025"
-    #   - name: "grok-grok-4.3"
+    #   - name: "xai-grok-4.3"
     #     provider: "xai"
     #     model: "grok-4.3"
     #   - name: "llama-cpp-gemma4"
@@ -45,8 +45,8 @@ adapters:
     # Capabilities: Pure passthrough - no retrieval
     capabilities:
       available_skills:
-        - "image-generation"
-        - "business-analytics"
+        - "pdf-generation"
+        - "word-generation"
       retrieval_behavior: "none"         # No context retrieval (pure conversational)
       formatting_style: "standard"       # Standard formatting (not used since no retrieval)
       supports_file_ids: false           # Does not support file filtering
