@@ -273,12 +273,13 @@ class AuditService:
         query: str,
         response: str,
         ip: Optional[str] = None,
-        backend: Optional[str] = None,
+        provider: Optional[str] = None,
         blocked: bool = False,
         api_key: Optional[str] = None,
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
-        adapter_name: Optional[str] = None
+        adapter_name: Optional[str] = None,
+        model: Optional[str] = None
     ) -> None:
         """
         Log a conversation interaction to the configured audit backend.
@@ -289,12 +290,13 @@ class AuditService:
             query: The user's query
             response: The system's response
             ip: The IP address of the user
-            backend: The backend used for the response
+            provider: The provider used for the response
             blocked: Whether the query was blocked
             api_key: The API key used for the request
             session_id: The session ID for the conversation
             user_id: The user ID if available
             adapter_name: The name of the adapter used for this request
+            model: The actual model used for this request
         """
         if not self._enabled or not self._strategy or not self._strategy.is_initialized():
             return
@@ -304,8 +306,8 @@ class AuditService:
             ip_metadata = self._format_ip_address(ip)
             is_blocked = self._detect_blocked_response(response, blocked)
 
-            # Use provided backend or fall back to inference provider
-            used_backend = backend or self._inference_provider
+            # Use provided provider or fall back to the configured inference provider.
+            used_provider = provider or self._inference_provider
 
             # Build API key metadata if provided (masked for security)
             api_key_data = None
@@ -320,14 +322,15 @@ class AuditService:
                 timestamp=timestamp,
                 query=query,
                 response=response,
-                backend=used_backend,
+                provider=used_provider,
                 blocked=is_blocked,
                 ip=ip_metadata.get("address", "unknown"),
                 ip_metadata=ip_metadata,
                 api_key=api_key_data,
                 session_id=session_id,
                 user_id=user_id,
-                adapter_name=adapter_name
+                adapter_name=adapter_name,
+                model=model
             )
 
             # Store the record

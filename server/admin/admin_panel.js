@@ -4453,7 +4453,7 @@
   }
 
   function auditEventTitle(ev) {
-    if (isInferenceAudit(ev)) return ev.title || ev.backend || "inference";
+    if (isInferenceAudit(ev)) return ev.title || ev.provider || "inference";
     return ev.event_type || "\u2014";
   }
 
@@ -4464,7 +4464,7 @@
 
   function auditResourceText(ev) {
     if (isInferenceAudit(ev)) {
-      return ev.adapter_name || ev.backend || ev.resource_id || "\u2014";
+      return ev.adapter_name || ev.provider || ev.resource_id || "\u2014";
     }
     return ev.resource_id || ev.resource_type || "\u2014";
   }
@@ -4731,7 +4731,7 @@
         el("td", null, actorCell),
         el("td", { className: "audit-col-resource" }, resourceText),
         el("td", { className: "audit-col-status" },
-          el("span", { className: "audit-status-code" }, isInferenceAudit(ev) ? (ev.backend || "") : String(ev.status_code != null ? ev.status_code : "")),
+          el("span", { className: "audit-status-code" }, isInferenceAudit(ev) ? (ev.provider || "") : String(ev.status_code != null ? ev.status_code : "")),
           el("span", { className: "badge " + statusCls }, statusLabel)
         )
       );
@@ -4831,7 +4831,7 @@
       el("span", { className: verdictCls },
         isInferenceAudit(ev) ? (ev.success ? "Served" : "Blocked") : (ev.success ? "Succeeded" : "Failed"),
         isInferenceAudit(ev)
-          ? " \u00B7 " + (ev.backend || "inference")
+          ? " \u00B7 " + (ev.provider || "inference")
           : " \u00B7 HTTP " + (ev.status_code != null ? ev.status_code : "?")
       )
     ));
@@ -4858,7 +4858,8 @@
     panel.appendChild(el("h3", { className: "audit-section-heading" }, isInferenceAudit(ev) ? "Inference" : "Request"));
     if (isInferenceAudit(ev)) {
       panel.appendChild(renderAuditFieldGrid([
-        ["Backend", ev.backend || "\u2014"],
+        ["Provider", ev.provider || "\u2014"],
+        ["Model", ev.model || "\u2014"],
         ["Adapter", ev.adapter_name || "\u2014"],
         ["Blocked", ev.blocked ? "yes" : "no"],
         ["Timestamp", formatAuditTimestamp(ev.timestamp)],

@@ -1866,7 +1866,8 @@ async def list_admin_audit_events(
             actor_type = "api_key"
             actor_id_value = masked_key
 
-        backend = row.get("backend") or "inference"
+        provider = row.get("provider") or "inference"
+        model = row.get("model")
         adapter_name = row.get("adapter_name")
         session_id = row.get("session_id")
         query_text = str(row.get("query") or "")
@@ -1879,16 +1880,17 @@ async def list_admin_audit_events(
             "event_type": "inference.request",
             "action": "BLOCK" if row.get("blocked") else "INFER",
             "resource_type": "inference",
-            "resource_id": adapter_name or backend,
+            "resource_id": adapter_name or provider,
             "actor_type": actor_type,
             "actor_id": actor_id_value,
             "actor_username": None,
             "method": row.get("method") or "INFER",
-            "path": row.get("path") or backend,
+            "path": row.get("path") or provider,
             "status_code": None,
             "success": not bool(row.get("blocked")),
             "request_summary": {
-                "backend": backend,
+                "provider": provider,
+                "model": model,
                 "adapter_name": adapter_name,
                 "session_id": session_id,
                 "user_id": row.get("user_id"),
@@ -1896,12 +1898,13 @@ async def list_admin_audit_events(
                 "blocked": bool(row.get("blocked")),
                 "response_compressed": bool(row.get("response_compressed")),
             },
-            "title": backend,
+            "title": model or provider,
             "subtitle": adapter_name or "inference request",
             "search_text": " ".join(
                 value
                 for value in (
-                    backend,
+                    provider,
+                    model,
                     adapter_name,
                     session_id,
                     row.get("user_id"),

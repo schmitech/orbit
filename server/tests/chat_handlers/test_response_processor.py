@@ -151,7 +151,7 @@ class TestResponseProcessor:
             query="User query",
             response="Assistant response",
             ip="127.0.0.1",
-            backend="openai",
+            provider="openai",
             blocked=False,
             api_key="key123",
             session_id="session456",

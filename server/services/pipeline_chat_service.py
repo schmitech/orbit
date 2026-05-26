@@ -262,6 +262,8 @@ class PipelineChatService:
         thread_id: Optional[str] = None,
         file_ids: Optional[List[str]] = None,
         system_prompt_id: Optional[ObjectId] = None,
+        requested_model: Optional[str] = None,
+        skill: Optional[str] = None,
     ) -> str:
         """Build a deterministic cache key for query burst deduplication."""
         key_data = json.dumps({
@@ -270,6 +272,8 @@ class PipelineChatService:
             'tid': thread_id or '',
             'fids': sorted(file_ids) if file_ids else [],
             'pid': str(system_prompt_id) if system_prompt_id else '',
+            'model': requested_model or '',
+            'skill': skill or '',
         }, sort_keys=True)
         return f"qcache:{hashlib.sha256(key_data.encode()).hexdigest()[:32]}"
 
@@ -391,9 +395,30 @@ class PipelineChatService:
     def _determine_inference_backend(self, context: ProcessingContext) -> str:
         """Return the inference provider name for logging."""
         return (
+            context.runtime_provider
+            or context.inference_provider
+            or self.config.get('general', {}).get('inference_provider', 'unknown')
+        )
+
+    def _determine_inference_model(self, context: ProcessingContext) -> Optional[str]:
+        """Return the actual model name used for audit/display metadata."""
+        if context.runtime_model_name:
+            return context.runtime_model_name
+
+        adapter_config = {}
+        if context.adapter_name and self.context_builder:
+            adapter_config = self.context_builder.get_adapter_config(context.adapter_name) or {}
+
+        adapter_model = adapter_config.get('model')
+        if adapter_model:
+            return adapter_model
+
+        provider = (
             context.inference_provider
             or self.config.get('general', {}).get('inference_provider', 'unknown')
         )
+        provider_config = self.config.get('inference', {}).get(provider, {}) or {}
+        return provider_config.get('model') or provider_config.get('use_preset')
 
     def _build_threading_metadata(
         self,
@@ -565,7 +590,8 @@ class PipelineChatService:
             cache_key = None
             if self._query_cache_enabled and not audio_input:
                 cache_key = self._build_query_cache_key(
-                    message, adapter_name, thread_id, file_ids, system_prompt_id
+                    message, adapter_name, thread_id, file_ids, system_prompt_id,
+                    requested_model, skill
                 )
                 cached = await self._get_cached_response(cache_key)
                 if cached:
@@ -614,6 +640,7 @@ class PipelineChatService:
                 return {"error": error_msg}
 
             backend = self._determine_inference_backend(context)
+            model = self._determine_inference_model(context)
 
             processed_response, assistant_message_id = await self.response_processor.process_response(
                 response=result.response,
@@ -626,6 +653,7 @@ class PipelineChatService:
                 backend=backend,
                 processing_time=result.processing_time,
                 retrieved_docs=result.retrieved_docs,
+                model=model,
             )
 
             audio_data, audio_format_str = await self._maybe_generate_full_audio(
@@ -710,7 +738,8 @@ class PipelineChatService:
 
             if self._query_cache_enabled and not audio_input:
                 stream_cache_key = self._build_query_cache_key(
-                    message, adapter_name, thread_id, file_ids, system_prompt_id
+                    message, adapter_name, thread_id, file_ids, system_prompt_id,
+                    requested_model, skill
                 )
                 cached = await self._get_cached_response(stream_cache_key)
                 if cached:
@@ -840,6 +869,7 @@ class PipelineChatService:
         audio chunks, then yield the done chunk with threading metadata.
         """
         backend = self._determine_inference_backend(context)
+        model = self._determine_inference_model(context)
 
         final_response, assistant_message_id = await self.response_processor.process_response(
             response=final_state.accumulated_text,
@@ -852,6 +882,7 @@ class PipelineChatService:
             backend=backend,
             processing_time=context.processing_time,
             retrieved_docs=context.retrieved_docs,
+            model=model,
         )
 
         warning = await self.conversation_handler.check_limit_warning(session_id, adapter_name)

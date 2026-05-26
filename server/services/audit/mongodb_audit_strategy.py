@@ -104,10 +104,10 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
                 'blocked'
             )
 
-            # Index on backend for provider-based queries
+            # Index on provider for provider-based queries
             await self._database_service.create_index(
                 self._collection_name,
-                'backend'
+                'provider'
             )
 
             # Index on adapter_name for adapter-based queries

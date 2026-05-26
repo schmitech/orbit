@@ -131,7 +131,7 @@ def sample_audit_record():
         timestamp=datetime.now(),
         query="What is the capital of France?",
         response="The capital of France is Paris.",
-        backend="test_provider",
+        provider="test_provider",
         blocked=False,
         ip="192.168.1.100",
         ip_metadata={
@@ -163,7 +163,7 @@ class TestAuditRecord:
             timestamp=datetime.now(),
             query="Test query",
             response="Test response",
-            backend="test",
+            provider="test",
             blocked=False,
             ip="127.0.0.1"
         )
@@ -178,7 +178,7 @@ class TestAuditRecord:
         assert 'timestamp' in result
         assert result['query'] == "What is the capital of France?"
         assert result['response'] == "The capital of France is Paris."
-        assert result['backend'] == "test_provider"
+        assert result['provider'] == "test_provider"
         assert result['blocked'] is False
         assert 'ip_metadata' in result
         assert 'api_key' in result
@@ -293,7 +293,7 @@ class TestSQLiteAuditStrategy:
             timestamp=datetime.now(),
             query="Normal query",
             response="Normal response",
-            backend="test",
+            provider="test",
             blocked=False,
             ip="127.0.0.1"
         )
@@ -304,7 +304,7 @@ class TestSQLiteAuditStrategy:
             timestamp=datetime.now(),
             query="Blocked query",
             response="I cannot assist with that request",
-            backend="test",
+            provider="test",
             blocked=True,
             ip="127.0.0.1"
         )
@@ -360,7 +360,7 @@ class TestAuditService:
             query="Test query",
             response="Test response",
             ip="192.168.1.1",
-            backend="ollama",
+            provider="ollama",
             blocked=False,
             api_key="test_key",
             session_id="session_123",
@@ -382,7 +382,7 @@ class TestAuditService:
             query="Test query with adapter",
             response="Test response",
             ip="192.168.1.1",
-            backend="ollama",
+            provider="ollama",
             api_key="test_key",
             session_id="session_adapter_test",
             adapter_name="intent-mongodb-mflix"
@@ -507,7 +507,7 @@ class TestAuditService:
                 query=f"Query {i}",
                 response=f"Response {i}",
                 session_id=f"session_{i % 2}",  # Two different sessions
-                backend="test"
+                provider="test"
             )
 
         # Query all
@@ -591,7 +591,7 @@ class TestMongoDBDAuditStrategy:
         strategy = MongoDBDAuditStrategy(config, mock_db)
         await strategy.initialize()
 
-        # Verify indexes were created (timestamp, session_id, user_id, blocked, backend, adapter_name, compound)
+        # Verify indexes were created (timestamp, session_id, user_id, blocked, provider, adapter_name, compound)
         assert mock_db.create_index.call_count >= 6
 
     @pytest.mark.asyncio
@@ -674,7 +674,7 @@ class TestAuditServiceIntegration:
             query="What's the weather?",
             response="It's sunny today.",
             ip="10.0.0.1",
-            backend="test_llm",
+            provider="test_llm",
             session_id="lifecycle_test",
             user_id="test_user",
             adapter_name="intent-duckdb-analytics"
@@ -687,7 +687,7 @@ class TestAuditServiceIntegration:
         record = results[0]
         assert record['query'] == "What's the weather?"
         assert record['response'] == "It's sunny today."
-        assert record['backend'] == "test_llm"
+        assert record['provider'] == "test_llm"
         assert record['user_id'] == "test_user"
         assert record['adapter_name'] == "intent-duckdb-analytics"
 
@@ -959,7 +959,7 @@ class TestClearOnStartup:
                 timestamp=datetime.now(),
                 query=f"Query {i}",
                 response=f"Response {i}",
-                backend="test",
+                provider="test",
                 blocked=False,
                 ip="127.0.0.1"
             )

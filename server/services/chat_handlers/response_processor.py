@@ -170,7 +170,8 @@ class ResponseProcessor:
         api_key: Optional[str] = None,
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
-        adapter_name: Optional[str] = None
+        adapter_name: Optional[str] = None,
+        model: Optional[str] = None
     ) -> None:
         """
         Log conversation asynchronously.
@@ -184,6 +185,7 @@ class ResponseProcessor:
             session_id: Optional session ID
             user_id: Optional user ID
             adapter_name: Optional adapter name used for this request
+            model: Optional actual model used for this request
         """
         # Log metadata to Elasticsearch via LoggerService (query/response excluded - handled by audit)
         try:
@@ -203,17 +205,20 @@ class ResponseProcessor:
         # Log full conversation to AuditService (SQLite/MongoDB/Elasticsearch based on config)
         if self.audit_service:
             try:
-                await self.audit_service.log_conversation(
-                    query=query,
-                    response=response,
-                    ip=client_ip,
-                    backend=backend,
-                    blocked=False,
-                    api_key=api_key,
-                    session_id=session_id,
-                    user_id=user_id,
-                    adapter_name=adapter_name
-                )
+                audit_kwargs = {
+                    "query": query,
+                    "response": response,
+                    "ip": client_ip,
+                    "provider": backend,
+                    "blocked": False,
+                    "api_key": api_key,
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "adapter_name": adapter_name,
+                }
+                if model:
+                    audit_kwargs["model"] = model
+                await self.audit_service.log_conversation(**audit_kwargs)
             except Exception as e:
                 logger.error(f"Error logging conversation to AuditService: {str(e)}", exc_info=True)
 
@@ -228,7 +233,8 @@ class ResponseProcessor:
         api_key: Optional[str],
         backend: str,
         processing_time: float,
-        retrieved_docs: Optional[list] = None
+        retrieved_docs: Optional[list] = None,
+        model: Optional[str] = None
     ) -> tuple[str, Optional[str]]:
         """
         Complete post-processing of a chat response.
@@ -249,6 +255,7 @@ class ResponseProcessor:
             api_key: API key
             backend: Backend/provider used
             processing_time: Pipeline processing time
+            model: Actual model used for this request
 
         Returns:
             Tuple of (processed_response_text, assistant_message_id)
@@ -299,6 +306,7 @@ class ResponseProcessor:
             response=displayed_response,
             client_ip=client_ip,
             backend=backend,
+            model=model,
             api_key=api_key,
             session_id=session_id,
             user_id=user_id,

@@ -242,7 +242,7 @@ class SQLiteService(DatabaseService):
                     query TEXT NOT NULL,
                     response TEXT NOT NULL,
                     response_compressed INTEGER NOT NULL DEFAULT 0,
-                    backend TEXT,
+                    provider TEXT,
                     blocked INTEGER NOT NULL DEFAULT 0,
                     ip TEXT,
                     ip_type TEXT,
@@ -253,7 +253,8 @@ class SQLiteService(DatabaseService):
                     api_key_timestamp TEXT,
                     session_id TEXT,
                     user_id TEXT,
-                    adapter_name TEXT
+                    adapter_name TEXT,
+                    model TEXT
                 )
             ''',
             'feedback': '''
@@ -335,8 +336,9 @@ class SQLiteService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_session_id ON audit_logs(session_id)',
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id)',
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_blocked ON audit_logs(blocked)',
-                'CREATE INDEX IF NOT EXISTS idx_audit_logs_backend ON audit_logs(backend)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_logs_provider ON audit_logs(provider)',
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_adapter_name ON audit_logs(adapter_name)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_logs_model ON audit_logs(model)',
             ],
             'feedback': [
                 'CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_message_session ON feedback(message_id, session_id)',

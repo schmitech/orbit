@@ -80,7 +80,7 @@ class AuditRecord:
     timestamp: datetime
     query: str
     response: str
-    backend: str
+    provider: str
     blocked: bool
     ip: str
     ip_metadata: Dict[str, Any] = field(default_factory=dict)
@@ -88,6 +88,7 @@ class AuditRecord:
     session_id: Optional[str] = None
     user_id: Optional[str] = None
     adapter_name: Optional[str] = None  # Name of the adapter used for this request
+    model: Optional[str] = None  # Actual model used for this request
     response_compressed: bool = False  # Flag indicating if response is compressed
 
     def to_dict(self, compress: bool = False) -> Dict[str, Any]:
@@ -112,7 +113,7 @@ class AuditRecord:
             'query': self.query,
             'response': response_value,
             'response_compressed': is_response_compressed,
-            'backend': self.backend,
+            'provider': self.provider,
             'blocked': self.blocked,
             'ip': self.ip,
             'ip_metadata': self.ip_metadata,
@@ -126,6 +127,8 @@ class AuditRecord:
             result['user_id'] = self.user_id
         if self.adapter_name:
             result['adapter_name'] = self.adapter_name
+        if self.model:
+            result['model'] = self.model
 
         return result
 
@@ -152,7 +155,7 @@ class AuditRecord:
             'query': self.query,
             'response': response_value,
             'response_compressed': 1 if is_response_compressed else 0,
-            'backend': self.backend,
+            'provider': self.provider,
             'blocked': 1 if self.blocked else 0,
             'ip': self.ip,
             # Flatten ip_metadata
@@ -184,6 +187,11 @@ class AuditRecord:
             result['adapter_name'] = self.adapter_name
         else:
             result['adapter_name'] = None
+
+        if self.model:
+            result['model'] = self.model
+        else:
+            result['model'] = None
 
         return result
 

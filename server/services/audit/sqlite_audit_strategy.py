@@ -66,6 +66,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
 
             # The audit_logs table and indexes are now part of SQLiteService schema
             # They will be created automatically during database initialization
+            await self._ensure_audit_columns()
 
             logger.info(f"SQLite audit storage initialized with collection: {self._collection_name}")
             self._initialized = True
@@ -73,6 +74,49 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         except Exception as e:
             logger.error(f"Failed to initialize SQLite audit storage: {e}")
             raise
+
+    async def _ensure_audit_columns(self) -> None:
+        """Ensure current audit columns exist for existing SQLite audit tables."""
+        connection = getattr(self._database_service, "connection", None)
+        executor = getattr(self._database_service, "executor", None)
+        db_lock = getattr(self._database_service, "_db_lock", None)
+        if connection is None or executor is None:
+            return
+
+        import asyncio
+
+        def ensure_column() -> None:
+            def run() -> None:
+                cursor = connection.cursor()
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                    (self._collection_name,),
+                )
+                if cursor.fetchone() is None:
+                    return
+                cursor.execute(f"PRAGMA table_info({self._collection_name})")
+                columns = {row[1] for row in cursor.fetchall()}
+                for column in ("provider", "model"):
+                    if column not in columns:
+                        cursor.execute(f"ALTER TABLE {self._collection_name} ADD COLUMN {column} TEXT")
+                cursor.execute(
+                    f"CREATE INDEX IF NOT EXISTS idx_{self._collection_name}_provider "
+                    f"ON {self._collection_name}(provider)"
+                )
+                cursor.execute(
+                    f"CREATE INDEX IF NOT EXISTS idx_{self._collection_name}_model "
+                    f"ON {self._collection_name}(model)"
+                )
+                connection.commit()
+
+            if db_lock is not None:
+                with db_lock:
+                    run()
+            else:
+                run()
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(executor, ensure_column)
 
     async def store(self, record: AuditRecord) -> bool:
         """
@@ -195,7 +239,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             'query': query,
             'response': response,
             'response_compressed': is_compressed,
-            'backend': flat_record.get('backend'),
+            'provider': flat_record.get('provider'),
             'blocked': bool(flat_record.get('blocked', 0)),
             'ip': flat_record.get('ip'),
             'ip_metadata': {
@@ -220,6 +264,8 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             result['user_id'] = flat_record.get('user_id')
         if flat_record.get('adapter_name'):
             result['adapter_name'] = flat_record.get('adapter_name')
+        if flat_record.get('model'):
+            result['model'] = flat_record.get('model')
         if flat_record.get('_id'):
             result['_id'] = flat_record.get('_id')
 

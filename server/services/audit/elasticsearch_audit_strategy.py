@@ -158,7 +158,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                             "query": {"type": "text", "analyzer": "standard"},
                             "response": {"type": "text", "analyzer": "standard"},
                             "response_compressed": {"type": "boolean"},
-                            "backend": {"type": "keyword"},
+                            "provider": {"type": "keyword"},
                             "blocked": {"type": "boolean"},
                             "ip": {"type": "ip"},
                             "ip_chain": {"type": "keyword"},  # Full IP chain when behind proxies (e.g., Cloudflare)
@@ -178,7 +178,8 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                             },
                             "session_id": {"type": "keyword"},
                             "user_id": {"type": "keyword"},
-                            "adapter_name": {"type": "keyword"}
+                            "adapter_name": {"type": "keyword"},
+                            "model": {"type": "keyword"}
                         }
                     }
                 )
@@ -226,7 +227,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                 "query": record.query,
                 "response": response_value,
                 "response_compressed": is_compressed,
-                "backend": record.backend,
+                "provider": record.provider,
                 "blocked": record.blocked,
                 "ip": ip_for_elastic,
                 "ip_metadata": record.ip_metadata
@@ -248,6 +249,9 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
 
             if record.adapter_name:
                 document["adapter_name"] = record.adapter_name
+
+            if record.model:
+                document["model"] = record.model
 
             # Index document
             result = await self._es_client.index(
