@@ -865,6 +865,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   },
 
   sendMessage: async (content: string, fileIds?: string[], threadId?: string, model?: string, skill?: string) => {
+    let streamingConversationId: string | null = null;
     try {
       // Prevent multiple simultaneous requests
       if (get().isLoading) {
@@ -1074,7 +1075,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       });
 
       // Store conversationId in a variable so we can use it even if user switches conversations
-      const streamingConversationId = conversationId;
+      streamingConversationId = conversationId;
       let receivedAnyText = false;
 
       // Reset audio stream manager for new response
@@ -1619,6 +1620,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   },
 
   regenerateResponse: async (messageId: string, model?: string) => {
+    let regeneratingConversationId: string | null = null;
     try {
       // Prevent multiple simultaneous requests
       if (get().isLoading) {
@@ -1686,7 +1688,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       }));
 
       // Store the conversation ID that's regenerating at the start
-      const regeneratingConversationId = state.currentConversationId;
+      regeneratingConversationId = state.currentConversationId;
       if (!regeneratingConversationId) {
         throw new Error('No conversation selected');
       }

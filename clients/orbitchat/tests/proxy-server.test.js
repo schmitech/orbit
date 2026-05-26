@@ -298,6 +298,24 @@ describe('Express proxy – header forwarding to backend', () => {
     assert.equal(lastBackendRequest.headers['x-session-id'], 'sess-123');
   });
 
+  it('forwards X-User-ID even when Authorization is present', async () => {
+    await fetch(`${PROXY_BASE}/api/v1/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Adapter-Name': 'Backend Agent',
+        'X-User-ID': 'auth0|user-123',
+        'Authorization': 'Bearer oauth-token',
+      },
+      body: JSON.stringify({ message: 'hello' }),
+    });
+
+    assert.ok(lastBackendRequest, 'Backend should have received a request');
+    assert.equal(lastBackendRequest.headers['authorization'], 'Bearer oauth-token');
+    assert.equal(lastBackendRequest.headers['x-user-id'], 'auth0|user-123');
+    assert.equal(lastBackendRequest.headers['x-api-key'], 'secret-key-abc');
+  });
+
   it('preserves Content-Type on forwarded requests', async () => {
     await fetch(`${PROXY_BASE}/api/v1/chat`, {
       method: 'POST',

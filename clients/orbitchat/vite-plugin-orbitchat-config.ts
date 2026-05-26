@@ -475,7 +475,7 @@ export function orbitchatConfigPlugin(): Plugin {
                 if (val) proxyReq.setHeader(h, Array.isArray(val) ? val[0] : val);
               });
               const userId = reqIncoming.headers['x-user-id'];
-              if (!reqIncoming.headers.authorization && userId) {
+              if (userId) {
                 proxyReq.setHeader('X-User-ID', Array.isArray(userId) ? userId[0] : userId);
               }
             },

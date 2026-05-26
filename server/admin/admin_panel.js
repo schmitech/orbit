@@ -4429,19 +4429,10 @@
     return !!ev && ev.audit_source === "inference";
   }
 
-  function formatActor(ev) {
-    if (isInferenceAudit(ev)) {
-      if (ev.actor_type === "user") return ev.actor_id || "user";
-      if (ev.actor_type === "api_key") return ev.actor_id || "API key";
-      return "anonymous";
-    }
-    if (ev.actor_type === "user") {
-      return ev.actor_username || ev.actor_id || "\u2014";
-    }
-    if (ev.actor_type === "api_key") {
-      return ev.actor_id || "API key";
-    }
-    return "anonymous";
+  function displayActorId(ev) {
+    if (!ev) return "\u2014";
+    if (ev.actor_type === "anonymous") return "anonymous";
+    return ev.actor_id || ev.actor_username || "\u2014";
   }
 
   function auditSourceLabel(ev) {
@@ -4509,7 +4500,7 @@
     var domainSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit domain" });
     var searchInput = el("input", {
       type: "search",
-      placeholder: "Search actor, provider, query, path, resource, IP\u2026",
+      placeholder: "Search actor id, provider, query, path, resource, IP\u2026",
       "aria-label": "Search audit events",
       className: "audit-view__search-input",
     });
@@ -4689,7 +4680,7 @@
       el("tr", null,
         el("th", null, "Time"),
         el("th", null, "Event"),
-        el("th", null, "Actor"),
+        el("th", null, "Principal"),
         el("th", null, "Resource"),
         el("th", { className: "audit-col-status" }, "Status")
       )
@@ -4709,7 +4700,7 @@
         );
       } else {
         actorCell = el("div", null,
-          el("span", { className: "audit-actor-name" }, formatActor(ev)),
+          el("span", { className: "audit-actor-name" }, displayActorId(ev)),
           el("div", { className: "audit-actor-role" }, ev.actor_type || "")
         );
       }
@@ -4839,16 +4830,15 @@
     panel.appendChild(el("h3", { className: "audit-section-heading" }, "Principals"));
     if (isInferenceAudit(ev)) {
       panel.appendChild(renderAuditFieldGrid([
-        ["Actor", formatActor(ev)],
-        ["Capacity", ev.actor_type || ""],
+        ["Actor type", ev.actor_type || ""],
+        ["Actor ID", ev.actor_id || "\u2014"],
         ["User ID", ev.user_id || "\u2014"],
         ["API key", ev.api_key && ev.api_key.key ? ev.api_key.key : "\u2014"],
         ["Session", ev.session_id || "\u2014"],
       ]));
     } else {
       panel.appendChild(renderAuditFieldGrid([
-        ["Actor", formatActor(ev)],
-        ["Capacity", ev.actor_type || ""],
+        ["Actor type", ev.actor_type || ""],
         ["Actor ID", ev.actor_id || "\u2014"],
         ["Resource", ev.resource_id || "\u2014"],
         ["Resource kind", ev.resource_type || ""],

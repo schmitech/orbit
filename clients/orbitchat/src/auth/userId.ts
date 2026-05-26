@@ -1,5 +1,5 @@
 import { getAccessToken } from './tokenStore';
-import { getAuthenticatedUserId } from './authState';
+import { getAuthenticatedUserId, getIsAuthenticated } from './authState';
 
 const GUEST_USER_ID_KEY = 'orbitchat-guest-user-id';
 
@@ -84,6 +84,10 @@ export async function getUserIdHeaderValue(): Promise<string> {
     if (tokenUserId) {
       return tokenUserId;
     }
+  }
+
+  if (getIsAuthenticated()) {
+    return 'authenticated:orbitchat:unknown';
   }
 
   return getGuestUserId();

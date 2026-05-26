@@ -257,14 +257,30 @@ class RouteConfigurator:
         """Create user ID extraction dependency."""
         async def get_user_id(request: Request) -> Optional[str]:
             """
-            Extract user ID from request headers if provided
+            Extract the authenticated user ID, falling back to the user header.
             
             Args:
                 request: The incoming request
                 
             Returns:
-                The user ID if provided, None otherwise
+                The authenticated/user header ID if provided, None otherwise
             """
+            auth_header = request.headers.get("authorization")
+            if auth_header and auth_header.lower().startswith("bearer "):
+                token = auth_header.split(" ", 1)[1].strip()
+                auth_service = getattr(request.app.state, "auth_service", None)
+                if token and auth_service:
+                    is_valid, user_info = await auth_service.validate_token(token)
+                    if is_valid and user_info:
+                        request.state.current_user = user_info
+                        auth_user_id = (
+                            user_info.get("id")
+                            or user_info.get("user_id")
+                            or user_info.get("username")
+                        )
+                        if auth_user_id:
+                            return str(auth_user_id).strip()
+
             # Get user header configuration from chat history config
             chat_history_config = request.app.state.config.get('chat_history', {})
             user_config = chat_history_config.get('user', {})

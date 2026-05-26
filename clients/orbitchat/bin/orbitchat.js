@@ -504,7 +504,7 @@ function createServer(distPath, config, serverConfig = {}) {
           ['content-type', 'x-session-id', 'x-thread-id', 'accept', 'content-length', 'authorization'].forEach(h => {
             if (reqIncoming.headers[h]) proxyReq.setHeader(h, reqIncoming.headers[h]);
           });
-          if (!reqIncoming.headers.authorization && reqIncoming.headers['x-user-id']) {
+          if (reqIncoming.headers['x-user-id']) {
             proxyReq.setHeader('X-User-ID', reqIncoming.headers['x-user-id']);
           }
         },

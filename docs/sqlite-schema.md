@@ -329,7 +329,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     query TEXT NOT NULL,
     response TEXT NOT NULL,
     response_compressed INTEGER NOT NULL DEFAULT 0,
-    backend TEXT,
+    provider TEXT,
     blocked INTEGER NOT NULL DEFAULT 0,
     ip TEXT,
     ip_type TEXT,
@@ -340,7 +340,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     api_key_timestamp TEXT,
     session_id TEXT,
     user_id TEXT,
-    adapter_name TEXT
+    adapter_name TEXT,
+    model TEXT
 )
 ```
 
@@ -350,7 +351,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `query` (TEXT): The user's query/message
 - `response` (TEXT): The system's response (plain text or base64-encoded gzip if compressed)
 - `response_compressed` (INTEGER): Whether response is compressed (1=compressed, 0=plain text)
-- `backend` (TEXT): The inference backend used (e.g., "ollama", "openai")
+- `provider` (TEXT): The inference provider used (e.g., `ollama`, `openai`, `anthropic`)
 - `blocked` (INTEGER): Whether the query was blocked (1=blocked, 0=allowed)
 - `ip` (TEXT): Client IP address
 - `ip_type` (TEXT): IP address type ("ipv4", "ipv6", "local", "unknown")
@@ -362,14 +363,16 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `session_id` (TEXT): Session identifier for the conversation
 - `user_id` (TEXT): User identifier (if authenticated)
 - `adapter_name` (TEXT): Adapter used to service the request
+- `model` (TEXT): Actual model used for the request after all adapter/default/runtime resolution
 
 **Indexes:**
 - `idx_audit_logs_timestamp` on `timestamp`
 - `idx_audit_logs_session_id` on `session_id`
 - `idx_audit_logs_user_id` on `user_id`
 - `idx_audit_logs_blocked` on `blocked`
-- `idx_audit_logs_backend` on `backend`
+- `idx_audit_logs_provider` on `provider`
 - `idx_audit_logs_adapter_name` on `adapter_name`
+- `idx_audit_logs_model` on `model`
 
 **Configuration:**
 The audit storage backend is configured in `config/config.yaml`:
@@ -668,6 +671,10 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.1** (2026-05-26): Audit schema updates
+  - `audit_logs.backend` renamed to `audit_logs.provider`
+  - Added `audit_logs.model`
+  - Added `idx_audit_logs_provider` and `idx_audit_logs_model`
 - **v1.0** (2025-10-27): Initial SQLite backend implementation
   - Basic tables for users, sessions, api_keys, system_prompts
   - Chat history and archive tables
