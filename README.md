@@ -88,7 +88,7 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 
 ---
 
-## Demo
+## Demos
 
 <p align="center">
   <video src="https://github.com/user-attachments/assets/bc85d24a-72dd-4a71-8c3d-017e5fadd219" controls muted playsinline width="75%"></video>
@@ -97,15 +97,13 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 </p>
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/0f0c88f2-20b2-4617-9e5f-7efd823fc164" controls muted playsinline width="75%"></video>
+  <video src="https://github.com/user-attachments/assets/745a0635-fe17-432b-9b36-c7b22adcdfcc" controls muted playsinline width="75%"></video>
   <br />
-  <em>Text-to-video generation using Google Veo 2, invoked as a cross-adapter skill. The prompt is automatically enriched with motion, camera movement, and lighting detail before generation. Video is persisted server-side and streamed back without sending raw bytes over the wire.</em>
+  <em>Query structured databases with natural language and generate dynamic charts via cross-adapter image generation skills.</em>
 </p>
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/f85fb880-9f76-471a-8875-a16d615c3aa8" controls muted playsinline width="75%"></video>
-  <br />
-  <em>The ORBIT Admin Panel provides real-time monitoring of system health, adapter states, and inference performance.</em>
+  <a href="#more-demos"><strong>See more demos &rarr;</strong></a>
 </p>
 
 ---
@@ -274,6 +272,12 @@ See the [Documentation](docs/) and [Cookbook](docs/cookbook/) for full setup det
   <em>Image generation as a cross-adapter skill with conversation and thread context.</em>
 </p>
 
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/0f0c88f2-20b2-4617-9e5f-7efd823fc164" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Text-to-video generation using Google Veo 2, invoked as a cross-adapter skill. The prompt is automatically enriched with motion, camera movement, and lighting detail before generation. Video is persisted server-side and streamed back without sending raw bytes over the wire.</em>
+</p>
+
 </details>
 
 ---
@@ -314,6 +318,12 @@ tar -xzf orbit-2.6.8.tar.gz && cd orbit-2.6.8
 cp env.example .env && ./install/setup.sh
 ./bin/orbit.sh start && tail -f ./logs/orbit.log
 ```
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/f85fb880-9f76-471a-8875-a16d615c3aa8" controls muted playsinline width="75%"></video>
+  <br />
+  <em>The ORBIT Admin Panel provides real-time monitoring of system health, adapter states, and inference performance.</em>
+</p>
 
 ---
 
