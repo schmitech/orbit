@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useLayoutEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
@@ -44,11 +44,11 @@ function ModelPicker({ defaultModel, availableModels, selectedModel, onSelect }:
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => {
+    const handler = (e: MouseEvent | PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
   }, [open]);
 
   // Nothing to show when there's no model info at all
@@ -178,6 +178,11 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     .join(' ');
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
+  const hasSidebarConversations = conversations.some(
+    (conversation) =>
+      (conversation.messages.length > 0 || (conversation.attachedFiles?.length || 0) > 0) &&
+      !conversation.adapterLoadError
+  );
   const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
   const applicationName = getApplicationName();
@@ -188,8 +193,6 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
 
   const [availableModels, setAvailableModels] = useState<AllowedModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
-  // Captures a model pre-selected in the agent card; used as initial selection when adapter loads.
-  const pendingModelRef = useRef<string | null>(null);
 
   useEffect(() => {
     const adapterName = currentConversation?.adapterName;
@@ -205,13 +208,9 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
         const models = await ModelsService.listAdapterModels(adapterName, adapterName);
         if (cancelled) return;
         setAvailableModels(models);
-        const pending = pendingModelRef.current;
-        pendingModelRef.current = null;
-        const initial = models.find(m => m.name === pending)?.name ?? (models.length > 0 ? models[0].name : null);
-        setSelectedModel(initial);
+        setSelectedModel(models.length > 0 ? models[0].name : null);
       } catch {
         if (!cancelled) {
-          pendingModelRef.current = null;
           setAvailableModels([]);
           setSelectedModel(null);
         }
@@ -419,7 +418,12 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 <div className="flex items-center gap-2">
                   <button
                     onClick={onOpenSidebar}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/50 bg-white/80 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-white dark:border-[#2f303d] dark:bg-[#232430] dark:text-[#ececf1]"
+                    disabled={!hasSidebarConversations}
+                    className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold shadow-sm transition-all duration-150 ${
+                      hasSidebarConversations
+                        ? 'border-white/50 bg-white/80 text-gray-800 active:scale-[0.97] hover:bg-white dark:border-[#2f303d] dark:bg-[#232430] dark:text-[#ececf1]'
+                        : 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 shadow-none dark:border-[#2f303d] dark:bg-[#181922] dark:text-[#6b6f7a]'
+                    }`}
                     aria-label="Open conversations menu"
                   >
                     <Menu className="h-4 w-4" />
@@ -443,33 +447,13 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
               <div className="min-w-0 flex-1">
                 {showHeaderMetadata && (
                   <div className="space-y-1.5 md:space-y-3">
-                    <div className="hidden md:flex min-w-0 flex-wrap items-center gap-2 justify-start md:flex-nowrap">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2 justify-start">
                       <ModelPicker
                         defaultModel={currentConversation?.adapterInfo?.model ?? null}
                         availableModels={availableModels}
                         selectedModel={selectedModel}
                         onSelect={setSelectedModel}
                       />
-                      <div
-                        className="inline-flex max-w-full flex-shrink items-center gap-2 rounded-md border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] min-w-0"
-                        title={
-                          currentConversation?.adapterName ||
-                          currentConversation?.adapterInfo?.adapter_name ||
-                          'Configured Agent'
-                        }
-                        aria-label={`Agent: ${
-                          currentConversation?.adapterName ||
-                          currentConversation?.adapterInfo?.adapter_name ||
-                          'Configured Agent'
-                        }`}
-                      >
-                        <span>Agent</span>
-                        <span className="block truncate text-gray-800 normal-case dark:text-[#ececf1]">
-                          {currentConversation?.adapterName ||
-                            currentConversation?.adapterInfo?.adapter_name ||
-                            'Configured Agent'}
-                        </span>
-                      </div>
                     </div>
                     <div className="md:space-y-1">
                       <div className="flex items-baseline justify-between gap-2">
@@ -571,10 +555,7 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                         </div>
                       </div>
                       <AgentSelectionList
-                        onAdapterSelect={(adapterName, model) => {
-                          pendingModelRef.current = model ?? null;
-                          handleAgentCardSelection(adapterName);
-                        }}
+                        onAdapterSelect={handleAgentCardSelection}
                         className={`${prominentWidthClass} md:flex-1 md:min-h-0 md:overflow-hidden`}
                       />
                     </div>

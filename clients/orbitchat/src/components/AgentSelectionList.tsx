@@ -5,7 +5,7 @@ import { fetchAdapters, type Adapter } from '../utils/middlewareConfig';
 import { debugError } from '../utils/debug';
 
 interface AgentSelectionListProps {
-  onAdapterSelect: (adapterName: string, model?: string) => void;
+  onAdapterSelect: (adapterName: string) => void;
   className?: string;
   title?: string;
   subtitle?: string;
@@ -227,13 +227,13 @@ export function AgentSelectionList({
           {isFilteringAgents ? (
             <div className="mx-auto flex w-full max-w-xl flex-col gap-3 lg:max-w-2xl">
               {filteredAdapters.map(adapter => (
-                <AgentCard key={adapter.id} adapter={adapter} onSelect={(selected, model) => onAdapterSelect(selected.id, model)} />
+                <AgentCard key={adapter.id} adapter={adapter} onSelect={(selected) => onAdapterSelect(selected.id)} />
               ))}
             </div>
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
               {filteredAdapters.map(adapter => (
-                <AgentCard key={adapter.id} adapter={adapter} onSelect={(selected, model) => onAdapterSelect(selected.id, model)} />
+                <AgentCard key={adapter.id} adapter={adapter} onSelect={(selected) => onAdapterSelect(selected.id)} />
               ))}
             </div>
           )}
