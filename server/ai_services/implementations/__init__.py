@@ -5,7 +5,7 @@ This package contains service implementations organized by category:
 - inference/: LLM inference services (26 providers)
 - embedding/: Text embedding services (7 providers)
 - vision/: Vision/multimodal services (7 providers)
-- audio/: Audio TTS/STT services (10 providers)
+- audio/: Audio TTS/STT services (11 providers)
 - reranking/: Document reranking services (6 providers)
 - moderation/: Content moderation services (3 providers)
 
@@ -106,4 +106,5 @@ _required_packages = {
     'GeminiAudioService': 'google.genai',
     'AnthropicAudioService': 'anthropic',
     'CohereAudioService': 'cohere',
+    'XAIAudioService': 'httpx',
 }

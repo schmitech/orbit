@@ -61,6 +61,14 @@ ElevenLabs audio service tests covering:
 - **Error handling** - Testing API error responses
 - **STT not supported** - Testing that STT/transcription/translation raise NotImplementedError with helpful messages
 
+### `test_xai_audio_service.py`
+xAI Grok audio service tests covering:
+- **Speech-to-text (STT)** - Testing multipart requests to the xAI STT endpoint
+- **URL transcription** - Testing URL-based audio transcription requests
+- **Raw audio handling** - Testing raw audio format and sample rate validation
+- **Registration** - Testing audio service registration for the xAI provider
+- **Unsupported operations** - Testing clear errors for TTS and translation
+
 ## Running Tests
 
 ### Run all audio service tests:
@@ -76,6 +84,7 @@ pytest sound/test_openai_audio_service.py -v
 pytest sound/test_google_audio_service.py -v
 pytest sound/test_ollama_audio_service.py -v
 pytest sound/test_placeholder_audio_services.py -v
+pytest sound/test_xai_audio_service.py -v
 ```
 
 ### Run specific test class:

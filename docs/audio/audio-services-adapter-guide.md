@@ -15,7 +15,7 @@ Audio services provide:
 Similar to `vision_provider`, you can configure `audio_provider` (or `sound_provider`) in adapters:
 
 ```yaml
-audio_provider: "openai"  # Options: openai, google, ollama, elevenlabs
+audio_provider: "openai"  # Options: openai, google, gemini, xai (STT only), ollama, elevenlabs
 ```
 
 ## Use Cases
@@ -534,4 +534,3 @@ supported_types:
 ```
 
 The file processing service will automatically transcribe audio files using the configured audio provider, and the transcribed text will be stored in the vector store for retrieval, just like other document types.
-

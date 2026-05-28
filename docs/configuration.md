@@ -850,6 +850,16 @@ stt_providers:
     api_key: ${GOOGLE_API_KEY}
     stt_model: "gemini-2.5-pro"
     transport: "rest"
+
+  xai:
+    enabled: true
+    api_key: ${XAI_API_KEY}
+    api_base: "https://api.x.ai/v1"
+    stt_model: "grok-stt"              # Label for logs/cache keys
+    language: null                     # Optional: "en", "fr", "de", etc.
+    format: false                      # true requires language
+    diarize: false
+    keyterms: []
 ```
 
 ## Safety & Guardrails (guardrails.yaml)

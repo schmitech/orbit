@@ -342,6 +342,7 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
         ("whisper", "WhisperAudioService", "Whisper (Local)"),
         ("vllm", "VLLMAudioService", "vLLM"),
         ("coqui", "CoquiAudioService", "Coqui TTS (Local)"),
+        ("xai", "XAIAudioService", "xAI (Grok)"),
     ]
 
     # Get provider configs

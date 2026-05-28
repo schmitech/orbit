@@ -12,6 +12,7 @@ Available providers:
     - WhisperAudioService: Direct Whisper integration (local, offline STT)
     - VLLMAudioService: vLLM audio (Orpheus TTS, local serving)
     - CoquiAudioService: Coqui TTS (local, open-source TTS)
+    - XAIAudioService: xAI Grok speech-to-text
 """
 
 import logging
@@ -31,6 +32,7 @@ _implementations = [
     ('whisper_audio_service', 'WhisperAudioService'),
     ('vllm_audio_service', 'VLLMAudioService'),
     ('coqui_audio_service', 'CoquiAudioService'),
+    ('xai_audio_service', 'XAIAudioService'),
 ]
 
 for module_name, class_name in _implementations:

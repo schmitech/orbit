@@ -2,7 +2,7 @@
 # Global STT settings and provider-specific configurations
 
 stt:
-  provider: "openai"       # Global default STT provider: whisper, openai, google, gemini, ollama
+  provider: "openai"       # Global default STT provider: whisper, openai, google, gemini, xai, ollama
   enabled: true             # Global STT enable/disable
 
 # STT Provider-specific configurations
@@ -104,6 +104,36 @@ stt_providers:
     timeout:
       connect: 15000   # 15 seconds
       total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  xai:
+    # xAI Grok Speech-to-Text endpoint
+    enabled: true
+    api_key: ${XAI_API_KEY}
+    api_base: "https://api.x.ai/v1"
+    # STT configuration
+    # The endpoint does not require a model parameter; this label is used for logs/cache keys.
+    stt_model: "grok-stt"
+    language: null       # Optional xAI language code, e.g. "en"; null = auto-detect
+    format: false        # true enables inverse text normalization and requires language
+    diarize: false       # Include speaker IDs on word timestamps
+    multichannel: false  # Transcribe channels independently
+    channels: null       # Required only for multichannel raw audio
+    filler_words: false  # Include filler words such as "uh" and "um"
+    keyterms: []         # Optional key terms to bias transcription
+    # Raw audio only: set audio_format to pcm, mulaw, or alaw and provide sample_rate.
+    audio_format: null
+    sample_rate: null
+    # Timeout configuration
+    timeout:
+      connect: 15000
+      total: 90000
     # Retry configuration
     retry:
       enabled: true
