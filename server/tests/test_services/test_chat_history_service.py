@@ -475,3 +475,176 @@ async def test_api_key_is_masked_when_stored(chat_history_services):
 
   # Verify the masked key shows only the last 6 characters
   assert stored_api_key.endswith(raw_api_key[-6:])
+
+
+# ============================================================================
+# get_conversation_history tests
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_get_conversation_history_returns_chronological_order(chat_history_services):
+  """Messages come back oldest-first regardless of insertion order."""
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  session_id = f"session_{generate_id(backend_type)}"
+  await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="First",
+    assistant_response="Second",
+  )
+  await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="Third",
+    assistant_response="Fourth",
+  )
+
+  messages = await chat_history.get_conversation_history(session_id)
+
+  assert len(messages) == 4
+  assert messages[0]['content'] == "First"
+  assert messages[0]['role'] == "user"
+  assert messages[-1]['content'] == "Fourth"
+  assert messages[-1]['role'] == "assistant"
+
+
+@pytest.mark.asyncio
+async def test_get_conversation_history_message_shape(chat_history_services):
+  """Each returned message has the expected fields including a string message_id."""
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  session_id = f"session_{generate_id(backend_type)}"
+  await chat_history.add_message(session_id=session_id, role="user", content="Hello")
+
+  messages = await chat_history.get_conversation_history(session_id)
+
+  assert len(messages) == 1
+  msg = messages[0]
+  assert set(msg.keys()) >= {"message_id", "role", "content", "timestamp"}
+  assert isinstance(msg['message_id'], str), "message_id must be a string"
+  assert msg['role'] == "user"
+  assert msg['content'] == "Hello"
+
+
+@pytest.mark.asyncio
+async def test_get_conversation_history_limit(chat_history_services):
+  """The limit parameter caps the number of returned messages."""
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  session_id = f"session_{generate_id(backend_type)}"
+  for i in range(6):
+    await chat_history.add_message(session_id=session_id, role="user", content=f"msg {i}")
+
+  messages = await chat_history.get_conversation_history(session_id, limit=3)
+
+  assert len(messages) == 3
+  # Should be the 3 most-recent messages in chronological order
+  assert messages[-1]['content'] == "msg 5"
+
+
+@pytest.mark.asyncio
+async def test_get_conversation_history_empty_session(chat_history_services):
+  """Returns an empty list for a session that has no messages."""
+  services = chat_history_services
+  backend_type = services['config']['internal_services']['backend']['type']
+  session_id = f"session_{generate_id(backend_type)}"
+
+  messages = await services['chat_history'].get_conversation_history(session_id)
+
+  assert messages == []
+
+
+# ============================================================================
+# get_context_messages tests
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_get_context_messages_format(chat_history_services):
+  """Returned messages are formatted for LLM context (role + content only)."""
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  session_id = f"session_{generate_id(backend_type)}"
+  await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="Hello",
+    assistant_response="Hi there",
+  )
+
+  context, token_count = await chat_history.get_context_messages(session_id)
+
+  assert len(context) == 2
+  assert context[0] == {"role": "user", "content": "Hello"}
+  assert context[1] == {"role": "assistant", "content": "Hi there"}
+  assert token_count > 0
+
+
+@pytest.mark.asyncio
+async def test_get_context_messages_chronological_order(chat_history_services):
+  """Context messages are returned oldest-first."""
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  session_id = f"session_{generate_id(backend_type)}"
+  await chat_history.add_conversation_turn(
+    session_id=session_id, user_message="A", assistant_response="B"
+  )
+  await chat_history.add_conversation_turn(
+    session_id=session_id, user_message="C", assistant_response="D"
+  )
+
+  context, _ = await chat_history.get_context_messages(session_id)
+
+  contents = [m['content'] for m in context]
+  assert contents == ["A", "B", "C", "D"]
+
+
+@pytest.mark.asyncio
+async def test_get_context_messages_respects_token_budget(chat_history_services):
+  """Messages that exceed the token budget are excluded (oldest dropped first)."""
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  session_id = f"session_{generate_id(backend_type)}"
+
+  # Add several messages so we can enforce a tight budget
+  for i in range(5):
+    await chat_history.add_message(
+      session_id=session_id, role="user", content=f"message number {i}"
+    )
+
+  # Fetch all to establish an unconstrained baseline
+  all_context, total_tokens = await chat_history.get_context_messages(session_id)
+  assert len(all_context) == 5
+
+  # Request with a budget that fits only a subset
+  half_budget = total_tokens // 2
+  trimmed_context, trimmed_tokens = await chat_history.get_context_messages(
+    session_id, max_tokens=half_budget
+  )
+
+  assert len(trimmed_context) < 5, "Tight budget should exclude some messages"
+  assert trimmed_tokens <= half_budget
+  # Remaining messages should be the most-recent ones (newest kept, oldest dropped)
+  assert trimmed_context[-1]['content'] == all_context[-1]['content']
+
+
+@pytest.mark.asyncio
+async def test_get_context_messages_empty_session(chat_history_services):
+  """Returns empty list and zero tokens for a session with no messages."""
+  services = chat_history_services
+  backend_type = services['config']['internal_services']['backend']['type']
+  session_id = f"session_{generate_id(backend_type)}"
+
+  context, token_count = await services['chat_history'].get_context_messages(session_id)
+
+  assert context == []
+  assert token_count == 0

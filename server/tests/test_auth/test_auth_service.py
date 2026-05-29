@@ -324,6 +324,23 @@ async def test_deactivate_and_reactivate_user(auth_service: AuthService, new_use
     login_success, _, _ = await auth_service.authenticate_user(new_user['username'], new_user['password'])
     assert login_success, "Reactivated user should be able to login"
 
+async def test_deactivate_invalidates_existing_sessions(auth_service: AuthService, new_user):
+    """Test 8b: Deactivating a user invalidates their existing sessions"""
+    # Log in first to create a session
+    success, token, _ = await auth_service.authenticate_user(new_user['username'], new_user['password'])
+    assert success and token is not None
+
+    # Deactivate the user
+    assert await auth_service.update_user_status(new_user['id'], False)
+
+    # Existing session token should now be invalid
+    is_valid, _ = await auth_service.validate_token(token)
+    assert not is_valid, "Session should be invalidated when user is deactivated"
+
+    # Re-activate so the fixture cleanup (delete_user) succeeds
+    await auth_service.update_user_status(new_user['id'], True)
+
+
 async def test_logout(auth_service: AuthService):
     """Test 9: Logout"""
     logger.info("\n=== Test: Logout ===")
@@ -475,6 +492,7 @@ def test_auth_service():
         test_change_password,
         test_list_users,
         test_deactivate_and_reactivate_user,
+        test_deactivate_invalidates_existing_sessions,
         test_logout,
         test_invalid_objectid_handling,
         test_create_existing_user,

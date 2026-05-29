@@ -426,16 +426,16 @@ class TestAutocompleteServiceSuggestions:
     def test_filter_and_rank_fuzzy_jaro_winkler(
         self, fuzzy_jaro_winkler_config, sample_nl_examples
     ):
-        """Test fuzzy matching with Jaro-Winkler algorithm."""
+        """Test fuzzy matching with Jaro-Winkler algorithm returns real matches."""
         service = AutocompleteService(fuzzy_jaro_winkler_config)
 
-        # "shw" is a typo for "show"
+        # "shwo" is a transposition typo of "show"; Jaro-Winkler handles this well
         suggestions = service._filter_and_rank(sample_nl_examples, "shwo", 5)
 
-        # Should find matches despite typo (Jaro-Winkler is good with prefix typos)
-        # Note: This depends on the threshold being met
-        # With threshold 0.75, "shwo" vs "show" might pass
-        assert isinstance(suggestions, list)
+        assert len(suggestions) > 0, "Should find matches despite transposition typo"
+        assert all("show" in s.text.lower() for s in suggestions), (
+            "All returned suggestions should contain 'show'"
+        )
 
     def test_filter_and_rank_case_insensitive(self, enabled_config, sample_nl_examples):
         """Test case-insensitive matching."""
@@ -613,6 +613,71 @@ class TestCLibraryAvailability:
         # Should work with either C or Python implementation
         similarity = FuzzyMatcher.jaro_winkler_similarity("hello", "hallo")
         assert 0.0 <= similarity <= 1.0
+
+
+# ============================================================================
+# _compute_fuzzy_score Tests
+# ============================================================================
+
+class TestComputeFuzzyScore:
+    """Tests for the _compute_fuzzy_score helper extracted from _filter_and_rank."""
+
+    def test_substring_fallback_when_fuzzy_threshold_not_met(self, fuzzy_levenshtein_config):
+        """Substring fallback fires when fuzzy sim is below threshold but query is in text."""
+        # Drive threshold to near-perfect so similarity can never meet it.
+        config = {
+            'autocomplete': {
+                **fuzzy_levenshtein_config['autocomplete'],
+                'fuzzy_matching': {
+                    **fuzzy_levenshtein_config['autocomplete']['fuzzy_matching'],
+                    'threshold': 0.99,
+                },
+            }
+        }
+        service = AutocompleteService(config)
+
+        # "me mov" spans a word boundary — it is a substring of "show me movies"
+        # (position 5) but won't reach 0.99 fuzzy similarity against any word prefix
+        # or the full string.
+        is_match, score = service._compute_fuzzy_score("me mov", "show me movies")
+
+        assert is_match, "Should match via substring fallback"
+        # position == 5 → score = 60 - 5 * 0.5 = 57.5
+        assert score == pytest.approx(57.5)
+
+    def test_word_level_matching_levenshtein(self, fuzzy_levenshtein_config):
+        """Levenshtein word-level check catches a typo of one word in a longer phrase."""
+        service = AutocompleteService(fuzzy_levenshtein_config)
+
+        # "draama" is a one-insertion typo of "drama"; it is NOT a substring of the
+        # example, but the prefix slice of the word "drama" matches closely enough.
+        is_match, score = service._compute_fuzzy_score(
+            "draama", "list drama movies from the 90s"
+        )
+
+        assert is_match, "Should match via word-level Levenshtein similarity"
+        assert score > 0
+
+    def test_word_level_matching_jaro_winkler(self, fuzzy_jaro_winkler_config):
+        """Jaro-Winkler word-level check catches a typo of one word in a longer phrase."""
+        service = AutocompleteService(fuzzy_jaro_winkler_config)
+
+        # "draama" vs the word "drama" scores well above the 0.75 threshold.
+        is_match, score = service._compute_fuzzy_score(
+            "draama", "list drama movies from the 90s"
+        )
+
+        assert is_match, "Should match via word-level Jaro-Winkler similarity"
+        assert score > 0
+
+    def test_no_match_below_threshold_and_not_substring(self, fuzzy_levenshtein_config):
+        """Returns (False, 0.0) when similarity is low and query is not a substring."""
+        service = AutocompleteService(fuzzy_levenshtein_config)
+
+        is_match, score = service._compute_fuzzy_score("zzzzz", "show me movies from 2020")
+
+        assert not is_match
+        assert score == 0.0
 
 
 # ============================================================================

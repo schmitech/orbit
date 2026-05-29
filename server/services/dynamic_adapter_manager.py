@@ -200,57 +200,43 @@ class DynamicAdapterManager:
         self.adapter_cache.release_initialization(adapter_name)
         return await self.get_adapter(adapter_name)
 
-    def _log_adapter_loaded(self, adapter_name: str, adapter_config: Dict[str, Any]) -> None:
-        """Log detailed information about a loaded adapter."""
+    def _build_adapter_info_parts(self, adapter_config: Dict[str, Any]) -> list:
+        """Build common adapter info parts shared by log and preload messages."""
         inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
         model_override = adapter_config.get('model')
 
-        # Get embedding configuration
         embedding_provider = adapter_config.get('embedding_provider') or self.config.get('embedding', {}).get('provider', 'ollama')
-        embedding_model = None
-        if embedding_provider in self.config.get('embeddings', {}):
-            embedding_model = self.config.get('embeddings', {}).get(embedding_provider, {}).get('model')
+        embedding_model = (
+            self.config.get('embeddings', {}).get(embedding_provider, {}).get('model')
+            if embedding_provider in self.config.get('embeddings', {}) else None
+        )
 
-        # Get reranker configuration
         reranker_provider = adapter_config.get('reranker_provider')
-        reranker_model = None
-        if reranker_provider and reranker_provider in self.config.get('rerankers', {}):
-            reranker_model = self.config.get('rerankers', {}).get(reranker_provider, {}).get('model')
+        reranker_model = (
+            self.config.get('rerankers', {}).get(reranker_provider, {}).get('model')
+            if reranker_provider and reranker_provider in self.config.get('rerankers', {}) else None
+        )
 
-        # Check if this is an intent adapter
-        adapter_type = adapter_config.get('adapter')
-        store_info = ""
-        if adapter_type == 'intent':
-            store_name = adapter_config.get('config', {}).get('store_name')
-            if store_name:
-                store_info = f", store: {store_name}"
+        store_name = (
+            adapter_config.get('config', {}).get('store_name')
+            if adapter_config.get('adapter') == 'intent' else None
+        )
 
-        # Build log message
-        log_parts = [f"Successfully loaded adapter '{adapter_name}'"]
-
-        if model_override:
-            log_parts.append(f"inference: {inference_provider}/{model_override}")
-        else:
-            log_parts.append(f"inference: {inference_provider}")
-
-        if embedding_model:
-            log_parts.append(f"embedding: {embedding_provider}/{embedding_model}")
-        else:
-            log_parts.append(f"embedding: {embedding_provider}")
-
+        parts = []
+        parts.append(f"inference: {inference_provider}/{model_override}" if model_override else f"inference: {inference_provider}")
+        parts.append(f"embedding: {embedding_provider}/{embedding_model}" if embedding_model else f"embedding: {embedding_provider}")
         if reranker_provider:
-            if reranker_model:
-                log_parts.append(f"reranker: {reranker_provider}/{reranker_model}")
-            else:
-                log_parts.append(f"reranker: {reranker_provider}")
+            parts.append(f"reranker: {reranker_provider}/{reranker_model}" if reranker_model else f"reranker: {reranker_provider}")
+        if store_name:
+            parts.append(f"store: {store_name}")
+        return parts
 
-        if store_info:
-            log_parts.append(store_info.lstrip(", "))
-
+    def _log_adapter_loaded(self, adapter_name: str, adapter_config: Dict[str, Any]) -> None:
+        """Log detailed information about a loaded adapter."""
+        parts = self._build_adapter_info_parts(adapter_config)
         if adapter_config.get('database'):
-            log_parts.append(f"database: {adapter_config['database']}")
-
-        logger.info(f"{log_parts[0]} ({', '.join(log_parts[1:])})")
+            parts.append(f"database: {adapter_config['database']}")
+        logger.info(f"Successfully loaded adapter '{adapter_name}' ({', '.join(parts)})")
 
     def _handle_adapter_load_error(self, adapter_name: str, error: ValueError) -> None:
         """Handle adapter loading errors with helpful messages."""
@@ -514,48 +500,7 @@ class DynamicAdapterManager:
 
     def _build_preload_success_message(self, adapter_name: str, adapter_config: Dict[str, Any]) -> str:
         """Build success message for adapter preloading."""
-        model_override = adapter_config.get('model')
-        inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
-
-        embedding_provider = adapter_config.get('embedding_provider') or self.config.get('embedding', {}).get('provider', 'ollama')
-        embedding_model = None
-        if embedding_provider in self.config.get('embeddings', {}):
-            embedding_model = self.config.get('embeddings', {}).get(embedding_provider, {}).get('model')
-
-        reranker_provider = adapter_config.get('reranker_provider')
-        reranker_model = None
-        if reranker_provider and reranker_provider in self.config.get('rerankers', {}):
-            reranker_model = self.config.get('rerankers', {}).get(reranker_provider, {}).get('model')
-
-        adapter_type = adapter_config.get('adapter')
-        store_info = ""
-        if adapter_type == 'intent':
-            store_name = adapter_config.get('config', {}).get('store_name')
-            if store_name:
-                store_info = f", store: {store_name}"
-
-        msg_parts = []
-
-        if model_override:
-            msg_parts.append(f"inference: {inference_provider}/{model_override}")
-        else:
-            msg_parts.append(f"inference: {inference_provider}")
-
-        if embedding_model:
-            msg_parts.append(f"embedding: {embedding_provider}/{embedding_model}")
-        else:
-            msg_parts.append(f"embedding: {embedding_provider}")
-
-        if reranker_provider:
-            if reranker_model:
-                msg_parts.append(f"reranker: {reranker_provider}/{reranker_model}")
-            else:
-                msg_parts.append(f"reranker: {reranker_provider}")
-
-        if store_info:
-            msg_parts.append(store_info.lstrip(", "))
-
-        return f"Preloaded successfully ({', '.join(msg_parts)})"
+        return f"Preloaded successfully ({', '.join(self._build_adapter_info_parts(adapter_config))})"
 
     def _build_preload_error_result(self, adapter_name: str, error: ValueError) -> Dict[str, Any]:
         """Build error result for adapter preloading."""
@@ -567,12 +512,11 @@ class DynamicAdapterManager:
                 "success": False,
                 "error": f"Inference provider '{inference_provider}' is disabled (enable in config/inference.yaml)"
             }
-        else:
-            return {
-                "adapter_name": adapter_name,
-                "success": False,
-                "error": str(error)
-            }
+        return {
+            "adapter_name": adapter_name,
+            "success": False,
+            "error": str(error)
+        }
 
     async def remove_adapter(self, adapter_name: str, clear_dependencies: bool = False) -> bool:
         """

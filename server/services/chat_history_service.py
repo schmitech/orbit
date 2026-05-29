@@ -572,15 +572,7 @@ class ChatHistoryService:
                 
                 # Small delay between batches to avoid overwhelming the system
                 await asyncio.sleep(0.1)
-                
-                # Safety check: if we've processed a very large number, log and continue
-                if offset > 100000:
-                    logger.debug(
-                        "Token count backfill: scanned %s messages, updated %s",
-                        offset,
-                        processed,
-                    )
-                
+
         except asyncio.CancelledError:
             logger.info("Token count backfill cancelled")
         except Exception as e:
@@ -959,10 +951,7 @@ class ChatHistoryService:
             for msg in messages:
                 message_id = msg.get("_id") or msg.get("id")
                 if message_id is not None:
-                    try:
-                        message_id = str(message_id)
-                    except Exception:
-                        message_id = str(message_id)
+                    message_id = str(message_id)
 
                 processed_msg = {
                     "message_id": message_id,
@@ -1379,49 +1368,6 @@ class ChatHistoryService:
         except Exception as e:
             logger.error(f"Error getting session stats: {str(e)}")
             return {"session_id": session_id, "error": str(e)}
-    
-    async def _get_session_token_count(self, session_id: str) -> int:
-        """
-        Get total token count for a session (backend-agnostic).
-        
-        Uses cache if available, otherwise queries database.
-        
-        Args:
-            session_id: Session identifier
-            
-        Returns:
-            Total token count for the session
-        """
-        # Check cache first
-        if session_id in self._session_token_counts:
-            return self._session_token_counts[session_id]
-        
-        # Query database for accurate count
-        try:
-            messages = await self.database_service.find_many(
-                self.collection_name,
-                {"session_id": session_id},
-                limit=10000  # Reasonable upper bound
-            )
-            
-            # Sum token counts (use estimate if token_count is missing)
-            total_tokens = 0
-            for msg in messages:
-                token_count = msg.get("token_count")
-                if token_count is None:
-                    # Fallback to estimate if token_count not yet calculated
-                    content = msg.get("content", "")
-                    token_count = self._estimate_token_count(content)
-                total_tokens += token_count
-            
-            # Update cache
-            self._session_token_counts[session_id] = total_tokens
-            
-            return total_tokens
-            
-        except Exception as e:
-            logger.error(f"Error getting session token count: {str(e)}")
-            return 0
     
     async def _get_rolling_window_token_count(self, session_id: str) -> int:
         """

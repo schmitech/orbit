@@ -236,15 +236,7 @@ class FuzzyMatcher:
             return (False, 0.0)
 
         position = text_lower.find(query_lower)
-
-        # Score: higher for prefix matches, lower for later positions
-        score = 1.0
-        if position == 0:
-            score = 1.0  # Perfect prefix match
-        else:
-            # Penalize based on position
-            score = max(0.5, 1.0 - (position * 0.05))
-
+        score = 1.0 if position == 0 else max(0.5, 1.0 - position * 0.05)
         return (True, score)
 
 
@@ -705,14 +697,27 @@ class AutocompleteService:
 
     def _deduplicate_preserving_order(self, examples: List[str]) -> List[str]:
         """Deduplicate strings while preserving the original order."""
-        seen = set()
-        unique_examples: List[str] = []
-        for example in examples:
-            if example in seen:
-                continue
-            seen.add(example)
-            unique_examples.append(example)
-        return unique_examples
+        return list(dict.fromkeys(examples))
+
+    def _compute_fuzzy_score(self, query_lower: str, example_lower: str) -> tuple:
+        """Return (is_match, score) using the configured fuzzy algorithm."""
+        if self.fuzzy_algorithm == 'levenshtein':
+            sim_fn = FuzzyMatcher.levenshtein_similarity
+            word_arg = lambda w: w[:len(query_lower)]
+        else:  # jaro_winkler
+            sim_fn = FuzzyMatcher.jaro_winkler_similarity
+            word_arg = lambda w: w
+
+        similarity = sim_fn(query_lower, example_lower)
+        for word in example_lower.split():
+            similarity = max(similarity, sim_fn(query_lower, word_arg(word)) * 0.9)
+
+        if similarity >= self.fuzzy_threshold:
+            return True, similarity * 100
+        if query_lower in example_lower:
+            pos = example_lower.find(query_lower)
+            return True, 80.0 if pos == 0 else 60 - pos * 0.5
+        return False, 0.0
 
     def _score_candidate_relevance(self, example_lower: str, query_lower: str) -> float:
         """Cheap heuristic used to shortlist fuzzy candidates before expensive scoring."""
@@ -793,45 +798,8 @@ class AutocompleteService:
             is_match = False
 
             if self.fuzzy_enabled:
-                # Use configured fuzzy matching algorithm
-                if self.fuzzy_algorithm == 'levenshtein':
-                    # For Levenshtein, we match query against each word or the whole string
-                    similarity = FuzzyMatcher.levenshtein_similarity(query_lower, example_lower)
-
-                    # Also check if query is a fuzzy prefix of any word
-                    words = example_lower.split()
-                    for word in words:
-                        word_sim = FuzzyMatcher.levenshtein_similarity(query_lower, word[:len(query_lower)])
-                        similarity = max(similarity, word_sim * 0.9)  # Slight penalty for word match
-
-                    if similarity >= self.fuzzy_threshold:
-                        is_match = True
-                        score = similarity * 100
-                    # Also include exact substring matches
-                    elif query_lower in example_lower:
-                        is_match = True
-                        position = example_lower.find(query_lower)
-                        score = 80 if position == 0 else 60 - position * 0.5
-
-                elif self.fuzzy_algorithm == 'jaro_winkler':
-                    # Jaro-Winkler is great for prefix matching
-                    similarity = FuzzyMatcher.jaro_winkler_similarity(query_lower, example_lower)
-
-                    # Also check against words for partial matching
-                    words = example_lower.split()
-                    for word in words:
-                        word_sim = FuzzyMatcher.jaro_winkler_similarity(query_lower, word)
-                        similarity = max(similarity, word_sim * 0.9)
-
-                    if similarity >= self.fuzzy_threshold:
-                        is_match = True
-                        score = similarity * 100
-                    # Also include exact substring matches
-                    elif query_lower in example_lower:
-                        is_match = True
-                        position = example_lower.find(query_lower)
-                        score = 80 if position == 0 else 60 - position * 0.5
-
+                if self.fuzzy_algorithm in ('levenshtein', 'jaro_winkler'):
+                    is_match, score = self._compute_fuzzy_score(query_lower, example_lower)
                 else:  # Default to substring
                     is_match, score = FuzzyMatcher.substring_match(query_lower, example_lower)
                     score = score * 100

@@ -180,17 +180,35 @@ class AuthService:
             return False
     
     def _encode_password(self, salt: bytes, hash_bytes: bytes) -> str:
-        """
-        Encode salt and hash as a base64 string for storage
-        
-        Args:
-            salt: The salt bytes
-            hash_bytes: The hash bytes
-            
-        Returns:
-            Base64 encoded string
-        """
+        """Encode salt and hash as a base64 string for storage."""
         return base64.b64encode(salt + hash_bytes).decode('utf-8')
+
+    def _hash_and_encode(self, password: str) -> str:
+        """Hash a password and return the base64-encoded salt+hash string."""
+        salt, hash_bytes = self._hash_password(password)
+        return self._encode_password(salt, hash_bytes)
+
+    @staticmethod
+    def _user_info(user: Dict[str, Any]) -> Dict[str, Any]:
+        """Build the auth-context user dict (no password, no timestamps)."""
+        return {
+            "id": str(user["_id"]),
+            "username": user["username"],
+            "role": user.get("role", "user"),
+            "active": user.get("active", True),
+        }
+
+    @staticmethod
+    def _user_record(user: Dict[str, Any]) -> Dict[str, Any]:
+        """Build the full user record dict (no password)."""
+        return {
+            "id": str(user["_id"]),
+            "username": user["username"],
+            "role": user.get("role", "user"),
+            "active": user.get("active", True),
+            "created_at": user.get("created_at"),
+            "last_login": user.get("last_login"),
+        }
     
     async def _create_default_admin(self) -> None:
         """Create default admin user if it doesn't exist"""
@@ -203,12 +221,9 @@ class AuthService:
 
             if not admin_user:
                 # Create default admin user
-                salt, hash_bytes = self._hash_password(self.default_admin_password)
-                encoded_password = self._encode_password(salt, hash_bytes)
-
                 user_doc = {
                     "username": self.default_admin_username,
-                    "password": encoded_password,
+                    "password": self._hash_and_encode(self.default_admin_password),
                     "role": "admin",
                     "active": True,
                     "created_at": datetime.now(UTC),
@@ -247,13 +262,7 @@ class AuthService:
             if not self._verify_password(password, user["password"]):
                 return False, None
 
-            user_info = {
-                "id": str(user["_id"]),
-                "username": user["username"],
-                "role": user.get("role", "user"),
-                "active": user.get("active", True)
-            }
-            return True, user_info
+            return True, self._user_info(user)
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
             logger.error(f"Database connection error verifying credentials for {username}: {str(e)}")
             return False, None
@@ -323,16 +332,7 @@ class AuthService:
             )
             
             logger.debug(f"User {username} logged in successfully")
-            
-            # Return user info without password
-            user_info = {
-                "id": str(user["_id"]),
-                "username": user["username"],
-                "role": user.get("role", "user"),
-                "active": user.get("active", True)
-            }
-            
-            return True, token, user_info
+            return True, token, self._user_info(user)
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
             logger.error(f"Database connection error authenticating user {username}: {str(e)}")
@@ -358,11 +358,8 @@ class AuthService:
             return None
         
         if dt.tzinfo is None:
-            # Naive datetime - assume it's UTC
             return dt.replace(tzinfo=UTC)
-        else:
-            # Already timezone-aware
-            return dt
+        return dt
     
     async def validate_token(self, token: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """
@@ -404,16 +401,9 @@ class AuthService:
             
             if not user or not user.get("active", True):
                 return False, None
-            
-            user_info = {
-                "id": str(user["_id"]),
-                "username": user["username"],
-                "role": user.get("role", "user"),
-                "active": user.get("active", True)
-            }
-            
-            return True, user_info
-            
+
+            return True, self._user_info(user)
+
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
             logger.error(f"Database connection error validating token: {str(e)}")
             return False, None
@@ -489,24 +479,18 @@ class AuthService:
                 logger.warning(f"Invalid old password for user: {user['username']}")
                 return False
             
-            # Hash new password
-            salt, hash_bytes = self._hash_password(new_password)
-            encoded_password = self._encode_password(salt, hash_bytes)
-            
-            # Update password
+            # Update password and invalidate all sessions
             result = await self.database.update_one(
                 self.users_collection_name,
                 {"_id": user["_id"]},
-                {"$set": {"password": encoded_password}}
+                {"$set": {"password": self._hash_and_encode(new_password)}}
             )
-            
+
             if result:
-                # Invalidate all sessions for this user
                 await self.database.delete_many(
                     self.sessions_collection_name,
                     {"user_id": user["_id"]}
                 )
-                
                 logger.debug(f"Password changed for user: {user['username']}")
             
             return result
@@ -561,14 +545,10 @@ class AuthService:
                 logger.warning(f"Username already exists: {username}")
                 return None
             
-            # Hash password
-            salt, hash_bytes = self._hash_password(password)
-            encoded_password = self._encode_password(salt, hash_bytes)
-            
             # Create user document
             user_doc = {
                 "username": username,
-                "password": encoded_password,
+                "password": self._hash_and_encode(password),
                 "role": role,
                 "active": True,
                 "created_at": datetime.now(UTC),
@@ -617,19 +597,7 @@ class AuthService:
                 sort=[("created_at", -1)]  # Sort by created_at descending
             )
             
-            # Convert to user records without passwords
-            users = []
-            for user in results:
-                users.append({
-                    "id": str(user["_id"]),
-                    "username": user["username"],
-                    "role": user.get("role", "user"),
-                    "active": user.get("active", True),
-                    "created_at": user.get("created_at"),
-                    "last_login": user.get("last_login")
-                })
-            
-            return users
+            return [self._user_record(u) for u in results]
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
             logger.error(f"Database connection error listing users: {str(e)}")
@@ -662,16 +630,9 @@ class AuthService:
             
             if not user:
                 return None
-            
-            return {
-                "id": str(user["_id"]),
-                "username": user["username"],
-                "role": user.get("role", "user"),
-                "active": user.get("active", True),
-                "created_at": user.get("created_at"),
-                "last_login": user.get("last_login")
-            }
-            
+
+            return self._user_record(user)
+
         except ValueError as e:
             logger.error(f"Invalid user ID format: {str(e)}")
             return None
@@ -703,15 +664,8 @@ class AuthService:
             
             if not user:
                 return None
-            
-            return {
-                "id": str(user["_id"]),
-                "username": user["username"],
-                "role": user.get("role", "user"),
-                "active": user.get("active", True),
-                "created_at": user.get("created_at"),
-                "last_login": user.get("last_login")
-            }
+
+            return self._user_record(user)
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
             logger.error(f"Database connection error getting user by username: {str(e)}")
@@ -745,16 +699,10 @@ class AuthService:
             )
             
             if result and not active:
-                # Invalidate all sessions for deactivated user
-                user = await self.database.find_one(
-                    self.users_collection_name,
-                    {"_id": user_id_converted}
+                await self.database.delete_many(
+                    self.sessions_collection_name,
+                    {"user_id": user_id_converted}
                 )
-                if user:
-                    await self.database.delete_many(
-                        self.sessions_collection_name,
-                        {"user_id": user["_id"]}
-                    )
             
             return result
             
@@ -801,24 +749,17 @@ class AuthService:
                 logger.warning(f"User not found for password reset: {user_id}")
                 return False
             
-            # Hash new password
-            salt, hash_bytes = self._hash_password(new_password)
-            encoded_password = self._encode_password(salt, hash_bytes)
-            
-            # Update password
             result = await self.database.update_one(
                 self.users_collection_name,
                 {"_id": user["_id"]},
-                {"$set": {"password": encoded_password}}
+                {"$set": {"password": self._hash_and_encode(new_password)}}
             )
-            
+
             if result:
-                # Invalidate all sessions for this user
                 await self.database.delete_many(
                     self.sessions_collection_name,
                     {"user_id": user["_id"]}
                 )
-                
                 logger.debug(f"Password reset for user: {user['username']} (ID: {user_id})")
             
             return result
