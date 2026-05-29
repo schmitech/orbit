@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { ChatInterface } from './components/ChatInterface';
 import { Sidebar } from './components/Sidebar';
 import { Settings } from './components/Settings';
-import { X } from 'lucide-react';
+import { PanelLeftOpen, X } from 'lucide-react';
 import { getOutOfServiceMessage } from './utils/runtimeConfig';
 import { OutOfServicePage } from './components/OutOfServicePage';
 import { AuthGate } from './components/AuthGate';
@@ -16,8 +16,19 @@ import { useChatStore } from './stores/chatStore';
 function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const conversations = useChatStore(state => state.conversations);
   const outOfServiceMessage = getOutOfServiceMessage();
+
+  useEffect(() => {
+    const saved = localStorage.getItem('desktop-sidebar-collapsed');
+    setIsDesktopSidebarCollapsed(saved === 'true');
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('desktop-sidebar-collapsed', String(isDesktopSidebarCollapsed));
+  }, [isDesktopSidebarCollapsed]);
+
   if (outOfServiceMessage) {
     return (
       <ThemeProvider>
@@ -38,16 +49,34 @@ function App() {
             <div className="h-dvh flex flex-col bg-white dark:bg-black text-slate-900 dark:text-slate-100">
               <div className="flex-1 flex flex-col md:flex-row md:pl-4 min-h-0">
                 {showSidebar && (
-                  <div className="hidden md:flex md:h-full">
-                    <Sidebar />
+                  <div className={`hidden md:h-full ${isDesktopSidebarCollapsed ? 'md:hidden' : 'md:flex'}`}>
+                    <Sidebar
+                      onToggleDesktopSidebar={() => setIsDesktopSidebarCollapsed(true)}
+                    />
                   </div>
                 )}
                 <div className="flex-1 flex flex-col w-full min-h-0">
-                  <AppHeader />
+                  <AppHeader hasCollapsedSidebarButton={showSidebar && isDesktopSidebarCollapsed} />
+                  {showSidebar && isDesktopSidebarCollapsed && (
+                    <div className="pointer-events-none absolute left-4 top-5 z-40 hidden md:block">
+                      <button
+                        type="button"
+                        onClick={() => setIsDesktopSidebarCollapsed(false)}
+                        className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200/80 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-[#333645] dark:bg-[#161616] dark:text-[#d1d5db] dark:hover:border-[#43465a] dark:hover:bg-[#202020] dark:hover:text-white"
+                        aria-label="Open sidebar"
+                        title="Open sidebar"
+                      >
+                        <PanelLeftOpen className="h-5 w-5" />
+                      </button>
+                    </div>
+                  )}
                   <div className="flex-1 flex justify-center w-full min-h-0">
                     <ChatInterface
                       onOpenSettings={() => setIsSettingsOpen(true)}
                       onOpenSidebar={() => setIsMobileSidebarOpen(true)}
+                      onToggleDesktopSidebar={() => setIsDesktopSidebarCollapsed((value) => !value)}
+                      isDesktopSidebarCollapsed={isDesktopSidebarCollapsed}
+                      showDesktopSidebarToggle={showSidebar}
                     />
                   </div>
                 </div>

@@ -16,7 +16,11 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAgentHomeNav } from '../hooks/useAgentHomeNav';
 import { useEffect, useRef } from 'react';
 
-export function AppHeader() {
+interface AppHeaderProps {
+  hasCollapsedSidebarButton?: boolean;
+}
+
+export function AppHeader({ hasCollapsedSidebarButton = false }: AppHeaderProps) {
   const { goHome } = useAgentHomeNav();
   const { isDark } = useTheme();
   const homeHref = getAppHomePath();
@@ -56,8 +60,8 @@ export function AppHeader() {
         color: textColor || undefined,
       }}
     >
-      <div className="mx-auto flex w-full max-w-[96rem] items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center justify-center md:justify-start">
+      <div className={`mx-auto flex w-full max-w-[96rem] items-center justify-between gap-3 ${hasCollapsedSidebarButton ? 'md:pl-16' : ''}`.trim()}>
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-2 md:justify-start md:gap-3">
           {logoUrl && (
             <a
               href={homeHref}

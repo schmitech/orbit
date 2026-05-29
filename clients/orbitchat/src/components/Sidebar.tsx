@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, MessageSquare, Trash2, Edit2, Trash, Paperclip } from 'lucide-react';
+import { Search, X, MessageSquare, Trash2, Edit2, Trash, Paperclip, PanelLeftClose } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -11,6 +11,7 @@ import { AppFooter } from './AppFooter';
 
 interface SidebarProps {
   onRequestClose?: () => void;
+  onToggleDesktopSidebar?: () => void;
 }
 
 const MAX_TITLE_LENGTH = 100;
@@ -61,7 +62,7 @@ function groupConversationsByTime(conversations: Conversation[]): TimeGroup[] {
 // Sidebar Component
 // ---------------------------------------------------------------------------
 
-export function Sidebar({ onRequestClose }: SidebarProps) {
+export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps) {
   const isSingleAdapterMode = getIsSingleAdapterMode();
   const {
     conversations,
@@ -441,16 +442,27 @@ export function Sidebar({ onRequestClose }: SidebarProps) {
       >
         {/* Header area */}
         <div className="bg-transparent px-4 pb-4 pt-4 dark:border-[#2d2f39]">
-          {/* Action buttons */}
-          <div className="space-y-2 pb-3">
+          {/* Action row: delete button + collapse toggle share the same row */}
+          <div className="flex items-center gap-2 pb-3">
             {conversations.length > 0 && conversations.some((conv) => conv.messages.length > 0) && (
               <button
                 onClick={handleClearAll}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-all duration-150 hover:bg-red-50 hover:border-red-300 hover:shadow-sm dark:border-red-500/25 dark:text-red-400 dark:hover:bg-red-950/20 dark:hover:border-red-500/40"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-all duration-150 hover:bg-red-50 hover:border-red-300 hover:shadow-sm dark:border-red-500/25 dark:text-red-400 dark:hover:bg-red-950/20 dark:hover:border-red-500/40"
                 title="Delete all conversations"
               >
                 <Trash className="h-4 w-4" />
                 Delete Conversations
+              </button>
+            )}
+            {onToggleDesktopSidebar && (
+              <button
+                type="button"
+                onClick={onToggleDesktopSidebar}
+                className="ml-auto hidden shrink-0 md:inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-[#333645] dark:bg-[#161616] dark:text-[#d1d5db] dark:hover:border-[#43465a] dark:hover:bg-[#202020] dark:hover:text-white"
+                aria-label="Close sidebar"
+                title="Close sidebar"
+              >
+                <PanelLeftClose className="h-4 w-4" />
               </button>
             )}
           </div>

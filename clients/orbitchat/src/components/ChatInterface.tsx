@@ -143,9 +143,18 @@ const MOBILE_HEADER_CLASSES =
 interface ChatInterfaceProps {
   onOpenSettings: () => void;
   onOpenSidebar?: () => void;
+  onToggleDesktopSidebar?: () => void;
+  isDesktopSidebarCollapsed?: boolean;
+  showDesktopSidebarToggle?: boolean;
 }
 
-export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfaceProps) {
+export function ChatInterface({
+  onOpenSettings,
+  onOpenSidebar,
+  onToggleDesktopSidebar,
+  isDesktopSidebarCollapsed = false,
+  showDesktopSidebarToggle = false,
+}: ChatInterfaceProps) {
   const {
     conversations,
     currentConversationId,
@@ -477,6 +486,21 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                 )}
               </div>
               <div className="flex w-full flex-wrap items-center gap-2 my-2 md:my-0 sm:w-auto md:justify-end md:gap-3">
+                {!getEnableHeader() && showDesktopSidebarToggle && onToggleDesktopSidebar && (
+                  <button
+                    type="button"
+                    onClick={onToggleDesktopSidebar}
+                    className="hidden md:inline-flex h-[42px] w-[42px] items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50 dark:border-[#3c3f4a] dark:text-[#9aa1bc] dark:hover:border-[#4d5166] dark:hover:bg-[#2d2f39] dark:hover:text-[#ececf1]"
+                    aria-label={isDesktopSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+                    title={isDesktopSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+                  >
+                    {isDesktopSidebarCollapsed ? (
+                      <PanelLeftOpen className="h-4 w-4" />
+                    ) : (
+                      <PanelLeftClose className="h-4 w-4" />
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={onOpenSettings}
                   className="hidden md:inline-flex h-[42px] w-[42px] items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50 dark:border-[#3c3f4a] dark:text-[#9aa1bc] dark:hover:border-[#4d5166] dark:hover:bg-[#2d2f39] dark:hover:text-[#ececf1]"
