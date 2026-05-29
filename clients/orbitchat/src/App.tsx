@@ -16,14 +16,11 @@ import { useChatStore } from './stores/chatStore';
 function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(
+    () => localStorage.getItem('desktop-sidebar-collapsed') === 'true'
+  );
   const conversations = useChatStore(state => state.conversations);
   const outOfServiceMessage = getOutOfServiceMessage();
-
-  useEffect(() => {
-    const saved = localStorage.getItem('desktop-sidebar-collapsed');
-    setIsDesktopSidebarCollapsed(saved === 'true');
-  }, []);
 
   useEffect(() => {
     localStorage.setItem('desktop-sidebar-collapsed', String(isDesktopSidebarCollapsed));
@@ -74,9 +71,6 @@ function App() {
                     <ChatInterface
                       onOpenSettings={() => setIsSettingsOpen(true)}
                       onOpenSidebar={() => setIsMobileSidebarOpen(true)}
-                      onToggleDesktopSidebar={() => setIsDesktopSidebarCollapsed((value) => !value)}
-                      isDesktopSidebarCollapsed={isDesktopSidebarCollapsed}
-                      showDesktopSidebarToggle={showSidebar}
                     />
                   </div>
                 </div>

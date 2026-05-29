@@ -131,16 +131,16 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
         aria-modal="true"
         aria-labelledby="settings-title"
         tabIndex={-1}
-        className="relative flex h-[100dvh] w-full max-w-none flex-col overflow-hidden bg-white shadow-2xl dark:bg-gray-800 md:h-auto md:max-h-[90vh] md:max-w-md md:rounded-2xl"
+        className="relative flex h-[100dvh] w-full max-w-none flex-col overflow-hidden bg-white shadow-2xl dark:bg-[#1a1b1e] md:h-auto md:max-h-[90vh] md:max-w-md md:rounded-2xl"
       >
         {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between border-b border-gray-200 px-6 pb-4 pt-[max(env(safe-area-inset-top),1rem)] dark:border-gray-600 md:p-6">
+        <div className="flex-shrink-0 flex items-center justify-between border-b border-gray-200 px-6 pb-4 pt-[max(env(safe-area-inset-top),1rem)] dark:border-[#2d2f39] md:p-6">
           <h2 id="settings-title" className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             Settings
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-[#25262f] rounded-lg transition-colors"
             aria-label="Close settings"
           >
             <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -173,7 +173,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                     className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all duration-200 ${
                       theme.mode === value
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300'
+                        : 'border-gray-200 dark:border-[#2d2f39] hover:border-gray-300 dark:hover:border-[#43465a] text-gray-700 dark:text-gray-300'
                     }`}
                   >
                     <Icon className="w-5 h-5" />
@@ -212,7 +212,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                 aria-checked={settings.soundEnabled}
                 aria-label="Toggle sound effects"
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  settings.soundEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'
+                  settings.soundEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-[#3c3f4a]'
                 }`}
               >
                 <span
@@ -225,7 +225,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
           </div>
 
           {/* Data Management */}
-          <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+          <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-[#2d2f39]">
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
               <Trash2 className="w-5 h-5" />
               Data Management
@@ -253,7 +253,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
               aria-modal="true"
               aria-labelledby="reset-dialog-title"
               tabIndex={-1}
-              className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-red-100 bg-white p-6 shadow-2xl dark:border-red-800 dark:bg-gray-900"
+              className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-red-100 bg-white p-6 shadow-2xl dark:border-red-800/60 dark:bg-[#111113]"
             >
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
@@ -272,7 +272,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
               <div className="mt-4 flex gap-2 pt-2">
                 <button
                   onClick={closeResetDialog}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-[#2d2f39] rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1e] transition-colors"
                 >
                   Cancel
                 </button>

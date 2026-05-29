@@ -328,9 +328,7 @@ function buildRuntimeConfig(): RuntimeConfig {
     ? merged.agentMode.defaultAdapterId.trim()
     : '';
 
-  if (merged.auth.enabled && !merged.header.enabled) {
-    console.warn('[runtimeConfig] Auth is enabled but header is disabled. Auth UI is expected to be shown from the header, so enable header.enabled to expose sign-in controls.');
-  }
+  // Auth + no header is a valid setup: AuthStatus renders inline in the chat UI as a fallback.
 
   return merged;
 }

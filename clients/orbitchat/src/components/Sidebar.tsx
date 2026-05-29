@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, MessageSquare, Trash2, Edit2, Trash, Paperclip, PanelLeftClose } from 'lucide-react';
+import { Search, X, Trash2, Edit2, Trash, PanelLeftClose } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -135,7 +135,6 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
   const timeGroups = useMemo(() => groupConversationsByTime(filteredConversations), [filteredConversations]);
 
   const totalConversations = getConversationCount();
-  const conversationLabel = totalConversations === 1 ? 'conversation' : 'conversations';
   const isSearching = searchQuery.length > 0;
   const hasSearchableConversations = conversationsWithHistory.length > 0;
 
@@ -268,12 +267,6 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
   // Formatting helpers
   // -----------------------------------------------------------------------
 
-  const formatConversationTimestamp = (date: Date) => {
-    const formattedDate = date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
-    const formattedTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return `${formattedDate} \u00B7 ${formattedTime}`;
-  };
-
   const getConversationAgentLabel = (conversation: Conversation): string | null => {
     if (conversation.adapterName?.trim()) return conversation.adapterName;
     if (conversation.adapterInfo?.adapter_name?.trim()) return conversation.adapterInfo.adapter_name;
@@ -303,12 +296,12 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
           }
         }}
         onClick={() => handleSelectConversation(conversation.id)}
-        className={`group flex w-full cursor-pointer items-start rounded-xl border text-left transition-all duration-150 px-3 py-3 text-sm
+        className={`group relative flex w-full cursor-pointer items-center rounded-lg px-3 py-2 text-left text-sm transition-colors duration-100
           ${
             isActive
-              ? 'border-sky-200 bg-sky-50/60 shadow-sm dark:border-sky-500/30 dark:bg-sky-950/25'
-              : 'border-transparent bg-white hover:border-gray-200 hover:bg-gray-50/80 hover:shadow-sm dark:bg-[#252830] dark:hover:border-[#3d4050] dark:hover:bg-[#2c2f3a]'
-          } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/60 dark:focus-visible:ring-sky-400/50`}
+              ? 'bg-slate-100 dark:bg-[#2a2b36]'
+              : 'hover:bg-slate-100/70 dark:hover:bg-[#25262f]'
+          } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 dark:focus-visible:ring-sky-400/40`}
         aria-current={isActive ? 'true' : undefined}
         aria-label={`Open conversation: ${conversation.title}`}
       >
@@ -324,60 +317,39 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
             }}
             onBlur={() => handleEditSubmit(conversation.id)}
             maxLength={MAX_TITLE_LENGTH}
-            className="flex-1 rounded-md border border-sky-300 bg-white px-2 py-1 text-sm text-[#353740] focus:outline-none focus:ring-2 focus:ring-sky-400/50 dark:border-sky-500/40 dark:bg-[#1a1b1e] dark:text-[#ececf1]"
+            className="flex-1 rounded border border-sky-300 bg-white px-2 py-0.5 text-sm text-[#353740] focus:outline-none focus:ring-2 focus:ring-sky-400/50 dark:border-sky-500/40 dark:bg-[#1a1b1e] dark:text-[#ececf1]"
             autoFocus
             aria-label="Edit conversation title"
           />
         ) : (
-          <div className="flex-1 min-w-0 space-y-1.5">
-            {/* Title row */}
-            <div className="flex items-center gap-2 text-sm">
-              <h3
-                className="flex-1 truncate font-semibold text-sm leading-tight text-sky-900 dark:text-sky-300"
-              >
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <div className="flex min-w-0 items-center gap-1">
+              <h3 className={`flex-1 truncate text-sm leading-snug ${isActive ? 'font-medium text-slate-900 dark:text-[#ececf1]' : 'font-normal text-slate-700 dark:text-[#c5c8d6]'}`}>
                 {conversation.title}
               </h3>
-              <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 transition-opacity duration-150 md:group-hover:opacity-100 group-focus-within:opacity-100">
+              {/* Actions: hidden until hover/focus, then fade in */}
+              <div className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover:opacity-100 group-focus-within:opacity-100">
                 <button
                   onClick={(e) => handleEditStart(e, conversation)}
-                  className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-200/80 hover:text-gray-700 dark:text-[#8b8fa3] dark:hover:bg-[#3c3f4a] dark:hover:text-[#d4d7e2]"
+                  className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-600 dark:text-[#6b6f7a] dark:hover:bg-[#3c3f4a] dark:hover:text-[#c5c8d6]"
                   aria-label={`Rename conversation: ${conversation.title}`}
                 >
-                  <Edit2 className="h-3.5 w-3.5" />
+                  <Edit2 className="h-3 w-3" />
                 </button>
                 <button
                   onClick={(e) => handleDeleteConversation(e, conversation)}
-                  className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-[#8b8fa3] dark:hover:bg-red-900/30 dark:hover:text-red-300"
+                  className="rounded p-1 text-slate-400 transition-colors hover:bg-red-100/80 hover:text-red-600 dark:text-[#6b6f7a] dark:hover:bg-red-900/30 dark:hover:text-red-400"
                   aria-label={`Delete conversation: ${conversation.title}`}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-3 w-3" />
                 </button>
               </div>
             </div>
-
-            <div className="space-y-2 pt-0.5">
-              <div className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-[#9aa1bc]">
-                <span className="min-w-0 flex-1 truncate text-[11px] leading-none">
-                  {agentLabel || '\u00A0'}
-                </span>
-                <span className="inline-flex shrink-0 items-center gap-0.5 font-medium text-gray-400 dark:text-[#9aa1bc] leading-none">
-                  <MessageSquare className="h-3.5 w-3.5" />
-                  {conversation.messages.length}
-                </span>
-                {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
-                  <span className="inline-flex shrink-0 items-center gap-0.5 font-medium text-gray-400 dark:text-[#9aa1bc] leading-none">
-                    <Paperclip className="h-3.5 w-3.5" />
-                    {conversation.attachedFiles.length}
-                  </span>
-                )}
-              </div>
-
-              <div className="text-[11px] text-gray-400 dark:text-[#9aa1bc]">
-                <span className="block truncate tabular-nums leading-none">
-                  {formatConversationTimestamp(conversation.updatedAt)}
-                </span>
-              </div>
-            </div>
+            {agentLabel && (
+              <span className="truncate text-[11px] leading-none text-slate-400 dark:text-[#6b6f7a]">
+                {agentLabel}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -596,7 +568,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
         onClose={cancelClearAll}
         onConfirm={confirmClearAll}
         title="Clear All Conversations"
-        message={`Are you sure you want to delete all ${totalConversations} ${conversationLabel}? This will clear all conversation history.`}
+        message={totalConversations === 1 ? 'Are you sure you want to delete this conversation? This will clear all conversation history.' : `Are you sure you want to delete all ${totalConversations} conversations? This will clear all conversation history.`}
         confirmText="Clear All"
         cancelText="Cancel"
         type="danger"

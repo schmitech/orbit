@@ -73,10 +73,10 @@ export function ConfirmationModal({
         aria-modal="true"
         aria-labelledby="confirm-title"
         tabIndex={-1}
-        className="w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl bg-white shadow-2xl transform animate-fadeIn dark:bg-gray-800"
+        className="w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl bg-white shadow-2xl transform animate-fadeIn dark:bg-[#1a1b1e]"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-[#2d2f39]">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-full ${styles.iconBg} flex items-center justify-center`}>
               <AlertTriangle className={`w-5 h-5 ${styles.icon}`} />
@@ -103,7 +103,7 @@ export function ConfirmationModal({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-[#2d2f39] bg-gray-50 dark:bg-[#131416] rounded-b-2xl">
           <button
             type="button"
             onClick={onClose}
