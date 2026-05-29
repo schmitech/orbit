@@ -463,10 +463,18 @@ export class FileUploadService {
           throw error;
         }
 
+        // Non-retryable: backend explicitly reported processing failure
+        if (errorMessage.includes('processing failed') || errorMessage.includes('processing_status')) {
+          throw error;
+        }
+
         // Non-retryable: auth or server errors won't resolve by retrying
         if (
           errorMessage.includes('401') ||
           errorMessage.includes('403') ||
+          errorMessage.includes('500') ||
+          errorMessage.includes('502') ||
+          errorMessage.includes('503') ||
           errorMessage.includes('Authentication') ||
           errorMessage.includes('Adapter not configured')
         ) {

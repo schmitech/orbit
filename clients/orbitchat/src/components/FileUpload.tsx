@@ -86,67 +86,32 @@ export function FileUpload({
     }
     const uploads = uploadingFilesStore.get(targetConversationId) || new Map<string, FileUploadProgress>();
 
-    // Also check if there are files in the conversation that are still processing
-    // This handles the case where user switched conversations during upload
+    // Prune any progress entries whose file has already finished on the server.
+    // uploadingFilesStore is module-level and survives conversation switches, so we
+    // never re-hydrate from conversation.attachedFiles — that would recreate zombie
+    // progress bars after a page reload for files whose backend upload got stuck.
     const conversation = conversations.find(conv => conv.id === targetConversationId);
-    if (conversation && conversation.attachedFiles) {
-      // Build a set of file IDs that are no longer processing (completed, failed, error)
+    const mergedUploads = new Map(uploads);
+
+    if (conversation?.attachedFiles) {
       const finishedFileIds = new Set(
         conversation.attachedFiles
           .filter(f => f.processing_status === 'completed' || f.processing_status === 'failed' || f.processing_status === 'error')
           .map(f => f.file_id)
       );
-
-      const processingFiles = conversation.attachedFiles.filter(f =>
-        !f.processing_status ||
-        f.processing_status === 'processing' ||
-        f.processing_status === 'uploading'
-      );
-
-      // Merge existing uploads with processing files from conversation
-      // This ensures we show progress even if upload progress was lost
-      const mergedUploads = new Map(uploads);
-      let hasNewUploads = false;
-
-      // Remove progress entries for files that are no longer processing
       mergedUploads.forEach((progress, key) => {
         if (progress.fileId && finishedFileIds.has(progress.fileId)) {
           mergedUploads.delete(key);
         }
       });
+    }
 
-      processingFiles.forEach(file => {
-        // Check if we already have progress for this file
-        const existingProgress = Array.from(mergedUploads.values()).find(p => p.fileId === file.file_id);
-
-        if (!existingProgress) {
-          // Create progress entry for this processing file
-          const progressKey = `${targetConversationId}-${file.filename}-${file.file_id}`;
-          mergedUploads.set(progressKey, {
-            filename: file.filename,
-            progress: file.processing_status === 'uploading' ? 50 : 90, // Estimate progress
-            status: (file.processing_status as 'uploading' | 'processing') || 'processing',
-            fileId: file.file_id
-          });
-          hasNewUploads = true;
-        }
-      });
-
-      if (hasNewUploads || mergedUploads.size > 0) {
-        uploadingFilesStore.set(targetConversationId, mergedUploads);
-        onUploadingChange?.(targetConversationId, true);
-      } else {
-        uploadingFilesStore.delete(targetConversationId);
-        onUploadingChange?.(targetConversationId, false);
-      }
+    if (mergedUploads.size > 0) {
+      uploadingFilesStore.set(targetConversationId, mergedUploads);
+      onUploadingChange?.(targetConversationId, true);
     } else {
-      // No conversation or no processing files - just use existing uploads
-      if (uploads.size > 0) {
-        uploadingFilesStore.set(targetConversationId, uploads);
-      } else {
-        uploadingFilesStore.delete(targetConversationId);
-      }
-      onUploadingChange?.(targetConversationId, uploads.size > 0);
+      uploadingFilesStore.delete(targetConversationId);
+      onUploadingChange?.(targetConversationId, false);
     }
     setGlobalUploadRevision(prev => prev + 1);
   }, [conversations, onUploadingChange]);
@@ -463,10 +428,17 @@ export function FileUpload({
         if (uploadedFileId) {
           uploadedFileIdsRef.current.delete(uploadedFileId);
         }
+        // Auto-dismiss the error progress bar after 5 seconds so it never gets stuck
+        const errorKey = progressKey;
+        const errorConvId = activeConversationId;
+        setTimeout(() => {
+          updateUploadingStore(errorConvId, (prev) => {
+            prev.delete(errorKey);
+            return prev;
+          });
+        }, 5000);
       } finally {
         abortControllersRef.current.delete(file.name);
-        // Don't remove progress here - it's handled above based on file status
-        // Progress will be removed when file completes or on error
       }
     }
   }, [addFileToConversation, conversationId, maxFiles, onUploadError, updateUploadedStore, updateUploadingStore]);
