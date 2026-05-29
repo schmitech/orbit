@@ -102,9 +102,52 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
   <em>Query structured databases with natural language and generate dynamic charts via cross-adapter image generation skills.</em>
 </p>
 
+<details>
+<summary><strong>See more</strong></summary>
+
 <p align="center">
-  <a href="#more-demos"><strong>See more demos &rarr;</strong></a>
+  <video src="https://github.com/user-attachments/assets/565275fa-8f54-4bd6-94de-3fb27a66a5ab" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Private local AI model analyzing sensitive PII data offline.</em>
 </p>
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/a3fd7308-64be-4216-823b-954e2e37bad2" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Runtime model switching during a conversation, including chat history.</em>
+</p>
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/55a1f582-5ea4-411d-bbfc-4ccffbd6f81a" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Conversation threading with multi-turn follow-ups on the same result set. Source: <a href="examples/intent-templates/duckdb-intent-template/examples/analytics/">examples/intent-templates/duckdb-intent-template/examples/analytics</a>.</em>
+</p>
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/73671841-392f-47e6-9554-d97f975f0b75" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Cross-adapter skills for tasks such as image generation during a conversation. <a href="docs/adapters/skills.md">Learn more</a>.</em>
+</p>
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/66a358b6-6e38-4b8c-8195-022b75f3eea5" controls muted playsinline width="75%"></video>
+  <br />
+  <em>OrbitChat rendering live charts from LLM output with no client-side charting code required.</em>
+</p>
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/268801ff-5e17-4358-9e69-b2667851d611" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Image generation as a cross-adapter skill with conversation and thread context.</em>
+</p>
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/0f0c88f2-20b2-4617-9e5f-7efd823fc164" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Text-to-video generation using Google Veo 2, invoked as a cross-adapter skill. The prompt is automatically enriched with motion, camera movement, and lighting detail before generation. Video is persisted server-side and streamed back without sending raw bytes over the wire.</em>
+</p>
+
+</details>
 
 ---
 
@@ -226,57 +269,6 @@ ORBIT supports:
 - OpenAI-compatible clients and MCP-compatible tools.
 
 See the [Documentation](docs/) and [Cookbook](docs/cookbook/) for full setup details and integration coverage.
-
-</details>
-
----
-
-## More Demos
-
-<details>
-<summary><strong>Show videos</strong></summary>
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/565275fa-8f54-4bd6-94de-3fb27a66a5ab" controls muted playsinline width="75%"></video>
-  <br />
-  <em>Private local AI model analyzing sensitive PII data offline.</em>
-</p>
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/a3fd7308-64be-4216-823b-954e2e37bad2" controls muted playsinline width="75%"></video>
-  <br />
-  <em>Runtime model switching during a conversation, including chat history.</em>
-</p>
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/55a1f582-5ea4-411d-bbfc-4ccffbd6f81a" controls muted playsinline width="75%"></video>
-  <br />
-  <em>Conversation threading with multi-turn follow-ups on the same result set. Source: <a href="examples/intent-templates/duckdb-intent-template/examples/analytics/">examples/intent-templates/duckdb-intent-template/examples/analytics</a>.</em>
-</p>
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/73671841-392f-47e6-9554-d97f975f0b75" controls muted playsinline width="75%"></video>
-  <br />
-  <em>Cross-adapter skills for tasks such as image generation during a conversation. <a href="docs/adapters/skills.md">Learn more</a>.</em>
-</p>
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/0f178992-ee7d-4347-b41a-ab27b4ab5709" controls muted playsinline width="75%"></video>
-  <br />
-  <em>OrbitChat rendering live charts from LLM output with no client-side charting code required.</em>
-</p>
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/268801ff-5e17-4358-9e69-b2667851d611" controls muted playsinline width="75%"></video>
-  <br />
-  <em>Image generation as a cross-adapter skill with conversation and thread context.</em>
-</p>
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/0f0c88f2-20b2-4617-9e5f-7efd823fc164" controls muted playsinline width="75%"></video>
-  <br />
-  <em>Text-to-video generation using Google Veo 2, invoked as a cross-adapter skill. The prompt is automatically enriched with motion, camera movement, and lighting detail before generation. Video is persisted server-side and streamed back without sending raw bytes over the wire.</em>
-</p>
 
 </details>
 
