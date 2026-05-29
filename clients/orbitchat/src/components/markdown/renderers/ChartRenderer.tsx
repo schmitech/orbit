@@ -112,6 +112,15 @@ const tryParseJSON = <T,>(value: string): T | null => {
   }
 };
 
+const tryParseObjectLiteral = <T,>(value: string): T | null => {
+  const normalized = value
+    .trim()
+    .replace(/([{,]\s*)([A-Za-z_$][\w$-]*)(\s*:)/g, '$1"$2"$3')
+    .replace(/'/g, '"');
+
+  return tryParseJSON<T>(normalized);
+};
+
 const stripQuotes = (value: string) => value.replace(/^['"]|['"]$/g, '');
 
 const parseListValue = (value: string): string[] => {
@@ -150,6 +159,25 @@ const parseFormatterValue = (value: string): ChartFormatterConfig | undefined =>
   if (parsed) return parsed;
 
   return { format: trimmed as ChartFormatterConfig['format'] };
+};
+
+const parseYamlLikeListValue = <T,>(value: string): T[] | null => {
+  const items = value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.replace(/^-\s*/, '').trim())
+    .filter(Boolean);
+
+  if (!items.length) return null;
+
+  const parsedItems = items.map((item) => {
+    const parsedJson = tryParseJSON<T>(item);
+    if (parsedJson !== null) return parsedJson;
+    return tryParseObjectLiteral<T>(item);
+  });
+
+  return parsedItems.every((item) => item !== null) ? (parsedItems as T[]) : null;
 };
 
 const applyConfigLine = (config: PartialChartConfig, key: string, rawValue: string) => {
@@ -257,17 +285,35 @@ const applyConfigLine = (config: PartialChartConfig, key: string, rawValue: stri
       return;
     case 'data': {
       const parsed = tryParseJSON<ChartDataItem[]>(value);
-      if (parsed) config.data = parsed;
+      if (parsed) {
+        config.data = parsed;
+        return;
+      }
+
+      const yamlLikeParsed = parseYamlLikeListValue<ChartDataItem>(value);
+      if (yamlLikeParsed) config.data = yamlLikeParsed;
       return;
     }
     case 'series': {
       const parsed = tryParseJSON<ChartSeriesConfig[]>(value);
-      if (parsed) config.series = parsed;
+      if (parsed) {
+        config.series = parsed;
+        return;
+      }
+
+      const yamlLikeParsed = parseYamlLikeListValue<ChartSeriesConfig>(value);
+      if (yamlLikeParsed) config.series = yamlLikeParsed;
       return;
     }
     case 'referencelines': {
       const parsed = tryParseJSON<ChartReferenceLineConfig[]>(value);
-      if (parsed) config.referenceLines = parsed;
+      if (parsed) {
+        config.referenceLines = parsed;
+        return;
+      }
+
+      const yamlLikeParsed = parseYamlLikeListValue<ChartReferenceLineConfig>(value);
+      if (yamlLikeParsed) config.referenceLines = yamlLikeParsed;
       return;
     }
     case 'layout':
@@ -298,6 +344,15 @@ const getChartMarkdownTableLines = (lines: string[]): string[] =>
     return t.startsWith('|') && t.includes('|') && !isChartKeyValueLine(line);
   });
 
+/** Detects GFM table separator rows (`|---|---|`). Accepts en/em dashes from LLM output. */
+const isTableSeparatorLine = (line: string): boolean => {
+  const trimmed = line.trim();
+  if (!trimmed.includes('|')) return false;
+  const withoutPipesAndSpaces = trimmed.replace(/[|\s]/g, '');
+  const dashCount = (withoutPipesAndSpaces.match(/[-–—―]/g) || []).length;
+  return dashCount > 0 && dashCount >= withoutPipesAndSpaces.length * 0.5;
+};
+
 // Heuristics to detect if chart data appears incomplete/streaming
 const isLikelyIncomplete = (code: string): boolean => {
   // Check for incomplete JSON structures
@@ -314,41 +369,23 @@ const isLikelyIncomplete = (code: string): boolean => {
   const tableLines = getChartMarkdownTableLines(lines);
 
   if (tableLines.length > 0) {
-    // Check for table with header but no data rows yet
-    // A valid table needs: header row, separator row (---|---), and at least one data row
-    // More lenient separator detection - any line with mostly dashes and pipes
-    const isSeparatorLine = (line: string) => {
-      const trimmed = line.trim();
-      if (!trimmed.includes('|')) return false;
-      // Count dashes vs other chars (excluding pipes and spaces); models often emit en/em dashes
-      const withoutPipesAndSpaces = trimmed.replace(/[|\s]/g, '');
-      const dashCount = (withoutPipesAndSpaces.match(/[-\u2013\u2014\u2015]/g) || []).length;
-      // If more than 50% are dashes (and has some dashes), it's likely a separator
-      return dashCount > 0 && dashCount >= withoutPipesAndSpaces.length * 0.5;
-    };
+    const separatorLines = tableLines.filter(isTableSeparatorLine);
+    const nonSeparatorLines = tableLines.filter((line) => !isTableSeparatorLine(line));
 
-    const separatorLines = tableLines.filter(isSeparatorLine);
-    const nonSeparatorLines = tableLines.filter((line) => !isSeparatorLine(line));
-
-    // If we have table content but no separator row yet, it's incomplete
     if (nonSeparatorLines.length > 0 && separatorLines.length === 0) {
       return true;
     }
 
-    // If we have header + separator but no data rows, it's incomplete
     if (separatorLines.length > 0 && nonSeparatorLines.length <= 1) {
       return true;
     }
 
-    // Check if last line ends with | but has fewer columns (incomplete row being typed)
     const lastTableLine = tableLines[tableLines.length - 1].trim();
-    if (lastTableLine && !isSeparatorLine(lastTableLine)) {
+    if (lastTableLine && !isTableSeparatorLine(lastTableLine)) {
       const headerLine = nonSeparatorLines[0];
       if (headerLine) {
         const headerCols = headerLine.split('|').filter((s) => s.trim()).length;
         const lastRowCols = lastTableLine.split('|').filter((s) => s.trim()).length;
-
-        // If last row has fewer columns than header, it's incomplete
         if (lastRowCols > 0 && lastRowCols < headerCols) {
           return true;
         }
@@ -374,6 +411,101 @@ const isLikelyIncomplete = (code: string): boolean => {
   }
 
   return false;
+};
+
+const isIndentedYamlListItem = (line: string) => /^\s*-\s+/.test(line);
+
+const getIndentation = (line: string) => line.match(/^\s*/)?.[0].length ?? 0;
+
+const parseConfigBlockLines = (lines: string[], config: PartialChartConfig, stopAtTable = false) => {
+  let pendingKey: string | null = null;
+  let pendingValue = '';
+  const flushPending = () => {
+    if (pendingKey) {
+      applyConfigLine(config, pendingKey, pendingValue);
+      pendingKey = null;
+      pendingValue = '';
+    }
+  };
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmedLine = line.trim();
+
+    if (stopAtTable && trimmedLine.startsWith('|')) {
+      flushPending();
+      break;
+    }
+
+    if (pendingKey) {
+      pendingValue += line.trim();
+      const opens = (pendingValue.match(/[{[]/g) || []).length;
+      const closes = (pendingValue.match(/[}\]]/g) || []).length;
+      if (opens > 0 && opens <= closes) {
+        flushPending();
+      }
+      continue;
+    }
+
+    const colonIdx = line.indexOf(':');
+    if (colonIdx === -1) continue;
+
+    const key = line.substring(0, colonIdx);
+    if (!key.trim()) continue;
+
+    const value = line.substring(colonIdx + 1);
+    const trimmedVal = value.trim();
+
+    if (!trimmedVal.length) {
+      const baseIndent = getIndentation(line);
+      const yamlLines: string[] = [];
+
+      for (let nextIndex = index + 1; nextIndex < lines.length; nextIndex += 1) {
+        const nextLine = lines[nextIndex];
+        const nextTrimmed = nextLine.trim();
+
+        if (!nextTrimmed) {
+          if (yamlLines.length > 0) yamlLines.push(nextLine);
+          continue;
+        }
+
+        if (stopAtTable && nextTrimmed.startsWith('|')) {
+          break;
+        }
+
+        const nextIndent = getIndentation(nextLine);
+        if (nextIndent <= baseIndent && !isIndentedYamlListItem(nextLine)) {
+          break;
+        }
+
+        if (!isIndentedYamlListItem(nextLine) && yamlLines.length === 0) {
+          break;
+        }
+
+        yamlLines.push(nextLine);
+        index = nextIndex;
+      }
+
+      if (yamlLines.length > 0) {
+        applyConfigLine(config, key, yamlLines.join('\n'));
+      } else {
+        applyConfigLine(config, key, value);
+      }
+      continue;
+    }
+
+    const opens = (trimmedVal.match(/[{[]/g) || []).length;
+    const closes = (trimmedVal.match(/[}\]]/g) || []).length;
+    if (opens > 0 && opens > closes) {
+      pendingKey = key;
+      pendingValue = trimmedVal;
+      continue;
+    }
+
+    applyConfigLine(config, key, value);
+  }
+
+  flushPending();
 };
 
 const parseChartConfig = (code: string, language: string): ChartConfig | null => {
@@ -411,17 +543,7 @@ const parseChartConfig = (code: string, language: string): ChartConfig | null =>
     const hasTable = tableLines.length > 0;
 
     if (hasTable) {
-      // More robust separator detection
-      const isSeparatorLine = (line: string) => {
-        const trimmed = line.trim();
-        if (!trimmed.includes('|')) return false;
-        const withoutPipesAndSpaces = trimmed.replace(/[|\s]/g, '');
-        const dashCount = (withoutPipesAndSpaces.match(/[-\u2013\u2014\u2015]/g) || []).length;
-        return dashCount > 0 && dashCount >= withoutPipesAndSpaces.length * 0.5;
-      };
-
-      // Find separator index to properly split header from data
-      const separatorIndex = tableLines.findIndex(isSeparatorLine);
+      const separatorIndex = tableLines.findIndex(isTableSeparatorLine);
 
       // If no separator found yet, we're still streaming - return partial config
       if (separatorIndex === -1) {
@@ -447,7 +569,7 @@ const parseChartConfig = (code: string, language: string): ChartConfig | null =>
         config.data = dataRows
           .map((row) => {
             // Skip separator-like rows that might appear in data
-            if (isSeparatorLine(row)) return null;
+            if (isTableSeparatorLine(row)) return null;
 
             const values = row
               .split('|')
@@ -469,94 +591,9 @@ const parseChartConfig = (code: string, language: string): ChartConfig | null =>
         config.dataKeys = headers.slice(1);
       }
 
-      // Parse config lines before the table, with multi-line JSON support
-      let tPendingKey: string | null = null;
-      let tPendingValue = '';
-      const tFlush = () => {
-        if (tPendingKey) {
-          applyConfigLine(config, tPendingKey, tPendingValue);
-          tPendingKey = null;
-          tPendingValue = '';
-        }
-      };
-      for (const line of lines) {
-        const row = line.trim();
-        if (row.startsWith('|')) {
-          tFlush();
-          break;
-        }
-        if (tPendingKey) {
-          tPendingValue += line.trim();
-          const opens = (tPendingValue.match(/[{[]/g) || []).length;
-          const closes = (tPendingValue.match(/[}\]]/g) || []).length;
-          if (opens > 0 && opens <= closes) tFlush();
-          continue;
-        }
-        const colonIdx = line.indexOf(':');
-        if (colonIdx === -1) continue;
-        const key = line.substring(0, colonIdx);
-        const value = line.substring(colonIdx + 1);
-        if (!key.trim()) continue;
-        const trimmedVal = value.trim();
-        if (trimmedVal.length > 0) {
-          const opens = (trimmedVal.match(/[{[]/g) || []).length;
-          const closes = (trimmedVal.match(/[}\]]/g) || []).length;
-          if (opens > 0 && opens > closes) {
-            tPendingKey = key;
-            tPendingValue = trimmedVal;
-            continue;
-          }
-        }
-        applyConfigLine(config, key, value);
-      }
+      parseConfigBlockLines(lines, config, true);
     } else {
-      // Parse key/value lines, accumulating multi-line JSON values.
-      // LLMs sometimes output data/series across multiple indented lines:
-      //   data: [
-      //     {"x":"A","y":1},
-      //     {"x":"B","y":2}
-      //   ]
-      let pendingKey: string | null = null;
-      let pendingValue = '';
-      const flushPending = () => {
-        if (pendingKey) {
-          applyConfigLine(config, pendingKey, pendingValue);
-          pendingKey = null;
-          pendingValue = '';
-        }
-      };
-      for (const line of lines) {
-        if (pendingKey) {
-          // We're accumulating a multi-line value
-          pendingValue += line.trim();
-          // Check if brackets/braces are balanced now
-          const opens = (pendingValue.match(/[{[]/g) || []).length;
-          const closes = (pendingValue.match(/[}\]]/g) || []).length;
-          if (opens > 0 && opens <= closes) {
-            flushPending();
-          }
-          continue;
-        }
-        const colonIdx = line.indexOf(':');
-        if (colonIdx === -1) continue;
-        const key = line.substring(0, colonIdx);
-        const value = line.substring(colonIdx + 1);
-        if (!key.trim()) continue;
-        // Detect start of a multi-line JSON value: value contains opening
-        // bracket/brace but brackets aren't balanced on this line
-        const trimmedVal = value.trim();
-        if (trimmedVal.length > 0) {
-          const opens = (trimmedVal.match(/[{[]/g) || []).length;
-          const closes = (trimmedVal.match(/[}\]]/g) || []).length;
-          if (opens > 0 && opens > closes) {
-            pendingKey = key;
-            pendingValue = trimmedVal;
-            continue;
-          }
-        }
-        applyConfigLine(config, key, value);
-      }
-      flushPending();
+      parseConfigBlockLines(lines, config);
 
       if (Array.isArray(config.data) && typeof config.data[0] === 'number') {
         // Handle array of numbers - convert to objects with name/value pairs
@@ -710,18 +747,10 @@ const buildSeries = (config: ChartConfig, colors: string[]): NormalizedSeries[] 
     })
     .filter((series): series is ChartSeriesConfig => Boolean(series.key));
 
-  const defaultType: NormalizedSeries['type'] =
-    config.type === 'line'
-      ? 'line'
-      : config.type === 'area'
-      ? 'area'
-      : config.type === 'scatter'
-      ? 'scatter'
-      : config.type === 'radar'
-      ? 'radar'
-      : config.type === 'funnel'
-      ? 'funnel'
-      : 'bar';
+  const CHART_TYPE_TO_SERIES_TYPE: Partial<Record<ChartConfig['type'], NormalizedSeries['type']>> = {
+    line: 'line', area: 'area', scatter: 'scatter', radar: 'radar', funnel: 'funnel',
+  };
+  const defaultType: NormalizedSeries['type'] = CHART_TYPE_TO_SERIES_TYPE[config.type] ?? 'bar';
 
   return baseSeries.map((series, idx) => {
     const resolvedType = config.type === 'composed' ? series.type || defaultType : defaultType;
@@ -959,23 +988,23 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     // Parse the current code
     const parsed = parseChartConfig(code, language);
 
-    // Validation - but handle differently if we're streaming
-    if (!parsed) {
+    // Helper: show waiting-state during streaming, or surface the error immediately.
+    // Re-checks validity after 5 s so a stalled stream surfaces the error eventually.
+    const handleValidationFailure = (
+      errorMessage: string,
+      isStillInvalid: (p: ChartConfig | null) => boolean
+    ) => {
       if (likelyStreaming) {
-        // During streaming, show waiting state instead of error
         scheduleChartStateUpdate(() => {
           setIsWaitingForData(true);
           setIsStreaming(true);
           setError(null);
           setConfig(null);
         });
-        if (streamingTimeoutRef.current) {
-          clearTimeout(streamingTimeoutRef.current);
-        }
+        if (streamingTimeoutRef.current) clearTimeout(streamingTimeoutRef.current);
         streamingTimeoutRef.current = setTimeout(() => {
-          const currentParsed = parseChartConfig(lastCodeRef.current, language);
-          if (!currentParsed) {
-            setError('Failed to parse chart configuration');
+          if (isStillInvalid(parseChartConfig(lastCodeRef.current, language))) {
+            setError(errorMessage);
             setIsStreaming(false);
             setIsWaitingForData(false);
           }
@@ -983,77 +1012,25 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
       } else {
         scheduleChartStateUpdate(() => {
           setConfig(null);
-          setError('Failed to parse chart configuration');
+          setError(errorMessage);
           setIsStreaming(false);
           setIsWaitingForData(false);
         });
       }
+    };
+
+    if (!parsed) {
+      handleValidationFailure('Failed to parse chart configuration', (p) => !p);
       return;
     }
 
     if (!Array.isArray(parsed.data) || parsed.data.length === 0) {
-      if (likelyStreaming) {
-        // During streaming with no data yet, show waiting state
-        scheduleChartStateUpdate(() => {
-          setIsWaitingForData(true);
-          setIsStreaming(true);
-          setError(null);
-          setConfig(null);
-        });
-
-        // Clear any existing streaming timeout
-        if (streamingTimeoutRef.current) {
-          clearTimeout(streamingTimeoutRef.current);
-        }
-
-        // After 5 seconds of no valid data, show error (streaming likely failed)
-        streamingTimeoutRef.current = setTimeout(() => {
-          const currentParsed = parseChartConfig(lastCodeRef.current, language);
-          if (!currentParsed || !Array.isArray(currentParsed.data) || currentParsed.data.length === 0) {
-            setError('Chart data is empty');
-            setIsStreaming(false);
-            setIsWaitingForData(false);
-          }
-        }, 5000);
-      } else {
-        scheduleChartStateUpdate(() => {
-          setConfig(null);
-          setError('Chart data is empty');
-          setIsStreaming(false);
-          setIsWaitingForData(false);
-        });
-      }
+      handleValidationFailure('Chart data is empty', (p) => !p || !Array.isArray(p.data) || p.data.length === 0);
       return;
     }
 
     if (!parsed.type) {
-      if (likelyStreaming) {
-        // Type not yet received during streaming
-        scheduleChartStateUpdate(() => {
-          setIsWaitingForData(true);
-          setIsStreaming(true);
-          setError(null);
-          setConfig(null);
-        });
-        if (streamingTimeoutRef.current) {
-          clearTimeout(streamingTimeoutRef.current);
-        }
-        streamingTimeoutRef.current = setTimeout(() => {
-          const current = parseChartConfig(lastCodeRef.current, language);
-          if (!current?.type) {
-            setError('Chart type is required (bar, line, pie, area, scatter, composed)');
-            setIsStreaming(false);
-            setIsWaitingForData(false);
-          }
-        }, 5000);
-      } else {
-        scheduleChartStateUpdate(() => {
-          setConfig(null);
-          setError('Chart type is required (bar, line, pie, area, scatter, composed)');
-          setIsStreaming(false);
-          setIsWaitingForData(false);
-        });
-      }
+      handleValidationFailure('Chart type is required (bar, line, pie, area, scatter, composed)', (p) => !p?.type);
       return;
     }
 
