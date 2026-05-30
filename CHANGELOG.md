@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.6.9] - 2026-05-30
+
+### Core System Updates
+- Audio & STT: Added Grok (xai) STT service.
+- Adapter Management: Moved skill fields (`expose_as_skill`, `skill_name`, `skill_description`) under the `capabilities` block for all adapters (#192).
+- Services: Refactored `auth_service`, `autocomplete_service`, `dynamic_adapter_manager`, and `chat_history_service` to reduce duplication and expand unit test coverage.
+
+### Chat-app & UI Improvements
+- orbitchat v3.8.9: Published latest release with modularized store logic and UI refinements.
+- Sidebar: Added collapsible desktop sidebar with persisted state and improved toggle controls.
+- Mobile UX: Integrated model picker into the mobile chat header and removed redundant model selection from agent cards.
+- General UX: Improved conversation cards, delete dialogs, and settings interface; refined sidebar icon alignment.
+- Charts: Optimized `ChartRenderer` by deduplicating separator detection and simplifying series building.
+
+### Bug Fixes & Technical Improvements
+- Autocomplete: Fixed skill autocomplete routing by passing the active skill as a query parameter to avoid 404 errors during multimodal sessions.
+- File Uploads: Implemented graceful failure handling for image uploads, ensuring failed uploads are cleared from the state (#183).
+- Code Hygiene: Split the monolithic `chatStore.ts` into focused modules (helpers, persistence, store) and deduplicated response handlers.
+
+### Documentation & Configuration
+- Documentation: Reorganized content structure and added new video demonstrations.
+
 ## [2.6.8] - 2026-05-26
 
 ### Core System Updates
