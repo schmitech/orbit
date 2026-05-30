@@ -12,7 +12,7 @@ adapters:
 
     capabilities:
       expose_as_skill: true
-      skill_name: "word-generation"
+      skill_name: "Word"
       skill_description: "Generate Word documents (.docx) from text descriptions or structured data"
       retrieval_behavior: "none"
       formatting_style: "clean"

@@ -13,7 +13,6 @@ import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { getAdapterInputPlaceholder, getDefaultInputPlaceholder, getEnableAudioInput, getEnableAudioOutput, getEnableAutocomplete, getEnableUploadButton, getIsAuthConfigured, getVoiceRecognitionLanguage, getVoiceSilenceTimeoutMs, resolveApiUrl } from '../utils/runtimeConfig';
-import { fetchAdapters, type Adapter } from '../utils/middlewareConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
 import { audioStreamManager } from '../utils/audioStreamManager';
@@ -65,12 +64,6 @@ const VERTICAL_ALIGNMENT_OFFSET = 3;
 const PLACEHOLDER_VERTICAL_OFFSET = 0;
 const INLINE_SUGGESTION_VERTICAL_OFFSET = 0;
 const TEXTAREA_HORIZONTAL_PADDING = 2;
-
-interface SkillAutocompleteAdapterResolution {
-  skillName: string;
-  skillAdapterName: string;
-  adapterName: string | null;
-}
 
 function resolveAutocompleteSupport(adapterInfo: unknown): boolean | null {
   if (!adapterInfo || typeof adapterInfo !== 'object') {
@@ -140,33 +133,6 @@ function getBaseName(name: string): string {
     return name;
   }
   return name.slice(0, lastDot);
-}
-
-function normalizeAdapterMatchText(value: string | undefined | null): string {
-  return (value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-function adapterMatchesSkill(adapter: Adapter, skillName: string, skillAdapterName: string): boolean {
-  const normalizedSkillName = normalizeAdapterMatchText(skillName);
-  const normalizedSkillAdapterName = normalizeAdapterMatchText(skillAdapterName);
-  const searchableAdapterText = [
-    adapter.id,
-    adapter.name,
-    adapter.description,
-    adapter.notes
-  ]
-    .map(normalizeAdapterMatchText)
-    .filter(Boolean)
-    .join(' ');
-
-  return Boolean(
-    (normalizedSkillAdapterName && normalizeAdapterMatchText(adapter.id) === normalizedSkillAdapterName) ||
-    (normalizedSkillName && searchableAdapterText.includes(normalizedSkillName)) ||
-    (normalizedSkillAdapterName && searchableAdapterText.includes(normalizedSkillAdapterName))
-  );
 }
 
 function prepareClipboardFile(file: File, index: number): File {
@@ -248,8 +214,6 @@ export function MessageInput({
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
   const [showSkillPicker, setShowSkillPicker] = useState(false);
   const [activeSkillIndex, setActiveSkillIndex] = useState(0);
-  const [skillAutocompleteAdapterResolution, setSkillAutocompleteAdapterResolution] =
-    useState<SkillAutocompleteAdapterResolution | null>(null);
   const [textareaVerticalPadding, setTextareaVerticalPadding] = useState(() => ({
     top: DEFAULT_TEXTAREA_VERTICAL_PADDING + VERTICAL_ALIGNMENT_OFFSET,
     bottom: Math.max(DEFAULT_TEXTAREA_VERTICAL_PADDING - VERTICAL_ALIGNMENT_OFFSET, 0)
@@ -312,23 +276,7 @@ export function MessageInput({
     supportsThreading: currentConversation?.adapterInfo?.supportsThreading ?? false,
   });
 
-  const selectedSkillAdapterName = selectedSkill?.adapter_name?.trim() || null;
-  const resolvedSkillAutocompleteAdapterName =
-    selectedSkill && selectedSkillAdapterName
-      ? skillAutocompleteAdapterResolution?.skillName === selectedSkill.name &&
-        skillAutocompleteAdapterResolution.skillAdapterName === selectedSkillAdapterName
-        ? skillAutocompleteAdapterResolution.adapterName
-        : null
-      : selectedSkill
-        ? currentConversation?.adapterName || null
-        : null;
-  const autocompleteAdapterName = selectedSkill
-    ? resolvedSkillAutocompleteAdapterName
-    : currentConversation?.adapterName || null;
-  const adapterSupportsAutocomplete =
-    selectedSkill && autocompleteAdapterName !== currentConversation?.adapterName
-      ? null
-      : currentAdapterSupportsAutocomplete;
+  const autocompleteAdapterName = currentConversation?.adapterName || null;
   // Autocomplete suggestions based on nl_examples from intent templates
   const {
     suggestions,
@@ -340,11 +288,12 @@ export function MessageInput({
     focusInputAfterSelection,
     suppressUntilQueryChange
   } = useAutocomplete(message, {
-    enabled: autocompleteEnabled && !isListening && (!selectedSkill || Boolean(autocompleteAdapterName)),
+    enabled: autocompleteEnabled && !isListening,
     apiUrl: currentConversation?.apiUrl,
     adapterName: autocompleteAdapterName,
     sessionId: currentConversation?.sessionId,
-    adapterSupportsAutocomplete,
+    adapterSupportsAutocomplete: currentAdapterSupportsAutocomplete,
+    skill: selectedSkill?.name || null,
     inputRef: textareaRef
   });
   const hasSuggestions = suggestions.length > 0;
@@ -423,54 +372,6 @@ export function MessageInput({
     setActiveSkillIndex(0);
     textareaRef.current?.focus();
   }, []);
-
-  useEffect(() => {
-    if (!selectedSkill) {
-      return;
-    }
-
-    const skillAdapterName = selectedSkill.adapter_name?.trim();
-    if (!skillAdapterName) {
-      return;
-    }
-
-    let cancelled = false;
-
-    fetchAdapters()
-      .then((adapters) => {
-        if (cancelled) {
-          return;
-        }
-
-        const directMatch = adapters.find(adapter => adapter.id === skillAdapterName);
-        const semanticMatch = directMatch || adapters.find(adapter =>
-          adapterMatchesSkill(adapter, selectedSkill.name, skillAdapterName)
-        );
-
-        setSkillAutocompleteAdapterResolution({
-          skillName: selectedSkill.name,
-          skillAdapterName,
-          adapterName: semanticMatch?.id || currentConversation?.adapterName || null
-        });
-      })
-      .catch((error) => {
-        debugLog(
-          '[MessageInput] Failed to resolve skill autocomplete adapter:',
-          error instanceof Error ? error.message : String(error)
-        );
-        if (!cancelled) {
-          setSkillAutocompleteAdapterResolution({
-            skillName: selectedSkill.name,
-            skillAdapterName,
-            adapterName: currentConversation?.adapterName || null
-          });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentConversation?.adapterName, selectedSkill]);
 
   const adjustTextareaVerticalAlignment = useCallback(() => {
     const textarea = textareaRef.current;

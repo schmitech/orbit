@@ -27,12 +27,12 @@ adapters:
       supports_session_tracking: false   # Does not need session tracking
       requires_api_key_validation: false # API key used for access control only
       available_skills:
-        - "image-generation"
-        - "video-generation"
-        - "pdf-generation"
-        - "word-generation"
-        - "excel-generation"
-        - "pptx-generation"
+        - "Image"
+        - "Video"
+        - "PDF"
+        - "Word"
+        - "Excel"
+        - "PowerPoint"
       supports_autocomplete: true
       context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
       context_max_tokens: 8000

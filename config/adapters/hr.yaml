@@ -12,19 +12,19 @@ adapters:
     database: "examples/intent-templates/sql-intent-template/sqlite/hr/hr.db"
     # Provider overrides - intent adapters benefit from powerful models
     inference_provider: "ollama_cloud"    # Cloud LLM for complex intent classification
-    model: "gpt-oss:20b"
-    embedding_provider: "ollama"          # Local embeddings for template matching
-    embedding_model: "nomic-embed-text"
+    model: "gpt-oss:120b"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
     # reranker_provider: "ollama"           # Optional: Jina AI reranker for template relevance
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
     allowed_models:
-      # - name: "llama-cpp-gemma4"
-      #   provider: "llama_cpp"
-      #   model: "gemma4-e2b-direct-cpu"
-      # - name: "ollama-gemma4-e2b"
-      #   provider: "ollama"
-      #   model: "gemma4-e2b-cpu"
+      - name: "llama-cpp-gemma4"
+        provider: "llama_cpp"
+        model: "gemma4-e2b-direct-cpu"
+      - name: "ollama-gemma4-e2b"
+        provider: "ollama"
+        model: "gemma4-e2b-cpu"
       - name: "ollama-gpt-oss-120b"
         provider: "ollama_cloud"
         model: "gpt-oss:20b"
@@ -36,7 +36,7 @@ adapters:
         model: "gemini-3.1-pro-preview"
     capabilities:
       expose_as_skill: true
-      skill_name: "hr"
+      skill_name: "HR"
       skill_description: "HR skill"
       retrieval_behavior: "always"
       formatting_style: "standard"
@@ -44,18 +44,18 @@ adapters:
       supports_session_tracking: false
       supports_threading: true
       requires_api_key_validation: true
+      available_skills:
+        - "Image"
+        - "Video"
+        - "PDF"
+        - "Word"
+        - "Excel"
+        - "PowerPoint"
       supports_autocomplete: true
       context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
       context_max_tokens: 8000
       numeric_precision:
         decimal_places: 2
-      available_skills:
-        - "image-generation"
-        - "video-generation"
-        - "pdf-generation"
-        - "word-generation"
-        - "excel-generation"
-        - "pptx-generation"
     config:
       # SQLite database path is configured in datasources.yaml
       check_same_thread: false  # Allow multi-threaded access

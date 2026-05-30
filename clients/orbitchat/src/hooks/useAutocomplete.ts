@@ -37,6 +37,9 @@ export interface UseAutocompleteOptions {
   adapterName?: string | null;
   sessionId?: string | null;
   adapterSupportsAutocomplete?: boolean | null;
+  /** Active skill name forwarded to the backend so it resolves autocomplete
+   *  against the skill's backing adapter rather than the parent adapter. */
+  skill?: string | null;
   /**
    * Optional ref to refocus after accepting a suggestion (helps on mobile/touch).
    */
@@ -77,6 +80,7 @@ export function useAutocomplete(
     adapterName,
     sessionId,
     adapterSupportsAutocomplete,
+    skill,
     inputRef
   } = options;
 
@@ -205,6 +209,9 @@ export function useAutocomplete(
       const params = new URLSearchParams();
       params.set('q', searchQuery);
       params.set('limit', String(MAX_SUGGESTIONS));
+      if (skill) {
+        params.set('skill', skill);
+      }
       // Keep browser requests on the OrbitChat proxy. The proxy uses
       // X-Adapter-Name to route to the adapter's configured apiUrl and injects
       // the backend API key; direct adapter-host calls fail CORS and leak policy.
@@ -286,6 +293,7 @@ export function useAutocomplete(
     adapterName,
     sessionId,
     adapterSupportsAutocomplete,
+    skill,
     getFallbackSuggestions,
     isAdapterTemporarilySuppressed
   ]);

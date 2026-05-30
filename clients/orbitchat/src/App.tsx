@@ -46,27 +46,28 @@ function App() {
             <div className="h-dvh flex flex-col bg-white dark:bg-black text-slate-900 dark:text-slate-100">
               <div className="flex-1 flex flex-col md:flex-row md:pl-4 min-h-0">
                 {showSidebar && (
-                  <div className={`hidden md:h-full ${isDesktopSidebarCollapsed ? 'md:hidden' : 'md:flex'}`}>
-                    <Sidebar
-                      onToggleDesktopSidebar={() => setIsDesktopSidebarCollapsed(true)}
-                    />
-                  </div>
-                )}
-                <div className="flex-1 flex flex-col w-full min-h-0">
-                  <AppHeader hasCollapsedSidebarButton={showSidebar && isDesktopSidebarCollapsed} />
-                  {showSidebar && isDesktopSidebarCollapsed && (
-                    <div className="pointer-events-none absolute left-4 top-5 z-40 hidden md:block">
+                  isDesktopSidebarCollapsed ? (
+                    // Collapsed: narrow placeholder keeps expand button in the sidebar zone
+                    // so the header logo and chat content share the same left edge
+                    <div className="hidden md:flex md:w-16 md:h-full shrink-0 items-start justify-center pt-4">
                       <button
                         type="button"
                         onClick={() => setIsDesktopSidebarCollapsed(false)}
-                        className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200/80 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-[#333645] dark:bg-[#161616] dark:text-[#d1d5db] dark:hover:border-[#43465a] dark:hover:bg-[#202020] dark:hover:text-white"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-[#333645] dark:bg-[#161616] dark:text-[#d1d5db] dark:hover:border-[#43465a] dark:hover:bg-[#202020] dark:hover:text-white"
                         aria-label="Open sidebar"
                         title="Open sidebar"
                       >
-                        <PanelLeftOpen className="h-5 w-5" />
+                        <PanelLeftOpen className="h-4 w-4" />
                       </button>
                     </div>
-                  )}
+                  ) : (
+                    <div className="hidden md:h-full md:flex">
+                      <Sidebar onToggleDesktopSidebar={() => setIsDesktopSidebarCollapsed(true)} />
+                    </div>
+                  )
+                )}
+                <div className="flex-1 flex flex-col w-full min-h-0">
+                  <AppHeader />
                   <div className="flex-1 flex justify-center w-full min-h-0">
                     <ChatInterface
                       onOpenSettings={() => setIsSettingsOpen(true)}

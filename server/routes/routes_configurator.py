@@ -690,6 +690,7 @@ class RouteConfigurator:
             request: Request,
             q: str = Query(..., min_length=3, description="Query prefix to match"),
             limit: int = Query(5, ge=1, le=10, description="Maximum number of suggestions"),
+            skill: Optional[str] = Query(None, description="Active skill name to resolve autocomplete against"),
             api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
             autocomplete_service = Depends(dependencies['get_autocomplete_service'])
         ) -> AutocompleteResponse:
@@ -703,6 +704,8 @@ class RouteConfigurator:
             Args:
                 q: The query prefix to match (minimum 3 characters)
                 limit: Maximum number of suggestions to return (1-10, default 5)
+                skill: Optional active skill name; when provided, resolves to the
+                       skill's backing adapter instead of the API key's adapter
 
             Returns:
                 AutocompleteResponse with list of suggestions
@@ -713,6 +716,16 @@ class RouteConfigurator:
                 return AutocompleteResponse(suggestions=[], query=q)
 
             adapter_name, _ = api_key_result
+
+            if skill:
+                adapter_manager = (
+                    getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
+                    or getattr(request.app.state, 'adapter_manager', None)
+                )
+                if adapter_manager and hasattr(adapter_manager, 'get_skill_adapter'):
+                    skill_adapter = adapter_manager.get_skill_adapter(skill)
+                    if skill_adapter:
+                        adapter_name = skill_adapter
 
             try:
                 suggestions = await autocomplete_service.get_suggestions(
