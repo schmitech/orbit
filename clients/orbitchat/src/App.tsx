@@ -49,7 +49,7 @@ function App() {
                   isDesktopSidebarCollapsed ? (
                     // Collapsed: narrow placeholder keeps expand button in the sidebar zone
                     // so the header logo and chat content share the same left edge
-                    <div className="hidden md:flex md:w-16 md:h-full shrink-0 items-start justify-center pt-4">
+                    <div className="hidden md:flex md:w-16 md:h-full shrink-0 items-start justify-center pt-8">
                       <button
                         type="button"
                         onClick={() => setIsDesktopSidebarCollapsed(false)}
