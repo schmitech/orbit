@@ -11,7 +11,7 @@ adapters:
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     allowed_models:
-      - name: "grok-grok-4.3"
+      - name: "xai-grok-4.3"
         provider: "xai"
         model: "grok-4.3"
       - name: "openrouter-llama-3.1-8b"
@@ -38,11 +38,11 @@ adapters:
       skill_description: "Business analytics skill"
       retrieval_behavior: "always"
       available_skills:
-        - "image-generation"
-        - "pdf-generation"
-        - "word-generation"
-        - "excel-generation"
-        - "pptx-generation"
+        - "Image"
+        - "PDF"
+        - "Word"
+        - "Excel"
+        - "PowerPoint"
       formatting_style: "standard"
       supports_file_ids: false
       supports_session_tracking: false

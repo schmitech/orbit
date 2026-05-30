@@ -15,16 +15,63 @@ Before querying, generate realistic sample data:
 export DATASOURCE_ELASTICSEARCH_USERNAME=elastic
 export DATASOURCE_ELASTICSEARCH_PASSWORD=your-password
 
-# Generate 1000 sample logs
-python utils/elasticsearch-intent-template/generate_sample_data.py \
-    --count 1000 \
-    --index logs-app-demo
+# Generate high-quality demo data (10,000 logs over 30 days)
+python3 examples/intent-templates/elasticsearch-intent-template/application-logs/generate_sample_data.py \
+    --count 10000 \
+    --days-back 30 \
+    --error-rate 25 \
+    --index application-logs-demo \
+    --seed 12345
 
 # Validate the data
-python utils/elasticsearch-intent-template/validate_data.py --index logs-app-demo
+python examples/intent-templates/elasticsearch-intent-template/application-logs/validate_data.py --index application-logs-demo
 ```
 
-See [SAMPLE_DATA.md](SAMPLE_DATA.md) for detailed instructions on generating sample data.
+### 0.1 DevTools Cheatsheet (Kibana / Console)
+
+Use these commands in the Kibana DevTools Console to explore the generated data:
+
+```http
+# 1. Check index health and record count
+GET /_cat/indices/application-logs-demo?v
+
+# 2. See the mapping (schema)
+GET /application-logs-demo/_mapping
+
+# 3. Retrieve 10 sample logs
+GET /application-logs-demo/_search
+{
+  "size": 10,
+  "sort": [{ "timestamp": "desc" }]
+}
+
+# 4. Find recent ERROR logs
+GET /application-logs-demo/_search
+{
+  "query": {
+    "match": {
+      "level": "ERROR"
+    }
+  }
+}
+
+# 5. Aggregate errors by service_name
+GET /application-logs-demo/_search
+{
+  "size": 0,
+  "aggs": {
+    "errors_by_service": {
+      "terms": {
+        "field": "service_name.keyword",
+        "size": 10
+      }
+    }
+  }
+}
+
+# 6. Delete the demo index
+DELETE /application-logs-demo
+```
 
 ### 1. Configure Your Elasticsearch Adapter
 
