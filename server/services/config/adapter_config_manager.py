@@ -7,6 +7,8 @@ Provides centralized configuration management for adapters.
 import logging
 from typing import Any, Dict, List, Optional
 
+from adapters.capabilities import AdapterCapabilities
+
 from .config_change_detector import ConfigChangeDetector
 
 logger = logging.getLogger(__name__)
@@ -192,22 +194,25 @@ class AdapterConfigManager:
     def get_skill_adapter(self, skill_name: str) -> Optional[str]:
         """Return the adapter_name whose skill_name matches, or None."""
         for name, cfg in self._adapter_configs.items():
-            if cfg.get('expose_as_skill') and cfg.get('skill_name') == skill_name:
+            caps = AdapterCapabilities.from_config(cfg)
+            if caps.expose_as_skill and caps.skill_name == skill_name:
                 return name
         return None
 
     def get_all_skills(self) -> List[Dict[str, Any]]:
         """Return metadata for all adapters marked as skills."""
-        return [
-            {
-                'name': cfg.get('skill_name', name),
-                'description': cfg.get('skill_description', ''),
+        skills = []
+        for name, cfg in self._adapter_configs.items():
+            caps = AdapterCapabilities.from_config(cfg)
+            if not caps.expose_as_skill:
+                continue
+            skills.append({
+                'name': caps.skill_name or name,
+                'description': caps.skill_description or '',
                 'adapter_name': name,
                 'enabled': cfg.get('enabled', True),
-            }
-            for name, cfg in self._adapter_configs.items()
-            if cfg.get('expose_as_skill')
-        ]
+            })
+        return skills
 
     def find_adapter_in_config_list(
         self,

@@ -1,9 +1,6 @@
 adapters:
   - name: "intent-duckdb-analytics"
     enabled: true
-    expose_as_skill: true
-    skill_name: "business-analytics"
-    skill_description: "Business analytics skill"
     type: "retriever"
     datasource: "duckdb"
     adapter: "intent"
@@ -36,6 +33,9 @@ adapters:
         provider: "ollama"
         model: "gemma4-e2b-cpu"
     capabilities:
+      expose_as_skill: true
+      skill_name: "business-analytics"
+      skill_description: "Business analytics skill"
       retrieval_behavior: "always"
       available_skills:
         - "image-generation"

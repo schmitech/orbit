@@ -391,10 +391,12 @@ class TestSkillRegistry:
                 {
                     'name': 'image-generator',
                     'enabled': True,
-                    'expose_as_skill': True,
-                    'skill_name': 'image-generation',
-                    'skill_description': 'Generate images from text',
                     'type': 'image_generation',
+                    'capabilities': {
+                        'expose_as_skill': True,
+                        'skill_name': 'image-generation',
+                        'skill_description': 'Generate images from text',
+                    },
                 },
                 {
                     'name': 'simple-chat',
@@ -404,10 +406,12 @@ class TestSkillRegistry:
                 {
                     'name': 'video-generator',
                     'enabled': True,
-                    'expose_as_skill': True,
-                    'skill_name': 'video-generation',
-                    'skill_description': 'Generate videos',
                     'type': 'passthrough',
+                    'capabilities': {
+                        'expose_as_skill': True,
+                        'skill_name': 'video-generation',
+                        'skill_description': 'Generate videos',
+                    },
                 },
             ]
         }
@@ -448,6 +452,71 @@ class TestSkillRegistry:
         config = {'adapters': [{'name': 'simple-chat', 'enabled': True, 'type': 'passthrough'}]}
         mgr = AdapterConfigManager(config)
         assert mgr.get_all_skills() == []
+
+
+class TestSkillSettingsUnderCapabilities:
+    """Skill exposure now lives under `capabilities`; legacy top-level fields
+    must keep working. Regression coverage for issue #192."""
+
+    def _nested_config(self):
+        return {
+            'adapters': [
+                {
+                    'name': 'pdf-generator',
+                    'enabled': True,
+                    'type': 'document_generation',
+                    'capabilities': {
+                        'expose_as_skill': True,
+                        'skill_name': 'PDF',
+                        'skill_description': 'Generate PDF documents',
+                        'retrieval_behavior': 'none',
+                    },
+                },
+            ]
+        }
+
+    def test_nested_skill_fields_detected(self):
+        mgr = AdapterConfigManager(self._nested_config())
+        skills = mgr.get_all_skills()
+        assert len(skills) == 1
+        assert skills[0]['name'] == 'PDF'
+        assert skills[0]['description'] == 'Generate PDF documents'
+        assert skills[0]['adapter_name'] == 'pdf-generator'
+
+    def test_nested_get_skill_adapter(self):
+        mgr = AdapterConfigManager(self._nested_config())
+        assert mgr.get_skill_adapter('PDF') == 'pdf-generator'
+
+    def test_legacy_top_level_fields_ignored(self):
+        """Legacy top-level skill fields are decommissioned and must not register a skill."""
+        config = {
+            'adapters': [
+                {'name': 'pdf-generator', 'enabled': True, 'type': 'document_generation',
+                 'expose_as_skill': True, 'skill_name': 'PDF',
+                 'skill_description': 'Generate PDF documents'},
+            ]
+        }
+        mgr = AdapterConfigManager(config)
+        assert mgr.get_all_skills() == []
+        assert mgr.get_skill_adapter('PDF') is None
+
+    def test_skill_name_defaults_to_adapter_name(self):
+        config = {
+            'adapters': [
+                {'name': 'pdf-generator', 'enabled': True,
+                 'capabilities': {'expose_as_skill': True}},
+            ]
+        }
+        mgr = AdapterConfigManager(config)
+        assert mgr.get_all_skills()[0]['name'] == 'pdf-generator'
+
+    def test_reload_reflects_nested_skill_changes(self):
+        mgr = AdapterConfigManager(self._nested_config())
+        new_config = self._nested_config()
+        new_config['adapters'][0]['capabilities']['skill_name'] = 'PDF-V2'
+        mgr.reload_from_config(new_config)
+        assert mgr.get_skill_adapter('PDF') is None
+        assert mgr.get_skill_adapter('PDF-V2') == 'pdf-generator'
 
 
 if __name__ == "__main__":

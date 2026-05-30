@@ -3,9 +3,6 @@
 adapters:
   - name: "video-generator"
     enabled: true
-    expose_as_skill: true
-    skill_name: "video-generation"
-    skill_description: "Generate short videos from text descriptions using AI (Veo 2)"
     type: "video_generation"
     datasource: "none"
     adapter: "multimodal"
@@ -14,6 +11,9 @@ adapters:
     rewrite_provider: "deepseek"          # Text LLM used to enrich prompts before video generation
 
     capabilities:
+      expose_as_skill: true
+      skill_name: "Video"
+      skill_description: "Generate short videos from text descriptions using AI (Veo 2)"
       retrieval_behavior: "none"
       formatting_style: "clean"
       supports_threading: false

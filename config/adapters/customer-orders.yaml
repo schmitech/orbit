@@ -5,9 +5,6 @@
 adapters:
   - name: "intent-sql-postgres"
     enabled: true
-    expose_as_skill: true
-    skill_name: "customer-orders"
-    skill_description: "Customer Orders Skills"
     type: "retriever"
     datasource: "postgres"
     adapter: "intent"
@@ -21,6 +18,9 @@ adapters:
     # Capabilities: Standard intent retriever
     # Note: Intent adapters use the same capabilities as QA adapters (always retrieve, standard formatting)
     capabilities:
+      expose_as_skill: true
+      skill_name: "customer-orders"
+      skill_description: "Customer Orders Skills"
       retrieval_behavior: "always"       # Always retrieves matching intents/templates
       formatting_style: "standard"       # Standard format with citations and confidence scores
       supports_file_ids: false           # Does not support file filtering

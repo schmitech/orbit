@@ -213,7 +213,7 @@ async def list_skills(request: Request):
     """
     List all skills registered in ORBIT.
 
-    A skill is an adapter marked with expose_as_skill: true in its config.
+    A skill is an adapter with expose_as_skill: true under its capabilities.
     Returns name, description, adapter_name, and enabled state for each skill.
     """
     adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)

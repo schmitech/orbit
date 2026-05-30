@@ -10,7 +10,7 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama"  # Override default inference provider
+    inference_provider: "ollama_cloud"  # Override default inference provider
     model: "gpt-oss:120b"         # Specific model for this adapter (default / fallback)
     tts_provider: "openai"          # TTS provider for audio output (see tts.yaml)
 
@@ -48,12 +48,12 @@ adapters:
     # Capabilities: Pure passthrough - no retrieval
     capabilities:
       available_skills:
-        - "image-generation"
-        - "video-generation"
-        - "pdf-generation"
-        - "word-generation"
-        - "excel-generation"
-        - "pptx-generation"
+        - "Image"
+        - "Video"
+        - "PDF"
+        - "Word"
+        - "Excel"
+        - "PowerPoint"
       retrieval_behavior: "none"         # No context retrieval (pure conversational)
       formatting_style: "standard"       # Standard formatting (not used since no retrieval)
       supports_file_ids: false           # Does not support file filtering

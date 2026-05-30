@@ -42,19 +42,19 @@ The conversation messages are still passed to the skill adapter, giving it full 
 
 ### Exposing an Adapter as a Skill
 
-Add three fields at the top level of the adapter entry:
+Add three fields under the adapter's `capabilities` section:
 
 ```yaml
 - name: "image-generator"
   enabled: true
-  expose_as_skill: true                          # marks this adapter as a skill
-  skill_name: "image-generation"                 # identifier used in requests
-  skill_description: "Generate images from text descriptions using AI"
   type: "image_generation"
   datasource: "none"
   adapter: "multimodal"
   image_provider: "gemini"                       # openai or gemini (see config/image.yaml)
   capabilities:
+    expose_as_skill: true                        # marks this adapter as a skill
+    skill_name: "image-generation"               # identifier used in requests
+    skill_description: "Generate images from text descriptions using AI"
     retrieval_behavior: "none"
     formatting_style: "clean"
     requires_api_key_validation: false           # no separate key needed for skill invocation
@@ -67,6 +67,8 @@ Add three fields at the top level of the adapter entry:
 | `skill_description` | no | Human-readable description shown in `GET /admin/skills` |
 
 > **Note:** `requires_api_key_validation: false` on a skill adapter means ORBIT does not enforce a separate API key for the skill itself. The caller's existing API key is used for authentication; ORBIT only checks that the caller's adapter permits the skill.
+
+> **Note:** these three fields must live under `capabilities`. The earlier top-level form has been removed and is no longer recognized.
 
 ### Allowing Skills in a Consumer Adapter
 
@@ -292,13 +294,13 @@ To add a second skill (e.g., video generation):
 adapters:
   - name: "video-generator"
     enabled: true
-    expose_as_skill: true
-    skill_name: "video-generation"
-    skill_description: "Generate short videos from text prompts"
     type: "video_generation"          # a future adapter type
     datasource: "none"
     adapter: "conversational"
     capabilities:
+      expose_as_skill: true
+      skill_name: "video-generation"
+      skill_description: "Generate short videos from text prompts"
       retrieval_behavior: "none"
       formatting_style: "clean"
       requires_api_key_validation: false
@@ -320,7 +322,7 @@ capabilities:
     - "video-generation"
 ```
 
-No server code changes are required. ORBIT discovers skill adapters at startup by scanning for `expose_as_skill: true` in all loaded adapter configs.
+No server code changes are required. ORBIT discovers skill adapters at startup by scanning for `expose_as_skill: true` under each adapter's `capabilities`.
 
 ---
 

@@ -78,6 +78,9 @@ adapters:
     #model: "gpt-oss:20b"
     embedding_provider: "ollama"
     capabilities:
+      expose_as_skill: true
+      skill_name: "Paris API"
+      skill_description: "HTTP JSON API Adapter - Paris Open Data (Que Faire à Paris)"
       retrieval_behavior: "always"
       formatting_style: "standard"
       supports_file_ids: false

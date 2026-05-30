@@ -6,18 +6,15 @@ adapters:
   - name: "intent-sql-sqlite-hr"
     enabled: true
     type: "retriever"
-    expose_as_skill: true
-    skill_name: "hr"
-    skill_description: "HR skill"
     datasource: "sqlite"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
     database: "examples/intent-templates/sql-intent-template/sqlite/hr/hr.db"
     # Provider overrides - intent adapters benefit from powerful models
-    inference_provider: "openai"    # Cloud LLM for complex intent classification
-    model: "gpt-5.4-mini"
-    embedding_provider: "nvidia"          # Local embeddings for template matching
-    embedding_model: "nvidia/nv-embed-v1"
+    inference_provider: "ollama_cloud"    # Cloud LLM for complex intent classification
+    model: "gpt-oss:20b"
+    embedding_provider: "ollama"          # Local embeddings for template matching
+    embedding_model: "nomic-embed-text"
     # reranker_provider: "ollama"           # Optional: Jina AI reranker for template relevance
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
@@ -38,6 +35,9 @@ adapters:
         provider: "gemini"
         model: "gemini-3.1-pro-preview"
     capabilities:
+      expose_as_skill: true
+      skill_name: "hr"
+      skill_description: "HR skill"
       retrieval_behavior: "always"
       formatting_style: "standard"
       supports_file_ids: false

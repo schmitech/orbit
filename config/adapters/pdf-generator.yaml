@@ -3,9 +3,6 @@
 adapters:
   - name: "pdf-generator"
     enabled: true
-    expose_as_skill: true
-    skill_name: "pdf-generation"
-    skill_description: "Generate PDF documents from text descriptions or structured data"
     type: "document_generation"
     document_format: "pdf"
     datasource: "none"
@@ -14,6 +11,9 @@ adapters:
     rewrite_provider: "openai"     # LLM used to produce the JSON document spec
 
     capabilities:
+      expose_as_skill: true
+      skill_name: "PDF"
+      skill_description: "Generate PDF documents from text descriptions or structured data"
       retrieval_behavior: "none"
       formatting_style: "clean"
       supports_threading: false
