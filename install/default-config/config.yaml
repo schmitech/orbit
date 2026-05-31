@@ -16,6 +16,7 @@ import:
   - "tts.yaml"
   - "stt.yaml"
   - "personaplex.yaml"
+  - "mcp_client.yaml"
 
 general:
   port: 3000
