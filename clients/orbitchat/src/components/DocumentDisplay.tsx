@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Download, ExternalLink, FileSpreadsheet, FileText, Presentation, X } from 'lucide-react';
+import { getAccessToken } from '../auth/tokenStore';
+import { getUserIdHeaderValue } from '../auth/userId';
 
 interface DocumentDisplayProps {
   document?: string;
   documentUrl?: string;
   documentFormat?: string;
   revisedPrompt?: string;
+  adapterName?: string | null;
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -49,6 +52,7 @@ export function DocumentDisplay({
   documentUrl,
   documentFormat = 'pdf',
   revisedPrompt,
+  adapterName,
 }: DocumentDisplayProps) {
   const format = normalizeFormat(documentFormat);
   const [status, setStatus] = useState<LoadState>(document || documentUrl ? 'loading' : 'idle');
@@ -83,13 +87,24 @@ export function DocumentDisplay({
         const bytes = document
           ? base64ToArrayBuffer(document)
           : await (async () => {
-              const adapterName =
-                typeof window !== 'undefined'
+              const resolvedAdapterName =
+                adapterName?.trim() ||
+                (typeof window !== 'undefined'
                   ? window.localStorage.getItem('chat-adapter-name')
-                  : null;
+                  : null);
+              const headers: Record<string, string> = {
+                'X-User-ID': await getUserIdHeaderValue(),
+              };
+              if (resolvedAdapterName) {
+                headers['X-Adapter-Name'] = resolvedAdapterName;
+              }
+              const token = await getAccessToken();
+              if (token) {
+                headers.Authorization = `Bearer ${token}`;
+              }
 
               const res = await fetch(documentUrl!, {
-                headers: adapterName ? { 'X-Adapter-Name': adapterName } : {},
+                headers,
               });
 
               if (!res.ok) {
@@ -140,7 +155,7 @@ export function DocumentDisplay({
         blobUrlRef.current = null;
       }
     };
-  }, [document, documentUrl, format, mimeType]);
+  }, [adapterName, document, documentUrl, format, mimeType]);
 
   useEffect(() => {
     if (status !== 'ready' || format !== 'docx' || !arrayBuffer || !docxContainerRef.current) {

@@ -637,6 +637,7 @@ export function Message({
                   documentUrl={reply.documentUrl}
                   documentFormat={reply.documentFormat}
                   revisedPrompt={reply.documentRevisedPrompt}
+                  adapterName={currentConversation?.adapterName}
                 />
               )}
             </div>
@@ -647,7 +648,7 @@ export function Message({
         </div>
       );
     });
-  }, [syntaxTheme, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
+  }, [currentConversation?.adapterName, syntaxTheme, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
 
   return (
     <div className="group animate-fadeIn min-w-0 w-full px-0">
@@ -697,6 +698,7 @@ export function Message({
               documentUrl={message.documentUrl}
               documentFormat={message.documentFormat}
               revisedPrompt={message.documentRevisedPrompt}
+              adapterName={currentConversation?.adapterName}
             />
           )}
         </div>
