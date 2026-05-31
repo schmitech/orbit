@@ -7,12 +7,18 @@ and error handling.
 """
 
 from typing import Dict, Any, Optional
-from mistralai import Mistral
 import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
 from ..errors import raise_sanitized
+
+try:
+    # mistralai>=2.x exposes the SDK client from mistralai.client
+    from mistralai.client import Mistral
+except ImportError:
+    # Back-compat for older mistralai releases that re-exported at package root
+    from mistralai import Mistral
 
 
 
