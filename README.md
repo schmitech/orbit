@@ -92,11 +92,6 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 ## Demos
 
 <p align="center">
-  <!-- MCP agent skill demo video coming soon -->
-  <em>MCP agent skill — ORBIT connects to an external MCP filesystem server, runs a multi-step tool-calling loop, and returns a grounded answer with full tool-call transparency in the <code>sources</code> field.</em>
-</p>
-
-<p align="center">
   <video src="https://github.com/user-attachments/assets/bc85d24a-72dd-4a71-8c3d-017e5fadd219" controls muted playsinline width="75%"></video>
   <br />
   <em>Upload PDFs, documents, and images, then ask questions across all of them in a single conversation. Context is preserved across turns, and local model deployments keep files and queries on your infrastructure.</em>
@@ -106,6 +101,12 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
   <video src="https://github.com/user-attachments/assets/745a0635-fe17-432b-9b36-c7b22adcdfcc" controls muted playsinline width="75%"></video>
   <br />
   <em>Query structured databases with natural language and generate dynamic charts via cross-adapter image generation skills.</em>
+</p>
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/a57ff84e-db9d-466d-8f82-e23473b745fb" controls muted playsinline width="75%"></video>
+  <br />
+  <em>MCP agent skill — ORBIT connects to an external MCP filesystem server, runs a multi-step tool-calling loop, and returns a grounded answer</em>
 </p>
 
 <details>
