@@ -373,6 +373,17 @@ export function MessageInput({
     textareaRef.current?.focus();
   }, [clearSuggestions, selectSkill]);
 
+  // Opens the skill picker from the "/ Skills" hint affordance — mirrors the
+  // user typing "/" so all the existing picker logic (filter, keyboard nav,
+  // Escape-to-close) applies unchanged. Also covers mobile, where typing "/"
+  // is less discoverable.
+  const openSkillPicker = useCallback(() => {
+    setMessage('/');
+    setShowSkillPicker(true);
+    setActiveSkillIndex(0);
+    textareaRef.current?.focus();
+  }, []);
+
   const closeSkillPicker = useCallback(() => {
     setShowSkillPicker(false);
     setMessage('');
@@ -1422,6 +1433,28 @@ export function MessageInput({
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
+          )}
+
+          {/* Skills hint — shown only when the adapter exposes skills, none is
+              selected yet, and the input is empty. Signals the "/" trigger and
+              opens the picker on click (also covers mobile, where typing "/" is
+              not obvious). */}
+          {!selectedSkill && skills.length > 0 && message.length === 0 && !isInputDisabled && (
+            <button
+              type="button"
+              onClick={openSkillPicker}
+              className="flex h-8 shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600"
+              aria-label="Show available skills (or type a forward slash)"
+              title="Use a skill"
+            >
+              <span
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-gray-200 font-mono text-[10px] leading-none text-gray-600 dark:bg-[#2a2a2a] dark:text-gray-300"
+                aria-hidden="true"
+              >
+                /
+              </span>
+              Skills
+            </button>
           )}
 
           {/* Textarea row */}

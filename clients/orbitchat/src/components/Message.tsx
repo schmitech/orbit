@@ -410,6 +410,15 @@ export function Message({
     threadTextareaRef.current?.focus();
   }, []);
 
+  // Opens the thread skill picker from the "/ Skills" hint — mirrors typing "/"
+  // so the existing thread picker logic applies unchanged (and covers mobile).
+  const openThreadSkillPicker = useCallback(() => {
+    setThreadInput('/');
+    setShowThreadSkillPicker(true);
+    setActiveThreadSkillIndex(0);
+    threadTextareaRef.current?.focus();
+  }, []);
+
   const handleThreadKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showThreadSkillPicker) {
       if (event.key === 'ArrowDown') {
@@ -866,6 +875,26 @@ export function Message({
                           <X className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
                       </div>
+                    )}
+                    {/* Skills hint — shown when the thread exposes skills, none
+                        is selected, and the reply input is empty. Mirrors the
+                        main composer's "/ Skills" affordance. */}
+                    {!selectedSkill && skills.length > 0 && threadInput.length === 0 && !threadComposerDisabled && (
+                      <button
+                        type="button"
+                        onClick={openThreadSkillPicker}
+                        className="flex h-8 shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600"
+                        aria-label="Show available skills (or type a forward slash)"
+                        title="Use a skill"
+                      >
+                        <span
+                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-gray-200 font-mono text-[10px] leading-none text-gray-600 dark:bg-[#2a2a2a] dark:text-gray-300"
+                          aria-hidden="true"
+                        >
+                          /
+                        </span>
+                        Skills
+                      </button>
                     )}
                     <div className="relative flex min-h-8 flex-1 items-center min-w-0">
                       <label htmlFor={threadInputId} className="sr-only">
