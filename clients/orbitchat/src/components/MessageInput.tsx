@@ -3,7 +3,7 @@ import { ArrowUp, CircleHelp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, 
 import { createPortal } from 'react-dom';
 import { useVoice } from '../hooks/useVoice';
 import { useAutocomplete } from '../hooks/useAutocomplete';
-import { useSkills } from '../hooks/useSkills';
+import type { UseSkillsResult } from '../hooks/useSkills';
 import { FileUpload } from './FileUpload';
 import { ConfirmationModal } from './ConfirmationModal';
 import { SkillPicker } from './SkillPicker';
@@ -41,6 +41,13 @@ interface MessageInputProps {
    * Adapter notes/description content shown via a help icon modal.
    */
   adapterNotes?: string | null;
+  /**
+   * Shared skill-selection state, owned by the parent so it survives the
+   * empty-state ↔ active-conversation MessageInput swap. Without this, each
+   * MessageInput instance kept its own selectedSkill and the chip was lost
+   * (and could no longer be dismissed) on the first message of a conversation.
+   */
+  skillState: UseSkillsResult;
 }
 
 const MIME_EXTENSION_MAP: Record<string, string> = {
@@ -153,7 +160,8 @@ export function MessageInput({
   suppressMobileAutoFocus = false,
   isCentered = false,
   maxWidthClass = 'max-w-5xl',
-  adapterNotes
+  adapterNotes,
+  skillState
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [isComposing, setIsComposing] = useState(false);
@@ -270,11 +278,10 @@ export function MessageInput({
   const autocompleteEnabled = getEnableAutocomplete();
   const currentAdapterSupportsAutocomplete = resolveAutocompleteSupport(currentConversation?.adapterInfo);
 
-  const { skills, isLoading: skillsLoading, selectedSkill, selectSkill, clearSkill } = useSkills({
-    adapterName: currentConversation?.adapterName,
-    enabled: true,
-    supportsThreading: currentConversation?.adapterInfo?.supportsThreading ?? false,
-  });
+  // Skill state is owned by the parent (ChatInterface) and shared across both
+  // the empty-state and docked MessageInput instances, so a selected skill is
+  // not lost when the conversation transitions from empty to active.
+  const { skills, isLoading: skillsLoading, selectedSkill, selectSkill, clearSkill } = skillState;
 
   const autocompleteAdapterName = currentConversation?.adapterName || null;
   // Autocomplete suggestions based on nl_examples from intent templates

@@ -22,6 +22,7 @@ import { AuthStatus } from './AuthStatus';
 import { AppFooter } from './AppFooter';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { useChatAgentSelection } from '../hooks/useChatAgentSelection';
+import { useSkills } from '../hooks/useSkills';
 import { useAgentHomeNav } from '../hooks/useAgentHomeNav';
 import { AgentSeoContent } from './AgentSeoContent';
 import { applyDocumentSeo, getRuntimeSeoAdapterById, getRuntimeSeoAdapterBySlug, shouldRenderAgentNotesForSeo, type SeoAdapter } from '../utils/seo';
@@ -187,6 +188,15 @@ export function ChatInterface({
       !conversation.adapterLoadError
   );
   const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
+  // Own the skill-selection state here so it is shared between the empty-state
+  // and docked MessageInput instances. Both render the same conversation, so a
+  // single source of truth keeps the selected skill (and its dismiss control)
+  // alive across the empty → active transition on the first message.
+  const skillState = useSkills({
+    adapterName: currentConversation?.adapterName,
+    enabled: true,
+    supportsThreading: currentConversation?.adapterInfo?.supportsThreading ?? false,
+  });
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
   const applicationName = getApplicationName();
   const applicationDescription = getApplicationDescription().trim();
@@ -603,6 +613,7 @@ export function ChatInterface({
                         isCentered
                         maxWidthClass={emptyStateInputMaxWidthClass}
                         adapterNotes={currentConversation?.adapterInfo?.notes}
+                        skillState={skillState}
                       />
                     </div>
                   </div>
@@ -648,6 +659,7 @@ export function ChatInterface({
                     maxWidthClass={inputMaxWidthClass}
                     isCentered={false}
                     adapterNotes={currentConversation?.adapterInfo?.notes}
+                    skillState={skillState}
                   />
                 </div>
               </div>
