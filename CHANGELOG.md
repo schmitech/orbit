@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.7.0] - 2026-05-31
+
+### Core System Updates
+- MCP Client: Added ORBIT-as-an-MCP-client support with the `mcp-agent` skill, external MCP server discovery, namespaced tool execution, and bounded multi-step tool-calling.
+- Skills: Added the web-search skill for provider-native web search through the conversational adapter path.
+- Providers: Fixed Mistral SDK import compatibility and updated the xAI Grok image model name.
+- Adapters: Updated intent-adapter examples for the current structure.
+
+### Bug Fixes & Technical Improvements
+- MCP Tool-Calling: Hardened the agent loop with a text fallback on exhaustion, empty-tool support across providers, and improved Ollama normalization and preset passthrough.
+
+### Documentation & Configuration
+- MCP Client Docs: Added the implementation plan, operational guide, and README updates for the MCP client.
+
 ## [2.6.9] - 2026-05-30
 
 ### Core System Updates
