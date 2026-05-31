@@ -23,6 +23,7 @@ from .embedding_service import (
 from .inference_service import (
     InferenceService,
     InferenceResult,
+    ToolCallingResult,
     create_inference_service
 )
 

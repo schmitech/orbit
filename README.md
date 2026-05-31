@@ -42,6 +42,7 @@ ORBIT gives you one OpenAI-compatible gateway for private RAG, model routing, re
 - Private RAG over documents, databases, APIs, and internal knowledge sources.
 - OpenAI-compatible applications that can switch between local models and hosted providers.
 - Agent and MCP tools that expose controlled access to business data and actions.
+- Agentic tool-calling loops over external MCP servers — filesystem, GitHub, Slack, SharePoint, Postgres, and more — invoked as a skill during any conversation.
 - AI media generation pipelines — images and videos from text prompts — wired into the same adapter and conversation system.
 
 ---
@@ -89,6 +90,11 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 ---
 
 ## Demos
+
+<p align="center">
+  <!-- MCP agent skill demo video coming soon -->
+  <em>MCP agent skill — ORBIT connects to an external MCP filesystem server, runs a multi-step tool-calling loop, and returns a grounded answer with full tool-call transparency in the <code>sources</code> field.</em>
+</p>
 
 <p align="center">
   <video src="https://github.com/user-attachments/assets/bc85d24a-72dd-4a71-8c3d-017e5fadd219" controls muted playsinline width="75%"></video>
@@ -197,6 +203,7 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 ### Tools, Agents, And Production Controls
 
 - Expose controlled tools through MCP for agent clients.
+- Connect outward to external MCP servers and run a multi-step tool-calling loop inside a conversation — the model calls tools, ORBIT executes them, feeds results back, and repeats until a final answer is produced.
 - Invoke specialized adapters during a conversation with cross-adapter skills.
 - Operate with API keys, RBAC, quotas, audit logs, rate limits, and circuit breakers.
 - Add voice assistant support through audio adapters.
@@ -223,7 +230,8 @@ ORBIT is not only a model router. It handles the layers that usually become cust
 - **Data source support:** query SQL, MongoDB, Elasticsearch, REST, GraphQL, DuckDB, files, and composite sources through one gateway. [Composite adapters](docs/adapters/composite-intent-retriever.md)
 - **Local and hosted models:** run private workloads on Ollama, llama.cpp, vLLM, or other local providers, while still supporting hosted LLMs where appropriate.
 - **Production controls included:** use API keys, RBAC, quotas, audit logging, moderation, rate limits, and circuit breakers. [Rate limiting](docs/rate-limiting-architecture.md)
-- **Agent-ready protocol support:** expose ORBIT-backed chat, RAG, and adapter tools through MCP. [MCP / OpenClaw walkthrough](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md)
+- **Agent-ready protocol support:** expose ORBIT-backed chat, RAG, and adapter tools through MCP for agent clients. [MCP / OpenClaw walkthrough](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md)
+- **MCP client — agentic tool calling:** ORBIT can also connect *outward* to external MCP servers (filesystem, GitHub, Slack, SharePoint, Postgres, and more), discover their tools, and run a bounded multi-step tool-calling loop. Exposed as the `mcp-agent` skill on any adapter. Works with OpenAI, Anthropic, Gemini, xAI, and llama.cpp. [MCP agent skill](docs/adapters/mcp-agent.md)
 
 ---
 
@@ -237,6 +245,7 @@ ORBIT is not only a model router. It handles the layers that usually become cust
 | Upload files and get grounded answers | [File-upload RAG](docs/cookbook/orbit-file-upload-rag.md) |
 | Deploy a private AI gateway for regulated data | [Private gateway cookbook](docs/cookbook/deploy-private-ai-gateway-for-regulated-data-with-orbit.md) |
 | Run ORBIT as an MCP tool server for agents | [MCP / OpenClaw walkthrough](docs/cookbook/use-orbit-with-openclaw-as-mcp-agent.md) |
+| Connect to external MCP servers and run agentic tool-calling loops | [MCP agent skill](docs/adapters/mcp-agent.md) |
 | Build a full-duplex voice assistant | [PersonaPlex voice assistant](docs/cookbook/orbit-personaplex-full-duplex-voice-assistant.md) |
 | Generate images and videos from text prompts | [Cross-adapter skills](docs/adapters/skills.md) |
 
@@ -253,6 +262,7 @@ ORBIT sits between clients, models, and data sources. Clients call the OpenAI-co
 | **Retrieval adapters** | SQL, NoSQL, REST, GraphQL, files, web content, vector stores, composite adapters |
 | **RAG workflow** | Intent templates, diagnostics, autocomplete, cached datasets, conversation threading |
 | **Media generation** | Images (DALL-E, Stability AI), videos (Google Veo 2), server-side persistence, URL delivery |
+| **MCP client / agent** | Connect to external MCP servers, discover tools, run bounded multi-step tool-calling loops as a skill |
 | **Operations** | API keys, RBAC, audit logs, quotas, rate limits, moderation, circuit breakers, admin UI |
 
 <details>
@@ -342,6 +352,8 @@ cp env.example .env && ./install/setup.sh
 
 - More ready-to-run adapter templates for common business systems.
 - More MCP recipes for agent platforms and desktop clients.
+- Persistent MCP server connections and per-server circuit breakers for the MCP agent skill.
+- Human-in-the-loop tool approval for write operations in the MCP agent loop.
 - Expanded evaluation, tracing, and observability workflows.
 - Admin UI improvements for configuration, diagnostics, and operations.
 - Additional deployment templates for private cloud and regulated environments.

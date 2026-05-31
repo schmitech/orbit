@@ -75,7 +75,7 @@ class LLMInferenceStep(PipelineStep):
             try:
                 adapter_manager = self.container.get('adapter_manager')
                 adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
-                if adapter_config and adapter_config.get('type') in ('image_generation', 'video_generation'):
+                if adapter_config and adapter_config.get('type') in ('image_generation', 'video_generation', 'mcp_agent'):
                     return False
             except Exception:
                 pass

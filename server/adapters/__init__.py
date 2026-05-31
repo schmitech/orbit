@@ -168,6 +168,19 @@ def register_adapters():
 
     logger.info("Registered OpenAI Realtime conversational adapter")
 
+    # Register conversational adapter for mcp_agent type so that adapters with
+    # type: mcp_agent and adapter: conversational can be loaded.
+    # MCPAgentStep handles the actual tool loop; the domain adapter is the same.
+    ADAPTER_REGISTRY.register(
+        adapter_type="mcp_agent",
+        datasource="none",
+        adapter_name="conversational",
+        factory_func=_create_conversational_adapter,
+        config={}
+    )
+
+    logger.info("Registered MCP agent conversational adapter")
+
 
 # Register adapters when module is imported
 register_adapters()

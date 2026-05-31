@@ -13,7 +13,7 @@ from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, MCPAgentStep
 
 logger = logging.getLogger(__name__)
 
@@ -129,11 +129,11 @@ class InferencePipeline:
         try:
             logger.debug(f"Starting streaming pipeline processing for message: {(context.message or '')[:50]}...")
 
-            # Process through each step EXCEPT the LLM step (which we'll stream separately)
-            # and ResponseValidationStep (which needs the response to exist)
+            # Process through each step EXCEPT the LLM/MCP step (which we'll stream
+            # separately) and ResponseValidationStep (which needs the response to exist)
             for step in self.steps:
-                # Skip the LLM step - we'll handle it with streaming below
-                if isinstance(step, LLMInferenceStep):
+                # Skip streaming steps — handled separately below
+                if isinstance(step, (LLMInferenceStep, MCPAgentStep)):
                     continue
                 # Skip ResponseValidationStep - it runs after streaming completes
                 if isinstance(step, ResponseValidationStep):
@@ -210,6 +210,39 @@ class InferencePipeline:
                 yield json.dumps(done_payload)
                 total_time = time.perf_counter() - start_time
                 self.monitor.record_pipeline_metrics(total_time, True)
+                return
+
+            # Check for an MCPAgentStep that should handle this request.
+            # MCPAgentStep owns the full loop so we stream it and short-circuit.
+            mcp_step = None
+            for step in self.steps:
+                if isinstance(step, MCPAgentStep) and step.should_execute(context):
+                    mcp_step = step
+                    break
+
+            if mcp_step is not None:
+                step_start_time = time.perf_counter()
+                try:
+                    await mcp_step.pre_process(context)
+                    async for chunk in mcp_step.process_stream(context):
+                        if chunk:
+                            yield json.dumps({"response": chunk, "done": False})
+                            await asyncio.sleep(0)
+                    await mcp_step.post_process(context)
+                    # Emit sources in the done payload when present
+                    done_payload: dict = {"done": True}
+                    if context.sources:
+                        done_payload["sources"] = context.sources
+                    yield json.dumps(done_payload)
+                    step_time = time.perf_counter() - step_start_time
+                    self.monitor.record_step_metrics(mcp_step.get_name(), step_time, True)
+                    total_time = time.perf_counter() - start_time
+                    self.monitor.record_pipeline_metrics(total_time, True)
+                except Exception as e:
+                    step_time = time.perf_counter() - step_start_time
+                    self.monitor.record_step_metrics(mcp_step.get_name(), step_time, False)
+                    logger.error(f"Error in MCP agent step: {str(e)}")
+                    yield json.dumps({"error": str(e), "done": True})
                 return
 
             # Find the LLM step for streaming
@@ -351,6 +384,9 @@ class InferencePipelineBuilder:
 
         # Document reranking (if enabled and documents retrieved)
         steps.append(DocumentRerankingStep(container))
+
+        # MCP agent — executes instead of LLM for mcp_agent adapters
+        steps.append(MCPAgentStep(container))
 
         # Image generation — executes instead of LLM for image_generation adapters
         steps.append(ImageGenerationStep(container))

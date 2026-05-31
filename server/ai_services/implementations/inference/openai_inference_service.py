@@ -7,12 +7,14 @@ the new unified AI services architecture.
 Compare with: server/inference/pipeline/providers/openai_provider.py (old implementation)
 """
 
-from typing import Dict, Any, AsyncGenerator
+import json
+from typing import Dict, Any, AsyncGenerator, List
+
 import logging
 
 from ...base import ServiceType
 from ...providers import OpenAIBaseService
-from ...services import InferenceService
+from ...services import InferenceService, ToolCallingResult
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +192,74 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
         except Exception as e:
             self._handle_openai_error(e, "streaming generation")
             yield f"Error: {str(e)}"
+
+    async def generate_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        **kwargs,
+    ) -> ToolCallingResult:
+        """Single round of tool-enabled generation using OpenAI chat.completions."""
+        if not self.initialized:
+            await self.initialize()
+
+        kw = kwargs.copy()
+        token_param = self._get_token_parameter_name()
+        token_value = self._resolve_token_value(token_param, kw)
+
+        params: Dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "auto",
+            token_param: token_value,
+        }
+        temp = kw.pop("temperature", self.temperature)
+        if temp is not None:
+            params["temperature"] = temp
+        if self._supports_top_p():
+            params["top_p"] = kw.pop("top_p", self.top_p)
+
+        try:
+            response = await self.client.chat.completions.create(**params)
+        except Exception as e:
+            self._handle_openai_error(e, "tool-calling generation")
+            raise
+
+        choice = response.choices[0]
+        msg = choice.message
+
+        # Build OpenAI-format assistant message for the conversation history
+        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content}
+        tool_calls_result = None
+
+        if msg.tool_calls:
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in msg.tool_calls
+            ]
+            tool_calls_result = [
+                {
+                    "id": tc.id,
+                    "name": tc.function.name,
+                    "arguments": json.loads(tc.function.arguments or "{}"),
+                }
+                for tc in msg.tool_calls
+            ]
+
+        return ToolCallingResult(
+            text=msg.content,
+            tool_calls=tool_calls_result,
+            assistant_message=assistant_msg,
+            finish_reason=choice.finish_reason or "stop",
+        )
 
     def _build_web_search_params(self, messages: list, stream: bool = False, **kwargs) -> Dict[str, Any]:
         """

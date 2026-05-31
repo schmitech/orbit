@@ -1,0 +1,45 @@
+# MCP Agent Skill Adapter
+#
+# Exposes the MCP client as the "mcp-agent" skill. Any adapter that lists
+# "mcp-agent" in its capabilities.available_skills can invoke it.
+#
+# Prerequisites:
+#   1. Set mcp_client.enabled: true in config/mcp_client.yaml (or config.yaml).
+#   2. Configure at least one MCP server under mcp_client.servers.
+#   3. Add "mcp-agent" to a consumer adapter's available_skills (e.g. simple-chat).
+#   4. The configured inference_provider must support native tool calling
+#      (openai, anthropic, gemini, or xai).
+#
+# Test it:
+#   curl -X POST http://localhost:3000/v1/chat \
+#     -H "Content-Type: application/json" \
+#     -H "X-API-Key: <key for an adapter that allows mcp-agent>" \
+#     -H "X-Session-ID: <session-id>" \
+#     -d '{"messages":[{"role":"user","content":"List my open GitHub issues"}],
+#          "skill":"mcp-agent"}'
+#
+# The response includes a "sources" array showing each tool that was called:
+#   { "response": "...", "sources": [{"type":"mcp_tool_call","tool":"github__list_issues",...}] }
+
+adapters:
+  - name: "mcp-agent-chat"
+    enabled: true
+    type: "mcp_agent"                    # triggers MCPAgentStep; LLM step is skipped
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "gemini"         # must support native tool calling
+    model: "gemini-3.1-pro-preview"
+
+    capabilities:
+      expose_as_skill: true
+      skill_name: "mcp-agent"
+      skill_description: "Use external MCP server tools to answer (agentic tool calling)"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+      # Optionally restrict which MCP servers this adapter may use.
+      # Omit (or set to null) to allow all enabled servers.
+      # mcp_servers:
+      #   - "github"
+      #   - "filesystem"

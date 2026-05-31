@@ -5,11 +5,12 @@ This is a migrated version of the Anthropic inference provider that uses
 the new unified AI services architecture.
 """
 
-from typing import Dict, Any, AsyncGenerator
+import json
+from typing import Dict, Any, AsyncGenerator, List
 
 from ...base import ServiceType
 from ...providers import AnthropicBaseService
-from ...services import InferenceService
+from ...services import InferenceService, ToolCallingResult
 
 
 class AnthropicInferenceService(InferenceService, AnthropicBaseService):
@@ -64,6 +65,133 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
                 filtered.append(msg)
         system_content = "\n\n".join(system_parts) if system_parts else None
         return system_content, filtered
+
+    async def generate_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        **kwargs,
+    ) -> ToolCallingResult:
+        """Single round of tool-enabled generation using the Anthropic Messages API."""
+        if not self.initialized:
+            await self.initialize()
+
+        # Convert OpenAI-format tools to Anthropic format
+        anthropic_tools = []
+        for tool in tools:
+            fn = tool.get("function", {})
+            anthropic_tools.append({
+                "name": fn.get("name", ""),
+                "description": fn.get("description", ""),
+                "input_schema": fn.get("parameters") or {"type": "object", "properties": {}},
+            })
+
+        # Convert messages (handles tool_calls and tool result turns)
+        system_content, anthropic_messages = self._convert_messages_for_tools(messages)
+
+        params: Dict[str, Any] = {
+            "model": self.model,
+            "messages": anthropic_messages,
+            "tools": anthropic_tools,
+            "max_tokens": kwargs.pop("max_tokens", self.max_tokens),
+        }
+        if system_content:
+            params["system"] = system_content
+        temp = kwargs.pop("temperature", self.temperature)
+        if temp is not None:
+            params["temperature"] = temp
+
+        try:
+            response = await self.client.messages.create(**params)
+        except Exception as e:
+            self._handle_anthropic_error(e, "tool-calling generation")
+            raise
+
+        text = None
+        tool_calls_result = None
+        tool_use_blocks = []
+
+        for block in response.content:
+            if block.type == "text":
+                text = block.text
+            elif block.type == "tool_use":
+                tool_use_blocks.append(block)
+
+        if tool_use_blocks:
+            tool_calls_result = [
+                {"id": b.id, "name": b.name, "arguments": b.input}
+                for b in tool_use_blocks
+            ]
+
+        # Normalize to OpenAI-format assistant message for the loop
+        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": text}
+        if tool_calls_result:
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": json.dumps(tc["arguments"]),
+                    },
+                }
+                for tc in tool_calls_result
+            ]
+
+        return ToolCallingResult(
+            text=text,
+            tool_calls=tool_calls_result,
+            assistant_message=assistant_msg,
+            finish_reason=response.stop_reason or "stop",
+        )
+
+    def _convert_messages_for_tools(
+        self, messages: List[Dict[str, Any]]
+    ):
+        """
+        Convert an OpenAI-format message list (including tool-call history) to
+        Anthropic format, returning (system_content_or_None, anthropic_messages).
+        """
+        system_content, filtered = self._extract_system_message(messages)
+        anthropic_messages = []
+        i = 0
+        while i < len(filtered):
+            msg = filtered[i]
+            role = msg.get("role")
+
+            if role == "assistant":
+                content = []
+                if msg.get("content"):
+                    content.append({"type": "text", "text": msg["content"]})
+                for tc in msg.get("tool_calls", []):
+                    content.append({
+                        "type": "tool_use",
+                        "id": tc["id"],
+                        "name": tc["function"]["name"],
+                        "input": json.loads(tc["function"].get("arguments") or "{}"),
+                    })
+                anthropic_messages.append({"role": "assistant", "content": content})
+
+            elif role == "tool":
+                # Collect consecutive tool-result messages into one user turn
+                tool_results = []
+                while i < len(filtered) and filtered[i].get("role") == "tool":
+                    t = filtered[i]
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": t.get("tool_call_id", ""),
+                        "content": t.get("content", ""),
+                    })
+                    i += 1
+                anthropic_messages.append({"role": "user", "content": tool_results})
+                continue  # skip i += 1 below
+
+            else:
+                anthropic_messages.append({"role": role, "content": msg.get("content", "")})
+
+            i += 1
+
+        return system_content, anthropic_messages
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """

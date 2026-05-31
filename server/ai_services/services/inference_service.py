@@ -6,6 +6,7 @@ providing a unified API for text generation regardless of the underlying provide
 """
 
 from abc import abstractmethod
+from dataclasses import dataclass
 from typing import Dict, Any, AsyncGenerator, Optional, List
 import asyncio
 import logging
@@ -20,6 +21,19 @@ logger = logging.getLogger(__name__)
 
 # OpenAI-compatible chat message payload used by helper utilities.
 ChatMessage = Dict[str, Any]
+
+
+@dataclass
+class ToolCallingResult:
+    """Normalized result from a single generate_with_tools call."""
+
+    # Final text from the model (None when the model made tool calls instead).
+    text: Optional[str]
+    # Parsed tool calls: [{id, name, arguments (dict)}]. None when no calls.
+    tool_calls: Optional[List[Dict[str, Any]]]
+    # OpenAI-compatible assistant message to append to the conversation history.
+    assistant_message: Dict[str, Any]
+    finish_reason: str = "stop"
 
 
 class InferenceService(ProviderAIService):
@@ -198,6 +212,33 @@ class InferenceService(ProviderAIService):
         """
         provider_config = self._extract_provider_config()
         return provider_config.get('stream', default)
+
+    async def generate_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        **kwargs,
+    ) -> "ToolCallingResult":
+        """
+        Single round of tool-enabled generation.
+
+        Subclasses that support native tool calling override this method.
+        The default raises NotImplementedError.
+
+        Args:
+            messages: Conversation history in OpenAI format (including any prior
+                      tool-call turns from previous iterations).
+            tools:    Tool schemas in OpenAI function-calling format.
+            **kwargs: Provider-specific overrides (temperature, max_tokens, …).
+
+        Returns:
+            ToolCallingResult with either .text (final answer) or .tool_calls
+            (model wants to call tools) populated.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement generate_with_tools. "
+            "Use an OpenAI, Anthropic, Gemini, or xAI inference service."
+        )
 
     async def generate_with_fallback(
         self,

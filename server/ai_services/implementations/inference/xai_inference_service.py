@@ -7,11 +7,12 @@ the new unified AI services architecture with OpenAI-compatible base class.
 Compare with: server/inference/pipeline/providers/xai_provider.py (old implementation)
 """
 
-from typing import Dict, Any, AsyncGenerator
+import json
+from typing import Dict, Any, AsyncGenerator, List
 
 from ...base import ServiceType
 from ...providers import OpenAICompatibleBaseService
-from ...services import InferenceService
+from ...services import InferenceService, ToolCallingResult
 
 
 class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
@@ -35,6 +36,67 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
         self.temperature = self._get_temperature(default=0.7)
         self.max_tokens = self._get_max_tokens(default=2048)
         self.top_p = self._get_top_p(default=1.0)
+
+    async def generate_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        **kwargs,
+    ) -> ToolCallingResult:
+        """Single round of tool-enabled generation using the xAI (Grok) API."""
+        if not self.initialized:
+            await self.initialize()
+
+        params: Dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "auto",
+            "temperature": kwargs.pop("temperature", self.temperature),
+            "max_tokens": kwargs.pop("max_tokens", self.max_tokens),
+            "top_p": kwargs.pop("top_p", self.top_p),
+            **kwargs,
+        }
+
+        try:
+            response = await self.client.chat.completions.create(**params)
+        except Exception as e:
+            self._handle_openai_compatible_error(e, "tool-calling generation")
+            raise
+
+        choice = response.choices[0]
+        msg = choice.message
+
+        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content}
+        tool_calls_result = None
+
+        if msg.tool_calls:
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in msg.tool_calls
+            ]
+            tool_calls_result = [
+                {
+                    "id": tc.id,
+                    "name": tc.function.name,
+                    "arguments": json.loads(tc.function.arguments or "{}"),
+                }
+                for tc in msg.tool_calls
+            ]
+
+        return ToolCallingResult(
+            text=msg.content,
+            tool_calls=tool_calls_result,
+            assistant_message=assistant_msg,
+            finish_reason=choice.finish_reason or "stop",
+        )
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using xAI (Grok)."""

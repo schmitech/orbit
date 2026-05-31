@@ -6,7 +6,7 @@ existing pipeline LLMProvider interface, allowing the pipeline to use
 the new services without breaking changes.
 """
 
-from typing import Dict, Any, AsyncGenerator, Optional
+from typing import Dict, Any, AsyncGenerator, List, Optional
 from .llm_provider import LLMProvider
 
 # Import the new unified architecture
@@ -81,6 +81,17 @@ class UnifiedProviderAdapter(LLMProvider):
 
         async for chunk in self.service.generate_stream(prompt, **kwargs):
             yield chunk
+
+    async def generate_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        **kwargs,
+    ):
+        """Delegate tool-calling generation to the underlying inference service."""
+        if not self.service:
+            raise RuntimeError("Provider not initialized. Call initialize() first.")
+        return await self.service.generate_with_tools(messages, tools, **kwargs)
 
     async def close(self) -> None:
         """Clean up resources."""
