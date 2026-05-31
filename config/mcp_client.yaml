@@ -31,7 +31,7 @@ mcp_client:
     - name: "filesystem"
       transport: "stdio"
       command: "npx"
-      args: ["-y", "@modelcontextprotocol/server-filesystem", "/Users/remsyschmilinsky/Downloads/orbit"]
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/orbit"]
       enabled: true
 
     # ════════════════════════════════════════════════════════════════════════
