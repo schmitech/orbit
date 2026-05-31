@@ -172,6 +172,7 @@ export function Message({
   const { skills, isLoading: skillsLoading, selectedSkill, selectSkill, clearSkill } = useSkills({
     adapterName: currentConversation?.adapterName,
     enabled: threadsEnabled && Boolean(message.threadInfo),
+    selectionScopeKey: message.threadInfo?.thread_id || message.id,
   });
   const threadSkillQuery = threadInput.startsWith('/') ? threadInput.slice(1) : '';
   const normalizedThreadSkillQuery = threadSkillQuery.toLowerCase().replace(/-/g, ' ');

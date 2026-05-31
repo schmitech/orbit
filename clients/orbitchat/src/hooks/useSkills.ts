@@ -13,6 +13,7 @@ interface CacheEntry {
 export interface UseSkillsOptions {
   adapterName?: string | null;
   enabled?: boolean;
+  selectionScopeKey?: string | null;
   /**
    * When true (adapter supports conversation threading), skills are suppressed
    * in the main conversation. They are only meaningful inside a thread where
@@ -30,15 +31,16 @@ export interface UseSkillsResult {
 }
 
 export function useSkills(options: UseSkillsOptions = {}): UseSkillsResult {
-  const { adapterName, enabled = true, supportsThreading = false } = options;
+  const { adapterName, enabled = true, selectionScopeKey, supportsThreading = false } = options;
   // Skills are suppressed at the top-level conversation for threading adapters —
   // the user must be inside a thread (where data already exists) to invoke a skill.
   const isActive = enabled && Boolean(adapterName) && !supportsThreading;
+  const selectedSkillKey = selectionScopeKey ?? adapterName ?? '__default__';
 
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadedAdapterName, setLoadedAdapterName] = useState<string | null>(null);
-  const [selectedSkill, setSelectedSkill] = useState<SkillInfo | null>(null);
+  const [selectedSkillsByKey, setSelectedSkillsByKey] = useState<Record<string, SkillInfo | undefined>>({});
   const abortRef = useRef<AbortController | null>(null);
   const skillsCacheRef = useRef<Map<string, CacheEntry>>(new Map());
 
@@ -98,12 +100,34 @@ export function useSkills(options: UseSkillsOptions = {}): UseSkillsResult {
   }, [enabled, adapterName, fetchSkills]);
 
   const selectSkill = useCallback((skill: SkillInfo | null) => {
-    setSelectedSkill(skill);
-  }, []);
+    setSelectedSkillsByKey(prev => {
+      const current = prev[selectedSkillKey] ?? null;
+      if (current === skill || current?.name === skill?.name) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      if (skill) {
+        next[selectedSkillKey] = skill;
+      } else {
+        delete next[selectedSkillKey];
+      }
+      return next;
+    });
+  }, [selectedSkillKey]);
 
   const clearSkill = useCallback(() => {
-    setSelectedSkill(null);
-  }, []);
+    setSelectedSkillsByKey(prev => {
+      if (!prev[selectedSkillKey]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[selectedSkillKey];
+      return next;
+    });
+  }, [selectedSkillKey]);
+
+  const selectedSkill = selectedSkillsByKey[selectedSkillKey] ?? null;
 
   return {
     skills: isActive && loadedAdapterName === adapterName ? skills : [],

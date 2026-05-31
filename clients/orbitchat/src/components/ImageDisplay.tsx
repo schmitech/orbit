@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronUp, Download, X, ZoomIn } from 'lucide-react';
 
 interface ImageDisplayProps {
@@ -205,7 +206,7 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
         )}
       </div>
 
-      {lightboxOpen && (
+      {lightboxOpen && typeof document !== 'undefined' && createPortal(
         <div
           onClick={() => setLightboxOpen(false)}
           style={{
@@ -213,9 +214,8 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
             inset: 0,
             background: 'rgba(0,0,0,0.85)',
             zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            overflow: 'auto',
+            padding: '56px 24px 24px',
           }}
         >
           <button
@@ -239,11 +239,20 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
           <img
             src={src}
             alt={revisedPrompt || 'Generated image'}
-            style={{ maxWidth: '92vw', maxHeight: '92vh', objectFit: 'contain', borderRadius: '8px' }}
+            style={{
+              display: 'block',
+              width: 'auto',
+              height: 'auto',
+              maxWidth: 'calc(100vw - 48px)',
+              maxHeight: 'calc(100vh - 80px)',
+              objectFit: 'contain',
+              borderRadius: '8px',
+              margin: '0 auto',
+            }}
             onClick={(e) => e.stopPropagation()}
           />
         </div>
-      )}
+      , document.body)}
     </>
   );
 }

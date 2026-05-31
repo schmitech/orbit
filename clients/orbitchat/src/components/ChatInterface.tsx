@@ -195,6 +195,7 @@ export function ChatInterface({
   const skillState = useSkills({
     adapterName: currentConversation?.adapterName,
     enabled: true,
+    selectionScopeKey: currentConversationId,
     supportsThreading: currentConversation?.adapterInfo?.supportsThreading ?? false,
   });
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
