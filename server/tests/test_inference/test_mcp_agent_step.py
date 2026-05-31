@@ -12,6 +12,7 @@ tools past max_iterations, the final synthesis call must be made with NO tools
 (so the model is forced to return text) and must never return an empty string.
 """
 
+import asyncio
 import os
 import sys
 import types
@@ -214,3 +215,69 @@ class TestMCPAgentLoop:
 
         assert text  # non-empty fallback message
         assert "could not" in text.lower() or "unable" in text.lower()
+
+
+class TestMCPAgentCancellation:
+    async def test_precancelled_does_no_work(self):
+        # A Stop that arrives before the loop starts must skip all model/tool calls.
+        provider = _FakeProvider([])
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step(provider, manager)
+        ev = asyncio.Event()
+        ev.set()
+        ctx = ProcessingContext(message="x", adapter_name="mcp-agent-chat", cancel_event=ev)
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        assert text == ""
+        assert provider.calls == []       # never called the model
+        assert manager.called_with == []  # never executed a tool
+
+    async def test_cancel_during_tool_call_halts_loop(self):
+        # The tool call itself trips the cancel; the raced await returns the
+        # cancelled sentinel, so the loop bails without a second model call.
+        ev = asyncio.Event()
+
+        class _CancelOnToolManager(_FakeMCPManager):
+            async def call_tool(self, name, arguments):
+                ev.set()
+                return await super().call_tool(name, arguments)
+
+        provider = _FakeProvider([_tool_call_result(), _tool_call_result()])
+        manager = _CancelOnToolManager(_TOOLS, max_iterations=5)
+        step = _make_step(provider, manager)
+        ctx = ProcessingContext(message="x", adapter_name="mcp-agent-chat", cancel_event=ev)
+
+        await step._run_agent_loop(ctx)
+
+        # Only the first model call ran; the loop did not start a second iteration.
+        assert len(provider.calls) == 1
+
+    async def test_cancel_interrupts_slow_tool_call_midflight(self):
+        # A tool that would block for 30s must be torn down the instant Stop is
+        # signalled — proving cancellation interrupts mid-call, not just between
+        # steps. Without mid-call cancellation this test would hit the timeout.
+        ev = asyncio.Event()
+        started = asyncio.Event()
+
+        class _SlowManager(_FakeMCPManager):
+            async def call_tool(self, name, arguments):
+                started.set()
+                await asyncio.sleep(30)  # would hang the loop without mid-call cancel
+                return "never reached"
+
+        provider = _FakeProvider([_tool_call_result()])
+        manager = _SlowManager(_TOOLS, max_iterations=5)
+        step = _make_step(provider, manager)
+        ctx = ProcessingContext(message="x", adapter_name="mcp-agent-chat", cancel_event=ev)
+
+        async def _stop_once_tool_starts():
+            await started.wait()
+            ev.set()
+
+        loop_task = asyncio.ensure_future(step._run_agent_loop(ctx))
+        await asyncio.wait_for(asyncio.gather(loop_task, _stop_once_tool_starts()), timeout=5)
+
+        text, sources = loop_task.result()
+        assert len(provider.calls) == 1
+        assert sources == []  # the interrupted tool call was not recorded
