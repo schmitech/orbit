@@ -11,7 +11,7 @@ This is the inverse of ORBIT's existing MCP *server* role (which exposes ORBIT's
 Key properties:
 
 - **Agentic loop** — the model may call multiple tools across several rounds before answering (bounded by `max_tool_iterations`).
-- **Provider-agnostic** — works with any inference provider that supports native tool calling: `openai`, `anthropic`, `gemini`, `xai`.
+- **Provider-agnostic** — works with any inference provider that supports native tool calling: `openai`, `anthropic`, `gemini`, `xai`, `ollama`, `llama_cpp`, and `vllm` (see [Supported Inference Providers](#supported-inference-providers)).
 - **Skill-based routing** — exposed as the `mcp-agent` skill; any adapter that lists it in `available_skills` can invoke it.
 - **Admin-configured servers** — MCP server URLs/commands are set in `config/mcp_client.yaml`, never supplied at request time.
 
@@ -43,10 +43,28 @@ Tool names are namespaced as `<server_name>__<tool_name>` (e.g. `github__search_
 
 ---
 
+## Supported Inference Providers
+
+The tool-calling loop works with any provider that implements `generate_with_tools`. A provider that doesn't will raise a clear `generate_with_tools not implemented` error at request time.
+
+| Provider | Tool calling | Notes |
+|----------|--------------|-------|
+| `openai` | ✅ | `chat.completions` with `tools` + `tool_choice="auto"` |
+| `anthropic` | ✅ | Messages API; OpenAI↔Anthropic message conversion handled internally |
+| `gemini` | ✅ | `FunctionDeclaration`; strips JSON-Schema meta-fields and preserves thinking signatures across rounds |
+| `xai` | ✅ | OpenAI-compatible (Grok) |
+| `ollama` | ✅ | `/api/chat` with `tools=`. Requires a **tool-capable model** — e.g. `qwen2.5`, `qwen3`/`qwen3.5`, `llama3.1+`, `mistral-nemo`, or `functiongemma`. Models without a tool template just return plain text (the loop exits cleanly). |
+| `llama_cpp` | ✅ API · ⚠️ direct | **API mode** (llama-server, OpenAI-compatible) recommended. **Direct mode** (in-process GGUF) only works for chat formats that implement function calling; with a plain `chatml` format the model ignores tool schemas. |
+| `vllm` | ✅ API only | **API mode** requires the vLLM server be started with `--enable-auto-tool-choice --tool-call-parser <parser>` (e.g. `hermes`, `llama3_json`, `mistral`). **Direct/in-process mode is not supported** and raises `NotImplementedError`. |
+
+> **Model capability matters as much as provider support.** Tool selection is a reasoning task. The hosted frontier models (`gpt-4.1`, `claude-sonnet-4-6`, `gemini-3.1-pro`) are the most reliable at picking the right tool and chaining calls. Small local models (functiongemma, Gemma 4 E2B, 1–4B Ollama models) work but are less reliable when many tools are visible or the query is ambiguous — scope them with `mcp_servers` (see [Scoping tools](#scoping-tools-with-the-mcp_servers-allowlist)).
+
+---
+
 ## Prerequisites
 
 1. **ORBIT version** — requires the `mcp_agent` adapter type, `MCPAgentStep`, and `generate_with_tools` provider methods (see [Implementation Reference](#implementation-reference)).
-2. **Inference provider** — the `mcp-agent-chat` adapter must point to a provider with native tool calling: `openai`, `anthropic`, `gemini`, or `xai`.
+2. **Inference provider** — the `mcp-agent-chat` adapter must point to a provider with native tool calling: `openai`, `anthropic`, `gemini`, `xai`, `ollama`, `llama_cpp` (API mode), or `vllm` (API mode). See [Supported Inference Providers](#supported-inference-providers).
 3. **`mcp` Python SDK** — already a dependency (`mcp` ≥ 1.27.1).
 4. **MCP server runtime** — for stdio servers (e.g. `@modelcontextprotocol/server-github`), `npx` or the appropriate runtime must be on `$PATH`.
 
@@ -108,7 +126,7 @@ adapters:
     datasource: "none"
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
-    inference_provider: "openai"    # openai | anthropic | gemini | xai
+    inference_provider: "openai"    # openai | anthropic | gemini | xai | ollama | llama_cpp | vllm
     model: "gpt-4.1-mini"
 
     capabilities:
@@ -458,6 +476,8 @@ This keeps context windows lean and makes tool selection more deterministic.
 |----------|---------------------------|
 | Complex multi-server, multi-step tasks | `openai` / `gpt-4.1`, `anthropic` / `claude-sonnet-4-6` |
 | Single-server tasks, cost-sensitive | `openai` / `gpt-4.1-mini`, `gemini` / `gemini-3.1-flash` |
+| Local via Ollama (CPU/GPU) | `ollama` / `qwen3.5-4b-cpu` or `qwen2.5-3b-cpu` *(good balance)*, `functiongemma-cpu` *(fastest tool selection, thin final answers)* |
+| Self-hosted GPU server, high throughput | `vllm` (API mode, server started with `--enable-auto-tool-choice --tool-call-parser <parser>`) |
 | Private / offline, API mode (llama-server) | `llama_cpp` / `gemma4-e2b-api` |
 | Private / offline, direct mode | `llama_cpp` / `gemma4-e2b-direct-cpu` *(less reliable on complex tool selection)* |
 
@@ -501,7 +521,7 @@ Increase `tool_timeout`. For stdio servers using `npx -y`, the first call may be
 
 ### "generate_with_tools not implemented" error
 
-The configured `inference_provider` does not support native tool calling. Use one of: `openai`, `anthropic`, `gemini`, `xai`, or `llama_cpp` (api mode recommended).
+The configured `inference_provider` does not support native tool calling. Use one of: `openai`, `anthropic`, `gemini`, `xai`, `ollama`, `llama_cpp` (API mode recommended), or `vllm` (API mode). Note `vllm` in **direct/in-process mode** raises this error on purpose — switch it to API mode. See [Supported Inference Providers](#supported-inference-providers).
 
 ### Tool results look wrong / server errors
 
@@ -522,6 +542,9 @@ The MCP server returns `isError: true`. The error message is passed back to the 
 | Anthropic tool calling | `server/ai_services/implementations/inference/anthropic_inference_service.py` | `generate_with_tools` + OpenAI↔Anthropic message conversion |
 | Gemini tool calling | `server/ai_services/implementations/inference/gemini_inference_service.py` | `generate_with_tools` via `FunctionDeclaration` |
 | xAI tool calling | `server/ai_services/implementations/inference/xai_inference_service.py` | `generate_with_tools` (OpenAI-compatible) |
+| Ollama tool calling | `server/ai_services/implementations/inference/ollama_inference_service.py` | `generate_with_tools` via `/api/chat`; `_normalize_messages_for_ollama` for loop history |
+| llama.cpp tool calling | `server/ai_services/implementations/inference/llama_cpp_inference_service.py` | `generate_with_tools` for API and direct modes |
+| vLLM tool calling | `server/ai_services/implementations/inference/vllm_inference_service.py` | `generate_with_tools` (API mode only; direct mode raises `NotImplementedError`) |
 | Skill adapter config | `config/adapters/mcp-agent.yaml` | `mcp-agent-chat` adapter; exposes as `mcp-agent` skill |
 | Server config template | `config/mcp_client.yaml` | Example server definitions |
 | Adapter registry | `config/adapters.yaml` | Imports `mcp-agent.yaml` |

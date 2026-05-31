@@ -28,8 +28,8 @@ adapters:
     datasource: "none"
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
-    inference_provider: "gemini"         # must support native tool calling
-    model: "gemini-3.1-pro-preview"
+    inference_provider: "ollama"         # must support native tool calling
+    model: "qwen3.5-4b-cpu"
 
     capabilities:
       expose_as_skill: true

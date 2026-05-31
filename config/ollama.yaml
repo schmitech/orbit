@@ -508,6 +508,75 @@ ollama_presets:
   # Optimized for local execution with native text, image, and audio support.
   # Features a dedicated thinking mode for complex logic and reasoning.
   # ═══════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
+  # functiongemma on CPU - Function-calling specialist (268M, Q8_0)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Model: https://ollama.com/library/functiongemma
+  #
+  # A tiny Gemma 3-based model fine-tuned exclusively for function/tool calling.
+  # Uses Ollama's dedicated `functiongemma` parser for reliable tool-call extraction.
+  # Ideal for the MCP agent skill: fast, low RAM (~300MB), consistent tool selection.
+  # Trade-off: very small — final answers after tool calls may be less detailed
+  # than a larger model. Best suited for single-server, well-scoped queries.
+  #
+  # Pull: ollama pull functiongemma
+  # Use in mcp-agent.yaml: inference_provider: "ollama", model: "functiongemma-cpu"
+  # ═══════════════════════════════════════════════════════════════════════════
+  functiongemma-cpu:
+    base_url: "http://localhost:11434"
+    model: "functiongemma:latest"
+    stream: true
+    think: false          # No thinking mode — this model is output-optimised for tool calls
+    temperature: 0.1      # Low temperature for deterministic tool selection
+    top_p: 0.95
+    top_k: 64
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 2048     # Short outputs — this model calls tools, not essays
+    repeat_penalty: 1.1
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # 268M model is lightweight — 8K context fits comfortably in RAM
+    num_ctx: 8192
+    num_keep: 512
+    penalize_newline: false
+    stop: []
+    # Tiny model: more CPU threads for faster inference
+    num_threads: 8
+    num_batch: 128
+    num_gpu: 0            # CPU only
+    main_gpu: 0
+    low_vram: false
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    seed: null
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 10000
+      exponential_base: 2
+    timeout:
+      connect: 5000
+      total: 60000        # Small model loads fast — 1 minute is generous
+      warmup: 60000
+    keep_alive: "15m"     # Keep loaded — it's tiny, cheap to hold in RAM
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Gemma 4 E2B on CPU - Multimodal edge model with native thinking
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Model: https://ollama.com/library/gemma4:e2b
+  #
+  # Google's Gemma 4 E2B is a multimodal "edge" variant.
+  # Optimized for local execution with native text, image, and audio support.
+  # Features a dedicated thinking mode for complex logic and reasoning.
+  # ═══════════════════════════════════════════════════════════════════════════
   gemma4-e2b-cpu:
     base_url: "http://localhost:11434"
     model: "gemma4:e2b"
@@ -554,4 +623,68 @@ ollama_presets:
       total: 120000
       warmup: 120000
     keep_alive: "10m"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Qwen3.5 4B on CPU - Capable tool-calling model for the MCP agent on CPU
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Model: https://ollama.com/library/qwen3.5
+  #
+  # Qwen3.5 4B has strong native tool-calling support in Ollama, making it a
+  # good CPU choice for testing the mcp-agent skill end-to-end: it both selects
+  # tools reliably and composes coherent final answers from the results — unlike
+  # the tiny functiongemma, whose post-tool answers are thin.
+  #
+  # think is disabled here so each tool-calling loop iteration stays fast on CPU
+  # (thinking adds a full reasoning pass per round). Sampling follows Qwen3's
+  # recommended non-thinking values (temp 0.7 / top_p 0.8 / top_k 20).
+  #
+  # Pull: ollama pull qwen3.5:4b
+  # Use in mcp-agent.yaml: inference_provider: "ollama", model: "qwen3.5-4b-cpu"
+  # ═══════════════════════════════════════════════════════════════════════════
+  qwen3.5-4b-cpu:
+    base_url: "http://localhost:11434"
+    model: "qwen3.5:4b"
+    stream: true
+    think: false  # Disabled for fast tool calls on CPU (no per-iteration reasoning pass)
+    # Generation parameters - Qwen3 recommended non-thinking sampling
+    temperature: 0.7
+    top_p: 0.8
+    top_k: 20
+    min_p: 0.0
+    typical_p: 0.9
+    num_predict: 4096
+    repeat_penalty: 1.1
+    repeat_last_n: 64
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    mirostat: 0
+    mirostat_tau: 4.0
+    mirostat_eta: 0.1
+    # Context - 8K holds a 4B model plus tool schemas/results on 16GB RAM (CPU)
+    num_ctx: 8192
+    num_keep: 1024
+    penalize_newline: false
+    stop: []
+    # CPU optimized settings
+    num_threads: 6
+    num_batch: 64
+    num_gpu: 0  # CPU only
+    main_gpu: 0
+    low_vram: false
+    use_mmap: true
+    use_mlock: false
+    vocab_only: false
+    numa: false
+    seed: null
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+    timeout:
+      connect: 10000
+      total: 180000  # 3 minutes - a 4B model on CPU is slower than the 3B presets
+      warmup: 180000
+    keep_alive: "15m"
 

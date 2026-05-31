@@ -92,9 +92,12 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
         params: Dict[str, Any] = {
             "model": self.model,
             "messages": anthropic_messages,
-            "tools": anthropic_tools,
             "max_tokens": kwargs.pop("max_tokens", self.max_tokens),
         }
+        # Omit tools when none are offered — the final synthesis call passes []
+        # on purpose to force a text answer instead of further tool calls.
+        if anthropic_tools:
+            params["tools"] = anthropic_tools
         if system_content:
             params["system"] = system_content
         temp = kwargs.pop("temperature", self.temperature)

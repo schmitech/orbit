@@ -191,13 +191,22 @@ class MCPAgentStep(PipelineStep):
         # If we exhaust iterations without a final answer, synthesize from last response
         logger.warning(
             "MCP agent exhausted %d iterations without a final answer; "
-            "returning last model text.",
+            "forcing a final text answer.",
             max_iterations,
         )
-        # Ask the model one final time with the accumulated history
+        # Ask the model one final time with NO tools, so it is forced to produce
+        # a text answer from the accumulated history instead of requesting yet
+        # more tool calls we can no longer execute (which would yield empty text).
         try:
-            final_result = await provider.generate_with_tools(messages, tools)
-            return final_result.text or "", sources
+            final_result = await provider.generate_with_tools(messages, [])
+            if final_result.text:
+                return final_result.text, sources
+            logger.warning("Final MCP agent synthesis returned no text.")
+            return (
+                "I gathered information from the available tools but could not "
+                "compose a final answer within the allowed number of steps.",
+                sources,
+            )
         except Exception as exc:
             logger.error("Final MCP agent synthesis failed: %s", exc)
             return "I was unable to complete the tool-calling loop.", sources

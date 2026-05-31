@@ -7,12 +7,13 @@ and direct mode (embedded GGUF model loading with llama-cpp-python).
 Compare with: server/ai_services/implementations/llama_cpp_embedding_service.py
 """
 
+import json
 import logging
 import os
 import asyncio
-from typing import Dict, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator, List
 from ...errors import sanitize_provider_error
-from ...services import InferenceService
+from ...services import InferenceService, ToolCallingResult
 from ...providers.llama_cpp_base import LlamaCppBaseService
 
 logger = logging.getLogger(__name__)
@@ -120,6 +121,133 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
         for token in self.stop_tokens:
             text = text.replace(token, "")
         return text.strip()
+
+    async def generate_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        **kwargs,
+    ) -> ToolCallingResult:
+        """
+        Single round of tool-enabled generation.
+
+        API mode:    delegates to the llama-server OpenAI-compatible endpoint,
+                     which natively supports tools= for capable models.
+        Direct mode: uses llama-cpp-python's create_chat_completion(tools=).
+                     Works for models/chat_formats that implement function
+                     calling (e.g. gemma4 with a compatible llama-cpp build).
+                     Falls back gracefully if the model ignores tool schemas.
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        # Omit tools when none are offered — the final synthesis call passes []
+        # on purpose to force a text answer instead of further tool calls.
+        tool_kwargs = {"tools": tools, "tool_choice": "auto"} if tools else {}
+
+        if self.mode == "api":
+            try:
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=kwargs.get("temperature", self.temperature),
+                    top_p=kwargs.get("top_p", self.top_p),
+                    max_tokens=kwargs.get("max_tokens", self.max_tokens),
+                    stop=self.stop_tokens if self.stop_tokens else None,
+                    **tool_kwargs,
+                )
+            except Exception as e:
+                logger.error("Llama.cpp API tool-calling error: %s", e)
+                raise
+
+            choice = response.choices[0]
+            msg = choice.message
+            assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content}
+            tool_calls_result = None
+
+            if msg.tool_calls:
+                assistant_msg["tool_calls"] = [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                    }
+                    for tc in msg.tool_calls
+                ]
+                tool_calls_result = [
+                    {
+                        "id": tc.id,
+                        "name": tc.function.name,
+                        "arguments": json.loads(tc.function.arguments or "{}"),
+                    }
+                    for tc in msg.tool_calls
+                ]
+
+            return ToolCallingResult(
+                text=msg.content,
+                tool_calls=tool_calls_result,
+                assistant_message=assistant_msg,
+                finish_reason=choice.finish_reason or "stop",
+            )
+
+        else:
+            # Direct mode — llama-cpp-python ≥ 0.2.x supports tools=
+            if not self.llama_model:
+                raise RuntimeError("Llama.cpp model not initialized")
+
+            def _call():
+                return self.llama_model.create_chat_completion(
+                    messages=messages,
+                    temperature=kwargs.get("temperature", self.temperature),
+                    top_p=kwargs.get("top_p", self.top_p),
+                    top_k=kwargs.get("top_k", self.top_k),
+                    max_tokens=kwargs.get("max_tokens", self.max_tokens),
+                    stop=self.stop_tokens,
+                    repeat_penalty=self.repeat_penalty,
+                    **tool_kwargs,
+                )
+
+            try:
+                response = await asyncio.to_thread(_call)
+            except Exception as e:
+                logger.error("Llama.cpp direct tool-calling error: %s", e)
+                raise
+
+            choice = response.get("choices", [{}])[0]
+            msg = choice.get("message", {})
+            content = msg.get("content")
+            raw_tool_calls = msg.get("tool_calls") or []
+
+            assistant_msg = {"role": "assistant", "content": content}
+            tool_calls_result = None
+
+            if raw_tool_calls:
+                assistant_msg["tool_calls"] = [
+                    {
+                        "id": tc.get("id", f"call_{i}"),
+                        "type": "function",
+                        "function": {
+                            "name": tc["function"]["name"],
+                            "arguments": tc["function"]["arguments"],
+                        },
+                    }
+                    for i, tc in enumerate(raw_tool_calls)
+                ]
+                tool_calls_result = [
+                    {
+                        "id": tc.get("id", f"call_{i}"),
+                        "name": tc["function"]["name"],
+                        "arguments": json.loads(tc["function"].get("arguments") or "{}"),
+                    }
+                    for i, tc in enumerate(raw_tool_calls)
+                ]
+
+            return ToolCallingResult(
+                text=content,
+                tool_calls=tool_calls_result,
+                assistant_message=assistant_msg,
+                finish_reason=choice.get("finish_reason") or "stop",
+            )
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using Llama.cpp (API or direct mode)."""

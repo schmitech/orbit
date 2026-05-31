@@ -7,12 +7,13 @@ and direct mode (in-process model loading with vLLM engine).
 Compare with: server/inference/pipeline/providers/vllm_provider.py (old implementation)
 """
 
+import json
 import logging
 import asyncio
-from typing import Dict, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator, List
 
 from ...providers.vllm_base import VLLMBaseService
-from ...services import InferenceService
+from ...services import InferenceService, ToolCallingResult
 
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,85 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
         if messages:
             return messages
         return [{"role": "user", "content": prompt}]
+
+    async def generate_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        **kwargs,
+    ) -> ToolCallingResult:
+        """
+        Single round of tool-enabled generation.
+
+        API mode delegates to the vLLM OpenAI-compatible server, which supports
+        tools= when the server is started with --enable-auto-tool-choice and a
+        --tool-call-parser matching the model (e.g. hermes, llama3_json, mistral).
+
+        Direct (in-process) mode is not supported: raw engine.generate() returns
+        text only, and reproducing vLLM's per-model tool-call parsers in-process
+        is out of scope. Use API mode for the MCP agent skill.
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        if self.mode != "api":
+            raise NotImplementedError(
+                "vLLM tool calling is only supported in API mode. Run a vLLM "
+                "server started with --enable-auto-tool-choice --tool-call-parser "
+                "<parser> and configure this provider in API mode."
+            )
+
+        params: Dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": kwargs.pop("temperature", self.temperature),
+            "max_tokens": kwargs.pop("max_tokens", self.max_tokens),
+            "top_p": kwargs.pop("top_p", self.top_p),
+        }
+        if self.stop_tokens:
+            params["stop"] = self.stop_tokens
+        # Omit tools when none are offered — the final synthesis call passes []
+        # on purpose to force a text answer instead of further tool calls.
+        if tools:
+            params["tools"] = tools
+            params["tool_choice"] = "auto"
+
+        try:
+            response = await self.client.chat.completions.create(**params)
+        except Exception as e:
+            self._handle_vllm_error(e, "tool-calling generation")
+            raise
+
+        choice = response.choices[0]
+        msg = choice.message
+
+        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content}
+        tool_calls_result = None
+
+        if msg.tool_calls:
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                }
+                for tc in msg.tool_calls
+            ]
+            tool_calls_result = [
+                {
+                    "id": tc.id,
+                    "name": tc.function.name,
+                    "arguments": json.loads(tc.function.arguments or "{}"),
+                }
+                for tc in msg.tool_calls
+            ]
+
+        return ToolCallingResult(
+            text=msg.content,
+            tool_calls=tool_calls_result,
+            assistant_message=assistant_msg,
+            finish_reason=choice.finish_reason or "stop",
+        )
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using vLLM (API or direct mode)."""

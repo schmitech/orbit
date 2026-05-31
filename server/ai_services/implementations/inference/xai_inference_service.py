@@ -50,13 +50,16 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
         params: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "tools": tools,
-            "tool_choice": "auto",
             "temperature": kwargs.pop("temperature", self.temperature),
             "max_tokens": kwargs.pop("max_tokens", self.max_tokens),
             "top_p": kwargs.pop("top_p", self.top_p),
             **kwargs,
         }
+        # Omit tools when none are offered — the final synthesis call passes []
+        # on purpose to force a text answer instead of further tool calls.
+        if tools:
+            params["tools"] = tools
+            params["tool_choice"] = "auto"
 
         try:
             response = await self.client.chat.completions.create(**params)

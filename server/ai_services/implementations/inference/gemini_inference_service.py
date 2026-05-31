@@ -163,17 +163,24 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
 
         client = self._get_client()
 
+        config_kwargs: Dict[str, Any] = {
+            "temperature": kwargs.get("temperature", self.temperature),
+            "max_output_tokens": kwargs.get("max_tokens", self.max_tokens),
+            "system_instruction": system_instruction,
+        }
+        # Omit tools when none are offered — the final synthesis call passes []
+        # on purpose to force a text answer instead of further tool calls.
+        if function_declarations:
+            config_kwargs["tools"] = [
+                gtypes.Tool(function_declarations=function_declarations)
+            ]
+
         try:
             response = await asyncio.to_thread(
                 client.models.generate_content,
                 model=self.model,
                 contents=contents,
-                config=gtypes.GenerateContentConfig(
-                    temperature=kwargs.get("temperature", self.temperature),
-                    max_output_tokens=kwargs.get("max_tokens", self.max_tokens),
-                    system_instruction=system_instruction,
-                    tools=[gtypes.Tool(function_declarations=function_declarations)],
-                ),
+                config=gtypes.GenerateContentConfig(**config_kwargs),
             )
         except Exception as e:
             self._handle_google_error(e, "tool-calling generation")
@@ -200,11 +207,13 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
 
         if function_call_parts:
             tool_calls_result = []
-            for part in function_call_parts:
+            for idx, part in enumerate(function_call_parts):
                 fc = part.function_call
                 args = dict(fc.args) if fc.args else {}
+                # Include the index so parallel calls to the same tool in one
+                # turn get distinct ids (Gemini omits call ids of its own).
                 tool_calls_result.append({
-                    "id": f"gemini_{fc.name}",
+                    "id": f"gemini_{fc.name}_{idx}",
                     "name": fc.name,
                     "arguments": args,
                 })
@@ -261,7 +270,6 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
                 else:
                     # Fallback: reconstruct from OpenAI-format fields (no thought_signature,
                     # works for non-thinking models or single-round calls).
-                    import json as _json
                     parts = []
                     if msg.get("content"):
                         parts.append({"text": msg["content"]})
@@ -269,7 +277,7 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
                         parts.append({
                             "function_call": {
                                 "name": tc["function"]["name"],
-                                "args": _json.loads(tc["function"].get("arguments") or "{}"),
+                                "args": json.loads(tc["function"].get("arguments") or "{}"),
                             }
                         })
                     if parts:

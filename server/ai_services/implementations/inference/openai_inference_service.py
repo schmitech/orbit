@@ -210,10 +210,14 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
         params: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "tools": tools,
-            "tool_choice": "auto",
             token_param: token_value,
         }
+        # Omit tools entirely when none are offered — the OpenAI API rejects an
+        # empty tools array, and the final synthesis call passes [] on purpose
+        # to force a text answer instead of further tool calls.
+        if tools:
+            params["tools"] = tools
+            params["tool_choice"] = "auto"
         temp = kw.pop("temperature", self.temperature)
         if temp is not None:
             params["temperature"] = temp
