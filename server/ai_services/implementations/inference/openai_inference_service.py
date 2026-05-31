@@ -68,10 +68,17 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
         try:
             # Check if we have messages format in kwargs
             messages = kwargs.pop('messages', None)
+            web_search = kwargs.pop('web_search', False)
 
             if messages is None:
                 # Traditional format - convert to messages
                 messages = [{"role": "user", "content": prompt}]
+
+            # Web search uses the Responses API + web_search tool (not chat.completions)
+            if web_search:
+                params = self._build_web_search_params(messages, **kwargs)
+                response = await self.client.responses.create(**params)
+                return response.output_text
 
             # Build parameters using configured values
             # Handle max_tokens-style variants for different models/endpoints
@@ -119,10 +126,22 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
         try:
             # Check if we have messages format in kwargs
             messages = kwargs.pop('messages', None)
+            web_search = kwargs.pop('web_search', False)
 
             if messages is None:
                 # Traditional format - convert to messages
                 messages = [{"role": "user", "content": prompt}]
+
+            # Web search uses the Responses API + web_search tool (not chat.completions)
+            if web_search:
+                params = self._build_web_search_params(messages, stream=True, **kwargs)
+                response_stream = await self.client.responses.create(**params)
+                async for event in response_stream:
+                    if getattr(event, "type", None) == "response.output_text.delta":
+                        delta = getattr(event, "delta", None)
+                        if delta:
+                            yield delta
+                return
 
             # Build parameters using configured values
             # Handle max_tokens-style variants for different models/endpoints
@@ -171,6 +190,44 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
         except Exception as e:
             self._handle_openai_error(e, "streaming generation")
             yield f"Error: {str(e)}"
+
+    def _build_web_search_params(self, messages: list, stream: bool = False, **kwargs) -> Dict[str, Any]:
+        """
+        Build parameters for a web-search request via the Responses API.
+
+        The Chat Completions API does not accept a web search tool, so web search
+        routes through client.responses.create with the built-in web_search tool.
+        The system message is passed as `instructions`; the rest become `input` items.
+        """
+        instructions_parts = []
+        input_items = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role in ("system", "developer"):
+                if content:
+                    instructions_parts.append(content)
+            else:
+                input_items.append({"role": role, "content": content})
+
+        params: Dict[str, Any] = {
+            "model": self.model,
+            "input": input_items,
+            "tools": [{"type": "web_search"}],
+            "max_output_tokens": self._resolve_token_value("max_output_tokens", kwargs),
+        }
+
+        if instructions_parts:
+            params["instructions"] = "\n\n".join(instructions_parts)
+
+        temperature = kwargs.pop("temperature", self.temperature)
+        if temperature is not None:
+            params["temperature"] = temperature
+
+        if stream:
+            params["stream"] = True
+
+        return params
 
     def _get_token_parameter_name(self) -> str:
         """Return the correct token-count parameter name for the active model."""

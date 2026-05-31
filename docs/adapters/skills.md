@@ -171,6 +171,59 @@ If `skill_name` does not match any adapter with `expose_as_skill: true`:
 
 ---
 
+## Web Search Skill
+
+The **web search** skill (`web-search`) lets a conversational request answer with up-to-date information from the web. Unlike image generation — which uses a dedicated adapter type and pipeline step — web search reuses the normal conversational adapter and `LLMInferenceStep`. It simply enables the inference provider's **native** web search for that single request.
+
+Supported providers:
+
+| Provider | Mechanism |
+|----------|-----------|
+| `gemini` | `google_search` grounding tool on the generate-content call |
+| `openai` | `web_search` tool via the Responses API |
+| `xai` (Grok) | `web_search` tool via the Responses API (`https://api.x.ai/v1`) |
+
+### Configuration
+
+The skill is a conversational/passthrough adapter that carries a `web_search: true` capability flag:
+
+```yaml
+- name: "web-search-chat"
+  enabled: true
+  type: "passthrough"
+  adapter: "conversational"
+  inference_provider: "gemini"        # must be a web-search-capable provider
+  model: "gemini-3.1-pro-preview"
+  capabilities:
+    web_search: true                  # enable native web search on the inference call
+    expose_as_skill: true
+    skill_name: "web-search"
+    skill_description: "Search the web and answer with up-to-date information and citations"
+    retrieval_behavior: "none"
+```
+
+> **Note:** the default conversational provider (`ollama_cloud`/`gpt-oss`) does not support web search, so the skill adapter pins a capable provider. To use a different provider, set `inference_provider` to `openai` or `xai` (with a search-capable `model`, e.g. `grok-4.3`). (Runtime model switching via the request `model` field is validated against the *calling* adapter's `allowed_models`, not the skill adapter's, so it does not apply on the skill path — a skill always uses its own configured provider/model.)
+
+The `web_search` flag is threaded as follows: `RequestContextBuilder` reads it from the (skill-swapped) adapter's capabilities into `ProcessingContext.web_search`; `LLMInferenceStep` passes `web_search=True` to the provider's `generate()`/`generate_stream()`; the Gemini/OpenAI/xAI inference services translate it into the provider's native web-search tool.
+
+### Request
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "What are the top news headlines today?"}
+    ],
+    "skill": "web-search"
+  }'
+```
+
+The response is a normal text `response` whose content includes inline citations the model produced from its web search. Streaming (`"stream": true`) works the same way.
+
+---
+
 ## Admin API
 
 ### List all registered skills

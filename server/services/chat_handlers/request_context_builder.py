@@ -211,10 +211,21 @@ class RequestContextBuilder:
             requested_skill = skill
             adapter_name = skill_adapter_name
             inference_provider = self.get_inference_provider(adapter_name)
+            # A skill adapter defines its own provider/model. Discard any runtime
+            # model override resolved from the calling adapter so the skill always
+            # uses its configured model — mirroring image/video skills, which ignore
+            # the caller's LLM entirely. (Without this, a caller's selected model
+            # like "deepseek" would receive the web_search flag and fail.)
+            runtime_provider = None
+            runtime_model_name = None
             logger.debug(
                 f"Skill routing: '{requested_skill}' → adapter '{adapter_name}' "
                 f"(original: '{original_adapter_name}')"
             )
+
+        # Resolve web search capability from the (possibly skill-swapped) adapter
+        final_cfg = self.get_adapter_config(adapter_name)
+        web_search = bool(final_cfg.get('capabilities', {}).get('web_search', False))
 
         # Create and return processing context
         return ProcessingContext(
@@ -242,4 +253,5 @@ class RequestContextBuilder:
             runtime_model_name=runtime_model_name,
             requested_skill=requested_skill,
             original_adapter_name=original_adapter_name,
+            web_search=web_search,
         )

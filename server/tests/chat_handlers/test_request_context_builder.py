@@ -312,3 +312,100 @@ class TestSkillRouting:
         assert context.adapter_name == 'test_adapter'
         assert context.requested_skill is None
         assert context.original_adapter_name is None
+
+
+class TestWebSearchCapability:
+    """Tests for the web_search capability flag on ProcessingContext."""
+
+    def test_web_search_flag_set_from_skill_adapter(self, base_config):
+        """Routing to a skill adapter with web_search: true sets context.web_search."""
+        from unittest.mock import MagicMock
+
+        consumer_cfg = {
+            'type': 'passthrough',
+            'inference_provider': 'gemini',
+            'config': {},
+            'capabilities': {'available_skills': ['web-search']},
+        }
+        skill_cfg = {
+            'type': 'passthrough',
+            'inference_provider': 'gemini',
+            'config': {},
+            'capabilities': {'web_search': True, 'expose_as_skill': True, 'skill_name': 'web-search'},
+        }
+        manager = MagicMock()
+        manager.get_adapter_config.side_effect = lambda name: (
+            skill_cfg if name == 'web-search-chat' else consumer_cfg
+        )
+        manager.get_skill_adapter.return_value = 'web-search-chat'
+        builder = RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+        context = builder.build_context(
+            message="latest news",
+            adapter_name="test_adapter",
+            context_messages=[],
+            skill="web-search",
+        )
+
+        assert context.adapter_name == 'web-search-chat'
+        assert context.web_search is True
+
+    def test_skill_discards_caller_runtime_model(self, base_config):
+        """The caller's runtime model override is dropped when routing to a skill.
+
+        Prevents the calling adapter's selected model (e.g. deepseek) from receiving
+        the web_search flag; the skill always uses its own configured provider/model.
+        """
+        from unittest.mock import MagicMock
+
+        consumer_cfg = {
+            'type': 'passthrough',
+            'inference_provider': 'ollama_cloud',
+            'config': {},
+            'allowed_models': [
+                {'name': 'deepseek', 'provider': 'deepseek', 'model': 'deepseek-chat'},
+            ],
+            'capabilities': {'available_skills': ['web-search']},
+        }
+        skill_cfg = {
+            'type': 'passthrough',
+            'inference_provider': 'openai',
+            'model': 'gpt-5.5',
+            'config': {},
+            'capabilities': {'web_search': True, 'expose_as_skill': True, 'skill_name': 'web-search'},
+        }
+        manager = MagicMock()
+        manager.get_adapter_config.side_effect = lambda name: (
+            skill_cfg if name == 'web-search-chat' else consumer_cfg
+        )
+        manager.get_skill_adapter.return_value = 'web-search-chat'
+        builder = RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+        context = builder.build_context(
+            message="latest news",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="deepseek",
+            skill="web-search",
+        )
+
+        assert context.adapter_name == 'web-search-chat'
+        assert context.inference_provider == 'openai'
+        assert context.runtime_provider is None
+        assert context.runtime_model_name is None
+        assert context.web_search is True
+
+    def test_web_search_flag_false_by_default(self, base_config, mock_adapter_manager):
+        """Adapters without web_search capability leave context.web_search False."""
+        builder = RequestContextBuilder(
+            config=base_config,
+            adapter_manager=mock_adapter_manager,
+        )
+
+        context = builder.build_context(
+            message="hello",
+            adapter_name="test_adapter",
+            context_messages=[],
+        )
+
+        assert context.web_search is False

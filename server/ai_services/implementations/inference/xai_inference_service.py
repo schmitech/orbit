@@ -43,8 +43,16 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
 
         try:
             messages = kwargs.pop('messages', None)
+            web_search = kwargs.pop('web_search', False)
             if messages is None:
                 messages = [{"role": "user", "content": prompt}]
+
+            # Web search uses the Responses API + web_search tool (xAI is Responses-API
+            # compatible); chat.completions does not accept it.
+            if web_search:
+                params = self._build_web_search_params(messages, **kwargs)
+                response = await self.client.responses.create(**params)
+                return response.output_text
 
             params = {
                 "model": self.model,
@@ -69,8 +77,20 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
 
         try:
             messages = kwargs.pop('messages', None)
+            web_search = kwargs.pop('web_search', False)
             if messages is None:
                 messages = [{"role": "user", "content": prompt}]
+
+            # Web search uses the Responses API + web_search tool (see generate()).
+            if web_search:
+                params = self._build_web_search_params(messages, stream=True, **kwargs)
+                response_stream = await self.client.responses.create(**params)
+                async for event in response_stream:
+                    if getattr(event, "type", None) == "response.output_text.delta":
+                        delta = getattr(event, "delta", None)
+                        if delta:
+                            yield delta
+                return
 
             params = {
                 "model": self.model,
@@ -90,3 +110,41 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
         except Exception as e:
             self._handle_openai_compatible_error(e, "streaming generation")
             yield f"Error: {str(e)}"
+
+    def _build_web_search_params(self, messages: list, stream: bool = False, **kwargs) -> Dict[str, Any]:
+        """
+        Build parameters for a web-search request via the Responses API.
+
+        xAI exposes web search through the OpenAI-compatible Responses API
+        (tools=[{"type": "web_search"}]); chat.completions does not accept it.
+        The system message becomes `instructions`; the rest become `input` items.
+        """
+        instructions_parts = []
+        input_items = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role in ("system", "developer"):
+                if content:
+                    instructions_parts.append(content)
+            else:
+                input_items.append({"role": role, "content": content})
+
+        params: Dict[str, Any] = {
+            "model": self.model,
+            "input": input_items,
+            "tools": [{"type": "web_search"}],
+            "max_output_tokens": kwargs.pop("max_tokens", self.max_tokens),
+        }
+
+        if instructions_parts:
+            params["instructions"] = "\n\n".join(instructions_parts)
+
+        temperature = kwargs.pop("temperature", self.temperature)
+        if temperature is not None:
+            params["temperature"] = temperature
+
+        if stream:
+            params["stream"] = True
+
+        return params

@@ -1,0 +1,38 @@
+# Web search skill adapter — answers with up-to-date information from the web.
+#
+# SUPPORTED PROVIDERS: only "gemini", "openai", and "xai" support web search, and the
+# configured model must support the web_search tool (e.g. gemini-3.1-pro-preview,
+# an OpenAI search-capable model, or a Grok reasoning model like grok-4.3). Pointing
+# this adapter at any other provider/model will fail at request time.
+#
+# Exposed as the "web-search" skill. Any adapter that lists "web-search" in its
+# capabilities.available_skills can invoke it (see simple-chat in passthrough.yaml).
+#
+# Test it:
+#   curl -X POST http://localhost:3000/v1/chat \
+#     -H "Content-Type: application/json" \
+#     -H "X-API-Key: <key for an adapter that allows web-search, e.g. simple-chat>" \
+#     -d '{"messages":[{"role":"user","content":"What are todays top news headlines?"}],
+#          "skill":"web-search"}'
+#
+# This skill always uses the provider/model below. To use OpenAI or xAI instead,
+# change inference_provider to "openai"/"xai" and model to a search-capable model.
+# (Runtime model switching via the request "model" field is validated against the
+# *calling* adapter's allowed_models, not this one, so it is not used on the skill path.)
+adapters:
+  - name: "web-search-chat"
+    enabled: true
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "gemini"
+    model: "gemini-3.1-pro-preview"
+    capabilities:
+      web_search: true                   # Enable native web search on the inference call
+      expose_as_skill: true              # Publish this adapter as a skill
+      skill_name: "web-search"           # Identifier clients send in skill=
+      skill_description: "Search the web and answer with up-to-date information and citations"
+      retrieval_behavior: "none"         # No context retrieval (pure conversational)
+      formatting_style: "standard"
+      requires_api_key_validation: false # No separate key needed for skill invocation

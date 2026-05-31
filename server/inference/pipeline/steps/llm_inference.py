@@ -118,6 +118,8 @@ class LLMInferenceStep(PipelineStep):
             kwargs = {}
             if hasattr(context, 'messages') and context.messages:
                 kwargs['messages'] = context.messages
+            if getattr(context, 'web_search', False):
+                kwargs['web_search'] = True
 
             response = await llm_provider.generate(full_prompt, **kwargs)
             context.response = response
@@ -173,6 +175,8 @@ class LLMInferenceStep(PipelineStep):
             kwargs = {}
             if hasattr(context, 'messages') and context.messages:
                 kwargs['messages'] = context.messages
+            if getattr(context, 'web_search', False):
+                kwargs['web_search'] = True
 
             accumulated_response = ""
             llm_chunk_count = 0

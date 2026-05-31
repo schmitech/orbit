@@ -86,6 +86,9 @@ class ProcessingContext:
     requested_skill: Optional[str] = None
     original_adapter_name: Optional[str] = None
 
+    # Web search: enables the provider's native web search on the inference call
+    web_search: bool = False
+
     # Image generation output
     image: Optional[str] = None               # base64-encoded generated image
     image_format: Optional[str] = None        # "png", "jpeg", or "webp"

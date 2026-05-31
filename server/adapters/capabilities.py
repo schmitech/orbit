@@ -63,6 +63,10 @@ class AdapterCapabilities:
     # Skills available to this adapter (skill names that can be invoked via skill= in requests)
     available_skills: List[str] = field(default_factory=list)
 
+    # Web search: when True, the adapter's inference call enables the provider's
+    # native web search (Gemini google_search grounding, OpenAI web search)
+    web_search: bool = False
+
     # Skill exposure: when True, this adapter is published as an invokable skill
     expose_as_skill: bool = False
     skill_name: Optional[str] = None  # Public skill name (defaults to adapter name when unset)
@@ -110,6 +114,7 @@ class AdapterCapabilities:
             context_max_tokens=capabilities_config.get('context_max_tokens'),
             numeric_precision=capabilities_config.get('numeric_precision', {}),
             available_skills=capabilities_config.get('available_skills', []),
+            web_search=capabilities_config.get('web_search', False),
             # Skill exposure lives under capabilities.
             expose_as_skill=capabilities_config.get('expose_as_skill', False),
             skill_name=capabilities_config.get('skill_name'),

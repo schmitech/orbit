@@ -51,7 +51,7 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             self._genai_client = genai.Client()
         return self._genai_client
 
-    def _build_config(self, system_instruction: Optional[str] = None, **kwargs):
+    def _build_config(self, system_instruction: Optional[str] = None, web_search: bool = False, **kwargs):
         """Build GenerateContentConfig from parameters."""
         from google.genai import types
 
@@ -64,6 +64,10 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
 
         if system_instruction:
             config_params["system_instruction"] = system_instruction
+
+        # Enable Google Search grounding when web search is requested
+        if web_search:
+            config_params["tools"] = [types.Tool(google_search=types.GoogleSearch())]
 
         if self.disable_safety:
             config_params["safety_settings"] = [
@@ -132,14 +136,15 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
         try:
             kwargs.pop('api_key', None)
             messages = kwargs.pop('messages', None)
+            web_search = kwargs.pop('web_search', False)
             client = self._get_client()
 
             if messages:
                 system_instruction, contents = self._extract_system_and_contents(messages)
-                config = self._build_config(system_instruction=system_instruction, **kwargs)
+                config = self._build_config(system_instruction=system_instruction, web_search=web_search, **kwargs)
             else:
                 contents = prompt
-                config = self._build_config(**kwargs)
+                config = self._build_config(web_search=web_search, **kwargs)
 
             response = await asyncio.to_thread(
                 client.models.generate_content,
@@ -162,14 +167,15 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
         try:
             kwargs.pop('api_key', None)
             messages = kwargs.pop('messages', None)
+            web_search = kwargs.pop('web_search', False)
             client = self._get_client()
 
             if messages:
                 system_instruction, contents = self._extract_system_and_contents(messages)
-                config = self._build_config(system_instruction=system_instruction, **kwargs)
+                config = self._build_config(system_instruction=system_instruction, web_search=web_search, **kwargs)
             else:
                 contents = prompt
-                config = self._build_config(**kwargs)
+                config = self._build_config(web_search=web_search, **kwargs)
 
             response_iter = client.models.generate_content_stream(
                 model=self.model,
