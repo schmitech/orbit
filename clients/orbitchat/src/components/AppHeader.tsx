@@ -50,7 +50,7 @@ export function AppHeader() {
 
   return (
     <header
-      className={`relative z-30 shrink-0 bg-white px-3 pb-1 pt-2 dark:bg-black sm:px-5 sm:pb-2 sm:pt-3 lg:px-8 md:sticky md:top-0 md:pt-5 ${headerBorderClass}`.trim()}
+      className={`relative z-30 shrink-0 bg-white px-3 pb-1 pt-2 dark:bg-black sm:px-5 sm:pb-2 sm:pt-3 lg:px-8 md:pt-5 ${headerBorderClass}`.trim()}
       style={{
         backgroundColor: bgColor || undefined,
         color: textColor || undefined,

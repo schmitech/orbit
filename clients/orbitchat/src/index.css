@@ -15,11 +15,15 @@
     scroll-behavior: smooth;
     /* Prevent pull-to-refresh on mobile (only on the html element) */
     overscroll-behavior-y: contain;
+    /* Prevent Windows Chromium from showing a page-level vertical scrollbar.
+       All scrolling is handled by internal overflow containers. */
+    overflow: hidden;
   }
 
   body {
     @apply bg-white dark:bg-[#212121] text-[#353740] dark:text-[#ececf1];
     line-height: 1.75;
+    overflow: hidden;
   }
 
   /* Root container for proper mobile layout */
