@@ -43,8 +43,9 @@ templates:
                     "lte": "{{end_time}}"
                   }
                 }
-              },
-              {
+              }
+              {% if status_code_min %}
+              ,{
                 "range": {
                   "status_code": {
                     "gte": {{status_code_min}}
@@ -54,6 +55,7 @@ templates:
                   }
                 }
               }
+              {% endif %}
               {% if user_id %}
               ,{
                 "term": {
@@ -154,7 +156,6 @@ templates:
       - name: status_code_min
         type: integer
         required: false
-        default: 500
         description: "Minimum HTTP status code to include"
         location: "body"
         min: 100
@@ -358,8 +359,9 @@ templates:
                     "lte": "{{end_time}}"
                   }
                 }
-              },
-              {
+              }
+              {% if status_code_min %}
+              ,{
                 "range": {
                   "status_code": {
                     "gte": {{status_code_min}}
@@ -369,6 +371,7 @@ templates:
                   }
                 }
               }
+              {% endif %}
               {% if service_name %}
               ,{
                 "term": {
@@ -400,9 +403,9 @@ templates:
               }
             },
             "aggs": {
-              "by_level": {
+              "by_service": {
                 "terms": {
-                  "field": "level",
+                  "field": "service_name.keyword",
                   "size": 5
                 }
               }
@@ -438,7 +441,6 @@ templates:
       - name: status_code_min
         type: integer
         required: false
-        default: 500
         description: "Minimum HTTP status code to include"
         min: 100
         max: 599
@@ -651,8 +653,9 @@ templates:
                     "lte": "{{end_time}}"
                   }
                 }
-              },
-              {
+              }
+              {% if status_code_min %}
+              ,{
                 "range": {
                   "status_code": {
                     "gte": {{status_code_min}}
@@ -662,6 +665,7 @@ templates:
                   }
                 }
               }
+              {% endif %}
               {% if indices %}
               ,{
                 "terms": {
@@ -721,7 +725,6 @@ templates:
       - name: status_code_min
         type: integer
         required: false
-        default: 500
         description: "Minimum HTTP status code to include"
         location: "body"
         min: 100
@@ -1697,8 +1700,8 @@ templates:
       - "Show me all logs for request ID abc-123"
       - "Follow the request path for request xyz"
       - "Debug request flow for request-id-456"
-      - "Track request across services"
-      - "Show request trace for correlation ID"
+      - "Show logs for correlation ID b3d2e1f0-9a8b-7c6d-5e4f-3a2b1c0d9e8f"
+      - "Trace request ID req-20240601-001 across services"
 
     semantic_tags:
       action: "search"
@@ -1873,7 +1876,7 @@ templates:
                 "match": {
                   "message": {
                     "query": "{% if job_name %}{{job_name}}{% else %}scheduled job{% endif %}",
-                    "operator": "OR"
+                    "operator": "AND"
                   }
                 }
               }
@@ -2302,8 +2305,8 @@ templates:
       - "Show logs from payment-service-1"
       - "Find logs from host inventory-service-5"
       - "What errors occurred on server user-service-6?"
-      - "Get logs from production host"
-      - "Show me logs from a specific instance"
+      - "Get errors from host auth-service-3"
+      - "Show me logs from order-service-2"
 
     semantic_tags:
       action: "search"
@@ -2534,7 +2537,7 @@ templates:
       - "Show logs from activityLogger"
       - "Find logs from the payment-service logger"
       - "Get debug logs from scientistLogger"
-      - "Search logs by logger name"
+      - "Show logs from requestLogger"
       - "Show northLogger output"
 
     semantic_tags:
