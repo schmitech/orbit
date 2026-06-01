@@ -1348,6 +1348,126 @@ async def test_inspect_upload_rejects_unknown_binary(tmp_path, monkeypatch):
 
 
 # ============================================================================
+# Dangerous Content Scan Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_inspect_upload_blocks_dangerous_content_magika_disabled(tmp_path):
+    """Dangerous HTML/JS content is rejected even when Magika is disabled."""
+    test_db_path = str(tmp_path / "test_dangerous_disabled.db")
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    config = {
+        'supported_types': ['text/plain'],
+        'files': {
+            'processing': {
+                'magika': {'enabled': False}
+            }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {'database_path': test_db_path}
+            }
+        }
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
+    with pytest.raises(FileValidationError, match="dangerous"):
+        service.inspect_upload(
+            file_data=b"some text <script>alert(1)</script> more text",
+            filename="disguised.txt",
+            claimed_mime_type="text/plain",
+        )
+
+    service.metadata_store.close()
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_inspect_upload_blocks_dangerous_content_magika_enabled(tmp_path, monkeypatch):
+    """Dangerous HTML/JS content is rejected after Magika resolves the type."""
+    test_db_path = str(tmp_path / "test_dangerous_enabled.db")
+    install_fake_magika(monkeypatch)
+    # Use a label that won't trigger the generic-text guard
+    FakeMagika.next_result = FakeMagikaResult(label="markdown", mime_type="text/markdown")
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    config = {
+        'supported_types': ['text/markdown'],
+        'files': {
+            'processing': {
+                'magika': {'enabled': True}
+            }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {'database_path': test_db_path}
+            }
+        }
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
+    with pytest.raises(FileValidationError, match="dangerous"):
+        service.inspect_upload(
+            file_data=b"# Title\n<iframe src='http://evil.example/'></iframe>",
+            filename="malicious.md",
+            claimed_mime_type="application/octet-stream",
+        )
+
+    service.metadata_store.close()
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_inspect_upload_allows_dangerous_patterns_in_code_files(tmp_path):
+    """Patterns like eval() and <script> are legitimate in code files and must not be blocked."""
+    test_db_path = str(tmp_path / "test_code_exempt.db")
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    config = {
+        'supported_types': ['text/javascript'],
+        'files': {
+            'processing': {
+                'magika': {'enabled': False}
+            }
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {'database_path': test_db_path}
+            }
+        }
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
+    # Should not raise — eval() and <script> are valid JS content
+    result = service.inspect_upload(
+        file_data=b"function run() { eval(userCode); }",
+        filename="app.js",
+        claimed_mime_type="text/javascript",
+    )
+    assert result == "text/javascript"
+
+    service.metadata_store.close()
+    cleanup_metadata_store(test_db_path)
+
+
+# ============================================================================
 # Retriever Cache Integration Tests
 # ============================================================================
 

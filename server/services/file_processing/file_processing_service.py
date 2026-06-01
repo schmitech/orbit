@@ -26,6 +26,29 @@ from services.file_metadata.metadata_store import FileMetadataStore
 
 logger = logging.getLogger(__name__)
 
+# MIME types where HTML/JS patterns are expected content (not injections)
+_CONTENT_SCAN_SKIP_MIME_TYPES = frozenset({
+    'text/javascript', 'application/javascript',
+    'text/typescript', 'application/typescript',
+    'text/x-python', 'text/x-python-script',
+    'text/x-java-source', 'text/x-java',
+    'text/x-sql', 'application/x-sql', 'application/sql',
+    'text/x-c++src', 'text/x-csrc', 'text/x-c',
+    'text/x-go', 'text/x-rust', 'text/x-ruby', 'text/x-php',
+    'text/x-shellscript', 'text/x-sh',
+    'text/html',
+})
+
+# Patterns that indicate embedded HTML/JS in non-code files (polyglot / injection attacks)
+_DANGEROUS_CONTENT_PATTERNS = (
+    b'<script',
+    b'javascript:',
+    b'<iframe',
+    b'onerror=',
+    b'onload=',
+    b'onclick=',
+)
+
 
 class FileProcessingService:
     """
@@ -306,6 +329,22 @@ class FileProcessingService:
 
         return None
 
+    def _scan_for_dangerous_content(self, file_data: bytes, mime_type: str) -> None:
+        """
+        Scan the first 8 KB of a file for HTML/JS injection patterns.
+        Skipped for code file types where these patterns are legitimate content.
+        Raises FileValidationError if a dangerous pattern is found.
+        """
+        if mime_type in _CONTENT_SCAN_SKIP_MIME_TYPES:
+            return
+
+        scan_bytes = file_data[:8192].lower()
+        for pattern in _DANGEROUS_CONTENT_PATTERNS:
+            if pattern in scan_bytes:
+                raise FileValidationError(
+                    "Potentially dangerous content detected in uploaded file"
+                )
+
     def inspect_upload(
         self,
         *,
@@ -320,10 +359,12 @@ class FileProcessingService:
             raise ValueError(f"File size exceeds maximum {self.max_file_size} bytes")
 
         if not self.magika_detector:
+            self._scan_for_dangerous_content(file_data, claimed_mime_type)
             return claimed_mime_type
 
         detection = self.magika_detector.identify_bytes(file_data)
         if detection is None:
+            self._scan_for_dangerous_content(file_data, claimed_mime_type)
             return claimed_mime_type
 
         if self.magika_config.get('log_detection_details', True):
@@ -364,6 +405,7 @@ class FileProcessingService:
                 "Uploaded file content does not match the declared file type"
             )
 
+        self._scan_for_dangerous_content(file_data, detected_type)
         return detected_type
 
     async def _get_vision_provider_for_api_key(self, api_key: str) -> str:
