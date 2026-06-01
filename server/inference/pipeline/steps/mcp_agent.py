@@ -216,7 +216,7 @@ class MCPAgentStep(PipelineStep):
                 arguments = tc["arguments"]
                 tool_call_id = tc["id"]
 
-                logger.info("MCP tool call: %s(%s)", tool_name, arguments)
+                logger.debug("MCP tool call: %s(%s)", tool_name, arguments)
 
                 try:
                     tool_result_text = await self._await_or_cancel(

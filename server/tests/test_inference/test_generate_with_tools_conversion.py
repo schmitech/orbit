@@ -23,6 +23,7 @@ sys.path.append(server_dir)
 from ai_services.implementations.inference.gemini_inference_service import GeminiInferenceService
 from ai_services.implementations.inference.anthropic_inference_service import AnthropicInferenceService
 from ai_services.implementations.inference.ollama_inference_service import OllamaInferenceService
+from ai_services.implementations.inference.ollama_cloud_inference_service import OllamaCloudInferenceService
 from ai_services.implementations.inference.vllm_inference_service import VLLMInferenceService
 
 
@@ -278,3 +279,80 @@ class TestVLLMDirectModeUnsupported:
         svc.mode = "direct"
         with pytest.raises(NotImplementedError, match="only supported in API mode"):
             await svc.generate_with_tools([{"role": "user", "content": "hi"}], [])
+
+
+# ----------------------------------------------------------------------------
+# Ollama Cloud: SDK ChatResponse -> ToolCallingResult
+# ----------------------------------------------------------------------------
+
+class _FakeFn:
+    def __init__(self, name, arguments):
+        self.name = name
+        self.arguments = arguments
+
+
+class _FakeToolCall:
+    def __init__(self, name, arguments):
+        self.function = _FakeFn(name, arguments)
+
+
+class _FakeMessage:
+    def __init__(self, content=None, tool_calls=None):
+        self.content = content
+        self.tool_calls = tool_calls
+
+
+class _FakeChatResponse:
+    def __init__(self, message):
+        self.message = message
+
+
+class TestOllamaCloudToolCalling:
+    def _svc(self, response):
+        # Bypass __init__ (no network) and stub the SDK client's chat().
+        svc = object.__new__(OllamaCloudInferenceService)
+        svc.initialized = True
+        svc.model = "gpt-oss:120b"
+        svc.think = False
+        svc._default_options = {"temperature": 0.1}
+        captured = {}
+
+        async def _chat(**kwargs):
+            captured.update(kwargs)
+            return response
+
+        svc.client = type("_Client", (), {"chat": staticmethod(_chat)})()
+        return svc, captured
+
+    async def test_tool_calls_normalized_with_synthetic_ids(self):
+        # The Ollama SDK returns dict arguments and no call id.
+        resp = _FakeChatResponse(_FakeMessage(
+            content=None,
+            tool_calls=[_FakeToolCall("filesystem__read_file", {"path": "/tmp/x"})],
+        ))
+        svc, captured = self._svc(resp)
+        tools = [{"type": "function", "function": {"name": "filesystem__read_file", "parameters": {}}}]
+
+        result = await svc.generate_with_tools([{"role": "user", "content": "read it"}], tools)
+
+        assert result.finish_reason == "tool_calls"
+        tc = result.tool_calls[0]
+        assert tc["name"] == "filesystem__read_file"
+        assert tc["arguments"] == {"path": "/tmp/x"}      # dict args preserved
+        assert tc["id"].startswith("call_")               # synthetic id generated
+        oai = result.assistant_message["tool_calls"][0]
+        assert json.loads(oai["function"]["arguments"]) == {"path": "/tmp/x"}  # OpenAI = JSON string
+        assert captured["tools"] == tools                 # tools forwarded to the SDK
+
+    async def test_empty_tools_omitted_and_plain_text(self):
+        # The final synthesis call passes [] — tools must be omitted, and a
+        # plain text answer parses with finish_reason "stop".
+        resp = _FakeChatResponse(_FakeMessage(content="here is the answer", tool_calls=None))
+        svc, captured = self._svc(resp)
+
+        result = await svc.generate_with_tools([{"role": "user", "content": "hi"}], [])
+
+        assert result.text == "here is the answer"
+        assert result.tool_calls is None
+        assert result.finish_reason == "stop"
+        assert "tools" not in captured  # empty tools list omitted

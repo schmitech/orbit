@@ -8,13 +8,15 @@ AI services framework.
 
 from __future__ import annotations
 
+import json
 import logging
+import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from ollama import AsyncClient
 
 from ...errors import sanitize_provider_error
-from ...services import InferenceService
+from ...services import InferenceService, ToolCallingResult
 
 logger = logging.getLogger(__name__)
 
@@ -227,6 +229,86 @@ class OllamaCloudInferenceService(InferenceService):
                 provider=getattr(self, "provider_name", "ollama_cloud"),
                 operation="streaming generation",
             )
+
+    async def generate_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        **kwargs,
+    ) -> ToolCallingResult:
+        """
+        Single round of tool-enabled generation via the Ollama Cloud SDK.
+
+        Requires a tool-capable cloud model (e.g. gpt-oss). Models without a
+        tool template return plain text and the agent loop exits on the first
+        iteration. Mirrors the local Ollama service: arguments come back as
+        dicts and tool calls have no id, so synthetic ids are generated and
+        results are normalised to the OpenAI shape the MCPAgentStep expects.
+        """
+        if not self.initialized and not await self.initialize():
+            raise ValueError("Failed to initialize Ollama Cloud inference service")
+        assert self.client is not None
+
+        # Reuse the local Ollama normalization so loop history (assistant
+        # tool-call turns and tool-result messages) round-trips identically.
+        from .ollama_inference_service import OllamaInferenceService
+        ollama_messages = OllamaInferenceService._normalize_messages_for_ollama(messages)
+
+        options = self._build_options(dict(kwargs))
+
+        chat_kwargs: Dict[str, Any] = {
+            "model": self.model,
+            "messages": ollama_messages,
+            "options": options,
+            "think": kwargs.get("think", self.think),
+        }
+        # Omit tools when none are offered — the final synthesis call passes []
+        # on purpose to force a text answer instead of further tool calls.
+        if tools:
+            chat_kwargs["tools"] = tools
+
+        try:
+            response = await self.client.chat(**chat_kwargs)
+        except Exception as exc:
+            logger.error("Error generating tool-calling response with Ollama Cloud: %s", exc)
+            raise
+
+        message = getattr(response, "message", None)
+        content = (getattr(message, "content", None) or None) if message is not None else None
+        raw_tool_calls = (getattr(message, "tool_calls", None) or []) if message is not None else []
+
+        tool_calls_result = None
+        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": content}
+
+        if raw_tool_calls:
+            normalized = []
+            openai_tcs = []
+            for tc in raw_tool_calls:
+                fn = getattr(tc, "function", None)
+                name = getattr(fn, "name", "") if fn is not None else ""
+                args = getattr(fn, "arguments", None) if fn is not None else None
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except (ValueError, TypeError):
+                        args = {}
+                args = dict(args) if args else {}
+                call_id = f"call_{uuid.uuid4().hex[:8]}"
+                normalized.append({"id": call_id, "name": name, "arguments": args})
+                openai_tcs.append({
+                    "id": call_id,
+                    "type": "function",
+                    "function": {"name": name, "arguments": json.dumps(args)},
+                })
+            tool_calls_result = normalized
+            assistant_msg["tool_calls"] = openai_tcs
+
+        return ToolCallingResult(
+            text=content,
+            tool_calls=tool_calls_result,
+            assistant_message=assistant_msg,
+            finish_reason="tool_calls" if tool_calls_result else "stop",
+        )
 
     def _build_options(self, overrides: Dict[str, Any]) -> Dict[str, Any]:
         """Merge default generation options with caller overrides."""
