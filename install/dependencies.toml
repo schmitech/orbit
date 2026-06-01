@@ -138,6 +138,7 @@ dependencies = [
     "pyarrow>=23.0.1",
     "ftfy>=6.3.1",
     "unidecode>=1.4.0",
+    "chonkie>=1.0.0",  # Optional: Cython-optimized sentence splitting (10-50x faster) + token-aware chunking
 ]
 
 # ============================================================================
