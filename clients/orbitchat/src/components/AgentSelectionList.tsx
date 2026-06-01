@@ -222,7 +222,7 @@ export function AgentSelectionList({
         <div
           ref={scrollContainerRef}
           onKeyDown={handleCardListKeyDown}
-          className="flex-1 min-h-0 overflow-y-auto pr-1 pb-2"
+          className="agent-selection-scroll flex-1 min-h-0 overflow-y-auto pr-1 pb-2"
         >
           {isFilteringAgents ? (
             <div className="mx-auto flex w-full max-w-xl flex-col gap-3 lg:max-w-2xl">

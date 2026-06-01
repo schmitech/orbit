@@ -173,7 +173,7 @@ export function ChatInterface({
     theme.mode === 'dark' ? 'dark' : theme.mode === 'light' ? 'light' : '';
   const syntaxTheme: 'dark' | 'light' = isDark ? 'dark' : 'light';
   const introDescriptionMarkdownClass = [
-    'application-description prose prose-slate dark:prose-invert max-w-none text-sm md:text-base leading-relaxed',
+    'application-description agent-home-markdown prose prose-slate dark:prose-invert max-w-none text-sm md:text-base leading-relaxed',
     'text-[#4a4c5a] dark:text-[#bfc2cd]',
     '[&>:first-child]:mt-0 [&>:last-child]:mb-0',
     forcedThemeClass
@@ -545,12 +545,12 @@ export function ChatInterface({
               {shouldShowAgentSelectionList ? (
                 <div className="flex-1 flex flex-col md:justify-start min-h-0 overflow-hidden">
                   <div className="w-full flex flex-col min-h-0 overflow-hidden flex-1">
-                    <div className="flex flex-col min-h-0 flex-1 gap-3 md:gap-6 overflow-y-auto md:overflow-hidden">
+                    <div className="flex flex-col min-h-0 flex-1 gap-3 overflow-hidden md:gap-6">
                       <div className={`${prominentWidthClass} flex-shrink-0 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between`}>
                         <div className="flex-1">
                           <MarkdownRenderer
                             content={applicationName}
-                            className="prose prose-slate dark:prose-invert max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0 text-2xl font-semibold text-[#11111b] dark:text-white text-center md:text-left [&_p]:text-2xl [&_p]:font-semibold [&_p]:leading-tight [&_p]:m-0"
+                            className="agent-home-markdown prose prose-slate dark:prose-invert max-w-none [&>:first-child]:mt-0 [&>:last-child]:mb-0 text-2xl font-semibold text-[#11111b] dark:text-white text-center md:text-left [&_p]:text-2xl [&_p]:font-semibold [&_p]:leading-tight [&_p]:m-0"
                             syntaxTheme={syntaxTheme}
                           />
                           {hasIntroDescription && (

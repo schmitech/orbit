@@ -217,6 +217,19 @@
   @apply bg-slate-400 dark:bg-slate-500;
 }
 
+.agent-selection-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.agent-selection-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.markdown-content.agent-home-markdown {
+  overflow: visible;
+}
+
 /* High contrast mode adjustments */
 .high-contrast {
   --tw-text-opacity: 1;
