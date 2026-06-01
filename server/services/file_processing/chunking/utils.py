@@ -69,6 +69,8 @@ def get_tokenizer(tokenizer: Optional[Union[str, TokenizerProtocol]] = None) -> 
         return SimpleTokenizer()
     
     if isinstance(tokenizer, str):
+        if tokenizer == "character":
+            return SimpleTokenizer()
         # Try to use chonkie's AutoTokenizer if available
         try:
             from chonkie.tokenizer import AutoTokenizer
