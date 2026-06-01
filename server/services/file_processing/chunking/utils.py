@@ -74,7 +74,12 @@ def get_tokenizer(tokenizer: Optional[Union[str, TokenizerProtocol]] = None) -> 
             from chonkie.tokenizer import AutoTokenizer
             return AutoTokenizer(tokenizer)
         except ImportError:
-            logger.debug("chonkie not available, using SimpleTokenizer")
+            logger.warning(
+                f"Tokenizer '{tokenizer}' requested but chonkie is not installed. "
+                "Falling back to character-based tokenization - chunk_size will be "
+                "measured in characters, not tokens. Install chonkie to fix this: "
+                "pip install chonkie"
+            )
             return SimpleTokenizer()
     
     # Assume it's already a tokenizer instance
@@ -167,4 +172,3 @@ def _split_sentences_python(
             sentences.append(current)
 
     return sentences
-

@@ -84,6 +84,12 @@ class SemanticChunker(TextChunker):
         self.chunk_size = chunk_size
         self.overlap = overlap
         self.model = None
+        if use_advanced and not SENTENCE_TRANSFORMERS_AVAILABLE:
+            logger.warning(
+                "use_advanced=True requested but sentence-transformers is not installed. "
+                "Falling back to simple sentence-based chunking. "
+                "Install with: pip install sentence-transformers"
+            )
         self.use_advanced = use_advanced and SENTENCE_TRANSFORMERS_AVAILABLE
         self.threshold = threshold
         self.similarity_window = similarity_window

@@ -6,6 +6,7 @@ Tests fixed-size and semantic chunking strategies for file processing.
 
 import pytest
 import sys
+import logging
 from pathlib import Path
 
 # Add server directory to Python path
@@ -82,8 +83,7 @@ def test_fixed_chunker_overlap():
     # Verify overlap
     if len(chunks) > 1:
         # Last 5 chars of first chunk should be in second chunk
-        chunks[0].text[-5:]
-        chunks[1].text[:5]
+        assert chunks[0].text[-5:] == chunks[1].text[:5]
         # Due to text being numbers, we can verify some overlap exists
         assert len(chunks[0].text) <= 20
 
@@ -137,6 +137,20 @@ def test_semantic_chunker_default_params():
     chunker = SemanticChunker()
     assert chunker.chunk_size == 10
     assert chunker.overlap == 2
+
+
+def test_semantic_chunker_warns_when_advanced_requested_without_dependency(caplog):
+    """Test warning when advanced semantic chunking dependency is unavailable"""
+    try:
+        import sentence_transformers  # noqa: F401
+        pytest.skip("sentence-transformers installed; warning not triggered")
+    except ImportError:
+        pass
+
+    with caplog.at_level(logging.WARNING):
+        SemanticChunker(use_advanced=True)
+
+    assert any("use_advanced" in record.message for record in caplog.records)
 
 
 def test_semantic_chunker_sentence_splitting():
@@ -223,7 +237,7 @@ def test_semantic_chunker_sentence_count():
 
     for chunk in chunks:
         # Count actual sentences in chunk
-        chunk.text.count(".")
+        assert chunk.metadata["sentence_count"] <= len(chunk.text.split(". ")) + 1
         # Metadata should reflect reasonable sentence count
         assert chunk.metadata["sentence_count"] > 0
 
@@ -451,6 +465,22 @@ def test_token_chunker_tokenizer_fallback():
         assert chunk.metadata["token_count"] > 0
 
 
+def test_get_tokenizer_warns_on_named_tokenizer_without_chonkie(caplog):
+    """Test warning when a named tokenizer falls back without chonkie"""
+    try:
+        import chonkie  # noqa: F401
+        pytest.skip("chonkie is installed; fallback warning not triggered")
+    except ImportError:
+        pass
+
+    from services.file_processing.chunking.utils import get_tokenizer
+
+    with caplog.at_level(logging.WARNING):
+        get_tokenizer("gpt2")
+
+    assert any("gpt2" in record.message for record in caplog.records)
+
+
 # ============================================================================
 # Tests for RecursiveChunker
 # ============================================================================
@@ -506,6 +536,27 @@ def test_recursive_chunker_basic_chunking():
         assert "filename" in chunk.metadata
         assert "strategy" in chunk.metadata
         assert chunk.metadata["strategy"] == "recursive"
+
+
+def test_recursive_chunker_file_id_set_correctly():
+    """Test recursive chunks keep the source file ID throughout recursion"""
+    chunker = RecursiveChunker(chunk_size=200, min_characters_per_chunk=24)
+    chunks = chunker.chunk_text(SAMPLE_TEXT, "my_file_id", {})
+
+    for chunk in chunks:
+        assert chunk.file_id == "my_file_id"
+        assert "_pending" not in chunk.chunk_id
+
+
+def test_recursive_chunker_strategy_not_overwritten_by_caller_metadata():
+    """Test recursive chunk metadata wins over conflicting caller metadata"""
+    chunker = RecursiveChunker(chunk_size=200, min_characters_per_chunk=24)
+    metadata = {"strategy": "caller_value", "filename": "test.txt"}
+    chunks = chunker.chunk_text(SAMPLE_TEXT, "file_id", metadata)
+
+    for chunk in chunks:
+        assert chunk.metadata["strategy"] == "recursive"
+        assert chunk.metadata["filename"] == "test.txt"
 
 
 def test_recursive_chunker_hierarchical():

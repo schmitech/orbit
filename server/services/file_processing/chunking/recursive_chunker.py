@@ -206,7 +206,7 @@ class RecursiveChunker(TextChunker):
         self,
         text: str,
         level: int = 0,
-        start_offset: int = 0
+        file_id: str = "",
     ) -> List[Chunk]:
         """
         Recursively chunk text.
@@ -214,7 +214,7 @@ class RecursiveChunker(TextChunker):
         Args:
             text: Text to chunk
             level: Current recursion level
-            start_offset: Starting offset in original text
+            file_id: ID of source file
             
         Returns:
             List of Chunk objects
@@ -226,8 +226,8 @@ class RecursiveChunker(TextChunker):
         if level >= len(self.rules):
             token_count = self.count_tokens(text)
             return [Chunk(
-                chunk_id=f"chunk_{start_offset}",
-                file_id="",  # Will be set by caller
+                chunk_id="_pending",
+                file_id=file_id,
                 text=text,
                 chunk_index=0,  # Will be set by caller
                 metadata={
@@ -250,14 +250,10 @@ class RecursiveChunker(TextChunker):
         token_counts = [self.count_tokens(split) for split in splits]
         
         # Merge splits that are too small
-        if curr_rule.whitespace:
-            merged = self._merge_splits(splits, token_counts)
-        else:
-            merged = self._merge_splits(splits, token_counts)
+        merged = self._merge_splits(splits, token_counts)
         
         # Chunk long merged splits recursively
         chunks = []
-        current_offset = start_offset
         
         for merged_text in merged:
             token_count = self.count_tokens(merged_text)
@@ -267,14 +263,14 @@ class RecursiveChunker(TextChunker):
                 recursive_chunks = self._recursive_chunk(
                     merged_text,
                     level + 1,
-                    current_offset
+                    file_id,
                 )
                 chunks.extend(recursive_chunks)
             else:
                 # Create chunk from merged text
                 chunks.append(Chunk(
-                    chunk_id=f"chunk_{current_offset}",
-                    file_id="",  # Will be set by caller
+                    chunk_id="_pending",
+                    file_id=file_id,
                     text=merged_text,
                     chunk_index=0,  # Will be set by caller
                     metadata={
@@ -283,9 +279,6 @@ class RecursiveChunker(TextChunker):
                         'strategy': 'recursive',
                     }
                 ))
-            
-            # Update offset
-            current_offset += len(merged_text)
         
         return chunks
     
@@ -307,15 +300,13 @@ class RecursiveChunker(TextChunker):
         logger.debug(f"Starting recursive chunking for text of length {len(text)}")
         
         # Recursively chunk text
-        chunks = self._recursive_chunk(text, level=0, start_offset=0)
+        chunks = self._recursive_chunk(text, level=0, file_id=file_id)
         
         # Update chunks with file_id and proper indices
         for i, chunk in enumerate(chunks):
             chunk.chunk_id = self._generate_chunk_id(file_id, i)
-            chunk.file_id = file_id
             chunk.chunk_index = i
-            chunk.metadata.update(metadata)
+            chunk.metadata = {**metadata, **chunk.metadata}
         
         logger.debug(f"Created {len(chunks)} chunks using recursive chunking")
         return chunks
-
