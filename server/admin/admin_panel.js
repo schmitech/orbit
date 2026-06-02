@@ -232,6 +232,22 @@
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
 
+  function setFieldReadOnly(input, editing) {
+    input.readOnly = !editing;
+    input.setAttribute("aria-readonly", editing ? "false" : "true");
+    if (editing) input.removeAttribute("readonly");
+    else input.setAttribute("readonly", "true");
+  }
+
+  function keyPath(keyId, suffix) {
+    return ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + (suffix || "");
+  }
+
+  function showTableLoadError(tableWrap, message) {
+    clear(tableWrap);
+    tableWrap.appendChild(el("p", { className: "muted" }, message));
+  }
+
   function copyTextToClipboard(text) {
     if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
       return navigator.clipboard.writeText(text);
@@ -1948,8 +1964,7 @@
           renderSelectedUserPlaceholder(detailPanel);
         }
       } catch (err) {
-        clear(tableWrap);
-        tableWrap.appendChild(el("p", { className: "muted" }, "Failed to load users"));
+        showTableLoadError(tableWrap, "Failed to load users");
         renderSelectedUserPlaceholder(detailPanel);
       }
     }
@@ -2381,8 +2396,12 @@
     createLaunchBtn.addEventListener("click", openCreatePanel);
     listPanel.appendChild(el("div", { className: "create-launch-row" }, createLaunchBtn));
 
-    detailPanel.appendChild(el("h2", null, "Key Details"));
-    detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
+    function showEmptyKeyDetail() {
+      clear(detailPanel);
+      detailPanel.appendChild(el("h2", null, "Key Details"));
+      detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
+    }
+    showEmptyKeyDetail();
 
     createBtn.addEventListener("click", function () {
       var cn = clientInput.value.trim();
@@ -2415,7 +2434,7 @@
         loadingLabel: "Deleting...",
         onConfirm: async function () {
           for (var i = 0; i < ids.length; i++) {
-            await api("DELETE", ENDPOINTS.apiKeys + "/" + encodeURIComponent(ids[i]));
+            await api("DELETE", keyPath(ids[i]));
           }
           ids.forEach(function (id) { selectedKeyIds.delete(id); });
           if (selectedKey && ids.indexOf(selectedKey._id) !== -1) selectedKey = null;
@@ -2491,18 +2510,13 @@
             }
           } else {
             selectedKey = null;
-            clear(detailPanel);
-            detailPanel.appendChild(el("h2", null, "Key Details"));
-            detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
+            showEmptyKeyDetail();
           }
         } else {
-          clear(detailPanel);
-          detailPanel.appendChild(el("h2", null, "Key Details"));
-          detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
+          showEmptyKeyDetail();
         }
       } catch (err) {
-        clear(tableWrap);
-        tableWrap.appendChild(el("p", { className: "muted" }, "Failed to load API keys"));
+        showTableLoadError(tableWrap, "Failed to load API keys");
       }
     }
 
@@ -2589,7 +2603,7 @@
   }
 
   async function loadKeyDetail(keyId) {
-    return api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/detail");
+    return api("GET", keyPath(keyId, "/detail"));
   }
 
   function createMarkdownPreview(textarea) {
@@ -2883,16 +2897,10 @@
       saveBtn.disabled = !keyDetailsChanged();
     }
     function setKeyEditMode(editing) {
-      clientInput.readOnly = !editing;
-      clientInput.setAttribute("aria-readonly", editing ? "false" : "true");
-      if (editing) clientInput.removeAttribute("readonly");
-      else clientInput.setAttribute("readonly", "true");
+      setFieldReadOnly(clientInput, editing);
       adapterSelect.disabled = !editing;
       promptSelect.disabled = !editing;
-      notesInput.readOnly = !editing;
-      notesInput.setAttribute("aria-readonly", editing ? "false" : "true");
-      if (editing) notesInput.removeAttribute("readonly");
-      else notesInput.setAttribute("readonly", "true");
+      setFieldReadOnly(notesInput, editing);
       editForm.style.display = editing ? "block" : "none";
       editToggle.style.display = editing ? "none" : "inline-flex";
       cancelBtn.style.display = editing ? "inline-flex" : "none";
@@ -2925,7 +2933,7 @@
         return;
       }
       withButton(saveBtn, async function () {
-        await api("PUT", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId), {
+        await api("PUT", keyPath(keyId), {
           client_name: clientName,
           adapter_name: adapterSelect.value,
           system_prompt_id: promptSelect.value || null,
@@ -2953,7 +2961,7 @@
       testResult.className = "test-result";
       testResult.appendChild(el("span", { className: "muted" }, "Checking key status..."));
       try {
-        await api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/status");
+        await api("GET", keyPath(keyId, "/status"));
         testResult.className = "test-result test-result-ok";
         testResult.appendChild(el("span", { className: "test-result-icon", "aria-hidden": "true" }, "✓"));
         testResult.appendChild(el("div", { className: "test-result-copy" },
@@ -2982,7 +2990,7 @@
       var nk = renameInput.value.trim();
       if (!nk) return;
       withButton(renameBtn, async function () {
-        await api("PATCH", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/rename?new_api_key=" + encodeURIComponent(nk));
+        await api("PATCH", keyPath(keyId, "/rename?new_api_key=" + encodeURIComponent(nk)));
         onRefresh();
       }, "Key renamed");
     });
@@ -2999,7 +3007,7 @@
     loadQuotaBtn.addEventListener("click", async function () {
       loadQuotaBtn.disabled = true;
       try {
-        var quota = await api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/quota");
+        var quota = await api("GET", keyPath(keyId, "/quota"));
         renderQuotaDetail(quotaWrap, keyId, quota);
       } catch (err) {
         showError(err.message);
@@ -3021,7 +3029,7 @@
           onConfirm: async function () {
             deactivateBtn.disabled = true;
             try {
-              await api("POST", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/deactivate");
+              await api("POST", keyPath(keyId, "/deactivate"));
               showStatus("Key deactivated");
               onRefresh();
             } finally {
@@ -3040,7 +3048,7 @@
         expectedText: key.client_name || "DELETE",
         confirmLabel: "Delete",
         onConfirm: async function () {
-          await api("DELETE", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId));
+          await api("DELETE", keyPath(keyId));
           showStatus("Key deleted");
           onRefresh();
         }
@@ -3081,9 +3089,9 @@
           onConfirm: async function () {
             btn.disabled = true;
             try {
-              await api("POST", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/quota/reset?period=" + period);
+              await api("POST", keyPath(keyId, "/quota/reset?period=" + period));
               showStatus("Quota " + period + " reset");
-              var updated = await api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/quota");
+              var updated = await api("GET", keyPath(keyId, "/quota"));
               renderQuotaDetail(wrap, keyId, updated);
             } finally {
               btn.disabled = false;
@@ -3119,9 +3127,9 @@
         else body.daily_limit = null;
         if (monthlyInput.value !== "") body.monthly_limit = parseInt(monthlyInput.value);
         else body.monthly_limit = null;
-        await api("PUT", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/quota", body);
+        await api("PUT", keyPath(keyId, "/quota"), body);
         showStatus("Quota updated");
-        var updated = await api("GET", ENDPOINTS.apiKeys + "/" + encodeURIComponent(keyId) + "/quota");
+        var updated = await api("GET", keyPath(keyId, "/quota"));
         renderQuotaDetail(wrap, keyId, updated);
       } catch (err) {
         showError(err.message);
@@ -3259,7 +3267,7 @@
       withButton(createBtn, async function () {
         var createdPrompt = await api("POST", ENDPOINTS.prompts, { name: n, prompt: t, version: versionInput.value.trim() || "1.0" });
         if (createKeySelect.value && createdPrompt && promptIdentifier(createdPrompt)) {
-          await api("POST", ENDPOINTS.apiKeys + "/" + encodeURIComponent(createKeySelect.value) + "/prompt", {
+          await api("POST", keyPath(createKeySelect.value, "/prompt"), {
             prompt_id: promptIdentifier(createdPrompt)
           });
         }
@@ -3353,8 +3361,7 @@
         clear(detailPanel);
         detailPanel.style.display = "none";
       } catch (err) {
-        clear(tableWrap);
-        tableWrap.appendChild(el("p", { className: "muted" }, "Failed to load personas"));
+        showTableLoadError(tableWrap, "Failed to load personas");
       }
     }
 
@@ -3507,18 +3514,9 @@
     }
     function setPromptEditMode(editing) {
       isEditingPrompt = editing;
-      nameInput.readOnly = !editing;
-      nameInput.setAttribute("aria-readonly", editing ? "false" : "true");
-      if (editing) nameInput.removeAttribute("readonly");
-      else nameInput.setAttribute("readonly", "true");
-      vInput.readOnly = !editing;
-      vInput.setAttribute("aria-readonly", editing ? "false" : "true");
-      if (editing) vInput.removeAttribute("readonly");
-      else vInput.setAttribute("readonly", "true");
-      tArea.readOnly = !editing;
-      tArea.setAttribute("aria-readonly", editing ? "false" : "true");
-      if (editing) tArea.removeAttribute("readonly");
-      else tArea.setAttribute("readonly", "true");
+      setFieldReadOnly(nameInput, editing);
+      setFieldReadOnly(vInput, editing);
+      setFieldReadOnly(tArea, editing);
       editorWrap.style.display = editing ? "block" : "none";
       previewWrap.style.display = editing ? "none" : "block";
       editToggle.style.display = editing ? "none" : "inline-flex";
@@ -3574,7 +3572,7 @@
       var k = keySelect.value;
       if (!k || !promptId) return;
       withButton(assocBtn, async function () {
-        await api("POST", ENDPOINTS.apiKeys + "/" + encodeURIComponent(k) + "/prompt", { prompt_id: promptId });
+        await api("POST", keyPath(k, "/prompt"), { prompt_id: promptId });
         var refreshedKeys = await loadAvailableKeys();
         var matchedKey = refreshedKeys.find(function (key) {
           return key.system_prompt_id && String(key.system_prompt_id) === String(promptId);
