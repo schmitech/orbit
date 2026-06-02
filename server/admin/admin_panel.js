@@ -232,6 +232,33 @@
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
 
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      var textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "true");
+      textarea.style.position = "fixed";
+      textarea.style.top = "-9999px";
+      textarea.style.left = "-9999px";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        var ok = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        if (ok) resolve();
+        else reject(new Error("Clipboard copy failed"));
+      } catch (err) {
+        document.body.removeChild(textarea);
+        reject(err);
+      }
+    });
+  }
+
   function debounce(fn, delay) {
     var timer = null;
     return function () {
@@ -2771,10 +2798,15 @@
     });
     copyBtn.appendChild(svgIcon(ICON_COPY));
     copyBtn.addEventListener("click", function () {
-      navigator.clipboard.writeText(keyVal).then(function () {
+      copyTextToClipboard(keyVal).then(function () {
         copyBtn.innerHTML = "";
         copyBtn.appendChild(svgIcon(ICON_CHECK));
-        setTimeout(function () { copyBtn.innerHTML = ""; copyBtn.appendChild(svgIcon(ICON_COPY)); }, 1500);
+        setTimeout(function () {
+          copyBtn.innerHTML = "";
+          copyBtn.appendChild(svgIcon(ICON_COPY));
+        }, 1500);
+      }).catch(function (err) {
+        showError(err && err.message ? err.message : "Unable to copy API key");
       });
     });
     var keyField = el("div", { className: "secret-field" }, keyCode, revealBtn, copyBtn);
