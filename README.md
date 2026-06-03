@@ -109,6 +109,12 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
   <em>MCP agent skill — ORBIT connects to an external MCP filesystem server, runs a multi-step tool-calling loop, and returns a grounded answer</em>
 </p>
 
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/e7fd2834-e438-4ac1-9173-0c0d56ca562b" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Ask application logs plain-English questions and have ORBIT translate them into Elasticsearch Query DSL for error analysis, latency triage, and operational summaries.</em>
+</p>
+
 <details>
 <summary><strong>See more</strong></summary>
 
