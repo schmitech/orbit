@@ -125,6 +125,12 @@ Adapter wiring and sample domains live in [`config/adapters/`](config/adapters/)
 </p>
 
 <p align="center">
+  <video src="https://github.com/user-attachments/assets/1c7b4bb6-4067-40f5-982c-c9ad6faf663d" controls muted playsinline width="75%"></video>
+  <br />
+  <em>Native SVG rendering.</em>
+</p>
+
+<p align="center">
   <video src="https://github.com/user-attachments/assets/a3fd7308-64be-4216-823b-954e2e37bad2" controls muted playsinline width="75%"></video>
   <br />
   <em>Runtime model switching during a conversation, including chat history.</em>
