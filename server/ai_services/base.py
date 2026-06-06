@@ -127,6 +127,7 @@ class ProviderAIService(AIService[T]):
         self.model: Optional[str] = None
         self.endpoint: Optional[str] = None
         self.client: Optional[Any] = None
+        self._provider_config_cache: Optional[Dict[str, Any]] = None
 
     def _extract_provider_config(self) -> Dict[str, Any]:
         """
@@ -145,26 +146,12 @@ class ProviderAIService(AIService[T]):
         Returns:
             Provider-specific configuration dictionary
         """
-        # Special handling for AUDIO service type (split TTS/STT config)
-        if self.service_type == ServiceType.AUDIO:
-            merged_config = {}
+        if self._provider_config_cache is not None:
+            return self._provider_config_cache
+        self._provider_config_cache = self._compute_provider_config()
+        return self._provider_config_cache
 
-            # 1. STT providers config (lower priority)
-            stt_config = self.config.get('stt_providers', {})
-            if self.provider_name in stt_config:
-                merged_config.update(stt_config[self.provider_name])
-
-            # 2. TTS providers config (higher priority, overlays STT)
-            tts_config = self.config.get('tts_providers', {})
-            if self.provider_name in tts_config:
-                merged_config.update(tts_config[self.provider_name])
-
-            if merged_config:
-                return merged_config
-
-            # If no config found in any location, continue to standard fallback
-
-        # Standard lookup for other service types (and fallback for AUDIO)
+    def _compute_provider_config(self) -> Dict[str, Any]:
         # Try plural form first (e.g., 'embeddings', 'moderators')
         service_key_plural = self.service_type.value + 's'
         service_config_plural = self.config.get(service_key_plural, {})

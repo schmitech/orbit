@@ -18,7 +18,7 @@ import httpx
 import logging
 
 from ..base import ProviderAIService, ServiceType
-from ..connection import ConnectionManager, RetryHandler
+from ..connection import RetryHandler
 from ..errors import raise_sanitized
 
 
@@ -162,13 +162,6 @@ class OpenAICompatibleBaseService(ProviderAIService):
             http_client=http_client
         )
 
-        # Setup connection manager for additional HTTP operations
-        self.connection_manager = ConnectionManager(
-            base_url=self.base_url,
-            api_key=self.api_key,
-            timeout_ms=self._get_timeout_config()['total']
-        )
-
         self.connection_verified = False
         self._verification_attempted = False
         self._verification_inflight = False
@@ -213,23 +206,15 @@ class OpenAICompatibleBaseService(ProviderAIService):
                     self.provider_name,
                 )
 
-            if self.connection_verified:
-                logger.info(
-                    f"Initialized {self.provider_name.title()} "
-                    f"{self.service_type.value} service with model {self.model}"
-                )
-            elif self._verification_inflight:
-                logger.info(
-                    f"Initialized {self.provider_name.title()} "
-                    f"{self.service_type.value} service with model {self.model} "
-                    f"(verification running asynchronously)"
-                )
-            else:
-                logger.info(
-                    f"Initialized {self.provider_name.title()} "
-                    f"{self.service_type.value} service with model {self.model} "
-                    f"(verification skipped or failed)"
-                )
+            suffix = (
+                "" if self.connection_verified
+                else " (verification running asynchronously)" if self._verification_inflight
+                else " (verification skipped or failed)"
+            )
+            logger.info(
+                f"Initialized {self.provider_name.title()} "
+                f"{self.service_type.value} service with model {self.model}{suffix}"
+            )
             return True
         except Exception as e:
             logger.error(
@@ -322,9 +307,6 @@ class OpenAICompatibleBaseService(ProviderAIService):
         if self.client:
             await self.client.close()
             self.client = None
-
-        if self.connection_manager:
-            await self.connection_manager.close()
 
         self.initialized = False
         self._verification_attempted = False

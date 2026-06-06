@@ -26,15 +26,47 @@ sys.modules.setdefault('ai_services.registry', sys.modules[__name__])
 sys.modules.setdefault('server.ai_services.registry', sys.modules[__name__])
 
 
-def register_embedding_services() -> None:
-    """
-    Register all embedding service implementations with the factory.
+def _is_enabled(value) -> bool:
+    """Helper to check if a value represents 'enabled'."""
+    if value is True:
+        return True
+    if value is False:
+        return False
+    if isinstance(value, str):
+        return value.lower() != 'false'
+    return True  # Default to enabled
 
-    This makes them available for creation via AIServiceFactory.create_service()
-    Services with missing dependencies are skipped with a warning.
+
+def _register_services(
+    service_type: ServiceType,
+    module_path: str,
+    services: list,
+    config: Dict[str, Any] = None,
+    config_section: str = None,
+    default_enabled: bool = True,
+) -> None:
+    """Import and register a list of (provider_key, class_name, display_name) tuples.
+
+    If config_section is given and config is provided, providers whose
+    enabled flag resolves to False are skipped before attempting the import.
     """
-    # Define services to register with their import paths
-    services = [
+    cfg = config.get(config_section, {}) if config and config_section else {}
+    for provider_key, class_name, display_name in services:
+        if config and config_section:
+            enabled = cfg.get(provider_key, {}).get('enabled', default_enabled)
+            if not _is_enabled(enabled):
+                logger.debug(f"Skipping {display_name} {service_type.value} service - disabled in config")
+                continue
+        try:
+            module = __import__(module_path, fromlist=[class_name])
+            AIServiceFactory.register_service(service_type, provider_key, getattr(module, class_name))
+            logger.info(f"Registered {display_name} {service_type.value} service")
+        except (ImportError, AttributeError) as e:
+            logger.debug(f"Skipping {display_name} {service_type.value} service - missing dependencies: {e}")
+
+
+def register_embedding_services() -> None:
+    _register_services(ServiceType.EMBEDDING, 'ai_services.implementations.embedding', [
         ("openai", "OpenAIEmbeddingService", "OpenAI"),
         ("ollama", "OllamaEmbeddingService", "Ollama"),
         ("cohere", "CohereEmbeddingService", "Cohere"),
@@ -44,42 +76,12 @@ def register_embedding_services() -> None:
         ("openrouter", "OpenRouterEmbeddingService", "OpenRouter"),
         ("gemini", "GeminiEmbeddingService", "Gemini"),
         ("voyage", "VoyageEmbeddingService", "Voyage AI"),
-    ]
-
-    for provider_key, class_name, display_name in services:
-        try:
-            # Lazy import - only import what we can
-            module = __import__('ai_services.implementations.embedding', fromlist=[class_name])
-            service_class = getattr(module, class_name)
-
-            AIServiceFactory.register_service(
-                ServiceType.EMBEDDING,
-                provider_key,
-                service_class
-            )
-            logger.info(f"Registered {display_name} embedding service")
-        except (ImportError, AttributeError) as e:
-            logger.debug(
-                f"Skipping {display_name} embedding service - missing dependencies: {e}"
-            )
+    ])
 
 
 def register_inference_services(config: Dict[str, Any] = None) -> None:
-    """
-    Register all inference service implementations with the factory.
-
-    This makes them available for creation via AIServiceFactory.create_service()
-    Services with missing dependencies are skipped with a warning.
-
-    If config is provided, only services marked as enabled in the inference config
-    will be registered, reducing memory usage.
-
-    Args:
-        config: Optional configuration dictionary. If provided, only enabled providers
-                will be registered based on config['inference'][provider]['enabled']
-    """
-    # Define all services to register with their import paths
-    services = [
+    """Register inference services. With config, only enabled providers are registered."""
+    _register_services(ServiceType.INFERENCE, 'ai_services.implementations.inference', [
         ("openai", "OpenAIInferenceService", "OpenAI"),
         ("anthropic", "AnthropicInferenceService", "Anthropic"),
         ("ollama", "OllamaInferenceService", "Ollama"),
@@ -118,132 +120,31 @@ def register_inference_services(config: Dict[str, Any] = None) -> None:
         ("nebius", "NebiusInferenceService", "Nebius AI Studio"),
         ("venice", "VeniceInferenceService", "Venice AI"),
         ("scaleway", "ScalewayInferenceService", "Scaleway"),
-    ]
-
-    # Get inference config if available
-    inference_config = config.get('inference', {}) if config else {}
-
-    for provider_key, class_name, display_name in services:
-        # Check if provider is enabled in config (if config is provided)
-        if config:
-            provider_config = inference_config.get(provider_key, {})
-            is_enabled = provider_config.get('enabled', False)
-
-            if not is_enabled:
-                logger.debug(f"Skipping {display_name} inference service - disabled in config")
-                continue
-
-        try:
-            # Lazy import - only import what we can
-            module = __import__('ai_services.implementations.inference', fromlist=[class_name])
-            service_class = getattr(module, class_name)
-
-            AIServiceFactory.register_service(
-                ServiceType.INFERENCE,
-                provider_key,
-                service_class
-            )
-            logger.info(f"Registered {display_name} inference service")
-        except (ImportError, AttributeError) as e:
-            logger.debug(
-                f"Skipping {display_name} inference service - missing dependencies: {e}"
-            )
+    ], config=config, config_section='inference', default_enabled=False)
 
 
 def register_moderation_services() -> None:
-    """
-    Register all moderation service implementations with the factory.
-
-    This makes them available for creation via AIServiceFactory.create_service()
-    Services with missing dependencies are skipped with a warning.
-    """
-    # Define services to register with their import paths
-    services = [
+    _register_services(ServiceType.MODERATION, 'ai_services.implementations.moderation', [
         ("openai", "OpenAIModerationService", "OpenAI"),
         ("anthropic", "AnthropicModerationService", "Anthropic"),
         ("ollama", "OllamaModerationService", "Ollama"),
-    ]
-
-    for provider_key, class_name, display_name in services:
-        try:
-            # Lazy import - only import what we can
-            module = __import__('ai_services.implementations.moderation', fromlist=[class_name])
-            service_class = getattr(module, class_name)
-
-            AIServiceFactory.register_service(
-                ServiceType.MODERATION,
-                provider_key,
-                service_class
-            )
-            logger.info(f"Registered {display_name} moderation service")
-        except (ImportError, AttributeError) as e:
-            logger.debug(
-                f"Skipping {display_name} moderation service - missing dependencies: {e}"
-            )
+    ])
 
 
 def register_reranking_services(config: Dict[str, Any] = None) -> None:
-    """
-    Register all reranking service implementations with the factory.
-
-    This makes them available for creation via AIServiceFactory.create_service()
-    Services with missing dependencies are skipped with a warning.
-    Services that are disabled in config are not registered.
-    """
-    # Define services to register with their import paths
-    services = [
+    _register_services(ServiceType.RERANKING, 'ai_services.implementations.reranking', [
         ("ollama", "OllamaRerankingService", "Ollama"),
         ("cohere", "CohereRerankingService", "Cohere"),
         ("jina", "JinaRerankingService", "Jina AI"),
         ("openai", "OpenAIRerankingService", "OpenAI"),
         ("anthropic", "AnthropicRerankingService", "Anthropic"),
         ("voyage", "VoyageRerankingService", "Voyage AI"),
-    ]
-
-    for provider_key, class_name, display_name in services:
-        # Check if provider is enabled in config
-        if config:
-            rerankers_config = config.get('rerankers', {})
-            provider_config = rerankers_config.get(provider_key, {})
-            enabled = provider_config.get('enabled', True)
-            # Check for explicit False (boolean False or string 'false')
-            if enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false'):
-                logger.info(
-                    f"Skipping {display_name} reranking service - disabled in config"
-                )
-                continue
-        
-        try:
-            # Lazy import - only import what we can
-            module = __import__('ai_services.implementations.reranking', fromlist=[class_name])
-            service_class = getattr(module, class_name)
-
-            AIServiceFactory.register_service(
-                ServiceType.RERANKING,
-                provider_key,
-                service_class
-            )
-            logger.info(f"Registered {display_name} reranking service")
-        except (ImportError, AttributeError) as e:
-            logger.debug(
-                f"Skipping {display_name} reranking service - missing dependencies: {e}"
-            )
+    ], config=config, config_section='rerankers', default_enabled=True)
 
 
 def register_vision_services(config: Dict[str, Any] = None) -> None:
-    """
-    Register all vision service implementations with the factory.
-
-    This makes them available for creation via AIServiceFactory.create_service()
-    Services with missing dependencies are skipped with a warning.
-    Services that are disabled in config are not registered.
-
-    Args:
-        config: Optional configuration dictionary. If provided, only enabled providers
-                will be registered based on config['visions'][provider]['enabled']
-    """
-    # Define services to register with their import paths
-    services = [
+    # Default to False — if vision.yaml is not imported, no vision services should register
+    _register_services(ServiceType.VISION, 'ai_services.implementations.vision', [
         ("openai", "OpenAIVisionService", "OpenAI"),
         ("gemini", "GeminiVisionService", "Gemini"),
         ("anthropic", "AnthropicVisionService", "Anthropic"),
@@ -252,86 +153,23 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
         ("vllm", "VLLMVisionService", "vLLM"),
         ("llama_cpp", "LlamaCppVisionService", "Llama.cpp"),
         ("cohere", "CohereVisionService", "Cohere"),
-    ]
-
-    # Get vision config if available
-    # Note: Provider-specific configs are under 'visions' (plural), not 'vision' (singular)
-    visions_config = config.get('visions', {}) if config else {}
-
-    for provider_key, class_name, display_name in services:
-        # Check if provider is enabled in config
-        if config:
-            provider_config = visions_config.get(provider_key, {})
-            # Default to False — if vision.yaml is not imported, no vision services should register
-            enabled = provider_config.get('enabled', False)
-            if enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false'):
-                logger.info(f"Skipping {display_name} vision service - disabled in config")
-                continue
-        
-        try:
-            # Lazy import - only import what we can
-            module = __import__('ai_services.implementations.vision', fromlist=[class_name])
-            service_class = getattr(module, class_name)
-
-            AIServiceFactory.register_service(
-                ServiceType.VISION,
-                provider_key,
-                service_class
-            )
-            logger.info(f"Registered {display_name} vision service")
-        except (ImportError, AttributeError) as e:
-            logger.debug(
-                f"Skipping {display_name} vision service - missing dependencies: {e}"
-            )
-
-
-def _is_enabled(value) -> bool:
-    """Helper to check if a value represents 'enabled'."""
-    if value is True:
-        return True
-    if value is False:
-        return False
-    if isinstance(value, str):
-        return value.lower() != 'false'
-    return True  # Default to enabled
+    ], config=config, config_section='visions', default_enabled=False)
 
 
 def register_audio_services(config: Dict[str, Any] = None) -> None:
-    """
-    Register all audio service implementations with the factory.
-
-    This makes them available for creation via AIServiceFactory.create_service()
-    Services with missing dependencies are skipped with a warning.
-    Services that are disabled in config are not registered.
-
-    Configuration structure (from tts.yaml and stt.yaml):
-    - config['tts']['enabled'], config['stt']['enabled']
-    - config['tts_providers'][provider], config['stt_providers'][provider]
-
-    Args:
-        config: Optional configuration dictionary. If provided, only enabled providers
-                will be registered based on the config structure.
-    """
+    """Register audio services. Both TTS and STT must be globally disabled to skip all."""
     if config:
-        # Check global enable flags
         # Default to False — if tts.yaml/stt.yaml are not imported, no audio services should register
-        tts_config = config.get('tts', {})
-        stt_config = config.get('stt', {})
-        tts_enabled = tts_config.get('enabled', False)
-        stt_enabled = stt_config.get('enabled', False)
-
-        # Both TTS and STT must be disabled to skip all
-        all_disabled = (not _is_enabled(tts_enabled)) and (not _is_enabled(stt_enabled))
-
-        if all_disabled:
+        tts_enabled = _is_enabled(config.get('tts', {}).get('enabled', False))
+        stt_enabled = _is_enabled(config.get('stt', {}).get('enabled', False))
+        if not tts_enabled and not stt_enabled:
             logger.info(
                 "Both TTS and STT services are globally disabled - "
                 "skipping all audio service registration."
             )
             return
 
-    # Define services to register with their import paths
-    services = [
+    all_services = [
         ("openai", "OpenAIAudioService", "OpenAI"),
         ("google", "GoogleAudioService", "Google"),
         ("gemini", "GeminiAudioService", "Gemini"),
@@ -345,201 +183,58 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
         ("xai", "XAIAudioService", "xAI (Grok)"),
     ]
 
-    # Get provider configs
-    tts_providers_config = config.get('tts_providers', {}) if config else {}
-    stt_providers_config = config.get('stt_providers', {}) if config else {}
+    if config:
+        tts_providers = config.get('tts_providers', {})
+        stt_providers = config.get('stt_providers', {})
+        # Provider is enabled if it appears in either TTS or STT config as enabled
+        services = [
+            (k, c, n) for k, c, n in all_services
+            if _is_enabled(tts_providers.get(k, {}).get('enabled', True))
+            or _is_enabled(stt_providers.get(k, {}).get('enabled', True))
+        ]
+    else:
+        services = all_services
 
-    for provider_key, class_name, display_name in services:
-        # Check if provider is enabled in config
-        if config:
-            # Check TTS config
-            tts_provider_config = tts_providers_config.get(provider_key, {})
-            tts_provider_enabled = tts_provider_config.get('enabled', True)
-
-            # Check STT config
-            stt_provider_config = stt_providers_config.get(provider_key, {})
-            stt_provider_enabled = stt_provider_config.get('enabled', True)
-
-            # Provider is enabled if enabled in either TTS or STT config
-            provider_enabled = (
-                _is_enabled(tts_provider_enabled) or
-                _is_enabled(stt_provider_enabled)
-            )
-
-            if not provider_enabled:
-                logger.debug(f"Skipping {display_name} audio service - disabled in config")
-                continue
-
-        try:
-            # Lazy import - only import what we can
-            module = __import__('ai_services.implementations.audio', fromlist=[class_name])
-            service_class = getattr(module, class_name)
-
-            AIServiceFactory.register_service(
-                ServiceType.AUDIO,
-                provider_key,
-                service_class
-            )
-            logger.info(f"Registered {display_name} audio service")
-        except (ImportError, AttributeError) as e:
-            logger.debug(
-                f"Skipping {display_name} audio service - missing dependencies: {e}"
-            )
+    _register_services(ServiceType.AUDIO, 'ai_services.implementations.audio', services)
 
 
 def register_speech_to_speech_services(config: Dict[str, Any] = None) -> None:
-    """
-    Register all speech-to-speech service implementations with the factory.
+    if config and not _is_enabled(config.get('personaplex', {}).get('enabled', False)):
+        logger.info(
+            "PersonaPlex is disabled in config - "
+            "skipping speech-to-speech service registration."
+        )
+        return
 
-    Speech-to-speech services handle full-duplex voice conversations where
-    the AI can listen and speak simultaneously (e.g., PersonaPlex).
-
-    This makes them available for creation via AIServiceFactory.create_service()
-    Services with missing dependencies are skipped with a warning.
-    Services that are disabled in config are not registered.
-
-    Configuration structure (from personaplex.yaml):
-    - config['personaplex']['enabled']
-    - config['personaplex']['mode']
-
-    Args:
-        config: Optional configuration dictionary. If provided, only enabled providers
-                will be registered based on the config structure.
-    """
-    if config:
-        pp_config = config.get('personaplex', {})
-        pp_enabled = pp_config.get('enabled', False)
-
-        if not _is_enabled(pp_enabled):
-            logger.info(
-                "PersonaPlex is disabled in config - "
-                "skipping speech-to-speech service registration."
-            )
-            return
-
-    # Define services to register with their import paths
-    services = [
+    _register_services(ServiceType.SPEECH_TO_SPEECH, 'ai_services.implementations.speech_to_speech', [
         ("personaplex", "PersonaPlexService", "PersonaPlex"),
         ("personaplex_proxy", "PersonaPlexProxyService", "PersonaPlex (Proxy)"),
         ("personaplex_embedded", "PersonaPlexEmbeddedService", "PersonaPlex (Embedded)"),
-    ]
-
-    for provider_key, class_name, display_name in services:
-        try:
-            # Lazy import - only import what we can
-            module = __import__(
-                'ai_services.implementations.speech_to_speech',
-                fromlist=[class_name]
-            )
-            service_class = getattr(module, class_name)
-
-            AIServiceFactory.register_service(
-                ServiceType.SPEECH_TO_SPEECH,
-                provider_key,
-                service_class
-            )
-            logger.info(f"Registered {display_name} speech-to-speech service")
-        except (ImportError, AttributeError) as e:
-            logger.debug(
-                f"Skipping {display_name} speech-to-speech service - "
-                f"missing dependencies: {e}"
-            )
+    ])
 
 
 def register_image_generation_services(config: Dict[str, Any] = None) -> None:
-    """
-    Register all image generation service implementations with the factory.
+    if config and not _is_enabled(config.get('image', {}).get('enabled', False)):
+        logger.info("Image generation is globally disabled - skipping registration.")
+        return
 
-    Services that are disabled in config are not registered.
-
-    Args:
-        config: Optional configuration dictionary. If provided, only enabled providers
-                will be registered based on config['image_generation'][provider]['enabled']
-    """
-    if config:
-        image_config = config.get('image', {})
-        if not image_config.get('enabled', False):
-            logger.info("Image generation is globally disabled - skipping registration.")
-            return
-
-    services = [
+    _register_services(ServiceType.IMAGE_GENERATION, 'ai_services.implementations.image', [
         ("openai", "OpenAIImageService", "OpenAI"),
         ("gemini", "GeminiImageService", "Gemini"),
         ("ollama", "OllamaImageService", "Ollama"),
         ("xai", "XAIImageService", "xAI (Grok)"),
-    ]
-
-    image_gen_config = config.get('image_generation', {}) if config else {}
-
-    for provider_key, class_name, display_name in services:
-        if config:
-            provider_config = image_gen_config.get(provider_key, {})
-            enabled = provider_config.get('enabled', False)
-            if enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false'):
-                logger.info(f"Skipping {display_name} image generation service - disabled in config")
-                continue
-
-        try:
-            module = __import__('ai_services.implementations.image', fromlist=[class_name])
-            service_class = getattr(module, class_name)
-
-            AIServiceFactory.register_service(
-                ServiceType.IMAGE_GENERATION,
-                provider_key,
-                service_class
-            )
-            logger.info(f"Registered {display_name} image generation service")
-        except (ImportError, AttributeError) as e:
-            logger.debug(
-                f"Skipping {display_name} image generation service - missing dependencies: {e}"
-            )
+    ], config=config, config_section='image_generation', default_enabled=False)
 
 
 def register_video_generation_services(config: Dict[str, Any] = None) -> None:
-    """
-    Register all video generation service implementations with the factory.
+    if config and not _is_enabled(config.get('video', {}).get('enabled', False)):
+        logger.info("Video generation is globally disabled - skipping registration.")
+        return
 
-    Services that are disabled in config are not registered.
-
-    Args:
-        config: Optional configuration dictionary. If provided, only enabled providers
-                will be registered based on config['video_generation'][provider]['enabled']
-    """
-    if config:
-        video_config = config.get('video', {})
-        if not video_config.get('enabled', False):
-            logger.info("Video generation is globally disabled - skipping registration.")
-            return
-
-    services = [
+    _register_services(ServiceType.VIDEO_GENERATION, 'ai_services.implementations.video', [
         ("gemini", "GeminiVideoService", "Gemini"),
         ("xai", "XAIVideoService", "xAI (Grok)"),
-    ]
-
-    video_gen_config = config.get('video_generation', {}) if config else {}
-
-    for provider_key, class_name, display_name in services:
-        if config:
-            provider_config = video_gen_config.get(provider_key, {})
-            enabled = provider_config.get('enabled', False)
-            if enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false'):
-                logger.info(f"Skipping {display_name} video generation service - disabled in config")
-                continue
-
-        try:
-            module = __import__('ai_services.implementations.video', fromlist=[class_name])
-            service_class = getattr(module, class_name)
-
-            AIServiceFactory.register_service(
-                ServiceType.VIDEO_GENERATION,
-                provider_key,
-                service_class
-            )
-            logger.info(f"Registered {display_name} video generation service")
-        except (ImportError, AttributeError) as e:
-            logger.debug(
-                f"Skipping {display_name} video generation service - missing dependencies: {e}"
-            )
+    ], config=config, config_section='video_generation', default_enabled=False)
 
 
 def register_all_services(config: Dict[str, Any] = None) -> None:
@@ -551,17 +246,7 @@ def register_all_services(config: Dict[str, Any] = None) -> None:
 
     Args:
         config: Optional configuration dictionary. If provided, only enabled
-                inference providers will be registered to save memory.
-
-    Example:
-        >>> from ai_services.registry import register_all_services
-        >>> register_all_services(config)
-        >>> # Now services can be created via factory
-        >>> service = AIServiceFactory.create_service(
-        ...     ServiceType.EMBEDDING,
-        ...     "openai",
-        ...     config
-        ... )
+                providers will be registered to save memory.
     """
     global _services_registered
 
@@ -595,21 +280,6 @@ def register_all_services(config: Dict[str, Any] = None) -> None:
 def get_embedding_service_legacy(provider: str, config: Dict[str, Any]):
     """
     Legacy compatibility function for getting embedding services.
-
-    This function provides backward compatibility with the old factory pattern.
-    It uses the new unified architecture under the hood.
-
-    Args:
-        provider: Provider name (e.g., 'openai', 'ollama')
-        config: Configuration dictionary
-
-    Returns:
-        Embedding service instance
-
-    Example:
-        >>> # Old way (still works)
-        >>> service = get_embedding_service_legacy('openai', config)
-        >>> await service.initialize()
 
     Note:
         Prefer using AIServiceFactory.create_service() for new code.

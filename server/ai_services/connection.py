@@ -311,24 +311,20 @@ class RateLimiter:
 
         This method blocks until a token is available.
         """
-        async with self.lock:
-            while self.tokens <= 0:
-                # Refill tokens based on time passed
+        while True:
+            async with self.lock:
                 now = time.time()
-                time_passed = now - self.last_update
                 self.tokens = min(
                     self.burst_size,
-                    self.tokens + time_passed * self.requests_per_second
+                    self.tokens + (now - self.last_update) * self.requests_per_second
                 )
                 self.last_update = now
-
-                # If still no tokens, wait
-                if self.tokens <= 0:
-                    wait_time = 1.0 / self.requests_per_second
-                    await asyncio.sleep(wait_time)
-
-            # Consume a token
-            self.tokens -= 1
+                if self.tokens >= 1:
+                    self.tokens -= 1
+                    return
+                wait_time = (1 - self.tokens) / self.requests_per_second
+            # Sleep outside the lock so other coroutines can proceed
+            await asyncio.sleep(wait_time)
 
 
 def retry_on_error(
@@ -348,19 +344,16 @@ def retry_on_error(
         Decorated function with retry logic
     """
     def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
+        retry_handler = RetryHandler(
+            max_retries=max_retries,
+            initial_wait_ms=initial_wait_ms,
+            exponential_base=exponential_base
+        )
+
         @wraps(func)
         async def wrapper(*args, **kwargs) -> T:
-            retry_handler = RetryHandler(
-                max_retries=max_retries,
-                initial_wait_ms=initial_wait_ms,
-                exponential_base=exponential_base
-            )
-
-            async def operation():
-                return await func(*args, **kwargs)
-
             return await retry_handler.execute_with_retry(
-                operation,
+                lambda: func(*args, **kwargs),
                 error_message=f"{func.__name__} failed"
             )
 

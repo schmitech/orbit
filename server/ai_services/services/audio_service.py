@@ -45,6 +45,20 @@ class AudioService(ProviderAIService):
         """
         super().__init__(config, ServiceType.AUDIO, provider_name)
 
+    def _compute_provider_config(self) -> Dict[str, Any]:
+        # Audio config is split across tts_providers and stt_providers keys.
+        # Merge both, with TTS taking precedence over STT.
+        merged: Dict[str, Any] = {}
+        stt_cfg = self.config.get('stt_providers', {})
+        if self.provider_name in stt_cfg:
+            merged.update(stt_cfg[self.provider_name])
+        tts_cfg = self.config.get('tts_providers', {})
+        if self.provider_name in tts_cfg:
+            merged.update(tts_cfg[self.provider_name])
+        if merged:
+            return merged
+        return super()._compute_provider_config()
+
     @abstractmethod
     async def text_to_speech(
         self,
