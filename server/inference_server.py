@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from dotenv import load_dotenv
 from fastmcp import FastMCP
 
 from config.config_manager import load_config
@@ -24,9 +23,6 @@ from routes.routes_configurator import RouteConfigurator
 from datasources import DatasourceFactory
 
 logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
 
 # Lazy imports for retrievers - only imported when needed
 RetrieverFactory = None

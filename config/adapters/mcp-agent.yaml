@@ -28,8 +28,8 @@ adapters:
     datasource: "none"
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
-    inference_provider: "ollama"         # must support native tool calling
-    model: "qwen3.5-4b-cpu"
+    inference_provider: "ollama_cloud"         # must support native tool calling
+    model: "minimax-m3"
 
     capabilities:
       expose_as_skill: true

@@ -106,7 +106,6 @@ class OllamaConfig:
         for key, value in service_config.items():
             if key != 'use_preset' and value is not None:
                 resolved_config[key] = value
-        resolved_config['_from_preset'] = preset_name
         return resolved_config
 
     def _get_default_model(self, service_type: str) -> str:

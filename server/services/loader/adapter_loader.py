@@ -10,6 +10,7 @@ import logging
 from typing import Any, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor
 
+from config.config_manager import was_resolved_from_preset
 from ai_services.factory import AIServiceFactory, ServiceType
 from embeddings.base import EmbeddingServiceFactory
 
@@ -422,14 +423,13 @@ class AdapterLoader:
                     if model_value in ollama_presets:
                         # Model value is a preset name - apply the full preset configuration
                         preset = ollama_presets[model_value]
-                        original_preset = inference_section.get('_from_preset', 'default')
+                        original_preset = was_resolved_from_preset('ollama') or 'default'
                         
                         # Apply preset values to inference section (preserving enabled flag)
                         enabled = inference_section.get('enabled', True)
                         for key, value in preset.items():
                             inference_section[key] = value
                         inference_section['enabled'] = enabled
-                        inference_section['_from_preset'] = model_value
                         
                         logger.info(
                             "Preset override for adapter '%s': '%s' -> '%s' (model: %s)",
@@ -442,9 +442,6 @@ class AdapterLoader:
                         # Model value is a raw Ollama model name - apply as regular override
                         original_model = inference_section.get('model', 'default')
                         inference_section['model'] = model_value
-                        # Clear preset marker since we're using a raw model
-                        if '_from_preset' in inference_section:
-                            del inference_section['_from_preset']
                         logger.info(
                             "Model override for adapter '%s': '%s' -> '%s' (provider: %s)",
                             adapter_name,

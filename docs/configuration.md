@@ -56,6 +56,8 @@ performance:
   keep_alive_timeout: 30              # Keep-alive timeout in seconds
   adapter_preload_timeout: 120        # Max time to wait for adapter initialization (seconds)
   thread_pools:
+    # Total pool capacity is per worker. Defaults: 140 threads per worker,
+    # or up to 560 threads when workers is 4.
     io_workers: 50                    # I/O-bound task workers
     cpu_workers: 30                   # CPU-bound task workers
     inference_workers: 20             # Model inference workers

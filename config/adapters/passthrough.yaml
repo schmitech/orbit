@@ -54,6 +54,11 @@ adapters:
         - "Word"
         - "Excel"
         - "PowerPoint"
+        - "business-analytics"
+        - "customer-orders"
+        - "HR"
+        - "web-search"
+        - "mcp-agent"
       retrieval_behavior: "none"         # No context retrieval (pure conversational)
       formatting_style: "standard"       # Standard formatting (not used since no retrieval)
       supports_file_ids: false           # Does not support file filtering

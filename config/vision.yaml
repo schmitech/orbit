@@ -1,12 +1,12 @@
 # Global vision configuration
 vision:
-  provider: "ollama"  # Default vision provider: openai, gemini, anthropic, ollama, ollama_cloud
-  enabled: false        # Whether vision processing is enabled globally
+  provider: "openai"  # Default vision provider: openai, gemini, anthropic, ollama, ollama_cloud
+  enabled: true        # Whether vision processing is enabled globally
 
 # Provider-specific configurations
 visions:
   openai:
-    enabled: false
+    enabled: true
     api_key: ${OPENAI_API_KEY}
     api_base: "https://api.openai.com/v1"
     model: "gpt-5.5"

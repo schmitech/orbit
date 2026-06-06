@@ -20,6 +20,7 @@ Usage:
 
 import os
 import argparse
+from pathlib import Path
 from fastapi import FastAPI
 from inference_server import InferenceServer
 
@@ -34,6 +35,28 @@ app = FastAPI(
     version="2.7.0"
 )
 
+
+def load_environment() -> None:
+    """Load .env once at process startup, before configuration is read."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+
+    current_dir = Path.cwd()
+    env_paths = [
+        current_dir / '.env',
+        current_dir.parent / '.env',
+        current_dir.parent.parent / '.env',
+        Path('.env'),
+    ]
+
+    for env_path in env_paths:
+        if env_path.exists():
+            load_dotenv(env_path, override=True)
+            return
+
+
 def create_app() -> FastAPI:
     """
     Factory function to create a FastAPI application instance.
@@ -47,6 +70,7 @@ def create_app() -> FastAPI:
     Returns:
         A configured FastAPI application instance
     """
+    load_environment()
     config_path = os.environ.get('OIS_CONFIG_PATH')
     
     # Create server instance
@@ -64,6 +88,7 @@ def parse_arguments():
 def main():
     """Main entry point for the application."""
     args = parse_arguments()
+    load_environment()
     
     # Create and run the inference server
     server = InferenceServer(config_path=args.config)

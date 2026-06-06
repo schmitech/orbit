@@ -72,3 +72,5 @@ import:
   - "adapters/word-generator.yaml"
   - "adapters/excel-generator.yaml"
   - "adapters/pptx-generator.yaml"
+  - "adapters/web-search.yaml"
+  - "adapters/mcp-agent.yaml"

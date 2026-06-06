@@ -212,7 +212,6 @@ class ProviderCacheManager:
                         for key, value in preset.items():
                             inference_section[key] = value
                         inference_section['enabled'] = enabled
-                        inference_section['_from_preset'] = model_override
                         
                         logger.info(
                             f"Loading Ollama with preset '{model_override}' (model: {preset.get('model', 'unknown')})"
@@ -220,9 +219,6 @@ class ProviderCacheManager:
                     else:
                         # Model override is a raw Ollama model name
                         config_for_provider['inference'][provider_name]['model'] = model_override
-                        # Clear preset marker since we're using a raw model
-                        if '_from_preset' in config_for_provider['inference'][provider_name]:
-                            del config_for_provider['inference'][provider_name]['_from_preset']
                         logger.info(f"Loading Ollama with model override: {model_override}")
                 else:
                     # Non-Ollama provider - apply model override normally

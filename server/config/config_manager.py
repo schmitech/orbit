@@ -3,10 +3,14 @@ Configuration management for the chat application
 """
 
 import os
+import copy
+import re
 import yaml
 import logging
-from typing import Dict, Any, Optional
-from functools import lru_cache
+import threading
+from typing import Dict, Any, Optional, Tuple
+
+from config.config_summary_logger import log_config_summary, mask_url
 
 # Configure logging
 logging.basicConfig(
@@ -15,45 +19,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+_config: Optional[Dict[str, Any]] = None
+_config_lock = threading.Lock()
+_reload_lock = threading.Lock()
+_resolved_presets: Dict[str, str] = {}
+_import_cache: Dict[str, Tuple[int, Dict[str, Any]]] = {}
+_ENV_VAR_RE = re.compile(r'\$\{([^}]+)\}')
 
-@lru_cache(maxsize=1)
-def load_config(config_path: Optional[str] = None):
+
+def load_config(config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Load configuration from shared config.yaml file"""
-    
-    # Load environment variables first
-    try:
-        from dotenv import load_dotenv
-        # Try to load .env from various possible locations
-        import os
-        from pathlib import Path
-        
-        # Get the current directory
-        current_dir = Path.cwd()
-        
-        # Try different possible .env file locations
-        env_paths = [
-            current_dir / '.env',
-            current_dir.parent / '.env',
-            current_dir.parent.parent / '.env',
-            Path('.env'),
-        ]
-        
-        env_loaded = False
-        for env_path in env_paths:
-            if env_path.exists():
-                load_dotenv(env_path, override=True)
-                logger.info(f"Loaded environment variables from: {env_path}")
-                env_loaded = True
-                break
-        
-        if not env_loaded:
-            logger.warning("No .env file found in expected locations")
-            
-    except ImportError:
-        logger.warning("python-dotenv not available, environment variables may not be loaded")
-    except Exception as e:
-        logger.warning(f"Error loading environment variables: {str(e)}")
-    
+    global _config
+    with _config_lock:
+        if _config is None:
+            _config = _load_config_from_disk(config_path)
+        return _config
+
+
+def clear_config_cache() -> None:
+    """Clear the module-level loaded config singleton."""
+    global _config
+    with _config_lock:
+        _config = None
+        _resolved_presets.clear()
+
+
+def _load_config_from_disk(config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Load and validate configuration from disk without using cached state."""
     config_paths = [
         config_path, 
         '../config/config.yaml',
@@ -64,187 +56,40 @@ def load_config(config_path: Optional[str] = None):
     # Filter out None values
     config_paths = [p for p in config_paths if p is not None]
     
-    for config_path in config_paths:
+    for path in config_paths:
         try:
-            with open(config_path, 'r') as file:
+            with open(path, 'r') as file:
                 config = yaml.safe_load(file)
-                logger.info(f"Successfully loaded configuration from {os.path.abspath(config_path)}")
-                
+                logger.info(f"Successfully loaded configuration from {os.path.abspath(path)}")
+
                 # Process imports (like adapters.yaml)
-                config = _process_imports(config, os.path.dirname(config_path))
-                
+                config = _process_imports(config, os.path.dirname(path))
+
                 # Process environment variables
                 config = _process_env_vars(config)
+
+                # Fail fast if required secrets are absent
+                _validate_required_config(config)
 
                 # Resolve preset references (must be after imports and env vars)
                 config = _resolve_ollama_presets(config)
                 config = _resolve_llama_cpp_presets(config)
-                
+
                 # Log key configuration values
-                _log_config_summary(config, config_path)
-                
+                log_config_summary(config, path, logger)
+
                 return config
         except FileNotFoundError:
-            logger.debug(f"Config file not found at {os.path.abspath(config_path)}")
+            logger.debug(f"Config file not found at {os.path.abspath(path)}")
             continue
         except Exception as e:
-            logger.warning(f"Error loading config from {os.path.abspath(config_path)}: {str(e)}")
-
-def _log_config_summary(config: Dict[str, Any], source_path: str):
-    """Log a summary of important config values with sensitive data masked"""
-    logger.info(f"Configuration loaded from: {source_path}")
-    
-    # Get the active inference provider
-    inference_provider = config.get('general', {}).get('inference_provider', 'ollama')
-    
-    # Only log the active inference provider settings
-    if inference_provider == 'ollama':
-        ollama_config = config.get('inference', {}).get('ollama', {})
-        logger.info(f"Inference: {inference_provider} - model={ollama_config.get('model')}, base_url={_mask_url(ollama_config.get('base_url'))}")
-    elif inference_provider == 'together':
-        together_config = config.get('inference', {}).get('together', {})
-        logger.info(f"Inference: {inference_provider} - model={together_config.get('model')}")
-    elif inference_provider == 'xai':
-        xai_config = config.get('inference', {}).get('xai', {})
-        logger.info(f"Inference: {inference_provider} - model={xai_config.get('model')}")
-    elif inference_provider == 'watson':
-        watson_config = config.get('inference', {}).get('watson', {})
-        logger.info(f"Inference: {inference_provider} - model={watson_config.get('model')}")
-    elif inference_provider == 'openai':
-        openai_config = config.get('inference', {}).get('openai', {})
-        logger.info(f"Inference: {inference_provider} - model={openai_config.get('model')}")
-    elif inference_provider == 'anthropic':
-        anthropic_config = config.get('inference', {}).get('anthropic', {})
-        logger.info(f"Inference: {inference_provider} - model={anthropic_config.get('model')}")
-    else:
-        logger.info(f"Inference: {inference_provider}")
-    
-    # Get language detection from new configuration structure
-    lang_detect_config = config.get('language_detection', {})
-    language_detection = lang_detect_config.get('enabled', False)
-
-    logger.info(f"Language Detection: enabled={language_detection}")
-    
-    # Log fault tolerance configuration (always enabled)
-    fault_tolerance_config = config.get('fault_tolerance', {})
-    circuit_breaker_config = fault_tolerance_config.get('circuit_breaker', {})
-    execution_config = fault_tolerance_config.get('execution', {})
-    logger.info(f"Fault Tolerance: enabled - strategy={execution_config.get('strategy', 'all')}, "
-               f"circuit_breaker_threshold={circuit_breaker_config.get('failure_threshold', 5)}, "
-               f"timeout={execution_config.get('timeout', 35)}s")
-    
-    # Log performance configuration
-    perf_config = config.get('performance', {})
-    if perf_config:
-        workers = perf_config.get('workers', 1)
-        keep_alive = perf_config.get('keep_alive_timeout', 30)
-        
-        # Calculate total thread pool capacity
-        thread_pools = perf_config.get('thread_pools', {})
-        if thread_pools:
-            total_workers = sum(thread_pools.values())
-            pool_summary = ', '.join([f"{k.replace('_workers', '')}={v}" for k, v in thread_pools.items()])
-            logger.info(f"Performance: workers={workers}, keep_alive={keep_alive}s, "
-                       f"thread_pools=({pool_summary}), total_capacity={total_workers}")
-        else:
-            logger.info(f"Performance: workers={workers}, keep_alive={keep_alive}s, thread_pools=default")
-    else:
-        logger.info("Performance: using default configuration")
-    
-    # Log adapter configuration summary
-    adapters_config = config.get('adapters', [])
-    if adapters_config:
-        enabled_adapters = [adapter for adapter in adapters_config if adapter.get('enabled', True)]
-        disabled_adapters = [adapter for adapter in adapters_config if not adapter.get('enabled', True)]
-        logger.info(f"Adapters: {len(enabled_adapters)} enabled, {len(disabled_adapters)} disabled")
-        if disabled_adapters:
-            disabled_names = [adapter.get('name', 'unnamed') for adapter in disabled_adapters]
-            logger.info(f"Disabled adapters: {', '.join(disabled_names)}")
-    
-    # Log monitoring configuration
-    monitoring_config = config.get('monitoring', {})
-    if monitoring_config:
-        monitoring_enabled = monitoring_config.get('enabled', True)
-        metrics_config = monitoring_config.get('metrics', {})
-        
-        if monitoring_enabled:
-            collection_interval = metrics_config.get('collection_interval', 5)
-            time_window = metrics_config.get('time_window', 300)
-            prometheus_enabled = metrics_config.get('prometheus', {}).get('enabled', True)
-            dashboard_enabled = metrics_config.get('dashboard', {}).get('enabled', True)
-            websocket_interval = metrics_config.get('dashboard', {}).get('websocket_update_interval', 5)
-            
-            features = []
-            if prometheus_enabled:
-                features.append("prometheus")
-            if dashboard_enabled:
-                features.append("dashboard")
-            
-            logger.info(f"Monitoring: enabled - features=({', '.join(features)}), "
-                       f"collection_interval={collection_interval}s, time_window={time_window}s, "
-                       f"websocket_update={websocket_interval}s")
-            
-            # Log alert thresholds if configured
-            alerts_config = monitoring_config.get('alerts', {})
-            if alerts_config:
-                thresholds = []
-                if 'cpu_threshold' in alerts_config:
-                    thresholds.append(f"cpu={alerts_config['cpu_threshold']}%")
-                if 'memory_threshold' in alerts_config:
-                    thresholds.append(f"memory={alerts_config['memory_threshold']}%")
-                if 'error_rate_threshold' in alerts_config:
-                    thresholds.append(f"error_rate={alerts_config['error_rate_threshold']}%")
-                if 'response_time_threshold' in alerts_config:
-                    thresholds.append(f"response_time={alerts_config['response_time_threshold']}ms")
-                
-                if thresholds:
-                    logger.info(f"Monitoring Alert Thresholds: {', '.join(thresholds)}")
-        else:
-            logger.info("Monitoring: disabled")
-    else:
-        logger.info("Monitoring: using default settings")
+            logger.error(f"Error loading config from {os.path.abspath(path)}: {str(e)}")
+            raise
 
 
 def _mask_url(url: str) -> str:
     """Mask sensitive parts of URLs like credentials"""
-    if not url:
-        return url
-    
-    try:
-        # For URLs with credentials like https://user:pass@host.com
-        if '@' in url and '//' in url:
-            # Split by // to get the protocol and the rest
-            protocol, rest = url.split('//', 1)
-            # If there are credentials in the URL
-            if '@' in rest:
-                # Split by @ to separate credentials from host
-                credentials_part, host_part = rest.split('@', 1)
-                # Replace credentials with [REDACTED]
-                return f"{protocol}//[REDACTED]@{host_part}"
-        
-        # For URLs with API keys like query parameters
-        if '?' in url and ('key=' in url.lower() or 'token=' in url.lower() or 'api_key=' in url.lower() or 'apikey=' in url.lower()):
-            # Simple pattern matching for common API key parameters
-            # Split URL and query string
-            base_url, query = url.split('?', 1)
-            params = query.split('&')
-            masked_params = []
-            
-            for param in params:
-                param_lower = param.lower()
-                if 'key=' in param_lower or 'token=' in param_lower or 'api_key=' in param_lower or 'apikey=' in param_lower or 'password=' in param_lower:
-                    # Find the parameter name
-                    param_name = param.split('=')[0]
-                    masked_params.append(f"{param_name}=[REDACTED]")
-                else:
-                    masked_params.append(param)
-            
-            return f"{base_url}?{'&'.join(masked_params)}"
-        
-        return url
-    except Exception:
-        # If any error occurs during masking, return a generically masked URL
-        return url.split('//')[0] + '//[HOST_REDACTED]' if '//' in url else '[URL_REDACTED]'
+    return mask_url(url)
 
 def _process_imports(config: Dict[str, Any], config_dir: str) -> Dict[str, Any]:
     """Process import statements in config (e.g., import: adapters.yaml)"""
@@ -270,18 +115,15 @@ def _process_imports(config: Dict[str, Any], config_dir: str) -> Dict[str, Any]:
         del config[key]
     
     # Load and merge each imported file
+    real_config_dir = os.path.realpath(config_dir)
     for import_file in import_files:
         import_path = os.path.join(config_dir, import_file)
+        if os.path.relpath(os.path.realpath(import_path), real_config_dir).startswith('..'):
+            logger.warning(f"Skipping import '{import_file}': path escapes config directory")
+            continue
         try:
-            with open(import_path, 'r') as file:
-                imported_config = yaml.safe_load(file)
-                logger.debug(f"Successfully imported configuration from {os.path.abspath(import_path)}")
-                
-                # Recursively process imports in the imported file
-                imported_config = _process_imports(imported_config, config_dir)
-                
-                # Merge the imported config into the main config
-                config = _merge_configs(config, imported_config)
+            imported_config = _load_imported_config(import_path, config_dir)
+            config = _merge_configs(config, imported_config)
                 
         except FileNotFoundError:
             logger.warning(f"Import file not found: {os.path.abspath(import_path)}")
@@ -296,6 +138,25 @@ def _process_imports(config: Dict[str, Any], config_dir: str) -> Dict[str, Any]:
             config[key] = [_process_imports(item, config_dir) if isinstance(item, dict) else item for item in value]
     
     return config
+
+
+def _load_imported_config(import_path: str, config_dir: str) -> Dict[str, Any]:
+    """Load an imported YAML file, reusing unchanged parsed imports by mtime."""
+    real_import_path = os.path.realpath(import_path)
+    mtime = os.stat(real_import_path).st_mtime_ns
+    cached = _import_cache.get(real_import_path)
+
+    if cached and cached[0] == mtime:
+        logger.debug(f"Using cached imported configuration from {os.path.abspath(import_path)}")
+        return copy.deepcopy(cached[1])
+
+    with open(import_path, 'r') as file:
+        imported_config = yaml.safe_load(file)
+        logger.debug(f"Successfully imported configuration from {os.path.abspath(import_path)}")
+
+    imported_config = _process_imports(imported_config, config_dir)
+    _import_cache[real_import_path] = (mtime, copy.deepcopy(imported_config))
+    return imported_config
 
 
 def _merge_configs(main_config: Dict[str, Any], imported_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -317,6 +178,68 @@ def _merge_configs(main_config: Dict[str, Any], imported_config: Dict[str, Any])
     return result
 
 
+# Config paths that must be non-empty after env-var substitution.
+# Tuple of keys forming the dot-path into the config dict.
+_REQUIRED_CONFIG_PATHS = [
+    ('auth', 'default_admin_password'),
+]
+
+
+def _validate_required_config(config: Dict[str, Any]) -> None:
+    """Raise RuntimeError if any required config value resolved to an empty string."""
+    required_paths = list(_REQUIRED_CONFIG_PATHS)
+    internal_services = config.get('internal_services', {})
+    backend_type = internal_services.get('backend', {}).get('type')
+    audit_backend = internal_services.get('audit', {}).get('storage_backend')
+
+    if backend_type == 'mongodb' or audit_backend == 'mongodb':
+        required_paths.extend([
+            ('internal_services', 'mongodb', 'host'),
+            ('internal_services', 'mongodb', 'username'),
+            ('internal_services', 'mongodb', 'password'),
+            ('internal_services', 'mongodb', 'database'),
+        ])
+
+    elasticsearch_config = internal_services.get('elasticsearch', {})
+    if elasticsearch_config.get('enabled') or audit_backend == 'elasticsearch':
+        required_paths.extend([
+            ('internal_services', 'elasticsearch', 'node'),
+            ('internal_services', 'elasticsearch', 'username'),
+            ('internal_services', 'elasticsearch', 'password'),
+        ])
+
+    redis_config = internal_services.get('redis', {})
+    if redis_config.get('enabled'):
+        required_paths.extend([
+            ('internal_services', 'redis', 'host'),
+            ('internal_services', 'redis', 'port'),
+            ('internal_services', 'redis', 'password'),
+        ])
+
+    for path in required_paths:
+        value = config
+        for key in path:
+            value = value.get(key, '') if isinstance(value, dict) else ''
+        if not value:
+            dotted = '.'.join(path)
+            raise RuntimeError(
+                f"Required configuration value '{dotted}' is missing or empty. "
+                f"Set the corresponding environment variable before starting the server."
+            )
+
+    _validate_cors_config(config)
+
+
+def _validate_cors_config(config: Dict[str, Any]) -> None:
+    """Validate CORS combinations that Starlette rejects at request time."""
+    cors = config.get('security', {}).get('cors', {})
+    if cors.get('allow_credentials') and '*' in cors.get('allowed_origins', []):
+        raise RuntimeError(
+            "security.cors: allow_credentials cannot be true when allowed_origins contains '*'. "
+            "Specify explicit origins or disable allow_credentials."
+        )
+
+
 def _process_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
     """Process environment variables in config values
 
@@ -325,27 +248,28 @@ def _process_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
     - ${ENV_VAR_NAME:-default} - Optional variable with default value
     """
     def replace_env_vars(value):
-        if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
-            inner = value[2:-1]
+        if not isinstance(value, str):
+            return value
 
-            # Check for default value syntax: ${VAR:-default}
+        def _sub(match):
+            inner = match.group(1)
+
             if ':-' in inner:
                 env_var_name, default_value = inner.split(':-', 1)
                 env_value = os.environ.get(env_var_name)
                 if env_value is not None and env_value != "":
                     return env_value
-                else:
-                    # Use default silently (no warning for optional vars)
-                    return default_value
-            else:
-                # No default - this is a required variable
-                env_var_name = inner
-                env_value = os.environ.get(env_var_name)
-                if env_value is not None:
-                    return env_value
-                else:
-                    logger.warning(f"Environment variable {env_var_name} not found")
-                    return ""
+                return default_value
+
+            env_value = os.environ.get(inner)
+            if env_value is not None:
+                return env_value
+
+            logger.warning(f"Environment variable {inner} not found")
+            return ""
+
+        if '${' in value:
+            return _ENV_VAR_RE.sub(_sub, value)
         return value
 
     # Recursively process the config
@@ -387,153 +311,88 @@ def reload_adapters_config(config_path: str) -> Dict[str, Any]:
         FileNotFoundError: If config file not found
         Exception: If there are errors loading or processing the config
     """
-    # Clear the cache to force a fresh load
-    load_config.cache_clear()
+    with _reload_lock:
+        try:
+            config = reload_config(config_path)
 
-    try:
-        # Load the FULL config (includes all imports: adapters, inference, embeddings, etc.)
-        config = load_config(config_path)
+            logger.info(f"Reloaded FULL configuration from {os.path.abspath(config_path)} (includes all provider configs)")
 
-        logger.info(f"Reloaded FULL configuration from {os.path.abspath(config_path)} (includes all provider configs)")
+            return config
 
+        except FileNotFoundError:
+            logger.error(f"Configuration file not found: {os.path.abspath(config_path)}")
+            raise
+        except Exception as e:
+            logger.error(f"Error loading configuration: {str(e)}")
+            raise
+
+
+def reload_config(config_path: str) -> Optional[Dict[str, Any]]:
+    """Reload the singleton config from disk atomically."""
+    global _config
+    with _config_lock:
+        _resolved_presets.clear()
+        _config = _load_config_from_disk(config_path)
+        return _config
+
+
+def _resolve_inference_preset(
+    config: Dict[str, Any], provider_key: str, presets_key: str
+) -> Dict[str, Any]:
+    """
+    Resolve a use_preset reference for an inference provider.
+
+    Looks up config['inference'][provider_key]['use_preset'] in
+    config[presets_key], replaces the provider block with the preset values,
+    and preserves the 'enabled' flag. Preset metadata is tracked separately
+    to avoid leaking loader internals into the public config dict.
+    """
+    inference_config = config.get('inference', {})
+    provider_config = inference_config.get(provider_key, {})
+    presets = config.get(presets_key, {})
+
+    preset_name = provider_config.get('use_preset')
+    if not preset_name:
         return config
 
-    except FileNotFoundError:
-        logger.error(f"Configuration file not found: {os.path.abspath(config_path)}")
-        raise
-    except Exception as e:
-        logger.error(f"Error loading configuration: {str(e)}")
-        raise
+    if preset_name not in presets:
+        logger.error(
+            f"Preset '{preset_name}' not found in {presets_key}. "
+            f"Available presets: {list(presets.keys())}"
+        )
+        return config
+
+    preset = presets[preset_name]
+    if not isinstance(preset, dict):
+        logger.error(f"Preset '{preset_name}' in {presets_key} is not a valid configuration dictionary")
+        return config
+
+    resolved = preset.copy()
+    resolved['enabled'] = provider_config.get('enabled', True)
+    resolved.pop('use_preset', None)
+
+    config['inference'][provider_key] = resolved
+    _resolved_presets[provider_key] = preset_name
+    logger.info(f"Resolved {provider_key} configuration from preset '{preset_name}' (model={preset.get('model')})")
+    return config
+
+
+def was_resolved_from_preset(provider_key: str) -> Optional[str]:
+    """Return the preset name used to resolve an inference provider, if any."""
+    return _resolved_presets.get(provider_key)
 
 
 def _resolve_ollama_presets(config: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Resolve Ollama preset references in inference configuration.
-    
-    If inference.ollama contains a 'use_preset' key, this function looks up the
-    preset in ollama_presets and replaces the ollama config with the preset values.
-    
-    The 'enabled' flag from inference.yaml is preserved and takes precedence.
-    
-    Example:
-        # In inference.yaml:
-        inference:
-          ollama:
-            enabled: true
-            use_preset: "granite-cpu"
-        
-        # In ollama.yaml:
-        ollama_presets:
-          granite-cpu:
-            model: "granite4:1b"
-            num_gpu: 0
-            ...
-        
-        # Result after resolution:
-        inference:
-          ollama:
-            enabled: true
-            model: "granite4:1b"
-            num_gpu: 0
-            ...
-    
-    Args:
-        config: The merged configuration dictionary
-        
-    Returns:
-        The configuration with ollama presets resolved
-    """
     try:
-        inference_config = config.get('inference', {})
-        ollama_config = inference_config.get('ollama', {})
-        ollama_presets = config.get('ollama_presets', {})
-        
-        # Check if there's a preset reference
-        preset_name = ollama_config.get('use_preset')
-        if not preset_name:
-            return config
-        
-        # Look up the preset
-        if preset_name not in ollama_presets:
-            logger.error(
-                f"Ollama preset '{preset_name}' not found in ollama_presets. "
-                f"Available presets: {list(ollama_presets.keys())}"
-            )
-            return config
-        
-        preset = ollama_presets[preset_name]
-        if not isinstance(preset, dict):
-            logger.error(f"Ollama preset '{preset_name}' is not a valid configuration dictionary")
-            return config
-        
-        # Preserve the 'enabled' flag from inference.yaml
-        enabled = ollama_config.get('enabled', True)
-        
-        # Replace ollama config with preset values
-        resolved_ollama = preset.copy()
-        resolved_ollama['enabled'] = enabled
-        
-        # Mark that this config came from a preset - adapter loader should NOT override the model
-        # This prevents adapter model overrides (e.g., "gpt-5.1") from breaking Ollama presets
-        resolved_ollama['_from_preset'] = preset_name
-        
-        # Remove use_preset from the resolved config (it's been processed)
-        if 'use_preset' in resolved_ollama:
-            del resolved_ollama['use_preset']
-        
-        # Update the config
-        config['inference']['ollama'] = resolved_ollama
-        
-        logger.info(f"Resolved Ollama configuration from preset '{preset_name}' (model={preset.get('model')})")
-        
-        return config
-        
+        return _resolve_inference_preset(config, 'ollama', 'ollama_presets')
     except Exception as e:
         logger.warning(f"Error resolving Ollama presets: {str(e)}")
         return config
 
 
 def _resolve_llama_cpp_presets(config: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Resolve llama.cpp preset references in inference configuration.
-
-    If inference.llama_cpp contains a 'use_preset' key, look up the preset in
-    llama_cpp_presets (loaded from config/llama_cpp.yaml) and replace the
-    llama_cpp config with the preset values, preserving the 'enabled' flag.
-    """
     try:
-        inference_config = config.get('inference', {})
-        llama_config = inference_config.get('llama_cpp', {})
-        llama_presets = config.get('llama_cpp_presets', {})
-
-        preset_name = llama_config.get('use_preset')
-        if not preset_name:
-            return config
-
-        if preset_name not in llama_presets:
-            logger.error(
-                f"Llama.cpp preset '{preset_name}' not found in llama_cpp_presets. "
-                f"Available presets: {list(llama_presets.keys())}"
-            )
-            return config
-
-        preset = llama_presets[preset_name]
-        if not isinstance(preset, dict):
-            logger.error(f"Llama.cpp preset '{preset_name}' is not a valid configuration dictionary")
-            return config
-
-        enabled = llama_config.get('enabled', True)
-        resolved = preset.copy()
-        resolved['enabled'] = enabled
-        resolved['_from_preset'] = preset_name
-        resolved.pop('use_preset', None)
-
-        config['inference']['llama_cpp'] = resolved
-        logger.info(f"Resolved llama.cpp configuration from preset '{preset_name}' (model={preset.get('model')})")
-        return config
-
+        return _resolve_inference_preset(config, 'llama_cpp', 'llama_cpp_presets')
     except Exception as e:
         logger.warning(f"Error resolving llama.cpp presets: {str(e)}")
         return config
-
-

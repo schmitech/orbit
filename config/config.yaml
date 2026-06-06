@@ -98,6 +98,8 @@ performance:
       - "/mcp"      # MCP protocol endpoints
 
   thread_pools:
+    # Total capacity is the sum of these pools per worker. With workers=4
+    # and the defaults below, peak pool capacity is 140 per worker / 560 total.
     io_workers: 50              # Up from 10
     cpu_workers: 30             # CPU-bound tasks
     inference_workers: 20       # Model inference
@@ -130,7 +132,7 @@ auth:
   # Credential storage method: "keyring" (default) or "file"
   # - keyring: Uses system keychain (macOS Keychain, Linux Secret Service)
   # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
-  credential_storage: file
+  credential_storage: keyring
 
 # Embedding configuration moved to embeddings.yaml
 
@@ -251,7 +253,7 @@ internal_services:
       database_path: "orbit.db"  # Path to SQLite database file (relative to project root)
   
   elasticsearch:
-    enabled: false
+    enabled: true
     node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}
     index: 'orbit'
     username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
@@ -274,7 +276,7 @@ internal_services:
     # Clear audit logs on server startup
     # WARNING: This will delete ALL audit logs when the server starts
     # Use with caution - only recommended for development/testing environments
-    clear_on_startup: true
+    clear_on_startup: false
     # Admin & auth event auditing (opt-in). Records mutations on /admin/*
     # and /auth/* endpoints (user CRUD, API-key management, config changes,
     # login/logout, etc.) into a separate collection/table.
@@ -627,7 +629,7 @@ security:
   error_handling:
     # Never expose detailed errors in production
     # Set to true only for development/debugging
-    expose_details: true
+    expose_details: false
 
   # Rate limiting configuration (requires Redis to be enabled)
   rate_limiting:

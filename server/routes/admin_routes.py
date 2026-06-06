@@ -641,8 +641,8 @@ def _backup_and_write(file_path: Path, new_content: str) -> str:
     logger.info("Adapter config backup created at %s", backup_path)
     file_path.write_text(new_content, encoding="utf-8")
     logger.info("Adapter config updated: %s", file_path)
-    from config.config_manager import load_config
-    load_config.cache_clear()
+    from config.config_manager import clear_config_cache
+    clear_config_cache()
     return str(backup_path.resolve())
 
 
@@ -1679,9 +1679,9 @@ async def update_config(
     config_path.write_text(content, encoding='utf-8')
     logger.info("Config file updated at %s", config_path)
 
-    # Clear load_config LRU cache so next access picks up changes
-    from config.config_manager import load_config
-    load_config.cache_clear()
+    # Clear loaded config singleton so next access picks up changes
+    from config.config_manager import clear_config_cache
+    clear_config_cache()
 
     return {
         "message": "Config saved. A server restart is required for changes to take effect.",

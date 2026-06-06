@@ -29,7 +29,7 @@ video_generation:
     model: "grok-imagine-video"
     aspect_ratio: "16:9"         # 16:9, 9:16, 1:1, 4:3, 3:4, 3:2, 2:3
     resolution: "480p"           # 480p (default, faster) or 720p
-    duration: 5                  # 1–15 seconds
+    duration: 10                  # 1–15 seconds
     # Timeout configuration
     timeout:
       connect: 15000   # 15 seconds
