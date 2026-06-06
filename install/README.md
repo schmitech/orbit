@@ -253,7 +253,7 @@ RUN pip install --no-cache-dir \
 # Install PyTorch dependencies if profile includes it
 RUN if [ "$DEPENDENCY_PROFILE" = "torch" ] || [ "$DEPENDENCY_PROFILE" = "all" ]; then \
     pip install --no-cache-dir \
-    torch==2.7.0 \
+    torch==2.7.1 \
     vllm>=0.9.1 \
     transformers>=4.52.4 \
     accelerate>=0.27.2 \

@@ -328,8 +328,8 @@ If Ollama runs on your host, add `-e OLLAMA_HOST=host.docker.internal:11434` so 
 Download the current release from [GitHub Releases](https://github.com/schmitech/orbit/releases), then install:
 
 ```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.0/orbit-2.7.0.tar.gz
-tar -xzf orbit-2.7.0.tar.gz && cd orbit-2.7.0
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.1/orbit-2.7.1.tar.gz
+tar -xzf orbit-2.7.1.tar.gz && cd orbit-2.7.1
 cp env.example .env && ./install/setup.sh
 ./bin/orbit.sh start && tail -f ./logs/orbit.log
 ```

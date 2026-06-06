@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.7.1] - 2026-06-06
+
+### Core System Updates
+- Configuration: Hardened the config loader with safe defaults (disabled stack trace leakage and auto-clear of audit logs), implemented fail-fast validation for credentials, and added support for partial environment variable substitution.
+- Security: Added an automated content scan for file uploads to detect and block common HTML/JS injection patterns (XSS) in the first 8KB of uploaded files.
+- Dependencies: Added the `chonkie` package for improved chunk tokenization (#201).
+- Templates: Updated various intent templates to align with the latest schema requirements.
+
+### Chat-app & UI Improvements
+- Windows Compatibility: Fixed several UI issues specific to Windows browsers, including the removal of layout-breaking vertical scrollbars and preventing agent descriptions from becoming scroll containers in Edge.
+- Admin Panel: Refactored and deduplicated several UI helpers for API key management, persona editing, and error reporting.
+- Identity & UX: Fixed the "Copy to Clipboard" functionality for API keys (#200) and updated product descriptions to reflect broader support for forthcoming STS audio providers.
+
+### Bug Fixes & Technical Improvements
+- Build: Resolved warnings related to missing dependencies in the tokenization pipeline.
+- Layout: Optimized the `AppHeader` by removing redundant sticky positioning logic.
+
 ## [2.7.0] - 2026-05-31
 
 ### Core System Updates

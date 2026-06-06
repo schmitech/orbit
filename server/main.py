@@ -32,7 +32,7 @@ configure_mongodb_logging()
 app = FastAPI(
     title="ORBIT",
     description="MCP inference server with RAG capabilities",
-    version="2.7.0"
+    version="2.7.1"
 )
 
 
