@@ -39,6 +39,12 @@ MIME_TYPES: Dict[str, str] = {
 class DocumentRenderer:
     """Render a document spec dict to bytes in the requested format."""
 
+    PDF_FONT_NAME = "Helvetica"
+    PDF_HEADER_FONT_NAME = "Helvetica-Bold"
+    PDF_TABLE_FONT_SIZE = 9
+    PDF_TABLE_MIN_FONT_SIZE = 7
+    PDF_TABLE_CELL_PADDING = 8
+
     def render(self, spec: Dict[str, Any], fmt: str) -> bytes:
         fmt = fmt.lower()
         if fmt == "pdf":
@@ -56,15 +62,16 @@ class DocumentRenderer:
     # ------------------------------------------------------------------
 
     def _render_pdf(self, spec: Dict[str, Any]) -> bytes:
-        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.pagesizes import A4, landscape
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import cm
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
         from reportlab.lib import colors
 
+        pagesize = landscape(A4) if self._pdf_should_use_landscape(spec, A4, 2.5 * cm) else A4
         buf = io.BytesIO()
         doc = SimpleDocTemplate(
-            buf, pagesize=A4,
+            buf, pagesize=pagesize,
             topMargin=2 * cm, bottomMargin=2 * cm,
             leftMargin=2.5 * cm, rightMargin=2.5 * cm,
         )
@@ -98,24 +105,149 @@ class DocumentRenderer:
                 story.append(Spacer(1, 0.3 * cm))
             table_data = section.get("table")
             if table_data and len(table_data) > 0:
-                # Ensure all cells are strings
-                safe_data = [[str(cell) for cell in row] for row in table_data]
-                tbl = Table(safe_data, repeatRows=1)
-                tbl.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4472C4")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 9),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#EBF0FA")]),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ]))
+                tbl = self._build_pdf_table(
+                    table_data=table_data,
+                    styles=styles,
+                    available_width=doc.width,
+                )
                 story.append(tbl)
                 story.append(Spacer(1, 0.3 * cm))
 
         doc.build(story)
         return buf.getvalue()
+
+    def _pdf_should_use_landscape(self, spec: Dict[str, Any], portrait_pagesize, horizontal_margin: float) -> bool:
+        portrait_width = portrait_pagesize[0] - (2 * horizontal_margin)
+        for section in spec.get("sections", []):
+            table_data = section.get("table")
+            if not table_data:
+                continue
+            normalized_rows = self._normalize_table_rows(table_data)
+            if normalized_rows and len(normalized_rows[0]) >= 7:
+                return True
+            if self._estimate_table_width(table_data) > portrait_width:
+                return True
+        return False
+
+    def _build_pdf_table(self, table_data, styles, available_width: float):
+        from reportlab.lib import colors
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.pdfbase.pdfmetrics import stringWidth
+        from reportlab.platypus import Paragraph, Table, TableStyle
+
+        normalized_rows = self._normalize_table_rows(table_data)
+        column_count = len(normalized_rows[0]) if normalized_rows else 0
+        font_size = self._resolve_table_font_size(column_count)
+
+        body_style = ParagraphStyle(
+            "DocTableBody",
+            parent=styles["BodyText"],
+            fontName=self.PDF_FONT_NAME,
+            fontSize=font_size,
+            leading=font_size + 2,
+            wordWrap="CJK",
+        )
+        header_style = ParagraphStyle(
+            "DocTableHeader",
+            parent=body_style,
+            fontName=self.PDF_HEADER_FONT_NAME,
+            textColor=colors.white,
+        )
+
+        col_widths = self._compute_pdf_col_widths(
+            normalized_rows=normalized_rows,
+            available_width=available_width,
+            font_size=font_size,
+            string_width=stringWidth,
+        )
+        wrapped_rows = [
+            [
+                Paragraph(str(cell), header_style if row_idx == 0 else body_style)
+                for cell in row
+            ]
+            for row_idx, row in enumerate(normalized_rows)
+        ]
+
+        tbl = Table(
+            wrapped_rows,
+            colWidths=col_widths,
+            repeatRows=1,
+            splitByRow=1,
+            hAlign="LEFT",
+        )
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4472C4")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), self.PDF_HEADER_FONT_NAME),
+            ("FONTSIZE", (0, 0), (-1, -1), font_size),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#EBF0FA")]),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), self.PDF_TABLE_CELL_PADDING / 2),
+            ("RIGHTPADDING", (0, 0), (-1, -1), self.PDF_TABLE_CELL_PADDING / 2),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        return tbl
+
+    def _estimate_table_width(self, table_data) -> float:
+        from reportlab.pdfbase.pdfmetrics import stringWidth
+
+        normalized_rows = self._normalize_table_rows(table_data)
+        widths = self._compute_pdf_col_widths(
+            normalized_rows=normalized_rows,
+            available_width=None,
+            font_size=self.PDF_TABLE_FONT_SIZE,
+            string_width=stringWidth,
+        )
+        return sum(widths)
+
+    @staticmethod
+    def _normalize_table_rows(table_data):
+        safe_rows = [[str(cell) for cell in row] for row in table_data if row]
+        if not safe_rows:
+            return []
+        column_count = max(len(row) for row in safe_rows)
+        return [row + [""] * (column_count - len(row)) for row in safe_rows]
+
+    def _resolve_table_font_size(self, column_count: int) -> int:
+        if column_count >= 8:
+            return self.PDF_TABLE_MIN_FONT_SIZE
+        if column_count >= 6:
+            return 8
+        return self.PDF_TABLE_FONT_SIZE
+
+    def _compute_pdf_col_widths(self, normalized_rows, available_width, font_size: int, string_width):
+        if not normalized_rows:
+            return []
+
+        column_count = len(normalized_rows[0])
+        widths = []
+        min_width = 42
+        max_width = available_width * 0.28 if available_width else None
+
+        for col_idx in range(column_count):
+            widest = 0.0
+            for row_idx, row in enumerate(normalized_rows):
+                font_name = self.PDF_HEADER_FONT_NAME if row_idx == 0 else self.PDF_FONT_NAME
+                cell_text = row[col_idx]
+                widest = max(widest, string_width(cell_text, font_name, font_size))
+            padded = widest + self.PDF_TABLE_CELL_PADDING
+            if max_width is not None:
+                padded = min(padded, max_width)
+            widths.append(max(min_width, padded))
+
+        if available_width and sum(widths) > available_width:
+            scale = available_width / sum(widths)
+            widths = [max(min_width, width * scale) for width in widths]
+
+            if sum(widths) > available_width:
+                even_width = available_width / column_count
+                widths = [even_width] * column_count
+            else:
+                widths[-1] += available_width - sum(widths)
+
+        return widths
 
     # ------------------------------------------------------------------
     # DOCX — python-docx

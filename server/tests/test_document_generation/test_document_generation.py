@@ -10,6 +10,7 @@ Covers:
 """
 
 import base64
+import io
 import json
 import os
 import sys
@@ -17,6 +18,7 @@ import types
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pypdf import PdfReader
 
 # Add server directory to path (same pattern as test_inference_bug_fixes.py)
 _server_dir = os.path.join(os.path.dirname(__file__), '..', '..')
@@ -97,6 +99,28 @@ class TestDocumentRenderer:
         assert isinstance(data, bytes)
         assert len(data) > 100
         assert data[:4] == b"%PDF"   # PDF magic bytes
+
+    def test_render_pdf_wide_table_uses_landscape_page(self):
+        spec = {
+            "title": "Wide Table",
+            "sections": [
+                {
+                    "heading": "Metrics",
+                    "table": [
+                        [f"Column {i}" for i in range(1, 10)],
+                        [f"Value {i}" for i in range(1, 10)],
+                    ],
+                }
+            ],
+            "metadata": {"author": "ORBIT", "date": "2026-06-06"},
+        }
+
+        data = self.renderer.render(spec, "pdf")
+        page = PdfReader(io.BytesIO(data)).pages[0]
+        width = float(page.mediabox.width)
+        height = float(page.mediabox.height)
+
+        assert width > height
 
     def test_render_docx(self):
         data = self.renderer.render(SAMPLE_SPEC, "docx")
