@@ -123,7 +123,8 @@ def _process_imports(config: Dict[str, Any], config_dir: str) -> Dict[str, Any]:
     real_config_dir = os.path.realpath(config_dir)
     for import_file in import_files:
         import_path = os.path.join(config_dir, import_file)
-        if os.path.relpath(os.path.realpath(import_path), real_config_dir).startswith('..'):
+        real_import_path = os.path.realpath(import_path)
+        if not os.path.commonpath([real_import_path, real_config_dir]) == real_config_dir:
             logger.warning(f"Skipping import '{import_file}': path escapes config directory")
             continue
         try:
@@ -159,7 +160,7 @@ def _load_imported_config(import_path: str, config_dir: str) -> Dict[str, Any]:
         imported_config = yaml.safe_load(file)
         logger.debug(f"Successfully imported configuration from {os.path.abspath(import_path)}")
 
-    imported_config = _process_imports(imported_config, config_dir)
+    imported_config = _process_imports(imported_config, os.path.dirname(real_import_path))
     _import_cache[real_import_path] = (mtime, copy.deepcopy(imported_config))
     return imported_config
 

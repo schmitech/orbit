@@ -182,9 +182,10 @@ class DynamicAdapterManager:
         Raises:
             TimeoutError: If initialization does not complete within timeout
         """
-        deadline = asyncio.get_event_loop().time() + timeout
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
         while True:
-            if asyncio.get_event_loop().time() > deadline:
+            if loop.time() > deadline:
                 raise TimeoutError(
                     f"Timed out waiting for adapter '{adapter_name}' initialization after {timeout}s"
                 )
@@ -193,12 +194,25 @@ class DynamicAdapterManager:
             if cached_adapter:
                 return cached_adapter
             if not self.adapter_cache.is_initializing(adapter_name):
-                # Initializer failed, we should try
+                # Initializer failed — take ownership and initialize directly.
+                # We cannot re-enter get_adapter here because it would try to
+                # claim_initialization again, fail (we already hold it), and
+                # loop back here indefinitely.
                 if self.adapter_cache.claim_initialization(adapter_name):
-                    break
-        # Recursively call get_adapter to load it ourselves
-        self.adapter_cache.release_initialization(adapter_name)
-        return await self.get_adapter(adapter_name)
+                    try:
+                        adapter_config = self.config_manager.get(adapter_name)
+                        adapter = await self.adapter_loader.load_adapter(adapter_name, adapter_config)
+                        self.adapter_cache.put(adapter_name, adapter)
+                        self._log_adapter_loaded(adapter_name, adapter_config)
+                        return adapter
+                    except ValueError as e:
+                        self._handle_adapter_load_error(adapter_name, e)
+                        raise
+                    except Exception as e:
+                        logger.error(f"Failed to load adapter {adapter_name}: {str(e)}")
+                        raise
+                    finally:
+                        self.adapter_cache.release_initialization(adapter_name)
 
     def _build_adapter_info_parts(self, adapter_config: Dict[str, Any]) -> list:
         """Build common adapter info parts shared by log and preload messages."""
@@ -591,15 +605,21 @@ class DynamicAdapterManager:
         self.config = config
         logger.debug("Updated global config for adapter reload")
 
-        # Update config references in all components
+        # adapter_loader and config_manager need the new config immediately so they
+        # load adapters with the updated settings.
+        # dependency_cleaner.update_config is deferred until after cleanup: the cleaner
+        # must still hold the OLD config when building datasource cache keys, otherwise
+        # it looks for db_new in the pool and misses the still-cached db_old connection.
         self.adapter_loader.update_config(config)
-        self.dependency_cleaner.update_config(config)
         self.config_manager.config = config
 
-        if adapter_name:
-            return await self.reloader.reload_single_adapter(adapter_name, config)
-        else:
-            return await self.reloader.reload_all_adapters(config)
+        try:
+            if adapter_name:
+                return await self.reloader.reload_single_adapter(adapter_name, config)
+            else:
+                return await self.reloader.reload_all_adapters(config)
+        finally:
+            self.dependency_cleaner.update_config(config)
 
     async def reload_templates(self, adapter_name: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -712,42 +732,42 @@ class DynamicAdapterManager:
     @property
     def _adapter_cache(self) -> Dict[str, Any]:
         """Backward compatibility: Direct access to adapter cache dict."""
-        return self.adapter_cache._cache
+        return self.adapter_cache._cache.copy()
 
     @property
     def _adapter_configs(self) -> Dict[str, Dict[str, Any]]:
         """Backward compatibility: Direct access to adapter configs dict."""
-        return self.config_manager._adapter_configs
+        return self.config_manager._adapter_configs.copy()
 
     @property
     def _provider_cache(self) -> Dict[str, Any]:
         """Backward compatibility: Direct access to provider cache dict."""
-        return self.provider_cache._cache
+        return self.provider_cache._cache.copy()
 
     @property
     def _embedding_cache(self) -> Dict[str, Any]:
         """Backward compatibility: Direct access to embedding cache dict."""
-        return self.embedding_cache._cache
+        return self.embedding_cache._cache.copy()
 
     @property
     def _reranker_cache(self) -> Dict[str, Any]:
         """Backward compatibility: Direct access to reranker cache dict."""
-        return self.reranker_cache._cache
+        return self.reranker_cache._cache.copy()
 
     @property
     def _vision_cache(self) -> Dict[str, Any]:
         """Backward compatibility: Direct access to vision cache dict."""
-        return self.vision_cache._cache
+        return self.vision_cache._cache.copy()
 
     @property
     def _audio_cache(self) -> Dict[str, Any]:
         """Backward compatibility: Direct access to audio cache dict."""
-        return self.audio_cache._cache
+        return self.audio_cache._cache.copy()
 
     @property
     def _initializing_adapters(self):
         """Backward compatibility: Direct access to initializing set."""
-        return self.adapter_cache._initializing
+        return self.adapter_cache._initializing.copy()
 
 
 class AdapterProxy:

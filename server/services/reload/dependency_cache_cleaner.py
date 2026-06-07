@@ -454,9 +454,6 @@ class DependencyCacheCleaner:
         # Check for vector_store in config section (multimodal/file adapters)
         vector_store = config_section.get('vector_store')
 
-        # Get template collection name for intent adapters
-        config_section.get('template_collection_name')
-
         stores_to_check = []
         if store_name:
             stores_to_check.append(store_name)
@@ -508,41 +505,13 @@ class DependencyCacheCleaner:
             from datasources.registry import get_registry as get_datasource_registry
             datasource_registry = get_datasource_registry()
 
-            # Build cache key similar to how datasource registry does it
-            # This uses the adapter-level database override if present
-            datasource_config = self.config.get('datasources', {}).get(datasource_name, {})
-
-            # If adapter has database override, build custom cache key
-            if database_override:
-                if datasource_name in ['sqlite']:
-                    cache_key = f"{datasource_name}:{database_override}"
-                elif datasource_name in ['duckdb']:
-                    cache_key = f"{datasource_name}:{database_override}"
-                elif datasource_name in ['postgres', 'postgresql', 'mysql', 'mssql']:
-                    host = datasource_config.get('host', 'localhost')
-                    port = datasource_config.get('port', 5432)
-                    username = datasource_config.get('username', '')
-                    cache_key = f"{datasource_name}:{host}:{port}:{database_override}:{username}"
-                elif datasource_name in ['mongodb', 'mongo']:
-                    host = datasource_config.get('host', 'localhost')
-                    port = datasource_config.get('port', 27017)
-                    cache_key = f"{datasource_name}:{host}:{port}:{database_override}"
-                else:
-                    cache_key = datasource_name
-            else:
-                # Use standard cache key generation
-                cache_key = datasource_registry._generate_cache_key(datasource_name, self.config)
-
-            # Check if datasource is cached and release it
-            if hasattr(datasource_registry, '_datasource_pool'):
-                if cache_key in datasource_registry._datasource_pool:
-                    try:
-                        # Release the datasource (decrements reference count)
-                        await datasource_registry.release_datasource(datasource_name, self.config)
-                        cleared.append(f"datasource:{cache_key}")
-                        logger.info(f"Released datasource cache for '{cache_key}' (adapter: {adapter_name})")
-                    except Exception as e:
-                        logger.debug(f"Error releasing datasource {cache_key}: {e}")
+            # Delegate to the registry's public invalidate_datasource method
+            cleared_key = await datasource_registry.invalidate_datasource(
+                datasource_name, self.config, database_override
+            )
+            if cleared_key:
+                cleared.append(f"datasource:{cleared_key}")
+                logger.info(f"Released datasource cache for '{cleared_key}' (adapter: {adapter_name})")
 
         except ImportError:
             logger.debug("Datasource registry not available for cache clearing")

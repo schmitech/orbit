@@ -807,7 +807,7 @@ async def toggle_adapter_enabled(
     if adapter_manager and config_path:
         try:
             new_config = reload_adapters_config(config_path)
-            reload_summary = await adapter_manager.reload_adapters(new_config, adapter_name)
+            reload_summary = await adapter_manager.reload_adapter_configs(new_config, adapter_name)
         except Exception as e:
             logger.error(
                 f"Adapter '{adapter_name}' YAML was {state} but runtime reload failed: {e}",
@@ -1349,7 +1349,7 @@ async def reload_adapters(
         new_config = reload_adapters_config(config_path)
 
         # Reload adapters using the adapter manager
-        summary = await adapter_manager.reload_adapters(new_config, adapter_name)
+        summary = await adapter_manager.reload_adapter_configs(new_config, adapter_name)
 
         # Generate appropriate message
         if adapter_name:

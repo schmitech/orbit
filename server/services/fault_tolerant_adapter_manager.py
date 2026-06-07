@@ -39,14 +39,6 @@ class FaultTolerantAdapterManager:
         )
         logger.info("Fault tolerance enabled with parallel execution")
     
-    def _is_enabled(self, value) -> bool:
-        """Check if a config value is true"""
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            return value.lower() in ('true', 'yes', '1', 'on')
-        return bool(value)
-    
     @property
     def config_manager(self):
         """Delegate to base adapter manager's config_manager for backward compatibility."""
@@ -72,6 +64,53 @@ class FaultTolerantAdapterManager:
         """Return metadata for all registered skill adapters."""
         return self.base_adapter_manager.get_all_skills()
 
+    async def get_overridden_provider(
+        self,
+        provider_name: str,
+        adapter_name: Optional[str] = None,
+        explicit_model_override: Optional[str] = None,
+    ) -> Any:
+        """Get an overridden provider instance."""
+        return await self.base_adapter_manager.get_overridden_provider(
+            provider_name, adapter_name, explicit_model_override
+        )
+
+    async def get_overridden_embedding(self, provider_name: str, adapter_name: Optional[str] = None) -> Any:
+        """Get an overridden embedding service instance."""
+        return await self.base_adapter_manager.get_overridden_embedding(provider_name, adapter_name)
+
+    async def get_overridden_reranker(self, provider_name: str, adapter_name: Optional[str] = None) -> Any:
+        """Get an overridden reranker service instance."""
+        return await self.base_adapter_manager.get_overridden_reranker(provider_name, adapter_name)
+
+    async def get_overridden_vision(self, provider_name: str, adapter_name: Optional[str] = None) -> Any:
+        """Get an overridden vision service instance."""
+        return await self.base_adapter_manager.get_overridden_vision(provider_name, adapter_name)
+
+    async def get_overridden_audio(self, provider_name: str, adapter_name: Optional[str] = None) -> Any:
+        """Get an overridden audio service instance."""
+        return await self.base_adapter_manager.get_overridden_audio(provider_name, adapter_name)
+
+    def get_allowed_models(self, adapter_name: str) -> list:
+        """Get the allowed models for an adapter."""
+        return self.base_adapter_manager.get_allowed_models(adapter_name)
+
+    def get_cached_adapters(self) -> List[str]:
+        """Get list of currently cached adapter names."""
+        return self.base_adapter_manager.get_cached_adapters()
+
+    async def preload_adapter(self, adapter_name: str) -> None:
+        """Preload an adapter into cache."""
+        await self.base_adapter_manager.preload_adapter(adapter_name)
+
+    async def remove_adapter(self, adapter_name: str, clear_dependencies: bool = False) -> bool:
+        """Remove an adapter from cache."""
+        return await self.base_adapter_manager.remove_adapter(adapter_name, clear_dependencies)
+
+    async def clear_cache(self) -> None:
+        """Clear all cached adapters."""
+        await self.base_adapter_manager.clear_cache()
+
     async def get_relevant_context(self, query: str, adapter_names: List[str] = None,
                                  adapter_name: str = None, api_key: Optional[str] = None,
                                  **kwargs) -> List[Dict[str, Any]]:
@@ -92,11 +131,6 @@ class FaultTolerantAdapterManager:
         if not target_adapters:
             logger.warning("No adapters specified")
             return []
-        
-        # Fault tolerance is always enabled - use parallel executor
-        if not self.parallel_executor:
-            logger.error("Parallel executor not initialized!")
-            return await self._sequential_execution(query, target_adapters[0], api_key, **kwargs)
         
         # Use parallel executor for fault-tolerant execution
         logger.debug(f"Executing {len(target_adapters)} adapters in parallel")
@@ -119,16 +153,6 @@ class FaultTolerantAdapterManager:
         
         return combined_context
     
-    async def _sequential_execution(self, query: str, adapter_name: str,
-                                  api_key: Optional[str] = None, **kwargs) -> List[Dict[str, Any]]:
-        """Fallback to sequential execution when fault tolerance is disabled"""
-        try:
-            adapter = await self.get_adapter(adapter_name)
-            return await adapter.get_relevant_context(query=query, api_key=api_key, **kwargs)
-        except Exception as e:
-            logger.error(f"Error in sequential execution for adapter {adapter_name}: {e}")
-            return []
-    
     def get_health_status(self) -> Dict[str, Any]:
         """Get health status of the adapter system"""
         health = {
@@ -140,6 +164,14 @@ class FaultTolerantAdapterManager:
         if self.parallel_executor:
             health["circuit_breakers"] = self.parallel_executor.get_circuit_breaker_status()
         
+        return health
+
+    async def health_check(self) -> Dict[str, Any]:
+        """Perform health check on the adapter manager."""
+        health = await self.base_adapter_manager.health_check()
+        health["fault_tolerance_enabled"] = self.fault_tolerance_enabled
+        if self.parallel_executor:
+            health["circuit_breakers"] = self.parallel_executor.get_circuit_breaker_status()
         return health
     
     def reset_circuit_breaker(self, adapter_name: str):
@@ -153,9 +185,9 @@ class FaultTolerantAdapterManager:
         """Preload all adapters"""
         return await self.base_adapter_manager.preload_all_adapters(timeout_per_adapter)
     
-    async def reload_adapters(self, config: Dict[str, Any], adapter_name: Optional[str] = None) -> Dict[str, Any]:
+    async def reload_adapter_configs(self, config: Dict[str, Any], adapter_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Reload adapters via base adapter manager.
+        Reload adapter configurations via base adapter manager.
 
         Args:
             config: The new configuration dictionary containing adapter configs

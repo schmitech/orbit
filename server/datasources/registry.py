@@ -425,6 +425,32 @@ class DatasourceRegistry:
                         f"refs: {self._datasource_references[cache_key]})"
                     )
 
+    async def invalidate_datasource(self, datasource_name: str, config: Dict[str, Any], database_override: Optional[str] = None) -> Optional[str]:
+        """
+        Safely release a datasource from the pool, resolving database override if present,
+        and return the generated cache key if it was in the pool.
+        """
+        target_config = config
+        if database_override:
+            import copy
+            target_config = copy.deepcopy(config)
+            if 'datasources' not in target_config:
+                target_config['datasources'] = {}
+            if datasource_name not in target_config['datasources']:
+                target_config['datasources'][datasource_name] = {}
+            target_config['datasources'][datasource_name]['database'] = database_override
+
+        cache_key = self._generate_cache_key(datasource_name, target_config)
+
+        exists = False
+        with self._pool_lock:
+            exists = cache_key in self._datasource_pool
+
+        if exists:
+            self.release_datasource(datasource_name, target_config)
+            return cache_key
+        return None
+
     def get_pool_stats(self) -> Dict[str, Any]:
         """
         Get statistics about the datasource pool.

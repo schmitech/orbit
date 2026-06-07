@@ -83,9 +83,6 @@ class AdapterReloader:
             if cached_adapter and hasattr(cached_adapter, '_adapter_config'):
                 old_config = getattr(cached_adapter, '_adapter_config', None)
 
-        if not old_config and self.config_manager.contains(adapter_name):
-            old_config = self.config_manager.get(adapter_name)
-
         # Clear dependency caches before removing adapter
         if old_config:
             await self.dependency_cleaner.clear_adapter_dependencies(adapter_name, old_config)

@@ -1068,5 +1068,228 @@ class TestPipelineChatServiceSharedAdapterManager:
             f"Expected 'openai' after config reload, but got '{updated_provider}'"
 
 
+class TestDatasourceConfigIsolationDuringReload:
+    """Regression: datasource invalidation must use the config held at cleanup time.
+
+    Before the fix, reload_adapter_configs() called dependency_cleaner.update_config(new)
+    before running cleanup. If the global datasource URL changed (e.g. postgres
+    database: db_old → db_new), the cleaner built the cache key from db_new and missed
+    the still-pooled db_old connection.
+
+    The fix defers update_config() to a finally block after the reloader runs.
+    These tests cover the layer below: DependencyCacheCleaner._clear_datasource_cache
+    forwards self.config (whatever it holds at call time) to invalidate_datasource.
+    """
+
+    def _make_minimal_cleaner(self, config):
+        from services.reload.dependency_cache_cleaner import DependencyCacheCleaner
+        provider_cache = Mock()
+        provider_cache.build_cache_key = Mock(return_value='provider:test')
+        provider_cache.contains = Mock(return_value=False)
+        provider_cache.remove_by_prefix = AsyncMock(return_value=[])
+        embedding_cache = Mock()
+        embedding_cache.build_cache_key = Mock(return_value='embedding:test')
+        embedding_cache.contains = Mock(return_value=False)
+        reranker_cache = Mock()
+        reranker_cache.build_cache_key = Mock(return_value='reranker:test')
+        reranker_cache.contains = Mock(return_value=False)
+        return DependencyCacheCleaner(config, provider_cache, embedding_cache, reranker_cache)
+
+    def _mock_registry_module(self, invalidate_fn):
+        """Return a mock datasources.registry module whose get_registry() yields invalidate_fn."""
+        mock_registry = Mock()
+        mock_registry.invalidate_datasource = invalidate_fn
+        mock_module = Mock()
+        mock_module.get_registry.return_value = mock_registry
+        return mock_module
+
+    @pytest.mark.asyncio
+    async def test_invalidate_receives_config_held_at_call_time(self):
+        """_clear_datasource_cache passes self.config — whatever the cleaner holds right now.
+
+        This is the contract the ordering fix relies on: as long as update_config() is
+        deferred until after cleanup, the old cache key is resolved correctly.
+        """
+        old_config = {
+            'datasources': {
+                'postgres': {'host': 'db-host', 'port': 5432, 'database': 'db_old', 'username': 'appuser'}
+            }
+        }
+        cleaner = self._make_minimal_cleaner(old_config)
+        adapter_config = {'datasource': 'postgres'}
+
+        configs_seen = []
+
+        async def capture(datasource_name, config, database_override=None):
+            configs_seen.append(config)
+            return 'postgres:db-host:5432:db_old:appuser'
+
+        with patch.dict(sys.modules, {'datasources.registry': self._mock_registry_module(capture)}):
+            cleared = await cleaner._clear_datasource_cache('my_adapter', adapter_config)
+
+        assert len(configs_seen) == 1
+        assert configs_seen[0] is old_config
+        assert cleared == ['datasource:postgres:db-host:5432:db_old:appuser']
+
+    @pytest.mark.asyncio
+    async def test_stale_connection_missed_when_update_config_runs_before_cleanup(self):
+        """Demonstrates the bug: update_config(new) before cleanup misses the old pooled entry.
+
+        The pool only contains an entry keyed by db_old. After premature update_config(new),
+        the cleaner asks the registry to invalidate db_new — a miss — and the old stale
+        connection is never released.
+        """
+        old_config = {
+            'datasources': {
+                'postgres': {'host': 'db-host', 'port': 5432, 'database': 'db_old', 'username': 'appuser'}
+            }
+        }
+        new_config = {
+            'datasources': {
+                'postgres': {'host': 'db-host', 'port': 5432, 'database': 'db_new', 'username': 'appuser'}
+            }
+        }
+        cleaner = self._make_minimal_cleaner(old_config)
+        # Simulate the pre-fix bug: update config before cleanup runs
+        cleaner.update_config(new_config)
+
+        adapter_config = {'datasource': 'postgres'}
+
+        async def pool_lookup(datasource_name, config, database_override=None):
+            db = config.get('datasources', {}).get(datasource_name, {}).get('database')
+            if db == 'db_old':
+                return 'postgres:db-host:5432:db_old:appuser'
+            return None  # db_new not in pool — miss
+
+        with patch.dict(sys.modules, {'datasources.registry': self._mock_registry_module(pool_lookup)}):
+            cleared = await cleaner._clear_datasource_cache('my_adapter', adapter_config)
+
+        # With premature update_config the old connection is NOT released
+        assert cleared == []
+
+    @pytest.mark.asyncio
+    async def test_old_pool_entry_released_when_config_not_yet_updated(self):
+        """Old pooled connection is released when cleanup runs before update_config (post-fix).
+
+        The cleaner still holds old_config, so the cache key resolves to db_old, which
+        is present in the pool. The stale connection is correctly released.
+        """
+        old_config = {
+            'datasources': {
+                'postgres': {'host': 'db-host', 'port': 5432, 'database': 'db_old', 'username': 'appuser'}
+            }
+        }
+        cleaner = self._make_minimal_cleaner(old_config)
+        # Config is NOT updated before cleanup — this is the fix
+        adapter_config = {'datasource': 'postgres'}
+
+        OLD_KEY = 'postgres:db-host:5432:db_old:appuser'
+
+        async def pool_lookup(datasource_name, config, database_override=None):
+            db = config.get('datasources', {}).get(datasource_name, {}).get('database')
+            if db == 'db_old':
+                return OLD_KEY
+            return None
+
+        with patch.dict(sys.modules, {'datasources.registry': self._mock_registry_module(pool_lookup)}):
+            cleared = await cleaner._clear_datasource_cache('my_adapter', adapter_config)
+
+        # With deferred update_config the old connection IS released
+        assert cleared == ['datasource:' + OLD_KEY]
+
+
+class TestReloadAdapterConfigsOrdering:
+    """Verify reload_adapter_configs() defers dependency_cleaner.update_config until after cleanup.
+
+    This tests the orchestration-level fix: the DynamicAdapterManager must not call
+    dependency_cleaner.update_config(new) until after the reloader (and its cleanup
+    calls) have finished running.
+    """
+
+    def _make_manager(self, old_config):
+        """Build a DynamicAdapterManager with all init methods patched out."""
+        from services.dynamic_adapter_manager import DynamicAdapterManager
+
+        with patch.object(DynamicAdapterManager, '_init_cache_managers'), \
+             patch.object(DynamicAdapterManager, '_init_config_manager'), \
+             patch.object(DynamicAdapterManager, '_init_loader'), \
+             patch.object(DynamicAdapterManager, '_init_reloader'):
+            manager = DynamicAdapterManager(old_config)
+
+        manager.adapter_loader = Mock()
+        manager.adapter_loader.update_config = Mock()
+        manager.config_manager = Mock()
+        manager.config_manager.config = old_config
+        manager.dependency_cleaner = Mock()
+        manager.dependency_cleaner.config = old_config
+        manager.dependency_cleaner.update_config = Mock(
+            side_effect=lambda c: setattr(manager.dependency_cleaner, 'config', c)
+        )
+        manager.reloader = Mock()
+        return manager
+
+    @pytest.mark.asyncio
+    async def test_dependency_cleaner_holds_old_config_when_reload_runs(self):
+        """dependency_cleaner.config is still old_config when reload_single_adapter is called."""
+        old_config = {'datasources': {'postgres': {'database': 'db_old'}}, 'adapters': []}
+        new_config = {'datasources': {'postgres': {'database': 'db_new'}}, 'adapters': []}
+
+        manager = self._make_manager(old_config)
+
+        config_at_reload_time = {}
+
+        async def capture_reload(adapter_name, config):
+            config_at_reload_time['cleaner'] = manager.dependency_cleaner.config
+            return {'action': 'updated'}
+
+        manager.reloader.reload_single_adapter = capture_reload
+
+        await manager.reload_adapter_configs(new_config, adapter_name='my_adapter')
+
+        # Cleaner still held old_config when reload (and cleanup) ran
+        assert config_at_reload_time['cleaner'] is old_config
+        # Cleaner was updated to new_config afterwards
+        assert manager.dependency_cleaner.config is new_config
+
+    @pytest.mark.asyncio
+    async def test_dependency_cleaner_updated_after_reload_all(self):
+        """dependency_cleaner.update_config is called after reload_all_adapters completes."""
+        old_config = {'datasources': {'postgres': {'database': 'db_old'}}, 'adapters': []}
+        new_config = {'datasources': {'postgres': {'database': 'db_new'}}, 'adapters': []}
+
+        manager = self._make_manager(old_config)
+
+        call_order = []
+        manager.dependency_cleaner.update_config = Mock(
+            side_effect=lambda c: call_order.append('update_config')
+        )
+
+        async def track_reload(config):
+            call_order.append('reload_all')
+            return {'added': 0, 'removed': 0, 'updated': 0, 'unchanged': 0, 'total': 0,
+                    'added_names': [], 'removed_names': [], 'updated_names': []}
+
+        manager.reloader.reload_all_adapters = track_reload
+
+        await manager.reload_adapter_configs(new_config)
+
+        assert call_order == ['reload_all', 'update_config']
+
+    @pytest.mark.asyncio
+    async def test_dependency_cleaner_updated_even_if_reload_raises(self):
+        """update_config runs in a finally block — it fires even when reload raises."""
+        old_config = {'adapters': []}
+        new_config = {'adapters': []}
+
+        manager = self._make_manager(old_config)
+        manager.reloader.reload_all_adapters = AsyncMock(side_effect=RuntimeError("reload failed"))
+
+        with pytest.raises(RuntimeError, match="reload failed"):
+            await manager.reload_adapter_configs(new_config)
+
+        # update_config still ran despite the exception
+        manager.dependency_cleaner.update_config.assert_called_once_with(new_config)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

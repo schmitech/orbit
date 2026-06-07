@@ -233,34 +233,6 @@ class TestFaultTolerantAdapterManager:
         assert call_args[0][0] == "test query"  # query
     
     @pytest.mark.anyio
-    async def test_get_relevant_context_no_parallel_executor(self, mock_app_state, mock_base_adapter_manager):
-        """Test get_relevant_context fallback when parallel executor fails to initialize"""
-        with patch('services.fault_tolerant_adapter_manager.DynamicAdapterManager') as mock_dam, \
-             patch('services.fault_tolerant_adapter_manager.ParallelAdapterExecutor') as mock_pae:
-            
-            mock_dam.return_value = mock_base_adapter_manager
-            # Simulate parallel executor initialization failure
-            mock_pae.side_effect = Exception("Failed to initialize")
-            
-            try:
-                manager = FaultTolerantAdapterManager(TEST_CONFIG, mock_app_state)
-                # Manually set parallel_executor to None to simulate failure
-                manager.parallel_executor = None
-                
-                result = await manager.get_relevant_context("test query", api_key="test-key")
-                
-                # Should fallback to sequential execution
-                assert isinstance(result, list)
-                assert len(result) == 1
-                assert result[0]['content'] == 'Result from adapter1'
-                
-                # Verify get_adapter was called
-                mock_base_adapter_manager.get_adapter.assert_called_once_with("adapter1")
-            except Exception:
-                # If initialization fails completely, that's also a valid test outcome
-                pass
-    
-    @pytest.mark.anyio
     async def test_get_relevant_context_with_specific_adapters(self, fault_tolerant_manager):
         """Test get_relevant_context with specific adapter names"""
         mock_results = [
@@ -417,25 +389,6 @@ class TestFaultTolerantAdapterManagerEdgeCases:
         result = await fault_tolerant_manager.get_relevant_context("test query")
         
         assert result == []
-    
-    def test_is_enabled_string_values(self, mock_app_state):
-        """Test _is_enabled method with string values"""
-        with patch('services.fault_tolerant_adapter_manager.DynamicAdapterManager'):
-            manager = FaultTolerantAdapterManager({}, mock_app_state)
-            
-            assert manager._is_enabled(True) is True
-            assert manager._is_enabled("true") is True
-            assert manager._is_enabled("True") is True
-            assert manager._is_enabled("1") is True
-            assert manager._is_enabled(1) is True
-            
-            assert manager._is_enabled(False) is False
-            assert manager._is_enabled("false") is False
-            assert manager._is_enabled("False") is False
-            assert manager._is_enabled("0") is False
-            assert manager._is_enabled(0) is False
-            assert manager._is_enabled("") is False
-            assert manager._is_enabled(None) is False
     
     @pytest.mark.anyio
     async def test_timeout_in_parallel_execution(self, fault_tolerant_manager):
