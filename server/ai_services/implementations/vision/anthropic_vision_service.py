@@ -44,6 +44,7 @@ class AnthropicVisionService(VisionService, AnthropicBaseService):
         try:
             # Convert image to base64
             image_base64 = self._image_to_base64(image)
+            image_mime_type = self._get_image_mime_type(image)
             
             # Create messages with image content
             messages = [
@@ -54,7 +55,7 @@ class AnthropicVisionService(VisionService, AnthropicBaseService):
                             "type": "image",
                             "source": {
                                 "type": "base64",
-                                "media_type": "image/png",
+                                "media_type": image_mime_type,
                                 "data": image_base64
                             }
                         },
@@ -67,11 +68,16 @@ class AnthropicVisionService(VisionService, AnthropicBaseService):
             ]
 
             # Call Anthropic API
+            params = {
+                "model": self.model,
+                "max_tokens": self.max_tokens,
+                "messages": messages,
+            }
+            if self._supports_custom_sampling():
+                params["temperature"] = self.temperature
+
             response = await self.client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-                messages=messages
+                **params
             )
 
             # Extract text from response
@@ -141,6 +147,7 @@ class AnthropicVisionService(VisionService, AnthropicBaseService):
         try:
             # Convert image to base64
             image_base64 = self._image_to_base64(image)
+            image_mime_type = self._get_image_mime_type(image)
             
             # Create messages with image and text
             messages = [
@@ -151,7 +158,7 @@ class AnthropicVisionService(VisionService, AnthropicBaseService):
                             "type": "image",
                             "source": {
                                 "type": "base64",
-                                "media_type": "image/png",
+                                "media_type": image_mime_type,
                                 "data": image_base64
                             }
                         },
@@ -167,9 +174,11 @@ class AnthropicVisionService(VisionService, AnthropicBaseService):
             params = {
                 "model": self.model,
                 "max_tokens": kwargs.pop('max_tokens', self.max_tokens),
-                "temperature": kwargs.pop('temperature', self.temperature),
                 "messages": messages
             }
+            temperature = kwargs.pop('temperature', self.temperature)
+            if self._supports_custom_sampling():
+                params["temperature"] = temperature
             params.update(kwargs)
 
             response = await self.client.messages.create(**params)
@@ -182,4 +191,3 @@ class AnthropicVisionService(VisionService, AnthropicBaseService):
         except Exception as e:
             self._handle_anthropic_error(e, "multimodal inference")
             raise
-

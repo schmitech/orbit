@@ -185,6 +185,20 @@ class AnthropicBaseService(ProviderAIService):
         provider_config = self._extract_provider_config()
         return provider_config.get('temperature', default)
 
+    def _supports_custom_sampling(self) -> bool:
+        """
+        Return whether the current model accepts non-default sampling params.
+
+        Claude Opus 4.7 and 4.8 reject custom temperature/top_p/top_k values on
+        the Messages API. For those models, callers should omit the parameter.
+        """
+        model_name = (self.model or "").lower()
+        unsupported_prefixes = (
+            "claude-opus-4-7",
+            "claude-opus-4-8",
+        )
+        return not model_name.startswith(unsupported_prefixes)
+
     def _get_top_p(self, default: float = 0.8) -> float:
         """
         Get top_p configuration.
