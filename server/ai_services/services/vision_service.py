@@ -194,9 +194,8 @@ class VisionService(ProviderAIService):
         elif isinstance(image, bytes):
             return image
         elif isinstance(image, Image.Image):
-            # Convert PIL Image to bytes
             buf = BytesIO()
-            image.save(buf, format='PNG')
+            image.save(buf, format=image.format or 'PNG')
             return buf.getvalue()
         else:
             raise ValueError(f"Unsupported image type: {type(image)}")
@@ -224,7 +223,27 @@ class VisionService(ProviderAIService):
         Returns:
             MIME type string
         """
-        # Default to PNG
+        if isinstance(image, str):
+            lower = image.lower()
+            if lower.endswith(('.jpg', '.jpeg')):
+                return "image/jpeg"
+            elif lower.endswith('.gif'):
+                return "image/gif"
+            elif lower.endswith('.webp'):
+                return "image/webp"
+            return "image/png"
+        elif isinstance(image, bytes):
+            # Detect format from magic bytes
+            if image[:2] == b'\xff\xd8':
+                return "image/jpeg"
+            elif image[:6] in (b'GIF87a', b'GIF89a'):
+                return "image/gif"
+            elif len(image) > 12 and image[:4] == b'RIFF' and image[8:12] == b'WEBP':
+                return "image/webp"
+            return "image/png"
+        elif isinstance(image, Image.Image):
+            fmt = (image.format or 'PNG').lower()
+            return f"image/{fmt}"
         return "image/png"
 
 

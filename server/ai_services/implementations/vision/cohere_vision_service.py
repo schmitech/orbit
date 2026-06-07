@@ -6,6 +6,8 @@ This implementation provides vision capabilities using Cohere's multimodal model
 
 from typing import Dict, Any, Union, List
 from PIL import Image
+from io import BytesIO
+import base64
 import logging
 
 from ...base import ServiceType
@@ -35,6 +37,32 @@ class CohereVisionService(VisionService, CohereBaseService):
         self.temperature = self._get_temperature(default=0.0)
         self.max_tokens = self._get_max_tokens(default=1000)
         self.top_p = self._get_top_p(default=1.0)
+
+    def _image_to_base64(self, image: Union[str, bytes, Image.Image]) -> str:
+        """Convert image to base64 JPEG — Cohere Aya Vision only supports JPEG/PNG."""
+        if isinstance(image, str):
+            with open(image, 'rb') as f:
+                raw = f.read()
+            pil_img = Image.open(BytesIO(raw))
+        elif isinstance(image, bytes):
+            pil_img = Image.open(BytesIO(image))
+        else:
+            pil_img = image
+
+        # Strip alpha channel (JPEG doesn't support it)
+        if pil_img.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', pil_img.size, (255, 255, 255))
+            background.paste(pil_img.convert('RGBA'), mask=pil_img.convert('RGBA').split()[3])
+            pil_img = background
+        elif pil_img.mode != 'RGB':
+            pil_img = pil_img.convert('RGB')
+
+        buf = BytesIO()
+        pil_img.save(buf, format='JPEG', quality=92)
+        return base64.b64encode(buf.getvalue()).decode('utf-8')
+
+    def _get_image_mime_type(self, image: Union[str, bytes, Image.Image]) -> str:
+        return "image/jpeg"
 
     def _get_temperature(self, default: float = 0.0) -> float:
         """Get temperature configuration."""

@@ -93,7 +93,8 @@ class CohereBaseService(ProviderAIService):
         if '/v2' in self.base_url:
             logger.debug("Using Cohere AsyncClientV2 for v2 API")
             self.client = cohere.AsyncClientV2(
-                api_key=self.api_key
+                api_key=self.api_key,
+                base_url=self.base_url
             )
             self.api_version = 'v2'
         else:
