@@ -522,6 +522,132 @@ def create_file_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")
     
     
+    @router.post("/api/files/{file_id}/reprocess")
+    async def reprocess_file(
+        file_id: str,
+        request: Request,
+        background_tasks: BackgroundTasks,
+        x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+        processing_service: FileProcessingService = Depends(get_processing_service)
+    ):
+        """
+        Re-extract and re-index an existing file using the currently configured
+        providers (e.g. after changing an adapter's vision_provider and reloading).
+
+        Vision/STT only run at processing time, so an already-uploaded file keeps
+        the extraction from its original upload. This re-runs the pipeline against
+        the stored bytes with the live provider, without requiring a re-upload.
+
+        Runs in the background; poll GET /api/files/{file_id} for status.
+
+        Args:
+            file_id: File identifier
+            x_api_key: API key for authentication
+            processing_service: File processing service
+
+        Returns:
+            202 with the file_id and status="processing"
+
+        Raises:
+            HTTPException: If file not found or access denied
+        """
+        try:
+            if not x_api_key:
+                raise HTTPException(status_code=401, detail="API key required")
+
+            file_info = await processing_service.metadata_store.get_file_info(file_id)
+            if not file_info:
+                raise HTTPException(status_code=404, detail="File not found")
+            if file_info['api_key'] != x_api_key:
+                raise HTTPException(status_code=403, detail="Access denied")
+
+            # Mark as processing immediately so clients polling status see the change
+            await processing_service.metadata_store.update_processing_status(
+                file_id, 'processing', chunk_count=0
+            )
+
+            background_tasks.add_task(
+                processing_service.reprocess_file,
+                file_id,
+                x_api_key,
+            )
+
+            logger.info(f"File re-processing started: {file_id}")
+
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "message": "File re-processing started",
+                    "file_id": file_id,
+                    "status": "processing"
+                }
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error starting file re-processing: {e}")
+            raise HTTPException(status_code=500, detail=f"Error re-processing file: {str(e)}")
+
+    @router.post("/api/files/reprocess")
+    async def reprocess_all_files(
+        request: Request,
+        background_tasks: BackgroundTasks,
+        x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+        processing_service: FileProcessingService = Depends(get_processing_service)
+    ):
+        """
+        Re-process all image and audio files for an API key using the currently
+        configured providers. Useful after changing an adapter's vision_provider
+        or stt_provider so existing uploads pick up the new provider.
+
+        Only image/* and audio/* files are re-processed, since text extraction is
+        provider-independent. Runs in the background; poll per-file status.
+
+        Args:
+            x_api_key: API key for authentication
+            processing_service: File processing service
+
+        Returns:
+            202 with the count of files queued for re-processing
+        """
+        try:
+            if not x_api_key:
+                raise HTTPException(status_code=401, detail="API key required")
+
+            files = await processing_service.metadata_store.list_files(x_api_key)
+            queued = []
+            for file in files:
+                mime_type = file.get('mime_type') or ''
+                if not (mime_type.startswith('image/') or mime_type.startswith('audio/')):
+                    continue
+                await processing_service.metadata_store.update_processing_status(
+                    file['file_id'], 'processing', chunk_count=0
+                )
+                background_tasks.add_task(
+                    processing_service.reprocess_file,
+                    file['file_id'],
+                    x_api_key,
+                )
+                queued.append(file['file_id'])
+
+            logger.info(f"Queued {len(queued)} file(s) for re-processing for API key {x_api_key[:8]}...")
+
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "message": f"Re-processing started for {len(queued)} file(s)",
+                    "file_ids": queued,
+                    "status": "processing"
+                }
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error starting bulk file re-processing: {e}")
+            raise HTTPException(status_code=500, detail=f"Error re-processing files: {str(e)}")
+
     @router.post("/api/files/{file_id}/query", response_model=QueryResponse)
     async def query_file(
         file_id: str,

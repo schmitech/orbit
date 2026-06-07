@@ -408,6 +408,44 @@ class FileProcessingService:
         self._scan_for_dangerous_content(file_data, detected_type)
         return detected_type
 
+    def _get_live_config(self) -> Dict[str, Any]:
+        """
+        Return the current full application config, preferring the hot-reloaded
+        config held by the adapter manager over the startup snapshot.
+
+        Provider-specific sections (``visions``, ``stt_providers``, ``tts_providers``)
+        are captured at construction time, but adapters and providers can be updated
+        and reloaded at runtime via the admin panel. Reading the adapter manager's
+        live config ensures provider/model changes take effect without a server
+        restart. Falls back to the startup snapshot if the live config is unavailable.
+        """
+        try:
+            if self.app_state and hasattr(self.app_state, 'adapter_manager'):
+                config_manager = getattr(self.app_state.adapter_manager, 'config_manager', None)
+                live_config = getattr(config_manager, 'config', None)
+                if live_config:
+                    return live_config
+        except Exception as e:
+            logger.debug(f"Could not access live config from adapter manager, using startup snapshot: {e}")
+        return self.config
+
+    async def _create_vision_service(self, vision_provider: str) -> Any:
+        """
+        Create (or fetch the cached) vision service for the given provider.
+
+        Built from the current hot-reloaded config so that provider/model changes
+        applied via adapter reload take effect without a server restart. The factory
+        caches the instance, and that cache is invalidated on adapter reload.
+        """
+        from ai_services import AIServiceFactory, ServiceType
+
+        live_config = self._get_live_config()
+        return AIServiceFactory.create_service(
+            ServiceType.VISION,
+            vision_provider,
+            {'visions': live_config.get('visions', {})}
+        )
+
     async def _get_vision_provider_for_api_key(self, api_key: str) -> str:
         """
         Get the vision provider for a given API key by looking up its adapter configuration.
@@ -680,12 +718,13 @@ class FileProcessingService:
             # Get audio service - pass config with stt_providers and tts_providers keys
             # as expected by ProviderAIService._extract_provider_config()
             try:
+                live_config = self._get_live_config()
                 audio_service = AIServiceFactory.create_service(
                     ServiceType.AUDIO,
                     audio_provider,
                     {
-                        'stt_providers': self.stt_providers_config,
-                        'tts_providers': self.tts_providers_config
+                        'stt_providers': live_config.get('stt_providers', {}),
+                        'tts_providers': live_config.get('tts_providers', {})
                     }
                 )
             except ValueError as e:
@@ -936,18 +975,17 @@ class FileProcessingService:
     ) -> tuple[str, Dict[str, Any]]:
         """Extract content from image using vision services."""
         import asyncio
-        from ai_services import AIServiceFactory, ServiceType
 
         try:
             # Get adapter-specific vision provider (or fallback to default)
             vision_provider = await self._get_vision_provider_for_api_key(api_key)
 
-            # Get vision service
-            vision_service = AIServiceFactory.create_service(
-                ServiceType.VISION,
-                vision_provider,
-                {'vision': self.vision_config}
-            )
+            # Resolve the vision service through the adapter manager's managed
+            # VisionCacheManager. That cache is keyed/invalidated on adapter reload
+            # and always built from live config, so provider/model changes take
+            # effect without a server restart. Fall back to a direct factory call
+            # with live config when the adapter manager is unavailable (e.g. tests).
+            vision_service = await self._create_vision_service(vision_provider)
 
             # Initialize if needed
             if not vision_service.initialized:
@@ -1217,27 +1255,9 @@ class FileProcessingService:
         if file_info['api_key'] != api_key:
             raise PermissionError("Access denied")
         
-        chunks_already_deleted = False  # Track if chunks were already deleted
-        try:
-            # 1. Delete chunks from vector store and metadata store
-            # Get adapter-specific config for this API key (includes embedding provider override)
-            adapter_aware_config = await self._get_adapter_config_for_api_key(api_key)
+        # 1. Delete chunks from vector store and metadata store
+        chunks_already_deleted = await self._delete_file_chunks(file_id, api_key)
 
-            # Get or create cached file retriever with adapter-aware config to delete chunks from vector store
-            from services.retriever_cache import get_retriever_cache
-            retriever_cache = get_retriever_cache()
-            retriever = await retriever_cache.get_retriever(adapter_aware_config)
-            
-            # Delete chunks from both vector store and metadata store
-            chunks_deleted = await retriever.delete_file_chunks(file_id)
-            if not chunks_deleted:
-                logger.warning(f"Failed to delete chunks for file {file_id}, continuing with file deletion")
-            else:
-                chunks_already_deleted = True  # Chunks successfully deleted from metadata store
-        except Exception as e:
-            # Log error but continue with file deletion
-            logger.error(f"Error deleting chunks from vector store for file {file_id}: {e}. Continuing with file deletion.")
-        
         # 2. Delete file from storage (filesystem)
         try:
             storage_key = file_info['storage_key']
@@ -1257,6 +1277,89 @@ class FileProcessingService:
         
         return metadata_deleted
     
+    async def _delete_file_chunks(self, file_id: str, api_key: str) -> bool:
+        """
+        Delete a file's chunks from the vector store and metadata store.
+
+        Returns True if the chunks were successfully removed, False otherwise.
+        Failures are logged but not raised so callers can continue.
+        """
+        try:
+            # Get adapter-specific config for this API key (includes embedding provider override)
+            adapter_aware_config = await self._get_adapter_config_for_api_key(api_key)
+
+            # Get or create cached file retriever with adapter-aware config to delete chunks from vector store
+            from services.retriever_cache import get_retriever_cache
+            retriever_cache = get_retriever_cache()
+            retriever = await retriever_cache.get_retriever(adapter_aware_config)
+
+            # Delete chunks from both vector store and metadata store
+            chunks_deleted = await retriever.delete_file_chunks(file_id)
+            if not chunks_deleted:
+                logger.warning(f"Failed to delete chunks for file {file_id}")
+            return bool(chunks_deleted)
+        except Exception as e:
+            logger.error(f"Error deleting chunks from vector store for file {file_id}: {e}")
+            return False
+
+    async def reprocess_file(
+        self,
+        file_id: str,
+        api_key: str,
+        vision_prompt: Optional[str] = None
+    ) -> None:
+        """
+        Re-extract and re-index an already-uploaded file using the currently
+        configured providers.
+
+        Vision (for images) and STT (for audio) run only at processing time and
+        the result is persisted as chunks. After changing an adapter's
+        ``vision_provider``/``stt_provider`` (and reloading), call this to refresh
+        an existing file's extraction without requiring the user to re-upload.
+
+        The original bytes are reloaded from storage, the previously-extracted
+        chunks are removed, and the standard processing pipeline is re-run. Provider
+        resolution inside the pipeline happens live, so the current provider is used.
+
+        Args:
+            file_id: Identifier of the file to re-process
+            api_key: API key that owns the file (ownership is enforced)
+            vision_prompt: Optional custom prompt for image analysis. Not persisted
+                from the original upload, so defaults to None (standard description).
+
+        Raises:
+            FileNotFoundError: If the file does not exist
+            PermissionError: If the API key does not own the file
+        """
+        file_info = await self.metadata_store.get_file_info(file_id)
+        if not file_info:
+            raise FileNotFoundError(f"File not found: {file_id}")
+        if file_info['api_key'] != api_key:
+            raise PermissionError("Access denied")
+
+        filename = file_info['filename']
+        mime_type = file_info['mime_type']
+        storage_key = file_info['storage_key']
+
+        logger.info(f"Re-processing file {file_id} ({filename}, {mime_type})")
+
+        # Reload the original bytes from storage
+        file_data = await self.storage.get_file(storage_key)
+
+        # Remove previously-extracted chunks so re-processing does not duplicate them
+        await self._delete_file_chunks(file_id, api_key)
+
+        # Reset status and re-run extraction/chunking/indexing with live providers
+        await self.metadata_store.update_processing_status(file_id, 'processing', chunk_count=0)
+        await self.process_file_content(
+            file_id=file_id,
+            file_data=file_data,
+            filename=filename,
+            mime_type=mime_type,
+            api_key=api_key,
+            vision_prompt=vision_prompt,
+        )
+
     async def list_files(self, api_key: str) -> List[Dict[str, Any]]:
         """List all files for an API key."""
         return await self.metadata_store.list_files(api_key)

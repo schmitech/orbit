@@ -42,6 +42,11 @@ def clear_config_cache() -> None:
     with _config_lock:
         _config = None
         _resolved_presets.clear()
+        # Also drop parsed imports. A parent import (e.g. adapters.yaml) caches its
+        # fully-merged subtree keyed by its own mtime, so editing a nested import
+        # (e.g. adapters/multimodal.yaml) would otherwise be masked by the unchanged
+        # parent's cache entry.
+        _import_cache.clear()
 
 
 def _load_config_from_disk(config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -332,6 +337,10 @@ def reload_config(config_path: str) -> Optional[Dict[str, Any]]:
     global _config
     with _config_lock:
         _resolved_presets.clear()
+        # A reload must reflect on-disk changes, including edits to nested imports
+        # whose parent import file's mtime did not change. Drop the import cache so
+        # every imported file is re-read and re-merged from disk.
+        _import_cache.clear()
         _config = _load_config_from_disk(config_path)
         return _config
 
