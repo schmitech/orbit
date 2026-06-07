@@ -802,6 +802,15 @@ class PipelineChatService:
                 yield f"data: {json.dumps({'error': str(stream_error), 'done': True})}\n\n"
                 return
 
+            # Safety filter block: the pipeline emits a single {"response": "...", "done": true} chunk.
+            # streaming_handler accumulates it internally but yields nothing, so final_state is None.
+            # Emit the refusal message directly without storing it in conversation history.
+            if final_state is None and context.is_blocked:
+                refusal = context.error or "Message blocked by content moderator"
+                yield f"data: {json.dumps({'response': refusal, 'done': False})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                return
+
             # Image/video/document generation: the pipeline emits a single {"done":true,...} chunk.
             # streaming_handler consumes it internally (accumulates text, sets stream_completed)
             # but yields zero items, so final_state is never assigned above.

@@ -164,8 +164,11 @@ class InferencePipeline:
                     # Check for early termination
                     if context.is_blocked or context.has_error():
                         logger.warning(f"Pipeline stopped at step {step.get_name()}: {'blocked' if context.is_blocked else 'error'}")
-                        error_json = json.dumps({"error": context.error or "Pipeline blocked", "done": True})
-                        yield error_json
+                        if context.is_blocked:
+                            # Blocked messages (e.g. safety filter refusals) are user-facing — send as response
+                            yield json.dumps({"response": context.error or "Message blocked by content moderator", "done": True})
+                        else:
+                            yield json.dumps({"error": context.error or "Pipeline error", "done": True})
                         total_time = time.perf_counter() - start_time
                         self.monitor.record_pipeline_metrics(total_time, False)
                         return
