@@ -100,6 +100,7 @@ export class FileUploadService {
         'image/png',
         'image/jpeg',
         'image/tiff',
+        'image/webp',
         // Audio types
         'audio/wav',
         'audio/mpeg',
@@ -117,7 +118,7 @@ export class FileUploadService {
       // Note: Some browsers may detect Excel files as application/x-zip-compressed
       // or application/zip because XLSX files are ZIP archives, so we also check by extension
       const isValidType = allowedTypes.includes(file.type) ||
-        /\.(pdf|txt|md|csv|json|html|docx|pptx|xlsx|py|java|sql|js|mjs|ts|tsx|cpp|cxx|cc|c|h|hpp|go|rs|rb|php|sh|bash|zsh|yaml|yml|xml|css|scss|sass|less|png|jpe?g|tiff?|wav|mp3|mp4|ogg|flac|webm|m4a|aac|vtt)$/i.test(file.name) ||
+        /\.(pdf|txt|md|csv|json|html|docx|pptx|xlsx|py|java|sql|js|mjs|ts|tsx|cpp|cxx|cc|c|h|hpp|go|rs|rb|php|sh|bash|zsh|yaml|yml|xml|css|scss|sass|less|png|jpe?g|tiff?|webp|wav|mp3|mp4|ogg|flac|webm|m4a|aac|vtt)$/i.test(file.name) ||
         // Handle cases where Excel files are detected as ZIP
         ((file.type === 'application/x-zip-compressed' || file.type === 'application/zip') &&
         /\.xlsx$/i.test(file.name));
@@ -381,7 +382,16 @@ export class FileUploadService {
         throw new Error('File info retrieval is not available.');
       }
 
-      const fileInfo = await client.getFileInfo(fileId);
+      const fileInfo = await client.getFileInfo(fileId) as {
+        file_id: string;
+        filename: string;
+        mime_type: string;
+        file_size: number;
+        upload_timestamp?: string;
+        processing_status?: string;
+        chunk_count?: number;
+        error_message?: string;
+      };
 
       return {
         file_id: fileInfo.file_id,
