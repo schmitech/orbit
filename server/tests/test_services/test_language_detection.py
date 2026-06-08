@@ -15,43 +15,25 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 from typing import Dict, Any, Optional
 
-# Import the language detection module directly to avoid import chain issues
-import sys
-import os
+from inference.pipeline.base import ProcessingContext
+from inference.pipeline.steps.language_detection import (
+    DetectionResult,
+    ENGLISH_MARKERS_PATTERN,
+    LATIN_WORD_PATTERNS,
+    LANGDETECT_AVAILABLE,
+    LANGID_AVAILABLE,
+    LanguageDetectionStep,
+    PYCLD2_AVAILABLE,
+    SCRIPT_PATTERNS,
+    SPANISH_MARKERS_PATTERN,
+    normalize_language_code,
+)
 
-# Add the server directory to the Python path
-server_dir = os.path.join(os.path.dirname(__file__), '..', '..')
-sys.path.insert(0, server_dir)
 
-# Import directly from the module files to avoid import chain issues
-# that occur through inference/__init__.py
-import importlib.util
-
-def import_module_directly(module_name: str, file_path: str):
-    """Import a module directly from file path to avoid package init issues."""
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-# Import base module first (needed by language_detection)
-base_path = os.path.join(server_dir, 'inference', 'pipeline', 'base.py')
-base_module = import_module_directly('inference.pipeline.base', base_path)
-ProcessingContext = base_module.ProcessingContext
-PipelineStep = base_module.PipelineStep
-
-# Now import language detection
-lang_detect_path = os.path.join(server_dir, 'inference', 'pipeline', 'steps', 'language_detection.py')
-lang_detect_module = import_module_directly('inference.pipeline.steps.language_detection', lang_detect_path)
-
-LanguageDetectionStep = lang_detect_module.LanguageDetectionStep
-DetectionResult = lang_detect_module.DetectionResult
-normalize_language_code = lang_detect_module.normalize_language_code
-SCRIPT_PATTERNS = lang_detect_module.SCRIPT_PATTERNS
-LATIN_WORD_PATTERNS = lang_detect_module.LATIN_WORD_PATTERNS
-ENGLISH_MARKERS_PATTERN = lang_detect_module.ENGLISH_MARKERS_PATTERN
-SPANISH_MARKERS_PATTERN = lang_detect_module.SPANISH_MARKERS_PATTERN
+@pytest.fixture(scope="session", autouse=True)
+def require_any_backend():
+    if not any([LANGDETECT_AVAILABLE, LANGID_AVAILABLE, PYCLD2_AVAILABLE]):
+        pytest.skip("No language detection backend installed; install langdetect, langid, or pycld2")
 
 
 class MockContainer:
@@ -76,6 +58,7 @@ class MockContainer:
                 'prefer_english_for_ascii': True,
                 'enable_stickiness': True,
                 'fallback_language': 'en',
+                'backend_timeout': 10.0,
                 'heuristic_nudges': {
                     'en_boost': 0.2,
                     'es_penalty': 0.1,
@@ -200,6 +183,12 @@ class TestScriptDetection:
         assert result.language == 'he'
         assert result.confidence >= 0.9
 
+    def test_persian_detection(self, detector):
+        """Persian-specific Arabic-script characters should be detected before Arabic."""
+        result = detector._detect_by_script("سلام چطوری")
+        assert result.language == 'fa'
+        assert result.confidence >= 0.9
+
     # South Asian Scripts
     def test_hindi_devanagari(self, detector):
         """Hindi in Devanagari should be detected."""
@@ -248,11 +237,9 @@ class TestScriptDetection:
 
     def test_armenian_detection(self, detector):
         """Armenian script should be detected."""
-        result = detector._detect_by_script("Բdelays")
-        # Note: Single word may not be detected
-        # Using full phrase
-        result = detector._detect_by_script("Բdelays մdelays")
-        assert result.language in ['hy', 'unknown']
+        result = detector._detect_by_script("Բարեւ Ձեզ")
+        assert result.language == 'hy'
+        assert result.confidence >= 0.9
 
 
 class TestLatinLanguagePatterns:
@@ -387,6 +374,21 @@ class TestMultiLanguageScenarios:
         assert result.language == 'en'
 
     @pytest.mark.asyncio
+    async def test_disabled_direct_process_uses_defaults(self):
+        """Direct process calls should not fail when language detection is disabled."""
+        container = MockContainer(config={
+            'language_detection': {'enabled': False},
+            'general': {'verbose': False},
+        })
+        detector = LanguageDetectionStep(container)
+        context = create_context("Hello")
+
+        result = await detector.process(context)
+
+        assert result.detected_language == 'en'
+        assert result.language_detection_meta['method'] == 'all_backends_failed'
+
+    @pytest.mark.asyncio
     async def test_code_removal(self, detector):
         """Code blocks should be removed before detection."""
         text = "```python\nprint('hello')\n```\nBonjour, comment ça va?"
@@ -426,8 +428,7 @@ class TestLanguageStickiness:
             "OK",  # Ambiguous
             previous_language='es'
         )
-        # Should either detect as Spanish or fall back to previous
-        assert result2.language in ['es', 'en']
+        assert result2.language == 'es', "Stickiness should prevent flip to English for ambiguous 'OK'"
 
     @pytest.mark.asyncio
     async def test_stickiness_override_with_strong_signal(self, detector):
@@ -765,9 +766,10 @@ class TestAccuracyBenchmark:
                 print(f"Expected: {f['expected']}, Got: {f['detected']} "
                       f"(conf: {f['confidence']:.2f}) - {f['text']}")
 
-        # All languages should have at least 66% accuracy (2/3 samples correct)
+        unambiguous_script_langs = {'zh', 'ja', 'ko', 'ar', 'hi', 'th', 'ru'}
         for lang, accuracy in results.items():
-            assert accuracy >= 0.66, f"Language {lang} has only {accuracy*100:.0f}% accuracy"
+            floor = 1.0 if lang in unambiguous_script_langs else 0.66
+            assert accuracy >= floor, f"Language {lang} has only {accuracy*100:.0f}% accuracy"
 
         # Most languages should have 100% accuracy
         high_accuracy_count = sum(1 for acc in results.values() if acc >= 1.0)
@@ -814,6 +816,18 @@ class TestRedisServiceIntegration:
         assert call_args[0][1]['language'] == 'en'
         assert call_args[0][1]['confidence'] == 0.9
         assert call_args[1]['ttl'] == 3600
+
+    @pytest.mark.asyncio
+    async def test_session_language_key_encodes_redis_pattern_chars(self, detector_with_redis):
+        """Session IDs should be encoded before being embedded in Redis keys."""
+        detector, redis_mock = detector_with_redis
+        context = create_context("Hello world", session_id="tenant:a*[b]")
+
+        result = DetectionResult(language='en', confidence=0.9, method='test')
+        await detector._save_session_language(context, result)
+
+        redis_mock.store_json.assert_called_once()
+        assert redis_mock.store_json.call_args[0][0] == "lang_detect:tenant%3Aa%2A%5Bb%5D"
 
     @pytest.mark.asyncio
     async def test_session_language_retrieved_from_redis(self, detector_with_redis):
@@ -864,8 +878,7 @@ class TestMixedLanguageMetadataExposure:
     @pytest.mark.asyncio
     async def test_mixed_language_metadata_at_top_level(self, detector):
         """Mixed-language fields should be exposed at top level of metadata."""
-        # Simulate a result with mixed language detection
-        result = DetectionResult(
+        detector._detect_language_ensemble_async = AsyncMock(return_value=DetectionResult(
             language='en',
             confidence=0.6,
             method='ensemble_voting',
@@ -874,30 +887,10 @@ class TestMixedLanguageMetadataExposure:
                 'secondary_language': 'es',
                 'secondary_confidence': 0.35
             }
-        )
+        ))
 
         context = create_context("Hello amigo, como estas?")
-
-        # Manually set the metadata as the process method would
-        context.detected_language = result.language
-        if not hasattr(context, 'language_detection_meta'):
-            context.language_detection_meta = {}
-
-        meta_update = {
-            'confidence': result.confidence,
-            'method': result.method,
-            'raw_results': result.raw_results
-        }
-
-        raw = result.raw_results or {}
-        if raw.get('mixed_language_detected'):
-            meta_update['mixed_language_detected'] = True
-            meta_update['secondary_language'] = raw.get('secondary_language')
-            meta_update['secondary_confidence'] = raw.get('secondary_confidence')
-        else:
-            meta_update['mixed_language_detected'] = False
-
-        context.language_detection_meta.update(meta_update)
+        await detector.process(context)
 
         # Verify top-level access
         assert context.language_detection_meta['mixed_language_detected'] is True
@@ -907,41 +900,31 @@ class TestMixedLanguageMetadataExposure:
     @pytest.mark.asyncio
     async def test_non_mixed_language_sets_flag_false(self, detector):
         """Non-mixed language detection should set mixed_language_detected to False."""
-        result = DetectionResult(
+        detector._detect_language_ensemble_async = AsyncMock(return_value=DetectionResult(
             language='en',
             confidence=0.95,
             method='ensemble_voting',
             raw_results={}
-        )
+        ))
 
-        context = create_context("Hello world")
-        context.detected_language = result.language
-        context.language_detection_meta = {}
-
-        meta_update = {
-            'confidence': result.confidence,
-            'method': result.method,
-            'raw_results': result.raw_results
-        }
-
-        raw = result.raw_results or {}
-        if raw.get('mixed_language_detected'):
-            meta_update['mixed_language_detected'] = True
-            meta_update['secondary_language'] = raw.get('secondary_language')
-            meta_update['secondary_confidence'] = raw.get('secondary_confidence')
-        else:
-            meta_update['mixed_language_detected'] = False
-            meta_update['secondary_language'] = None
-            meta_update['secondary_confidence'] = None
-
-        context.language_detection_meta.update(meta_update)
+        context = create_context("Hello world, how are you today?")
+        await detector.process(context)
 
         assert context.language_detection_meta['mixed_language_detected'] is False
+        assert context.language_detection_meta['secondary_language'] is None
+        assert context.language_detection_meta['secondary_confidence'] is None
 
     @pytest.mark.asyncio
     async def test_stale_secondary_language_cleared(self, detector):
         """Secondary language fields should be cleared when detection is not mixed."""
-        context = create_context("Hello world")
+        detector._detect_language_ensemble_async = AsyncMock(return_value=DetectionResult(
+            language='en',
+            confidence=0.95,
+            method='ensemble_voting',
+            raw_results={}
+        ))
+
+        context = create_context("Hello world, how are you today?")
 
         # Simulate previous turn having mixed language
         context.language_detection_meta = {
@@ -950,32 +933,7 @@ class TestMixedLanguageMetadataExposure:
             'secondary_confidence': 0.35
         }
 
-        # Now simulate a non-mixed detection result
-        result = DetectionResult(
-            language='en',
-            confidence=0.95,
-            method='ensemble_voting',
-            raw_results={}  # No mixed language this time
-        )
-
-        # Apply the same logic as the actual implementation
-        meta_update = {
-            'confidence': result.confidence,
-            'method': result.method,
-            'raw_results': result.raw_results
-        }
-
-        raw = result.raw_results or {}
-        if raw.get('mixed_language_detected'):
-            meta_update['mixed_language_detected'] = True
-            meta_update['secondary_language'] = raw.get('secondary_language')
-            meta_update['secondary_confidence'] = raw.get('secondary_confidence')
-        else:
-            meta_update['mixed_language_detected'] = False
-            meta_update['secondary_language'] = None
-            meta_update['secondary_confidence'] = None
-
-        context.language_detection_meta.update(meta_update)
+        await detector.process(context)
 
         # Verify stale values are cleared
         assert context.language_detection_meta['mixed_language_detected'] is False
@@ -1073,8 +1031,8 @@ class TestRetrievalBoostIntegration:
             # The fix ensures confidence is calculated as proportion of votes
             # so clear English text should have confidence >= 0.7
             if result.language == 'en':
-                assert result.confidence >= 0.6, \
-                    f"Clear English text '{text[:30]}...' got confidence {result.confidence}, expected >= 0.6"
+                assert result.confidence >= 0.7, \
+                    f"Clear English text '{text[:30]}...' got confidence {result.confidence}, expected >= 0.7"
 
 
 class TestGermanFalsePositiveRegression:

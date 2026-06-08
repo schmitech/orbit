@@ -18,8 +18,9 @@ import asyncio
 import logging
 import re
 import math
+import urllib.parse
 from typing import Dict, Any, Optional, List, Tuple, Pattern
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from ..base import PipelineStep, ProcessingContext
 
@@ -67,6 +68,8 @@ except ImportError:
 # Pre-compiled Regex Patterns (Module-level for performance)
 # ============================================================================
 
+AMBIGUOUS_LATIN_LANGS = frozenset({'de', 'nl', 'no', 'da', 'fi', 'id'})
+
 # Script detection patterns - covers 20+ scripts
 # NOTE: Order matters for overlapping scripts - check Japanese before Chinese
 SCRIPT_PATTERNS: List[Tuple[str, Pattern, float]] = [
@@ -76,9 +79,9 @@ SCRIPT_PATTERNS: List[Tuple[str, Pattern, float]] = [
     ('ko', re.compile(r'[\uac00-\ud7af]'), 0.95),                    # Korean (Hangul)
 
     # Middle Eastern
+    ('fa', re.compile(r'[\u067e\u0686\u0698\u06af]'), 0.92),         # Persian (unique chars)
     ('ar', re.compile(r'[\u0600-\u06ff]'), 0.95),                    # Arabic
     ('he', re.compile(r'[\u0590-\u05ff]'), 0.95),                    # Hebrew
-    ('fa', re.compile(r'[\u0600-\u06ff][\u067e\u0686\u0698\u06af]'), 0.90),  # Persian (Arabic + specific chars)
 
     # South Asian
     ('hi', re.compile(r'[\u0900-\u097f]'), 0.95),                    # Devanagari (Hindi, Marathi, Sanskrit)
@@ -377,15 +380,15 @@ class DetectionResult:
         self.language = normalize_language_code(self.language)
 
 
-@dataclass
-class MixedLanguageResult:
-    """Result for mixed-language detection."""
-    primary_language: str
-    primary_confidence: float
-    secondary_languages: List[Tuple[str, float]] = field(default_factory=list)
-    is_mixed: bool = False
-    method: str = "ensemble"
-    raw_results: Optional[Dict[str, Any]] = None
+@dataclass(frozen=True)
+class HeuristicSignals:
+    """Precomputed lexical signals used by ensemble voting heuristics."""
+    ascii_ratio: float
+    english_marker_count: int
+    spanish_marker_count: int
+    lower_text: str
+    non_en_latin_matched: bool
+    english_query_like: bool
 
 
 # ============================================================================
@@ -412,20 +415,24 @@ class LanguageDetectionStep(PipelineStep):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.backends = []
+        self.min_confidence = 0.7
+        self.min_margin = 0.2
+        self.fallback_language = 'en'
+        self.prefer_english_for_ascii = True
+        self.enable_stickiness = False
+        self.heuristic_nudges = {}
+        self.backend_timeout = 10.0
+        self.use_chat_history_prior = True
+        self.chat_history_prior_weight = 0.3
+        self.chat_history_messages_count = 5
+        self.mixed_language_threshold = 0.3
+
         config = self.container.get_or_none('config') or {}
         lang_config = config.get('language_detection', {})
 
         if lang_config.get('enabled', False):
             self._setup_backends()
-        else:
-            self.backends = []
-            self.min_confidence = 0.7
-            self.min_margin = 0.2
-            self.fallback_language = 'en'
-            self.prefer_english_for_ascii = True
-            self.enable_stickiness = True
-            self.heuristic_nudges = {}
-            self.backend_timeout = 2.0
 
     def _setup_backends(self):
         """Initialize available backends with their weights."""
@@ -454,7 +461,7 @@ class LanguageDetectionStep(PipelineStep):
         self.min_confidence = lang_config.get('min_confidence', 0.7)
         self.min_margin = lang_config.get('min_margin', 0.2)
         self.prefer_english_for_ascii = lang_config.get('prefer_english_for_ascii', True)
-        self.enable_stickiness = lang_config.get('enable_stickiness', True)
+        self.enable_stickiness = lang_config.get('enable_stickiness', False)
         self.fallback_language = lang_config.get('fallback_language', 'en')
 
         # Configurable heuristic nudges (new)
@@ -473,7 +480,7 @@ class LanguageDetectionStep(PipelineStep):
         self.chat_history_messages_count = lang_config.get('chat_history_messages_count', 5)
 
         # Backend timeout (default 2.0s to handle cold starts when models need to load)
-        self.backend_timeout = lang_config.get('backend_timeout', 2.0)
+        self.backend_timeout = lang_config.get('backend_timeout', 10.0)
 
         logger.info(f"Initialized {len(self.backends)} language detection backends: {[b[0] for b in self.backends]}")
 
@@ -576,7 +583,7 @@ class LanguageDetectionStep(PipelineStep):
             if self.container.has('redis_service'):
                 redis_service = self.container.get('redis_service')
                 if redis_service and redis_service.enabled:
-                    key = f"lang_detect:{context.session_id}"
+                    key = self._session_language_key(context.session_id)
                     data = await redis_service.get_json(key)
                     if data and data.get('language'):
                         return data.get('language')
@@ -599,7 +606,7 @@ class LanguageDetectionStep(PipelineStep):
             if self.container.has('redis_service'):
                 redis_service = self.container.get('redis_service')
                 if redis_service and redis_service.enabled:
-                    key = f"lang_detect:{context.session_id}"
+                    key = self._session_language_key(context.session_id)
                     data = {
                         'language': result.language,
                         'confidence': result.confidence,
@@ -609,6 +616,11 @@ class LanguageDetectionStep(PipelineStep):
                     await redis_service.store_json(key, data, ttl=3600)
         except Exception as e:
             logger.debug(f"Could not save session language to Redis: {e}")
+
+    def _session_language_key(self, session_id: str) -> str:
+        """Build a Redis-safe key for persisted language detection state."""
+        safe_id = urllib.parse.quote(str(session_id), safe='')
+        return f"lang_detect:{safe_id}"
 
     async def _get_chat_history_language_prior(self, context: ProcessingContext) -> Optional[Dict[str, float]]:
         """
@@ -682,6 +694,13 @@ class LanguageDetectionStep(PipelineStep):
             script_result = self._detect_by_script(text_stripped)
             if script_result.confidence > 0.9:
                 return script_result
+            if self.enable_stickiness and previous_language:
+                return DetectionResult(
+                    language=previous_language,
+                    confidence=0.7,
+                    method='sticky_previous',
+                    raw_results={'reason': 'short_ambiguous_text'}
+                )
             return DetectionResult(
                 language=self.fallback_language,
                 confidence=0.1,
@@ -733,82 +752,32 @@ class LanguageDetectionStep(PipelineStep):
                 raw_results=raw_results
             )
 
-        # Compute heuristic signals
-        ascii_ratio = self._ascii_ratio(clean_text)
-        english_marker_count = len(ENGLISH_MARKERS_PATTERN.findall(clean_text))
-        spanish_marker_count = len(SPANISH_MARKERS_PATTERN.findall(clean_text))
-        ascii_word_tokens = re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", clean_text)
-
-        # Check if any non-English Latin word patterns matched (min 2 for ambiguous langs)
-        _lower_text = clean_text.lower()
-        _ambiguous_langs = {'de', 'nl', 'no', 'da', 'fi', 'id'}
-        _non_en_latin_matched = False
-        for _lc, _pats, _bc in LATIN_WORD_PATTERNS:
-            _min_m = 2 if _lc in _ambiguous_langs else 1
-            _m = sum(1 for p in _pats if p.search(_lower_text))
-            if _m >= _min_m:
-                _non_en_latin_matched = True
-                break
-
-        english_query_like = (
-            ascii_ratio > 0.98
-            and len(clean_text) <= 120
-            and len(ascii_word_tokens) >= 3
-            and ENGLISH_QUERY_MARKERS_PATTERN.search(_lower_text) is not None
-            and spanish_marker_count == 0
-            and not NON_ENGLISH_DIACRITICS_PATTERN.search(_lower_text)
-            and not _non_en_latin_matched
-        )
+        signals = self._compute_heuristic_signals(clean_text)
 
         # Strong ASCII English heuristic
         if self.prefer_english_for_ascii:
-            lower = clean_text.lower()
-            if ascii_ratio > 0.98 and len(clean_text) <= 120:
+            if signals.ascii_ratio > 0.98 and len(clean_text) <= 120:
                 if (
-                    ENGLISH_QUESTION_START_PATTERN.search(lower)
-                    or re.search(r'\b(please|thanks)\b', lower, re.IGNORECASE)
-                    or english_query_like
+                    ENGLISH_QUESTION_START_PATTERN.search(signals.lower_text)
+                    or signals.english_marker_count > 0
+                    or signals.english_query_like
                 ):
-                    if spanish_marker_count == 0 and not NON_ENGLISH_DIACRITICS_PATTERN.search(lower) and not _non_en_latin_matched:
+                    if (
+                        signals.spanish_marker_count == 0
+                        and not NON_ENGLISH_DIACRITICS_PATTERN.search(signals.lower_text)
+                        and not signals.non_en_latin_matched
+                    ):
                         return DetectionResult(
                             language='en',
                             confidence=0.9,
                             method='heuristic_ascii_bias',
                             raw_results={
-                                'reason': 'english_query_heuristic' if english_query_like else 'english_question_heuristic'
+                                'reason': 'english_query_heuristic' if signals.english_query_like else 'english_question_heuristic'
                             }
                         )
 
-        # Weighted voting with per-backend normalization
-        language_votes: Dict[str, float] = {}
-
-        for result, weight, backend_name in backend_results:
-            lang = normalize_language_code(result.language)
-            conf = result.confidence
-
-            # Confidence is already normalized by per-backend methods
-            conf = max(0.0, min(1.0, conf))
-
-            weighted_score = conf * weight
-            language_votes[lang] = language_votes.get(lang, 0) + weighted_score
-
-        # Apply chat history prior if available
-        if chat_history_prior and self.chat_history_prior_weight > 0:
-            prior_boost = self.chat_history_prior_weight
-            for lang, freq in chat_history_prior.items():
-                if lang in language_votes:
-                    language_votes[lang] += prior_boost * freq
-                else:
-                    language_votes[lang] = prior_boost * freq * 0.5  # Lower boost for new languages
-
-        # Apply configurable heuristic nudges
-        en_boost = self.heuristic_nudges.get('en_boost', 0.2)
-        es_penalty = self.heuristic_nudges.get('es_penalty', 0.1)
-
-        if self.prefer_english_for_ascii and ascii_ratio > 0.95 and (english_marker_count > 0 or english_query_like) and spanish_marker_count == 0:
-            language_votes['en'] = language_votes.get('en', 0) + en_boost
-            if 'es' in language_votes:
-                language_votes['es'] = max(0, language_votes['es'] - es_penalty)
+        language_votes = self._aggregate_backend_votes(backend_results, chat_history_prior)
+        self._apply_nudges(language_votes, signals)
 
         # Sort to get top candidates
         sorted_votes = sorted(language_votes.items(), key=lambda kv: kv[1], reverse=True)
@@ -819,10 +788,13 @@ class LanguageDetectionStep(PipelineStep):
         # This gives realistic confidence values that can exceed the retrieval threshold
         total_votes = sum(language_votes.values())
         if total_votes > 0:
-            best_confidence = best_score / total_votes
+            raw_best_confidence = best_score / total_votes
         else:
-            best_confidence = 0.0
-        best_confidence = max(0.0, min(1.0, best_confidence))
+            raw_best_confidence = 0.0
+        raw_best_confidence = max(0.0, min(1.0, raw_best_confidence))
+        second_confidence = (second_score / total_votes) if total_votes > 0 else 0.0
+        margin = raw_best_confidence - second_confidence
+        best_confidence = raw_best_confidence
 
         # Script detection confidence boost
         script_boost = self.heuristic_nudges.get('script_boost', 0.2)
@@ -834,9 +806,7 @@ class LanguageDetectionStep(PipelineStep):
 
         # Check for mixed language
         if len(sorted_votes) > 1:
-            second_language, second_vote_score = sorted_votes[1]
-            # Use same normalization (proportion of total votes) for consistency
-            second_confidence = (second_vote_score / total_votes) if total_votes > 0 else 0.0
+            second_language = sorted_votes[1][0]
             if second_confidence >= self.mixed_language_threshold and best_confidence < 0.8:
                 # This is potentially mixed-language text
                 raw_results['mixed_language_detected'] = True
@@ -845,9 +815,7 @@ class LanguageDetectionStep(PipelineStep):
 
         # Enforce minimum margin and confidence
         # Margin is now the difference in confidence (proportion), not raw scores
-        margin = best_confidence - (second_score / total_votes if total_votes > 0 else 0.0)
-
-        if best_confidence < self.min_confidence or margin < self.min_margin:
+        if raw_best_confidence < self.min_confidence or margin < self.min_margin:
             # Prefer sticky previous language when enabled and plausible
             if self.enable_stickiness and previous_language and previous_language in language_votes:
                 # Decay stickiness based on how different the current detection is
@@ -860,9 +828,17 @@ class LanguageDetectionStep(PipelineStep):
                 )
 
             # Prefer English for high ASCII ratio, but not if non-English Latin patterns matched
-            lower = clean_text.lower()
-            if self.prefer_english_for_ascii and ascii_ratio > 0.95 and spanish_marker_count == 0 and not _non_en_latin_matched:
-                if english_marker_count > 0 or ENGLISH_QUESTION_START_PATTERN.search(lower) or english_query_like:
+            if (
+                self.prefer_english_for_ascii
+                and signals.ascii_ratio > 0.95
+                and signals.spanish_marker_count == 0
+                and not signals.non_en_latin_matched
+            ):
+                if (
+                    signals.english_marker_count > 0
+                    or ENGLISH_QUESTION_START_PATTERN.search(signals.lower_text)
+                    or signals.english_query_like
+                ):
                     return DetectionResult(
                         language='en',
                         confidence=0.75,
@@ -871,13 +847,13 @@ class LanguageDetectionStep(PipelineStep):
                             'reason': 'below_threshold_or_margin',
                             'votes': language_votes,
                             'raw': raw_results,
-                            'english_query_like': english_query_like,
+                            'english_query_like': signals.english_query_like,
                         }
                     )
 
             # Fallback — if non-English Latin patterns matched, trust the best voted
             # language instead of defaulting to English
-            fallback_lang = best_language if _non_en_latin_matched else self.fallback_language
+            fallback_lang = best_language if signals.non_en_latin_matched else self.fallback_language
             return DetectionResult(
                 language=fallback_lang,
                 confidence=best_confidence,
@@ -891,6 +867,79 @@ class LanguageDetectionStep(PipelineStep):
             method='ensemble_voting',
             raw_results=raw_results
         )
+
+    def _compute_heuristic_signals(self, clean_text: str) -> HeuristicSignals:
+        """Compute reusable text signals for language heuristics."""
+        ascii_ratio = self._ascii_ratio(clean_text)
+        english_marker_count = len(ENGLISH_MARKERS_PATTERN.findall(clean_text))
+        spanish_marker_count = len(SPANISH_MARKERS_PATTERN.findall(clean_text))
+        ascii_word_tokens = re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", clean_text)
+        lower_text = clean_text.lower()
+
+        non_en_latin_matched = False
+        for lang_code, patterns, _base_confidence in LATIN_WORD_PATTERNS:
+            min_matches = 2 if lang_code in AMBIGUOUS_LATIN_LANGS else 1
+            matches = sum(1 for pattern in patterns if pattern.search(lower_text))
+            if matches >= min_matches:
+                non_en_latin_matched = True
+                break
+
+        english_query_like = (
+            ascii_ratio > 0.98
+            and len(clean_text) <= 120
+            and len(ascii_word_tokens) >= 3
+            and ENGLISH_QUERY_MARKERS_PATTERN.search(lower_text) is not None
+            and spanish_marker_count == 0
+            and not NON_ENGLISH_DIACRITICS_PATTERN.search(lower_text)
+            and not non_en_latin_matched
+        )
+
+        return HeuristicSignals(
+            ascii_ratio=ascii_ratio,
+            english_marker_count=english_marker_count,
+            spanish_marker_count=spanish_marker_count,
+            lower_text=lower_text,
+            non_en_latin_matched=non_en_latin_matched,
+            english_query_like=english_query_like,
+        )
+
+    def _aggregate_backend_votes(
+        self,
+        backend_results: List[Tuple[DetectionResult, float, str]],
+        chat_history_prior: Optional[Dict[str, float]],
+    ) -> Dict[str, float]:
+        """Aggregate normalized backend scores and optional chat-history prior."""
+        language_votes: Dict[str, float] = {}
+
+        for result, weight, _backend_name in backend_results:
+            lang = normalize_language_code(result.language)
+            conf = max(0.0, min(1.0, result.confidence))
+            language_votes[lang] = language_votes.get(lang, 0) + conf * weight
+
+        if chat_history_prior and self.chat_history_prior_weight > 0:
+            prior_boost = self.chat_history_prior_weight
+            for lang, freq in chat_history_prior.items():
+                if lang in language_votes:
+                    language_votes[lang] += prior_boost * freq
+                else:
+                    language_votes[lang] = prior_boost * freq * 0.5
+
+        return language_votes
+
+    def _apply_nudges(self, language_votes: Dict[str, float], signals: HeuristicSignals) -> None:
+        """Apply configured heuristic nudges to aggregated votes in place."""
+        en_boost = self.heuristic_nudges.get('en_boost', 0.2)
+        es_penalty = self.heuristic_nudges.get('es_penalty', 0.1)
+
+        if (
+            self.prefer_english_for_ascii
+            and signals.ascii_ratio > 0.95
+            and (signals.english_marker_count > 0 or signals.english_query_like)
+            and signals.spanish_marker_count == 0
+        ):
+            language_votes['en'] = language_votes.get('en', 0) + en_boost
+            if 'es' in language_votes:
+                language_votes['es'] = max(0, language_votes['es'] - es_penalty)
 
     async def _run_backend_with_timeout(
         self,
@@ -942,10 +991,9 @@ class LanguageDetectionStep(PipelineStep):
         pattern_matches: List[Tuple[str, int, float]] = []
 
         # Languages with short common words that overlap English need min 2 matches
-        ambiguous_langs = {'de', 'nl', 'no', 'da', 'fi', 'id'}
         for lang_code, patterns, base_confidence in LATIN_WORD_PATTERNS:
             matches = sum(1 for pattern in patterns if pattern.search(text_lower))
-            min_matches = 2 if lang_code in ambiguous_langs else 1
+            min_matches = 2 if lang_code in AMBIGUOUS_LATIN_LANGS else 1
             if matches >= min_matches:
                 # Calculate confidence based on match ratio
                 match_ratio = matches / len(patterns)

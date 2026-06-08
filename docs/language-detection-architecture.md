@@ -81,7 +81,7 @@ The language detection system is a pipeline step that runs before LLM inference 
 │                                        ▼                                │
 │                      ┌──────────────────────────────────────────────┐  │
 │                      │              Session Persistence              │  │
-│                      │  • Store in Redis (lang_detect:{session_id}) │  │
+│                      │  • Store in Redis (lang_detect:{safe_id})    │  │
 │                      │  • Update context.detected_language           │  │
 │                      └──────────────────────────────────────────────┘  │
 │                                                                         │
@@ -175,11 +175,20 @@ async def _run_backend_with_timeout(self, backend_name, detector_func, text, tim
 # For each backend result:
 weighted_score = normalized_confidence * backend_weight
 language_votes[lang] += weighted_score
-total_weight += backend_weight
 
 # Final confidence:
-best_confidence = best_score / total_weight
+total_votes = sum(language_votes.values())
+best_confidence = best_score / total_votes
+second_confidence = second_score / total_votes
+margin = best_confidence - second_confidence
+
+# Script boost is applied after margin is locked
+best_confidence = min(0.95, best_confidence + script_boost * script_coverage)
 ```
+
+`total_votes` is the sum of all weighted language scores after backend weighting,
+chat-history priors, and heuristic vote nudges. This is not the same as the sum
+of configured backend weights.
 
 ## Heuristic Biasing
 
@@ -245,13 +254,14 @@ if best_confidence < min_confidence or margin < min_margin:
 
 ```python
 # Redis storage
-key = f"lang_detect:{session_id}"
-await redis.hset(key, {
+safe_id = urllib.parse.quote(str(session_id), safe='')
+key = f"lang_detect:{safe_id}"
+data = {
     'language': result.language,
     'confidence': result.confidence,
     'method': result.method
-})
-await redis.expire(key, 3600)  # 1 hour TTL
+}
+await redis_service.store_json(key, data, ttl=3600)  # 1 hour TTL
 ```
 
 ## RAG Integration
@@ -282,6 +292,9 @@ retrieval_min_confidence: 0.7    # Min detection confidence to apply
 
 ### Full Configuration Block
 
+The canonical language detection settings live in `config/config.yaml` under
+the `language_detection` key.
+
 ```yaml
 language_detection:
   # Enable/disable the feature
@@ -307,10 +320,13 @@ language_detection:
   prefer_english_for_ascii: true
 
   # Session stickiness
-  enable_stickiness: true
+  enable_stickiness: false
 
   # Fallback when detection fails
   fallback_language: "en"
+
+  # Backend timeout
+  backend_timeout: 10.0
 
   # Heuristic vote adjustments
   heuristic_nudges:
