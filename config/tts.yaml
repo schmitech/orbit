@@ -217,7 +217,7 @@ tts_providers:
       exponential_base: 2
 
   cohere:
-    enabled: false  # Placeholder - Cohere doesn't have native audio APIs yet
+    enabled: true  # Placeholder - Cohere doesn't have native audio APIs yet
     api_key: ${COHERE_API_KEY}
     api_base: "https://api.cohere.ai/v2"
     tts_model: null
