@@ -31,6 +31,7 @@ import { useSkills } from '../hooks/useSkills';
 import { useLoginPromptStore } from '../stores/loginPromptStore';
 import { useChatStore } from '../stores/chatStore';
 import { SkillPicker } from './SkillPicker';
+import { ModelPickerButton } from './ModelPickerButton';
 
 interface MessageProps {
   message: MessageType;
@@ -140,13 +141,12 @@ export function Message({
   const [activeThreadSkillIndex, setActiveThreadSkillIndex] = useState(0);
   const [showClearThreadConfirmation, setShowClearThreadConfirmation] = useState(false);
   const [isClearingThread, setIsClearingThread] = useState(false);
-  const [threadModelPickerOpen, setThreadModelPickerOpen] = useState(false);
-  const threadModelPickerRef = useRef<HTMLDivElement>(null);
   // Each thread manages its own model independently from the main input.
-  // Initialized once from the current global selection so it starts consistent.
+  // Initialized from the current global selection so it starts consistent.
   const [threadSelectedModel, setThreadSelectedModel] = useState<string | null>(
     () => selectedModel ?? defaultModel
   );
+  const latestSelectedModelRef = useRef<string | null>(selectedModel);
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
   const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
   const threadComposerRef = useRef<HTMLDivElement>(null);
@@ -386,7 +386,7 @@ export function Message({
     setIsSendingThreadMessage(true);
     setShowThreadSkillPicker(false);
     try {
-      await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed, selectedSkill?.name, threadSelectedModel ?? undefined);
+      await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed, selectedSkill?.name, threadSelectedModel ?? defaultModel ?? undefined);
       // Refocus the thread input field after sending
       setTimeout(() => {
         if (threadTextareaRef.current) {
@@ -519,15 +519,12 @@ export function Message({
   };
 
   useEffect(() => {
-    if (!threadModelPickerOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (threadModelPickerRef.current && !threadModelPickerRef.current.contains(e.target as Node)) {
-        setThreadModelPickerOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', handler);
-    return () => document.removeEventListener('pointerdown', handler);
-  }, [threadModelPickerOpen]);
+    latestSelectedModelRef.current = selectedModel;
+  }, [selectedModel]);
+
+  useEffect(() => {
+    setThreadSelectedModel(latestSelectedModelRef.current ?? defaultModel);
+  }, [defaultModel]);
 
   useEffect(() => {
     if (!isThreadOpen || threadComposerDisabled) {
@@ -966,75 +963,17 @@ export function Message({
                       />
                     </div>
                     <div className="flex items-center justify-between sm:justify-end gap-2">
-                      {(defaultModel || availableModels.length > 0) && (
-                        <div ref={threadModelPickerRef} className="relative">
-                          {availableModels.length > 1 ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => setThreadModelPickerOpen(v => !v)}
-                                className="inline-flex max-w-[120px] items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] dark:hover:bg-[#3a3b48]"
-                                aria-haspopup="listbox"
-                                aria-expanded={threadModelPickerOpen}
-                                title="Select model for this thread"
-                              >
-                                <span className="truncate">{threadSelectedModel ?? defaultModel}</span>
-                                <svg
-                                  className={`h-3 w-3 flex-shrink-0 text-gray-400 transition-transform duration-150 dark:text-[#6b6f7a] ${threadModelPickerOpen ? 'rotate-180' : ''}`}
-                                  viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"
-                                >
-                                  <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              </button>
-                              {threadModelPickerOpen && (
-                                <div
-                                  role="listbox"
-                                  aria-label="Select model for this thread"
-                                  className="absolute right-0 bottom-full z-50 mb-1.5 min-w-[200px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-[#2f303d] dark:bg-[#111111]"
-                                >
-                                  {availableModels.map(m => {
-                                    const isActive = (threadSelectedModel ?? defaultModel) === m.name;
-                                    return (
-                                      <button
-                                        key={m.name}
-                                        role="option"
-                                        aria-selected={isActive}
-                                        type="button"
-                                        onClick={() => { setThreadSelectedModel(m.name); setThreadModelPickerOpen(false); }}
-                                        className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors ${
-                                          isActive
-                                            ? 'bg-gray-100 text-gray-900 dark:bg-[#1f1f1f] dark:text-[#ececf1]'
-                                            : 'text-gray-700 hover:bg-gray-50 dark:text-[#bfc2cd] dark:hover:bg-[#1a1a1a]'
-                                        }`}
-                                      >
-                                        <span className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border ${
-                                          isActive
-                                            ? 'border-blue-500 bg-blue-500 dark:border-blue-400 dark:bg-blue-400'
-                                            : 'border-gray-300 dark:border-[#5a5b65]'
-                                        }`}>
-                                          {isActive && (
-                                            <svg className="h-2 w-2 text-white" viewBox="0 0 8 8" fill="currentColor">
-                                              <circle cx="4" cy="4" r="2" />
-                                            </svg>
-                                          )}
-                                        </span>
-                                        <span className="truncate font-medium normal-case tracking-normal">{m.name}</span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <div
-                              className="inline-flex max-w-[120px] items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-1 text-xs text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]"
-                              title={threadSelectedModel ?? defaultModel ?? undefined}
-                            >
-                              <span className="truncate">{threadSelectedModel ?? defaultModel}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      <ModelPickerButton
+                        availableModels={availableModels}
+                        defaultModel={defaultModel}
+                        selectedModel={threadSelectedModel}
+                        onSelect={setThreadSelectedModel}
+                        maxWidthClass="max-w-[120px]"
+                        triggerPaddingClass="px-2 py-1"
+                        staticPaddingClass="px-2 py-1"
+                        triggerTitle="Select model for this thread"
+                        listboxLabel="Select model for this thread"
+                      />
                       {threadInput.trim().length > 0 && (
                         <button
                           type="button"

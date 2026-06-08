@@ -22,6 +22,7 @@ import { useLoginPromptStore } from '../stores/loginPromptStore';
 import { MarkdownRenderer } from './markdown';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { ModelPickerButton } from './ModelPickerButton';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[], threadId?: string, skill?: string) => void;
@@ -231,8 +232,6 @@ export function MessageInput({
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
   const [showSkillPicker, setShowSkillPicker] = useState(false);
   const [activeSkillIndex, setActiveSkillIndex] = useState(0);
-  const [modelPickerOpen, setModelPickerOpen] = useState(false);
-  const modelPickerRef = useRef<HTMLDivElement>(null);
   const [textareaVerticalPadding, setTextareaVerticalPadding] = useState(() => ({
     top: DEFAULT_TEXTAREA_VERTICAL_PADDING + VERTICAL_ALIGNMENT_OFFSET,
     bottom: Math.max(DEFAULT_TEXTAREA_VERTICAL_PADDING - VERTICAL_ALIGNMENT_OFFSET, 0)
@@ -1317,17 +1316,6 @@ export function MessageInput({
     limitWarnings.push(uploadError);
   }
 
-  useEffect(() => {
-    if (!modelPickerOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (modelPickerRef.current && !modelPickerRef.current.contains(e.target as Node)) {
-        setModelPickerOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', handler);
-    return () => document.removeEventListener('pointerdown', handler);
-  }, [modelPickerOpen]);
-
   // Play sound when voice error appears
   useEffect(() => {
     if (!audioInputEnabled || !voiceError) {
@@ -1613,75 +1601,12 @@ export function MessageInput({
 
             {/* Right side buttons */}
             <div className="flex items-center gap-1 md:gap-2">
-              {(defaultModel || availableModels.length > 0) && (
-                <div ref={modelPickerRef} className="relative hidden md:block">
-                  {availableModels.length > 1 ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setModelPickerOpen(v => !v)}
-                        className="inline-flex max-w-[140px] items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] dark:hover:bg-[#3a3b48]"
-                        aria-haspopup="listbox"
-                        aria-expanded={modelPickerOpen}
-                        title="Select model"
-                      >
-                        <span className="truncate">{selectedModel ?? defaultModel}</span>
-                        <svg
-                          className={`h-3 w-3 flex-shrink-0 text-gray-400 transition-transform duration-150 dark:text-[#6b6f7a] ${modelPickerOpen ? 'rotate-180' : ''}`}
-                          viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"
-                        >
-                          <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                      {modelPickerOpen && (
-                        <div
-                          role="listbox"
-                          aria-label="Select model"
-                          className="absolute right-0 bottom-full z-50 mb-1.5 min-w-[200px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-[#2f303d] dark:bg-[#111111]"
-                        >
-                          {availableModels.map(m => {
-                            const isActive = (selectedModel ?? defaultModel) === m.name;
-                            return (
-                              <button
-                                key={m.name}
-                                role="option"
-                                aria-selected={isActive}
-                                type="button"
-                                onClick={() => { onSelectModel?.(m.name); setModelPickerOpen(false); }}
-                                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors ${
-                                  isActive
-                                    ? 'bg-gray-100 text-gray-900 dark:bg-[#1f1f1f] dark:text-[#ececf1]'
-                                    : 'text-gray-700 hover:bg-gray-50 dark:text-[#bfc2cd] dark:hover:bg-[#1a1a1a]'
-                                }`}
-                              >
-                                <span className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border ${
-                                  isActive
-                                    ? 'border-blue-500 bg-blue-500 dark:border-blue-400 dark:bg-blue-400'
-                                    : 'border-gray-300 dark:border-[#5a5b65]'
-                                }`}>
-                                  {isActive && (
-                                    <svg className="h-2 w-2 text-white" viewBox="0 0 8 8" fill="currentColor">
-                                      <circle cx="4" cy="4" r="2" />
-                                    </svg>
-                                  )}
-                                </span>
-                                <span className="truncate font-medium normal-case tracking-normal">{m.name}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div
-                      className="inline-flex max-w-[140px] items-center rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]"
-                      title={selectedModel ?? defaultModel ?? undefined}
-                    >
-                      <span className="truncate">{selectedModel ?? defaultModel}</span>
-                    </div>
-                  )}
-                </div>
-              )}
+              <ModelPickerButton
+                availableModels={availableModels}
+                defaultModel={defaultModel}
+                selectedModel={selectedModel}
+                onSelect={(name) => onSelectModel?.(name)}
+              />
               {(audioOutputEnabled || audioInputEnabled) && (
                 <>
                   {audioOutputEnabled && (

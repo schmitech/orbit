@@ -111,12 +111,13 @@ export function ChatInterface({
     let cancelled = false;
 
     async function loadModels() {
+      setSelectedModel(null);
       if (!adapterName) {
         setAvailableModels([]);
-        setSelectedModel(null);
         return;
       }
       try {
+        // Both args are the same: this API uses adapterName as the client key too.
         const models = await ModelsService.listAdapterModels(adapterName, adapterName);
         if (cancelled) return;
         setAvailableModels(models);
