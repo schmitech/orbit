@@ -6,15 +6,20 @@ import { playSoundEffect } from '../utils/soundEffects';
 import './MessageList.css';
 
 
+import type { AllowedModel } from '../types';
+
 interface MessageListProps {
   messages: MessageType[];
   onRegenerate?: (messageId: string) => void;
   onStartThread?: (messageId: string, sessionId: string) => void;
   onClearThread?: (messageId: string, threadId: string) => Promise<void> | void;
-  onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string, skill?: string) => Promise<void> | void;
+  onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string, skill?: string, model?: string) => Promise<void> | void;
   sessionId?: string;
   isLoading?: boolean;
   contentMaxWidthClass?: string;
+  availableModels?: AllowedModel[];
+  defaultModel?: string | null;
+  selectedModel?: string | null;
 }
 
 export function MessageList({
@@ -25,7 +30,10 @@ export function MessageList({
   onSendThreadMessage,
   sessionId,
   isLoading,
-  contentMaxWidthClass = 'max-w-[64rem]'
+  contentMaxWidthClass = 'max-w-[64rem]',
+  availableModels,
+  defaultModel,
+  selectedModel,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -166,6 +174,9 @@ export function MessageList({
                 threadMessages={threadLookup.get(message.id)}
                 sessionId={sessionId}
                 isThreadSendDisabled={isLoading}
+                availableModels={availableModels}
+                defaultModel={defaultModel}
+                selectedModel={selectedModel}
               />
             </div>
           ))}
