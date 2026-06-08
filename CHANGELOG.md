@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.7.2] - 2026-06-08
+
+### Core System Updates
+- Audio & STT: Implemented the Cohere STT service supporting FLAC, MP3, OGG, and WAV via the `/v2/audio/transcriptions` endpoint using the `cohere-transcribe-03-2026` model.
+- Adapter Lifecycle: Refactored the adapter reload system to resolve initialization deadlocks (init-storm lock re-entry) and stale datasource connections during configuration reloads.
+- Config Management: Hardened `config_manager.py` with improved relative path resolution for nested imports and more robust path-traversal guards.
+
+### Chat-app & UI Improvements
+- Model Picker: Relocated the model picker from the chat header to an inline pill within the message input bar.
+- Threading: Enabled independent model selection for individual thread composers, ensuring each thread reply uses its own selected model state.
+- UI Refinements: Extracted the shared model picker component with improved keyboard navigation (Escape dismissal) and focus management; improved mobile visibility and adapter-load synchronization.
+
+### Bug Fixes & Technical Improvements
+- Language Detection: Enhanced detection accuracy for Persian (preventing misclassification as Arabic) and standardized confidence threshold logic.
+- Fault Tolerance: Standardized the `FaultTolerantAdapterManager` facade by implementing missing delegations for public methods.
+- Service Hardening: Decomposed the language detection pipeline into focused heuristic and voting modules; added regression tests for datasource config isolation.
+
+### Documentation & Configuration
+- Architecture Docs: Updated `language-detection-architecture.md` to reflect the latest weighted voting formulas and Redis key-namespace logic.
+
 ## [2.7.1] - 2026-06-06
 
 ### Core System Updates
@@ -39,7 +59,7 @@
 - Services: Refactored `auth_service`, `autocomplete_service`, `dynamic_adapter_manager`, and `chat_history_service` to reduce duplication and expand unit test coverage.
 
 ### Chat-app & UI Improvements
-- orbitchat v3.8.9: Published latest release with modularized store logic and UI refinements.
+- orbitchat v3.8.7: Published latest release with modularized store logic and UI refinements.
 - Sidebar: Added collapsible desktop sidebar with persisted state and improved toggle controls.
 - Mobile UX: Integrated model picker into the mobile chat header and removed redundant model selection from agent cards.
 - General UX: Improved conversation cards, delete dialogs, and settings interface; refined sidebar icon alignment.
