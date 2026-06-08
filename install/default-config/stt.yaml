@@ -227,10 +227,10 @@ stt_providers:
       exponential_base: 2
 
   cohere:
-    enabled: false  # Placeholder - Cohere doesn't have native audio APIs yet
     api_key: ${COHERE_API_KEY}
-    api_base: "https://api.cohere.ai/v2"
-    stt_model: null
+    api_base: "https://api.cohere.com/v2"
+    stt_model: "cohere-transcribe-03-2026"  # Supported formats: FLAC, MP3, MPEG, MPGA, OGG, WAV (≤25 MB)
+    language: "en"  # Required by Cohere. BCP-47 code, e.g. "en", "fr", "es". Set to null to omit (may cause 400).
     # Timeout configuration
     timeout:
       connect: 15000   # 15 seconds
