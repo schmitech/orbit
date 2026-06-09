@@ -6,7 +6,13 @@ interface VideoDisplayProps {
   videoUrl?: string;       // persistent server-side path (used after refresh)
   videoFormat?: string;    // "mp4"
   revisedPrompt?: string;  // provider-rewritten prompt
+  adapterName?: string | null;
 }
+
+const VIDEO_FETCH_RETRY_DELAYS_MS = [750, 1500, 3000, 5000];
+const RETRYABLE_VIDEO_FETCH_STATUSES = new Set([403, 404, 409, 425, 429, 500, 502, 503, 504]);
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Renders a generated video with a download button and fullscreen on click.
@@ -18,7 +24,7 @@ interface VideoDisplayProps {
  *     been persisted server-side. Survives localStorage and page refresh.
  *     Fetched via JS so the Express proxy can inject the API key.
  */
-export function VideoDisplay({ video, videoUrl, videoFormat = 'mp4', revisedPrompt }: VideoDisplayProps) {
+export function VideoDisplay({ video, videoUrl, videoFormat = 'mp4', revisedPrompt, adapterName }: VideoDisplayProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -32,16 +38,31 @@ export function VideoDisplay({ video, videoUrl, videoFormat = 'mp4', revisedProm
 
     (async () => {
       try {
-        const adapterName =
-          typeof window !== 'undefined'
+        const resolvedAdapterName =
+          adapterName ||
+          (typeof window !== 'undefined'
             ? window.localStorage.getItem('chat-adapter-name')
-            : null;
+            : null);
 
-        const res = await fetch(videoUrl, {
-          headers: adapterName ? { 'X-Adapter-Name': adapterName } : {},
-        });
+        let res: Response | null = null;
+        for (let attempt = 0; attempt <= VIDEO_FETCH_RETRY_DELAYS_MS.length; attempt += 1) {
+          res = await fetch(videoUrl, {
+            headers: resolvedAdapterName ? { 'X-Adapter-Name': resolvedAdapterName } : {},
+          });
 
-        if (!res.ok) {
+          if (
+            res.ok ||
+            !RETRYABLE_VIDEO_FETCH_STATUSES.has(res.status) ||
+            attempt === VIDEO_FETCH_RETRY_DELAYS_MS.length
+          ) {
+            break;
+          }
+
+          await delay(VIDEO_FETCH_RETRY_DELAYS_MS[attempt]);
+          if (cancelled) return;
+        }
+
+        if (!res?.ok) {
           console.warn('[VideoDisplay] Server returned', res.status, 'for', videoUrl);
           return;
         }
@@ -66,7 +87,7 @@ export function VideoDisplay({ video, videoUrl, videoFormat = 'mp4', revisedProm
         blobUrlRef.current = null;
       }
     };
-  }, [videoUrl, video, videoFormat]);
+  }, [videoUrl, video, videoFormat, adapterName]);
 
   const dataUrl = video ? `data:video/${videoFormat};base64,${video}` : null;
   const src = dataUrl ?? blobUrl;

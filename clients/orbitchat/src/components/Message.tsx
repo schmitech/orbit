@@ -132,6 +132,17 @@ const getGeneratedImageFallbackText = (message: MessageType) => {
   return message.imageRevisedPrompt || message.content;
 };
 
+function StreamingDots({ size = 'md' }: { size?: 'sm' | 'md' }) {
+  const cls = size === 'sm' ? 'h-2 w-2' : 'h-2.5 w-2.5';
+  return (
+    <div className="flex items-center gap-1.5 py-1">
+      {([0, 150, 300] as const).map(delay => (
+        <span key={delay} className={`inline-block ${cls} animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]`} style={{ animationDelay: `${delay}ms` }} />
+      ))}
+    </div>
+  );
+}
+
 function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showAcknowledgement, setShowAcknowledgement] = useState(false);
@@ -245,27 +256,25 @@ export function Message({
 
   const isAssistant = message.role === 'assistant';
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
-  const threadMessageCount = threadReplies.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length;
-  const threadReplyCount = threadMessageCount;
+  const threadReplyCount = threadReplies.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length;
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
   const isAuthenticated = useIsAuthenticated();
   const isGuest = getIsAuthConfigured() && !isAuthenticated;
-  const conversations = useChatStore(state => state.conversations);
-  const currentConversationId = useChatStore(state => state.currentConversationId);
-  const currentConversation = conversations.find(conv => conv.id === currentConversationId);
+  const currentConversation = useChatStore(state =>
+    state.conversations.find(c => c.id === state.currentConversationId)
+  );
   const hasGeneratedImage = Boolean((message.image || message.imageUrl) && isAssistant && !message.isStreaming);
   const hasGeneratedVideo = Boolean((message.video || message.videoUrl) && isAssistant && !message.isStreaming);
   const copyLabel = hasGeneratedImage ? 'Copy image to clipboard' : 'Copy to clipboard';
   const threadsEnabled = getEnableConversationThreads();
   const threadCharLimit = AppConfig.maxMessageLength;
   const threadLimit = AppConfig.maxMessagesPerThread;
-  const threadLimitReached = threadLimit !== null && threadMessageCount >= threadLimit;
-  const threadLimitMessage =
-    threadLimitReached && threadLimit !== null
-      ? (isGuest
-          ? `You've reached the guest limit of ${threadLimit} messages per thread. Sign in to continue this thread.`
-          : `This thread reached the ${threadLimit} message limit. Start a new conversation for more follow-ups.`)
-      : null;
+  const threadLimitReached = threadLimit !== null && threadReplyCount >= threadLimit;
+  const threadLimitMessage = threadLimitReached
+    ? (isGuest
+        ? `You've reached the guest limit of ${threadLimit} messages per thread. Sign in to continue this thread.`
+        : `This thread reached the ${threadLimit} message limit. Start a new conversation for more follow-ups.`)
+    : null;
   const { theme, isDark } = useTheme();
   const threadPlaceholder = 'Reply in thread...';
   const threadInputId = `thread-input-${message.id}`;
@@ -701,11 +710,7 @@ export function Message({
     if (message.isStreaming && (!message.content || message.content === '…')) {
       return (
         <div className={mainMarkdownClassName}>
-          <div className="flex items-center gap-1.5 py-1">
-            <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '0ms' }} />
-            <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '150ms' }} />
-            <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
-          </div>
+          <StreamingDots />
         </div>
       );
     }
@@ -726,11 +731,8 @@ export function Message({
   const renderedThreadReplies = useMemo(() => {
     // Sort replies by timestamp to maintain chronological order
     // Show all messages in order, just like the main conversation
-    const sortedReplies = [...threadReplies].sort((a, b) => {
-      const timeA = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
-      const timeB = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
-      return timeA - timeB;
-    });
+    const toMs = (ts: Date | string) => ts instanceof Date ? ts.getTime() : new Date(ts).getTime();
+    const sortedReplies = [...threadReplies].sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp));
     
     return sortedReplies.map(reply => {
       const replyIsAssistant = reply.role === 'assistant';
@@ -739,11 +741,7 @@ export function Message({
       const replyStreamingClass = reply.isStreaming && replyIsAssistant ? ' streaming-cursor' : '';
       const replyContent = reply.isStreaming && (!reply.content || reply.content === '…') ? (
         <div className={replyMarkdownClass}>
-          <div className="flex items-center gap-1.5 py-1">
-            <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '0ms' }} />
-            <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '150ms' }} />
-            <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
-          </div>
+          <StreamingDots size="sm" />
         </div>
       ) : (
         <div className={replyStreamingClass || undefined}>
@@ -780,6 +778,7 @@ export function Message({
                   videoUrl={reply.videoUrl}
                   videoFormat={reply.videoFormat}
                   revisedPrompt={reply.videoRevisedPrompt}
+                  adapterName={currentConversation?.adapterName}
                 />
               )}
               {(reply.document || reply.documentUrl) && replyIsAssistant && !reply.isStreaming && (
@@ -840,6 +839,7 @@ export function Message({
               videoUrl={message.videoUrl}
               videoFormat={message.videoFormat}
               revisedPrompt={message.videoRevisedPrompt}
+              adapterName={currentConversation?.adapterName}
             />
           )}
 
@@ -855,8 +855,7 @@ export function Message({
         </div>
 
         {isAssistant && !message.isStreaming && (
-          <>
-            <div className="py-1 flex flex-nowrap items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0] transition-opacity">
+          <div className="py-1 flex flex-nowrap items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0] transition-opacity">
               {/* Copy */}
               {!hasGeneratedVideo && (
                 <button
@@ -963,9 +962,7 @@ export function Message({
                   )}
                 </>
               )}
-            </div>
-
-          </>
+          </div>
         )}
 
         {threadsEnabled && message.threadInfo && isThreadOpen && (
