@@ -254,6 +254,8 @@ export function Message({
   const currentConversationId = useChatStore(state => state.currentConversationId);
   const currentConversation = conversations.find(conv => conv.id === currentConversationId);
   const hasGeneratedImage = Boolean((message.image || message.imageUrl) && isAssistant && !message.isStreaming);
+  const hasGeneratedVideo = Boolean((message.video || message.videoUrl) && isAssistant && !message.isStreaming);
+  const copyLabel = hasGeneratedImage ? 'Copy image to clipboard' : 'Copy to clipboard';
   const threadsEnabled = getEnableConversationThreads();
   const threadCharLimit = AppConfig.maxMessageLength;
   const threadLimit = AppConfig.maxMessagesPerThread;
@@ -856,17 +858,19 @@ export function Message({
           <>
             <div className="py-1 flex flex-nowrap items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0] transition-opacity">
               {/* Copy */}
-              <button
-                onClick={copyToClipboard}
-                className="rounded-md p-1.5 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
-                title={hasGeneratedImage ? 'Copy image to clipboard' : 'Copy to clipboard'}
-                aria-label={hasGeneratedImage ? 'Copy image to clipboard' : 'Copy to clipboard'}
-              >
-                {copied
-                  ? <Check className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-                  : <Copy className="h-4 w-4" />
-                }
-              </button>
+              {!hasGeneratedVideo && (
+                <button
+                  onClick={copyToClipboard}
+                  className="rounded-md p-1.5 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
+                  title={copyLabel}
+                  aria-label={copyLabel}
+                >
+                  {copied
+                    ? <Check className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                    : <Copy className="h-4 w-4" />
+                  }
+                </button>
+              )}
 
               {/* Feedback */}
               {getEnableFeedbackButtons() && (
