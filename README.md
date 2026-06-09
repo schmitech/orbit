@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-  Maintained by <a href="https://schmitech.ca/en/about"><strong>Remsy Schmilinsky</strong></a>
+  Maintained by <a href="https://www.linkedin.com/in/remsy/"><strong>Remsy Schmilinsky</strong></a>
 </p>
 
 Teams want AI connected to real business data without sending everything to a SaaS vendor, rewriting applications for every model provider, or maintaining fragile glue code between LLMs, databases, APIs, and files.
