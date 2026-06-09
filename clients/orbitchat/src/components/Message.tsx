@@ -49,6 +49,89 @@ interface MessageProps {
 
 const EMPTY_THREAD_REPLIES: MessageType[] = [];
 
+const getImageMimeType = (format = 'png') => {
+  const normalizedFormat = format.toLowerCase().replace(/^image\//, '');
+  if (normalizedFormat === 'jpg') {
+    return 'image/jpeg';
+  }
+  return `image/${normalizedFormat || 'png'}`;
+};
+
+const base64ToBlob = (base64: string, mimeType: string) => {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Blob([bytes], { type: mimeType });
+};
+
+const convertBlobToPng = async (blob: Blob) => {
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = new Image();
+    image.decoding = 'async';
+    const loadedImage = new Promise<HTMLImageElement>((resolve, reject) => {
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Failed to load generated image for clipboard copy'));
+    });
+    image.src = url;
+    await loadedImage;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Could not create canvas context for image clipboard copy');
+    }
+
+    context.drawImage(image, 0, 0);
+
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((pngBlob) => {
+        if (pngBlob) {
+          resolve(pngBlob);
+        } else {
+          reject(new Error('Could not encode generated image for clipboard copy'));
+        }
+      }, 'image/png');
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+};
+
+const getGeneratedImageBlob = async (message: MessageType, adapterName?: string | null) => {
+  const mimeType = getImageMimeType(message.imageFormat);
+  if (message.image) {
+    return base64ToBlob(message.image, mimeType);
+  }
+
+  if (!message.imageUrl) {
+    return null;
+  }
+
+  const response = await fetch(message.imageUrl, {
+    headers: adapterName ? { 'X-Adapter-Name': adapterName } : {},
+  });
+
+  if (!response.ok) {
+    throw new Error(`Could not fetch generated image for clipboard copy: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  return blob.type ? blob : new Blob([blob], { type: mimeType });
+};
+
+const getGeneratedImageFallbackText = (message: MessageType) => {
+  if (message.imageUrl) {
+    return new URL(message.imageUrl, window.location.origin).toString();
+  }
+  return message.imageRevisedPrompt || message.content;
+};
+
 function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showAcknowledgement, setShowAcknowledgement] = useState(false);
@@ -170,6 +253,7 @@ export function Message({
   const conversations = useChatStore(state => state.conversations);
   const currentConversationId = useChatStore(state => state.currentConversationId);
   const currentConversation = conversations.find(conv => conv.id === currentConversationId);
+  const hasGeneratedImage = Boolean((message.image || message.imageUrl) && isAssistant && !message.isStreaming);
   const threadsEnabled = getEnableConversationThreads();
   const threadCharLimit = AppConfig.maxMessageLength;
   const threadLimit = AppConfig.maxMessagesPerThread;
@@ -329,19 +413,52 @@ export function Message({
 
   const attachmentClasses = 'border-gray-200 bg-white/80 dark:border-[#3b3c49] dark:bg-white/5';
 
+  const markCopied = useCallback(() => {
+    setCopied(true);
+    if (copiedTimeoutRef.current) {
+      clearTimeout(copiedTimeoutRef.current);
+    }
+    copiedTimeoutRef.current = setTimeout(() => {
+      setCopied(false);
+      copiedTimeoutRef.current = null;
+    }, 2000);
+  }, []);
+
   const copyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(message.content);
-      setCopied(true);
-      if (copiedTimeoutRef.current) {
-        clearTimeout(copiedTimeoutRef.current);
+      if (hasGeneratedImage) {
+        if ('ClipboardItem' in window && navigator.clipboard.write) {
+          try {
+            const adapterName =
+              currentConversation?.adapterName ||
+              (typeof window !== 'undefined' ? window.localStorage.getItem('chat-adapter-name') : null);
+            const imageBlob = await getGeneratedImageBlob(message, adapterName);
+            if (imageBlob) {
+              const clipboardBlob = imageBlob.type === 'image/png' ? imageBlob : await convertBlobToPng(imageBlob);
+              await navigator.clipboard.write([
+                new ClipboardItem({ [clipboardBlob.type || 'image/png']: clipboardBlob }),
+              ]);
+              markCopied();
+              return;
+            }
+          } catch (imageCopyError) {
+            debugError('Failed to copy generated image, falling back to text:', imageCopyError);
+          }
+        }
+
+        const fallbackText = getGeneratedImageFallbackText(message);
+        if (fallbackText) {
+          await navigator.clipboard.writeText(fallbackText);
+          markCopied();
+          return;
+        }
+        return;
       }
-      copiedTimeoutRef.current = setTimeout(() => {
-        setCopied(false);
-        copiedTimeoutRef.current = null;
-      }, 2000);
+
+      await navigator.clipboard.writeText(message.content);
+      markCopied();
     } catch (error) {
-      debugError('Failed to copy text:', error);
+      debugError(hasGeneratedImage ? 'Failed to copy generated image:' : 'Failed to copy text:', error);
     }
   };
 
@@ -742,8 +859,8 @@ export function Message({
               <button
                 onClick={copyToClipboard}
                 className="rounded-md p-1.5 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
-                title="Copy to clipboard"
-                aria-label="Copy to clipboard"
+                title={hasGeneratedImage ? 'Copy image to clipboard' : 'Copy to clipboard'}
+                aria-label={hasGeneratedImage ? 'Copy image to clipboard' : 'Copy to clipboard'}
               >
                 {copied
                   ? <Check className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
