@@ -22,6 +22,9 @@ from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from utils.middleware_utils import path_is_excluded
+from utils.text_utils import mask_api_key
+
 logger = logging.getLogger(__name__)
 
 
@@ -43,7 +46,6 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
             config: Application configuration dictionary
         """
         super().__init__(app)
-        self.config = config
 
         # Extract throttling configuration
         security_config = config.get('security', {}) or {}
@@ -94,18 +96,6 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
             f"curve={self.delay_curve}, threshold={self.threshold_percent*100}%"
         )
 
-    def _get_api_key(self, request: Request) -> Optional[str]:
-        """
-        Extract API key from request header if present.
-
-        Args:
-            request: The incoming request
-
-        Returns:
-            API key string or None
-        """
-        return request.headers.get(self.api_key_header)
-
     def _should_skip_throttle(self, request: Request) -> bool:
         """
         Check if the request path should be excluded from throttling.
@@ -116,13 +106,7 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
         Returns:
             True if throttling should be skipped
         """
-        path = request.url.path
-
-        for exclude_path in self.exclude_paths:
-            if path == exclude_path or path.startswith(exclude_path + '/'):
-                return True
-
-        return False
+        return path_is_excluded(request.url.path, self.exclude_paths)
 
     def _get_priority_multiplier(self, priority: int) -> float:
         """
@@ -214,7 +198,6 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
             normalized = 1.0
         else:
             normalized = (usage_pct - self.threshold_percent) / (1.0 - self.threshold_percent)
-            normalized = max(0.0, min(1.0, normalized))
 
         # Calculate base delay using curve
         if self.delay_curve == 'exponential':
@@ -283,7 +266,7 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Get API key - throttling only applies to authenticated requests
-        api_key = self._get_api_key(request)
+        api_key = request.headers.get(self.api_key_header)
         if not api_key:
             # No API key, pass through (rate limiting will handle it)
             return await call_next(request)
@@ -332,7 +315,6 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
                 exceeded_type = 'monthly'
 
             if quota_exceeded:
-                from utils.text_utils import mask_api_key
                 logger.warning(f"Quota exceeded for API key ({exceeded_type}): {mask_api_key(api_key, show_last=True, num_chars=6)}")
                 response = JSONResponse(
                     status_code=429,

@@ -11,6 +11,8 @@ from typing import List, Optional
 from starlette.middleware.gzip import GZipResponder
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from utils.middleware_utils import path_is_excluded
+
 logger = logging.getLogger(__name__)
 
 
@@ -44,7 +46,7 @@ class SelectiveGZipMiddleware:
             minimum_size: Minimum response size in bytes to compress
             excluded_paths: List of path prefixes to exclude from compression.
                           Defaults to streaming endpoints.
-            compresslevel: GZip compression level (1-9, default 9)
+            compresslevel: GZip compression level (1-9, default 6)
         """
         self.app = app
         self.minimum_size = minimum_size
@@ -72,11 +74,10 @@ class SelectiveGZipMiddleware:
         path = scope.get("path", "")
 
         # Check if path should be excluded from compression
-        for excluded in self.excluded_paths:
-            if path.startswith(excluded):
-                # Skip compression for streaming endpoints
-                await self.app(scope, receive, send)
-                return
+        if path_is_excluded(path, self.excluded_paths):
+            # Skip compression for streaming endpoints
+            await self.app(scope, receive, send)
+            return
 
         # Check Accept-Encoding header for gzip support
         headers = dict(scope.get("headers", []))

@@ -20,7 +20,6 @@ Design:
 
 from __future__ import annotations
 
-import ipaddress
 import json
 import logging
 import re
@@ -30,6 +29,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from utils.ip_utils import extract_ip as _extract_ip
+from utils.ip_utils import parse_trusted_networks as _parse_trusted_networks
 from utils.text_utils import mask_api_key
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ _SKIP_PATHS = frozenset({
 #   into request_summary. Set to an empty list to record nothing; set to
 #   sentinel `_CHANGED_KEYS` to record just the list of top-level keys.
 
-_CHANGED_KEYS = "__changed_keys__"
+_CHANGED_KEYS = object()
 
 _ROUTE_MAP: List[Tuple[str, str, str, str, str, Optional[str], Any]] = [
     # ---- Auth ----
@@ -144,97 +145,6 @@ def _match_route(method: str, path: str):
         if match:
             return entry, match.groupdict()
     return None
-
-
-# ---------------------------------------------------------------------------
-# IP parsing (mirror of LoggerService / AuditService logic)
-# ---------------------------------------------------------------------------
-
-def _parse_trusted_networks(proxies: List[str]) -> List[Any]:
-    """Parse CIDR strings into network objects for proxy trust validation."""
-    networks = []
-    for proxy in proxies:
-        try:
-            networks.append(ipaddress.ip_network(proxy, strict=False))
-        except ValueError:
-            logger.warning(f"AdminAuditMiddleware: invalid trusted proxy address '{proxy}'")
-    return networks
-
-
-def _is_local_ip(ip: str) -> bool:
-    try:
-        addr = ipaddress.ip_address(ip)
-        return addr.is_private or addr.is_loopback
-    except ValueError:
-        return False
-
-
-def _extract_ip(
-    request: Request,
-    trust_proxy: bool = False,
-    trusted_networks: Optional[List[Any]] = None,
-) -> Tuple[str, Dict[str, Any]]:
-    """Return (ip_address, ip_metadata) for the request.
-
-    Proxy headers are only honoured when trust_proxy=True AND the direct
-    connection originates from a network listed in trusted_networks.  When
-    trusted_networks is empty and trust_proxy is True, proxy headers are
-    rejected (deny-by-default) to prevent IP spoofing in audit records.
-    """
-    direct_ip = request.client.host if request.client else None
-
-    forwarded = request.headers.get("x-forwarded-for")
-    use_proxy_header = False
-    if forwarded and trust_proxy and trusted_networks:
-        try:
-            addr = ipaddress.ip_address(direct_ip or "")
-            if any(addr in net for net in trusted_networks):
-                use_proxy_header = True
-        except ValueError:
-            pass
-
-    if use_proxy_header:
-        raw = forwarded
-        clean = forwarded.split(",")[0].strip()
-        source = "proxy"
-    else:
-        clean = direct_ip or "unknown"
-        raw = clean
-        source = "direct"
-
-    if not clean or clean == "unknown":
-        return "unknown", {
-            "address": "unknown",
-            "type": "unknown",
-            "isLocal": False,
-            "source": "unknown",
-            "originalValue": raw,
-        }
-
-    if clean in ("::1", "::ffff:127.0.0.1", "127.0.0.1") or clean.startswith("::ffff:127."):
-        return "localhost", {
-            "address": "localhost",
-            "type": "local",
-            "isLocal": True,
-            "source": "direct",
-            "originalValue": clean,
-        }
-
-    if clean.startswith("::ffff:"):
-        clean = clean[7:]
-        ip_type = "ipv4"
-    elif ":" in clean:
-        ip_type = "ipv6"
-    else:
-        ip_type = "ipv4"
-
-    return clean, {
-        "address": clean,
-        "type": ip_type,
-        "isLocal": _is_local_ip(clean),
-        "source": source,
-        "originalValue": raw,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -352,7 +262,6 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
 
         match = _match_route(method, path)
         if match is None:
-            route_entry = None
             event_type = "admin.unknown"
             action = method
             resource_type = "unknown"

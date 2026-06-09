@@ -14,12 +14,14 @@ Features:
 
 import time
 import logging
-import ipaddress
 import threading
-from typing import Optional, Tuple, Dict, Any, List
+from typing import Tuple, Dict, Any
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from utils.ip_utils import extract_ip, parse_trusted_networks
+from utils.middleware_utils import path_is_excluded
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +29,7 @@ logger = logging.getLogger(__name__)
 class InMemoryRateLimiter:
     """In-memory token bucket rate limiter used as fallback when Redis is unavailable."""
 
-    def __init__(self, rate_per_minute: int, cleanup_interval: int = 300):
-        self._rate = rate_per_minute
-        self._interval = 60.0 / rate_per_minute if rate_per_minute > 0 else 0
+    def __init__(self, cleanup_interval: int = 300):
         self._buckets: Dict[str, Tuple[float, float]] = {}  # key -> (tokens, last_refill)
         self._lock = threading.Lock()
         self._last_cleanup = time.monotonic()
@@ -93,7 +93,6 @@ return current
             config: Application configuration dictionary
         """
         super().__init__(app)
-        self.config = config
 
         # Extract rate limiting configuration
         security_config = config.get('security', {}) or {}
@@ -103,13 +102,13 @@ return current
 
         # Proxy trust configuration (security feature to prevent IP spoofing)
         self.trust_proxy_headers = rate_config.get('trust_proxy_headers', False)
-        self.trusted_proxies = self._parse_trusted_proxies(
+        self.trusted_proxies = parse_trusted_networks(
             rate_config.get('trusted_proxies', [])
         )
         if self.trust_proxy_headers and not self.trusted_proxies:
             logger.warning(
                 "trust_proxy_headers is enabled but trusted_proxies is empty — "
-                "all X-Forwarded-For headers will be trusted unconditionally. "
+                "proxy headers will be ignored. "
                 "Set trusted_proxies to the CIDR(s) of your reverse proxy."
             )
 
@@ -140,7 +139,7 @@ return current
         self._script_registered_client = None
 
         # In-memory fallback rate limiter (activates when Redis is unavailable)
-        self._fallback_limiter = InMemoryRateLimiter(rate_per_minute=self.ip_requests_per_minute)
+        self._fallback_limiter = InMemoryRateLimiter()
 
         logger.info(
             f"Rate limiting middleware initialized: enabled={self.enabled}, "
@@ -149,50 +148,6 @@ return current
             f"API key limits={self.api_key_requests_per_minute}/min {self.api_key_requests_per_hour}/hr"
         )
     
-    def _parse_trusted_proxies(self, proxies: List[str]) -> List[ipaddress.IPv4Network | ipaddress.IPv6Network]:
-        """
-        Parse trusted proxy IP addresses/CIDRs into network objects.
-
-        Args:
-            proxies: List of IP addresses or CIDR notations
-
-        Returns:
-            List of parsed network objects
-        """
-        networks = []
-        for proxy in proxies:
-            try:
-                # Try to parse as a network (CIDR notation)
-                network = ipaddress.ip_network(proxy, strict=False)
-                networks.append(network)
-            except ValueError as e:
-                logger.warning(f"Invalid trusted proxy address '{proxy}': {e}")
-        return networks
-
-    def _is_trusted_proxy(self, ip: str) -> bool:
-        """
-        Check if an IP address is in the trusted proxies list.
-
-        Args:
-            ip: IP address to check
-
-        Returns:
-            True if the IP is trusted, False otherwise
-        """
-        if not self.trusted_proxies:
-            # If no trusted proxies configured, trust all (when trust_proxy_headers is True)
-            return True
-
-        try:
-            addr = ipaddress.ip_address(ip)
-            for network in self.trusted_proxies:
-                if addr in network:
-                    return True
-        except ValueError:
-            pass
-
-        return False
-
     def _get_client_ip(self, request: Request) -> str:
         """
         Extract client IP address from request, with security controls for proxy headers.
@@ -210,52 +165,12 @@ return current
         Returns:
             Client IP address string
         """
-        # Get the direct connection IP
-        direct_ip = request.client.host if request.client else None
-
-        # If proxy headers are not trusted, use direct IP only
-        if not self.trust_proxy_headers:
-            if direct_ip:
-                return direct_ip
-            return "unknown"
-
-        # If trusted_proxies is configured, verify the direct connection is from a trusted proxy
-        if self.trusted_proxies and direct_ip:
-            if not self._is_trusted_proxy(direct_ip):
-                # Direct connection is not from a trusted proxy, ignore proxy headers
-                logger.debug(
-                    f"Ignoring proxy headers from untrusted IP {direct_ip}"
-                )
-                return direct_ip
-
-        # Trust proxy headers - check X-Forwarded-For first
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            # Take the first IP (original client)
-            return forwarded_for.split(',')[0].strip()
-
-        # Check X-Real-IP header
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip.strip()
-
-        # Fall back to direct client IP
-        if direct_ip:
-            return direct_ip
-
-        return "unknown"
-    
-    def _get_api_key(self, request: Request) -> Optional[str]:
-        """
-        Extract API key from request header if present.
-        
-        Args:
-            request: The incoming request
-            
-        Returns:
-            API key string or None
-        """
-        return request.headers.get(self.api_key_header)
+        ip, _metadata = extract_ip(
+            request,
+            trust_proxy=self.trust_proxy_headers,
+            trusted_networks=self.trusted_proxies,
+        )
+        return ip
     
     def _should_skip_rate_limit(self, request: Request) -> bool:
         """
@@ -267,13 +182,7 @@ return current
         Returns:
             True if rate limiting should be skipped
         """
-        path = request.url.path
-
-        for exclude_path in self.exclude_paths:
-            if path == exclude_path or path.startswith(exclude_path + '/'):
-                return True
-
-        return False
+        return path_is_excluded(request.url.path, self.exclude_paths)
 
     def _register_lua_script(self, redis_service) -> None:
         """Register Lua script with Redis client for efficient execution."""
@@ -397,6 +306,18 @@ return current
         response.headers["X-RateLimit-Limit"] = str(limit)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
         response.headers["X-RateLimit-Reset"] = str(reset_timestamp)
+
+    def _rate_limited_response(self, limit: int, remaining: int, reset: int) -> JSONResponse:
+        response = JSONResponse(
+            status_code=429,
+            content={
+                "detail": f"Rate limit exceeded. Please retry after {self.retry_after_seconds} seconds.",
+                "retry_after": self.retry_after_seconds
+            }
+        )
+        response.headers["Retry-After"] = str(self.retry_after_seconds)
+        self._add_rate_limit_headers(response, limit, remaining, reset)
+        return response
     
     async def dispatch(self, request: Request, call_next):
         """
@@ -426,15 +347,11 @@ return current
                 f"ip:{client_ip}", self.ip_requests_per_minute
             )
             if not allowed:
-                response = JSONResponse(
-                    status_code=429,
-                    content={
-                        "detail": f"Rate limit exceeded. Please retry after {self.retry_after_seconds} seconds.",
-                        "retry_after": self.retry_after_seconds
-                    }
+                return self._rate_limited_response(
+                    self.ip_requests_per_minute,
+                    remaining,
+                    int(time.time()) + 60,
                 )
-                response.headers["Retry-After"] = str(self.retry_after_seconds)
-                return response
             response = await call_next(request)
             return response
         
@@ -448,7 +365,7 @@ return current
         
         # Extract identifiers
         client_ip = self._get_client_ip(request)
-        api_key = self._get_api_key(request)
+        api_key = request.headers.get(self.api_key_header)
         
         # Check IP rate limit
         ip_allowed, ip_remaining, ip_limit, ip_reset = await self._check_rate_limit(
@@ -461,16 +378,7 @@ return current
         
         if not ip_allowed:
             logger.warning(f"Rate limit exceeded for IP: {client_ip}")
-            response = JSONResponse(
-                status_code=429,
-                content={
-                    "detail": f"Rate limit exceeded. Please retry after {self.retry_after_seconds} seconds.",
-                    "retry_after": self.retry_after_seconds
-                }
-            )
-            response.headers["Retry-After"] = str(self.retry_after_seconds)
-            self._add_rate_limit_headers(response, ip_limit, ip_remaining, ip_reset)
-            return response
+            return self._rate_limited_response(ip_limit, ip_remaining, ip_reset)
         
         # If API key is present, also check API key limit
         if api_key:
@@ -484,16 +392,7 @@ return current
             
             if not key_allowed:
                 logger.warning("Rate limit exceeded for API key")
-                response = JSONResponse(
-                    status_code=429,
-                    content={
-                        "detail": f"Rate limit exceeded. Please retry after {self.retry_after_seconds} seconds.",
-                        "retry_after": self.retry_after_seconds
-                    }
-                )
-                response.headers["Retry-After"] = str(self.retry_after_seconds)
-                self._add_rate_limit_headers(response, key_limit, key_remaining, key_reset)
-                return response
+                return self._rate_limited_response(key_limit, key_remaining, key_reset)
             
             # Use API key limits for headers if authenticated
             limit = key_limit

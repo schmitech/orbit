@@ -234,8 +234,8 @@ class TestRateLimitMiddlewareClientIP:
         ip = middleware._get_client_ip(mock_request)
         assert ip == "10.0.0.1"
 
-    def test_proxy_headers_trusted_when_enabled(self):
-        """Test IP extraction from X-Forwarded-For when trust_proxy_headers is True."""
+    def test_proxy_headers_ignored_when_no_trusted_proxies_configured(self):
+        """Proxy headers are denied by default when trusted_proxies is empty."""
         app = FastAPI()
         config = {
             'security': {
@@ -252,10 +252,10 @@ class TestRateLimitMiddlewareClientIP:
         mock_request.client = Mock(host="10.0.0.1")
 
         ip = middleware._get_client_ip(mock_request)
-        assert ip == "203.0.113.195"
+        assert ip == "10.0.0.1"
 
-    def test_x_real_ip_trusted_when_enabled(self):
-        """Test IP extraction from X-Real-IP when trust_proxy_headers is True."""
+    def test_x_real_ip_ignored_when_no_trusted_proxies_configured(self):
+        """X-Real-IP is denied by default when trusted_proxies is empty."""
         app = FastAPI()
         config = {
             'security': {
@@ -272,7 +272,7 @@ class TestRateLimitMiddlewareClientIP:
         mock_request.client = Mock(host="10.0.0.1")
 
         ip = middleware._get_client_ip(mock_request)
-        assert ip == "203.0.113.195"
+        assert ip == "10.0.0.1"
 
     def test_trusted_proxies_allows_trusted_ip(self):
         """Test that proxy headers are accepted from trusted proxy IPs."""

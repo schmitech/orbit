@@ -44,7 +44,11 @@ class TestSecurityHeadersMiddleware:
             'permissions_policy': "geolocation=()"
         }
 
-        app.add_middleware(SecurityHeadersMiddleware, headers_config=headers_config)
+        app.add_middleware(
+            SecurityHeadersMiddleware,
+            headers_config=headers_config,
+            https_enabled=True,
+        )
 
         @app.get("/test")
         def test_endpoint():

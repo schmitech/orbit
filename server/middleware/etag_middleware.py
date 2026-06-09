@@ -20,6 +20,8 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import StreamingResponse
 
+from utils.middleware_utils import path_is_excluded
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,13 +63,7 @@ class ETagMiddleware(BaseHTTPMiddleware):
         if request.method != 'GET':
             return False
 
-        # Check if path is excluded
-        path = request.url.path
-        for excluded in self.excluded_paths:
-            if path.startswith(excluded):
-                return False
-
-        return True
+        return not path_is_excluded(request.url.path, self.excluded_paths)
 
     def _generate_etag(self, content: bytes) -> str:
         """
@@ -84,19 +80,6 @@ class ETagMiddleware(BaseHTTPMiddleware):
         # Use blake2b with 8-byte digest for speed and compactness
         hash_digest = hashlib.blake2b(content, digest_size=8).hexdigest()
         return f'"{hash_digest}"'
-
-    def _is_json_response(self, response: Response) -> bool:
-        """
-        Check if the response content type is JSON.
-
-        Args:
-            response: The HTTP response
-
-        Returns:
-            True if the response is JSON, False otherwise
-        """
-        content_type = response.headers.get('content-type', '')
-        return 'application/json' in content_type
 
     async def dispatch(self, request: Request, call_next):
         """
@@ -130,10 +113,11 @@ class ETagMiddleware(BaseHTTPMiddleware):
             return response
 
         # Only process successful JSON responses
-        if response.status_code != 200 or not self._is_json_response(response):
+        if response.status_code != 200 or 'application/json' not in response.headers.get('content-type', ''):
             return response
 
-        # Get response body
+        # The StreamingResponse guard above documents the supported invariant:
+        # at this point body_iterator is safe to consume and reconstruct.
         body = b''
         async for chunk in response.body_iterator:
             body += chunk
