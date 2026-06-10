@@ -68,10 +68,11 @@ git checkout main
 ```
 
 ### Step 8: Clean Up (Optional)
-To remove the test branch when done:
+To remove the test branch and remote when done:
 ```bash
 git branch -D test-pr-[PR-NUMBER]
 git branch -D pr-[PR-NUMBER]
+git remote remove [CONTRIBUTOR]   # fork PRs only
 ```
 
 ## Method 2: Stash and Restore (Alternative)
@@ -84,8 +85,17 @@ git stash push -m "Testing PR [PR-NUMBER]"
 ```
 
 ### Step 2: Fetch and Checkout PR
-Use the same fetch as in Method 1 (same-repo: `git fetch origin pull/[PR-NUMBER]/head:pr-[PR-NUMBER]`; for a fork, add the fork remote and fetch the branch).
+
+**Same repo:**
 ```bash
+git fetch origin pull/[PR-NUMBER]/head:pr-[PR-NUMBER]
+git checkout pr-[PR-NUMBER]
+```
+
+**Fork:**
+```bash
+git remote add [CONTRIBUTOR] https://github.com/[CONTRIBUTOR]/orbit.git
+git fetch [CONTRIBUTOR] [BRANCH-NAME]:pr-[PR-NUMBER]
 git checkout pr-[PR-NUMBER]
 ```
 
@@ -114,6 +124,49 @@ git cherry-pick [COMMIT-HASH]
 
 ### Step 3: Test and Clean Up
 Test the changes, then return to your work branch.
+
+## Method 4: Merge to Main (For Maintainers)
+
+Use this when you want to review, test, and own the final commit yourself — rather than merging the contributor's commit directly.
+
+### Step 1: Make sure you're on main
+```bash
+git checkout main
+```
+
+### Step 2: Add the contributor's fork as a remote
+```bash
+git remote add [CONTRIBUTOR] https://github.com/[CONTRIBUTOR]/orbit.git
+```
+
+### Step 3: Fetch their branch
+```bash
+git fetch [CONTRIBUTOR] [BRANCH-NAME]
+```
+
+### Step 4: Merge without committing
+```bash
+git merge [CONTRIBUTOR]/[BRANCH-NAME] --no-commit --no-ff
+```
+
+The `--no-commit` flag stages all changes without auto-committing. The `--no-ff` flag prevents a fast-forward so the merge is always explicit.
+
+### Step 5: Review and test
+- Inspect the staged diff in your tool of choice (GitHub Desktop, `git diff --staged`, etc.)
+- Run tests and start the server to verify the fix
+
+### Step 6: Commit
+Once satisfied, write your own commit message and commit — via GitHub Desktop or:
+```bash
+git commit -m "your message here"
+```
+
+### Step 7: Clean Up
+```bash
+git remote remove [CONTRIBUTOR]
+```
+
+---
 
 ## Troubleshooting
 
