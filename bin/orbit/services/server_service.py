@@ -166,7 +166,8 @@ class ServerService:
             ]
             for config in possible_configs:
                 if config.exists():
-                    cmd.extend(["--config", str(config)])
+                    config_path = str(config)
+                    cmd.extend(["--config", config_path])
                     logger.debug(f"Using config file: {config}")
                     break
         
@@ -180,11 +181,14 @@ class ServerService:
         # Add reload flag if requested
         if reload:
             # For reload mode, use uvicorn directly from server directory
-            cmd = ["uvicorn", "server:app", "--reload"]
+            cmd = ["uvicorn", "main:app", "--reload"]
             if host:
                 cmd.extend(["--host", host])
             if port:
                 cmd.extend(["--port", str(port)])
+            # uvicorn calls create_app(), which reads the config from this env var
+            if config_path:
+                env["OIS_CONFIG_PATH"] = config_path
             # Change to server directory for reload mode
             os.chdir(self.project_root / "server")
         

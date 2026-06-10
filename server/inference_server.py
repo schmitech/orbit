@@ -2,6 +2,8 @@ import logging
 import os
 import ssl
 import asyncio
+import datetime
+from pathlib import Path
 from typing import Any, Optional
 from contextlib import asynccontextmanager
 
@@ -23,6 +25,8 @@ from routes.routes_configurator import RouteConfigurator
 from datasources import DatasourceFactory
 
 logger = logging.getLogger(__name__)
+ADMIN_DIR = Path(__file__).parent / "admin"
+TLS_CIPHERS = "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!eNULL:!MD5:!RC4:!3DES"
 
 # Lazy imports for retrievers - only imported when needed
 RetrieverFactory = None
@@ -127,11 +131,7 @@ class InferenceServer:
             redoc_url="/redoc" if docs_enabled else None,
             openapi_url="/openapi.json" if docs_enabled else None,
         )
-        self.app.mount("/static", StaticFiles(directory="server/admin"), name="static")
-        
-        # Initialize application state
-        self.services = {}
-        self.clients = {}
+        self.app.mount("/static", StaticFiles(directory=str(ADMIN_DIR)), name="static")
         
         # Configure middleware and routes
         MiddlewareConfigurator.configure_middleware(self.app, self.config, self.logger)
@@ -211,7 +211,7 @@ class InferenceServer:
                 self.configuration_summary_logger.log_configuration_summary(app)
                 logger.info("Startup complete")
             except Exception as e:
-                logger.error(f"Failed to initialize services: {str(e)}")
+                logger.error("Failed to initialize services: %s", e)
                 raise
             
             yield
@@ -222,7 +222,7 @@ class InferenceServer:
                 await self._shutdown_services(app)
                 logger.info("Services shut down successfully")
             except Exception as e:
-                logger.error(f"Error during shutdown: {str(e)}")
+                logger.error("Error during shutdown: %s", e)
         
         return lifespan
 
@@ -294,16 +294,6 @@ class InferenceServer:
         # Use service factory to initialize all services
         await self.service_factory.initialize_all_services(app)
 
-    def _load_no_results_message(self) -> str:
-        """
-        Get the no results message from the configuration.
-        
-        Returns:
-            The message to show when no results are found
-        """
-        return self.config.get('messages', {}).get('no_results_response', 
-            "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
-
     async def _shutdown_services(self, app: FastAPI) -> None:
         """
         Shut down all services and clients.
@@ -323,7 +313,7 @@ class InferenceServer:
                     else:
                         service.close()
                 except Exception as e:
-                    logger.error(f"Error preparing shutdown for {service_name}: {str(e)}")
+                    logger.error("Error preparing shutdown for %s: %s", service_name, e)
 
         # Add services to shutdown tasks if they exist and have close methods
         if hasattr(app.state, 'llm_client'):
@@ -386,7 +376,7 @@ class InferenceServer:
             except asyncio.TimeoutError:
                 logger.error("Timeout shutting down fault tolerance services, continuing shutdown")
             except Exception as e:
-                logger.error(f"Error shutting down fault tolerance services: {str(e)}")
+                logger.error("Error shutting down fault tolerance services: %s", e)
 
         # Close all tracked aiohttp sessions
         shutdown_tasks.append(close_all_aiohttp_sessions())
@@ -394,12 +384,18 @@ class InferenceServer:
         # Run all async service shutdown tasks with timeout
         if shutdown_tasks:
             try:
-                await asyncio.wait_for(asyncio.gather(*shutdown_tasks, return_exceptions=True), timeout=30.0)
+                results = await asyncio.wait_for(
+                    asyncio.gather(*shutdown_tasks, return_exceptions=True),
+                    timeout=30.0,
+                )
+                for result in results:
+                    if isinstance(result, Exception):
+                        logger.error("Error during service shutdown: %s", result)
                 logger.info("Services shut down successfully")
             except asyncio.TimeoutError:
                 logger.error("Timeout while shutting down services")
             except Exception as e:
-                logger.error(f"Error during shutdown of services: {str(e)}")
+                logger.error("Error during shutdown of services: %s", e)
         else:
             logger.info("No services to shut down")
 
@@ -407,10 +403,9 @@ class InferenceServer:
         # Run in executor to avoid blocking the event loop
         if hasattr(self, 'thread_pool_manager'):
             try:
-                loop = asyncio.get_event_loop()
                 await asyncio.wait_for(
-                    loop.run_in_executor(None, lambda: self.thread_pool_manager.shutdown(wait=True)),
-                    timeout=5.0
+                    asyncio.to_thread(self.thread_pool_manager.shutdown, wait=True),
+                    timeout=5.0,
                 )
                 logger.info("Thread pool manager shut down successfully")
             except asyncio.TimeoutError:
@@ -418,7 +413,7 @@ class InferenceServer:
                 self.thread_pool_manager.shutdown(wait=False)
                 logger.info("Thread pool manager force shut down")
             except Exception as e:
-                logger.error(f"Error shutting down thread pool manager: {str(e)}")
+                logger.error("Error shutting down thread pool manager: %s", e)
 
     def _validate_ssl_config(self, https_config: dict) -> None:
         """
@@ -428,9 +423,6 @@ class InferenceServer:
             ValueError: If required config keys are missing or cert/key don't match
             FileNotFoundError: If cert or key file cannot be found
         """
-        import os
-        import datetime
-
         cert_file = https_config.get('cert_file')
         key_file = https_config.get('key_file')
         key_password = https_config.get('key_password')
@@ -528,36 +520,41 @@ class InferenceServer:
         perf_config = self.config.get('performance', {})
         workers = perf_config.get('workers', 1)  # Default to 1 worker for backward compatibility
 
+        config_kwargs = {
+            "host": host,
+            "port": port_to_use,
+            "workers": workers if workers > 1 else None,  # Only use workers if > 1
+            "loop": "asyncio",
+            "timeout_keep_alive": perf_config.get('keep_alive_timeout', 30),
+            "timeout_graceful_shutdown": 30,
+            "access_log": False,  # Disable FastAPI's default access logging
+            "log_config": None,  # Reuse global logging configuration for consistent formatting
+            "h11_max_incomplete_event_size": perf_config.get('h11_max_incomplete_event_size'),
+            "limit_concurrency": None,  # Don't limit concurrent connections
+            "backlog": 2048,  # Connection backlog
+        }
+
+        if https_enabled:
+            config_kwargs.update(
+                {
+                    "ssl_keyfile": ssl_keyfile,
+                    "ssl_certfile": ssl_certfile,
+                    "ssl_keyfile_password": ssl_keyfile_password,
+                    "ssl_ciphers": TLS_CIPHERS,
+                }
+            )
+
         # Configure uvicorn with signal handlers for graceful shutdown
-        config = uvicorn.Config(
-            self.app,
-            host=host,
-            port=port_to_use,
-            ssl_keyfile=ssl_keyfile,
-            ssl_certfile=ssl_certfile,
-            ssl_keyfile_password=ssl_keyfile_password,
-            # Forward-secrecy only; excludes NULL, RC4, 3DES, MD5, export grades (no-op when SSL disabled)
-            ssl_ciphers="ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!eNULL:!MD5:!RC4:!3DES",
-            workers=workers if workers > 1 else None,  # Only use workers if > 1
-            loop="asyncio",
-            timeout_keep_alive=perf_config.get('keep_alive_timeout', 30),
-            timeout_graceful_shutdown=30,
-            access_log=False,  # Disable FastAPI's default access logging
-            log_config=None,  # Reuse global logging configuration for consistent formatting
-            # Streaming optimization settings - CRITICAL for immediate SSE streaming
-            h11_max_incomplete_event_size=1 * 1024,  # 1KB buffer for immediate streaming (was 16KB)
-            limit_concurrency=None,  # Don't limit concurrent connections
-            backlog=2048,  # Connection backlog
-        )
+        config = uvicorn.Config(self.app, **config_kwargs)
         
         server = uvicorn.Server(config)
         
         try:
             # Start the server
             if https_enabled:
-                logger.info(f"Starting HTTPS server on {host}:{port_to_use}")
+                logger.info("Starting HTTPS server on %s:%s", host, port_to_use)
             else:
-                logger.info(f"Starting HTTP server on {host}:{port_to_use}")
+                logger.info("Starting HTTP server on %s:%s", host, port_to_use)
                 
             server.run()
         except KeyboardInterrupt:

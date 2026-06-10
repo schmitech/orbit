@@ -21,6 +21,7 @@ Usage:
 import os
 import argparse
 from pathlib import Path
+
 from fastapi import FastAPI
 from inference_server import InferenceServer
 
@@ -28,19 +29,19 @@ from inference_server import InferenceServer
 from utils.mongodb_utils import configure_mongodb_logging
 configure_mongodb_logging()
 
-# Create a global app instance for direct use by uvicorn in development mode
-app = FastAPI(
-    title="ORBIT",
-    description="MCP inference server with RAG capabilities",
-    version="2.7.2"
-)
+_environment_loaded = False
 
 
 def load_environment() -> None:
     """Load .env once at process startup, before configuration is read."""
+    global _environment_loaded
+    if _environment_loaded:
+        return
+
     try:
         from dotenv import load_dotenv
     except ImportError:
+        _environment_loaded = True
         return
 
     current_dir = Path.cwd()
@@ -54,7 +55,10 @@ def load_environment() -> None:
     for env_path in env_paths:
         if env_path.exists():
             load_dotenv(env_path, override=True)
+            _environment_loaded = True
             return
+
+    _environment_loaded = True
 
 
 def create_app() -> FastAPI:
@@ -96,3 +100,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+else:
+    app: FastAPI = create_app()
