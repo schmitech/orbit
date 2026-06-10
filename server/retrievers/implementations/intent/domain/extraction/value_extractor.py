@@ -4,7 +4,7 @@ Value extractor for applying patterns and parsing user input
 
 import re
 import logging
-from typing import Dict, Any, Optional, Pattern
+from typing import Dict, Any, Optional
 from datetime import datetime
 from ...domain import DomainConfig
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class ValueExtractor:
     """Extracts values from user queries using patterns"""
 
-    def __init__(self, domain_config: DomainConfig, patterns: Dict[str, Pattern], domain_strategy=None):
+    def __init__(self, domain_config: DomainConfig, patterns: Dict[str, re.Pattern], domain_strategy=None):
         """Initialize value extractor with patterns and optional domain strategy"""
         self.domain_config = domain_config
         self.patterns = patterns
@@ -50,7 +50,7 @@ class ValueExtractor:
         # Try context-based extraction
         return self._extract_from_context(user_query, entity_name, field_name, data_type)
 
-    def _extract_with_pattern(self, text: str, pattern: Pattern, data_type: str) -> Optional[Any]:
+    def _extract_with_pattern(self, text: str, pattern: re.Pattern, data_type: str) -> Optional[Any]:
         """Extract value using a specific pattern"""
         match = pattern.search(text)
         if match:
@@ -151,7 +151,7 @@ class ValueExtractor:
                 return value_str.strip()
 
         except (ValueError, TypeError) as e:
-            logger.debug(f"Failed to parse '{value_str}' as {data_type}: {e}")
+            logger.debug("Failed to parse %r as %s: %s", value_str, data_type, e)
             return None
 
     def _parse_date(self, date_str: str) -> Optional[str]:
@@ -282,7 +282,7 @@ class ValueExtractor:
         if param_type == 'string':
             # For emails
             if 'email' in param_name.lower():
-                email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+                email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
                 match = re.search(email_pattern, user_query)
                 if match:
                     return match.group(0)
@@ -509,7 +509,7 @@ class ValueExtractor:
         patterns = [
             rf"\b{escaped_name}\b\s*[:=]?\s*(-?\d+)\b",
             rf"\b{escaped_name}\b\s+(?:is|equals?|of)\s+(-?\d+)\b",
-            rf"\b(?:top|limit|first|last)\s+(-?\d+)\b" if param_name.lower() in {"limit", "top_n", "count", "size"} else None,
+            r"\b(?:top|limit|first|last)\s+(-?\d+)\b" if param_name.lower() in {"limit", "top_n", "count", "size"} else None,
         ]
 
         for pattern in patterns:

@@ -24,7 +24,7 @@ class DomainResponseGenerator:
         # Initialize formatter with domain strategy
         self.formatter = ResponseFormatter(self.domain_config, domain_strategy)
 
-        logger.info(f"Initialized DomainResponseGenerator for {self.domain_config.domain_name}")
+        logger.info("Initialized DomainResponseGenerator for %s", self.domain_config.domain_name)
 
 
     def format_response_data(self, results: List[Dict], template: Dict, error: Optional[str] = None) -> Dict[str, Any]:
@@ -99,4 +99,3 @@ class DomainResponseGenerator:
         """
         formatted_results = self.formatter.format_results(results, {})
         return self.formatter.format_summary_data(formatted_results, fields)
-

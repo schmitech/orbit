@@ -64,7 +64,7 @@ class DomainParameterExtractor:
         # Initialize validator
         self.validator = Validator(self.domain_config)
 
-        logger.info(f"Initialized DomainParameterExtractor with {len(self.patterns)} patterns")
+        logger.info("Initialized DomainParameterExtractor with %d patterns", len(self.patterns))
 
     async def extract_parameters(self, user_query: str, template: Dict) -> Dict[str, Any]:
         """
@@ -117,7 +117,7 @@ class DomainParameterExtractor:
                         value = self.validator.sanitize(value, entity, field)
                         parameters[param_name] = value
                     else:
-                        logger.warning(f"Validation failed for {param_name}: {error_msg}")
+                        logger.warning("Validation failed for %s: %s", param_name, error_msg)
                 else:
                     coerced = self._coerce_parameter_value(value, param_type, param_name)
                     if coerced is None and value is not None:
@@ -175,7 +175,7 @@ class DomainParameterExtractor:
             if param_name not in parameters and 'default' in param:
                 parameters[param_name] = param['default']
 
-        logger.debug(f"Extracted parameters: {parameters}")
+        logger.debug("Extracted parameters: %s", parameters)
         return parameters
 
     def get_patterns_info(self) -> Dict[str, str]:

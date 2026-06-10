@@ -45,7 +45,9 @@ class Validator:
             return True  # None is valid for optional fields
 
         type_validators = {
-            'integer': lambda v: isinstance(v, int) or (isinstance(v, str) and v.isdigit()),
+            'integer': lambda v: isinstance(v, int) or (
+                isinstance(v, str) and v.lstrip('-').isdigit()
+            ),
             'decimal': lambda v: isinstance(v, (int, float)),
             'string': lambda v: isinstance(v, str),
             'boolean': lambda v: isinstance(v, bool),
@@ -80,7 +82,11 @@ class Validator:
 
         # Check pattern matching
         if 'pattern' in rules and isinstance(value, str):
-            pattern = re.compile(rules['pattern'])
+            try:
+                pattern = re.compile(rules['pattern'])
+            except re.error as e:
+                logger.warning("Invalid validation pattern for %s skipped: %s", field_name, e)
+                return True, None
             if not pattern.match(value):
                 pattern_desc = rules.get('pattern_description', 'required format')
                 return False, f"{field_name} does not match {pattern_desc}"
@@ -102,7 +108,7 @@ class Validator:
                 if not custom_valid:
                     return False, f"{field_name} failed custom validation"
             except Exception as e:
-                logger.error(f"Custom validation error for {field_name}: {e}")
+                logger.error("Custom validation error for %s: %s", field_name, e)
                 return False, f"{field_name} validation error"
 
         return True, None
@@ -148,7 +154,7 @@ class Validator:
             return False
 
         email_pattern = re.compile(
-            r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$'
+            r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
         )
         return bool(email_pattern.match(value))
 

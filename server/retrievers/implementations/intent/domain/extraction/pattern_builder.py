@@ -4,7 +4,7 @@ Pattern builder for constructing regex patterns for domain fields
 
 import re
 import logging
-from typing import Dict, Optional, Pattern
+from typing import Dict, Optional
 from ...domain import DomainConfig, FieldConfig
 
 logger = logging.getLogger(__name__)
@@ -16,9 +16,9 @@ class PatternBuilder:
     def __init__(self, domain_config: DomainConfig):
         """Initialize pattern builder with domain configuration"""
         self.domain_config = domain_config
-        self.patterns: Dict[str, Pattern] = {}
+        self.patterns: Dict[str, re.Pattern] = {}
 
-    def build_patterns(self) -> Dict[str, Pattern]:
+    def build_patterns(self) -> Dict[str, re.Pattern]:
         """Build all patterns for the domain"""
         for entity_name, entity in self.domain_config.entities.items():
             for field_name, field_config in entity.fields.items():
@@ -40,7 +40,7 @@ class PatternBuilder:
         """Check if a pattern should be created for this field"""
         return field.searchable or field.filterable
 
-    def _build_pattern_for_field(self, entity_name: str, field: FieldConfig) -> Optional[Pattern]:
+    def _build_pattern_for_field(self, entity_name: str, field: FieldConfig) -> Optional[re.Pattern]:
         """Build pattern for a specific field based on its type"""
         field_lower = field.name.lower()
 
@@ -66,7 +66,7 @@ class PatternBuilder:
 
         return None
 
-    def _build_id_pattern(self, entity_name: str, field: FieldConfig) -> Pattern:
+    def _build_id_pattern(self, entity_name: str, field: FieldConfig) -> re.Pattern:
         """Build pattern for ID fields"""
         entity_synonyms = self.domain_config.get_entity_synonyms(entity_name)
         entity_patterns = [entity_name] + entity_synonyms
@@ -76,12 +76,12 @@ class PatternBuilder:
 
         return re.compile(pattern_str, re.IGNORECASE)
 
-    def _build_email_pattern(self) -> Pattern:
+    def _build_email_pattern(self) -> re.Pattern:
         """Build pattern for email fields"""
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
         return re.compile(email_pattern, re.IGNORECASE)
 
-    def _build_numeric_pattern(self, field: FieldConfig) -> Pattern:
+    def _build_numeric_pattern(self, field: FieldConfig) -> re.Pattern:
         """Build pattern for numeric fields"""
         if field.data_type == "decimal":
             pattern = r'\$?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)'
@@ -90,7 +90,7 @@ class PatternBuilder:
 
         return re.compile(pattern, re.IGNORECASE)
 
-    def _build_range_pattern(self, field: FieldConfig) -> Pattern:
+    def _build_range_pattern(self, field: FieldConfig) -> re.Pattern:
         """Build range pattern for numeric fields"""
         if field.data_type == "decimal":
             pattern = r'between\s*\$?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)\s*and\s*\$?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)'
@@ -99,7 +99,7 @@ class PatternBuilder:
 
         return re.compile(pattern, re.IGNORECASE)
 
-    def _build_date_pattern(self) -> Pattern:
+    def _build_date_pattern(self) -> re.Pattern:
         """Build pattern for date fields"""
         date_patterns = [
             r'\d{4}-\d{2}-\d{2}',  # ISO format: 2024-01-31
@@ -110,7 +110,7 @@ class PatternBuilder:
         combined_pattern = '|'.join(f'({p})' for p in date_patterns)
         return re.compile(combined_pattern)
 
-    def _build_phone_pattern(self) -> Pattern:
+    def _build_phone_pattern(self) -> re.Pattern:
         """Build pattern for phone fields"""
         phone_patterns = [
             r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}',  # (123) 456-7890, 123-456-7890
@@ -120,12 +120,12 @@ class PatternBuilder:
         combined_pattern = '|'.join(f'({p})' for p in phone_patterns)
         return re.compile(combined_pattern, re.IGNORECASE)
 
-    def get_pattern(self, entity_name: str, field_name: str) -> Optional[Pattern]:
+    def get_pattern(self, entity_name: str, field_name: str) -> Optional[re.Pattern]:
         """Get pattern for a specific field"""
         pattern_key = f"{entity_name}.{field_name}"
         return self.patterns.get(pattern_key)
 
-    def get_range_pattern(self, entity_name: str, field_name: str) -> Optional[Pattern]:
+    def get_range_pattern(self, entity_name: str, field_name: str) -> Optional[re.Pattern]:
         """Get range pattern for a specific numeric field"""
         pattern_key = f"{entity_name}.{field_name}_range"
         return self.patterns.get(pattern_key)

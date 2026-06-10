@@ -2,13 +2,15 @@
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, Optional
 
 from ..domain import DomainConfig, FieldConfig
 from .base import DomainStrategy
 
 logger = logging.getLogger(__name__)
+
+MAX_EXPANDED_ID_RANGE = 25
 
 
 class GenericDomainStrategy(DomainStrategy):
@@ -438,8 +440,11 @@ class GenericDomainStrategy(DomainStrategy):
 
     def _extract_identifier(self, query: str, param: Dict[str, Any]) -> Optional[Any]:
         """Extract generic identifier (numeric ID)."""
-        param.get('name', '').lower()
+        param_name = param.get('name', '').lower()
         param_type = param.get('type') or param.get('data_type', 'string')
+
+        if 'ids' in param_name:
+            return self._extract_multiple_ids(query, 'id')
 
         # Look for patterns like "ID 123", "#123", "number 123"
         patterns = [
@@ -584,8 +589,6 @@ class GenericDomainStrategy(DomainStrategy):
             if match:
                 return self._parse_date(match.group(1))
 
-        # Handle relative dates
-        from datetime import datetime, timedelta
         today = datetime.now()
 
         relative_mappings = {
@@ -610,6 +613,9 @@ class GenericDomainStrategy(DomainStrategy):
         if match:
             start_str = match.group(1)
             end_str = match.group(2)
+
+            if not (re.search(r'\d', start_str) and re.search(r'\d', end_str)):
+                return None
 
             # Try to parse both dates
             start_date = self._extract_date_value(start_str, {})
@@ -654,7 +660,7 @@ class GenericDomainStrategy(DomainStrategy):
 
     def _extract_email(self, query: str, param: Dict[str, Any]) -> Optional[str]:
         """Extract email addresses."""
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
         match = re.search(email_pattern, query)
         if match:
             return match.group(0)
@@ -796,7 +802,7 @@ class GenericDomainStrategy(DomainStrategy):
                 start, end = match.groups()
                 start_int = int(start)
                 end_int = int(end)
-                if end_int - start_int <= 100:  # Limit range size
+                if start_int <= end_int and end_int - start_int < MAX_EXPANDED_ID_RANGE:
                     ids = ','.join(str(i) for i in range(start_int, end_int + 1))
                     return ids
                 return f"{start},{end}"  # Just return endpoints for large ranges

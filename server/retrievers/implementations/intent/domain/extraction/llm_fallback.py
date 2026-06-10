@@ -32,7 +32,7 @@ class LLMFallback:
             return self._parse_llm_response(response, parameter)
 
         except Exception as e:
-            logger.error(f"LLM extraction failed: {e}")
+            logger.error("LLM extraction failed: %s", e)
             return None
 
     def _build_extraction_prompt(self, user_query: str, parameter: Dict[str, Any],
@@ -152,7 +152,7 @@ Response:"""
                 return response
 
         except (ValueError, json.JSONDecodeError) as e:
-            logger.debug(f"Failed to parse LLM response '{response}': {e}")
+            logger.debug("Failed to parse LLM response %r: %s", response, e)
             return response if param_type == "string" else None
 
     async def extract_multiple(self, user_query: str, parameters: List[Dict[str, Any]],
@@ -169,7 +169,7 @@ Response:"""
             return self._parse_batch_response(response, parameters)
 
         except Exception as e:
-            logger.error(f"Batch LLM extraction failed: {e}")
+            logger.error("Batch LLM extraction failed: %s", e)
             return {}
 
     def _build_batch_extraction_prompt(self, user_query: str, parameters: List[Dict[str, Any]],
@@ -228,8 +228,8 @@ Response:"""
 
             return typed_result
 
-        except (json.JSONDecodeError, Exception) as e:
-            logger.error(f"Failed to parse batch LLM response: {e}")
+        except Exception as e:
+            logger.error("Failed to parse batch LLM response: %s", e)
             return {}
 
     def _convert_type(self, value: Any, data_type: str) -> Any:

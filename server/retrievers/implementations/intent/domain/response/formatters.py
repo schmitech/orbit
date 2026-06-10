@@ -9,6 +9,8 @@ from ...domain import DomainConfig, FieldConfig
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_SUMMARY_FIELD_LIMIT = 5
+
 
 class ResponseFormatter:
     """Handles deterministic formatting of result data"""
@@ -70,6 +72,7 @@ class ResponseFormatter:
         formatters = {
             "currency": self._format_currency,
             "percentage": self._format_percentage,
+            "percentage_ratio": self._format_percentage_ratio,
             "date": self._format_date,
             "datetime": self._format_datetime,
             "phone": self._format_phone,
@@ -84,7 +87,7 @@ class ResponseFormatter:
             try:
                 return formatter(value)
             except Exception as e:
-                logger.debug(f"Formatting error for {display_format}: {e}")
+                logger.debug("Formatting error for %s: %s", display_format, e)
                 return str(value)
 
         return str(value)
@@ -99,6 +102,15 @@ class ResponseFormatter:
                 clean_value = value.replace('$', '').replace(',', '').strip()
                 num_value = float(clean_value)
                 return f"${num_value:,.2f}"
+        except (ValueError, TypeError):
+            pass
+        return str(value)
+
+    def _format_percentage_ratio(self, value: Any) -> str:
+        """Format value as stored ratio (0.5 = 50%)."""
+        try:
+            if isinstance(value, (int, float)):
+                return f"{value * 100:.1f}%"
         except (ValueError, TypeError):
             pass
         return str(value)
@@ -136,7 +148,7 @@ class ResponseFormatter:
                 return value.strftime("%B %d, %Y")
 
         except Exception as e:
-            logger.debug(f"Date formatting error: {e}")
+            logger.debug("Date formatting error: %s", e)
 
         return str(value)
 
@@ -149,7 +161,7 @@ class ResponseFormatter:
             elif isinstance(value, datetime):
                 return value.strftime("%B %d, %Y at %I:%M %p")
         except Exception as e:
-            logger.debug(f"Datetime formatting error: {e}")
+            logger.debug("Datetime formatting error: %s", e)
 
         return str(value)
 
@@ -275,7 +287,7 @@ class ResponseFormatter:
 
         # Sort by priority and return top fields
         field_priorities.sort(key=lambda x: x[1], reverse=True)
-        return [field for field, _ in field_priorities[:5]]
+        return [field for field, _ in field_priorities[:DEFAULT_SUMMARY_FIELD_LIMIT]]
 
     def _get_semantic_type_priority(self, semantic_type: str) -> int:
         """Get priority based on semantic type"""

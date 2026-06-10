@@ -22,7 +22,7 @@ class FieldConfig:
     aggregatable: bool = False
     description: Optional[str] = None
     validation_rules: Dict[str, Any] = field(default_factory=dict)
-    # NEW: Semantic metadata for domain-agnostic extraction and prioritization
+    # Semantic metadata for domain-agnostic extraction and prioritization
     semantic_type: Optional[str] = None
     summary_priority: Optional[int] = None
     extraction_pattern: Optional[str] = None
@@ -42,7 +42,6 @@ class FieldConfig:
             aggregatable=config.get('aggregatable', False),
             description=config.get('description'),
             validation_rules=config.get('validation_rules', {}),
-            # NEW: Parse semantic metadata
             semantic_type=config.get('semantic_type'),
             summary_priority=config.get('summary_priority'),
             extraction_pattern=config.get('extraction_pattern'),
@@ -96,6 +95,7 @@ class EntityConfig:
                 'common_filters',
                 'default_sort_field',
                 'default_sort_order',
+                'fields',
             }}
         )
 
@@ -119,7 +119,7 @@ class DomainConfig:
         self.domain_name = self.config.get('domain_name', 'unknown')
         self.description = self.config.get('description', '')
 
-        # NEW: Parse domain metadata for strategy selection
+        # Parse domain metadata for strategy selection
         self.domain_type = self.config.get('domain_type', 'generic')
         self.semantic_types = self.config.get('semantic_types', {})
 

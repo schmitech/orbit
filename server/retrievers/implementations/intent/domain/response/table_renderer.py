@@ -45,27 +45,36 @@ class TableRenderer:
         return str(value)
 
     @staticmethod
-    def render(columns: List[str], rows: List[List[Any]], format: Optional[str] = None) -> str:
+    def render(
+        columns: List[str],
+        rows: List[List[Any]],
+        output_format: Optional[str] = None,
+        **kwargs: Any,
+    ) -> str:
         """
         Render columns and rows into a table string.
 
         Args:
             columns: Column header names.
             rows: List of row value lists.
-            format: One of None/"pipe" (default pipe-separated),
-                    "markdown_table", "toon", "csv".
+            output_format: One of None/"pipe" (default pipe-separated),
+                           "markdown_table", "toon", "csv". The legacy
+                           "format" keyword is still accepted.
 
         Returns:
             Formatted table string.
         """
-        effective_format = format or "pipe-separated"
+        if output_format is None:
+            output_format = kwargs.pop("format", None)
+
+        effective_format = output_format or "pipe-separated"
         logger.debug("TableRenderer using format: %s (%d columns, %d rows)", effective_format, len(columns), len(rows))
 
-        if format == "markdown_table":
+        if output_format == "markdown_table":
             return TableRenderer._render_markdown_table(columns, rows)
-        elif format == "toon":
+        elif output_format == "toon":
             return TableRenderer._render_toon(columns, rows)
-        elif format == "csv":
+        elif output_format == "csv":
             return TableRenderer._render_csv(columns, rows)
         else:
             return TableRenderer._render_pipe_separated(columns, rows)
