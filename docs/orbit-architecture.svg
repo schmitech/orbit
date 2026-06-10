@@ -1,0 +1,169 @@
+<svg viewBox="0 0 920 812" width="920" height="812" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="ORBIT system architecture: client interfaces, core gateway, retrieval and skills layer, and LLM inference backends">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9" fill="none" stroke="#5A6B8C" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0D1526"/>
+      <stop offset="1" stop-color="#0B111F"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="920" height="812" rx="14" fill="url(#bgGrad)"/>
+  <rect x="0.5" y="0.5" width="919" height="811" rx="13.5" fill="none" stroke="#1E2A44"/>
+
+  <!-- Signature: faint orbital arcs (nod to the ORBIT name) -->
+  <g fill="none" stroke="#1A2541" stroke-width="1">
+    <ellipse cx="790" cy="30" rx="300" ry="110" transform="rotate(-14 790 30)"/>
+    <ellipse cx="790" cy="30" rx="430" ry="160" transform="rotate(-14 790 30)" stroke-dasharray="2 6"/>
+    <ellipse cx="60" cy="800" rx="340" ry="120" transform="rotate(-12 60 800)" stroke-dasharray="2 6"/>
+  </g>
+  <circle cx="635" cy="93" r="2.5" fill="#7DD3FC" opacity="0.55"/>
+  <circle cx="876" cy="142" r="2" fill="#A78BFA" opacity="0.45"/>
+
+  <!-- Header -->
+  <g>
+    <circle cx="52" cy="46" r="5" fill="#7DD3FC"/>
+    <ellipse cx="52" cy="46" rx="13" ry="5.5" fill="none" stroke="#7DD3FC" stroke-width="1" opacity="0.6" transform="rotate(-18 52 46)"/>
+    <text x="76" y="52" font-size="20" font-weight="700" fill="#EAF1FA" letter-spacing="1">ORBIT</text>
+    <text x="152" y="52" font-size="13" fill="#8C97AB">— system architecture</text>
+    <text x="76" y="74" font-size="12" fill="#8C97AB">Request flow: client interfaces → core gateway → retrieval &amp; skills → inference backends</text>
+  </g>
+
+  <!-- ============ 1 · CLIENT INTERFACES ============ -->
+  <g>
+    <circle cx="44" cy="120" r="3" fill="#7DD3FC"/>
+    <text x="56" y="124" font-size="11" font-weight="600" fill="#7DD3FC" letter-spacing="2.5" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">1 · CLIENT INTERFACES</text>
+    <line x1="248" y1="120" x2="880" y2="120" stroke="#7DD3FC" stroke-opacity="0.18"/>
+
+    <g>
+      <rect x="40" y="138" width="266" height="72" rx="9" fill="#151E32" stroke="#7DD3FC" stroke-opacity="0.35"/>
+      <circle cx="58" cy="166" r="3" fill="#7DD3FC"/>
+      <text x="70" y="171" font-size="13.5" font-weight="600" fill="#E9EFF8">OrbitChat</text>
+      <text x="70" y="192" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">Web chat UI</text>
+    </g>
+    <g>
+      <rect x="327" y="138" width="266" height="72" rx="9" fill="#151E32" stroke="#7DD3FC" stroke-opacity="0.35"/>
+      <circle cx="345" cy="166" r="3" fill="#7DD3FC"/>
+      <text x="357" y="171" font-size="13.5" font-weight="600" fill="#E9EFF8">OpenAI SDKs</text>
+      <text x="357" y="192" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">API clients &amp; integrations</text>
+    </g>
+    <g>
+      <rect x="614" y="138" width="266" height="72" rx="9" fill="#151E32" stroke="#7DD3FC" stroke-opacity="0.35"/>
+      <circle cx="632" cy="166" r="3" fill="#7DD3FC"/>
+      <text x="644" y="171" font-size="13.5" font-weight="600" fill="#E9EFF8">MCP Clients</text>
+      <text x="644" y="192" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">Agent platforms</text>
+    </g>
+  </g>
+
+  <!-- flow arrow -->
+  <line x1="460" y1="214" x2="460" y2="244" stroke="#5A6B8C" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="474" y="233" font-size="10" fill="#6B7A94" letter-spacing="1.5" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">REQUESTS</text>
+
+  <!-- ============ 2 · ORBIT CORE GATEWAY ============ -->
+  <g>
+    <circle cx="44" cy="272" r="3" fill="#A78BFA"/>
+    <text x="56" y="276" font-size="11" font-weight="600" fill="#A78BFA" letter-spacing="2.5" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">2 · ORBIT CORE GATEWAY</text>
+    <line x1="262" y1="272" x2="880" y2="272" stroke="#A78BFA" stroke-opacity="0.18"/>
+
+    <g>
+      <rect x="40" y="290" width="186" height="72" rx="9" fill="#151E32" stroke="#A78BFA" stroke-opacity="0.35"/>
+      <circle cx="58" cy="318" r="3" fill="#A78BFA"/>
+      <text x="70" y="323" font-size="13.5" font-weight="600" fill="#E9EFF8">FastAPI Server</text>
+      <text x="70" y="344" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">Async gateway</text>
+    </g>
+    <line x1="232" y1="326" x2="252" y2="326" stroke="#5A6B8C" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <g>
+      <rect x="258" y="290" width="186" height="72" rx="9" fill="#151E32" stroke="#A78BFA" stroke-opacity="0.35"/>
+      <circle cx="276" cy="318" r="3" fill="#A78BFA"/>
+      <text x="288" y="323" font-size="13.5" font-weight="600" fill="#E9EFF8">Auth Guard</text>
+      <text x="288" y="344" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">API keys · RBAC</text>
+    </g>
+    <line x1="450" y1="326" x2="470" y2="326" stroke="#5A6B8C" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <g>
+      <rect x="476" y="290" width="186" height="72" rx="9" fill="#151E32" stroke="#A78BFA" stroke-opacity="0.35"/>
+      <circle cx="494" cy="318" r="3" fill="#A78BFA"/>
+      <text x="506" y="323" font-size="13.5" font-weight="600" fill="#E9EFF8">Pipeline</text>
+      <text x="506" y="344" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">Moderation · routing</text>
+    </g>
+    <line x1="668" y1="326" x2="688" y2="326" stroke="#5A6B8C" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <g>
+      <rect x="694" y="290" width="186" height="72" rx="9" fill="#151E32" stroke="#A78BFA" stroke-opacity="0.35"/>
+      <circle cx="712" cy="318" r="3" fill="#A78BFA"/>
+      <text x="724" y="323" font-size="13.5" font-weight="600" fill="#E9EFF8">Sessions</text>
+      <text x="724" y="344" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">History · SQLite</text>
+    </g>
+  </g>
+
+  <!-- flow arrow -->
+  <line x1="460" y1="366" x2="460" y2="396" stroke="#5A6B8C" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="474" y="385" font-size="10" fill="#6B7A94" letter-spacing="1.5" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">CONTEXT &amp; TOOLS</text>
+
+  <!-- ============ 3 · RETRIEVAL & SKILLS LAYER ============ -->
+  <g>
+    <circle cx="44" cy="424" r="3" fill="#FBBF24"/>
+    <text x="56" y="428" font-size="11" font-weight="600" fill="#FBBF24" letter-spacing="2.5" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">3 · RETRIEVAL &amp; SKILLS LAYER</text>
+    <line x1="312" y1="424" x2="880" y2="424" stroke="#FBBF24" stroke-opacity="0.18"/>
+
+    <g>
+      <rect x="40" y="442" width="266" height="72" rx="9" fill="#151E32" stroke="#FBBF24" stroke-opacity="0.32"/>
+      <circle cx="58" cy="470" r="3" fill="#FBBF24"/>
+      <text x="70" y="475" font-size="13.5" font-weight="600" fill="#E9EFF8">RAG Engine</text>
+      <text x="70" y="496" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">Files &amp; embeddings</text>
+    </g>
+    <g>
+      <rect x="327" y="442" width="266" height="72" rx="9" fill="#151E32" stroke="#FBBF24" stroke-opacity="0.32"/>
+      <circle cx="345" cy="470" r="3" fill="#FBBF24"/>
+      <text x="357" y="475" font-size="13.5" font-weight="600" fill="#E9EFF8">Database Adapters</text>
+      <text x="357" y="496" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">SQL · NoSQL · DuckDB</text>
+    </g>
+    <g>
+      <rect x="614" y="442" width="266" height="72" rx="9" fill="#151E32" stroke="#FBBF24" stroke-opacity="0.32"/>
+      <circle cx="632" cy="470" r="3" fill="#FBBF24"/>
+      <text x="644" y="475" font-size="13.5" font-weight="600" fill="#E9EFF8">Web &amp; API Adapters</text>
+      <text x="644" y="496" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">REST · GraphQL</text>
+    </g>
+    <g>
+      <rect x="183" y="530" width="266" height="72" rx="9" fill="#151E32" stroke="#FBBF24" stroke-opacity="0.32"/>
+      <circle cx="201" cy="558" r="3" fill="#FBBF24"/>
+      <text x="213" y="563" font-size="13.5" font-weight="600" fill="#E9EFF8">MCP Agent Loop</text>
+      <text x="213" y="584" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">External MCP servers</text>
+    </g>
+    <g>
+      <rect x="470" y="530" width="266" height="72" rx="9" fill="#151E32" stroke="#FBBF24" stroke-opacity="0.32"/>
+      <circle cx="488" cy="558" r="3" fill="#FBBF24"/>
+      <text x="500" y="563" font-size="13.5" font-weight="600" fill="#E9EFF8">Media Skills</text>
+      <text x="500" y="584" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">Veo 2 · Stability · DALL·E</text>
+    </g>
+  </g>
+
+  <!-- flow arrow -->
+  <line x1="460" y1="606" x2="460" y2="636" stroke="#5A6B8C" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="474" y="625" font-size="10" fill="#6B7A94" letter-spacing="1.5" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">INFERENCE</text>
+
+  <!-- ============ 4 · LLM & INFERENCE BACKENDS ============ -->
+  <g>
+    <circle cx="44" cy="664" r="3" fill="#34D399"/>
+    <text x="56" y="668" font-size="11" font-weight="600" fill="#34D399" letter-spacing="2.5" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">4 · LLM &amp; INFERENCE BACKENDS</text>
+    <line x1="330" y1="664" x2="880" y2="664" stroke="#34D399" stroke-opacity="0.18"/>
+
+    <g>
+      <rect x="40" y="682" width="410" height="72" rx="9" fill="#151E32" stroke="#34D399" stroke-opacity="0.32"/>
+      <circle cx="58" cy="710" r="3" fill="#34D399"/>
+      <text x="70" y="715" font-size="13.5" font-weight="600" fill="#E9EFF8">Local Inference</text>
+      <text x="70" y="736" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">Ollama · llama.cpp · vLLM</text>
+    </g>
+    <g>
+      <rect x="470" y="682" width="410" height="72" rx="9" fill="#151E32" stroke="#34D399" stroke-opacity="0.32"/>
+      <circle cx="488" cy="710" r="3" fill="#34D399"/>
+      <text x="500" y="715" font-size="13.5" font-weight="600" fill="#E9EFF8">Cloud Providers</text>
+      <text x="500" y="736" font-size="11" fill="#8C97AB" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">OpenAI · Anthropic · Gemini</text>
+    </g>
+  </g>
+
+  <!-- Footer -->
+  <line x1="40" y1="778" x2="880" y2="778" stroke="#1E2A44"/>
+  <text x="40" y="798" font-size="10.5" fill="#6B7A94" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">ORBIT — Open Retrieval-Based Inference Toolkit</text>
+  <text x="880" y="798" font-size="10.5" fill="#6B7A94" text-anchor="end" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">schmitech/orbit</text>
+</svg>

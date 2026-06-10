@@ -55,43 +55,9 @@ Many organizations need to connect AI to their business data without:
 
 ORBIT acts as a router and orchestration layer sitting directly between your applications, your local or hosted AI models, and your internal data repositories:
 
-```mermaid
-flowchart TD
-    subgraph Clients ["1. Client Interfaces"]
-        A[OrbitChat Web UI]
-        B[OpenAI SDKs / API Clients]
-        C[MCP Client Platforms]
-    end
-
-    subgraph Gateway ["2. ORBIT Core Gateway"]
-        direction TB
-        D[FastAPI Web Server]
-        E[API Key & RBAC Guard]
-        F[Request Pipeline & Moderation]
-        G[Session & History Manager SQLite]
-    end
-
-    subgraph Adapters ["3. Retrieval & Skills Layer"]
-        direction TB
-        H[RAG Engine Files & Embeddings]
-        I[Database Adapters SQL, NoSQL, DuckDB]
-        J[Web & API Adapters REST, GraphQL]
-        K[MCP Agent Loop External Servers]
-        L[Media Skills Veo 2, Stability, DALL-E]
-    end
-
-    subgraph Providers ["4. LLM & Inference Backends"]
-        M[Local Host Ollama, llama.cpp, vLLM]
-        N[Cloud Providers OpenAI, Anthropic, Gemini]
-    end
-
-    Clients --> D
-    D --> E
-    E --> F
-    F --> G
-    G --> Adapters
-    Adapters --> Providers
-```
+<p align="center">
+  <img src="docs/orbit-architecture.svg" alt="ORBIT Architecture" width="850"/>
+</p>
 
 ---
 
