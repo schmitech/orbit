@@ -61,10 +61,7 @@ class VoyageEmbeddingService(EmbeddingService):
 
     async def embed_query(self, text: str) -> List[float]:
         """Generate embeddings for a single query text."""
-        if not self.initialized:
-            success = await self.initialize()
-            if not success:
-                raise ValueError("Failed to initialize Voyage AI embedding service")
+        await self._ensure_initialized("Voyage AI embedding service")
 
         try:
             logger.debug(
@@ -85,10 +82,7 @@ class VoyageEmbeddingService(EmbeddingService):
 
     async def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for multiple documents with batching."""
-        if not self.initialized:
-            success = await self.initialize()
-            if not success:
-                raise ValueError("Failed to initialize Voyage AI embedding service")
+        await self._ensure_initialized("Voyage AI embedding service")
 
         if not texts:
             return []
@@ -179,22 +173,9 @@ class VoyageEmbeddingService(EmbeddingService):
 
     async def get_dimensions(self) -> int:
         """Get the dimensionality of the embeddings."""
-        if self.dimensions:
-            return self.dimensions
-
-        try:
-            embedding = await self.embed_query("test")
-            self.dimensions = len(embedding)
-            return self.dimensions
-
-        except Exception as e:
-            logger.error(f"Failed to determine embedding dimensions: {e}")
-            # Defaults based on common Voyage models
-            if self.model and "lite" in self.model:
-                self.dimensions = 512
-            else:
-                self.dimensions = 1024
-            return self.dimensions
+        # Lite models are 512 dimensions; others default to 1024
+        fallback = 512 if (self.model and "lite" in self.model) else 1024
+        return await self._resolve_dimensions(fallback)
 
     async def verify_connection(self) -> bool:
         """Verify the connection to Voyage AI's API."""

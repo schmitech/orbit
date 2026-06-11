@@ -118,9 +118,7 @@ class OpenRouterEmbeddingService(EmbeddingService):
         Returns:
             A list of floats representing the embedding vector
         """
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize OpenRouter embedding service")
+        await self._ensure_initialized("OpenRouter embedding service")
 
         try:
             kwargs = dict(input=text, model=self.model)
@@ -144,9 +142,7 @@ class OpenRouterEmbeddingService(EmbeddingService):
         Returns:
             A list of embedding vectors (each a list of floats)
         """
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize OpenRouter embedding service")
+        await self._ensure_initialized("OpenRouter embedding service")
 
         if not texts:
             return []
@@ -188,17 +184,4 @@ class OpenRouterEmbeddingService(EmbeddingService):
         Returns:
             The number of dimensions in the embedding vectors
         """
-        if self.dimensions:
-            return self.dimensions
-
-        # Determine dimensions by generating a test embedding
-        try:
-            embedding = await self.embed_query("test")
-            self.dimensions = len(embedding)
-            return self.dimensions
-
-        except Exception as e:
-            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
-            # Default fallback
-            self.dimensions = 1536
-            return self.dimensions
+        return await self._resolve_dimensions(1536)

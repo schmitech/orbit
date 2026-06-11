@@ -59,9 +59,7 @@ class CohereEmbeddingService(EmbeddingService, CohereBaseService):
         Returns:
             A list of floats representing the embedding vector
         """
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize Cohere embedding service")
+        await self._ensure_initialized("Cohere embedding service")
 
         try:
             # Use input_type="search_query" for queries
@@ -90,9 +88,7 @@ class CohereEmbeddingService(EmbeddingService, CohereBaseService):
         Returns:
             A list of embedding vectors (each a list of floats)
         """
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize Cohere embedding service")
+        await self._ensure_initialized("Cohere embedding service")
 
         if not texts:
             return []
@@ -136,24 +132,6 @@ class CohereEmbeddingService(EmbeddingService, CohereBaseService):
         Returns:
             The number of dimensions in the embedding vectors
         """
-        if self.dimensions:
-            return self.dimensions
-
-        # Determine dimensions by generating a test embedding
-        try:
-            embedding = await self.embed_query("test")
-            self.dimensions = len(embedding)
-            return self.dimensions
-
-        except Exception as e:
-            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
-
-            # Fallback based on common Cohere models
-            if self.model and ("embed-english-v3.0" in self.model or "embed-multilingual-v3.0" in self.model):
-                self.dimensions = 1024
-            elif self.model and "embed-english-light-v3.0" in self.model:
-                self.dimensions = 384
-            else:
-                self.dimensions = 1024  # Default fallback
-
-            return self.dimensions
+        # embed-english-light-v3.0 is 384 dimensions; other models default to 1024
+        fallback = 384 if (self.model and "embed-english-light-v3.0" in self.model) else 1024
+        return await self._resolve_dimensions(fallback)

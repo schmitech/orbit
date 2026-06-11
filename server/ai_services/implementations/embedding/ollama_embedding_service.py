@@ -60,9 +60,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
         Returns:
             A list of floats representing the embedding vector
         """
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize Ollama embedding service")
+        await self._ensure_initialized("Ollama embedding service")
 
         async def _embed():
             session = await self.session_manager.get_session()
@@ -116,9 +114,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
         Returns:
             A list of embedding vectors (each a list of floats)
         """
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize Ollama embedding service")
+        await self._ensure_initialized("Ollama embedding service")
 
         if not texts:
             return []

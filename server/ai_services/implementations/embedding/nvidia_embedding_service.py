@@ -91,9 +91,7 @@ class NvidiaEmbeddingService(EmbeddingService):
         logger.debug("Closed NVIDIA embedding service")
 
     async def embed_query(self, text: str) -> List[float]:
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize NVIDIA embedding service")
+        await self._ensure_initialized("NVIDIA embedding service")
 
         try:
             response = await self.client.embeddings.create(
@@ -109,9 +107,7 @@ class NvidiaEmbeddingService(EmbeddingService):
             raise
 
     async def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize NVIDIA embedding service")
+        await self._ensure_initialized("NVIDIA embedding service")
 
         if not texts:
             return []
@@ -139,15 +135,4 @@ class NvidiaEmbeddingService(EmbeddingService):
         return all_embeddings
 
     async def get_dimensions(self) -> int:
-        if self.dimensions:
-            return self.dimensions
-
-        try:
-            embedding = await self.embed_query("test")
-            self.dimensions = len(embedding)
-            return self.dimensions
-
-        except Exception as e:
-            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
-            self.dimensions = 4096
-            return self.dimensions
+        return await self._resolve_dimensions(4096)

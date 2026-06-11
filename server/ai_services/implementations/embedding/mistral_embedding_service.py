@@ -57,9 +57,7 @@ class MistralEmbeddingService(EmbeddingService, MistralBaseService):
         Returns:
             A list of floats representing the embedding vector
         """
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize Mistral embedding service")
+        await self._ensure_initialized("Mistral embedding service")
 
         try:
             response = self.client.embeddings.create(
@@ -83,9 +81,7 @@ class MistralEmbeddingService(EmbeddingService, MistralBaseService):
         Returns:
             A list of embedding vectors (each a list of floats)
         """
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize Mistral embedding service")
+        await self._ensure_initialized("Mistral embedding service")
 
         if not texts:
             return []
@@ -128,18 +124,5 @@ class MistralEmbeddingService(EmbeddingService, MistralBaseService):
         Returns:
             The number of dimensions in the embedding vectors
         """
-        if self.dimensions:
-            return self.dimensions
-
-        # Determine dimensions by generating a test embedding
-        try:
-            embedding = await self.embed_query("test")
-            self.dimensions = len(embedding)
-            return self.dimensions
-
-        except Exception as e:
-            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
-
-            # Fallback: mistral-embed is 1024 dimensions
-            self.dimensions = 1024
-            return self.dimensions
+        # mistral-embed produces 1024-dimensional embeddings
+        return await self._resolve_dimensions(1024)

@@ -144,6 +144,43 @@ class EmbeddingService(ProviderAIService):
         provider_config = self._extract_provider_config()
         return provider_config.get('dimensions')
 
+    async def _ensure_initialized(self, service_label: str) -> None:
+        """
+        Lazily initialize the service on first use.
+
+        Args:
+            service_label: Human-readable service name for the error message
+
+        Raises:
+            ValueError: If initialization fails
+        """
+        if self.initialized:
+            return
+        if not await self.initialize():
+            raise ValueError(f"Failed to initialize {service_label}")
+
+    async def _resolve_dimensions(self, fallback: int) -> int:
+        """
+        Return the embedding dimensionality.
+
+        Uses the configured value if set, otherwise probes the service with a
+        test embedding, falling back to the provided default on error.
+
+        Args:
+            fallback: Dimension count to use if probing fails
+
+        Returns:
+            The number of dimensions in the embedding vectors
+        """
+        if self.dimensions:
+            return self.dimensions
+        try:
+            self.dimensions = len(await self.embed_query("test"))
+        except Exception as e:
+            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
+            self.dimensions = fallback
+        return self.dimensions
+
     async def embed_query_with_fallback(
         self,
         text: str,

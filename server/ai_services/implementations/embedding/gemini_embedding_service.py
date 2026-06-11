@@ -51,10 +51,7 @@ class GeminiEmbeddingService(EmbeddingService, GoogleBaseService):
 
     async def embed_query(self, text: str) -> List[float]:
         """Generate embeddings for a single query text."""
-        if not self.initialized:
-            success = await self.initialize()
-            if not success:
-                raise ValueError("Failed to initialize Gemini embedding service")
+        await self._ensure_initialized("Gemini embedding service")
 
         try:
             client = self._get_client()
@@ -82,10 +79,7 @@ class GeminiEmbeddingService(EmbeddingService, GoogleBaseService):
 
     async def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for multiple documents with batching."""
-        if not self.initialized:
-            success = await self.initialize()
-            if not success:
-                raise ValueError("Failed to initialize Gemini embedding service")
+        await self._ensure_initialized("Gemini embedding service")
 
         if not texts:
             return []
@@ -141,15 +135,5 @@ class GeminiEmbeddingService(EmbeddingService, GoogleBaseService):
 
     async def get_dimensions(self) -> int:
         """Get the dimensionality of the embeddings."""
-        if self.dimensions:
-            return self.dimensions
-
-        try:
-            embedding = await self.embed_query("test")
-            self.dimensions = len(embedding)
-            return self.dimensions
-
-        except Exception as e:
-            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
-            self.dimensions = 3072  # Default for gemini-embedding-2-preview
-            return self.dimensions
+        # Default for gemini-embedding-2-preview
+        return await self._resolve_dimensions(3072)

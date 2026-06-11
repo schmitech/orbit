@@ -60,10 +60,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
         Returns:
             A list of floats representing the embedding vector
         """
-        if not self.initialized:
-            success = await self.initialize()
-            if not success:
-                raise ValueError("Failed to initialize OpenAI embedding service")
+        await self._ensure_initialized("OpenAI embedding service")
 
         try:
             # Debug logging
@@ -99,10 +96,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
         Returns:
             A list of embedding vectors (each a list of floats)
         """
-        if not self.initialized:
-            success = await self.initialize()
-            if not success:
-                raise ValueError("Failed to initialize OpenAI embedding service")
+        await self._ensure_initialized("OpenAI embedding service")
 
         all_embeddings = []
 
@@ -156,26 +150,6 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
         Returns:
             The number of dimensions in the embedding vectors
         """
-        if self.dimensions:
-            return self.dimensions
-
-        # Determine dimensions by generating a test embedding
-        try:
-            embedding = await self.embed_query("test")
-            self.dimensions = len(embedding)
-            return self.dimensions
-
-        except Exception as e:
-            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
-
-            # Fallback to defaults based on model
-            if self.model and "ada" in self.model:
-                self.dimensions = 1536
-            elif self.model and "3-small" in self.model:
-                self.dimensions = 1536
-            elif self.model and "3-large" in self.model:
-                self.dimensions = 3072
-            else:
-                self.dimensions = 1536  # Default fallback
-
-            return self.dimensions
+        # text-embedding-3-large is 3072 dimensions; all others default to 1536
+        fallback = 3072 if (self.model and "3-large" in self.model) else 1536
+        return await self._resolve_dimensions(fallback)

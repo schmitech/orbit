@@ -61,10 +61,7 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
         Returns:
             A list of floats representing the embedding vector
         """
-        if not self.initialized:
-            success = await self.initialize()
-            if not success:
-                raise ValueError("Failed to initialize Jina embedding service")
+        await self._ensure_initialized("Jina embedding service")
 
         try:
             session = await self._get_session()
@@ -116,10 +113,7 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
         Returns:
             A list of embedding vectors (each a list of floats)
         """
-        if not self.initialized:
-            success = await self.initialize()
-            if not success:
-                raise ValueError("Failed to initialize Jina embedding service")
+        await self._ensure_initialized("Jina embedding service")
 
         all_embeddings = []
 
@@ -201,17 +195,5 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
         Returns:
             The number of dimensions in the embedding vectors
         """
-        if self.dimensions:
-            return self.dimensions
-
-        # Generate a test embedding to determine dimensions
-        try:
-            embedding = await self.embed_query("test")
-            self.dimensions = len(embedding)
-            return self.dimensions
-
-        except Exception as e:
-            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
-            # Default fallback dimensions for jina-embeddings-v3
-            self.dimensions = 1024
-            return self.dimensions
+        # Default fallback dimensions for jina-embeddings-v3
+        return await self._resolve_dimensions(1024)

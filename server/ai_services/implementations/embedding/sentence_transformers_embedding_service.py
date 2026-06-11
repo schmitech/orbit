@@ -64,9 +64,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
         Raises:
             ValueError: If service not initialized or text is empty
         """
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize Sentence Transformers embedding service")
+        await self._ensure_initialized("Sentence Transformers embedding service")
 
         if not text or not text.strip():
             raise ValueError("Text cannot be empty")
@@ -173,9 +171,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
         Raises:
             ValueError: If service not initialized
         """
-        if not self.initialized:
-            if not await self.initialize():
-                raise ValueError("Failed to initialize Sentence Transformers embedding service")
+        await self._ensure_initialized("Sentence Transformers embedding service")
 
         if not texts:
             return []
