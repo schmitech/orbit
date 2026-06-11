@@ -369,6 +369,77 @@ class TestDocumentGenerationStepProcess:
         assert "Revenue was $6.1M" in captured_prompt["value"]
 
     @pytest.mark.asyncio
+    async def test_process_falls_through_to_next_provider_on_failure(self):
+        """If the first provider fails (e.g. bad API key), the next one is tried and its
+        spec is used — the document must NOT degrade to the bare fallback."""
+        from inference.pipeline.base import ProcessingContext
+
+        failing_provider = MagicMock()
+        failing_provider.generate = AsyncMock(side_effect=Exception("Invalid API key"))
+        working_provider = MagicMock()
+        working_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+
+        # rewrite_provider 'openai' resolves to the failing provider; the global provider works.
+        adapter_manager = MagicMock()
+        adapter_manager.get_adapter_config.return_value = {
+            "type": "document_generation",
+            "document_format": "pdf",
+            "rewrite_provider": "openai",
+        }
+        adapter_manager.get_overridden_provider = AsyncMock(return_value=failing_provider)
+        container = MagicMock()
+        container.has.side_effect = lambda k: k in ("adapter_manager", "llm_provider", "config")
+        container.get.side_effect = lambda k: (
+            adapter_manager if k == "adapter_manager" else
+            working_provider if k == "llm_provider" else {}
+        )
+        container.get_or_none.side_effect = lambda k: (
+            working_provider if k == "llm_provider" else {} if k == "config" else None
+        )
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(adapter_name="pdf-generator", message="Make me a report")
+        result = await step.process(ctx)
+
+        assert result.error is None
+        failing_provider.generate.assert_awaited()      # first provider was tried
+        working_provider.generate.assert_awaited()       # and we fell through to the next
+        # The real spec (not the message-only fallback) was used.
+        assert result.document_revised_prompt == SAMPLE_SPEC["title"]
+
+    def test_fallback_spec_uses_prior_analysis_and_context(self):
+        """When every provider fails, the fallback document carries the prior assistant
+        analysis and thread-cached data — not just the user's question."""
+        from inference.pipeline.base import ProcessingContext
+
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator",
+            message="Put all this findings in the document.",
+            context_messages=[
+                {"role": "user", "content": "Analyze customer 4096's orders"},
+                {"role": "assistant", "content": "Customer 4096 has 3 orders totalling $496.39."},
+            ],
+            formatted_context="Order #1042 | Shipped | $129.99",
+        )
+
+        spec = self.StepClass._fallback_spec(ctx)
+        bodies = [s.get("body", "") for s in spec["sections"]]
+        assert any("Customer 4096 has 3 orders" in b for b in bodies)
+        assert any("Order #1042" in b for b in bodies)
+        # The bare question must not be the only content.
+        assert spec["sections"][0]["heading"] != "Content"
+
+    def test_fallback_spec_uses_message_when_no_prior_content(self):
+        """With no prior analysis or context, the fallback records the request itself."""
+        from inference.pipeline.base import ProcessingContext
+
+        ctx = ProcessingContext(adapter_name="pdf-generator", message="Make a report")
+        spec = self.StepClass._fallback_spec(ctx)
+        assert spec["sections"] == [
+            {"heading": "Content", "body": "Make a report", "bullet_points": []}
+        ]
+
+    @pytest.mark.asyncio
     async def test_process_error_on_invalid_format(self):
         """An unrecognised format should set context.error."""
         from inference.pipeline.base import ProcessingContext

@@ -108,39 +108,55 @@ class DocumentGenerationStep(PipelineStep):
     # LLM provider resolution (mirrors ImageGenerationStep / VideoGenerationStep)
     # ------------------------------------------------------------------
 
-    async def _resolve_rewrite_provider(self, context: ProcessingContext):
-        """Resolve the LLM provider for document spec generation.
+    async def _resolve_rewrite_providers(self, context: ProcessingContext):
+        """Resolve an ordered, de-duplicated list of LLM providers to try for spec generation.
 
         Priority:
         1. Explicit rewrite_provider on the skill adapter config.
-        2. Original adapter's inference_provider.
+        2. Original (calling) adapter's inference_provider.
         3. Skill adapter's inference_provider.
         4. Global llm_provider fallback.
+
+        Returns a list (rather than a single provider) so _generate_spec can fall through to the
+        next candidate when one fails — e.g. a bad API key — instead of silently degrading to a
+        bare fallback document.
         """
+        providers: list = []
+        seen_names: set = set()
+
+        def _add(label: Optional[str], provider) -> None:
+            if provider is None:
+                return
+            # De-dupe by provider name so a broken provider (e.g. openai) isn't retried.
+            key = label or f"id:{id(provider)}"
+            if key in seen_names:
+                return
+            seen_names.add(key)
+            providers.append((label or "provider", provider))
+
         if self.container.has('adapter_manager'):
             adapter_manager = self.container.get('adapter_manager')
 
+            # 1. Explicit rewrite_provider on the skill adapter config.
             if context.adapter_name:
                 skill_config = adapter_manager.get_adapter_config(context.adapter_name)
                 if skill_config:
                     rewrite_provider_name = skill_config.get('rewrite_provider')
                     if rewrite_provider_name:
                         try:
-                            provider = await adapter_manager.get_overridden_provider(
-                                rewrite_provider_name, context.adapter_name
+                            _add(
+                                rewrite_provider_name,
+                                await adapter_manager.get_overridden_provider(
+                                    rewrite_provider_name, context.adapter_name
+                                ),
                             )
-                            if provider:
-                                logger.debug(
-                                    "Using rewrite_provider '%s' for document spec generation",
-                                    rewrite_provider_name,
-                                )
-                                return provider
                         except Exception as e:
                             logger.debug(
                                 "Could not resolve rewrite_provider '%s': %s",
                                 rewrite_provider_name, e,
                             )
 
+            # 2/3. Original (calling) adapter, then the skill adapter's inference_provider.
             for adapter_name in (context.original_adapter_name, context.adapter_name):
                 if not adapter_name:
                     continue
@@ -150,29 +166,75 @@ class DocumentGenerationStep(PipelineStep):
                 inference_provider = adapter_config.get('inference_provider')
                 if inference_provider:
                     try:
-                        provider = await adapter_manager.get_overridden_provider(
-                            inference_provider, adapter_name
+                        _add(
+                            inference_provider,
+                            await adapter_manager.get_overridden_provider(
+                                inference_provider, adapter_name
+                            ),
                         )
-                        if provider:
-                            return provider
                     except Exception as e:
                         logger.debug(
                             "Could not resolve provider for '%s': %s", adapter_name, e
                         )
 
-        return self.container.get_or_none('llm_provider')
+        # 4. Global fallback provider.
+        _add("global", self.container.get_or_none('llm_provider'))
+
+        return providers
 
     # ------------------------------------------------------------------
     # Document spec generation via LLM
     # ------------------------------------------------------------------
 
     async def _generate_spec(self, context: ProcessingContext, fmt: str) -> Optional[dict]:
-        """Call an LLM to produce a structured JSON document specification."""
-        llm_provider = await self._resolve_rewrite_provider(context)
-        if not llm_provider:
+        """Call an LLM to produce a structured JSON document specification.
+
+        Tries each candidate provider in priority order, falling through to the next when one
+        fails (e.g. a bad API key, a timeout, or malformed JSON). Only when every provider
+        fails do we resort to _fallback_spec.
+        """
+        providers = await self._resolve_rewrite_providers(context)
+        if not providers:
             logger.warning("No LLM provider available — using fallback document spec")
             return self._fallback_spec(context)
 
+        prompt = self._build_spec_prompt(context, fmt)
+
+        for label, llm_provider in providers:
+            try:
+                raw = await llm_provider.generate(prompt, max_tokens=2000, temperature=0.3)
+                raw = raw.strip()
+                # Strip markdown code fences if the LLM ignored the instruction
+                if raw.startswith("```"):
+                    parts = raw.split("```")
+                    raw = parts[1] if len(parts) > 1 else raw
+                    if raw.startswith("json"):
+                        raw = raw[4:]
+                    raw = raw.strip()
+                spec = json.loads(raw)
+                if 'title' not in spec or 'sections' not in spec:
+                    logger.warning(
+                        "Provider '%s' returned incomplete document spec — trying next provider",
+                        label,
+                    )
+                    continue
+                logger.debug(
+                    "Document spec generated via '%s': title=%r, sections=%d",
+                    label, spec['title'], len(spec['sections']),
+                )
+                return spec
+            except Exception as e:
+                logger.warning(
+                    "Document spec generation via '%s' failed: %s — trying next provider",
+                    label, e,
+                )
+                continue
+
+        logger.warning("All providers failed for document spec — using fallback")
+        return self._fallback_spec(context)
+
+    def _build_spec_prompt(self, context: ProcessingContext, fmt: str) -> str:
+        """Build the LLM prompt asking for a JSON document spec from history + context."""
         # Build context from conversation history (cap at 6 turns)
         recent_msgs = context.context_messages[-6:] if context.context_messages else []
         if (recent_msgs and recent_msgs[-1].get('role') == 'user'
@@ -200,7 +262,7 @@ class DocumentGenerationStep(PipelineStep):
         hint = format_hints.get(fmt, 'a structured document')
         today = date.today().isoformat()
 
-        prompt = (
+        return (
             f"You are a document structure designer. Generate {hint}.\n"
             "Output ONLY a valid JSON object — no markdown code fences, no explanation.\n\n"
             "Required JSON schema:\n"
@@ -217,36 +279,40 @@ class DocumentGenerationStep(PipelineStep):
             f"User request: {context.message}"
         )
 
-        try:
-            raw = await llm_provider.generate(prompt, max_tokens=2000, temperature=0.3)
-            raw = raw.strip()
-            # Strip markdown code fences if the LLM ignored the instruction
-            if raw.startswith("```"):
-                parts = raw.split("```")
-                raw = parts[1] if len(parts) > 1 else raw
-                if raw.startswith("json"):
-                    raw = raw[4:]
-                raw = raw.strip()
-            spec = json.loads(raw)
-            if 'title' not in spec or 'sections' not in spec:
-                logger.warning("LLM returned incomplete document spec — using fallback")
-                return self._fallback_spec(context)
-            logger.debug(
-                "Document spec generated: title=%r, sections=%d",
-                spec['title'], len(spec['sections']),
-            )
-            return spec
-        except Exception as e:
-            logger.warning("Failed to generate document spec: %s — using fallback", e)
-            return self._fallback_spec(context)
-
     @staticmethod
     def _fallback_spec(context: ProcessingContext) -> dict:
-        """Minimal single-section spec used when LLM spec generation fails."""
+        """Last-resort spec used when LLM spec generation fails for every provider.
+
+        Pulls the prior assistant analysis and any thread-cached data into the document so a
+        provider failure degrades to "the findings, unstructured" rather than "just the
+        question". Falls back to the user's message only when no prior content is available.
+        """
+        sections = []
+
+        # Prior assistant analysis — the content the user usually wants in the document.
+        for msg in reversed(context.context_messages or []):
+            if msg.get('role') == 'assistant' and (msg.get('content') or '').strip():
+                sections.append({
+                    "heading": "Summary",
+                    "body": msg['content'].strip(),
+                    "bullet_points": [],
+                })
+                break
+
+        # Thread-cached dataset / retrieved context.
+        if context.formatted_context and context.formatted_context.strip():
+            sections.append({
+                "heading": "Data",
+                "body": context.formatted_context.strip(),
+                "bullet_points": [],
+            })
+
+        # Nothing prior to draw on — record the request itself.
+        if not sections:
+            sections.append({"heading": "Content", "body": context.message, "bullet_points": []})
+
         return {
             "title": context.message[:100],
-            "sections": [
-                {"heading": "Content", "body": context.message, "bullet_points": []}
-            ],
+            "sections": sections,
             "metadata": {"author": "ORBIT", "date": date.today().isoformat()},
         }
