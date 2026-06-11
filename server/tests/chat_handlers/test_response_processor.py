@@ -527,6 +527,22 @@ class TestResponseProcessorThreadingDetection:
         """
         assert processor._response_indicates_no_results(long_response) is False
 
+    def test_response_indicates_no_results_long_response_with_trigger_phrase(self, processor):
+        """A long, data-rich answer that incidentally contains a no-results trigger phrase
+        (e.g. 'not available') must NOT be flagged as no-results. This previously caused the
+        threading ('continue') button to disappear intermittently for valid datasets."""
+        long_response = (
+            "Here are the recent orders for customer #4096:\n\n"
+            "| Order | Status | Total |\n"
+            "|-------|--------|-------|\n"
+            "| #1042 | Shipped | $129.99 |\n"
+            "| #1051 | Processing | $54.00 |\n"
+            "| #1063 | Delivered | $312.40 |\n\n"
+            "Order #1042 shipped on March 3rd. Tracking information is not available yet, "
+            "but it is expected to arrive within five business days."
+        )
+        assert processor._response_indicates_no_results(long_response) is False
+
     def test_response_indicates_no_results_multilingual(self, processor):
         """Test detection works with common patterns regardless of surrounding text."""
         responses = [

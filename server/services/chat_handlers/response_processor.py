@@ -584,8 +584,12 @@ class ResponseProcessor:
             logger.debug(f"Threading disabled: short response ({len(response_stripped)} chars) with {negative_count} negative indicators")
             return True
 
-        # Heuristic 2: Explicit "no results" patterns (single pre-compiled regex, multilingual)
-        if self._no_results_regex.search(response_lower):
+        # Heuristic 2: Explicit "no results" patterns (single pre-compiled regex, multilingual).
+        # Only applied to short responses. A genuine "no results" reply is brief; a long,
+        # data-rich answer can incidentally contain a trigger phrase (e.g. "not available",
+        # "does not include") without being a no-results message. Scanning long answers caused
+        # valid datasets to intermittently lose their threading ("continue") button.
+        if is_short_response and self._no_results_regex.search(response_lower):
             logger.debug("Threading disabled: matched no-results pattern")
             return True
 
