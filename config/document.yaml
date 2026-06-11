@@ -1,11 +1,78 @@
 # Document generation configuration
-# Controls default format and renderer settings for the document-generation skill.
+# Controls default format, renderer styling, and LLM spec-generation settings.
 # Unlike image/video generation, document generation uses native Python libraries
 # (reportlab, python-docx, openpyxl, python-pptx) and requires no external API key.
 
 document:
   default_format: "pdf"    # Fallback when adapter config omits document_format
 
+# ---------------------------------------------------------------------------
+# Renderer styling — every value here overrides the built-in default.
+# Omitting a key keeps the default; you only need to set what you want to change.
+# ---------------------------------------------------------------------------
+document_renderer:
+
+  # Metadata injected into every generated document.
+  metadata:
+    author: "ORBIT"          # Displayed in the document header / properties
+    organization: ""         # Optional — appended to author when non-empty
+
+  # --- PDF (reportlab) ----------------------------------------------------
+  pdf:
+    fonts:
+      body: "Helvetica"
+      header: "Helvetica-Bold"
+    colors:
+      header_bg: "#4472C4"   # Table header background — hex with # (e.g. "#4472C4")
+      header_text: "white"   # Header text — named color (e.g. "white") or hex with #
+      alt_row_bg: "#EBF0FA"  # Alternating table row background — hex with #
+      grid: "grey"           # Table grid line — named color (e.g. "grey") or hex with #
+    margins:                 # Page margins in centimetres
+      top: 2
+      bottom: 2
+      left: 2.5
+      right: 2.5
+    typography:
+      title_size: 18         # pt
+      title_space_after: 12
+      heading1_size: 14
+      heading1_space_after: 6
+      bullet_indent: 20      # left indent for bullet paragraphs (pt)
+      bullet_marker_indent: 10
+    table:
+      landscape_threshold_cols: 7  # Switch to landscape when table has ≥ this many columns
+      font_size: 9                 # Default table cell font size (pt)
+      font_size_many_cols: 8       # Used when column count ≥ 6
+      min_font_size: 7             # Used when column count ≥ 8
+      cell_padding: 8              # Horizontal cell padding (pt)
+      min_col_width: 42            # Minimum column width (pt)
+      max_col_ratio: 0.28          # Maximum column width as fraction of page width
+
+  # --- DOCX (python-docx) -------------------------------------------------
+  docx:
+    table_style: "Table Grid"   # Built-in Word table style
+
+  # --- XLSX (openpyxl) ----------------------------------------------------
+  xlsx:
+    colors:
+      header_bg: "4472C4"    # Header fill — hex WITHOUT leading #
+      alt_row_bg: "EBF0FA"   # Alternating data row fill
+    summary_col_width: 80    # Width of column A on the Summary sheet
+    max_col_width: 50        # Maximum auto-fit column width for data sheets
+
+  # --- PPTX (python-pptx) -------------------------------------------------
+  pptx:
+    slide_width_inches: 13.33    # Wide-screen 16:9
+    slide_height_inches: 7.5
+    typography:
+      body_pt: 14            # Body paragraph font size
+      bullet_pt: 13          # Bullet point font size
+    table:
+      row_height_inches: 0.4  # Height per table row
+
+# ---------------------------------------------------------------------------
+# LLM spec-generation settings (applies to all document formats)
+# ---------------------------------------------------------------------------
 document_generation:
   native:
     enabled: true
@@ -14,3 +81,7 @@ document_generation:
     retry:
       enabled: true
       max_retries: 2
+  llm:
+    max_tokens: 2000        # Token budget for the spec-generation LLM call
+    temperature: 0.3        # Low temperature → deterministic, structured output
+    history_limit: 6        # Max conversation turns included in the spec prompt

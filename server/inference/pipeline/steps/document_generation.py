@@ -64,8 +64,10 @@ class DocumentGenerationStep(PipelineStep):
             context.set_error("Document spec generation failed.")
             return context
 
+        config = self.container.get_or_none('config') or {}
+        renderer_config = config.get('document_renderer', {})
         try:
-            renderer = DocumentRenderer()
+            renderer = DocumentRenderer(renderer_config)
             document_bytes = renderer.render(spec, fmt)
         except ImportError as e:
             context.set_error(
@@ -84,6 +86,18 @@ class DocumentGenerationStep(PipelineStep):
         context.response = context.document_revised_prompt
         logger.info("Document generated: format=%s, size=%d bytes", fmt, len(document_bytes))
         return context
+
+    # ------------------------------------------------------------------
+    # Shared config helpers
+    # ------------------------------------------------------------------
+
+    def _author_display(self) -> str:
+        """Return the configured author string (with org suffix when set)."""
+        config = self.container.get_or_none('config') or {}
+        meta = config.get('document_renderer', {}).get('metadata', {})
+        author = meta.get('author', 'ORBIT')
+        org = meta.get('organization', '')
+        return f"{author} — {org}" if org else author
 
     # ------------------------------------------------------------------
     # Format resolution
@@ -198,11 +212,17 @@ class DocumentGenerationStep(PipelineStep):
             logger.warning("No LLM provider available — using fallback document spec")
             return self._fallback_spec(context)
 
-        prompt = self._build_spec_prompt(context, fmt)
+        config = self.container.get_or_none('config') or {}
+        llm_cfg = config.get('document_generation', {}).get('llm', {})
+        max_tokens = llm_cfg.get('max_tokens', 2000)
+        temperature = llm_cfg.get('temperature', 0.3)
+        history_limit = llm_cfg.get('history_limit', 6)
+
+        prompt = self._build_spec_prompt(context, fmt, history_limit=history_limit)
 
         for label, llm_provider in providers:
             try:
-                raw = await llm_provider.generate(prompt, max_tokens=2000, temperature=0.3)
+                raw = await llm_provider.generate(prompt, max_tokens=max_tokens, temperature=temperature)
                 raw = raw.strip()
                 # Strip markdown code fences if the LLM ignored the instruction
                 if raw.startswith("```"):
@@ -233,10 +253,9 @@ class DocumentGenerationStep(PipelineStep):
         logger.warning("All providers failed for document spec — using fallback")
         return self._fallback_spec(context)
 
-    def _build_spec_prompt(self, context: ProcessingContext, fmt: str) -> str:
+    def _build_spec_prompt(self, context: ProcessingContext, fmt: str, history_limit: int = 6) -> str:
         """Build the LLM prompt asking for a JSON document spec from history + context."""
-        # Build context from conversation history (cap at 6 turns)
-        recent_msgs = context.context_messages[-6:] if context.context_messages else []
+        recent_msgs = context.context_messages[-history_limit:] if context.context_messages else []
         if (recent_msgs and recent_msgs[-1].get('role') == 'user'
                 and recent_msgs[-1].get('content', '').strip() == context.message.strip()):
             recent_msgs = recent_msgs[:-1]
@@ -253,6 +272,8 @@ class DocumentGenerationStep(PipelineStep):
             if context.formatted_context else ""
         )
 
+        display_author = self._author_display()
+
         format_hints: Dict[str, str] = {
             'pdf': 'a structured report with sections, paragraphs, and tables',
             'docx': 'a Word document with headings, paragraphs, and tables',
@@ -268,7 +289,7 @@ class DocumentGenerationStep(PipelineStep):
             "Required JSON schema:\n"
             '{"title": "...", "sections": [{"heading": "...", "body": "...", '
             '"table": [["col1", "col2"], ["val1", "val2"]], "bullet_points": ["..."]}], '
-            f'"metadata": {{"author": "ORBIT", "date": "{today}"}}}}\n\n'
+            f'"metadata": {{"author": "{display_author}", "date": "{today}"}}}}\n\n'
             "Rules:\n"
             "1. Use the conversation history and any data/context to populate real content.\n"
             "2. Every section must have at least a heading and either body text or bullet_points.\n"
@@ -279,8 +300,7 @@ class DocumentGenerationStep(PipelineStep):
             f"User request: {context.message}"
         )
 
-    @staticmethod
-    def _fallback_spec(context: ProcessingContext) -> dict:
+    def _fallback_spec(self, context: ProcessingContext) -> dict:
         """Last-resort spec used when LLM spec generation fails for every provider.
 
         Pulls the prior assistant analysis and any thread-cached data into the document so a
@@ -314,5 +334,5 @@ class DocumentGenerationStep(PipelineStep):
         return {
             "title": context.message[:100],
             "sections": sections,
-            "metadata": {"author": "ORBIT", "date": date.today().isoformat()},
+            "metadata": {"author": self._author_display(), "date": date.today().isoformat()},
         }

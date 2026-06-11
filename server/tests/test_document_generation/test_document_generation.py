@@ -422,7 +422,8 @@ class TestDocumentGenerationStepProcess:
             formatted_context="Order #1042 | Shipped | $129.99",
         )
 
-        spec = self.StepClass._fallback_spec(ctx)
+        step = self.StepClass(_make_container(document_format="pdf"))
+        spec = step._fallback_spec(ctx)
         bodies = [s.get("body", "") for s in spec["sections"]]
         assert any("Customer 4096 has 3 orders" in b for b in bodies)
         assert any("Order #1042" in b for b in bodies)
@@ -434,7 +435,8 @@ class TestDocumentGenerationStepProcess:
         from inference.pipeline.base import ProcessingContext
 
         ctx = ProcessingContext(adapter_name="pdf-generator", message="Make a report")
-        spec = self.StepClass._fallback_spec(ctx)
+        step = self.StepClass(_make_container(document_format="pdf"))
+        spec = step._fallback_spec(ctx)
         assert spec["sections"] == [
             {"heading": "Content", "body": "Make a report", "bullet_points": []}
         ]
