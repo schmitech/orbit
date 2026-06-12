@@ -63,10 +63,32 @@ ORBIT acts as a router and orchestration layer sitting directly between your app
 
 ---
 
-## ⚡ Quick Start: Get Running in 60 Seconds
+## ⚡ Quick Start
 
-### Step 1: Spin Up with Docker
-The fastest way to run ORBIT is using Docker Compose. Clone the repository and boot the service:
+ORBIT supports two main deployment methods:
+1. **Manual Installation via Release Tarball** (Preferred option for bare-metal & local execution)
+2. **Containerized Deployment via Docker Compose** (Preferred option for quick containerized environments)
+
+---
+
+### 📦 Option A: Release Tarball (Manual Linux/macOS Install — Preferred)
+
+To install ORBIT directly into your local Python environment:
+
+```bash
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.2/orbit-2.7.2.tar.gz
+tar -xzf orbit-2.7.2.tar.gz && cd orbit-2.7.2
+cp env.example .env
+./install/setup.sh
+./bin/orbit.sh start
+tail -f ./logs/orbit.log
+```
+
+---
+
+### 🐳 Option B: Docker Compose
+
+Clone the repository and boot the service:
 
 ```bash
 git clone https://github.com/schmitech/orbit.git && cd orbit/docker
@@ -81,7 +103,13 @@ This starts ORBIT configured with a local Ollama instance and the lightweight `S
 > docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 > ```
 
-### Step 2: Query the OpenAI-Compatible API
+---
+
+### ⚙️ Verify & Access the Gateway
+
+After running either installation method above:
+
+#### 1. Query the OpenAI-Compatible API
 Test the API gateway by sending a chat completion payload:
 
 ```bash
@@ -95,7 +123,7 @@ curl -X POST http://localhost:3000/v1/chat \
   }'
 ```
 
-### Step 3: Access the Admin UI
+#### 2. Access the Admin UI
 Open your browser and navigate to **[http://localhost:3000/admin](http://localhost:3000/admin)**.
 * **Username:** `admin`
 * **Password:** `admin123`
@@ -204,52 +232,6 @@ Expand the sections below to see ORBIT in action across different deployment sce
 | **Cascading Failures** | Slow or offline third-party APIs cause global application downtime. | **Production Resilience:** Integrated circuit breakers, fallback model routing, request queuing, and rate limits. |
 
 ---
-
-## 📁 Repository Structure
-
-```
-orbit/
-├── bin/                 # Executable scripts for managing the ORBIT server
-├── clients/             # Client SDKs and UIs (orbitchat, node-api)
-├── config/              # Adapter configurations and connection files
-├── docker/              # Docker Compose files (CPU & GPU acceleration)
-├── docs/                # Comprehensive documentation, cookbook, and tutorials
-├── examples/            # Intent templates and domain examples
-├── install/             # Shell scripts for manual setups
-├── models/              # Local model and embedding definitions
-├── server/              # FastAPI application core
-│   ├── adapters/        # Database, API, RAG, and MCP adapters
-│   ├── ai_services/     # Audio, TTS, STT, and media generation
-│   ├── inference/       # LLM provider routing and failovers
-│   ├── routes/          # API endpoint routes (chat, admin, files)
-│   └── services/        # Core pipeline and orchestrators
-└── uploads/             # Server-side directory for uploaded documents
-```
-
----
-
-## 📦 Deployment Alternatives
-
-### 🐳 Option A: Pre-Built Docker Image
-If you want to run ORBIT without cloning the entire repository, pull and run the basic release image:
-
-```bash
-docker pull schmitech/orbit:basic
-docker run -d --name orbit-basic -p 3000:3000 schmitech/orbit:basic
-```
-*Note: If Ollama runs on your host machine, pass `-e OLLAMA_HOST=host.docker.internal:11434` to allow the container to access your local models.*
-
-### 📦 Option B: Release Tarball (Manual Linux/macOS Install)
-To install ORBIT directly into your local Python environment:
-
-```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.2/orbit-2.7.2.tar.gz
-tar -xzf orbit-2.7.2.tar.gz && cd orbit-2.7.2
-cp env.example .env
-./install/setup.sh
-./bin/orbit.sh start
-tail -f ./logs/orbit.log
-```
 
 ---
 
