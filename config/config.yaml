@@ -253,7 +253,7 @@ internal_services:
       database_path: "orbit.db"  # Path to SQLite database file (relative to project root)
   
   elasticsearch:
-    enabled: true
+    enabled: false
     node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}
     index: 'orbit'
     username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}

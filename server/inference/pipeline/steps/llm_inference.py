@@ -75,8 +75,12 @@ class LLMInferenceStep(PipelineStep):
             try:
                 adapter_manager = self.container.get('adapter_manager')
                 adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
-                if adapter_config and adapter_config.get('type') in ('image_generation', 'video_generation', 'mcp_agent'):
+                if adapter_config and adapter_config.get('type') in ('image_generation', 'video_generation', 'document_generation', 'mcp_agent'):
                     return False
+                # For fetch: run LLM only when content was fetched (formatted_context set).
+                # If FetchStep failed it sets context.response directly — skip LLM.
+                if adapter_config and adapter_config.get('type') == 'fetch':
+                    return bool(context.formatted_context)
             except Exception:
                 pass
         return True

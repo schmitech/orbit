@@ -820,6 +820,16 @@ class PipelineChatService:
                 final_state.accumulated_text = context.response or ""
                 final_state.stream_completed = True
 
+            # Non-binary skill steps (e.g. fetch): same pattern — the pipeline emits a single
+            # {"response": "...", "done": true} chunk; streaming_handler accumulates text but
+            # yields nothing, leaving final_state None.  Synthesise a state and send the
+            # response text as a chunk so the client receives it before the done marker.
+            if final_state is None and context.response:
+                final_state = StreamingState()
+                final_state.accumulated_text = context.response
+                final_state.stream_completed = True
+                yield f"data: {json.dumps({'response': context.response, 'done': False})}\n\n"
+
             if not (final_state and final_state.stream_completed
                     and (final_state.accumulated_text or context.image or context.video
                          or context.document)):

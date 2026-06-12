@@ -69,7 +69,8 @@ dependencies = [
     "pycld2>=0.42",
     "pycountry>=24.6.1",
     "py-toon-format>=0.1.0",
-    "colorama>=0.4.6"
+    "colorama>=0.4.6",
+    "beautifulsoup4>=4.15.0"
 ]
 
 # ============================================================================
@@ -127,7 +128,6 @@ dependencies = [
     "reportlab>=4.5.1",
     "webvtt-py>=0.5.1",
     "pandas>=2.1.4",
-    "beautifulsoup4>=4.14.3",
     "python-magic>=0.4.27",
     "filetype>=1.2.0",
     # Docling layout uses RT-DETR (torch+torchvision). Floor matches docling; no PyPI x86_64 Mac wheels above torch 2.2.2.

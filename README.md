@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/e7beb0b9-59a2-4c0c-afaf-a72d445a264c" alt="ORBIT Logo" width="220"/>
+    <img src="https://github.com/user-attachments/assets/b185730e-039d-4b9c-b953-858e9ad8e945" alt="ORBIT Logo" width="300"/>
   </a>
 
   # ORBIT
@@ -55,9 +55,11 @@ Many organizations need to connect AI to their business data without:
 
 ORBIT acts as a router and orchestration layer sitting directly between your applications, your local or hosted AI models, and your internal data repositories:
 
-<p align="center">
-  <img src="docs/orbit-architecture.svg" alt="ORBIT Architecture" width="850"/>
-</p>
+<div align="center">
+  <a href="https://github.com/schmitech/orbit">
+    <img src="https://github.com/user-attachments/assets/84063347-7561-436b-927a-d68587378579" alt="ORBIT Logo" width="600"/>
+  </a>
+</div>
 
 ---
 

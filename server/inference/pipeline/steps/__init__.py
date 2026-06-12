@@ -14,6 +14,7 @@ from .image_generation import ImageGenerationStep
 from .video_generation import VideoGenerationStep
 from .document_generation import DocumentGenerationStep
 from .mcp_agent import MCPAgentStep
+from .fetch import FetchStep
 
 __all__ = [
     'SafetyFilterStep',
@@ -26,4 +27,5 @@ __all__ = [
     'VideoGenerationStep',
     'DocumentGenerationStep',
     'MCPAgentStep',
+    'FetchStep',
 ]

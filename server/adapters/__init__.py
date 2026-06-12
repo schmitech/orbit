@@ -181,6 +181,18 @@ def register_adapters():
 
     logger.info("Registered MCP agent conversational adapter")
 
+    # Register conversational adapter for fetch type so that adapters with
+    # type: fetch can be preloaded. FetchStep handles the actual request.
+    ADAPTER_REGISTRY.register(
+        adapter_type="fetch",
+        datasource="none",
+        adapter_name="conversational",
+        factory_func=_create_conversational_adapter,
+        config={}
+    )
+
+    logger.info("Registered fetch conversational adapter")
+
 
 # Register adapters when module is imported
 register_adapters()

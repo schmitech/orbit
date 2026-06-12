@@ -210,14 +210,16 @@ class RequestContextBuilder:
             original_adapter_name = adapter_name
             requested_skill = skill
             adapter_name = skill_adapter_name
-            inference_provider = self.get_inference_provider(adapter_name)
-            # A skill adapter defines its own provider/model. Discard any runtime
-            # model override resolved from the calling adapter so the skill always
-            # uses its configured model — mirroring image/video skills, which ignore
-            # the caller's LLM entirely. (Without this, a caller's selected model
-            # like "deepseek" would receive the web_search flag and fail.)
-            runtime_provider = None
-            runtime_model_name = None
+            skill_inference_provider = self.get_inference_provider(adapter_name)
+            if skill_inference_provider:
+                # Skill has its own LLM (e.g. image/video generation) — use it.
+                inference_provider = skill_inference_provider
+                runtime_provider = None
+                runtime_model_name = None
+            else:
+                # Skill has no configured LLM (e.g. fetch) — keep the invoking
+                # adapter's provider/model so the caller's LLM processes the result.
+                pass  # inference_provider, runtime_provider, runtime_model_name unchanged
             logger.debug(
                 f"Skill routing: '{requested_skill}' → adapter '{adapter_name}' "
                 f"(original: '{original_adapter_name}')"

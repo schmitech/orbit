@@ -1,0 +1,24 @@
+# Fetch skill adapter — retrieves web page content from a URL using httpx + BeautifulSoup.
+# Handled by FetchStep; LLMInferenceStep is skipped for this adapter type.
+adapters:
+  - name: "fetch"
+    enabled: true
+    type: "fetch"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    fetch_timeout: 30
+    fetch_user_agent: "Mozilla/5.0 (compatible; OrbitBot/1.0)"
+
+    capabilities:
+      expose_as_skill: true
+      skill_name: "Fetch"
+      skill_description: "Fetch and return web page content from a URL"
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"

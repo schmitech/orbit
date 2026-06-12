@@ -73,4 +73,5 @@ import:
   - "adapters/excel-generator.yaml"
   - "adapters/pptx-generator.yaml"
   - "adapters/web-search.yaml"
+  - "adapters/fetch.yaml"
   - "adapters/mcp-agent.yaml"
