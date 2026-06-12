@@ -76,8 +76,8 @@ ORBIT supports two main deployment methods:
 To install ORBIT directly into your local Python environment:
 
 ```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.2/orbit-2.7.2.tar.gz
-tar -xzf orbit-2.7.2.tar.gz && cd orbit-2.7.2
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.3/orbit-2.7.3.tar.gz
+tar -xzf orbit-2.7.3.tar.gz && cd orbit-2.7.3
 cp env.example .env
 ./install/setup.sh
 ./bin/orbit.sh start

@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.7.3] - 2026-06-12
+
+### Core System Updates
+- **Inference Server**: Fixed startup and shutdown wiring, including static asset mounting, idempotent environment loading, and shutdown exception surfacing.
+- **Docker & SQLite**: Enforced LF line endings on the Docker entrypoint and implemented automatic schema migration for SQLite databases.
+- **Shared Utilities**: Consolidated IP extraction logic and path exclusion into shared utilities; hardened the rate limiter to correctly ignore proxy headers when `trusted_proxies` is empty.
+- **Domain Extraction**: Addressed code review findings in domain extraction, including email regex validation, negative integer handling, and percentage ratio formatting.
+
+### Chat-app & UI Improvements
+- **Clipboard Management**: Fixed image-to-clipboard functionality (#209) and disabled the copy-to-clipboard icon for video content.
+- **General UX**: Updated the author profile link and performed general code simplifications to improve maintainability.
+
+### Bug Fixes & Technical Improvements
+- **Git Configuration**: Added `.gitattributes` to enforce LF line endings on all shell scripts.
+
+### Documentation & Configuration
+- **Architecture**: Added a new high-level ORBIT architecture diagram.
+- **README**: Improved overall content clarity and onboarding friendliness.
+- **PR Testing**: Expanded the PR testing guide for maintainers with new methods for local review and remote cleanup.
+
 ## [2.7.2] - 2026-06-08
 
 ### Core System Updates
