@@ -39,11 +39,15 @@ set -e
 
 # Parse command line arguments
 VERSION=${1:-"1.0.0"}  # Use first argument or default to 1.0.0
+if [[ ! "$VERSION" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "Error: VERSION must be alphanumeric with dots, dashes, or underscores only."
+    exit 1
+fi
 PACKAGE_NAME="orbit-${VERSION}"
 
 # Set up logging
 LOG_FILE="build-$(date +%Y%m%d-%H%M%S).log"
-exec > >(tee -a "$LOG_FILE") 2>&1
+exec > >(tee "$LOG_FILE") 2>&1
 echo "Build started at $(date)"
 echo "Logging to $LOG_FILE"
 echo "Building version: ${VERSION}"
@@ -93,7 +97,7 @@ check_requirements() {
 check_required_directories() {
     local missing_dirs=()
     
-    for dir in server bin install examples config; do
+    for dir in server bin install config; do
         if [ ! -d "$dir" ]; then
             missing_dirs+=("$dir")
         fi
@@ -116,16 +120,24 @@ cleanup() {
     exit $exit_code
 }
 
-# Function to show progress
-show_progress() {
-    local pid=$1
-    local message=$2
-    echo -n "$message"
-    while kill -0 $pid 2>/dev/null; do
-        echo -n "."
-        sleep 1
-    done
-    echo " done!"
+copy_files() {
+    local src_dir=$1
+    local dest_dir=$2
+    shift 2
+
+    find "$src_dir" \
+        -type f \
+        -not -path "*/\.*" \
+        -not -path "*/__pycache__/*" \
+        -not -name "*.pyc" \
+        -not -name "*.pyo" \
+        -not -name "*.pyd" \
+        "$@" \
+        -print0 | while IFS= read -r -d '' file; do
+            local rel_path="${file#"$src_dir"/}"
+            mkdir -p "${dest_dir}/$(dirname "$rel_path")"
+            cp "$file" "${dest_dir}/${rel_path}"
+        done
 }
 
 # Set up cleanup trap
@@ -150,44 +162,27 @@ mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,config}
 
 # Copy core server files (excluding tests directory)
 echo "Copying server files..."
-find server -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -path "*/tests/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
-    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
-    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
-done
+copy_files "server" "dist/build/${PACKAGE_NAME}/server" -not -path "*/tests/*"
 
 # Copy install files (excluding build-tarball.sh, orbit.db.default, and default-config directory)
 echo "Copying install files..."
-find install -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" -not -name "build-tarball.sh" -not -name "orbit.db.default" -not -path "*default-config*" | while read file; do
-    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
-    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
-done
+copy_files "install" "dist/build/${PACKAGE_NAME}/install" -not -name "build-tarball.sh" -not -name "orbit.db.default" -not -path "*default-config*"
 
 # Skip docker files (not needed in installation package)
 echo "Skipping docker files (excluded from installation package)..."
 
 # Copy bin files (CLI tools)
 echo "Copying CLI tools..."
-find bin -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
-    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
-    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
-done
+copy_files "bin" "dist/build/${PACKAGE_NAME}/bin"
 
 # Copy default-config files as config directory
 echo "Copying default configuration files..."
 if [ -d "install/default-config" ]; then
-    find install/default-config -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
-        # Remove 'install/default-config' prefix and replace with 'config'
-        rel_path="${file#install/default-config/}"
-        mkdir -p "dist/build/${PACKAGE_NAME}/config/$(dirname "$rel_path")"
-        cp "$file" "dist/build/${PACKAGE_NAME}/config/$rel_path"
-    done
+    copy_files "install/default-config" "dist/build/${PACKAGE_NAME}/config"
     echo "✅ Default config files copied successfully"
 else
     echo "⚠️ Warning: install/default-config directory not found, falling back to config directory"
-    find config -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
-        mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
-        cp "$file" "dist/build/${PACKAGE_NAME}/$file"
-    done
+    copy_files "config" "dist/build/${PACKAGE_NAME}/config"
 fi
 
 # Verify config files were copied
@@ -282,7 +277,7 @@ if [ -f "dist/${PACKAGE_NAME}.tar.gz" ]; then
         sha256sum "dist/${PACKAGE_NAME}.tar.gz" > "dist/${PACKAGE_NAME}.tar.gz.sha256"
     fi
     echo "Checksum saved to: dist/${PACKAGE_NAME}.tar.gz.sha256"
-    echo "SHA256: $(cat dist/${PACKAGE_NAME}.tar.gz.sha256 | cut -d' ' -f1)"
+    echo "SHA256: $(cut -d' ' -f1 < "dist/${PACKAGE_NAME}.tar.gz.sha256")"
 else
     echo "❌ Error: Failed to create tarball"
     exit 1
