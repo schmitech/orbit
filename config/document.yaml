@@ -57,18 +57,39 @@ document_renderer:
     colors:
       header_bg: "4472C4"    # Header fill — hex WITHOUT leading #
       alt_row_bg: "EBF0FA"   # Alternating data row fill
+      header_text: "FFFFFF"  # Header font colour — hex WITHOUT leading #
+      grid: "D9D9D9"         # Cell border colour — hex WITHOUT leading #
+    fonts:
+      body: "Calibri"        # Data cell font family
+      header: "Calibri"      # Header cell font family
+      body_size: 11          # Data cell font size (pt)
+      header_size: 11        # Header cell font size (pt)
     summary_col_width: 80    # Width of column A on the Summary sheet
     max_col_width: 50        # Maximum auto-fit column width for data sheets
+    min_col_width: 10        # Minimum auto-fit column width for data sheets
+    freeze_header_row: true  # Freeze row 1 (header) on every data sheet
+    auto_filter: true        # Add dropdown auto-filter to the header row
+    borders: true            # Draw thin borders around every data cell
 
   # --- PPTX (python-pptx) -------------------------------------------------
   pptx:
     slide_width_inches: 13.33    # Wide-screen 16:9
     slide_height_inches: 7.5
+    colors:
+      header_bg: "4472C4"        # Table header fill — hex WITHOUT leading #
+      header_text: "FFFFFF"      # Table header font colour — hex WITHOUT leading #
+      alt_row_bg: "EBF0FA"       # Alternating table row fill — hex WITHOUT leading #
+    fonts:
+      body: "Calibri"            # Body / bullet font family
+      header: "Calibri"          # Title and table header font family
     typography:
-      body_pt: 14            # Body paragraph font size
-      bullet_pt: 13          # Bullet point font size
+      title_pt: 28               # Slide title font size (pt)
+      body_pt: 14                # Body paragraph font size
+      bullet_pt: 13              # Bullet point font size
     table:
-      row_height_inches: 0.4  # Height per table row
+      row_height_inches: 0.4     # Height per table row
+      show_heading: true         # Show section heading as a label above the table slide
+    slide_numbers: false         # Add slide number to every non-title slide
 
 # ---------------------------------------------------------------------------
 # LLM spec-generation settings (applies to all document formats)

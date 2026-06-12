@@ -14,8 +14,9 @@ Flow:
 import base64
 import json
 import logging
+import re
 from datetime import date
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from ..base import PipelineStep, ProcessingContext
 
@@ -253,6 +254,35 @@ class DocumentGenerationStep(PipelineStep):
         logger.warning("All providers failed for document spec — using fallback")
         return self._fallback_spec(context)
 
+    @staticmethod
+    def _extract_markdown_tables(messages: List[Dict[str, str]]) -> List[List[List[str]]]:
+        """Parse markdown pipe-tables from conversation messages into 2-D string arrays."""
+        tables = []
+        for msg in messages:
+            content = msg.get('content', '') or ''
+            lines = content.splitlines()
+            i = 0
+            while i < len(lines):
+                if '|' in lines[i]:
+                    block = []
+                    while i < len(lines) and '|' in lines[i]:
+                        block.append(lines[i])
+                        i += 1
+                    rows = []
+                    for line in block:
+                        cells = [c.strip() for c in line.strip().strip('|').split('|')]
+                        # skip separator rows like |---|:---:|
+                        if cells and all(re.match(r'^[-: ]+$', c) for c in cells if c):
+                            continue
+                        cleaned = [re.sub(r'\*{1,2}|`', '', c).strip() for c in cells]
+                        if any(cleaned):
+                            rows.append(cleaned)
+                    if len(rows) >= 2:
+                        tables.append(rows)
+                else:
+                    i += 1
+        return tables
+
     def _build_spec_prompt(self, context: ProcessingContext, fmt: str, history_limit: int = 6) -> str:
         """Build the LLM prompt asking for a JSON document spec from history + context."""
         recent_msgs = context.context_messages[-history_limit:] if context.context_messages else []
@@ -277,11 +307,59 @@ class DocumentGenerationStep(PipelineStep):
         format_hints: Dict[str, str] = {
             'pdf': 'a structured report with sections, paragraphs, and tables',
             'docx': 'a Word document with headings, paragraphs, and tables',
-            'xlsx': 'a spreadsheet where each section becomes a named worksheet with tabular data',
+            'xlsx': (
+                'a spreadsheet where every section with structured data uses the "table" key '
+                '(a 2-D array, first row = column headers). '
+                'Never put tabular data in "body" text. Numeric cell values must be plain numbers.'
+            ),
             'pptx': 'a presentation where each section becomes a slide with a title and bullet points',
         }
         hint = format_hints.get(fmt, 'a structured document')
         today = date.today().isoformat()
+
+        # For xlsx and pptx: pre-parse markdown tables from conversation history so the LLM
+        # receives structured data directly rather than having to re-extract it from prose.
+        pre_extracted = ""
+        if fmt in ('xlsx', 'pptx'):
+            md_tables = self._extract_markdown_tables(recent_msgs)
+            if md_tables:
+                lines = ["Pre-extracted table data (use these as \"table\" arrays in the JSON):"]
+                for t_idx, tbl in enumerate(md_tables, 1):
+                    lines.append(f"Table {t_idx}:")
+                    lines.append(json.dumps(tbl))
+                pre_extracted = "\n" + "\n".join(lines) + "\n"
+
+        if fmt == 'xlsx':
+            rules = (
+                "Rules:\n"
+                "1. Use the conversation history, pre-extracted table data, and any data/context "
+                "to populate real content. Do NOT invent placeholder data when real data is available.\n"
+                "2. For xlsx, sections that contain table data need only a \"heading\" and \"table\" — "
+                "\"body\" and \"bullet_points\" are optional and should be brief if present.\n"
+                "3. EVERY markdown table or data grid found in the conversation history or context "
+                "MUST appear as a \"table\" 2-D array in the JSON. Do not summarise it as prose.\n"
+                "4. Numeric cell values must be bare numbers (no surrounding quotes).\n"
+                "5. Output ONLY the JSON object. No extra text before or after.\n"
+            )
+        elif fmt == 'pptx':
+            rules = (
+                "Rules:\n"
+                "1. Use the conversation history, pre-extracted table data, and any data/context "
+                "to populate real content. Do NOT invent placeholder data when real data is available.\n"
+                "2. Every section becomes one slide. Use \"heading\" as the slide title, \"body\" for "
+                "a brief paragraph, and \"bullet_points\" for a list. Tables get their own slide.\n"
+                "3. EVERY markdown table or data grid found in the conversation history or context "
+                "MUST appear as a \"table\" 2-D array in the JSON — not as bullet points or body text.\n"
+                "4. Output ONLY the JSON object. No extra text before or after.\n"
+            )
+        else:
+            rules = (
+                "Rules:\n"
+                "1. Use the conversation history and any data/context to populate real content.\n"
+                "2. Every section must have at least a heading and either body text or bullet_points.\n"
+                "3. Include a table only when the data has rows and columns; omit the table key otherwise.\n"
+                "4. Output ONLY the JSON object. No extra text before or after.\n"
+            )
 
         return (
             f"You are a document structure designer. Generate {hint}.\n"
@@ -290,12 +368,9 @@ class DocumentGenerationStep(PipelineStep):
             '{"title": "...", "sections": [{"heading": "...", "body": "...", '
             '"table": [["col1", "col2"], ["val1", "val2"]], "bullet_points": ["..."]}], '
             f'"metadata": {{"author": "{display_author}", "date": "{today}"}}}}\n\n'
-            "Rules:\n"
-            "1. Use the conversation history and any data/context to populate real content.\n"
-            "2. Every section must have at least a heading and either body text or bullet_points.\n"
-            "3. Include a table only when the data has rows and columns; omit the table key otherwise.\n"
-            "4. Output ONLY the JSON object. No extra text before or after.\n\n"
+            f"{rules}\n"
             f"Conversation History:\n{history_text}\n"
+            f"{pre_extracted}"
             f"{context_text}"
             f"User request: {context.message}"
         )
