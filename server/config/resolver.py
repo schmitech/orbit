@@ -125,17 +125,6 @@ class ConfigResolver:
                 logger.info(f"{component_name.capitalize()} falls back to main provider: {main_provider}")
                 return main_provider
 
-        # For reranker component, check for provider_override
-        elif component_name == 'reranker':
-            provider_override = component_config.get('provider_override')
-            if provider_override and provider_override in self.config.get('inference', {}):
-                logger.info(f"{component_name.capitalize()} uses custom provider: {provider_override}")
-                return provider_override
-            else:
-                # If no override found, inherit from main provider
-                logger.info(f"{component_name.capitalize()} inherits provider from general: {main_provider}")
-                return main_provider
-        
         # For any other component, use the default inheritance logic
         else:
             provider_override = component_config.get('provider_override')

@@ -10,8 +10,6 @@ import logging
 import threading
 from typing import Dict, Any, Optional, Tuple
 
-from config.config_summary_logger import log_config_summary, mask_url
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -79,10 +77,6 @@ def _load_config_from_disk(config_path: Optional[str] = None) -> Optional[Dict[s
                 # Resolve preset references (must be after imports and env vars)
                 config = _resolve_ollama_presets(config)
                 config = _resolve_llama_cpp_presets(config)
-
-                # Log key configuration values
-                log_config_summary(config, path, logger)
-
                 return config
         except FileNotFoundError:
             logger.debug(f"Config file not found at {os.path.abspath(path)}")
@@ -93,8 +87,36 @@ def _load_config_from_disk(config_path: Optional[str] = None) -> Optional[Dict[s
 
 
 def _mask_url(url: str) -> str:
-    """Mask sensitive parts of URLs like credentials"""
-    return mask_url(url)
+    """Mask sensitive parts of URLs like credentials and token query params."""
+    if not url:
+        return url
+
+    try:
+        if '@' in url and '//' in url:
+            protocol, rest = url.split('//', 1)
+            if '@' in rest:
+                _, host_part = rest.split('@', 1)
+                return f"{protocol}//[REDACTED]@{host_part}"
+
+        sensitive_keys = ('key=', 'token=', 'api_key=', 'apikey=', 'password=')
+        if '?' in url and any(key in url.lower() for key in sensitive_keys):
+            base_url, query = url.split('?', 1)
+            masked_params = []
+
+            for param in query.split('&'):
+                param_lower = param.lower()
+                if any(key in param_lower for key in sensitive_keys):
+                    param_name = param.split('=')[0]
+                    masked_params.append(f"{param_name}=[REDACTED]")
+                else:
+                    masked_params.append(param)
+
+            return f"{base_url}?{'&'.join(masked_params)}"
+
+        return url
+    except Exception:
+        return url.split('//')[0] + '//[HOST_REDACTED]' if '//' in url else '[URL_REDACTED]'
+
 
 def _process_imports(config: Dict[str, Any], config_dir: str) -> Dict[str, Any]:
     """Process import statements in config (e.g., import: adapters.yaml)"""
