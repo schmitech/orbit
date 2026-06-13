@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/b185730e-039d-4b9c-b953-858e9ad8e945" alt="ORBIT Logo" width="300"/>
+    <img src="https://github.com/user-attachments/assets/b185730e-039d-4b9c-b953-858e9ad8e945" alt="ORBIT Logo" width="200"/>
   </a>
 
   # ORBIT
@@ -48,6 +48,20 @@ Many organizations need to connect AI to their business data without:
 * **🤖 Agentic MCP Tool Loops:** Connect outward to Model Context Protocol (MCP) servers to let LLMs perform multi-step, self-correcting tool operations inside chat sessions.
 * **🎭 Cross-Adapter Skills:** Generate text-to-image and text-to-video  dynamically as part of a conversation workflow.
 * **🛡️ Production-Grade Control Plane:** API key validation, request rate-limiting, token quotas, content moderation, circuit breakers, and detailed audit logging.
+
+
+
+---
+
+## 🤔 Why ORBIT?
+
+ORBIT provides secure inference segregation based on data classification, giving you the flexibility to route workloads dynamically across local, private, or public model infrastructure.
+
+<div align="center">
+  <a href="https://github.com/schmitech/orbit">
+    <img src="https://github.com/user-attachments/assets/648f4221-24c1-4c1f-b7a1-5456618f7646" alt="ORBIT Logo" width="600"/>
+  </a>
+</div>
 
 ---
 
@@ -117,6 +131,18 @@ Open your browser and navigate to **[http://localhost:3000/admin](http://localho
 * **Password:** `admin123`
 
 The dashboard allows you to monitor API metrics, system latency, active sessions, and verify configured adapter states in real-time.
+
+---
+
+## 🏗️ Architecture Overview
+
+ORBIT acts as a router and orchestration layer sitting directly between your applications, your local or hosted AI models, and your internal data repositories:
+
+<div align="center">
+  <a href="https://github.com/schmitech/orbit">
+    <img src="https://github.com/user-attachments/assets/84063347-7561-436b-927a-d68587378579" alt="ORBIT Logo" width="600"/>
+  </a>
+</div>
 
 ---
 
