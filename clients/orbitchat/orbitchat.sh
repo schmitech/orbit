@@ -46,8 +46,6 @@ CONFIG_FILE="$SCRIPT_DIR/orbitchat.yaml"
 ACTION=""
 FORCE_RESTART=false
 
-# ... (parsing logic happens below, we will update PIDFILE/LOGFILE after parsing)
-
 # When installed as an npm package, default config often lives in current directory.
 if [ ! -f "$CONFIG_FILE" ] && [ -f "$(pwd)/orbitchat.yaml" ]; then
     CONFIG_FILE="$(pwd)/orbitchat.yaml"
@@ -349,6 +347,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+    echo "Error: port must be a number"
+    exit 1
+fi
 
 case "$ACTION" in
     start)

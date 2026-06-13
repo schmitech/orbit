@@ -87,12 +87,14 @@ describe('Express proxy – api-only mode', () => {
        
       adapters: [
         {
+          id: 'Test Agent',
           name: 'Test Agent',
           apiUrl: 'http://localhost:19999',
           description: 'First test agent',
           notes: 'Some **markdown** notes',
         },
         {
+          id: 'Second Agent',
           name: 'Second Agent',
           apiUrl: 'http://localhost:19999',
           description: 'Second test agent',
@@ -263,6 +265,7 @@ describe('Express proxy – header forwarding to backend', () => {
        
       adapters: [
         {
+          id: 'Backend Agent',
           name: 'Backend Agent',
           apiUrl: `http://localhost:${BACKEND_PORT}`,
           description: 'Points at mock backend',

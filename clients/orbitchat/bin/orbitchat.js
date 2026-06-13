@@ -108,6 +108,7 @@ function deepMerge(target, source) {
 
 // ---- Defaults ----
 
+// Mirrors DEFAULTS in src/utils/runtimeConfig.ts; keep in sync when adding new config fields.
 const DEFAULTS = {
   agentMode: {
     mode: 'multi',
@@ -324,18 +325,13 @@ function loadAdaptersForProxy(yamlAdapters) {
           continue;
         }
         const isObjectValue = typeof value === 'object' && value !== null;
-        const apiKey = isObjectValue
-          ? String(value.apiKey || value.key || '')
-          : String(value);
-        const apiUrl = isObjectValue && value.apiUrl ? String(value.apiUrl) : undefined;
-        const description = isObjectValue && value.description ? String(value.description) : undefined;
-        const notes = isObjectValue && value.notes ? String(value.notes) : undefined;
-        const model = isObjectValue && value.model ? String(value.model) : undefined;
-        adapters[id].apiKey = apiKey;
-        if (apiUrl) adapters[id].apiUrl = apiUrl;
-        if (description !== undefined) adapters[id].description = description;
-        if (notes !== undefined) adapters[id].notes = notes;
-        if (model !== undefined) adapters[id].model = model;
+        adapters[id].apiKey = isObjectValue ? String(value.apiKey || value.key || '') : String(value);
+        if (isObjectValue) {
+          if (value.apiUrl) adapters[id].apiUrl = String(value.apiUrl);
+          if (value.description) adapters[id].description = String(value.description);
+          if (value.notes) adapters[id].notes = String(value.notes);
+          if (value.model) adapters[id].model = String(value.model);
+        }
       }
     } catch { /* ignore */ }
   }
@@ -416,9 +412,12 @@ function createServer(distPath, config, serverConfig = {}) {
         res.status(429).json({ error: 'Chat rate limit exceeded' });
       },
     });
-    app.use('/api', (req, res, next) => { if (req.headers.authorization) return next(); apiLimiter(req, res, next); });
+    const hasBearerAuthorization = (req) =>
+      typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ');
+
+    app.use('/api', (req, res, next) => { if (hasBearerAuthorization(req)) return next(); apiLimiter(req, res, next); });
     app.use('/api', (req, res, next) => {
-      if (req.headers.authorization) return next();
+      if (hasBearerAuthorization(req)) return next();
       if (req.method === 'POST' && (/\/chat/i.test(req.path) || /\/stream/i.test(req.path))) return chatLimiter(req, res, next);
       next();
     });
@@ -446,7 +445,8 @@ function createServer(distPath, config, serverConfig = {}) {
             });
             if (resp.ok) {
               const info = await resp.json();
-              adapter.model = typeof info?.model === 'string' ? info.model.trim() || undefined : undefined;
+              const backendModel = typeof info?.model === 'string' ? info.model.trim() : '';
+              if (backendModel) adapter.model = backendModel;
             }
           } catch {
             // Best-effort only; cards can render without model metadata.
@@ -475,13 +475,12 @@ function createServer(distPath, config, serverConfig = {}) {
       const cacheControlHeader = typeof req.headers['cache-control'] === 'string' ? req.headers['cache-control'] : '';
       const forceRefresh = req.url?.includes('refresh=1') || cacheControlHeader.includes('no-cache');
 
-      fetchAdapterModels(adapters, forceRefresh).then(() => {
-        res.setHeader('Cache-Control', 'no-store');
-        res.json({ adapters: buildAdapterList(adapters) });
-      }).catch(() => {
-        res.setHeader('Cache-Control', 'no-store');
-        res.json({ adapters: buildAdapterList(adapters) });
-      });
+      Promise.resolve(fetchAdapterModels(adapters, forceRefresh))
+        .catch(() => {})
+        .then(() => {
+          res.setHeader('Cache-Control', 'no-store');
+          res.json({ adapters: buildAdapterList(adapters) });
+        });
     });
 
     const dynamicProxy = createProxyMiddleware({

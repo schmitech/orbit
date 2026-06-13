@@ -143,7 +143,7 @@ declare global {
   }
 }
 
-/** Default values — single source of truth for the entire app */
+/** Mirrors DEFAULTS in bin/orbitchat.js; keep in sync when adding new config fields. */
 export const DEFAULTS: RuntimeConfig = {
   agentMode: {
     mode: 'multi',
@@ -584,19 +584,20 @@ export function getHeaderShowBorder(): boolean {
   return runtimeConfig.header.showBorder;
 }
 
-export function getHeaderNavLinks(): NavLink[] {
-  const raw = runtimeConfig.header.navLinks;
-  if (Array.isArray(raw)) return raw;
-  // Fallback: parse if a JSON string was injected (legacy compat)
+// Fallback: parse if a JSON string was injected (legacy compat)
+function parseNavLinks(raw: unknown): NavLink[] {
+  if (Array.isArray(raw)) return raw as NavLink[];
   if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    } catch { return []; }
   }
   return [];
+}
+
+export function getHeaderNavLinks(): NavLink[] {
+  return parseNavLinks(runtimeConfig.header.navLinks);
 }
 
 export function getEnableFooter(): boolean {
@@ -653,15 +654,5 @@ export function getStartupScripts(): StartupScript[] {
 }
 
 export function getFooterNavLinks(): NavLink[] {
-  const raw = runtimeConfig.footer.navLinks;
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
+  return parseNavLinks(runtimeConfig.footer.navLinks);
 }

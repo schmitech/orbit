@@ -75,10 +75,11 @@ describe('Guest rate limiting – disabled (no config)', () => {
   const BASE = `http://localhost:${PORT}`;
 
   before(async () => {
-    const app = createServer(null, {
-      apiOnly: true,
-      // No rateLimit in serverConfig
-    });
+    const app = createServer(
+      null,
+      { adapters: [{ id: 'Test Agent', name: 'Test Agent', apiUrl: 'http://localhost:19999' }] },
+      { apiOnly: true, rateLimit: { enabled: false } },
+    );
     await new Promise((resolve) => {
       server = app.listen(PORT, 'localhost', resolve);
     });
@@ -111,18 +112,22 @@ describe('Guest rate limiting – enabled', () => {
   const BASE = `http://localhost:${PORT}`;
 
   before(async () => {
-    const app = createServer(null, {
-      apiOnly: true,
-      rateLimit: {
-        enabled: true,
-        windowMs: 60000,
-        maxRequests: 5,    // Low limit for testing
-        chat: {
+    const app = createServer(
+      null,
+      { adapters: [{ id: 'Test Agent', name: 'Test Agent', apiUrl: 'http://localhost:19999' }] },
+      {
+        apiOnly: true,
+        rateLimit: {
+          enabled: true,
           windowMs: 60000,
-          maxRequests: 3,  // Even lower for chat
+          maxRequests: 5,    // Low limit for testing
+          chat: {
+            windowMs: 60000,
+            maxRequests: 3,  // Even lower for chat
+          },
         },
       },
-    });
+    );
     await new Promise((resolve) => {
       server = app.listen(PORT, 'localhost', resolve);
     });
