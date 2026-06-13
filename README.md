@@ -51,18 +51,6 @@ Many organizations need to connect AI to their business data without:
 
 ---
 
-## 🏗️ Architecture Overview
-
-ORBIT acts as a router and orchestration layer sitting directly between your applications, your local or hosted AI models, and your internal data repositories:
-
-<div align="center">
-  <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/84063347-7561-436b-927a-d68587378579" alt="ORBIT Logo" width="600"/>
-  </a>
-</div>
-
----
-
 ## ⚡ Quick Start
 
 ORBIT supports two main deployment methods:
