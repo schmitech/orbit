@@ -12,6 +12,7 @@ Features:
 - Standard X-RateLimit-* response headers
 """
 
+import hashlib
 import time
 import logging
 import threading
@@ -27,10 +28,10 @@ logger = logging.getLogger(__name__)
 
 
 class InMemoryRateLimiter:
-    """In-memory token bucket rate limiter used as fallback when Redis is unavailable."""
+    """In-memory fixed-window rate limiter used as fallback when Redis is unavailable."""
 
     def __init__(self, cleanup_interval: int = 300):
-        self._buckets: Dict[str, Tuple[float, float]] = {}  # key -> (tokens, last_refill)
+        self._windows: Dict[str, Tuple[int, int]] = {}  # key -> (count, window_minute)
         self._lock = threading.Lock()
         self._last_cleanup = time.monotonic()
         self._cleanup_interval = cleanup_interval
@@ -38,31 +39,26 @@ class InMemoryRateLimiter:
     def is_allowed(self, key: str, limit: int) -> Tuple[bool, int]:
         """Check if a request is allowed and return (allowed, remaining)."""
         now = time.monotonic()
+        window_minute = int(now // 60)
 
         with self._lock:
             # Periodic cleanup of stale entries
             if now - self._last_cleanup > self._cleanup_interval:
-                cutoff = now - 120
-                self._buckets = {
-                    k: v for k, v in self._buckets.items() if v[1] > cutoff
+                cutoff_window = window_minute - 2  # Evict entries silent for two full 60s windows.
+                self._windows = {
+                    k: v for k, v in self._windows.items() if v[1] > cutoff_window
                 }
                 self._last_cleanup = now
 
-            if key in self._buckets:
-                tokens, last_refill = self._buckets[key]
-                # Refill tokens based on elapsed time
-                elapsed = now - last_refill
-                tokens = min(limit, tokens + elapsed * (limit / 60.0))
-            else:
-                tokens = float(limit)
-                last_refill = now
+            count, stored_minute = self._windows.get(key, (0, window_minute))
+            if stored_minute != window_minute:
+                count = 0
 
-            if tokens >= 1.0:
-                tokens -= 1.0
-                self._buckets[key] = (tokens, now)
-                return True, int(tokens)
+            if count < limit:
+                count += 1
+                self._windows[key] = (count, window_minute)
+                return True, max(0, limit - count)
             else:
-                self._buckets[key] = (tokens, now)
                 return False, 0
 
 
@@ -74,14 +70,29 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     and per API key. Only active when Redis is enabled.
     """
 
-    # Lua script for atomic increment with expiration
-    # Prevents race condition where key is incremented but expire fails
-    _INCR_WITH_EXPIRE_SCRIPT = """
-local current = redis.call('INCR', KEYS[1])
-if current == 1 then
+    # Lua script for atomic fixed-window limit checks across minute and hour
+    # windows in a single Redis round trip. Returns:
+    # [allowed, minute_count, hour_count].
+    _CHECK_LIMITS_SCRIPT = """
+local minute_count = redis.call('INCR', KEYS[1])
+if minute_count == 1 then
     redis.call('EXPIRE', KEYS[1], ARGV[1])
 end
-return current
+
+if minute_count > tonumber(ARGV[3]) then
+    return {0, minute_count, 0}
+end
+
+local hour_count = redis.call('INCR', KEYS[2])
+if hour_count == 1 then
+    redis.call('EXPIRE', KEYS[2], ARGV[2])
+end
+
+if hour_count > tonumber(ARGV[4]) then
+    return {0, minute_count, hour_count}
+end
+
+return {1, minute_count, hour_count}
 """
 
     def __init__(self, app, config: Dict[str, Any]):
@@ -137,6 +148,7 @@ return current
         # Registered Lua script (initialized lazily when Redis is available)
         self._incr_script = None
         self._script_registered_client = None
+        self._script_registration_lock = threading.Lock()
 
         # In-memory fallback rate limiter (activates when Redis is unavailable)
         self._fallback_limiter = InMemoryRateLimiter()
@@ -192,7 +204,7 @@ return current
         try:
             client = redis_service.client
             self._incr_script = client.register_script(
-                self._INCR_WITH_EXPIRE_SCRIPT
+                self._CHECK_LIMITS_SCRIPT
             )
             self._script_registered_client = client
             logger.debug("Registered rate limit Lua script with Redis")
@@ -200,6 +212,22 @@ return current
             logger.warning(f"Failed to register Lua script: {e}")
             self._incr_script = None
             self._script_registered_client = None
+
+    def _hash_identifier(self, prefix: str, identifier: str) -> str:
+        """Hash API keys before including them in rate-limit storage keys."""
+        if prefix == "apikey":
+            return hashlib.sha256(identifier.encode()).hexdigest()[:16]
+        return identifier
+
+    def _ensure_lua_script(self, redis_service, current_client):
+        """Register the Lua script once for the current Redis client."""
+        if self._incr_script is not None and self._script_registered_client is current_client:
+            return self._incr_script
+
+        with self._script_registration_lock:
+            if self._incr_script is None or self._script_registered_client is not current_client:
+                self._register_lua_script(redis_service)
+            return self._incr_script
     
     async def _check_rate_limit(
         self,
@@ -225,41 +253,35 @@ return current
         current_time = int(time.time())
         current_minute = current_time // 60
         current_hour = current_time // 3600
+        storage_identifier = self._hash_identifier(prefix, identifier)
         
         # Redis keys for minute and hour windows
-        minute_key = f"ratelimit:{prefix}:min:{current_minute}:{identifier}"
-        hour_key = f"ratelimit:{prefix}:hr:{current_hour}:{identifier}"
+        minute_key = f"ratelimit:{prefix}:min:{current_minute}:{storage_identifier}"
+        hour_key = f"ratelimit:{prefix}:hr:{current_hour}:{storage_identifier}"
 
         try:
             # Re-register script if client has changed (e.g. after reconnection)
             current_client = redis_service.client if redis_service else None
-            if self._incr_script is None or self._script_registered_client is not current_client:
-                self._register_lua_script(redis_service)
-
-            incr_script = self._incr_script
+            incr_script = self._ensure_lua_script(redis_service, current_client)
             if incr_script is None:
                 logger.warning("Lua script not registered, allowing request")
                 return True, limit_per_minute, limit_per_minute, current_time + 60
 
-            # Check minute limit using atomic Lua script
-            minute_count = await incr_script(
-                keys=[minute_key],
-                args=[60]  # TTL in seconds
+            allowed, minute_count, hour_count = await incr_script(
+                keys=[minute_key, hour_key],
+                args=[60, 3600, limit_per_minute, limit_per_hour]
             )
 
-            if minute_count > limit_per_minute:
+            minute_count = int(minute_count)
+            hour_count = int(hour_count)
+
+            if not int(allowed) and minute_count > limit_per_minute:
                 # Minute limit exceeded
                 reset_time = (current_minute + 1) * 60
                 remaining = 0
                 return False, remaining, limit_per_minute, reset_time
 
-            # Check hour limit using atomic Lua script
-            hour_count = await incr_script(
-                keys=[hour_key],
-                args=[3600]  # TTL in seconds
-            )
-
-            if hour_count > limit_per_hour:
+            if not int(allowed) and hour_count > limit_per_hour:
                 # Hour limit exceeded
                 reset_time = (current_hour + 1) * 3600
                 remaining = 0
@@ -282,7 +304,7 @@ return current
             logger.warning(f"Redis rate limit check failed, using in-memory fallback: {e}")
             # Fall back to in-memory rate limiter instead of fail-open
             allowed, remaining = self._fallback_limiter.is_allowed(
-                f"{prefix}:{identifier}", limit_per_minute
+                f"{prefix}:{storage_identifier}", limit_per_minute
             )
             reset_time = (current_minute + 1) * 60
             return allowed, remaining, limit_per_minute, reset_time

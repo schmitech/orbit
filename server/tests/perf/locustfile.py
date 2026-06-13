@@ -14,9 +14,80 @@ import os
 import random
 import time
 from locust import HttpUser, task, between, events
+from urllib3.util import Retry
+from requests.adapters import HTTPAdapter
 
 
 PERF_API_KEY_ENV = "ORBIT_PERF_API_KEY"
+
+
+def str_to_bool(val):
+    if isinstance(val, bool):
+        return val
+    return val.lower() in ('true', '1', 'yes', 'on')
+
+
+@events.init_command_line_parser.add_listener
+def init_parser(parser):
+    parser.add_argument("--connection-timeout", type=int, default=60, help="Connection timeout in seconds")
+    parser.add_argument("--max-redirects", type=int, default=5, help="Maximum number of redirects allowed")
+    parser.add_argument("--max-retries", type=int, default=3, help="Maximum number of retries")
+    parser.add_argument("--retry-delay", type=float, default=1.0, help="Delay between retries in seconds")
+    parser.add_argument("--http2", type=str_to_bool, default=False, help="Enable HTTP/2")
+    parser.add_argument("--keep-alive", type=str_to_bool, default=True, help="Enable keep-alive connections")
+    parser.add_argument("--max-keep-alive-requests", type=int, default=100, help="Maximum number of keep-alive requests per connection")
+    parser.add_argument("--insecure", type=str_to_bool, default=False, help="Disable SSL verification")
+    parser.add_argument("--ssl-verify", type=str_to_bool, default=True, help="Enable SSL verification")
+
+
+def configure_client(user: HttpUser):
+    """Configure the HTTP client based on custom command line options."""
+    options = user.environment.parsed_options
+    if not options:
+        return
+        
+    # SSL verification
+    if getattr(options, "insecure", False):
+        user.client.verify = False
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    elif hasattr(options, "ssl_verify"):
+        user.client.verify = options.ssl_verify
+        if not options.ssl_verify:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+    # Max redirects
+    if hasattr(options, "max_redirects"):
+        user.client.max_redirects = options.max_redirects
+        
+    # Timeout
+    if hasattr(options, "connection_timeout"):
+        timeout = options.connection_timeout
+        original_request = user.client.request
+        def request_with_timeout(*args, **kwargs):
+            if 'timeout' not in kwargs:
+                kwargs['timeout'] = timeout
+            return original_request(*args, **kwargs)
+        user.client.request = request_with_timeout
+
+    # Retries
+    retries = getattr(options, "max_retries", 3)
+    retry_delay = getattr(options, "retry_delay", 1.0)
+    if retries > 0:
+        retry_strategy = Retry(
+            total=retries,
+            backoff_factor=retry_delay,
+            status_forcelist=[429, 500, 502, 503, 504],
+            raise_on_status=False
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        user.client.mount("http://", adapter)
+        user.client.mount("https://", adapter)
+        
+    # Warn if http2 is requested
+    if getattr(options, "http2", False):
+        print("⚠️ HTTP/2 requested but not supported by HTTP client. Falling back to HTTP/1.1.")
 
 
 def get_perf_api_key():
@@ -39,6 +110,7 @@ class OrbitInferenceServerUser(HttpUser):
     
     def on_start(self):
         """Initialize user state when starting."""
+        configure_client(self)
         self.api_key = get_perf_api_key()
         self.session_id = None
         self.user_id = None
@@ -169,6 +241,10 @@ class HealthCheckUser(HttpUser):
     
     wait_time = between(5, 10)  # Less frequent checks
     
+    def on_start(self):
+        """Initialize health check user."""
+        configure_client(self)
+        
     @task(1)
     def health_check(self):
         """Basic health check."""
@@ -199,6 +275,7 @@ class ChatUser(HttpUser):
     
     def on_start(self):
         """Initialize chat user."""
+        configure_client(self)
         self.api_key = get_perf_api_key()
         self.session_id = None
         if self.api_key:

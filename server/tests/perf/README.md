@@ -10,6 +10,7 @@ The performance testing suite includes:
 - **Advanced Python performance tests** - Custom scenarios and detailed metrics
 - **Multiple test scenarios** - Health checks, chat endpoints, admin operations, and more
 - **Comprehensive reporting** - CSV exports, HTML reports, and real-time metrics
+- **Rate limiting & throttling simulation** - Targeted tests for rate limit and quota behaviour
 
 ## 📋 Prerequisites
 
@@ -152,6 +153,128 @@ selected workload, gracefully stops the server, and writes reports under
 - `memray_leaks_flamegraph.html` and `memray_leaks_table.html` - allocations
   still live at process exit
 - `server.log` and `workload_summary.txt` - run context
+
+### Option 6: Rate Limiting & Throttling Simulation
+
+`rate_limit_simulation.py` is a focused simulation tool for verifying rate limiting and throttling behaviour. Unlike the general load tests it fires targeted traffic patterns and surfaces rate limit headers, quota counters, and throttle delays in real time.
+
+#### Prerequisites
+
+Rate limiting requires Redis and must be enabled in `config/config.yaml`:
+
+```yaml
+internal_services:
+  redis:
+    enabled: true
+
+security:
+  rate_limiting:
+    enabled: true       # required for all modes
+
+  throttling:
+    enabled: true       # required for --mode throttle and exhaust
+```
+
+Throttle and exhaust modes also require a valid API key:
+
+```bash
+# List existing keys
+./bin/orbit.sh keys list
+
+# Or create one
+./bin/orbit.sh keys create --name "test-key"
+```
+
+#### Modes
+
+| Mode | What it tests | Needs API key? |
+|------|---------------|---------------|
+| `burst` | Sends requests as fast as possible to trigger the per-minute hard limit | No |
+| `sustained` | Steady RPS over time — confirms the window resets after 60s | No |
+| `random` | Random delays between requests — exercises boundary conditions | No |
+| `throttle` | Observes progressive delays as quota usage climbs toward the limit | Yes |
+| `exhaust` | Runs until daily or monthly quota is exceeded | Yes |
+
+#### Examples
+
+```bash
+cd server/tests/perf
+
+# Burst — expect green ✓ for the first 60 requests, then ⚠ 429s
+python rate_limit_simulation.py --mode burst --requests 80
+
+# Sustained at 2 RPS for 2 minutes — confirms window reset at 60s
+python rate_limit_simulation.py --mode sustained --rps 2 --duration 120
+
+# Random delays — exercises window-boundary edge cases
+python rate_limit_simulation.py --mode random --requests 50
+
+# Throttle — watch delays climb from 0ms → 5000ms as quota fills
+python rate_limit_simulation.py --mode throttle --api-key <key> --requests 200
+
+# Quota exhaustion — runs until daily/monthly limit is hit
+python rate_limit_simulation.py --mode exhaust --api-key <key>
+
+# Target a specific endpoint or remote server
+python rate_limit_simulation.py --mode burst --url http://my-server:3000 --endpoint /health --method GET
+
+# Suppress per-request output, show summary only
+python rate_limit_simulation.py --mode burst --requests 100 --quiet
+```
+
+#### Reading the output
+
+Each request line shows:
+
+```
+[12:34:56.789] ✓ Request #  1 | Status: 200 | Time:  142.3ms | Remaining: 59/60
+[12:34:56.812] ✓ Request #  2 | Status: 200 | Time:   98.1ms | Remaining: 58/60 | Delay: 0ms | Daily: 9998
+[12:34:57.001] ⚠ Request # 61 | Status: 429 | Time:   12.4ms | Retry-After: 60s
+```
+
+| Symbol | Meaning |
+|--------|---------|
+| `✓` green | Request allowed (200) |
+| `⚠` yellow | Rate limited or quota exceeded (429) |
+| `✗` red | Connection error or unexpected failure |
+
+At the end of every run a summary is printed:
+
+```
+============================================================
+SIMULATION SUMMARY
+============================================================
+Total Requests:      80
+Successful (200):    60
+Rate Limited (429):  20 (25.0%)
+Quota Exceeded:      0 (0.0%)
+Failed (other):      0
+Avg Response Time:   115.2ms
+
+Rate limiting triggered at request #61
+============================================================
+```
+
+For throttle/exhaust runs a second section shows:
+
+```
+----------------------------------------
+THROTTLE STATISTICS
+----------------------------------------
+Throttled Requests:  45 (22.5%)
+Avg Throttle Delay:  387.4ms
+Max Throttle Delay:  3200ms
+Throttling started:  Request #141
+```
+
+#### Troubleshooting
+
+| Symptom | Likely cause |
+|---------|-------------|
+| All `✓`, no 429s after burst | `security.rate_limiting.enabled: false` in config |
+| All `✗` connection errors | Server not running or wrong `--url` |
+| No `Delay:` column in throttle mode | `security.throttling.enabled: false` or no API key passed |
+| 429s with `quota_exceeded` immediately | Quota already exhausted — reset with `orbit quota reset --key <key> --period daily` |
 
 Stop any server already listening on the target `--base-url` before running the
 script; otherwise the workload could hit the wrong process. If your config uses

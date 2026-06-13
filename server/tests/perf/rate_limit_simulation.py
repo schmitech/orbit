@@ -308,7 +308,6 @@ class RateLimitSimulator:
             endpoint: API endpoint to test
             method: HTTP method (GET or POST)
         """
-        1.0 / requests_per_second
         self._log(f"Starting SUSTAINED test: {requests_per_second} RPS for {duration_seconds}s")
         self._log(f"API Key: {'Yes' if self.api_key else 'No'}")
         self._log("-" * 60)
@@ -428,7 +427,7 @@ class RateLimitSimulator:
             return self.stats
 
         self._log(f"Starting EXHAUST test: Run until quota is exhausted (max {max_requests} requests)")
-        self._log(f"API Key: Yes ({self.api_key[:8]}...)")
+        self._log("API Key: Yes (***)")
         self._log("-" * 60)
 
         request_num = 0
@@ -618,7 +617,7 @@ Examples:
     print(f"Server:    {args.url}")
     print(f"Endpoint:  {args.endpoint}")
     print(f"Method:    {args.method}")
-    print(f"API Key:   {'Yes (' + args.api_key[:8] + '...)' if args.api_key else 'No'}")
+    print(f"API Key:   {'Yes (***)' if args.api_key else 'No'}")
     print(f"Mode:      {args.mode.upper()}")
     print("=" * 60 + "\n")
 

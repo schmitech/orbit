@@ -9,7 +9,7 @@ ORBIT implements a two-layer traffic control system:
 1. **Throttle Middleware** - Delays requests progressively as quota usage increases (soft limit)
 2. **Rate Limit Middleware** - Rejects requests that exceed hard limits (hard limit)
 
-Both systems use Redis-backed fixed window counters. Rate limits are applied based on **IP address** and optionally **API key**, while throttling supports **per-API-key daily/monthly quotas** with database persistence.
+Both systems use Redis-backed fixed window counters. Rate limits are applied based on **IP address** and optionally **API key**, while throttling supports **per-API-key daily/monthly quotas** with database persistence. When Redis is disabled or an operation fails, rate limiting falls back to per-worker in-memory fixed-window counters.
 
 **Note:** Fixed window counting resets at minute/hour boundaries. This means theoretically up to 2x the limit could occur at window boundaries (e.g., 60 requests at 11:59:59 + 60 at 12:00:00). For most use cases this is acceptable and provides simpler, faster Redis operations.
 
@@ -28,8 +28,8 @@ Both systems use Redis-backed fixed window counters. Rate limits are applied bas
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ 1. Extract API key from request                                  │   │
 │  │ 2. Check quota config (daily/monthly limits, throttle priority)  │   │
-│  │ 3. Atomic increment: Redis daily + monthly counters              │   │
-│  │ 4. If over hard limit → reject with 429                          │   │
+│  │ 3. Atomic hard-limit check + increment for accepted requests      │   │
+│  │ 4. If at/over hard limit → reject with 429                       │   │
 │  │ 5. Calculate delay based on usage percentage                     │   │
 │  │ 6. Apply delay (asyncio.sleep)                                   │   │
 │  │ 7. Add quota headers to response                                 │   │
@@ -88,7 +88,7 @@ Rate limiting is configured in `config/config.yaml` under the `security` section
 ```yaml
 security:
   rate_limiting:
-    enabled: true                    # Master switch (requires Redis to be enabled)
+    enabled: true                    # Master switch
     
     # IP-based limits (applies to ALL requests)
     ip_limits:
@@ -169,7 +169,7 @@ Both rate limiting and throttling require:
 
 2. **Feature enabled** - Set `security.rate_limiting.enabled: true` and/or `security.throttling.enabled: true`
 
-If Redis is disabled, both middleware will log a warning and pass all requests through (fail-open behavior).
+If Redis is disabled or unavailable, throttling fails open. Rate limiting uses an in-memory fixed-window fallback when Redis is disabled or Redis operations fail; if Redis initialization fails at request time, rate limiting fails open for that request.
 
 ## Rate Limit Keys
 
@@ -220,11 +220,13 @@ Examples:
 ```
 ratelimit:ip:min:44853280:192.168.1.100      # IP minute window
 ratelimit:ip:hr:12459:192.168.1.100          # IP hour window
-ratelimit:apikey:min:44853280:sk-abc123...   # API key minute window
-ratelimit:apikey:hr:12459:sk-abc123...       # API key hour window
+ratelimit:apikey:min:44853280:3d4f7e9c2a1b0d8e   # API key minute window, hashed identifier
+ratelimit:apikey:hr:12459:3d4f7e9c2a1b0d8e       # API key hour window, hashed identifier
 ```
 
 Keys automatically expire after their window duration (60s for minute, 3600s for hour).
+
+API-key identifiers in rate-limit keys are the first 16 hex characters of a SHA-256 hash. Raw API keys are not embedded in `ratelimit:apikey:*` Redis key names.
 
 ## Throttling & Quotas
 
@@ -340,7 +342,7 @@ The quota system tracks usage in Redis for performance, with the following chara
 | **Real-time tracking** | Redis counters increment atomically on each request |
 | **Automatic reset** | Daily counters reset at midnight UTC, monthly on the 1st |
 | **TTL-based expiration** | Redis keys auto-expire after their period + buffer |
-| **Fail-open** | If Redis is unavailable, requests pass through (no throttling) |
+| **Fail-open** | If Redis is unavailable, throttle middleware passes through without delay or quota rejection |
 
 **Important**: Usage counters live in Redis only. If Redis data is lost (restart without persistence), counters reset to zero. This is by design for simplicity - quota limits stored in the database remain intact.
 
@@ -446,18 +448,20 @@ Certain paths are excluded from rate limiting to ensure critical functionality:
 
 Subpaths are also excluded (e.g., `/static/css/style.css`).
 
-## Fail-Open Behavior
+## Fallback And Fail-Open Behavior
 
-The rate limiter is designed to fail-open to prevent blocking legitimate traffic during infrastructure issues:
+Rate limiting and throttling handle Redis outages differently:
 
 | Condition | Behavior |
 |-----------|----------|
-| Redis disabled | Pass through, no limiting |
-| Redis unavailable | Pass through, log warning |
-| Redis connection error | Pass through, log warning |
-| Redis operation fails | Pass through, log warning |
+| Redis disabled (`enabled: false`) | Rate limiting uses per-worker in-memory fixed-window fallback; throttling passes through |
+| Redis not yet initialized and init succeeds | Redis-backed fixed-window limiting continues |
+| Redis not yet initialized and init fails at request time | Rate limiting fails open for that request, logs warning |
+| Redis connection error during operation | Rate limiting invalidates Lua script and uses per-worker in-memory fixed-window fallback |
+| Redis operation fails | Rate limiting invalidates Lua script and uses per-worker in-memory fixed-window fallback |
+| Quota service unavailable or errors | Throttling fails open, logs warning |
 
-This ensures service availability even when Redis is temporarily unreachable.
+The in-memory fallback is process-local. In multi-worker deployments, each worker has an independent counter, so the aggregate fallback ceiling can be up to `configured_limit * worker_count`. Keep Redis enabled for strict distributed enforcement.
 
 ## Implementation Files
 

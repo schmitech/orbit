@@ -23,7 +23,18 @@ SCRIPT_DIR = Path(__file__).parent.absolute()
 SERVER_DIR = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(SERVER_DIR))
 
-from middleware.rate_limit_middleware import RateLimitMiddleware
+from middleware.rate_limit_middleware import InMemoryRateLimiter, RateLimitMiddleware
+
+
+class TestInMemoryRateLimiter:
+    """Tests for Redis fallback limiter behavior."""
+
+    def test_fixed_window_limit_is_enforced(self):
+        limiter = InMemoryRateLimiter()
+
+        assert limiter.is_allowed("ip:127.0.0.1", 2) == (True, 1)
+        assert limiter.is_allowed("ip:127.0.0.1", 2) == (True, 0)
+        assert limiter.is_allowed("ip:127.0.0.1", 2) == (False, 0)
 
 
 class TestRateLimitMiddlewareDisabled:
@@ -55,8 +66,8 @@ class TestRateLimitMiddlewareDisabled:
         # No rate limit headers when disabled
         assert "X-RateLimit-Limit" not in response.headers
 
-    def test_pass_through_when_no_redis_service(self):
-        """Test that requests pass through when Redis service is not available."""
+    def test_fallback_when_no_redis_service_allows_within_limit(self):
+        """Test that fallback rate limiting allows requests within the limit."""
         app = FastAPI()
         
         config = {
@@ -80,6 +91,29 @@ class TestRateLimitMiddlewareDisabled:
         
         assert response.status_code == 200
         assert response.json() == {"message": "test"}
+
+    def test_fallback_when_no_redis_service_enforces_limit(self):
+        """Test that fallback rate limiting rejects requests beyond the limit."""
+        app = FastAPI()
+
+        config = {
+            'security': {
+                'rate_limiting': {
+                    'enabled': True,
+                    'ip_limits': {'requests_per_minute': 1, 'requests_per_hour': 100}
+                }
+            }
+        }
+
+        app.add_middleware(RateLimitMiddleware, config=config)
+
+        @app.get("/test")
+        def test_endpoint():
+            return {"message": "test"}
+
+        client = TestClient(app)
+        assert client.get("/test").status_code == 200
+        assert client.get("/test").status_code == 429
 
 
 class TestRateLimitMiddlewareExcludePaths:
@@ -378,9 +412,20 @@ def mock_redis_service():
     counters = {}
 
     async def mock_script_call(keys, args):
-        key = keys[0]
-        counters[key] = counters.get(key, 0) + 1
-        return counters[key]
+        minute_key, hour_key = keys
+        minute_limit = int(args[2])
+        hour_limit = int(args[3])
+        counters[minute_key] = counters.get(minute_key, 0) + 1
+        minute_count = counters[minute_key]
+        if minute_count > minute_limit:
+            return [0, minute_count, 0]
+
+        counters[hour_key] = counters.get(hour_key, 0) + 1
+        hour_count = counters[hour_key]
+        if hour_count > hour_limit:
+            return [0, minute_count, hour_count]
+
+        return [1, minute_count, hour_count]
 
     mock_script = AsyncMock(side_effect=mock_script_call)
     mock_service.client = Mock()
@@ -405,9 +450,20 @@ class TestRateLimitMiddlewareWithRedis:
 
         async def mock_script_call(keys, args):
             """Mock registered Lua script execution - atomic INCR with EXPIRE."""
-            key = keys[0]
-            counters[key] = counters.get(key, 0) + 1
-            return counters[key]
+            minute_key, hour_key = keys
+            minute_limit = int(args[2])
+            hour_limit = int(args[3])
+            counters[minute_key] = counters.get(minute_key, 0) + 1
+            minute_count = counters[minute_key]
+            if minute_count > minute_limit:
+                return [0, minute_count, 0]
+
+            counters[hour_key] = counters.get(hour_key, 0) + 1
+            hour_count = counters[hour_key]
+            if hour_count > hour_limit:
+                return [0, minute_count, hour_count]
+
+            return [1, minute_count, hour_count]
 
         # Create a mock registered script that behaves like a callable
         mock_script = AsyncMock(side_effect=mock_script_call)
@@ -528,6 +584,10 @@ class TestRateLimitMiddlewareWithRedis:
         response = client.get("/test", headers=headers)
         assert response.status_code == 200
         assert response.headers["X-RateLimit-Limit"] == "5"  # API key limit
+
+        redis_keys = list(mock_redis_service._counters.keys())
+        assert not any("test-api-key-123" in key for key in redis_keys)
+        assert any("ratelimit:apikey:min:" in key for key in redis_keys)
 
     @pytest.mark.asyncio
     async def test_both_ip_and_api_key_checked(self, mock_redis_service):
@@ -817,7 +877,7 @@ class TestRateLimitMiddlewareConcurrencySafety:
                 if self._calls == 1:
                     # Simulate another request invalidating shared state mid-check.
                     self._middleware._incr_script = None
-                return self._calls
+                return [1, self._calls, self._calls]
 
         script = ScriptThatInvalidatesMiddleware(middleware)
         mock_service.client.register_script = Mock(return_value=script)

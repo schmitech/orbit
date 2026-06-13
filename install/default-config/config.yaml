@@ -69,6 +69,9 @@ language_detection:
 
 performance:
   workers: 4
+  # Rate-limit fallback note: when Redis is disabled or unavailable,
+  # each worker enforces its own in-memory fixed-window counters. With
+  # workers > 1, the aggregate fallback ceiling can be up to limit * workers.
   keep_alive_timeout: 30
 
   # Adapter preload timeout (seconds) - increase for Ollama cold starts
@@ -629,9 +632,11 @@ security:
     # Set to true only for development/debugging
     expose_details: true
 
-  # Rate limiting configuration (requires Redis to be enabled)
+  # Rate limiting configuration
+  # Redis provides strict distributed enforcement. If Redis is disabled or a
+  # Redis operation fails, a per-worker in-memory fixed-window fallback is used.
   rate_limiting:
-    enabled: false                    # Master switch (requires Redis to be enabled)
+    enabled: false                    # Master switch
 
     # Proxy header trust configuration
     # SECURITY: Only enable trust_proxy_headers when behind a trusted reverse proxy

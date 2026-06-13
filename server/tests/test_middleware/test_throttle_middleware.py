@@ -440,11 +440,12 @@ class TestThrottleMiddlewareWithQuotaService:
             'throttle_priority': 5
         })
 
-        mock_service.increment_usage = AsyncMock(return_value=(
+        mock_service.check_and_increment_usage = AsyncMock(return_value=(
             500,    # daily_used
             3000,   # monthly_used
             43200,  # daily_reset_seconds (12 hours)
-            1209600  # monthly_reset_seconds (14 days)
+            1209600,  # monthly_reset_seconds (14 days)
+            None
         ))
 
         return mock_service
@@ -544,8 +545,8 @@ class TestThrottleMiddlewareWithQuotaService:
             return {"message": "test"}
 
         # 85% daily usage - above 70% threshold
-        mock_quota_service.increment_usage = AsyncMock(return_value=(
-            850, 3000, 43200, 1209600
+        mock_quota_service.check_and_increment_usage = AsyncMock(return_value=(
+            850, 3000, 43200, 1209600, None
         ))
         app.state.quota_service = mock_quota_service
 
@@ -588,8 +589,8 @@ class TestThrottleMiddlewareWithQuotaService:
         assert response.status_code == 200
         # No throttle headers when disabled for key
         assert "X-Throttle-Delay" not in response.headers
-        # increment_usage should not be called when throttle is disabled
-        mock_quota_service.increment_usage.assert_not_called()
+        # Usage should not be checked or incremented when throttle is disabled
+        mock_quota_service.check_and_increment_usage.assert_not_called()
 
 
 class TestThrottleMiddlewareQuotaExceeded:
@@ -627,12 +628,14 @@ class TestThrottleMiddlewareQuotaExceeded:
         def test_endpoint():
             return {"message": "test"}
 
-        # Daily usage exceeds limit
-        mock_quota_service_exceeded.increment_usage = AsyncMock(return_value=(
-            1001,   # daily_used > daily_limit
+        # Daily usage is at the limit before this request; the rejected request
+        # should not increment usage beyond the limit.
+        mock_quota_service_exceeded.check_and_increment_usage = AsyncMock(return_value=(
+            1000,   # daily_used == daily_limit
             5000,   # monthly_used
             43200,  # daily_reset_seconds
-            1209600  # monthly_reset_seconds
+            1209600,  # monthly_reset_seconds
+            'daily'
         ))
         app.state.quota_service = mock_quota_service_exceeded
 
@@ -662,12 +665,14 @@ class TestThrottleMiddlewareQuotaExceeded:
         def test_endpoint():
             return {"message": "test"}
 
-        # Monthly usage exceeds limit
-        mock_quota_service_exceeded.increment_usage = AsyncMock(return_value=(
+        # Monthly usage is at the limit before this request; the rejected request
+        # should not increment usage beyond the limit.
+        mock_quota_service_exceeded.check_and_increment_usage = AsyncMock(return_value=(
             500,    # daily_used
-            10001,  # monthly_used > monthly_limit
+            10000,  # monthly_used == monthly_limit
             43200,  # daily_reset_seconds
-            1209600  # monthly_reset_seconds
+            1209600,  # monthly_reset_seconds
+            'monthly'
         ))
         app.state.quota_service = mock_quota_service_exceeded
 
@@ -697,8 +702,8 @@ class TestThrottleMiddlewareQuotaExceeded:
         def test_endpoint():
             return {"message": "test"}
 
-        mock_quota_service_exceeded.increment_usage = AsyncMock(return_value=(
-            1001, 5000, 43200, 1209600
+        mock_quota_service_exceeded.check_and_increment_usage = AsyncMock(return_value=(
+            1000, 5000, 43200, 1209600, 'daily'
         ))
         app.state.quota_service = mock_quota_service_exceeded
 
@@ -769,7 +774,7 @@ class TestThrottleMiddlewareFailOpen:
             'throttle_enabled': True,
             'throttle_priority': 5
         })
-        mock_service.increment_usage = AsyncMock(
+        mock_service.check_and_increment_usage = AsyncMock(
             side_effect=Exception("Redis connection error")
         )
         app.state.quota_service = mock_service
@@ -853,8 +858,8 @@ class TestThrottleMiddlewarePriorityMultipliers:
             'throttle_enabled': True,
             'throttle_priority': 1  # Premium
         })
-        mock_service.increment_usage = AsyncMock(return_value=(
-            850, 0, 43200, 1209600  # 85% daily usage
+        mock_service.check_and_increment_usage = AsyncMock(return_value=(
+            850, 0, 43200, 1209600, None  # 85% daily usage
         ))
         app_with_quota_service.state.quota_service = mock_service
 
@@ -879,8 +884,8 @@ class TestThrottleMiddlewarePriorityMultipliers:
             'throttle_enabled': True,
             'throttle_priority': 10  # Low priority
         })
-        mock_service.increment_usage = AsyncMock(return_value=(
-            850, 0, 43200, 1209600  # 85% daily usage
+        mock_service.check_and_increment_usage = AsyncMock(return_value=(
+            850, 0, 43200, 1209600, None  # 85% daily usage
         ))
         app_with_quota_service.state.quota_service = mock_service
 

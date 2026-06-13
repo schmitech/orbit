@@ -13,6 +13,8 @@ from typing import Dict, Any, Optional, Tuple
 import threading
 import hashlib
 
+from utils.text_utils import mask_api_key
+
 logger = logging.getLogger(__name__)
 
 
@@ -60,6 +62,64 @@ class QuotaService:
     redis.call('SET', last_request_key, timestamp, 'EX', monthly_ttl)
 
     return {daily_count, monthly_count, daily_ttl_remaining, monthly_ttl_remaining}
+    """
+
+    # Lua script for atomic hard-limit check and increment.
+    # Limit args use -1 to represent unlimited. Returns:
+    # [daily_count, monthly_count, daily_ttl_remaining, monthly_ttl_remaining, exceeded]
+    # exceeded: 0=not exceeded, 1=daily, 2=monthly
+    _QUOTA_CHECK_AND_INCREMENT_SCRIPT = """
+    local daily_key = KEYS[1]
+    local monthly_key = KEYS[2]
+    local daily_ttl = tonumber(ARGV[1])
+    local monthly_ttl = tonumber(ARGV[2])
+    local timestamp = tonumber(ARGV[3])
+    local daily_limit = tonumber(ARGV[4])
+    local monthly_limit = tonumber(ARGV[5])
+    local last_request_key = KEYS[3]
+
+    local daily_count = tonumber(redis.call('GET', daily_key) or '0')
+    local monthly_count = tonumber(redis.call('GET', monthly_key) or '0')
+
+    if daily_limit >= 0 and daily_count >= daily_limit then
+        local daily_ttl_remaining = redis.call('TTL', daily_key)
+        local monthly_ttl_remaining = redis.call('TTL', monthly_key)
+        return {
+            daily_count,
+            monthly_count,
+            daily_ttl_remaining,
+            monthly_ttl_remaining,
+            1
+        }
+    end
+
+    if monthly_limit >= 0 and monthly_count >= monthly_limit then
+        local daily_ttl_remaining = redis.call('TTL', daily_key)
+        local monthly_ttl_remaining = redis.call('TTL', monthly_key)
+        return {
+            daily_count,
+            monthly_count,
+            daily_ttl_remaining,
+            monthly_ttl_remaining,
+            2
+        }
+    end
+
+    daily_count = redis.call('INCR', daily_key)
+    if daily_count == 1 then
+        redis.call('EXPIRE', daily_key, daily_ttl)
+    end
+    local daily_ttl_remaining = redis.call('TTL', daily_key)
+
+    monthly_count = redis.call('INCR', monthly_key)
+    if monthly_count == 1 then
+        redis.call('EXPIRE', monthly_key, monthly_ttl)
+    end
+    local monthly_ttl_remaining = redis.call('TTL', monthly_key)
+
+    redis.call('SET', last_request_key, timestamp, 'EX', monthly_ttl)
+
+    return {daily_count, monthly_count, daily_ttl_remaining, monthly_ttl_remaining, 0}
     """
 
     # Lua script to get current usage without incrementing
@@ -161,6 +221,7 @@ class QuotaService:
 
         # Registered Lua scripts (initialized lazily when Redis is available)
         self._increment_script = None
+        self._check_and_increment_script = None
         self._get_script = None
         self._scripts_registered_client = None
 
@@ -207,6 +268,9 @@ class QuotaService:
             self._increment_script = client.register_script(
                 self._QUOTA_INCREMENT_SCRIPT
             )
+            self._check_and_increment_script = client.register_script(
+                self._QUOTA_CHECK_AND_INCREMENT_SCRIPT
+            )
             self._get_script = client.register_script(
                 self._QUOTA_GET_SCRIPT
             )
@@ -215,6 +279,7 @@ class QuotaService:
         except Exception as e:
             logger.warning(f"Failed to register Lua scripts: {e}")
             self._increment_script = None
+            self._check_and_increment_script = None
             self._get_script = None
             self._scripts_registered_client = None
 
@@ -370,10 +435,95 @@ class QuotaService:
         except Exception as e:
             # Invalidate scripts so they're re-registered on next call
             self._increment_script = None
+            self._check_and_increment_script = None
             self._get_script = None
             self._scripts_registered_client = None
             logger.warning(f"Failed to increment quota usage: {e}")
             return (0, 0, 86400, 2592000)
+
+    async def check_and_increment_usage(
+        self,
+        api_key: str,
+        daily_limit: Optional[int],
+        monthly_limit: Optional[int]
+    ) -> Tuple[int, int, int, int, Optional[str]]:
+        """
+        Atomically reject over-limit requests or increment usage for accepted ones.
+
+        Args:
+            api_key: The API key to check and increment
+            daily_limit: Daily hard limit, or None for unlimited
+            monthly_limit: Monthly hard limit, or None for unlimited
+
+        Returns:
+            Tuple of (
+                daily_used,
+                monthly_used,
+                daily_reset_in_seconds,
+                monthly_reset_in_seconds,
+                exceeded_type
+            ) where exceeded_type is "daily", "monthly", or None.
+        """
+        if not self.enabled or not self.redis_service or not self.redis_service.enabled:
+            return (0, 0, 86400, 2592000, None)
+
+        if not self.redis_service.client:
+            logger.warning("Redis client not initialized, skipping quota check")
+            return (0, 0, 86400, 2592000, None)
+
+        try:
+            current_client = self.redis_service.client
+            if self._check_and_increment_script is None or self._scripts_registered_client is not current_client:
+                self._register_lua_scripts()
+
+            check_and_increment_script = self._check_and_increment_script
+            if check_and_increment_script is None:
+                logger.warning("Lua scripts not registered, skipping quota check")
+                return (0, 0, 86400, 2592000, None)
+
+            daily_key = self._get_daily_key(api_key)
+            monthly_key = self._get_monthly_key(api_key)
+            last_request_key = self._get_last_request_key(api_key)
+
+            daily_ttl = self._calculate_daily_ttl()
+            monthly_ttl = self._calculate_monthly_ttl()
+            timestamp = int(time.time())
+            daily_limit_arg = -1 if daily_limit is None else int(daily_limit)
+            monthly_limit_arg = -1 if monthly_limit is None else int(monthly_limit)
+
+            result = await check_and_increment_script(
+                keys=[daily_key, monthly_key, last_request_key],
+                args=[
+                    daily_ttl,
+                    monthly_ttl,
+                    timestamp,
+                    daily_limit_arg,
+                    monthly_limit_arg
+                ]
+            )
+
+            daily_count = int(result[0])
+            monthly_count = int(result[1])
+            daily_ttl_remaining = int(result[2]) if result[2] > 0 else daily_ttl
+            monthly_ttl_remaining = int(result[3]) if result[3] > 0 else monthly_ttl
+            exceeded = int(result[4])
+            exceeded_type = {1: 'daily', 2: 'monthly'}.get(exceeded)
+
+            return (
+                daily_count,
+                monthly_count,
+                daily_ttl_remaining,
+                monthly_ttl_remaining,
+                exceeded_type
+            )
+
+        except Exception as e:
+            self._increment_script = None
+            self._check_and_increment_script = None
+            self._get_script = None
+            self._scripts_registered_client = None
+            logger.warning(f"Failed to check quota usage: {e}")
+            return (0, 0, 86400, 2592000, None)
 
     async def get_usage(self, api_key: str) -> Dict[str, Any]:
         """
@@ -445,6 +595,7 @@ class QuotaService:
         except Exception as e:
             # Invalidate scripts so they're re-registered on next call
             self._increment_script = None
+            self._check_and_increment_script = None
             self._get_script = None
             self._scripts_registered_client = None
             logger.warning(f"Failed to get quota usage: {e}")
@@ -547,7 +698,10 @@ class QuotaService:
             if keys_to_delete:
                 await self.redis_service.client.delete(*keys_to_delete)
 
-            logger.info(f"Reset {period} usage for API key: {api_key[:8]}...")
+            logger.info(
+                f"Reset {period} usage for API key: "
+                f"{mask_api_key(api_key, show_last=True, num_chars=6)}"
+            )
             return True
 
         except Exception as e:

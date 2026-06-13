@@ -285,14 +285,34 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
             if not quota_config.get('throttle_enabled', True):
                 return await call_next(request)
 
-            # Increment usage and get current counts
-            daily_used, monthly_used, daily_reset_seconds, monthly_reset_seconds = \
-                await quota_service.increment_usage(api_key)
-
             # Get limits
             daily_limit = quota_config.get('daily_limit')
             monthly_limit = quota_config.get('monthly_limit')
             priority = quota_config.get('throttle_priority', 5)
+
+            # Atomically check hard limits before incrementing. Rejected requests
+            # must not consume additional quota.
+            if hasattr(quota_service, 'check_and_increment_usage'):
+                (
+                    daily_used,
+                    monthly_used,
+                    daily_reset_seconds,
+                    monthly_reset_seconds,
+                    exceeded_type
+                ) = await quota_service.check_and_increment_usage(
+                    api_key,
+                    daily_limit,
+                    monthly_limit
+                )
+            else:
+                # Backward-compatible fallback for tests or custom quota services.
+                daily_used, monthly_used, daily_reset_seconds, monthly_reset_seconds = \
+                    await quota_service.increment_usage(api_key)
+                exceeded_type = None
+                if daily_limit is not None and daily_used > daily_limit:
+                    exceeded_type = 'daily'
+                elif monthly_limit is not None and monthly_used > monthly_limit:
+                    exceeded_type = 'monthly'
 
             # Calculate remaining
             daily_remaining = None if daily_limit is None else max(0, daily_limit - daily_used)
@@ -303,18 +323,7 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
             daily_reset_at   = now + daily_reset_seconds
             monthly_reset_at = now + monthly_reset_seconds
 
-            # Check if quota is exceeded (hard limit)
-            quota_exceeded = False
-            exceeded_type = None
-
-            if daily_limit is not None and daily_used > daily_limit:
-                quota_exceeded = True
-                exceeded_type = 'daily'
-            elif monthly_limit is not None and monthly_used > monthly_limit:
-                quota_exceeded = True
-                exceeded_type = 'monthly'
-
-            if quota_exceeded:
+            if exceeded_type:
                 logger.warning(f"Quota exceeded for API key ({exceeded_type}): {mask_api_key(api_key, show_last=True, num_chars=6)}")
                 response = JSONResponse(
                     status_code=429,
@@ -342,7 +351,7 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
             # Apply delay if needed
             if delay_ms > 0:
                 logger.debug(
-                    f"Throttling API key {api_key[:8]}...: "
+                    f"Throttling {mask_api_key(api_key, show_last=True, num_chars=6)}: "
                     f"usage={usage_pct*100:.1f}%, delay={delay_ms}ms"
                 )
                 await asyncio.sleep(delay_ms / 1000.0)
