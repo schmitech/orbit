@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/b185730e-039d-4b9c-b953-858e9ad8e945" alt="ORBIT Logo" width="200"/>
+    <img src="https://github.com/user-attachments/assets/565d48af-1dc5-49cb-a1d4-77f4e696662c" alt="ORBIT Logo" width="250"/>
   </a>
 
   # ORBIT
@@ -18,13 +18,13 @@
 </p>
 
 <p align="center">
-  <a href="docs/tutorial.md"><strong>Quick Tutorial</strong></a>
+  <a href="docs/tutorial.md"><strong>Tutorial</strong></a>
   &nbsp;•&nbsp;
-  <a href="docker/README.md"><strong>Docker Guide</strong></a>
+  <a href="docker/README.md"><strong>Docker</strong></a>
   &nbsp;•&nbsp;
-  <a href="docs/cookbook/"><strong>Cookbook Recipes</strong></a>
+  <a href="docs/cookbook/"><strong>Cookbook</strong></a>
   &nbsp;•&nbsp;
-  <a href="docs/"><strong>Full Documentation</strong></a>
+  <a href="docs/"><strong>Docs</strong></a>
 </p>
 
 <p align="center">
@@ -42,26 +42,22 @@ Many organizations need to connect AI to their business data without:
 
 **ORBIT** provides an AI gateway and retrieval-adapter layer. Run it completely on your own hardware to deploy secure, private RAG engines, connect databases, spin up MCP tool-calling loops, and configure production safety guardrails.
 
+<div align="center">
+  <a href="https://github.com/schmitech/orbit">
+    <img src="https://github.com/user-attachments/assets/648f4221-24c1-4c1f-b7a1-5456618f7646" alt="ORBIT Logo" width="800"/>
+  </a>
+  <br />
+  <em>ORBIT provides secure inference segregation based on data classification, giving you the flexibility to route workloads across local, private, or public models.</em>
+</div>
+
+---
+
 ### 🚀 Key Capabilities:
 * **🔒 100% Private & Self-Hosted:** Run offline workloads on local servers using Ollama, llama.cpp, or vLLM.
 * **🔌 Universal Data Retrievers:** Out-of-the-box adapters for PostgreSQL, MongoDB, Elasticsearch, REST APIs, GraphQL, DuckDB, vector databases, files, and web scraping.
 * **🤖 Agentic MCP Tool Loops:** Connect outward to Model Context Protocol (MCP) servers to let LLMs perform multi-step, self-correcting tool operations inside chat sessions.
 * **🎭 Cross-Adapter Skills:** Generate text-to-image and text-to-video  dynamically as part of a conversation workflow.
 * **🛡️ Production-Grade Control Plane:** API key validation, request rate-limiting, token quotas, content moderation, circuit breakers, and detailed audit logging.
-
-
-
----
-
-## 🤔 Why ORBIT?
-
-ORBIT provides secure inference segregation based on data classification, giving you the flexibility to route workloads dynamically across local, private, or public model infrastructure.
-
-<div align="center">
-  <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/648f4221-24c1-4c1f-b7a1-5456618f7646" alt="ORBIT Logo" width="600"/>
-  </a>
-</div>
 
 ---
 
@@ -70,8 +66,6 @@ ORBIT provides secure inference segregation based on data classification, giving
 ORBIT supports two main deployment methods:
 1. **Manual Installation via Release Tarball** (Preferred option for bare-metal & local execution)
 2. **Containerized Deployment via Docker Compose** (Preferred option for quick containerized environments)
-
----
 
 ### 📦 Option A: Release Tarball (Manual Linux/macOS Install — Preferred)
 
@@ -85,6 +79,8 @@ cp env.example .env
 ./bin/orbit.sh start
 tail -f ./logs/orbit.log
 ```
+
+Refer to the [Getting Started Tutorial](docs/tutorial.md) to learn how to configure and customize ORBIT.
 
 ---
 
@@ -104,6 +100,8 @@ This starts ORBIT configured with a local Ollama instance and the lightweight `S
 > ```bash
 > docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 > ```
+
+See the [Docker Guide](docker/README.md) for detailed information on GPU setup, and custom configurations.
 
 ---
 
@@ -140,7 +138,7 @@ ORBIT acts as a router and orchestration layer sitting directly between your app
 
 <div align="center">
   <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/84063347-7561-436b-927a-d68587378579" alt="ORBIT Logo" width="600"/>
+    <img src="https://github.com/user-attachments/assets/84063347-7561-436b-927a-d68587378579" alt="ORBIT Logo" width="800"/>
   </a>
 </div>
 
@@ -244,8 +242,6 @@ Expand the sections below to see ORBIT in action across different deployment sce
 | **Limited RAG** | Vector search over standard text chunks only. No connection to live relational data. | **Universal Context:** Structured SQL/NoSQL retrievers, JSON REST API scraping, GraphQL queries, and vector store hybrid searches. |
 | **Data Privacy** | Sensitive internal data processed and sent through public APIs by default. | **Self-Hosted Control:** Run 100% offline with local Ollama/llama.cpp instances, local embeddings, RBAC, and secure logging. |
 | **Cascading Failures** | Slow or offline third-party APIs cause global application downtime. | **Production Resilience:** Integrated circuit breakers, fallback model routing, request queuing, and rate limits. |
-
----
 
 ---
 
