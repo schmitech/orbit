@@ -208,24 +208,23 @@ class ImageGenerationStep(PipelineStep):
 
     async def _get_image_service(self, context: ProcessingContext):
         """Resolve the image generation service from config and adapter settings."""
-        from ai_services.factory import AIServiceFactory
-        from ai_services.base import ServiceType
-
         config = self.container.get_or_none('config') or {}
-
-        # Determine provider: adapter override > global default
         provider = self._resolve_provider(context, config)
         if not provider:
             logger.warning("No image generation provider configured.")
             return None
 
-        service = await AIServiceFactory.create_and_initialize_service(
-            ServiceType.IMAGE_GENERATION,
-            provider,
-            config,
-            use_cache=True,
+        if self.container.has('adapter_manager'):
+            adapter_manager = self.container.get('adapter_manager')
+            if hasattr(adapter_manager, 'get_image_service'):
+                return await adapter_manager.get_image_service(provider, context.adapter_name)
+
+        # Fallback for containers without a full adapter_manager (e.g. tests)
+        from ai_services.factory import AIServiceFactory
+        from ai_services.base import ServiceType
+        return await AIServiceFactory.create_and_initialize_service(
+            ServiceType.IMAGE_GENERATION, provider, config, use_cache=True,
         )
-        return service
 
     def _resolve_provider(self, context: ProcessingContext, config: Dict[str, Any]) -> Optional[str]:
         """Return the provider name for this request."""

@@ -24,6 +24,8 @@ from services.cache.embedding_cache_manager import EmbeddingCacheManager
 from services.cache.reranker_cache_manager import RerankerCacheManager
 from services.cache.vision_cache_manager import VisionCacheManager
 from services.cache.audio_cache_manager import AudioCacheManager
+from services.cache.image_cache_manager import ImageGenerationCacheManager
+from services.cache.video_cache_manager import VideoGenerationCacheManager
 from services.cache.service_cache_manager import ServiceCacheManager
 
 
@@ -614,6 +616,124 @@ class TestAudioCacheManager:
         assert AudioCacheManager._is_disabled({'enabled': 'true'}) is False
 
 
+class TestImageGenerationCacheManager:
+    """Test ImageGenerationCacheManager class"""
+
+    def setup_method(self):
+        self.config = {
+            'general': {},
+            'image_generation': {
+                'openai': {'model': 'gpt-image-2'},
+                'gemini': {'model': 'imagen-4.0-generate-001'},
+            }
+        }
+        self.thread_pool = ThreadPoolExecutor(max_workers=2)
+        self.cache_manager = ImageGenerationCacheManager(self.config, self.thread_pool)
+
+    def teardown_method(self):
+        self.thread_pool.shutdown(wait=False)
+
+    def test_build_cache_key_with_model(self):
+        assert self.cache_manager.build_cache_key("openai") == "openai:gpt-image-2"
+
+    def test_build_cache_key_without_model(self):
+        assert self.cache_manager.build_cache_key("nonexistent") == "nonexistent"
+
+    def test_get_and_put(self):
+        service = Mock()
+        self.cache_manager.put("openai:gpt-image-2", service)
+        assert self.cache_manager.get("openai:gpt-image-2") is service
+
+    def test_contains(self):
+        assert self.cache_manager.contains("key") is False
+        self.cache_manager.put("key", Mock())
+        assert self.cache_manager.contains("key") is True
+
+    def test_get_cached_keys(self):
+        self.cache_manager.put("openai:model", Mock())
+        self.cache_manager.put("gemini:model", Mock())
+        assert set(self.cache_manager.get_cached_keys()) == {"openai:model", "gemini:model"}
+
+    def test_get_cache_size(self):
+        assert self.cache_manager.get_cache_size() == 0
+        self.cache_manager.put("key", Mock())
+        assert self.cache_manager.get_cache_size() == 1
+
+    @pytest.mark.asyncio
+    async def test_remove(self):
+        service = Mock(spec=[])
+        self.cache_manager.put("key", service)
+        result = await self.cache_manager.remove("key")
+        assert result is service
+        assert self.cache_manager.contains("key") is False
+
+    @pytest.mark.asyncio
+    async def test_clear(self):
+        self.cache_manager.put("key1", Mock(spec=[]))
+        self.cache_manager.put("key2", Mock(spec=[]))
+        await self.cache_manager.clear()
+        assert self.cache_manager.get_cache_size() == 0
+
+
+class TestVideoGenerationCacheManager:
+    """Test VideoGenerationCacheManager class"""
+
+    def setup_method(self):
+        self.config = {
+            'general': {},
+            'video_generation': {
+                'gemini': {'model': 'veo-2.0-generate-001'},
+                'xai': {'model': 'grok-imagine-video'},
+            }
+        }
+        self.thread_pool = ThreadPoolExecutor(max_workers=2)
+        self.cache_manager = VideoGenerationCacheManager(self.config, self.thread_pool)
+
+    def teardown_method(self):
+        self.thread_pool.shutdown(wait=False)
+
+    def test_build_cache_key_with_model(self):
+        assert self.cache_manager.build_cache_key("gemini") == "gemini:veo-2.0-generate-001"
+
+    def test_build_cache_key_without_model(self):
+        assert self.cache_manager.build_cache_key("nonexistent") == "nonexistent"
+
+    def test_get_and_put(self):
+        service = Mock()
+        self.cache_manager.put("gemini:veo-2.0-generate-001", service)
+        assert self.cache_manager.get("gemini:veo-2.0-generate-001") is service
+
+    def test_contains(self):
+        assert self.cache_manager.contains("key") is False
+        self.cache_manager.put("key", Mock())
+        assert self.cache_manager.contains("key") is True
+
+    def test_get_cached_keys(self):
+        self.cache_manager.put("gemini:model", Mock())
+        self.cache_manager.put("xai:model", Mock())
+        assert set(self.cache_manager.get_cached_keys()) == {"gemini:model", "xai:model"}
+
+    def test_get_cache_size(self):
+        assert self.cache_manager.get_cache_size() == 0
+        self.cache_manager.put("key", Mock())
+        assert self.cache_manager.get_cache_size() == 1
+
+    @pytest.mark.asyncio
+    async def test_remove(self):
+        service = Mock(spec=[])
+        self.cache_manager.put("key", service)
+        result = await self.cache_manager.remove("key")
+        assert result is service
+        assert self.cache_manager.contains("key") is False
+
+    @pytest.mark.asyncio
+    async def test_clear(self):
+        self.cache_manager.put("key1", Mock(spec=[]))
+        self.cache_manager.put("key2", Mock(spec=[]))
+        await self.cache_manager.clear()
+        assert self.cache_manager.get_cache_size() == 0
+
+
 class TestServiceCacheManager:
     """Test shared service-cache behavior."""
 
@@ -780,6 +900,24 @@ SERVICE_MANAGER_CASES = [
                 'openai': {'tts_model': 'tts-1'}
             },
             'stt_providers': {}
+        },
+    ),
+    (
+        ImageGenerationCacheManager,
+        {
+            'general': {},
+            'image_generation': {
+                'openai': {'model': 'gpt-image-2'}
+            }
+        },
+    ),
+    (
+        VideoGenerationCacheManager,
+        {
+            'general': {},
+            'video_generation': {
+                'gemini': {'model': 'veo-2.0-generate-001'}
+            }
         },
     ),
 ]

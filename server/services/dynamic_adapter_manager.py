@@ -23,6 +23,8 @@ from .cache import (
     RerankerCacheManager,
     VisionCacheManager,
     AudioCacheManager,
+    ImageGenerationCacheManager,
+    VideoGenerationCacheManager,
 )
 from .config import AdapterConfigManager
 from .loader import AdapterLoader
@@ -76,6 +78,8 @@ class DynamicAdapterManager:
         self.reranker_cache = RerankerCacheManager(self.config, self._thread_pool)
         self.vision_cache = VisionCacheManager(self.config, self._thread_pool)
         self.audio_cache = AudioCacheManager(self.config, self._thread_pool)
+        self.image_cache = ImageGenerationCacheManager(self.config, self._thread_pool)
+        self.video_cache = VideoGenerationCacheManager(self.config, self._thread_pool)
 
     def _init_config_manager(self) -> None:
         """Initialize configuration manager."""
@@ -385,6 +389,32 @@ class DynamicAdapterManager:
 
         return await self.audio_cache.create_service(provider_name, adapter_name)
 
+    async def get_image_service(self, provider_name: str, adapter_name: str = None) -> Any:
+        """
+        Get an image generation service instance by name, loading and caching it if necessary.
+
+        Args:
+            provider_name: The name of the image generation provider
+            adapter_name: Optional adapter name for logging context
+        """
+        if not provider_name:
+            raise ValueError("Image generation provider name cannot be empty")
+
+        return await self.image_cache.create_service(provider_name, adapter_name)
+
+    async def get_video_service(self, provider_name: str, adapter_name: str = None) -> Any:
+        """
+        Get a video generation service instance by name, loading and caching it if necessary.
+
+        Args:
+            provider_name: The name of the video generation provider
+            adapter_name: Optional adapter name for logging context
+        """
+        if not provider_name:
+            raise ValueError("Video generation provider name cannot be empty")
+
+        return await self.video_cache.create_service(provider_name, adapter_name)
+
     def get_adapter_config(self, adapter_name: str) -> Optional[Dict[str, Any]]:
         """
         Get the configuration for a specific adapter.
@@ -579,6 +609,8 @@ class DynamicAdapterManager:
             "cached_reranker_services": self.reranker_cache.get_cache_size(),
             "cached_vision_services": self.vision_cache.get_cache_size(),
             "cached_audio_services": self.audio_cache.get_cache_size(),
+            "cached_image_services": self.image_cache.get_cache_size(),
+            "cached_video_services": self.video_cache.get_cache_size(),
             "initializing_adapters": self.adapter_cache.get_initializing_count(),
             "adapter_configs": self.config_manager.get_available_adapters(),
             "cached_adapter_names": self.adapter_cache.get_cached_names(),
@@ -587,6 +619,8 @@ class DynamicAdapterManager:
             "cached_reranker_service_keys": self.reranker_cache.get_cached_keys(),
             "cached_vision_service_keys": self.vision_cache.get_cached_keys(),
             "cached_audio_service_keys": self.audio_cache.get_cached_keys(),
+            "cached_image_service_keys": self.image_cache.get_cached_keys(),
+            "cached_video_service_keys": self.video_cache.get_cached_keys(),
             "datasource_pool": datasource_stats
         }
 

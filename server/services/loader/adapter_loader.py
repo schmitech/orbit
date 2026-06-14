@@ -285,6 +285,36 @@ class AdapterLoader:
             except Exception as e:
                 logger.warning(f"Failed to preload STT service for adapter {adapter_name}: {str(e)}")
 
+        # Preload image generation service ONLY if the adapter explicitly specifies an image_provider
+        image_provider = adapter_config.get('image_provider')
+        if not image_provider:
+            image_global_config = self.config.get('image', {})
+            if image_global_config.get('enabled', False):
+                image_provider = image_global_config.get('provider')
+
+        if image_provider and self.adapter_manager and hasattr(self.adapter_manager, 'get_image_service'):
+            logger.info(f"Preloading image generation provider '{image_provider}' for adapter '{adapter_name}'")
+            try:
+                await self.adapter_manager.get_image_service(image_provider, adapter_name)
+                logger.info(f"Preloaded image generation provider '{image_provider}' for adapter '{adapter_name}'")
+            except Exception as e:
+                logger.warning(f"Failed to preload image generation service for adapter {adapter_name}: {str(e)}")
+
+        # Preload video generation service ONLY if the adapter explicitly specifies a video_provider
+        video_provider = adapter_config.get('video_provider')
+        if not video_provider:
+            video_global_config = self.config.get('video', {})
+            if video_global_config.get('enabled', False):
+                video_provider = video_global_config.get('provider')
+
+        if video_provider and self.adapter_manager and hasattr(self.adapter_manager, 'get_video_service'):
+            logger.info(f"Preloading video generation provider '{video_provider}' for adapter '{adapter_name}'")
+            try:
+                await self.adapter_manager.get_video_service(video_provider, adapter_name)
+                logger.info(f"Preloaded video generation provider '{video_provider}' for adapter '{adapter_name}'")
+            except Exception as e:
+                logger.warning(f"Failed to preload video generation service for adapter {adapter_name}: {str(e)}")
+
         # Preload TTS service ONLY if the adapter explicitly specifies a tts_provider
         # (Don't fall back to global default - most adapters don't need TTS)
         tts_provider = adapter_config.get('tts_provider')
