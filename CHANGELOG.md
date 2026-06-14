@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.7.4] - 2026-06-14
+
+### Core System Updates
+- **Service Caching**: Refactored service cache managers (provider, embedding, reranker, vision, audio) onto a shared `ServiceCacheManager` base to standardize lifecycle, locking, event-based initialization coordination, and atomic entry removal.
+- **Image & Video Caching**: Added `ImageGenerationCacheManager` and `VideoGenerationCacheManager` to extend the shared caching base to image and video generation services, and integrated them into preloading and health check stats.
+- **Config Logging**: Simplified startup configuration and load-time summary logging by using direct logger calls and removing duplicate loaders.
+
+### Documentation & Configuration
+- **Tutorials**: Refactored the monolithic tutorial document into a sectioned index and added a new skills tutorial showing how to expose and invoke the Image skill.
+- **Visuals & Content**: Updated the inference segregation diagram and main page content, and removed the outdated architecture section.
+
 ## [2.7.3] - 2026-06-12
 
 ### Core System Updates
