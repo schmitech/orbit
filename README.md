@@ -44,10 +44,10 @@ Many organizations need to connect AI to their business data without:
 
 <div align="center">
   <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/648f4221-24c1-4c1f-b7a1-5456618f7646" alt="ORBIT Logo" width="800"/>
+    <img src="https://github.com/user-attachments/assets/5e3bfafe-c182-4237-991c-8d2e3d5fe5d7" alt="ORBIT Logo" width="800"/>
   </a>
   <br />
-  <em>ORBIT provides secure inference segregation based on data classification, giving you the flexibility to route workloads across local, private, or public models.</em>
+  <em>Inference segregation based on data classification, giving you the flexibility to dynamicaly route workloads across local, private, or public models.</em>
 </div>
 
 ---
