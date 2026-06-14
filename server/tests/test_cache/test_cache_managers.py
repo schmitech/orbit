@@ -9,6 +9,7 @@ Tests the specialized cache managers:
 """
 
 import pytest
+import asyncio
 import sys
 import os
 from unittest.mock import Mock, AsyncMock
@@ -23,6 +24,7 @@ from services.cache.embedding_cache_manager import EmbeddingCacheManager
 from services.cache.reranker_cache_manager import RerankerCacheManager
 from services.cache.vision_cache_manager import VisionCacheManager
 from services.cache.audio_cache_manager import AudioCacheManager
+from services.cache.service_cache_manager import ServiceCacheManager
 
 
 class TestAdapterCacheManager:
@@ -35,7 +37,6 @@ class TestAdapterCacheManager:
     def test_init(self):
         """Test initialization"""
         assert self.cache_manager._cache == {}
-        assert self.cache_manager._locks == {}
         assert self.cache_manager._initializing == set()
 
     def test_get_returns_none_when_not_cached(self):
@@ -603,6 +604,213 @@ class TestAudioCacheManager:
 
         await self.cache_manager.clear()
         assert self.cache_manager.get_cache_size() == 0
+
+    def test_is_disabled_handles_boolean_and_string_false(self):
+        """Test enabled-flag parsing for disabled audio sections."""
+        assert AudioCacheManager._is_disabled({'enabled': False}) is True
+        assert AudioCacheManager._is_disabled({'enabled': 'false'}) is True
+        assert AudioCacheManager._is_disabled({'enabled': 'FALSE'}) is True
+        assert AudioCacheManager._is_disabled({'enabled': True}) is False
+        assert AudioCacheManager._is_disabled({'enabled': 'true'}) is False
+
+
+class TestServiceCacheManager:
+    """Test shared service-cache behavior."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_create_shares_in_flight_initialization(self):
+        """Concurrent creates for a key wait on one initializer."""
+        created = []
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        class TestCacheManager(ServiceCacheManager):
+            service_label = "test service"
+
+            async def _create_instance(self, provider_name, adapter_name=None, **kwargs):
+                created.append(provider_name)
+                started.set()
+                await release.wait()
+                return Mock(spec=[])
+
+        cache_manager = TestCacheManager({})
+        first = asyncio.create_task(cache_manager._create_cached_service("key", "provider"))
+        await started.wait()
+        second = asyncio.create_task(cache_manager._create_cached_service("key", "provider"))
+
+        release.set()
+        first_result, second_result = await asyncio.gather(first, second)
+
+        assert first_result is second_result
+        assert created == ["provider"]
+
+    @pytest.mark.asyncio
+    async def test_failed_create_releases_waiters_for_retry(self):
+        """Waiters do not busy-wait or hang after a failed initialization."""
+        attempts = 0
+
+        class TestCacheManager(ServiceCacheManager):
+            service_label = "test service"
+
+            async def _create_instance(self, provider_name, adapter_name=None, **kwargs):
+                nonlocal attempts
+                attempts += 1
+                if attempts == 1:
+                    raise RuntimeError("boom")
+                return Mock(spec=[])
+
+        cache_manager = TestCacheManager({})
+
+        with pytest.raises(RuntimeError):
+            await cache_manager._create_cached_service("key", "provider")
+
+        service = await cache_manager._create_cached_service("key", "provider")
+
+        assert service is cache_manager.get("key")
+        assert attempts == 2
+
+    @pytest.mark.asyncio
+    async def test_remove_matching_closes_matching_services(self):
+        """Prefix removal uses the shared atomic matching removal path."""
+        cache_manager = ProviderCacheManager({'general': {}})
+        openai = AsyncMock()
+        openai_variant = AsyncMock()
+        anthropic = AsyncMock()
+        cache_manager.put("openai", openai)
+        cache_manager.put("openai:gpt-4", openai_variant)
+        cache_manager.put("anthropic", anthropic)
+
+        removed = await cache_manager.remove_by_prefix("openai")
+
+        assert set(removed) == {"openai", "openai:gpt-4"}
+        assert cache_manager.contains("openai") is False
+        assert cache_manager.contains("openai:gpt-4") is False
+        assert cache_manager.contains("anthropic") is True
+        openai.close.assert_awaited_once()
+        openai_variant.close.assert_awaited_once()
+        anthropic.close.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_remove_cancels_in_flight_create_without_popping_new_owner(self):
+        """A stale initializer cannot cache after remove or clear a newer owner."""
+        first_started = asyncio.Event()
+        second_started = asyncio.Event()
+        release_first = asyncio.Event()
+        release_second = asyncio.Event()
+        services = []
+
+        class TestCacheManager(ServiceCacheManager):
+            service_label = "test service"
+
+            async def _create_instance(self, provider_name, adapter_name=None, **kwargs):
+                service = AsyncMock()
+                services.append(service)
+                if len(services) == 1:
+                    first_started.set()
+                    await release_first.wait()
+                else:
+                    second_started.set()
+                    await release_second.wait()
+                return service
+
+        cache_manager = TestCacheManager({})
+        first = asyncio.create_task(cache_manager._create_cached_service("key", "provider"))
+        await first_started.wait()
+
+        assert await cache_manager.remove("key") is None
+
+        second = asyncio.create_task(cache_manager._create_cached_service("key", "provider"))
+        await second_started.wait()
+
+        release_first.set()
+        with pytest.raises(RuntimeError, match="initialization for key was cancelled"):
+            await first
+
+        release_second.set()
+        second_result = await second
+
+        assert second_result is services[1]
+        assert cache_manager.get("key") is services[1]
+        services[0].close.assert_awaited_once()
+        services[1].close.assert_not_called()
+
+
+SERVICE_MANAGER_CASES = [
+    (
+        ProviderCacheManager,
+        {
+            'general': {},
+            'inference': {
+                'openai': {'model': 'gpt-4'}
+            }
+        },
+    ),
+    (
+        EmbeddingCacheManager,
+        {
+            'general': {},
+            'embeddings': {
+                'openai': {'model': 'text-embedding-3-small'}
+            }
+        },
+    ),
+    (
+        RerankerCacheManager,
+        {
+            'general': {},
+            'rerankers': {
+                'cohere': {'model': 'rerank-english-v3.0'}
+            }
+        },
+    ),
+    (
+        VisionCacheManager,
+        {
+            'general': {},
+            'vision': {
+                'openai': {'model': 'gpt-4-vision-preview'}
+            }
+        },
+    ),
+    (
+        AudioCacheManager,
+        {
+            'general': {},
+            'tts_providers': {
+                'openai': {'tts_model': 'tts-1'}
+            },
+            'stt_providers': {}
+        },
+    ),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("manager_cls,config", SERVICE_MANAGER_CASES)
+async def test_close_shuts_down_self_owned_thread_pool(manager_cls, config):
+    """Managers shut down executors they create themselves."""
+    cache_manager = manager_cls(config)
+    thread_pool = cache_manager._thread_pool
+
+    await cache_manager.close()
+
+    with pytest.raises(RuntimeError):
+        thread_pool.submit(lambda: None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("manager_cls,config", SERVICE_MANAGER_CASES)
+async def test_close_leaves_injected_thread_pool_running(manager_cls, config):
+    """Managers do not shut down shared executors injected by callers."""
+    thread_pool = ThreadPoolExecutor(max_workers=1)
+    cache_manager = manager_cls(config, thread_pool)
+
+    try:
+        await cache_manager.close()
+        future = thread_pool.submit(lambda: "running")
+        assert future.result(timeout=1) == "running"
+    finally:
+        thread_pool.shutdown(wait=False)
 
 
 if __name__ == "__main__":

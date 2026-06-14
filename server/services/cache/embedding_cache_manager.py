@@ -4,16 +4,16 @@ Embedding Cache Manager for managing embedding service instances.
 Provides thread-safe caching and lifecycle management for embedding services.
 """
 
-import asyncio
 import logging
-import threading
-from typing import Any, Dict, Optional, Set
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, Optional
+
+from .service_cache_manager import ServiceCacheManager
 
 logger = logging.getLogger(__name__)
 
 
-class EmbeddingCacheManager:
+class EmbeddingCacheManager(ServiceCacheManager):
     """
     Manages embedding service cache with thread-safe access.
 
@@ -24,6 +24,8 @@ class EmbeddingCacheManager:
     - Manage service lifecycle
     """
 
+    service_label = "embedding service"
+
     def __init__(self, config: Dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
         """
         Initialize the embedding cache manager.
@@ -32,11 +34,7 @@ class EmbeddingCacheManager:
             config: Application configuration
             thread_pool: Optional thread pool for async operations
         """
-        self.config = config
-        self._cache: Dict[str, Any] = {}
-        self._cache_lock = threading.Lock()
-        self._initializing: Set[str] = set()
-        self._thread_pool = thread_pool or ThreadPoolExecutor(max_workers=3)
+        super().__init__(config, thread_pool)
 
     def build_cache_key(self, provider_name: str) -> str:
         """
@@ -51,76 +49,6 @@ class EmbeddingCacheManager:
         embedding_config = self.config.get('embeddings', {}).get(provider_name, {})
         model = embedding_config.get('model', '')
         return f"{provider_name}:{model}" if model else provider_name
-
-    def get(self, cache_key: str) -> Optional[Any]:
-        """
-        Get a cached embedding service by key.
-
-        Args:
-            cache_key: Cache key for the service
-
-        Returns:
-            The cached service instance or None if not found
-        """
-        return self._cache.get(cache_key)
-
-    def contains(self, cache_key: str) -> bool:
-        """
-        Check if an embedding service is cached.
-
-        Args:
-            cache_key: Cache key for the service
-
-        Returns:
-            True if service is cached, False otherwise
-        """
-        return cache_key in self._cache
-
-    def put(self, cache_key: str, service: Any) -> None:
-        """
-        Cache an embedding service instance.
-
-        Args:
-            cache_key: Cache key for the service
-            service: The service instance to cache
-        """
-        with self._cache_lock:
-            self._cache[cache_key] = service
-
-    async def remove(self, cache_key: str, close_service: bool = True) -> Optional[Any]:
-        """
-        Remove an embedding service from cache and clean up resources.
-
-        Args:
-            cache_key: Cache key for the service
-            close_service: Whether to close the removed service instance
-
-        Returns:
-            The removed service instance or None if not found
-        """
-        with self._cache_lock:
-            if cache_key not in self._cache:
-                return None
-
-            service = self._cache.pop(cache_key)
-            self._initializing.discard(cache_key)
-
-        if not close_service:
-            return service
-
-        # Try to close the service if it has a close method
-        try:
-            if hasattr(service, 'close') and callable(getattr(service, 'close', None)):
-                if asyncio.iscoroutinefunction(service.close):
-                    await service.close()
-                else:
-                    service.close()
-        except (AttributeError, TypeError) as e:
-            logger.debug(f"Embedding service {cache_key} close method not available: {str(e)}")
-        except Exception as e:
-            logger.warning(f"Error closing embedding service {cache_key}: {str(e)}")
-
-        return service
 
     async def create_service(
         self,
@@ -138,101 +66,29 @@ class EmbeddingCacheManager:
             The created service instance
         """
         cache_key = self.build_cache_key(provider_name)
+        return await self._create_cached_service(cache_key, provider_name, adapter_name)
 
-        # Check if already cached
-        if cache_key in self._cache:
-            logger.debug(f"Using cached embedding service: {cache_key}")
-            return self._cache[cache_key]
+    async def _create_instance(
+        self,
+        provider_name: str,
+        adapter_name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Any:
+        adapter_context = f" for adapter '{adapter_name}'" if adapter_name else ""
+        embedding_config = self.config.get('embeddings', {}).get(provider_name, {})
+        model = embedding_config.get('model', '')
 
-        # Try to claim initialization ownership
-        should_initialize = False
-        with self._cache_lock:
-            if cache_key in self._cache:
-                return self._cache[cache_key]
-            if cache_key not in self._initializing:
-                self._initializing.add(cache_key)
-                should_initialize = True
-
-        # If someone else is initializing, wait for them
-        if not should_initialize:
-            while True:
-                await asyncio.sleep(0.1)
-                with self._cache_lock:
-                    if cache_key in self._cache:
-                        return self._cache[cache_key]
-                    if cache_key not in self._initializing:
-                        self._initializing.add(cache_key)
-                        should_initialize = True
-                        break
+        if model:
+            logger.info(f"Loading embedding service '{provider_name}/{model}'{adapter_context}")
+        else:
+            logger.info(f"Loading embedding service '{provider_name}'{adapter_context}")
 
         try:
-            adapter_context = f" for adapter '{adapter_name}'" if adapter_name else ""
-            embedding_config = self.config.get('embeddings', {}).get(provider_name, {})
-            model = embedding_config.get('model', '')
+            from server.embeddings.base import EmbeddingServiceFactory
+        except ImportError:
+            from embeddings.base import EmbeddingServiceFactory
 
-            if model:
-                logger.info(f"Loading embedding service '{provider_name}/{model}'{adapter_context}")
-            else:
-                logger.info(f"Loading embedding service '{provider_name}'{adapter_context}")
-
-            try:
-                from server.embeddings.base import EmbeddingServiceFactory
-            except ImportError:
-                from embeddings.base import EmbeddingServiceFactory
-
-            # Create the embedding service
-            embedding_service = EmbeddingServiceFactory.create_embedding_service(
-                self.config,
-                provider_name
-            )
-
-            # Initialize if needed
-            if hasattr(embedding_service, 'initialize'):
-                if asyncio.iscoroutinefunction(embedding_service.initialize):
-                    await embedding_service.initialize()
-                else:
-                    loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(self._thread_pool, embedding_service.initialize)
-
-            # Cache the initialized service
-            with self._cache_lock:
-                self._cache[cache_key] = embedding_service
-
-            logger.info(f"Successfully cached embedding service: {cache_key}{adapter_context}")
-            return embedding_service
-
-        except Exception as e:
-            logger.error(f"Failed to load embedding service {provider_name}: {str(e)}")
-            raise
-        finally:
-            with self._cache_lock:
-                self._initializing.discard(cache_key)
-
-    def get_cached_keys(self) -> list[str]:
-        """
-        Get list of cached embedding service keys.
-
-        Returns:
-            List of cached service keys
-        """
-        return list(self._cache.keys())
-
-    def get_cache_size(self) -> int:
-        """
-        Get the number of cached embedding services.
-
-        Returns:
-            Number of cached services
-        """
-        return len(self._cache)
-
-    async def clear(self) -> None:
-        """Clear all cached embedding services and clean up resources."""
-        for cache_key in list(self._cache.keys()):
-            await self.remove(cache_key, close_service=True)
-
-        logger.info("Cleared all embedding services from cache")
-
-    async def close(self) -> None:
-        """Clean up all resources."""
-        await self.clear()
+        return EmbeddingServiceFactory.create_embedding_service(
+            self.config,
+            provider_name
+        )

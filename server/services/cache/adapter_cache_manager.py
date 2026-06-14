@@ -26,7 +26,6 @@ class AdapterCacheManager:
     def __init__(self):
         """Initialize the adapter cache manager."""
         self._cache: Dict[str, Any] = {}
-        self._locks: Dict[str, threading.Lock] = {}
         self._cache_lock = threading.Lock()
         self._initializing: Set[str] = set()
 
@@ -40,7 +39,8 @@ class AdapterCacheManager:
         Returns:
             The cached adapter instance or None if not found
         """
-        return self._cache.get(adapter_name)
+        with self._cache_lock:
+            return self._cache.get(adapter_name)
 
     def contains(self, adapter_name: str) -> bool:
         """
@@ -52,7 +52,8 @@ class AdapterCacheManager:
         Returns:
             True if adapter is cached, False otherwise
         """
-        return adapter_name in self._cache
+        with self._cache_lock:
+            return adapter_name in self._cache
 
     def put(self, adapter_name: str, adapter: Any) -> None:
         """
@@ -64,7 +65,6 @@ class AdapterCacheManager:
         """
         with self._cache_lock:
             self._cache[adapter_name] = adapter
-            self._locks[adapter_name] = threading.Lock()
 
     async def remove(self, adapter_name: str) -> Optional[Any]:
         """
@@ -81,7 +81,6 @@ class AdapterCacheManager:
                 return None
 
             adapter = self._cache.pop(adapter_name)
-            self._locks.pop(adapter_name, None)
 
         # Try to close the adapter if it has a close method
         try:
@@ -125,7 +124,8 @@ class AdapterCacheManager:
         Returns:
             List of cached adapter names
         """
-        return list(self._cache.keys())
+        with self._cache_lock:
+            return list(self._cache.keys())
 
     def get_cache_size(self) -> int:
         """
@@ -134,11 +134,12 @@ class AdapterCacheManager:
         Returns:
             Number of cached adapters
         """
-        return len(self._cache)
+        with self._cache_lock:
+            return len(self._cache)
 
     async def clear(self) -> None:
         """Clear all cached adapters and clean up resources."""
-        adapter_names = list(self._cache.keys())
+        adapter_names = self.get_cached_names()
 
         for adapter_name in adapter_names:
             await self.remove(adapter_name)
@@ -191,7 +192,8 @@ class AdapterCacheManager:
         Returns:
             True if adapter is being initialized, False otherwise
         """
-        return adapter_name in self._initializing
+        with self._cache_lock:
+            return adapter_name in self._initializing
 
     def get_initializing_count(self) -> int:
         """
@@ -200,4 +202,5 @@ class AdapterCacheManager:
         Returns:
             Number of adapters being initialized
         """
-        return len(self._initializing)
+        with self._cache_lock:
+            return len(self._initializing)

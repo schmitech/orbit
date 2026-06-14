@@ -4,16 +4,16 @@ Audio Cache Manager for managing audio service instances.
 Provides thread-safe caching and lifecycle management for audio services (TTS/STT).
 """
 
-import asyncio
 import logging
-import threading
-from typing import Any, Dict, Optional, Set
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, Optional
+
+from .service_cache_manager import ServiceCacheManager
 
 logger = logging.getLogger(__name__)
 
 
-class AudioCacheManager:
+class AudioCacheManager(ServiceCacheManager):
     """
     Manages audio service cache with thread-safe access.
 
@@ -24,6 +24,8 @@ class AudioCacheManager:
     - Manage service lifecycle
     """
 
+    service_label = "audio service"
+
     def __init__(self, config: Dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
         """
         Initialize the audio cache manager.
@@ -32,11 +34,7 @@ class AudioCacheManager:
             config: Application configuration
             thread_pool: Optional thread pool for async operations
         """
-        self.config = config
-        self._cache: Dict[str, Any] = {}
-        self._cache_lock = threading.Lock()
-        self._initializing: Set[str] = set()
-        self._thread_pool = thread_pool or ThreadPoolExecutor(max_workers=3)
+        super().__init__(config, thread_pool)
 
     def build_cache_key(self, provider_name: str) -> str:
         """
@@ -50,83 +48,9 @@ class AudioCacheManager:
         Returns:
             Cache key string
         """
-        # Audio services can have separate TTS and STT models
-        tts_providers_config = self.config.get('tts_providers', {})
-        stt_providers_config = self.config.get('stt_providers', {})
-
-        # Get model from config
-        tts_model = tts_providers_config.get(provider_name, {}).get('tts_model', '')
-        stt_model = stt_providers_config.get(provider_name, {}).get('stt_model', '')
-
-        # Use TTS model as primary identifier, fall back to STT model
+        tts_model, stt_model = self._get_models(provider_name)
         model = tts_model or stt_model
         return f"{provider_name}:{model}" if model else provider_name
-
-    def get(self, cache_key: str) -> Optional[Any]:
-        """
-        Get a cached audio service by key.
-
-        Args:
-            cache_key: Cache key for the service
-
-        Returns:
-            The cached service instance or None if not found
-        """
-        return self._cache.get(cache_key)
-
-    def contains(self, cache_key: str) -> bool:
-        """
-        Check if an audio service is cached.
-
-        Args:
-            cache_key: Cache key for the service
-
-        Returns:
-            True if service is cached, False otherwise
-        """
-        return cache_key in self._cache
-
-    def put(self, cache_key: str, service: Any) -> None:
-        """
-        Cache an audio service instance.
-
-        Args:
-            cache_key: Cache key for the service
-            service: The service instance to cache
-        """
-        with self._cache_lock:
-            self._cache[cache_key] = service
-
-    async def remove(self, cache_key: str) -> Optional[Any]:
-        """
-        Remove an audio service from cache and clean up resources.
-
-        Args:
-            cache_key: Cache key for the service
-
-        Returns:
-            The removed service instance or None if not found
-        """
-        with self._cache_lock:
-            if cache_key not in self._cache:
-                return None
-
-            service = self._cache.pop(cache_key)
-            self._initializing.discard(cache_key)
-
-        # Try to close the service if it has a close method
-        try:
-            if hasattr(service, 'close') and callable(getattr(service, 'close', None)):
-                if asyncio.iscoroutinefunction(service.close):
-                    await service.close()
-                else:
-                    service.close()
-        except (AttributeError, TypeError) as e:
-            logger.debug(f"Audio service {cache_key} close method not available: {str(e)}")
-        except Exception as e:
-            logger.warning(f"Error closing audio service {cache_key}: {str(e)}")
-
-        return service
 
     async def create_service(
         self,
@@ -144,142 +68,67 @@ class AudioCacheManager:
             The created service instance
         """
         cache_key = self.build_cache_key(provider_name)
+        return await self._create_cached_service(cache_key, provider_name, adapter_name)
 
-        # Check if already cached
-        if cache_key in self._cache:
-            logger.debug(f"Using cached audio service: {cache_key}")
-            return self._cache[cache_key]
+    async def _create_instance(
+        self,
+        provider_name: str,
+        adapter_name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Any:
+        adapter_context = f" for adapter '{adapter_name}'" if adapter_name else ""
+        model_info = self._get_model_info(provider_name)
 
-        # Try to claim initialization ownership
-        should_initialize = False
-        with self._cache_lock:
-            if cache_key in self._cache:
-                return self._cache[cache_key]
-            if cache_key not in self._initializing:
-                self._initializing.add(cache_key)
-                should_initialize = True
-
-        # If someone else is initializing, wait for them
-        if not should_initialize:
-            while True:
-                await asyncio.sleep(0.1)
-                with self._cache_lock:
-                    if cache_key in self._cache:
-                        return self._cache[cache_key]
-                    if cache_key not in self._initializing:
-                        self._initializing.add(cache_key)
-                        should_initialize = True
-                        break
+        if model_info:
+            logger.info(f"Loading audio service '{provider_name}' ({', '.join(model_info)}){adapter_context}")
+        else:
+            logger.info(f"Loading audio service '{provider_name}'{adapter_context}")
 
         try:
-            adapter_context = f" for adapter '{adapter_name}'" if adapter_name else ""
+            from server.ai_services.services.audio_service import create_audio_service
+        except ImportError:
+            from ai_services.services.audio_service import create_audio_service
 
-            # Get config from tts.yaml and stt.yaml
-            tts_providers_config = self.config.get('tts_providers', {})
-            stt_providers_config = self.config.get('stt_providers', {})
-
-            # Get model info from config
-            tts_model = tts_providers_config.get(provider_name, {}).get('tts_model', '')
-            stt_model = stt_providers_config.get(provider_name, {}).get('stt_model', '')
-
-            model_info = []
-            if tts_model:
-                model_info.append(f"TTS:{tts_model}")
-            if stt_model:
-                model_info.append(f"STT:{stt_model}")
-
-            if model_info:
-                logger.info(f"Loading audio service '{provider_name}' ({', '.join(model_info)}){adapter_context}")
+        try:
+            return create_audio_service(provider_name, self.config)
+        except ValueError as e:
+            if self._is_audio_disabled():
+                logger.info(
+                    f"Audio service '{provider_name}' not available{adapter_context} - "
+                    f"audio is globally disabled"
+                )
             else:
-                logger.info(f"Loading audio service '{provider_name}'{adapter_context}")
-
-            # Import the audio service factory
-            try:
-                from server.ai_services.services.audio_service import create_audio_service
-            except ImportError:
-                from ai_services.services.audio_service import create_audio_service
-
-            # Create the audio service
-            try:
-                audio_service = create_audio_service(provider_name, self.config)
-            except ValueError as e:
-                # Check if audio is globally disabled
-                tts_config = self.config.get('tts', {})
-                stt_config = self.config.get('stt', {})
-
-                # Check tts.enabled and stt.enabled
-                tts_disabled = tts_config.get('enabled', True) is False or \
-                              (isinstance(tts_config.get('enabled'), str) and
-                               tts_config.get('enabled').lower() == 'false')
-                stt_disabled = stt_config.get('enabled', True) is False or \
-                              (isinstance(stt_config.get('enabled'), str) and
-                               stt_config.get('enabled').lower() == 'false')
-
-                is_audio_disabled = tts_disabled and stt_disabled
-
-                if is_audio_disabled:
-                    # This is expected - audio is globally disabled
-                    logger.info(
-                        f"Audio service '{provider_name}' not available{adapter_context} - "
-                        f"audio is globally disabled"
-                    )
-                else:
-                    # Provider not registered for another reason
-                    logger.warning(
-                        f"Audio service '{provider_name}' not available{adapter_context}: {str(e)}"
-                    )
-                raise
-
-            # Initialize if needed
-            if hasattr(audio_service, 'initialize'):
-                if asyncio.iscoroutinefunction(audio_service.initialize):
-                    await audio_service.initialize()
-                else:
-                    loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(self._thread_pool, audio_service.initialize)
-
-            # Cache the initialized service
-            with self._cache_lock:
-                self._cache[cache_key] = audio_service
-
-            logger.info(f"Successfully cached audio service: {cache_key}{adapter_context}")
-            return audio_service
-
-        except ValueError:
-            # ValueError already logged above, just re-raise
+                logger.warning(
+                    f"Audio service '{provider_name}' not available{adapter_context}: {str(e)}"
+                )
             raise
-        except Exception as e:
-            logger.error(f"Failed to load audio service {provider_name}: {str(e)}")
-            raise
-        finally:
-            with self._cache_lock:
-                self._initializing.discard(cache_key)
 
-    def get_cached_keys(self) -> list[str]:
-        """
-        Get list of cached audio service keys.
+    def _get_models(self, provider_name: str) -> tuple[str, str]:
+        tts_providers_config = self.config.get('tts_providers', {})
+        stt_providers_config = self.config.get('stt_providers', {})
+        tts_model = tts_providers_config.get(provider_name, {}).get('tts_model', '')
+        stt_model = stt_providers_config.get(provider_name, {}).get('stt_model', '')
+        return tts_model, stt_model
 
-        Returns:
-            List of cached service keys
-        """
-        return list(self._cache.keys())
+    def _get_model_info(self, provider_name: str) -> list[str]:
+        tts_model, stt_model = self._get_models(provider_name)
+        model_info = []
+        if tts_model:
+            model_info.append(f"TTS:{tts_model}")
+        if stt_model:
+            model_info.append(f"STT:{stt_model}")
+        return model_info
 
-    def get_cache_size(self) -> int:
-        """
-        Get the number of cached audio services.
+    def _is_audio_disabled(self) -> bool:
+        return self._is_disabled(self.config.get('tts', {})) and self._is_disabled(self.config.get('stt', {}))
 
-        Returns:
-            Number of cached services
-        """
-        return len(self._cache)
+    def _log_create_error(self, provider_name: str, error: Exception) -> None:
+        if isinstance(error, ValueError):
+            return
 
-    async def clear(self) -> None:
-        """Clear all cached audio services and clean up resources."""
-        for cache_key in list(self._cache.keys()):
-            await self.remove(cache_key)
+        super()._log_create_error(provider_name, error)
 
-        logger.info("Cleared all audio services from cache")
-
-    async def close(self) -> None:
-        """Clean up all resources."""
-        await self.clear()
+    @staticmethod
+    def _is_disabled(section: Dict[str, Any]) -> bool:
+        enabled = section.get('enabled', True)
+        return enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false')
