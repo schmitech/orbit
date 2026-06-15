@@ -4,6 +4,7 @@ Similar to IntentSQLiteRetriever but for DuckDB databases.
 """
 
 import logging
+import re
 from typing import Dict, Any, List, Optional
 
 try:
@@ -180,8 +181,6 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
             
             # DuckDB uses ? for positional parameters
             # Convert named parameters to positional parameters
-            import re
-            
             if params and isinstance(params, dict):
                 # Check if query has %(name)s format (PostgreSQL-style from templates)
                 has_postgres_style = bool(re.search(r'%\((\w+)\)s', query))
@@ -270,4 +269,3 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
 
 # Register the intent DuckDB retriever
 RetrieverFactory.register_retriever('intent_duckdb', IntentDuckDBRetriever)
-

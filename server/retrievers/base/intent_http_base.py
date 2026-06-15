@@ -16,16 +16,15 @@ from datetime import datetime
 from pathlib import Path
 
 from .base_retriever import BaseRetriever
-from retrievers.implementations.intent.domain.extraction import DomainParameterExtractor
-from retrievers.implementations.intent.domain.response import DomainResponseGenerator
+from .intent_domain_components import IntentDomainComponentsMixin
 from retrievers.implementations.intent.domain.response.table_renderer import TableRenderer
-from retrievers.implementations.intent.template_reranker import TemplateReranker
 from retrievers.implementations.intent.template_processor import TemplateProcessor
+from utils.async_utils import close_client
 
 logger = logging.getLogger(__name__)
 
 
-class IntentHTTPRetriever(BaseRetriever):
+class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
     """
     Unified base class for intent-based HTTP retrievers.
 
@@ -76,9 +75,6 @@ class IntentHTTPRetriever(BaseRetriever):
 
         # HTTP configuration
         self.base_url = self.intent_config.get('base_url')
-        if not self.base_url:
-            raise ValueError("base_url is required in adapter configuration")
-
         self.timeout = self.intent_config.get('timeout', 30)
         self.verify_ssl = self.intent_config.get('verify_ssl', True)
         self.auth_config = self.intent_config.get('auth', {})
@@ -195,25 +191,7 @@ class IntentHTTPRetriever(BaseRetriever):
             # Load templates into vector store
             await self._load_templates()
 
-            # Initialize domain-aware components
-            domain_config = self.domain_adapter.get_domain_config()
-
-            from retrievers.implementations.intent.domain_strategies.registry import DomainStrategyRegistry
-            from retrievers.implementations.intent.domain import DomainConfig
-
-            if isinstance(domain_config, dict):
-                domain_config = DomainConfig(domain_config)
-
-            domain_strategy = DomainStrategyRegistry.get_strategy(
-                domain_config.domain_name,
-                domain_config,
-            )
-
-            self.parameter_extractor = DomainParameterExtractor(
-                self.inference_client, domain_config, domain_strategy)
-            self.response_generator = DomainResponseGenerator(domain_config, domain_strategy)
-            self.template_reranker = TemplateReranker(domain_config, domain_strategy)
-            self.template_processor = TemplateProcessor(domain_config)
+            self._rebuild_domain_components()
 
             logger.debug(f"{self.__class__.__name__} initialization complete")
 
@@ -231,6 +209,10 @@ class IntentHTTPRetriever(BaseRetriever):
 
     async def _initialize_http_client(self):
         """Initialize HTTP client with authentication and SSL settings."""
+        if not self.base_url:
+            logger.debug("Skipping generic HTTP client initialization because base_url is not configured")
+            return
+
         headers = {
             'Content-Type': 'application/json',
             'User-Agent': 'ORBIT-Intent-Retriever/1.0'
@@ -664,17 +646,7 @@ class IntentHTTPRetriever(BaseRetriever):
                 config=self.intent_config
             )
 
-            # Re-initialize domain-aware components with new domain config
-            domain_config = self.domain_adapter.get_domain_config()
-            from retrievers.implementations.intent.domain import DomainConfig
-            if isinstance(domain_config, dict):
-                domain_config = DomainConfig(domain_config)
-            from retrievers.implementations.intent.domain_strategies.registry import DomainStrategyRegistry
-            domain_strategy = DomainStrategyRegistry.get_strategy(domain_config.domain_name, domain_config)
-            self.parameter_extractor = DomainParameterExtractor(self.inference_client, domain_config, domain_strategy)
-            self.response_generator = DomainResponseGenerator(domain_config, domain_strategy)
-            self.template_reranker = TemplateReranker(domain_config, domain_strategy)
-            self.template_processor = TemplateProcessor(domain_config)
+            self._rebuild_domain_components()
 
             # 2. Clear existing templates from vector store
             if self.template_store:
@@ -1075,61 +1047,24 @@ JSON:"""
         
         # Close HTTP client
         if self.http_client:
-            try:
-                if hasattr(self.http_client, 'aclose'):
-                    await self.http_client.aclose()
-                elif hasattr(self.http_client, 'close'):
-                    if asyncio.iscoroutinefunction(self.http_client.close):
-                        await self.http_client.close()
-                    else:
-                        self.http_client.close()
-            except Exception as e:
-                errors.append(f"http_client: {e}")
-                logger.warning(f"Error closing HTTP client in {self.__class__.__name__}: {e}")
+            error = await close_client(self.http_client)
+            if error:
+                errors.append(f"http_client: {error}")
+                logger.warning(f"Error closing HTTP client in {self.__class__.__name__}: {error}")
 
         # Close embedding client
         if self.embedding_client and getattr(self, '_owns_embedding_client', False):
-            try:
-                # Try aclose() first (httpx AsyncClient uses aclose)
-                aclose_method = getattr(self.embedding_client, 'aclose', None)
-                if aclose_method and callable(aclose_method):
-                    await aclose_method()
-                else:
-                    # Try close() method
-                    close_method = getattr(self.embedding_client, 'close', None)
-                    if close_method and callable(close_method):
-                        if asyncio.iscoroutinefunction(close_method):
-                            await close_method()
-                        else:
-                            close_method()
-            except AttributeError as e:
-                # Client doesn't have close method - this is okay, just log it
-                logger.debug(f"Embedding client {type(self.embedding_client).__name__} doesn't have close/aclose method: {e}")
-            except Exception as e:
-                errors.append(f"embedding: {e}")
-                logger.warning(f"Error closing embedding client in {self.__class__.__name__}: {e}")
+            error = await close_client(self.embedding_client)
+            if error:
+                errors.append(f"embedding: {error}")
+                logger.warning(f"Error closing embedding client in {self.__class__.__name__}: {error}")
 
         # Close inference client
         if self.inference_client:
-            try:
-                # Try aclose() first (httpx AsyncClient uses aclose)
-                aclose_method = getattr(self.inference_client, 'aclose', None)
-                if aclose_method and callable(aclose_method):
-                    await aclose_method()
-                else:
-                    # Try close() method
-                    close_method = getattr(self.inference_client, 'close', None)
-                    if close_method and callable(close_method):
-                        if asyncio.iscoroutinefunction(close_method):
-                            await close_method()
-                        else:
-                            close_method()
-            except AttributeError as e:
-                # Client doesn't have close method - this is okay, just log it
-                logger.debug(f"Inference client {type(self.inference_client).__name__} doesn't have close/aclose method: {e}")
-            except Exception as e:
-                errors.append(f"inference: {e}")
-                logger.warning(f"Error closing inference client in {self.__class__.__name__}: {e}")
+            error = await close_client(self.inference_client)
+            if error:
+                errors.append(f"inference: {error}")
+                logger.warning(f"Error closing inference client in {self.__class__.__name__}: {error}")
 
         # Close template store if it exists
         if hasattr(self, 'template_store') and self.template_store:

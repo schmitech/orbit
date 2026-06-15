@@ -4,6 +4,7 @@ Similar to IntentPostgreSQLRetriever but for SQLite databases.
 """
 
 import logging
+import re
 from typing import Dict, Any, List, Optional
 
 try:
@@ -138,8 +139,6 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
 
             # SQLite uses ? placeholders, but we might receive %(name)s format from templates
             # Convert named parameters to SQLite format
-            import re
-
             # Check if query has parameter placeholders
             has_param_placeholders = bool(re.search(r'%\((\w+)\)s', query))
 
@@ -162,18 +161,10 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
                 if placeholder_count > 0:
                     # Need to convert params dict to tuple/list for ? placeholders
                     if params and isinstance(params, dict):
-                        # Extract parameter values in order (based on template parameter order)
-                        # Common parameter names: limit, offset
-                        param_values = []
-                        for key in ['limit', 'offset']:  # Standard order for pagination
-                            if key in params:
-                                param_values.append(params[key])
-
-                        # If we don't have enough params, try all dict values
-                        if len(param_values) < placeholder_count:
-                            param_values = list(params.values())
-
-                        cursor.execute(query, tuple(param_values))
+                        raise ValueError(
+                            "SQLite received dict params with ? placeholders; caller must "
+                            f"convert params to a positional sequence using template parameter order. Query: {query[:100]}"
+                        )
                     elif params and isinstance(params, (list, tuple)):
                         cursor.execute(query, params)
                     else:

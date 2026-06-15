@@ -42,11 +42,6 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
             datasource: Optional pre-initialized datasource
             **kwargs: Additional arguments
         """
-        # Elasticsearch uses its own client from datasource, not the generic HTTP client
-        # Provide a placeholder base_url to satisfy parent class if not already set
-        if 'adapter_config' in config and 'base_url' not in config['adapter_config']:
-            config['adapter_config']['base_url'] = 'http://localhost:9200'  # Placeholder, not used
-
         super().__init__(config=config, domain_adapter=domain_adapter, datasource=datasource, **kwargs)
 
         # Elasticsearch-specific settings from adapter config

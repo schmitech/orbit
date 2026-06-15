@@ -26,10 +26,7 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
         # Initialize with default values first
         self.adapter_config = None
         self.datasource_config = {}
-        
-        # Set QA-specific parameters with defaults
-        self._initialize_qa_parameters()
-        
+
         # Extract QA adapter config after subclass is initialized
         self._initialize_adapter_config()
     

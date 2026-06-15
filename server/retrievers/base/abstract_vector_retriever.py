@@ -248,14 +248,7 @@ class AbstractVectorRetriever(BaseRetriever):
             if not await self._ensure_embeddings_valid():
                 raise ValueError("Failed to ensure embeddings are valid")
 
-        if self.using_new_embedding_service:
-            # Use the new embedding service API
-            return await self.embeddings.embed_query(query)
-        else:
-            # Use the legacy Ollama embeddings
-            # For langchain OllamaEmbeddings, embed_query is also a coroutine
-            # that needs to be awaited
-            return await self.embeddings.embed_query(query)
+        return await self.embeddings.embed_query(query)
     
     def format_document(self, doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """

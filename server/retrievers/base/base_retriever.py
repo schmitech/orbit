@@ -350,15 +350,8 @@ class VectorDBRetriever(BaseRetriever):
         """
         if not self.embeddings:
             raise ValueError("Embeddings are disabled or not initialized")
-            
-        if self.using_new_embedding_service:
-            # Use the new embedding service API
-            return await self.embeddings.embed_query(query)
-        else:
-            # Use the legacy Ollama embeddings
-            # For langchain OllamaEmbeddings, embed_query is also a coroutine 
-            # that needs to be awaited
-            return await self.embeddings.embed_query(query)
+
+        return await self.embeddings.embed_query(query)
 
 
 class SQLRetriever(BaseRetriever):

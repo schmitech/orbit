@@ -6,6 +6,7 @@ This module provides unified database operations to reduce code duplication.
 import logging
 import os
 import json
+import asyncio
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
 from datetime import datetime, date
@@ -194,7 +195,6 @@ class SQLQueryExecutionMixin:
                 if attempt < max_retries - 1:
                     logger.warning(f"Query attempt {attempt + 1} failed: {e}, retrying...")
                     # Wait before retry with exponential backoff
-                    import asyncio
                     await asyncio.sleep(2 ** attempt)
                 else:
                     raise last_error

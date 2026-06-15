@@ -12,6 +12,7 @@ from unittest.mock import Mock, AsyncMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from retrievers.base.abstract_vector_retriever import AbstractVectorRetriever
+from retrievers.implementations.qa.qa_vector_base import QAVectorRetrieverBase
 
 
 class MockVectorRetriever(AbstractVectorRetriever):
@@ -43,6 +44,53 @@ class MockVectorRetriever(AbstractVectorRetriever):
     def set_mock_search_results(self, results: List[Dict[str, Any]]):
         """Set the mock results that will be returned"""
         self.mock_search_results = results
+
+
+class CountingQAVectorRetriever(QAVectorRetrieverBase):
+    """QA retriever that counts QA parameter initialization calls."""
+
+    def __init__(self, config: Dict[str, Any], **kwargs):
+        self.qa_parameter_initialization_count = 0
+        super().__init__(config=config, **kwargs)
+
+    def _initialize_qa_parameters(self):
+        self.qa_parameter_initialization_count += 1
+        super()._initialize_qa_parameters()
+
+    def _get_datasource_name(self) -> str:
+        return "mock_vector"
+
+    def get_datasource_name(self) -> str:
+        return "mock_vector"
+
+    async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
+        return []
+
+    async def set_collection(self, collection_name: str) -> None:
+        self.collection = collection_name
+
+    async def initialize_client(self) -> None:
+        pass
+
+    async def close_client(self) -> None:
+        pass
+
+    def convert_score_to_confidence(self, score: float) -> float:
+        return score
+
+    async def query_vector_database(
+        self,
+        query_embedding: List[float],
+        collection_name: str,
+        max_results: int,
+    ) -> Any:
+        return []
+
+    def extract_document_data(self, result: Any) -> tuple[str, Dict[str, Any], float]:
+        return "", {}, 0.0
+
+    def _iterate_results(self, results: Any):
+        return iter(results)
 
 
 @pytest.fixture
@@ -395,6 +443,33 @@ async def test_close_does_not_close_shared_embedding_service(test_config, mock_d
     await retriever.close()
 
     retriever.embeddings.close.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_close_closes_owned_embedding_service(test_config, mock_datasource):
+    """Retriever-owned embedding services must be closed."""
+    retriever = MockVectorRetriever(
+        config=test_config,
+        datasource=mock_datasource
+    )
+    retriever.using_new_embedding_service = False
+    retriever._owns_embeddings = True
+    retriever.embeddings = Mock()
+    retriever.embeddings.close = AsyncMock()
+
+    await retriever.close()
+
+    retriever.embeddings.close.assert_awaited_once()
+
+
+def test_qa_vector_parameters_initialized_once(test_config, mock_datasource):
+    """QAVectorRetrieverBase should initialize QA parameters once during construction."""
+    retriever = CountingQAVectorRetriever(
+        config=test_config,
+        datasource=mock_datasource
+    )
+
+    assert retriever.qa_parameter_initialization_count == 1
 
 
 # Run tests

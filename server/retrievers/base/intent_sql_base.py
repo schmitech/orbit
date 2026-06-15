@@ -7,20 +7,20 @@ import logging
 import traceback
 import asyncio
 import re
+import json
 from typing import Dict, Any, List, Optional, Tuple
 
 from .base_sql_database import BaseSQLDatabaseRetriever
+from .intent_domain_components import IntentDomainComponentsMixin
 from adapters.intent.adapter import IntentAdapter
-from retrievers.implementations.intent.domain.extraction import DomainParameterExtractor
-from retrievers.implementations.intent.domain.response import DomainResponseGenerator
 from retrievers.implementations.intent.domain.response.table_renderer import TableRenderer
-from retrievers.implementations.intent.template_reranker import TemplateReranker
 from retrievers.implementations.intent.template_processor import TemplateProcessor
+from utils.async_utils import close_client
 
 logger = logging.getLogger(__name__)
 
 
-class IntentSQLRetriever(BaseSQLDatabaseRetriever):
+class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
     """
     Unified base class for intent-based SQL retrievers.
     Combines intent functionality with database operations.
@@ -142,27 +142,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             # Load templates into vector store
             await self._load_templates()
             
-            # Initialize domain-aware components
-            domain_config = self.domain_adapter.get_domain_config()
-
-            # Get domain strategy once for all components
-            from ..implementations.intent.domain_strategies.registry import DomainStrategyRegistry
-            from ..implementations.intent.domain import DomainConfig
-
-            # Ensure domain_config is a DomainConfig object
-            if isinstance(domain_config, dict):
-                domain_config = DomainConfig(domain_config)
-
-            domain_strategy = DomainStrategyRegistry.get_strategy(
-                domain_config.domain_name,
-                domain_config,
-            )
-
-            # Pass the domain_strategy to avoid redundant registry lookups
-            self.parameter_extractor = DomainParameterExtractor(self.inference_client, domain_config, domain_strategy)
-            self.response_generator = DomainResponseGenerator(domain_config, domain_strategy)
-            self.template_reranker = TemplateReranker(domain_config, domain_strategy)
-            self.template_processor = TemplateProcessor(domain_config)
+            self._rebuild_domain_components()
             
             logger.debug(f"{self.__class__.__name__} initialization complete")
                 
@@ -170,7 +150,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             logger.error(f"Failed to initialize {self.__class__.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
-    
+
     async def _initialize_embedding_client(self):
         """Initialize embedding client with fallback support."""
         embedding_provider = self.config.get('embedding', {}).get('provider')
@@ -580,17 +560,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 config=self.intent_config
             )
 
-            # Re-initialize domain-aware components with new domain config
-            domain_config = self.domain_adapter.get_domain_config()
-            from ..implementations.intent.domain import DomainConfig
-            if isinstance(domain_config, dict):
-                domain_config = DomainConfig(domain_config)
-            from ..implementations.intent.domain_strategies.registry import DomainStrategyRegistry
-            domain_strategy = DomainStrategyRegistry.get_strategy(domain_config.domain_name, domain_config)
-            self.parameter_extractor = DomainParameterExtractor(self.inference_client, domain_config, domain_strategy)
-            self.response_generator = DomainResponseGenerator(domain_config, domain_strategy)
-            self.template_reranker = TemplateReranker(domain_config, domain_strategy)
-            self.template_processor = TemplateProcessor(domain_config)
+            self._rebuild_domain_components()
 
             # 2. Clear existing templates from vector store
             if self.template_store:
@@ -1076,8 +1046,6 @@ JSON:"""
             
             response = await self.inference_client.generate(extraction_prompt)
             
-            import re
-            import json
             # Find the first { and try progressively smaller substrings to handle
             # LLM responses with trailing commentary after the JSON object
             start = response.find('{')
@@ -1235,8 +1203,6 @@ JSON:"""
                 "confidence": similarity
             }]
 
-        import json
-
         # Set original count if not provided
         if original_count is None:
             original_count = len(results)
@@ -1291,47 +1257,17 @@ JSON:"""
         
         # Close embedding client
         if self.embedding_client and getattr(self, '_owns_embedding_client', False):
-            try:
-                # Try aclose() first (httpx AsyncClient uses aclose)
-                aclose_method = getattr(self.embedding_client, 'aclose', None)
-                if aclose_method and callable(aclose_method):
-                    await aclose_method()
-                else:
-                    # Try close() method
-                    close_method = getattr(self.embedding_client, 'close', None)
-                    if close_method and callable(close_method):
-                        if asyncio.iscoroutinefunction(close_method):
-                            await close_method()
-                        else:
-                            close_method()
-            except AttributeError as e:
-                # Client doesn't have close method - this is okay, just log it
-                logger.debug(f"Embedding client {type(self.embedding_client).__name__} doesn't have close/aclose method: {e}")
-            except Exception as e:
-                errors.append(f"embedding: {e}")
-                logger.warning(f"Error closing embedding client in {self.__class__.__name__}: {e}")
+            error = await close_client(self.embedding_client)
+            if error:
+                errors.append(f"embedding: {error}")
+                logger.warning(f"Error closing embedding client in {self.__class__.__name__}: {error}")
         
         # Close inference client
         if self.inference_client:
-            try:
-                # Try aclose() first (httpx AsyncClient uses aclose)
-                aclose_method = getattr(self.inference_client, 'aclose', None)
-                if aclose_method and callable(aclose_method):
-                    await aclose_method()
-                else:
-                    # Try close() method
-                    close_method = getattr(self.inference_client, 'close', None)
-                    if close_method and callable(close_method):
-                        if asyncio.iscoroutinefunction(close_method):
-                            await close_method()
-                        else:
-                            close_method()
-            except AttributeError as e:
-                # Client doesn't have close method - this is okay, just log it
-                logger.debug(f"Inference client {type(self.inference_client).__name__} doesn't have close/aclose method: {e}")
-            except Exception as e:
-                errors.append(f"inference: {e}")
-                logger.warning(f"Error closing inference client in {self.__class__.__name__}: {e}")
+            error = await close_client(self.inference_client)
+            if error:
+                errors.append(f"inference: {error}")
+                logger.warning(f"Error closing inference client in {self.__class__.__name__}: {error}")
         
         # Close template store if it exists
         if hasattr(self, 'template_store') and self.template_store:

@@ -657,6 +657,7 @@ async def test_intent_retriever_close_handles_client_errors(test_config, test_da
         mock_embedding = Mock()
         mock_embedding.aclose = AsyncMock(side_effect=Exception("Embedding close error"))
         retriever.embedding_client = mock_embedding
+        retriever._owns_embedding_client = True
 
         mock_inference = Mock()
         mock_inference.aclose = AsyncMock(side_effect=Exception("Inference close error"))
@@ -714,6 +715,7 @@ async def test_intent_retriever_close_handles_sync_and_async_close(test_config, 
         mock_sync_client = Mock(spec=['close'])  # Only has close, not aclose
         mock_sync_client.close = Mock()  # Regular method (sync)
         retriever.embedding_client = mock_sync_client
+        retriever._owns_embedding_client = True
 
         # Async close - has aclose method
         mock_async_client = Mock()
@@ -839,4 +841,3 @@ async def test_intent_retriever_close_with_template_store(test_config, test_data
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

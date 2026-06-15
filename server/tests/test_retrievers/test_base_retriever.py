@@ -7,7 +7,7 @@ import asyncio
 import sys
 import os
 from typing import Dict, Any, List, Optional
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 # Add the server directory to path to fix import issues
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -110,10 +110,8 @@ def mock_api_key_service():
             return False, None
             
         instance.validate_api_key.side_effect = validate_api_key
-        instance.initialize = MagicMock(return_value=asyncio.Future())
-        instance.initialize.return_value.set_result(None)
-        instance.close = MagicMock(return_value=asyncio.Future())
-        instance.close.return_value.set_result(None)
+        instance.initialize = AsyncMock(return_value=None)
+        instance.close = AsyncMock(return_value=None)
         
         yield instance
 
