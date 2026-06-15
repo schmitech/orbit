@@ -52,33 +52,54 @@ class GeminiImageService(ImageGenerationService, GoogleBaseService):
         except Exception:
             return False
 
+    def _is_gemini_model(self) -> bool:
+        return self.model.startswith("gemini-")
+
     async def generate_image(self, prompt: str, **kwargs) -> Dict[str, Any]:
-        """Generate an image using Google Imagen 3."""
+        """Generate an image using Google Gemini or Imagen."""
         if not self.initialized:
             await self.initialize()
-
-        aspect_ratio = kwargs.get("aspect_ratio", self.aspect_ratio)
-        number_of_images = kwargs.get("number_of_images", self.number_of_images)
 
         try:
             from google.genai import types as genai_types
 
             client = self._get_client()
 
-            response = await asyncio.to_thread(
-                client.models.generate_images,
-                model=self.model,
-                prompt=prompt,
-                config=genai_types.GenerateImagesConfig(
-                    number_of_images=number_of_images,
-                    aspect_ratio=aspect_ratio,
-                ),
-            )
+            if self._is_gemini_model():
+                # Gemini models (e.g. gemini-3.1-flash-image) use generate_content
+                # with IMAGE response modality, not the Imagen generate_images API.
+                response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=self.model,
+                    contents=prompt,
+                    config=genai_types.GenerateContentConfig(
+                        response_modalities=["TEXT", "IMAGE"],
+                    ),
+                )
+                image_bytes = None
+                for part in (response.parts or []):
+                    if part.inline_data is not None:
+                        image_bytes = part.inline_data.data
+                        break
+                if image_bytes is None:
+                    raise ValueError("Gemini returned no image data")
+            else:
+                # Imagen models use the generate_images API
+                aspect_ratio = kwargs.get("aspect_ratio", self.aspect_ratio)
+                number_of_images = kwargs.get("number_of_images", self.number_of_images)
+                response = await asyncio.to_thread(
+                    client.models.generate_images,
+                    model=self.model,
+                    prompt=prompt,
+                    config=genai_types.GenerateImagesConfig(
+                        number_of_images=number_of_images,
+                        aspect_ratio=aspect_ratio,
+                    ),
+                )
+                if not response.generated_images:
+                    raise ValueError("Gemini returned no images")
+                image_bytes = response.generated_images[0].image.image_bytes
 
-            if not response.generated_images:
-                raise ValueError("Gemini returned no images")
-
-            image_bytes = response.generated_images[0].image.image_bytes
             return {
                 "image_bytes": image_bytes,
                 "format": "png",
