@@ -5,11 +5,9 @@ WebSocket endpoints for real-time voice conversations with AI.
 
 Supports handler types:
 - VoiceWebSocketHandler: Traditional cascade (STT -> LLM -> TTS)
-- PersonaPlexWebSocketHandler: Full-duplex speech-to-speech (PersonaPlex)
 - OpenAIRealtimeWebSocketHandler: OpenAI Realtime API WebSocket (speech-to-speech)
 
 Handler selection is automatic based on adapter type:
-- type: "speech_to_speech" -> PersonaPlexWebSocketHandler
 - type: "openai_realtime" -> OpenAIRealtimeWebSocketHandler
 - other types -> VoiceWebSocketHandler
 """
@@ -82,11 +80,11 @@ async def validate_adapter(adapter_name: str, request: Request) -> Dict[str, Any
     # Check adapter type
     adapter_type = adapter_config.get('type', '')
 
-    # For speech_to_speech (PersonaPlex) and openai_realtime, stt/tts are not used here
-    if adapter_type in ('speech_to_speech', 'openai_realtime'):
+    # For openai_realtime, stt/tts are not used here
+    if adapter_type == 'openai_realtime':
         logger.info(
             f"Adapter validation successful: {adapter_name}, "
-            f"type: {adapter_type} (full-duplex / Realtime bridge)"
+            f"type: {adapter_type} (Realtime bridge)"
         )
         return adapter_config
 
@@ -172,72 +170,6 @@ async def _resolve_voice_adapter_from_api_key(
     return resolved_adapter_name, str(system_prompt_id) if system_prompt_id else None
 
 
-async def _create_personaplex_handler(
-    websocket: WebSocket,
-    adapter_name: str,
-    adapter_config: Dict[str, Any],
-    config: Dict[str, Any],
-    session_id: Optional[str],
-    user_id: Optional[str],
-    prompt_service: Optional[Any] = None,
-    system_prompt_id: Optional[str] = None
-):
-    """
-    Create and initialize a PersonaPlex WebSocket handler.
-
-    Args:
-        websocket: WebSocket connection
-        adapter_name: Name of the adapter
-        adapter_config: Adapter configuration
-        config: Global configuration
-        session_id: Optional session ID
-        user_id: Optional user ID
-        prompt_service: Optional prompt service for dynamic prompt loading
-        system_prompt_id: Optional system prompt ID from API key
-
-    Returns:
-        Initialized PersonaPlexWebSocketHandler
-    """
-    from services.chat_handlers.personaplex_websocket_handler import PersonaPlexWebSocketHandler
-    from ai_services.factory import AIServiceFactory
-    from ai_services.base import ServiceType
-
-    # Get or create PersonaPlex service
-    try:
-        personaplex_service = AIServiceFactory.create_service(
-            ServiceType.SPEECH_TO_SPEECH,
-            'personaplex',
-            config
-        )
-
-        # Initialize service if needed
-        if not personaplex_service.initialized:
-            success = await personaplex_service.initialize()
-            if not success:
-                raise RuntimeError("Failed to initialize PersonaPlex service")
-
-    except Exception as e:
-        logger.error(f"Failed to create PersonaPlex service: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail=f"PersonaPlex service unavailable: {str(e)}"
-        )
-
-    # Create handler
-    handler = PersonaPlexWebSocketHandler(
-        websocket=websocket,
-        personaplex_service=personaplex_service,
-        adapter_name=adapter_name,
-        adapter_config=adapter_config,
-        config=config,
-        session_id=session_id,
-        user_id=user_id,
-        prompt_service=prompt_service,
-        system_prompt_id=system_prompt_id
-    )
-
-    return handler
-
 
 async def _handle_voice_websocket(
     websocket: WebSocket,
@@ -299,21 +231,7 @@ async def _handle_voice_websocket(
         # Check adapter type to determine handler
         adapter_type = adapter_config.get('type', '')
 
-        if adapter_type == 'speech_to_speech':
-            # Use PersonaPlex handler for full-duplex speech-to-speech
-            prompt_service = getattr(websocket.app.state, 'prompt_service', None)
-
-            handler = await _create_personaplex_handler(
-                websocket=websocket,
-                adapter_name=adapter_name,
-                adapter_config=adapter_config,
-                config=config,
-                session_id=session_id,
-                user_id=user_id,
-                prompt_service=prompt_service,
-                system_prompt_id=system_prompt_id
-            )
-        elif adapter_type == 'openai_realtime':
+        if adapter_type == 'openai_realtime':
             from services.chat_handlers.openai_realtime_websocket_handler import (
                 OpenAIRealtimeWebSocketHandler,
             )
@@ -348,7 +266,7 @@ async def _handle_voice_websocket(
             # Accept connection
             await handler.accept_connection()
 
-        # Run message loop (PersonaPlex + OpenAI Realtime accept inside run())
+        # Run message loop (OpenAI Realtime accepts inside run())
         await handler.run()
 
     except HTTPException as e:
@@ -462,7 +380,7 @@ async def voice_status(request: Request):
             capabilities = adapter_config.get('capabilities', {})
             if capabilities.get('supports_realtime_audio', False):
                 adapter_type = adapter_config.get('type', 'passthrough')
-                is_full_duplex = adapter_type in ('speech_to_speech', 'openai_realtime')
+                is_full_duplex = adapter_type == 'openai_realtime'
 
                 adapter_info = {
                     "name": adapter_name,
@@ -475,11 +393,6 @@ async def voice_status(request: Request):
                     adapter_info["mode"] = "openai_realtime"
                     rcfg = (adapter_config.get('config') or {})
                     adapter_info["realtime_model"] = rcfg.get('realtime_model', 'gpt-realtime')
-                elif is_full_duplex:
-                    # PersonaPlex adapters
-                    adapter_info["mode"] = "speech_to_speech"
-                    persona = adapter_config.get('persona', {})
-                    adapter_info["voice"] = persona.get('voice_prompt', 'default')
                 else:
                     # Traditional cascade adapters
                     adapter_info["mode"] = "cascade"

@@ -2,7 +2,7 @@
 Service-specific interfaces for AI services.
 
 This package contains service-specific interfaces and implementations
-for different AI service types (embeddings, inference, moderation, reranking, vision, audio, speech-to-speech).
+for different AI service types (embeddings, inference, moderation, reranking, vision, audio).
 
 Available Services:
     - EmbeddingService: Interface for embedding services
@@ -11,7 +11,6 @@ Available Services:
     - RerankingService: Interface for document reranking services
     - VisionService: Interface for vision services
     - AudioService: Interface for audio services (TTS and STT)
-    - SpeechToSpeechService: Interface for full-duplex speech-to-speech services (PersonaPlex)
 """
 
 from .embedding_service import (
@@ -51,12 +50,6 @@ from .audio_service import (
     create_audio_service
 )
 
-from .speech_to_speech_service import (
-    SpeechToSpeechService,
-    SpeechToSpeechResult,
-    create_speech_to_speech_service
-)
-
 from .image_generation_service import ImageGenerationService
 from .video_generation_service import VideoGenerationService
 
@@ -90,11 +83,6 @@ __all__ = [
     'AudioService',
     'AudioResult',
     'create_audio_service',
-
-    # Speech-to-Speech
-    'SpeechToSpeechService',
-    'SpeechToSpeechResult',
-    'create_speech_to_speech_service',
 
     # Image Generation
     'ImageGenerationService',

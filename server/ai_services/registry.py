@@ -198,20 +198,6 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
     _register_services(ServiceType.AUDIO, 'ai_services.implementations.audio', services)
 
 
-def register_speech_to_speech_services(config: Dict[str, Any] = None) -> None:
-    if config and not _is_enabled(config.get('personaplex', {}).get('enabled', False)):
-        logger.info(
-            "PersonaPlex is disabled in config - "
-            "skipping speech-to-speech service registration."
-        )
-        return
-
-    _register_services(ServiceType.SPEECH_TO_SPEECH, 'ai_services.implementations.speech_to_speech', [
-        ("personaplex", "PersonaPlexService", "PersonaPlex"),
-        ("personaplex_proxy", "PersonaPlexProxyService", "PersonaPlex (Proxy)"),
-        ("personaplex_embedded", "PersonaPlexEmbeddedService", "PersonaPlex (Embedded)"),
-    ])
-
 
 def register_image_generation_services(config: Dict[str, Any] = None) -> None:
     if config and not _is_enabled(config.get('image', {}).get('enabled', False)):
@@ -268,7 +254,6 @@ def register_all_services(config: Dict[str, Any] = None) -> None:
         register_image_generation_services(config)
         register_video_generation_services(config)
         register_audio_services(config)
-        register_speech_to_speech_services(config)
 
         _services_registered = True
 

@@ -372,7 +372,7 @@ function queueOutboundChunk(chunk: Float32Array) {
 }
 
 // ============================================================================
-// Audio Visualization (same as PersonaPlex client)
+// Audio Visualization
 // ============================================================================
 
 function getWaveformData(analyser: AnalyserNode | null): Uint8Array | null {

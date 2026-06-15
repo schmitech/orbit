@@ -2,8 +2,6 @@
 
 Minimal browser client for the **`open-ai-real-time-voice-chat`** adapter: microphone → ORBIT WebSocket → [OpenAI Realtime API](https://developers.openai.com/api/docs/guides/realtime).
 
-This mirrors **`clients/personaplex-voice`**, but:
-
 - Uses **PCM16 mono 24 kHz** base64 chunks (OpenAI Realtime wire format), not float32.
 - **API key is optional** if your ORBIT adapter does not require `api_key` on the WebSocket.
 - Default adapter name: **`open-ai-real-time-voice-chat`**.
@@ -40,7 +38,7 @@ Or: `chmod +x run.sh && ./run.sh`
 
 ## Protocol
 
-Same ORBIT JSON messages as `real-time-voice-chat` / PersonaPlex voice UI:
+ORBIT JSON messages used by this client:
 
 - **Client → server:** `audio_chunk` (base64 **PCM16 LE**), `ping`, `interrupt`
 - **Server → client:** `connected`, `audio_chunk` (PCM16), `transcription`, `assistant_transcript_delta`, `done`, `error`, `pong`
