@@ -149,6 +149,27 @@ class SystemPromptResponse(BaseModel):
     updated_at: float  # Unix timestamp
 
 
+class APIError(BaseModel):
+    """Standard error envelope for all API error responses."""
+    code: str       # machine-readable: "SERVICE_UNAVAILABLE", "NOT_FOUND", "VALIDATION_ERROR"
+    message: str    # human-readable description
+    details: Optional[Any] = None
+
+
+class ApiKeyListItem(BaseModel):
+    """A single API key record returned in list and detail endpoints."""
+    id: Optional[str] = None           # canonical id (same value as legacy _id)
+    api_key: str                       # masked: "***xxxx"
+    adapter_name: Optional[str] = None
+    collection_name: Optional[str] = None  # legacy field
+    client_name: Optional[str] = None
+    notes: Optional[str] = None
+    active: bool = True
+    created_at: Optional[float] = None     # Unix timestamp
+    system_prompt_id: Optional[str] = None
+    system_prompt_name: Optional[str] = None
+
+
 class ApiKeyPromptAssociate(BaseModel):
     """API key and system prompt association request model"""
     prompt_id: str

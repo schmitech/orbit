@@ -135,10 +135,7 @@ async def login(
         logger.error(f"Login error details: {type(e).__name__}: {str(e)}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error during login: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @auth_router.get("/me", response_model=UserResponse)
@@ -195,10 +192,7 @@ async def get_current_user_info(
         raise
     except Exception as e:
         logger.error(f"Error getting current user info: {type(e).__name__}: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error while getting user info: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @auth_router.get("/users", response_model=List[UserResponse], dependencies=[Depends(require_admin)])
 async def list_users(
@@ -269,10 +263,7 @@ async def list_users(
         logger.error(f"Error listing users: {type(e).__name__}: {str(e)}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error while listing users: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @auth_router.get("/users/by-username", response_model=UserByUsernameResponse, dependencies=[Depends(require_admin)])
 async def get_user_by_username(
@@ -317,10 +308,7 @@ async def get_user_by_username(
         raise
     except Exception as e:
         logger.error(f"Error getting user by username: {type(e).__name__}: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error while getting user by username: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @auth_router.post("/register", response_model=RegisterResponse)
 async def register_user(

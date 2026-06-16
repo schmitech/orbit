@@ -22,16 +22,12 @@ from models.schema import (
     SkillInfo,
     SkillsResponse,
 )
+from routes.auth_helpers import check_service_availability
 from utils import is_true_value
 
 logger = logging.getLogger(__name__)
 
 discovery_router = APIRouter(prefix="/admin", tags=["discovery"])
-
-
-def _check_service(service, name: str):
-    if service is None:
-        raise HTTPException(status_code=503, detail=f"{name} is not available")
 
 
 # ---------------------------------------------------------------------------
@@ -40,12 +36,12 @@ def _check_service(service, name: str):
 
 async def _get_adapter_info_response(request: Request, x_api_key: str):
     api_key_service = getattr(request.app.state, 'api_key_service', None)
-    _check_service(api_key_service, "API key service")
+    check_service_availability(api_key_service, "API key service")
     adapter_manager = getattr(request.app.state, 'adapter_manager', None)
     return await api_key_service.get_adapter_info(x_api_key, adapter_manager)
 
 
-@discovery_router.get("/api-keys/info")
+@discovery_router.get("/api-keys/info", deprecated=True)
 async def get_adapter_info(
     request: Request,
     x_api_key: str = Header(..., alias="X-API-Key")

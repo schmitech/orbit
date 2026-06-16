@@ -82,6 +82,12 @@ async def require_admin(request: Request) -> Dict[str, Any]:
     return user_info
 
 
+def check_service_availability(service, service_name: str) -> None:
+    """Raise HTTP 503 if a required service is not initialized."""
+    if service is None:
+        raise HTTPException(status_code=503, detail=f"{service_name} is not available")
+
+
 async def authenticate_websocket_admin(websocket: WebSocket) -> bool:
     """Validate admin auth for WebSocket connections."""
     auth_service = getattr(websocket.app.state, 'auth_service', None)

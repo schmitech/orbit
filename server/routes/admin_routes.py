@@ -30,6 +30,7 @@ from config.config_manager import reload_adapters_config
 
 # Import auth dependencies
 from routes.auth_dependencies import check_admin_or_api_key, require_admin
+from routes.auth_helpers import check_service_availability
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -117,13 +118,19 @@ async def _clear_deleted_prompt_associations(request: Request, prompt_id: str) -
         logger.debug("Detached deleted prompt %s from %s API key(s)", prompt_id, cleared)
 
 
-def check_service_availability(service, service_name: str):
-    """Check if a service is available and raise error if not"""
-    if service is None:
-        raise HTTPException(
-            status_code=503, 
-            detail=f"{service_name} is not available"
-        )
+def _serialize_created_at(value) -> Optional[float]:
+    """Normalize a created_at value (datetime or ISO string) to a Unix timestamp float."""
+    if value is None:
+        return None
+    if hasattr(value, 'timestamp'):
+        return value.timestamp()
+    if isinstance(value, str):
+        try:
+            from datetime import datetime as _dt
+            return _dt.fromisoformat(value.replace('Z', '+00:00')).timestamp()
+        except Exception:
+            return None
+    return value
 
 
 def _tail_file(path: Path, n: int) -> list:
@@ -313,34 +320,18 @@ async def list_api_keys(
         # Convert documents to JSON-serializable format
         serialized_keys = []
         for key in api_keys:
-            # _id is already a string from the database service
+            record_id = str(key["_id"]) if key.get("_id") else None
             key_dict = {
-                "_id": str(key["_id"]) if key.get("_id") else None,
+                "_id": record_id,   # legacy — admin_panel.js depends on this
+                "id": record_id,    # canonical
                 "api_key": f"***{key['api_key'][-4:]}" if key.get("api_key") else "***",
                 "adapter_name": key.get("adapter_name"),
-                "collection_name": key.get("collection_name"),  # Legacy support
+                "collection_name": key.get("collection_name"),  # legacy
                 "client_name": key.get("client_name"),
                 "notes": key.get("notes"),
                 "active": key.get("active", True),
-                "created_at": None
+                "created_at": _serialize_created_at(key.get("created_at")),
             }
-
-            # Handle created_at timestamp (could be datetime object or ISO string from SQLite)
-            created_at = key.get("created_at")
-            if created_at:
-                if hasattr(created_at, 'timestamp'):
-                    # It's a datetime object (MongoDB)
-                    key_dict["created_at"] = created_at.timestamp()
-                elif isinstance(created_at, str):
-                    # It's an ISO string (SQLite) - parse and convert to timestamp
-                    from datetime import datetime
-                    try:
-                        dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                        key_dict["created_at"] = dt.timestamp()
-                    except Exception:
-                        key_dict["created_at"] = None
-                else:
-                    key_dict["created_at"] = created_at
 
             # Handle system_prompt_id if it exists
             if key.get("system_prompt_id"):
@@ -354,7 +345,7 @@ async def list_api_keys(
         
     except Exception as e:
         logger.error(f"Error listing API keys: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to list API keys: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to list API keys")
 
 
 @admin_router.get("/api-keys/{api_key_id}/detail", dependencies=[Depends(admin_auth_check)])
@@ -378,29 +369,18 @@ async def get_api_key_detail(
         if not key:
             raise HTTPException(status_code=404, detail="API key not found")
 
+        record_id = str(key["_id"]) if key.get("_id") else None
         key_dict = {
-            "_id": str(key["_id"]) if key.get("_id") else None,
+            "_id": record_id,   # legacy — admin_panel.js depends on this
+            "id": record_id,    # canonical
             "api_key": key.get("api_key"),
             "adapter_name": key.get("adapter_name"),
             "collection_name": key.get("collection_name"),
             "client_name": key.get("client_name"),
             "notes": key.get("notes"),
             "active": key.get("active", True),
-            "created_at": None,
+            "created_at": _serialize_created_at(key.get("created_at")),
         }
-
-        created_at = key.get("created_at")
-        if created_at:
-            if hasattr(created_at, 'timestamp'):
-                key_dict["created_at"] = created_at.timestamp()
-            elif isinstance(created_at, str):
-                try:
-                    dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                    key_dict["created_at"] = dt.timestamp()
-                except Exception:
-                    key_dict["created_at"] = None
-            else:
-                key_dict["created_at"] = created_at
 
         if key.get("system_prompt_id"):
             prompt_id = str(key["system_prompt_id"])
@@ -419,7 +399,7 @@ async def get_api_key_detail(
         raise
     except Exception as e:
         logger.error(f"Error retrieving API key detail for {api_key_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve API key detail: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve API key detail")
 
 
 @admin_router.get("/api-keys/{api_key_id}/status", dependencies=[Depends(admin_auth_check)])
@@ -560,7 +540,7 @@ async def get_adapter_capabilities(
         return {"adapters": capabilities}
     except Exception as e:
         logger.error(f"Failed to get adapter capabilities: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to get adapter capabilities: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get adapter capabilities")
 
 
 # ---------------------------------------------------------------------------
@@ -1100,7 +1080,7 @@ async def get_quota_usage_report(
 
     except Exception as e:
         logger.error(f"Error generating quota usage report: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate usage report: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate usage report")
 
 
 # System Prompts Management Routes
@@ -1373,22 +1353,13 @@ async def reload_adapters(
 
     except FileNotFoundError as e:
         logger.error(f"Config file not found: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Config file not found: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="Config file not found")
     except ValueError as e:
         logger.error(f"Adapter reload error: {str(e)}")
-        raise HTTPException(
-            status_code=404,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error during adapter reload: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to reload adapters: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="Failed to reload adapters")
 
 
 @admin_router.post("/reload-adapters/async", dependencies=[Depends(admin_auth_check)])
@@ -1493,16 +1464,10 @@ async def reload_templates(
 
     except ValueError as e:
         logger.error(f"Template reload error: {str(e)}")
-        raise HTTPException(
-            status_code=404,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error during template reload: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to reload templates: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="Failed to reload templates")
 
 
 @admin_router.post("/reload-templates/async", dependencies=[Depends(admin_auth_check)])
@@ -1589,7 +1554,7 @@ async def test_adapter_query(
         return result
     except Exception as e:
         logger.error(f"Template test-query failed for '{adapter_name}': {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Test query failed: {e}")
+        raise HTTPException(status_code=500, detail="Test query failed")
 
 
 @admin_router.get("/jobs/{job_id}", dependencies=[Depends(admin_auth_check)])
