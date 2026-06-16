@@ -42,12 +42,16 @@ Many organizations need to connect AI to their business data without:
 
 **ORBIT** provides an AI gateway and retrieval-adapter layer. Run it completely on your own hardware to deploy secure, private RAG engines, connect databases, spin up MCP tool-calling loops, and configure production safety guardrails.
 
+---
+
+## 🏗️ Architecture Overview
+
+ORBIT acts as a router and orchestration layer sitting directly between your applications, your local or hosted AI models, and your internal data repositories:
+
 <div align="center">
   <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/5e3bfafe-c182-4237-991c-8d2e3d5fe5d7" alt="ORBIT Logo" width="800"/>
+    <img src="https://github.com/user-attachments/assets/da7b5f98-189b-4a71-8bff-9de2c27d5f3f" alt="ORBIT Logo" width="800"/>
   </a>
-  <br />
-  <em>Inference segregation based on data classification, giving you the flexibility to dynamicaly route workloads across local, private, or public models.</em>
 </div>
 
 ---
@@ -129,18 +133,6 @@ Open your browser and navigate to **[http://localhost:3000/admin](http://localho
 * **Password:** `admin123`
 
 The dashboard allows you to monitor API metrics, system latency, active sessions, and verify configured adapter states in real-time.
-
----
-
-## 🏗️ Architecture Overview
-
-ORBIT acts as a router and orchestration layer sitting directly between your applications, your local or hosted AI models, and your internal data repositories:
-
-<div align="center">
-  <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/84063347-7561-436b-927a-d68587378579" alt="ORBIT Logo" width="800"/>
-  </a>
-</div>
 
 ---
 
@@ -242,6 +234,14 @@ Expand the sections below to see ORBIT in action across different deployment sce
 | **Limited RAG** | Vector search over standard text chunks only. No connection to live relational data. | **Universal Context:** Structured SQL/NoSQL retrievers, JSON REST API scraping, GraphQL queries, and vector store hybrid searches. |
 | **Data Privacy** | Sensitive internal data processed and sent through public APIs by default. | **Self-Hosted Control:** Run 100% offline with local Ollama/llama.cpp instances, local embeddings, RBAC, and secure logging. |
 | **Cascading Failures** | Slow or offline third-party APIs cause global application downtime. | **Production Resilience:** Integrated circuit breakers, fallback model routing, request queuing, and rate limits. |
+
+<div align="center">
+  <a href="https://github.com/schmitech/orbit">
+    <img src="https://github.com/user-attachments/assets/5e3bfafe-c182-4237-991c-8d2e3d5fe5d7" alt="ORBIT Logo" width="800"/>
+  </a>
+  <br />
+  <em>Inference segregation based on data classification, giving you the flexibility to dynamicaly route workloads across local, private, or public models.</em>
+</div>
 
 ---
 
