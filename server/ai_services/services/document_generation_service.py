@@ -24,6 +24,7 @@ Spec schema expected from the LLM:
 
 import io
 import logging
+import unicodedata
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,47 @@ class DocumentRenderer:
     # Shared helpers
     # ------------------------------------------------------------------
 
+    # Characters that LLMs routinely emit but that fall outside Helvetica's
+    # WinAnsi glyph set, causing ReportLab to render them as black boxes (■).
+    _PDF_CHAR_MAP = str.maketrans({
+        '–': '-',    # en dash
+        '—': '-',    # em dash
+        '―': '-',    # horizontal bar
+        '‘': "'",    # left single quotation mark
+        '’': "'",    # right single quotation mark
+        '‚': ',',    # single low-9 quotation mark
+        '“': '"',    # left double quotation mark
+        '”': '"',    # right double quotation mark
+        '„': '"',    # double low-9 quotation mark
+        '…': '...', # horizontal ellipsis
+        ' ': ' ',   # non-breaking space
+        '­': '',    # soft hyphen (invisible control character)
+        '•': '*',   # bullet (we add our own prefix; bare bullets outside that path)
+        '−': '-',   # minus sign
+        '×': 'x',   # multiplication sign
+        '÷': '/',   # division sign
+    })
+
+    @staticmethod
+    def _sanitize_pdf_text(text: str) -> str:
+        """Sanitize text for ReportLab's WinAnsi-encoded Type 1 fonts (Helvetica etc.).
+
+        Replaces known problematic Unicode characters with ASCII equivalents, then
+        strips any remaining characters above U+00FF that lack a glyph in those fonts.
+        Latin-1 (U+0080–U+00FF) characters are preserved as they render correctly.
+        """
+        text = text.translate(DocumentRenderer._PDF_CHAR_MAP)
+        result = []
+        for ch in text:
+            if ord(ch) <= 0x00FF:
+                result.append(ch)
+            else:
+                # Best-effort: decompose to base ASCII letter (e.g. ü → u)
+                normalized = unicodedata.normalize('NFKD', ch)
+                ascii_part = normalized.encode('ascii', 'ignore').decode('ascii')
+                result.append(ascii_part or '?')
+        return ''.join(result)
+
     def _build_meta_line(self, spec: Dict[str, Any]) -> str:
         """Return the "Author: X  |  Date: Y" meta string for the document header."""
         meta = spec.get("metadata", {})
@@ -146,22 +188,23 @@ class DocumentRenderer:
             bulletIndent=self._get('pdf', 'typography', 'bullet_marker_indent', default=10),
         )
 
+        s = self._sanitize_pdf_text
         story = []
-        story.append(Paragraph(spec.get("title", "Document"), title_style))
+        story.append(Paragraph(s(spec.get("title", "Document")), title_style))
 
         meta_line = self._build_meta_line(spec)
         if meta_line:
-            story.append(Paragraph(meta_line, styles["Italic"]))
+            story.append(Paragraph(s(meta_line), styles["Italic"]))
         story.append(Spacer(1, 0.5 * cm))
 
         for section in spec.get("sections", []):
             if section.get("heading"):
-                story.append(Paragraph(section["heading"], h1_style))
+                story.append(Paragraph(s(section["heading"]), h1_style))
             if section.get("body"):
-                story.append(Paragraph(section["body"], styles["BodyText"]))
+                story.append(Paragraph(s(section["body"]), styles["BodyText"]))
                 story.append(Spacer(1, 0.3 * cm))
             for point in section.get("bullet_points") or []:
-                story.append(Paragraph(f"• {point}", bullet_style))
+                story.append(Paragraph(f"• {s(point)}", bullet_style))
             if section.get("bullet_points"):
                 story.append(Spacer(1, 0.3 * cm))
             table_data = section.get("table")
@@ -240,7 +283,7 @@ class DocumentRenderer:
         )
         wrapped_rows = [
             [
-                Paragraph(str(cell), header_style if row_idx == 0 else body_style)
+                Paragraph(self._sanitize_pdf_text(str(cell)), header_style if row_idx == 0 else body_style)
                 for cell in row
             ]
             for row_idx, row in enumerate(normalized_rows)
