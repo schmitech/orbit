@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { Download, ExternalLink, FileSpreadsheet, FileText, Presentation, X } from 'lucide-react';
+import { Download, ExternalLink, FileCode, FileSpreadsheet, FileText, Presentation, X } from 'lucide-react';
 import { getAccessToken } from '../auth/tokenStore';
 import { getUserIdHeaderValue } from '../auth/userId';
+import { MarkdownRenderer } from './markdown/MarkdownRenderer';
 
 interface DocumentDisplayProps {
   document?: string;
@@ -18,6 +19,8 @@ const MIME_TYPES: Record<string, string> = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  md: 'text/markdown',
+  csv: 'text/csv',
 };
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -25,6 +28,8 @@ const FORMAT_LABELS: Record<string, string> = {
   docx: 'Word document',
   xlsx: 'Excel workbook',
   pptx: 'PowerPoint deck',
+  md: 'Markdown document',
+  csv: 'CSV file',
 };
 
 function normalizeFormat(format?: string): string {
@@ -42,8 +47,9 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 function getDocumentIcon(format: string) {
-  if (format === 'xlsx') return <FileSpreadsheet className="h-5 w-5" />;
+  if (format === 'xlsx' || format === 'csv') return <FileSpreadsheet className="h-5 w-5" />;
   if (format === 'pptx') return <Presentation className="h-5 w-5" />;
+  if (format === 'md') return <FileCode className="h-5 w-5" />;
   return <FileText className="h-5 w-5" />;
 }
 
@@ -60,6 +66,9 @@ export function DocumentDisplay({
   const [arrayBuffer, setArrayBuffer] = useState<ArrayBuffer | null>(null);
   const [xlsxRows, setXlsxRows] = useState<string[][]>([]);
   const [xlsxSheetName, setXlsxSheetName] = useState<string>('');
+  const [mdContent, setMdContent] = useState<string | null>(null);
+  const [csvRows, setCsvRows] = useState<string[][]>([]);
+  const [csvTotalRows, setCsvTotalRows] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
@@ -82,6 +91,9 @@ export function DocumentDisplay({
       setErrorMessage(null);
       setXlsxRows([]);
       setXlsxSheetName('');
+      setMdContent(null);
+      setCsvRows([]);
+      setCsvTotalRows(0);
 
       try {
         const bytes = document
@@ -135,6 +147,18 @@ export function DocumentDisplay({
               .slice(0, 100)
               .map(row => row.slice(0, 30).map(cell => cell === null || cell === undefined ? '' : String(cell)))
           );
+        }
+
+        if (format === 'md') {
+          setMdContent(new TextDecoder('utf-8').decode(bytes));
+        }
+
+        if (format === 'csv') {
+          const text = new TextDecoder('utf-8').decode(bytes);
+          const { default: Papa } = await import('papaparse');
+          const result = Papa.parse<string[]>(text, { skipEmptyLines: true });
+          setCsvTotalRows(result.data.length);
+          setCsvRows(result.data.slice(0, 25));
         }
 
         setStatus('ready');
@@ -210,8 +234,8 @@ export function DocumentDisplay({
     a.click();
   };
 
-  const canPreviewInline = status === 'ready' && (format === 'pdf' || format === 'docx' || format === 'xlsx');
-  const canOpenFullPreview = canPreviewInline && format !== 'xlsx';
+  const canPreviewInline = status === 'ready' && (format === 'pdf' || format === 'docx' || format === 'xlsx' || format === 'md' || format === 'csv');
+  const canOpenFullPreview = canPreviewInline && format !== 'xlsx' && format !== 'csv';
 
   if (status === 'idle') return null;
 
@@ -294,6 +318,39 @@ export function DocumentDisplay({
                 </div>
               </div>
             )}
+            {format === 'md' && mdContent !== null && (
+              <div className="bg-white p-5 text-sm text-[#111827] dark:bg-[#171717] dark:text-[#ececf1]">
+                <MarkdownRenderer content={mdContent} disableMath />
+              </div>
+            )}
+            {format === 'csv' && (
+              <div className="p-3">
+                {csvTotalRows > 25 && (
+                  <p className="mb-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
+                    Showing first 25 of {csvTotalRows} rows — download for the full file.
+                  </p>
+                )}
+                <div className="overflow-auto rounded-md border border-gray-200 bg-white dark:border-[#3b3c49] dark:bg-[#202123]">
+                  <table className="min-w-full border-collapse text-left text-xs">
+                    <tbody>
+                      {csvRows.length > 0 ? csvRows.map((row, rowIndex) => (
+                        <tr key={rowIndex} className={rowIndex === 0 ? 'bg-gray-50 font-medium dark:bg-white/5' : undefined}>
+                          {row.map((cell, cellIndex) => (
+                            <td key={cellIndex} className="max-w-[220px] truncate border-b border-r border-gray-100 px-2 py-1.5 text-[#353740] dark:border-[#3b3c49] dark:text-[#ececf1]">
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      )) : (
+                        <tr>
+                          <td className="px-3 py-4 text-sm text-gray-500 dark:text-[#bfc2cd]">No data found.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -326,6 +383,11 @@ export function DocumentDisplay({
             )}
             {format === 'docx' && (
               <div ref={modalDocxContainerRef} className="min-h-full bg-white p-8 text-[#111827]" />
+            )}
+            {format === 'md' && mdContent !== null && (
+              <div className="min-h-full bg-white p-8 text-sm text-[#111827]">
+                <MarkdownRenderer content={mdContent} disableMath />
+              </div>
             )}
           </div>
         </div>

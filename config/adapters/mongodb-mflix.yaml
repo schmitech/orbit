@@ -34,6 +34,13 @@ adapters:
         provider: "gemini"
         model: "gemini-3.1-pro-preview"
     capabilities:
+      available_skills:
+        - "Image"
+        - "PDF"
+        - "Word"
+        - "Excel"
+        - "Fetch"
+        - "web-search"
       retrieval_behavior: "always"
       formatting_style: "standard"
       supports_file_ids: false

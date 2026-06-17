@@ -17,7 +17,7 @@ adapters:
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
     allowed_models:
-      - name: "deepseek"
+      - name: "deepseek-chat"
         provider: "deepseek"
         model: "deepseek-chat"
       - name: "cohere-command-a"
@@ -50,6 +50,8 @@ adapters:
       available_skills:
         - "Image"
         - "Video"
+        - "CSV"
+        - "Markdown"
         - "PDF"
         - "Word"
         - "Excel"

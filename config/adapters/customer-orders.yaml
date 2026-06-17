@@ -17,6 +17,22 @@ adapters:
 
     # Capabilities: Standard intent retriever
     # Note: Intent adapters use the same capabilities as QA adapters (always retrieve, standard formatting)
+    allowed_models:
+      - name: "llama-cpp-gemma4"
+        provider: "llama_cpp"
+        model: "gemma4-e2b-direct-cpu"
+      - name: "ollama-gemma4-e2b"
+        provider: "ollama"
+        model: "gemma4-e2b-cpu"
+      - name: "ollama-gpt-oss-120b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:120b"
+      - name: "claude-sonnet-4-5"
+        provider: "anthropic"
+        model: "claude-sonnet-4-5-20250929"
+      - name: "gemini-3.1-pro-preview"
+        provider: "gemini"
+        model: "gemini-3.1-pro-preview"
     capabilities:
       expose_as_skill: true
       skill_name: "customer-orders"

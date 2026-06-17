@@ -313,6 +313,13 @@ class DocumentGenerationStep(PipelineStep):
                 'Never put tabular data in "body" text. Numeric cell values must be plain numbers.'
             ),
             'pptx': 'a presentation where each section becomes a slide with a title and bullet points',
+            'md': 'a Markdown document with headings, paragraphs, bullet lists, and pipe tables',
+            'csv': (
+                'a CSV export where every section with structured data uses the "table" key '
+                '(a 2-D array, first row = column headers). '
+                'Only include tabular data — omit "body" and "bullet_points". '
+                'Numeric cell values must be plain numbers.'
+            ),
         }
         hint = format_hints.get(fmt, 'a structured document')
         today = date.today().isoformat()

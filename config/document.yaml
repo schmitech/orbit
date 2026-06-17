@@ -103,6 +103,6 @@ document_generation:
       enabled: true
       max_retries: 2
   llm:
-    max_tokens: 2000        # Token budget for the spec-generation LLM call
+    max_tokens: 4000        # Token budget for the spec-generation LLM call
     temperature: 0.3        # Low temperature → deterministic, structured output
     history_limit: 6        # Max conversation turns included in the spec prompt
