@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square" alt="License"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-blue.svg?style=flat-square&logo=python&logoColor=white" alt="Python"></a>
-  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.7.4-blue?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.7.5-blue?style=flat-square" alt="Version"></a>
   <a href="https://github.com/schmitech/orbit/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs Welcome"></a>
 
 </p>
@@ -165,8 +165,8 @@ ORBIT supports two main deployment methods:
 To install ORBIT directly into your local Python environment:
 
 ```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.4/orbit-2.7.4.tar.gz
-tar -xzf orbit-2.7.4.tar.gz && cd orbit-2.7.4
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.5/orbit-2.7.5.tar.gz
+tar -xzf orbit-2.7.5.tar.gz && cd orbit-2.7.5
 cp env.example .env
 ./install/setup.sh
 ./bin/orbit.sh start

@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.7.5] - 2026-06-17
+
+### Core System Updates
+- **Adapter Contract**: Standardized adapter filtering compatibility on the base class, fixed skipped base initializers, removed name-based capability inference, and isolated the global adapter registry in tests.
+- **API Contract**: Hardened admin and auth routes to stop leaking internal exception messages, added typed API contracts, and consolidated serialization helpers.
+- **Model Routing**: Updated image generation to branch Gemini multimodal models through `generate_content()` while preserving Imagen `generate_images()` support.
+
+### Bug Fixes & Technical Improvements
+- **PDF Rendering**: Sanitized Unicode characters before ReportLab output to prevent black-box glyphs in generated PDFs.
+- **Refactoring**: Cleaned up file organization and applied minor internal refactors.
+
+### Documentation & Configuration
+- **Diagrams & Badges**: Updated architecture diagrams and replaced broken GitHub badges with static alternatives.
+- **Cleanup**: Removed the personaplex integration and refreshed related project files.
+
 ## [2.7.4] - 2026-06-14
 
 ### Core System Updates
