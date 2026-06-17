@@ -6,6 +6,10 @@
 - **Adapter Contract**: Standardized adapter filtering compatibility on the base class, fixed skipped base initializers, removed name-based capability inference, and isolated the global adapter registry in tests.
 - **API Contract**: Hardened admin and auth routes to stop leaking internal exception messages, added typed API contracts, and consolidated serialization helpers.
 - **Model Routing**: Updated image generation to branch Gemini multimodal models through `generate_content()` while preserving Imagen `generate_images()` support.
+- **Document Renderer Refactor**: Split the monolithic `document_generation_service.py` into a per-format package (`base.py`, `pdf.py`, `docx.py`, `xlsx.py`, `pptx.py`, `renderer.py`) with a thin `DocumentRenderer` dispatcher; zero changes to existing import sites.
+- **Markdown Document Generation**: Added `MarkdownRenderer` producing UTF-8 `.md` output with GFM pipe tables, section headings, and bullet lists; registered `md` MIME type and format hint for the spec-generation LLM prompt.
+- **CSV Document Generation**: Added `CSVRenderer` using the stdlib `csv` module (no new server dependency); multi-section files separate blocks with a heading row; registered `csv` MIME type and format hint.
+- **New Adapters**: Added `markdown-generator` and `csv-generator` adapter configs and registered both in `adapters.yaml`.
 
 ### Audio & STT
 - **Whisper Service**: Run `model.transcribe()` in a `ThreadPoolExecutor` so the synchronous CPU/GPU call no longer blocks the async event loop; use the `mime_type` kwarg to derive the correct temp-file extension (e.g. `.mp3` for `audio/mpeg`) so FFmpeg picks the right demuxer; guard `torch.cuda.empty_cache()` behind `WHISPER_AVAILABLE`; shut down executor on `close()`.
@@ -18,6 +22,10 @@
 
 ### Testing
 - **Whisper Tests**: Added `test_close_shuts_down_executor`, `test_speech_to_text_uses_mime_type_extension`, and `test_speech_to_text_raises_if_model_not_loaded`; extended `test_service_initialization` to assert `_executor` is set.
+
+### Chat-app & UI Improvements
+- **Document Previews**: Extended `DocumentDisplay` with inline preview and download support for Markdown (rendered via the existing `MarkdownRenderer` component) and CSV (parsed with papaparse, capped at 25 rows with a truncation notice when the file contains more); added `FileCode` icon for Markdown and reused `FileSpreadsheet` for CSV; Markdown also supports the full-screen modal preview.
+- **Dependencies**: Added `papaparse ^5.5.3` and `@types/papaparse` to orbitchat for CSV parsing.
 
 ### Documentation & Configuration
 - **Diagrams & Badges**: Updated architecture diagrams and replaced broken GitHub badges with static alternatives.
