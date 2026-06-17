@@ -42,3 +42,12 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "integration" in item.keywords:
             item.add_marker(skip_integration)
+
+
+@pytest.fixture(autouse=True)
+def reset_adapter_registry():
+    from adapters.registry import ADAPTER_REGISTRY
+
+    ADAPTER_REGISTRY.reset()
+    yield
+    ADAPTER_REGISTRY.reset()

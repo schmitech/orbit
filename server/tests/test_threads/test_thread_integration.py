@@ -324,20 +324,17 @@ async def test_thread_isolation(integrated_services):
 async def test_adapter_capability_detection():
     """Test adapter capability detection for threading support"""
 
-    # Intent adapters should support threading
-    intent_caps = AdapterCapabilities.for_standard_retriever("intent-customer-support")
+    # Explicit capability flags determine threading behavior
+    intent_caps = AdapterCapabilities.for_standard_retriever(supports_threading=True)
     assert intent_caps.supports_threading is True
 
-    # QA adapters should support threading
-    qa_caps = AdapterCapabilities.for_standard_retriever("qa-knowledge-base")
+    qa_caps = AdapterCapabilities.for_standard_retriever(supports_threading=True)
     assert qa_caps.supports_threading is True
 
-    # Conversational adapters should NOT support threading
-    conv_caps = AdapterCapabilities.for_standard_retriever("conversational-chat")
+    conv_caps = AdapterCapabilities.for_standard_retriever()
     assert conv_caps.supports_threading is False
 
-    # Multimodal adapters should NOT support threading
-    multi_caps = AdapterCapabilities.for_standard_retriever("multimodal-vision")
+    multi_caps = AdapterCapabilities.for_standard_retriever()
     assert multi_caps.supports_threading is False
 
 

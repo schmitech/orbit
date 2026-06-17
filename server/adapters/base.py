@@ -75,3 +75,14 @@ class DocumentAdapter(ABC):
             Filtered and/or reranked context items
         """
         pass
+
+    def apply_domain_filtering(self,
+                               context_items: List[Dict[str, Any]],
+                               query: str) -> List[Dict[str, Any]]:
+        """
+        Compatibility method for retrievers that use the shorter method name.
+
+        Adapters should implement apply_domain_specific_filtering; this method
+        keeps the public adapter interface consistent for existing callers.
+        """
+        return self.apply_domain_specific_filtering(context_items, query)

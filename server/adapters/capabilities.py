@@ -161,29 +161,20 @@ class AdapterCapabilities:
         )
 
     @classmethod
-    def for_standard_retriever(cls, adapter_name: Optional[str] = None) -> 'AdapterCapabilities':
+    def for_standard_retriever(
+        cls,
+        adapter_name: Optional[str] = None,
+        supports_threading: bool = False,
+        supports_autocomplete: bool = False,
+    ) -> 'AdapterCapabilities':
         """
         Create capabilities for standard retriever adapters (QA, Intent, etc.).
 
         Args:
-            adapter_name: Optional adapter name to determine threading/autocomplete support
+            adapter_name: Deprecated; retained for backward-compatible callers.
+            supports_threading: Whether this retriever supports conversation threading.
+            supports_autocomplete: Whether this retriever provides autocomplete suggestions.
         """
-        # Check if adapter supports threading (intent or QA adapters)
-        supports_threading = False
-        supports_autocomplete = False
-        if adapter_name:
-            is_intent_or_qa = (
-                adapter_name.startswith('intent-') or
-                adapter_name.startswith('qa-') or
-                'qa' in adapter_name.lower()
-            ) and not (
-                'conversational' in adapter_name.lower() or
-                'multimodal' in adapter_name.lower()
-            )
-            supports_threading = is_intent_or_qa
-            # Intent adapters with templates support autocomplete
-            supports_autocomplete = adapter_name.startswith('intent-') or adapter_name.startswith('composite-')
-
         return cls(
             retrieval_behavior=RetrievalBehavior.ALWAYS,
             formatting_style=FormattingStyle.STANDARD,
@@ -211,7 +202,7 @@ class AdapterCapabilities:
             return True
 
         # CONDITIONAL: retrieve unless files are required but absent
-        if self.skip_when_no_files and not context.file_ids:
+        if self.skip_when_no_files and not getattr(context, 'file_ids', None):
             return False
         return True
 
@@ -228,16 +219,19 @@ class AdapterCapabilities:
         kwargs = {}
 
         # Add file_ids if supported and present
-        if self.supports_file_ids and context.file_ids:
-            kwargs['file_ids'] = context.file_ids
+        file_ids = getattr(context, 'file_ids', None)
+        if self.supports_file_ids and file_ids:
+            kwargs['file_ids'] = file_ids
 
         # Add api_key if needed for validation
-        if self.requires_api_key_validation and context.api_key:
-            kwargs['api_key'] = context.api_key
+        api_key = getattr(context, 'api_key', None)
+        if self.requires_api_key_validation and api_key:
+            kwargs['api_key'] = api_key
 
         # Add session_id if supported
-        if self.supports_session_tracking and context.session_id:
-            kwargs['session_id'] = context.session_id
+        session_id = getattr(context, 'session_id', None)
+        if self.supports_session_tracking and session_id:
+            kwargs['session_id'] = session_id
 
         # Add detected_language if language filtering is supported
         if self.supports_language_filtering:

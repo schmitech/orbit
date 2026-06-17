@@ -21,6 +21,10 @@ class AdapterRegistry:
         # Dictionary mapping adapter types to datasources to implementations
         # Structure: {adapter_type: {datasource: {adapter_name: {implementation, factory_func, config}}}}
         self._registry = {}
+
+    def reset(self):
+        """Clear all registered adapters."""
+        self._registry.clear()
         
     def register(self, 
                 adapter_type: str, 

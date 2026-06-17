@@ -6,6 +6,7 @@ Base class for template-driven adapters (HttpAdapter, IntentAdapter, Elasticsear
 
 import yaml
 import logging
+import json
 from typing import Dict, Any, List, Optional, Union
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ from adapters.base import DocumentAdapter
 from adapters.factory import DocumentAdapterFactory
 
 logger = logging.getLogger(__name__)
+MAX_FORMATTED_VALUE_LENGTH = 500
 
 # Register with the factory
 DocumentAdapterFactory.register_adapter("http", lambda **kwargs: HttpAdapter(**kwargs))
@@ -48,8 +50,8 @@ class HttpAdapter(DocumentAdapter):
             config: Optional configuration dictionary
             **kwargs: Additional keyword arguments
         """
+        super().__init__(config=config, **_kwargs)
         self.confidence_threshold = confidence_threshold
-        self.config = config or {}
         self.base_url = base_url
         self.auth_config = auth_config or {}
 
@@ -262,8 +264,20 @@ class HttpAdapter(DocumentAdapter):
             if value is not None:
                 # Format the key to be more readable
                 formatted_key = key.replace('_', ' ').title()
-                lines.append(f"{formatted_key}: {value}")
+                lines.append(f"{formatted_key}: {self._format_result_value(value)}")
         return '\n'.join(lines)
+
+    def _format_result_value(self, value: Any) -> str:
+        """Format external API values without allowing unbounded context growth."""
+        if isinstance(value, (dict, list)):
+            formatted = json.dumps(value, ensure_ascii=True, default=str)
+        else:
+            formatted = str(value)
+
+        formatted = ''.join(char if char in '\n\t' or char >= ' ' else ' ' for char in formatted)
+        if len(formatted) > MAX_FORMATTED_VALUE_LENGTH:
+            return formatted[:MAX_FORMATTED_VALUE_LENGTH - 3] + "..."
+        return formatted
 
     def _format_multiple_results(self, results: List[Dict[str, Any]]) -> str:
         """Format multiple results into readable text."""
@@ -312,7 +326,7 @@ class HttpAdapter(DocumentAdapter):
 
         Args:
             context_items: List of context items to filter
-            query: The original user query
+            _query: The original user query
 
         Returns:
             Filtered list of context items
@@ -327,12 +341,6 @@ class HttpAdapter(DocumentAdapter):
         filtered.sort(key=lambda x: x.get("confidence", 0), reverse=True)
 
         return filtered
-
-    def apply_domain_filtering(self, context_items: List[Dict[str, Any]], query: str) -> List[Dict[str, Any]]:
-        """
-        Compatibility method to match retriever's expected interface.
-        """
-        return self.apply_domain_specific_filtering(context_items, query)
 
     async def initialize_embeddings(self, store_manager=None):
         """

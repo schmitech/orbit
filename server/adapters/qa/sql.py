@@ -9,11 +9,11 @@ from adapters.factory import DocumentAdapterFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)
-logger.info("LOADING QASQLAdapter MODULE")
+logger.debug("Loading QASQLAdapter module")
 
 # Register with the factory as both "sql_qa" and the default "qa"
 DocumentAdapterFactory.register_adapter("sql_qa", lambda **kwargs: QASQLAdapter(**kwargs))
-logger.info("Registered QASQLAdapter as 'sql_qa'")
+logger.debug("Registered QASQLAdapter as 'sql_qa'")
 
 class QASQLAdapter(DocumentAdapter):
     """Generic adapter for question-answer pairs in SQL databases"""
@@ -27,9 +27,9 @@ class QASQLAdapter(DocumentAdapter):
             config: Optional configuration dictionary
             **kwargs: Additional keyword arguments
         """
+        super().__init__(config=config, **kwargs)
         self.confidence_threshold = confidence_threshold
-        self.config = config or {}
-        logger.info(f"QASQLAdapter INITIALIZED with confidence_threshold={confidence_threshold}")
+        logger.debug(f"QASQLAdapter initialized with confidence_threshold={confidence_threshold}")
     
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -100,8 +100,3 @@ class QASQLAdapter(DocumentAdapter):
             if item.get("confidence", 0) >= self.confidence_threshold
         ]
         
-    def apply_domain_filtering(self, context_items: List[Dict[str, Any]], query: str) -> List[Dict[str, Any]]:
-        """
-        Compatibility method to match SQLRetriever's expected interface.
-        """
-        return self.apply_domain_specific_filtering(context_items, query) 

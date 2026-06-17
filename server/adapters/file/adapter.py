@@ -38,29 +38,18 @@ class FileAdapter(DocumentAdapter):
                 return root_dict[key]
             return default
         
-        self.confidence_threshold = get_config_value('confidence_threshold', 0.5, adapter_config, self.config)
+        self.confidence_threshold = get_config_value('confidence_threshold', kwargs.get('confidence_threshold', 0.5), adapter_config, self.config)
         self.preserve_file_structure = get_config_value('preserve_file_structure', True, adapter_config, self.config)
         self.extract_metadata = get_config_value('extract_metadata', True, adapter_config, self.config)
         self.max_summary_length = get_config_value('max_summary_length', 200, adapter_config, self.config)
         
         # Vision settings - check files.processing.vision first, then adapter_config, then root config
-        if 'enabled' in vision_config:
-            self.enable_vision = vision_config['enabled']
-        elif 'enable_vision' in adapter_config:
-            self.enable_vision = adapter_config['enable_vision']
-        elif 'enable_vision' in self.config:
-            self.enable_vision = self.config['enable_vision']
-        else:
-            self.enable_vision = True
-            
-        if 'provider' in vision_config:
-            self.vision_provider = vision_config['provider']
-        elif 'vision_provider' in adapter_config:
-            self.vision_provider = adapter_config['vision_provider']
-        elif 'vision_provider' in self.config:
-            self.vision_provider = self.config['vision_provider']
-        else:
-            self.vision_provider = 'openai'
+        self.enable_vision = vision_config.get(
+            'enabled', adapter_config.get('enable_vision', self.config.get('enable_vision', True))
+        )
+        self.vision_provider = vision_config.get(
+            'provider', adapter_config.get('vision_provider', self.config.get('vision_provider', 'openai'))
+        )
         
         logger.debug(f"Initialized File Adapter with confidence_threshold: {self.confidence_threshold}")
     
@@ -158,9 +147,12 @@ class FileAdapter(DocumentAdapter):
         if not context_items:
             return []
         
-        # Apply basic filtering
-        filtered_items = [item for item in context_items 
-                         if item.get("confidence", 0) >= self.confidence_threshold]
+        # Apply basic filtering without mutating caller-owned context dictionaries.
+        filtered_items = [
+            dict(item)
+            for item in context_items
+            if item.get("confidence", 0) >= self.confidence_threshold
+        ]
         
         # File-specific boosts
         for item in filtered_items:
@@ -175,10 +167,6 @@ class FileAdapter(DocumentAdapter):
             filename = item.get('filename', '')
             if any(term.lower() in filename.lower() for term in query.split() if len(term) > 2):
                 confidence_boost += 0.1
-            
-            # Boost recent uploads
-            if 'upload_timestamp' in item:
-                confidence_boost += 0.02  # Small boost for recent files
             
             # Apply boost
             if confidence_boost > 0:

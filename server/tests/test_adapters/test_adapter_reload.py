@@ -563,7 +563,7 @@ class AdapterReloadTester:
                 def change_multiple(config):
                     count = 0
                     for adapter in config.get('adapters', []):
-                        if adapter.get('name') in ['simple-chat', 'simple-chat']:
+                        if adapter.get('name') in ['simple-chat', 'simple-chat-with-files']:
                             if 'config' not in adapter:
                                 adapter['config'] = {}
                             adapter['config']['test_timestamp'] = str(time.time())

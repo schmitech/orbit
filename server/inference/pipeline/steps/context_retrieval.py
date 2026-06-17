@@ -119,8 +119,9 @@ class ContextRetrievalStep(PipelineStep):
         if adapter_impl == 'file' or 'file' in adapter_name.lower():
             return AdapterCapabilities.for_file_adapter()
 
-        # Standard retriever adapters (QA, Intent, etc.)
-        return AdapterCapabilities.for_standard_retriever(adapter_name=adapter_name)
+        # Standard retriever adapters (QA, Intent, etc.). Feature flags should
+        # come from explicit adapter capabilities config when present.
+        return AdapterCapabilities.for_standard_retriever()
 
     def _get_capabilities(self, adapter_name: str) -> Optional[AdapterCapabilities]:
         """

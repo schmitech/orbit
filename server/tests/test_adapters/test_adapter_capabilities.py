@@ -59,6 +59,18 @@ class TestAdapterCapabilities:
         assert capabilities.retrieval_behavior == RetrievalBehavior.ALWAYS
         assert capabilities.formatting_style == FormattingStyle.STANDARD
         assert capabilities.supports_file_ids is False
+        assert capabilities.supports_threading is False
+        assert capabilities.supports_autocomplete is False
+
+    def test_for_standard_retriever_with_explicit_feature_flags(self):
+        """Test standard retriever capabilities with explicit feature flags"""
+        capabilities = AdapterCapabilities.for_standard_retriever(
+            supports_threading=True,
+            supports_autocomplete=True,
+        )
+
+        assert capabilities.supports_threading is True
+        assert capabilities.supports_autocomplete is True
 
     def test_from_config(self):
         """Test creating capabilities from config"""
@@ -119,6 +131,15 @@ class TestAdapterCapabilities:
         context = Mock(file_ids=[])
 
         assert capabilities.should_retrieve(context) is False
+
+    def test_should_retrieve_conditional_without_file_ids_attribute(self):
+        """Test should_retrieve with CONDITIONAL behavior and an untyped context"""
+        capabilities = AdapterCapabilities(
+            retrieval_behavior=RetrievalBehavior.CONDITIONAL,
+            skip_when_no_files=True
+        )
+
+        assert capabilities.should_retrieve(object()) is False
 
     def test_build_retriever_kwargs_minimal(self):
         """Test building retriever kwargs with minimal capabilities"""

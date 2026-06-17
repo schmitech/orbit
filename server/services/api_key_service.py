@@ -460,14 +460,12 @@ class ApiKeyService:
         supports_file_ids = capabilities.get('supports_file_ids', False)
         adapter_info['isFileSupported'] = bool(supports_file_ids)
 
-        # For supportsThreading: honour explicit YAML config; otherwise infer from adapter
-        # name using the same logic as ContextRetrievalStep._infer_capabilities(), so that
-        # intent-* and qa-* adapters suppress the skill picker in the main conversation even
-        # when the YAML doesn't include an explicit supports_threading: true entry.
+        # For supportsThreading, honour explicit YAML config. Legacy adapters without
+        # capabilities default to false instead of inferring behavior from their names.
         if 'supports_threading' in capabilities:
             adapter_info['supportsThreading'] = bool(capabilities['supports_threading'])
         else:
-            inferred = AdapterCapabilities.for_standard_retriever(adapter_name)
+            inferred = AdapterCapabilities.for_standard_retriever()
             adapter_info['supportsThreading'] = inferred.supports_threading
 
         if debug_enabled:

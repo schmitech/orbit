@@ -96,84 +96,28 @@ def register_adapters():
         _create_multimodal_adapter
     )
 
-    ADAPTER_REGISTRY.register(
-        adapter_type="passthrough",
-        datasource="none",
-        adapter_name="multimodal",
-        factory_func=_create_multimodal_adapter,
-        config={}
-    )
-
-    # Also register multimodal adapter for image_generation type so that
-    # adapters with type: image_generation and adapter: multimodal can be loaded.
-    # ImageGenerationStep handles the actual generation; the domain adapter is the same.
-    ADAPTER_REGISTRY.register(
-        adapter_type="image_generation",
-        datasource="none",
-        adapter_name="multimodal",
-        factory_func=_create_multimodal_adapter,
-        config={}
-    )
-
-    # Register multimodal adapter for video_generation type so that
-    # adapters with type: video_generation and adapter: multimodal can be loaded.
-    # VideoGenerationStep handles the actual generation; the domain adapter is the same.
-    ADAPTER_REGISTRY.register(
-        adapter_type="video_generation",
-        datasource="none",
-        adapter_name="multimodal",
-        factory_func=_create_multimodal_adapter,
-        config={}
-    )
-
-    # Register multimodal adapter for document_generation type so that
-    # adapters with type: document_generation and adapter: multimodal can be loaded.
-    # DocumentGenerationStep handles the actual generation; the domain adapter is the same.
-    ADAPTER_REGISTRY.register(
-        adapter_type="document_generation",
-        datasource="none",
-        adapter_name="multimodal",
-        factory_func=_create_multimodal_adapter,
-        config={}
-    )
-
+    # The generation step handles actual work; all these types share the same domain adapter.
+    for _adapter_type in ['passthrough', 'image_generation', 'video_generation', 'document_generation']:
+        ADAPTER_REGISTRY.register(
+            adapter_type=_adapter_type,
+            datasource="none",
+            adapter_name="multimodal",
+            factory_func=_create_multimodal_adapter,
+            config={}
+        )
     logger.info("Registered multimodal passthrough adapter")
 
-    # OpenAI Realtime voice WebSocket: same passthrough stack as voice-chat; Realtime is handled in voice_routes
-    ADAPTER_REGISTRY.register(
-        adapter_type="openai_realtime",
-        datasource="none",
-        adapter_name="conversational",
-        factory_func=_create_conversational_adapter,
-        config={}
-    )
-
-    logger.info("Registered OpenAI Realtime conversational adapter")
-
-    # Register conversational adapter for mcp_agent type so that adapters with
-    # type: mcp_agent and adapter: conversational can be loaded.
-    # MCPAgentStep handles the actual tool loop; the domain adapter is the same.
-    ADAPTER_REGISTRY.register(
-        adapter_type="mcp_agent",
-        datasource="none",
-        adapter_name="conversational",
-        factory_func=_create_conversational_adapter,
-        config={}
-    )
-
-    logger.info("Registered MCP agent conversational adapter")
-
-    # Register conversational adapter for fetch type so that adapters with
-    # type: fetch can be preloaded. FetchStep handles the actual request.
-    ADAPTER_REGISTRY.register(
-        adapter_type="fetch",
-        datasource="none",
-        adapter_name="conversational",
-        factory_func=_create_conversational_adapter,
-        config={}
-    )
-
-    logger.info("Registered fetch conversational adapter")
+    # openai_realtime, mcp_agent, and fetch each route via their own step;
+    # the domain adapter is the same conversational passthrough.
+    for _adapter_type in ['openai_realtime', 'mcp_agent', 'fetch']:
+        ADAPTER_REGISTRY.register(
+            adapter_type=_adapter_type,
+            datasource="none",
+            adapter_name="conversational",
+            factory_func=_create_conversational_adapter,
+            config={}
+        )
+    logger.info("Registered openai_realtime, mcp_agent, and fetch conversational adapters")
 
 
 # Register adapters when module is imported

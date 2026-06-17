@@ -33,7 +33,6 @@ class CompositeAdapter(DocumentAdapter):
             **kwargs: Additional parameters
         """
         super().__init__(config=config, **kwargs)
-        self.confidence_threshold = kwargs.get('confidence_threshold', 0.4)
         logger.debug("CompositeAdapter initialized")
 
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:

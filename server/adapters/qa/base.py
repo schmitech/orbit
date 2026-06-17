@@ -27,8 +27,9 @@ class QADocumentAdapter(DocumentAdapter):
         super().__init__(config=config, **kwargs)
 
         # Extract configuration values with sensible defaults
-        self.confidence_threshold = self.config.get('confidence_threshold', 0.7)
-        self.boost_exact_matches = self.config.get('boost_exact_matches', False)
+        # kwargs fallback handles callers that pass confidence_threshold as a keyword arg
+        self.confidence_threshold = self.config.get('confidence_threshold', kwargs.get('confidence_threshold', 0.7))
+        self.boost_exact_matches = self.config.get('boost_exact_matches', kwargs.get('boost_exact_matches', False))
 
         logger.debug(f"Initialized QA Document Adapter with confidence threshold: {self.confidence_threshold}")
 
@@ -68,19 +69,17 @@ class QADocumentAdapter(DocumentAdapter):
         if not context_items:
             return []
 
+        boosted_items = [dict(item) for item in context_items]
+
         # If boost_exact_matches is enabled, increase confidence for exact matches
         if self.boost_exact_matches:
-            for item in context_items:
+            for item in boosted_items:
                 if "question" in item and query.lower() in item["question"].lower():
-                    # Boost confidence for questions containing the query
-                    item["confidence"] = min(1.0, item["confidence"] * 1.2)
-
-                    # For exact matches, boost even more
-                    if query.lower() == item["question"].lower():
-                        item["confidence"] = min(1.0, item["confidence"] * 1.5)
+                    boost = 1.5 if query.lower() == item["question"].lower() else 1.2
+                    item["confidence"] = min(1.0, item.get("confidence", 0) * boost)
 
         # Filter out items below confidence threshold
-        filtered_items = [item for item in context_items
+        filtered_items = [item for item in boosted_items
                          if item.get("confidence", 0) >= self.confidence_threshold]
 
         # Sort by confidence score

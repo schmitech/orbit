@@ -164,9 +164,26 @@ class FileVectorRetriever(AbstractVectorRetriever):
 
         logger.debug(f"FileVectorRetriever: Total raw results: {len(results)}")
 
-        # Apply domain filtering
-        results = self.apply_domain_filtering(results, query)
-        logger.debug(f"FileVectorRetriever: After domain filtering: {len(results)} results")
+        # Normalize 'score' → 'confidence' so domain adapters can filter by threshold
+        for r in results:
+            if 'confidence' not in r:
+                r['confidence'] = r.get('score', 0.0)
+        if results:
+            scores = [r['confidence'] for r in results]
+            logger.debug(f"FileVectorRetriever: Result scores: {scores}")
+
+        # When the caller provides explicit file_ids, skip confidence-based domain filtering.
+        # The user already scoped retrieval to specific files, so any chunk from those files
+        # is relevant — low similarity to the query (e.g. "what does this say?") should not
+        # discard content the user explicitly asked about.
+        if not file_ids:
+            results = self.apply_domain_filtering(results, query)
+            logger.debug(f"FileVectorRetriever: After domain filtering: {len(results)} results")
+        else:
+            # Skip threshold discard but still sort by confidence so higher-scoring chunks
+            # from any file rank above lower-scoring ones before return_results truncation.
+            results.sort(key=lambda r: r.get('confidence', 0.0), reverse=True)
+            logger.debug("FileVectorRetriever: Skipping domain filtering (explicit file_ids provided), sorted by confidence")
 
         # Group and format results
         formatted_results = self._format_results(results)
