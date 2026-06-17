@@ -13,10 +13,13 @@ Installation:
     pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 """
 
+import asyncio
 import logging
-from typing import Dict, Any, Optional, Union
-import tempfile
+import mimetypes
 import os
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, Any, Optional, Union
 
 try:
     import whisper
@@ -75,6 +78,8 @@ class WhisperAudioService(AudioService, ProviderAIService):
         # Model cache
         self.model = None
         self.model_loaded = False
+        # Whisper transcription is synchronous/CPU-bound; run it off the event loop.
+        self._executor = ThreadPoolExecutor(max_workers=1)
 
         logger.debug(
                 f"🎙️  WhisperAudioService initialized (LOCAL/OFFLINE transcription) "
@@ -158,8 +163,10 @@ class WhisperAudioService(AudioService, ProviderAIService):
                     f"(model: {self.model_size}, device: {self.device}, audio: {audio_size_mb:.2f}MB)"
                 )
 
-            # Write audio to temporary file (Whisper works with files)
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+            # Preserve original extension so FFmpeg/Whisper picks the right demuxer.
+            mime_type = kwargs.get('mime_type', '')
+            ext = mimetypes.guess_extension(mime_type) or '.wav'
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as temp_file:
                 temp_path = temp_file.name
                 temp_file.write(audio_data)
 
@@ -180,8 +187,12 @@ class WhisperAudioService(AudioService, ProviderAIService):
 
                 logger.debug(f"Whisper transcribe options: {transcribe_options}")
 
-                # Transcribe
-                result = self.model.transcribe(temp_path, **transcribe_options)
+                # Run synchronous transcription off the event loop to avoid blocking.
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    self._executor,
+                    lambda: self.model.transcribe(temp_path, **transcribe_options)
+                )
 
                 # Extract text
                 text = result['text'].strip()
@@ -305,16 +316,12 @@ class WhisperAudioService(AudioService, ProviderAIService):
     async def cleanup(self) -> None:
         """Clean up resources."""
         if self.model is not None:
-            logger.debug("🧹 Cleaning up LOCAL Whisper service...")
-
-            # Clear model from memory
             del self.model
             self.model = None
             self.model_loaded = False
 
-            # Clear CUDA cache if using GPU
-            if torch.cuda.is_available():
+            if WHISPER_AVAILABLE and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
+        self._executor.shutdown(wait=False)
         self.initialized = False
-        logger.debug("✅ Whisper service cleaned up")

@@ -7,9 +7,17 @@
 - **API Contract**: Hardened admin and auth routes to stop leaking internal exception messages, added typed API contracts, and consolidated serialization helpers.
 - **Model Routing**: Updated image generation to branch Gemini multimodal models through `generate_content()` while preserving Imagen `generate_images()` support.
 
+### Audio & STT
+- **Whisper Service**: Run `model.transcribe()` in a `ThreadPoolExecutor` so the synchronous CPU/GPU call no longer blocks the async event loop; use the `mime_type` kwarg to derive the correct temp-file extension (e.g. `.mp3` for `audio/mpeg`) so FFmpeg picks the right demuxer; guard `torch.cuda.empty_cache()` behind `WHISPER_AVAILABLE`; shut down executor on `close()`.
+- **Cohere STT**: Fixed 400 error caused by Cohere requiring form fields before the file part in the multipart body; fields are now passed as an ordered list through `files` so `model` and `language` are always serialised before the file attachment.
+
 ### Bug Fixes & Technical Improvements
 - **PDF Rendering**: Sanitized Unicode characters before ReportLab output to prevent black-box glyphs in generated PDFs.
+- **File Retrieval**: Fixed `audio-transcription` and similar adapters returning no context: normalized `score` → `confidence` on raw ChromaDB results before domain filtering; skip confidence-threshold discard when explicit `file_ids` are provided (results are still sorted by score so the most relevant chunks rank first); propagated `confidence_threshold` from adapter config to `QADocumentAdapter` and `FileAdapter`, both of which previously ignored it when passed as a keyword argument.
 - **Refactoring**: Cleaned up file organization and applied minor internal refactors.
+
+### Testing
+- **Whisper Tests**: Added `test_close_shuts_down_executor`, `test_speech_to_text_uses_mime_type_extension`, and `test_speech_to_text_raises_if_model_not_loaded`; extended `test_service_initialization` to assert `_executor` is set.
 
 ### Documentation & Configuration
 - **Diagrams & Badges**: Updated architecture diagrams and replaced broken GitHub badges with static alternatives.

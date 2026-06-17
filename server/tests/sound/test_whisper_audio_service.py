@@ -13,6 +13,7 @@ This module tests the local Whisper audio service specifically:
 import pytest
 import sys
 import os
+from unittest.mock import patch, MagicMock
 
 # Get the absolute path to the server directory
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -74,6 +75,7 @@ class TestWhisperAudioService:
         assert service.task == "transcribe"
         assert service.model is None  # Not loaded until initialize()
         assert service.model_loaded is False
+        assert service._executor is not None
 
     @pytest.mark.asyncio
     async def test_initialize(self, service):
@@ -179,6 +181,46 @@ class TestWhisperAudioService:
         assert service.initialized is False
         assert service.model is None
         assert service.model_loaded is False
+
+    @pytest.mark.asyncio
+    async def test_close_shuts_down_executor(self, service):
+        """Executor must be shut down on close so threads don't leak."""
+        await service.initialize()
+        await service.close()
+        assert service._executor._shutdown
+
+    @pytest.mark.asyncio
+    async def test_speech_to_text_uses_mime_type_extension(self, service):
+        """mime_type kwarg should determine the temp-file extension passed to Whisper."""
+        captured_paths = []
+
+        async def _run(audio_bytes, mime_type):
+            # Patch model.transcribe to capture the temp-file path then return a fake result.
+            def fake_transcribe(path, **kwargs):
+                captured_paths.append(path)
+                return {"text": "test", "language": "en"}
+
+            await service.initialize()
+            service.model.transcribe = fake_transcribe
+            return await service.speech_to_text(audio_bytes, mime_type=mime_type)
+
+        audio_bytes = b"RIFF" + b"\x00" * 100  # minimal fake audio
+
+        await _run(audio_bytes, mime_type="audio/mpeg")
+        assert captured_paths, "transcribe was never called"
+        assert captured_paths[0].endswith(".mp3"), (
+            f"Expected .mp3 temp file for audio/mpeg, got: {captured_paths[0]}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_speech_to_text_raises_if_model_not_loaded(self, service):
+        """RuntimeError should be raised when initialized=True but model_loaded=False."""
+        # Force the inconsistent state that arises when initialize() fails mid-way.
+        service.initialized = True
+        service.model_loaded = False
+
+        with pytest.raises(RuntimeError, match="Whisper model not loaded"):
+            await service.speech_to_text(b"some audio")
 
     @pytest.mark.asyncio
     async def test_multiple_transcriptions(self, service, test_audio_file):

@@ -113,12 +113,17 @@ class CohereAudioService(AudioService):
         lang = language or kwargs.pop("language", None) or self.language
 
         async def _transcribe() -> str:
-            files = {"file": (filename, BytesIO(audio_data), mime_type)}
-            data = {"model": self.stt_model}
+            # Cohere requires text fields to appear before the file part in the
+            # multipart body. Use an ordered list through the `files` kwarg so
+            # httpx serialises them in insertion order.
+            multipart: list = [
+                ("model", (None, self.stt_model)),
+            ]
             if lang:
-                data["language"] = lang
+                multipart.append(("language", (None, lang)))
+            multipart.append(("file", (filename, BytesIO(audio_data), mime_type)))
             response = await self.client.post(
-                self.DEFAULT_STT_ENDPOINT, files=files, data=data
+                self.DEFAULT_STT_ENDPOINT, files=multipart
             )
             if not response.is_success:
                 try:
