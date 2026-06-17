@@ -44,101 +44,21 @@ Many organizations need to connect AI to their business data without:
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗️ Architecture
 
 ORBIT acts as a router and orchestration layer sitting directly between your applications, your local or hosted AI models, and your internal data repositories:
 
 <div align="center">
   <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/da7b5f98-189b-4a71-8bff-9de2c27d5f3f" alt="ORBIT Logo" width="800"/>
+    <img src="https://github.com/user-attachments/assets/1590d45a-39f2-4a96-b305-b96e7bc8c7e2" alt="ORBIT Logo" width="800"/>
   </a>
 </div>
 
 ---
 
-### 🚀 Key Capabilities:
-* **🔒 100% Private & Self-Hosted:** Run offline workloads on local servers using Ollama, llama.cpp, or vLLM.
-* **🔌 Universal Data Retrievers:** Out-of-the-box adapters for PostgreSQL, MongoDB, Elasticsearch, REST APIs, GraphQL, DuckDB, vector databases, files, and web scraping.
-* **🤖 Agentic MCP Tool Loops:** Connect outward to Model Context Protocol (MCP) servers to let LLMs perform multi-step, self-correcting tool operations inside chat sessions.
-* **🎭 Cross-Adapter Skills:** Generate text-to-image and text-to-video  dynamically as part of a conversation workflow.
-* **🛡️ Production-Grade Control Plane:** API key validation, request rate-limiting, token quotas, content moderation, circuit breakers, and detailed audit logging.
-
----
-
-## ⚡ Quick Start
-
-ORBIT supports two main deployment methods:
-1. **Manual Installation via Release Tarball** (Preferred option for bare-metal & local execution)
-2. **Containerized Deployment via Docker Compose** (Preferred option for quick containerized environments)
-
-### 📦 Option A: Release Tarball (Manual Linux/macOS Install — Preferred)
-
-To install ORBIT directly into your local Python environment:
-
-```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.4/orbit-2.7.4.tar.gz
-tar -xzf orbit-2.7.4.tar.gz && cd orbit-2.7.4
-cp env.example .env
-./install/setup.sh
-./bin/orbit.sh start
-tail -f ./logs/orbit.log
-```
-
-Refer to the [Getting Started Tutorial](docs/tutorial.md) to learn how to configure and customize ORBIT.
-
----
-
-### 🐳 Option B: Docker Compose
-
-Clone the repository and boot the service:
-
-```bash
-git clone https://github.com/schmitech/orbit.git && cd orbit/docker
-docker compose up -d
-```
-
-This starts ORBIT configured with a local Ollama instance and the lightweight `SmolLM2` model, auto-pulling it on startup. 
-
-> [!TIP]
-> **GPU Acceleration:** If you have an NVIDIA GPU, spin it up using the GPU compose file:
-> ```bash
-> docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
-> ```
-
-See the [Docker Guide](docker/README.md) for detailed information on GPU setup, and custom configurations.
-
----
-
-### ⚙️ Verify & Access the Gateway
-
-After running either installation method above:
-
-#### 1. Query the OpenAI-Compatible API
-Test the API gateway by sending a chat completion payload:
-
-```bash
-curl -X POST http://localhost:3000/v1/chat \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: default-key' \
-  -H 'X-Session-ID: local-test' \
-  -d '{
-    "messages": [{"role": "user", "content": "Summarize ORBIT in one sentence."}],
-    "stream": false
-  }'
-```
-
-#### 2. Access the Admin UI
-Open your browser and navigate to **[http://localhost:3000/admin](http://localhost:3000/admin)**.
-* **Username:** `admin`
-* **Password:** `admin123`
-
-The dashboard allows you to monitor API metrics, system latency, active sessions, and verify configured adapter states in real-time.
-
----
-
 ## 🎬 Demos
 
-Expand the sections below to see ORBIT in action across different deployment scenarios:
+Expand the sections below to see ORBIT in action:
 
 <details>
 <summary>📂 <strong>Multi-Source RAG & File Chat</strong></summary>
@@ -222,6 +142,86 @@ Expand the sections below to see ORBIT in action across different deployment sce
   <em>Sub-conversation threading and document caching for faster retrieval speeds.</em>
 </p>
 </details>
+
+---
+
+### 🚀 Key Capabilities:
+* **🔒 100% Private & Self-Hosted:** Run offline workloads on local servers using Ollama, llama.cpp, or vLLM.
+* **🔌 Universal Data Retrievers:** Out-of-the-box adapters for PostgreSQL, MongoDB, Elasticsearch, REST APIs, GraphQL, DuckDB, vector databases, files, and web scraping.
+* **🤖 Agentic MCP Tool Loops:** Connect outward to Model Context Protocol (MCP) servers to let LLMs perform multi-step, self-correcting tool operations inside chat sessions.
+* **🎭 Cross-Adapter Skills:** Generate text-to-image and text-to-video  dynamically as part of a conversation workflow.
+* **🛡️ Production-Grade Control Plane:** API key validation, request rate-limiting, token quotas, content moderation, circuit breakers, and detailed audit logging.
+
+---
+
+## ⚡ Quick Start
+
+ORBIT supports two main deployment methods:
+1. **Manual Installation via Release Tarball** (Preferred option for bare-metal & local execution)
+2. **Containerized Deployment via Docker Compose** (Preferred option for quick containerized environments)
+
+### 📦 Option A: Release Tarball (Manual Linux/macOS Install — Preferred)
+
+To install ORBIT directly into your local Python environment:
+
+```bash
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.4/orbit-2.7.4.tar.gz
+tar -xzf orbit-2.7.4.tar.gz && cd orbit-2.7.4
+cp env.example .env
+./install/setup.sh
+./bin/orbit.sh start
+tail -f ./logs/orbit.log
+```
+
+Refer to the [Getting Started Tutorial](docs/tutorial.md) to learn how to configure and customize ORBIT.
+
+---
+
+### 🐳 Option B: Docker Compose
+
+Clone the repository and boot the service:
+
+```bash
+git clone https://github.com/schmitech/orbit.git && cd orbit/docker
+docker compose up -d
+```
+
+This starts ORBIT configured with a local Ollama instance and the lightweight `SmolLM2` model, auto-pulling it on startup. 
+
+> [!TIP]
+> **GPU Acceleration:** If you have an NVIDIA GPU, spin it up using the GPU compose file:
+> ```bash
+> docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+> ```
+
+See the [Docker Guide](docker/README.md) for detailed information on GPU setup, and custom configurations.
+
+---
+
+### ⚙️ Verify & Access the Gateway
+
+After running either installation method above:
+
+#### 1. Query the OpenAI-Compatible API
+Test the API gateway by sending a chat completion payload:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: local-test' \
+  -d '{
+    "messages": [{"role": "user", "content": "Summarize ORBIT in one sentence."}],
+    "stream": false
+  }'
+```
+
+#### 2. Access the Admin UI
+Open your browser and navigate to **[http://localhost:3000/admin](http://localhost:3000/admin)**.
+* **Username:** `admin`
+* **Password:** `admin123`
+
+The dashboard allows you to monitor API metrics, system latency, active sessions, and verify configured adapter states in real-time.
 
 ---
 
