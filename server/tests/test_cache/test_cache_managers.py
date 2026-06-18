@@ -790,6 +790,31 @@ class TestServiceCacheManager:
         assert attempts == 2
 
     @pytest.mark.asyncio
+    async def test_false_initialize_result_is_not_cached(self):
+        """Services that report failed initialization are not cached."""
+        attempts = 0
+
+        class TestCacheManager(ServiceCacheManager):
+            service_label = "test service"
+
+            async def _create_instance(self, provider_name, adapter_name=None, **kwargs):
+                nonlocal attempts
+                attempts += 1
+                service = AsyncMock()
+                service.initialize.return_value = attempts > 1
+                return service
+
+        cache_manager = TestCacheManager({})
+
+        with pytest.raises(RuntimeError, match="initialization returned False"):
+            await cache_manager._create_cached_service("key", "provider")
+
+        service = await cache_manager._create_cached_service("key", "provider")
+
+        assert service is cache_manager.get("key")
+        assert attempts == 2
+
+    @pytest.mark.asyncio
     async def test_remove_matching_closes_matching_services(self):
         """Prefix removal uses the shared atomic matching removal path."""
         cache_manager = ProviderCacheManager({'general': {}})

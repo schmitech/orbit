@@ -159,11 +159,13 @@ class ServiceCacheManager:
             return
 
         if asyncio.iscoroutinefunction(service.initialize):
-            await service.initialize()
-            return
+            result = await service.initialize()
+        else:
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(self._thread_pool, service.initialize)
 
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(self._thread_pool, service.initialize)
+        if result is False:
+            raise RuntimeError(f"{self.service_label.capitalize()} initialization returned False")
 
     async def _close_service(self, cache_key: str, service: Any) -> None:
         try:

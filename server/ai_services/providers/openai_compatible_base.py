@@ -108,6 +108,12 @@ class OpenAICompatibleBaseService(ProviderAIService):
         super().__init__(config, service_type, provider_name)
         self._setup_openai_compatible_config()
 
+    def _reset_connection_state(self) -> None:
+        """Reset verification state for a new or rebuilt client lifecycle."""
+        self.connection_verified = False
+        self._verification_attempted = False
+        self._verification_inflight = False
+
     def _setup_openai_compatible_config(self) -> None:
         """
         Set up OpenAI-compatible configuration.
@@ -162,9 +168,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
             http_client=http_client
         )
 
-        self.connection_verified = False
-        self._verification_attempted = False
-        self._verification_inflight = False
+        self._reset_connection_state()
 
         # Setup retry handler
         retry_config = self._get_retry_config()
@@ -188,6 +192,14 @@ class OpenAICompatibleBaseService(ProviderAIService):
             True if initialization was successful, False otherwise
         """
         try:
+            if self.client is None:
+                logger.warning(
+                    "%s client is missing during initialization; rebuilding client",
+                    self.provider_name.title(),
+                )
+                self._setup_openai_compatible_config()
+                self.initialized = False
+
             if self.initialized:
                 return True
 
@@ -309,9 +321,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
             self.client = None
 
         self.initialized = False
-        self._verification_attempted = False
-        self.connection_verified = False
-        self._verification_inflight = False
+        self._reset_connection_state()
         logger.debug(f"Closed {self.provider_name.title()} service")
 
     def _get_max_tokens(self, default: int = 2000) -> int:
