@@ -241,10 +241,13 @@ To install ORBIT directly into your local Python environment:
 
 ```bash
 curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.5/orbit-2.7.5.tar.gz
+
 tar -xzf orbit-2.7.5.tar.gz && cd orbit-2.7.5
-cp env.example .env
-./install/setup.sh
+
+./install/setup.sh --wizard   # guided setup: choose your AI provider interactively
+
 ./bin/orbit.sh start
+
 tail -f ./logs/orbit.log
 ```
 

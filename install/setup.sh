@@ -559,6 +559,7 @@ VLLM_SPEC=""
 NEEDS_TORCH=false
 NEEDS_VLLM=false
 UV_AVAILABLE=false
+RUN_WIZARD=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -636,6 +637,10 @@ while [[ $# -gt 0 ]]; do
             esac
             shift 2
             ;;
+        --wizard)
+            RUN_WIZARD=true
+            shift
+            ;;
         --help|-h)
             print_message "blue" "Orbit Server Setup Script (TOML-based)"
             echo ""
@@ -650,10 +655,12 @@ while [[ $# -gt 0 ]]; do
             echo "  --gguf-models-config <f>Path to GGUF models .json config (default: ./gguf-models.json)"
             echo "  --python-cmd <cmd>      Python executable to use (skips interactive selection)"
             echo "  --torch-backend <mode>  Force torch backend (auto, cpu, cuda, metal). Default: auto"
+            echo "  --wizard                Interactive guided setup (recommended for newcomers)"
             echo "  --help, -h              Show this help message"
             echo ""
             echo "Quick Start (Recommended for Newcomers):"
-            echo "  $0 --profile default --download-gguf gemma3-270m"
+            echo "  $0 --wizard                           # Guided setup — choose provider interactively"
+            echo "  $0 --profile default --wizard         # Install default deps + run wizard"
             echo ""
             echo "Examples:"
             echo "  $0                                    # Minimal server (use API mode or Ollama)"
@@ -1055,6 +1062,18 @@ rm -f "$TEMP_REQUIREMENTS"
 # Install torch/vllm if requested
 install_torch_package "$RESOLVED_TORCH_BACKEND"
 install_vllm_package "$RESOLVED_TORCH_BACKEND"
+
+# Run interactive setup wizard if requested
+if [ "$RUN_WIZARD" = true ]; then
+    print_message "blue" "\n╔════════════════════════════════════════════════════════════════╗"
+    print_message "blue" "║          ORBIT Setup Wizard — Provider Configuration           ║"
+    print_message "blue" "╚════════════════════════════════════════════════════════════════╝"
+    if [ ! -f "$SCRIPT_DIR/wizard.py" ]; then
+        print_message "red" "Error: wizard.py not found in install directory: $SCRIPT_DIR"
+        exit 1
+    fi
+    python_exec "$SCRIPT_DIR/wizard.py" "$PROJECT_ROOT"
+fi
 
 # Download GGUF model if requested
 if [ "$DOWNLOAD_GGUF" = true ]; then
