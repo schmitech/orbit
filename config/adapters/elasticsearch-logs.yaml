@@ -40,6 +40,8 @@ adapters:
         - "Word"
         - "Excel"
         - "PowerPoint"
+        - "CSV"
+        - "Markdown"
       retrieval_behavior: "always"
       formatting_style: "standard"
       supports_file_ids: false

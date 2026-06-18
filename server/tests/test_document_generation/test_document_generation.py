@@ -407,6 +407,79 @@ class TestDocumentGenerationStepProcess:
         # The real spec (not the message-only fallback) was used.
         assert result.document_revised_prompt == SAMPLE_SPEC["title"]
 
+    @pytest.mark.asyncio
+    async def test_rewrite_model_passed_to_get_overridden_provider(self):
+        """rewrite_model is forwarded as explicit_model_override to get_overridden_provider."""
+        from inference.pipeline.base import ProcessingContext
+
+        llm_provider = MagicMock()
+        llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+
+        adapter_manager = MagicMock()
+        adapter_manager.get_adapter_config.return_value = {
+            "type": "document_generation",
+            "document_format": "pdf",
+            "rewrite_provider": "openai",
+            "rewrite_model": "gpt-5.4-mini",
+        }
+        adapter_manager.get_overridden_provider = AsyncMock(return_value=llm_provider)
+
+        container = MagicMock()
+        container.has.side_effect = lambda k: k in ("adapter_manager", "llm_provider", "config")
+        container.get.side_effect = lambda k: (
+            adapter_manager if k == "adapter_manager" else llm_provider
+        )
+        container.get_or_none.side_effect = lambda k: (
+            llm_provider if k == "llm_provider" else {} if k == "config" else None
+        )
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(adapter_name="pdf-generator", message="Make a report")
+        await step.process(ctx)
+
+        adapter_manager.get_overridden_provider.assert_awaited_once_with(
+            "openai", "pdf-generator", explicit_model_override="gpt-5.4-mini"
+        )
+
+    @pytest.mark.asyncio
+    async def test_rewrite_model_dedup_allows_same_provider_fallback(self):
+        """When rewrite_model is set, provider/model and provider are distinct de-dupe
+        keys — so the same provider with its default model can serve as a fallback."""
+        from inference.pipeline.base import ProcessingContext
+
+        failing_provider = MagicMock()
+        failing_provider.generate = AsyncMock(side_effect=Exception("model unavailable"))
+        working_provider = MagicMock()
+        working_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+
+        adapter_manager = MagicMock()
+        adapter_manager.get_adapter_config.return_value = {
+            "type": "document_generation",
+            "document_format": "pdf",
+            "rewrite_provider": "openai",
+            "rewrite_model": "gpt-5.4-mini",
+            "inference_provider": "openai",   # same provider, no model override
+        }
+        # First call (with explicit_model_override) returns failing_provider;
+        # second call (adapter inference_provider, no override) returns working_provider.
+        adapter_manager.get_overridden_provider = AsyncMock(
+            side_effect=[failing_provider, working_provider]
+        )
+
+        container = MagicMock()
+        container.has.side_effect = lambda k: k in ("adapter_manager", "config")
+        container.get.side_effect = lambda k: adapter_manager if k == "adapter_manager" else {}
+        container.get_or_none.side_effect = lambda k: {} if k == "config" else None
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(adapter_name="pdf-generator", message="Make a report")
+        result = await step.process(ctx)
+
+        assert result.error is None
+        failing_provider.generate.assert_awaited()
+        working_provider.generate.assert_awaited()
+        assert result.document_revised_prompt == SAMPLE_SPEC["title"]
+
     def test_fallback_spec_uses_prior_analysis_and_context(self):
         """When every provider fails, the fallback document carries the prior assistant
         analysis and thread-cached data — not just the user's question."""

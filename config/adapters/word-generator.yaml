@@ -9,6 +9,7 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     rewrite_provider: "openai"     # LLM used to produce the JSON document spec
+    # rewrite_model: "gpt-5.4-mini" # Optional: override the model within rewrite_provider
 
     capabilities:
       expose_as_skill: true

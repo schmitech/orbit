@@ -157,12 +157,24 @@ class DocumentGenerationStep(PipelineStep):
                 skill_config = adapter_manager.get_adapter_config(context.adapter_name)
                 if skill_config:
                     rewrite_provider_name = skill_config.get('rewrite_provider')
+                    rewrite_model = skill_config.get('rewrite_model') or None
                     if rewrite_provider_name:
+                        logger.debug(
+                            "Document spec: rewrite_provider=%r rewrite_model=%r",
+                            rewrite_provider_name, rewrite_model,
+                        )
                         try:
+                            # Use provider/model as the de-dupe key so the same provider
+                            # with its default model can still serve as a fallback.
+                            rewrite_label = (
+                                f"{rewrite_provider_name}/{rewrite_model}"
+                                if rewrite_model else rewrite_provider_name
+                            )
                             _add(
-                                rewrite_provider_name,
+                                rewrite_label,
                                 await adapter_manager.get_overridden_provider(
-                                    rewrite_provider_name, context.adapter_name
+                                    rewrite_provider_name, context.adapter_name,
+                                    explicit_model_override=rewrite_model,
                                 ),
                             )
                         except Exception as e:
@@ -212,6 +224,10 @@ class DocumentGenerationStep(PipelineStep):
         if not providers:
             logger.warning("No LLM provider available — using fallback document spec")
             return self._fallback_spec(context)
+        logger.debug(
+            "Document spec provider queue: %s",
+            ", ".join(label for label, _ in providers),
+        )
 
         config = self.container.get_or_none('config') or {}
         llm_cfg = config.get('document_generation', {}).get('llm', {})
