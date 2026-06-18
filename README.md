@@ -6,18 +6,22 @@
   # ORBIT
 
   ### Open Retrieval-Based Inference Toolkit
-  **Self-hosted, private AI gateway and unified RAG infrastructure for multi-model applications.**
+  **A self-hosted AI gateway for private RAG, tool-calling agents, and multi-model applications.**
 </div>
 
 <p align="center">
+  <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=social" alt="GitHub stars"></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square" alt="License"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-blue.svg?style=flat-square&logo=python&logoColor=white" alt="Python"></a>
   <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.7.6-blue?style=flat-square" alt="Version"></a>
   <a href="https://github.com/schmitech/orbit/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs Welcome"></a>
-
 </p>
 
 <p align="center">
+  <a href="#quick-start"><strong>Quick Start</strong></a>
+  &nbsp;•&nbsp;
+  <a href="#demos"><strong>Demos</strong></a>
+  &nbsp;•&nbsp;
   <a href="docs/tutorial.md"><strong>Tutorial</strong></a>
   &nbsp;•&nbsp;
   <a href="docker/README.md"><strong>Docker</strong></a>
@@ -25,8 +29,6 @@
   <a href="docs/cookbook/"><strong>Cookbook</strong></a>
   &nbsp;•&nbsp;
   <a href="docs/"><strong>Docs</strong></a>
-  &nbsp;•&nbsp;
-  <a href="#-supported-providers--integrations"><strong>Integrations</strong></a>
 </p>
 
 <p align="center">
@@ -35,75 +37,73 @@
 
 ---
 
-## 💡 What is ORBIT?
+## Why ORBIT?
 
-Many organizations need to connect AI to their business data without:
-1. Sending sensitive data to third-party SaaS vendors or cloud providers.
-2. Rewriting frontend applications every time they switch LLMs.
-3. Maintaining fragile glue code between models, vector databases, SQL query engines, and file stores.
+Most AI apps start simple, then quickly need retrieval, auth, model routing, file upload, observability, quotas, and a way to connect real business systems. ORBIT packages those pieces into one self-hosted gateway you can run locally, on-prem, or in your own cloud.
 
-**ORBIT** provides an AI gateway and retrieval-adapter layer. Run it completely on your own hardware to deploy secure, private RAG engines, connect databases, spin up MCP tool-calling loops, and configure production safety guardrails.
+Use ORBIT when you want to:
 
----
+- Build private RAG apps without sending sensitive data to a hosted AI platform by default.
+- Switch between local and cloud models without rewriting your frontend.
+- Connect LLMs to databases, vector stores, files, APIs, Elasticsearch, GraphQL, DuckDB, and MCP tools.
+- Ship an OpenAI-compatible API with API keys, quotas, rate limits, moderation, audit logs, and an admin dashboard.
+- Prototype quickly, then keep the same architecture for production.
 
-### 🚀 Key Capabilities:
-* **🔒 100% Private & Self-Hosted:** Run offline workloads on local servers using Ollama, llama.cpp, or vLLM.
-* **🔌 Universal Data Retrievers:** Out-of-the-box adapters for PostgreSQL, MongoDB, Elasticsearch, REST APIs, GraphQL, DuckDB, vector databases, files, and web scraping.
-* **🤖 Agentic MCP Tool Loops:** Connect outward to Model Context Protocol (MCP) servers to let LLMs perform multi-step, self-correcting tool operations inside chat sessions.
-* **🎭 Cross-Adapter Skills:** Generate text-to-image and text-to-video  dynamically as part of a conversation workflow.
-* **🛡️ Production-Grade Control Plane:** API key validation, request rate-limiting, token quotas, content moderation, circuit breakers, and detailed audit logging.
+If that matches a project you are building, starring the repo helps more developers find it.
 
 ---
 
-## ⚡ Quick Start
+## What You Get
 
-### 📦 Option A: Release Tarball (Manual Linux/macOS Install — Preferred)
+| Capability | What ORBIT provides |
+| :--- | :--- |
+| **OpenAI-compatible gateway** | A unified chat API for local, self-hosted, and cloud-backed models. |
+| **Private RAG infrastructure** | File chat, vector search, SQL/NoSQL retrieval, REST/GraphQL adapters, DuckDB analytics, and Elasticsearch query translation. |
+| **Model flexibility** | Run with Ollama, llama.cpp, vLLM, and external model providers behind one gateway contract. |
+| **Agentic tool loops** | Connect to Model Context Protocol servers and let models execute multi-step tool workflows inside chat sessions. |
+| **Production controls** | API key validation, request limits, token quotas, content moderation, circuit breakers, fallback routing, metrics, and audit logging. |
+| **Ready-to-use clients** | A React chat client, Node.js SDK, admin UI, Docker Compose setup, examples, and cookbook recipes. |
 
-To install ORBIT directly into your local Python environment:
+---
+
+## Quick Start
+
+### Option A: Release Tarball
+
+Install ORBIT directly into a local Python environment on Linux or macOS:
 
 ```bash
 curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.6/orbit-2.7.6.tar.gz
+tar -xzf orbit-2.7.6.tar.gz
+cd orbit-2.7.6
 
-tar -xzf orbit-2.7.6.tar.gz && cd orbit-2.7.6
-
-./install/setup.sh  # add --wizard for interactive setup
-
+./install/setup.sh
 ./bin/orbit.sh start
 
 tail -f ./logs/orbit.log
 ```
 
-Refer to the [Getting Started Tutorial](docs/tutorial.md) to learn how to configure and customize ORBIT.
+Use `./install/setup.sh --wizard` for interactive setup. See the [Getting Started Tutorial](docs/tutorial.md) for configuration and customization.
 
----
+### Option B: Docker Compose
 
-### 🐳 Option B: Docker Compose
-
-Clone the repository and boot the service:
+Clone the repo and boot ORBIT with Ollama and a lightweight local model:
 
 ```bash
-git clone https://github.com/schmitech/orbit.git && cd orbit/docker
+git clone https://github.com/schmitech/orbit.git
+cd orbit/docker
 docker compose up -d
 ```
 
-This starts ORBIT configured with a local Ollama instance and the lightweight `SmolLM2` model, auto-pulling it on startup. 
+This starts ORBIT with a local Ollama instance and the `SmolLM2` model. For NVIDIA GPU acceleration:
 
-> [!TIP]
-> **GPU Acceleration:** If you have an NVIDIA GPU, spin it up using the GPU compose file:
-> ```bash
-> docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
-> ```
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+```
 
-See the [Docker Guide](docker/README.md) for detailed information on GPU setup, and custom configurations.
+See the [Docker Guide](docker/README.md) for GPU setup, model configuration, volumes, and troubleshooting.
 
----
-
-### ⚙️ Verify & Access the Gateway
-
-After running either installation method above:
-
-#### 1. Query the OpenAI-Compatible API
-Test the API gateway by sending a chat completion payload:
+### Verify the Gateway
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
@@ -116,80 +116,78 @@ curl -X POST http://localhost:3000/v1/chat \
   }'
 ```
 
-#### 2. Access the Admin UI
-Open your browser and navigate to **[http://localhost:3000/admin](http://localhost:3000/admin)**.
-* **Username:** `admin`
-* **Password:** `admin123`
+Open the admin dashboard at [http://localhost:3000/admin](http://localhost:3000/admin):
 
-The dashboard allows you to monitor API metrics, system latency, active sessions, and verify configured adapter states in real-time.
+- Username: `admin`
+- Password: `admin123`
+
+The dashboard shows API metrics, latency, active sessions, configured adapters, and system health.
 
 ---
 
-## 🎬 Demos
+## Demos
 
-Expand the sections below to see ORBIT in action:
-
-<details>
-<summary>📂 <strong>Multi-Source RAG & File Chat</strong></summary>
+<details open>
+<summary><strong>Multi-source RAG and file chat</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/bc85d24a-72dd-4a71-8c3d-017e5fadd219" controls muted playsinline width="80%"></video>
   <br />
-  <em>Upload PDFs, spreadsheets, and images, and query them together in a unified thread. ORBIT chunks, embeds, and retrieves documents locally, keeping data strictly offline.</em>
+  <em>Upload PDFs, spreadsheets, and images, then query them together in a unified thread. ORBIT chunks, embeds, and retrieves documents locally.</em>
 </p>
 </details>
 
 <details>
-<summary>🗃️ <strong>Natural Language to Database Queries</strong></summary>
+<summary><strong>Natural language to database queries</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/745a0635-fe17-432b-9b36-c7b22adcdfcc" controls muted playsinline width="80%"></video>
   <br />
-  <em>Translate plain English queries into SQL, query structural databases, and generate dynamic visualizations directly in the chat using cross-adapter image skills.</em>
+  <em>Translate plain English into SQL, query structured databases, and generate dynamic visualizations directly in chat.</em>
 </p>
 </details>
 
 <details>
-<summary>🤖 <strong>Agentic MCP & Tool-Calling Loops</strong></summary>
+<summary><strong>Agentic MCP and tool-calling loops</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/a57ff84e-db9d-466d-8f82-e23473b745fb" controls muted playsinline width="80%"></video>
   <br />
-  <em>Expose local filesystem commands, Slack APIs, and Postgres tools via MCP. ORBIT hosts a multi-step execution loop, allowing the model to perform complex file operations autonomously.</em>
+  <em>Expose local filesystem commands, Slack APIs, Postgres tools, and other MCP servers to multi-step model workflows.</em>
 </p>
 </details>
 
 <details>
-<summary>🔍 <strong>Elasticsearch Logs Translation</strong></summary>
+<summary><strong>Elasticsearch log translation</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/e7fd2834-e438-4ac1-9173-0c0d56ca562b" controls muted playsinline width="80%"></video>
   <br />
-  <em>Query application logs using natural English. ORBIT dynamically compiles queries to Elasticsearch Query DSL to extract server logs, error rates, and operational latency.</em>
+  <em>Ask operational questions in natural language and let ORBIT compile Elasticsearch Query DSL for logs, error rates, and latency analysis.</em>
 </p>
 </details>
 
 <details>
-<summary>🎥 <strong>Media & Video Generation (Google Veo 2 / DALL-E)</strong></summary>
+<summary><strong>Media and video generation</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/0f0c88f2-20b2-4617-9e5f-7efd823fc164" controls muted playsinline width="80%"></video>
   <br />
-  <em>Generate rich videos using Google Veo 2 natively in chat threads. Prompt enhancement, video generation, and server-side binary hosting are handled automatically.</em>
+  <em>Generate videos with provider-backed generation adapters while keeping orchestration inside the chat workflow.</em>
 </p>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/268801ff-5e17-4358-9e69-b2667851d611" controls muted playsinline width="80%"></video>
   <br />
-  <em>Generate images as a cross-adapter skill using DALL-E or Stability AI with full conversation context.</em>
+  <em>Generate images as a cross-adapter skill using DALL-E or Stability AI with conversation context.</em>
 </p>
 </details>
 
 <details>
-<summary>📊 <strong>Admin Panel & Monitoring Dashboard</strong></summary>
+<summary><strong>Admin panel and monitoring dashboard</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/f85fb880-9f76-471a-8875-a16d615c3aa8" controls muted playsinline width="80%"></video>
   <br />
-  <em>Monitor cluster health, system logs, adapter statuses, active tokens, and query latencies using the real-time web dashboard.</em>
+  <em>Monitor health, logs, adapter status, tokens, sessions, and query latency from the web dashboard.</em>
 </p>
 </details>
 
 <details>
-<summary>⚙️ <strong>Additional Demos (Offline PII, Model Switching, SVG, Threading)</strong></summary>
+<summary><strong>Additional demos</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/565275fa-8f54-4bd6-94de-3fb27a66a5ab" controls muted playsinline width="80%"></video>
   <br />
@@ -203,59 +201,86 @@ Expand the sections below to see ORBIT in action:
 <p align="center">
   <video src="https://github.com/user-attachments/assets/a3fd7308-64be-4216-823b-954e2e37bad2" controls muted playsinline width="80%"></video>
   <br />
-  <em>Dynamically switch inference models mid-conversation without breaking the chat history.</em>
+  <em>Switch inference models mid-conversation without breaking chat history.</em>
 </p>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/55a1f582-5ea4-411d-bbfc-4ccffbd6f81a" controls muted playsinline width="80%"></video>
   <br />
-  <em>Sub-conversation threading and document caching for faster retrieval speeds.</em>
+  <em>Use sub-conversation threading and document caching for faster retrieval.</em>
 </p>
 </details>
 
 ---
 
-## ⚖️ Why ORBIT? (Compared to custom setups)
+## Common Use Cases
 
-| Challenge | Standard Approach | What ORBIT Provides |
-| :--- | :--- | :--- |
-| **Provider Lock-In** | One SDK per provider (OpenAI, Anthropic). Codebases need total refactoring to switch LLMs. | **Unified Interface:** One OpenAI-compatible API across all local, self-hosted, and cloud-hosted model providers. |
-| **Fragile Glue Code** | Stitching together separate libraries for chat history, vector storage, SQL connectors, and routing. | **Unified Gateway:** Out-of-the-box session management, RAG adapters, safety moderation, and API key routing. |
-| **Limited RAG** | Vector search over standard text chunks only. No connection to live relational data. | **Universal Context:** Structured SQL/NoSQL retrievers, JSON REST API scraping, GraphQL queries, and vector store hybrid searches. |
-| **Data Privacy** | Sensitive internal data processed and sent through public APIs by default. | **Self-Hosted Control:** Run 100% offline with local Ollama/llama.cpp instances, local embeddings, RBAC, and secure logging. |
-| **Cascading Failures** | Slow or offline third-party APIs cause global application downtime. | **Production Resilience:** Integrated circuit breakers, fallback model routing, request queuing, and rate limits. |
+- **Internal knowledge assistants:** Query policies, PDFs, spreadsheets, tickets, and documentation from a private chat UI.
+- **Database copilots:** Convert natural language into SQL, DuckDB, Elasticsearch, REST, or GraphQL-backed answers.
+- **Local-first AI labs:** Develop against Ollama, llama.cpp, or vLLM before moving selected workloads to cloud models.
+- **Tool-using agents:** Give models controlled access to MCP tools while keeping auth, logs, and policies in one gateway.
+- **Customer-facing AI products:** Put stable API keys, quotas, rate limits, and fallback routing in front of model providers.
 
 ---
 
-## 🎨 Client Integrations
+## Client Integrations
 
-| Integration Client | Repository / Package | Description |
+| Client | Path / package | Description |
 | :--- | :--- | :--- |
-| **Web Chat Client** | [clients/orbitchat/](clients/orbitchat/) | Fully featured React-based Web chat interface for talking to ORBIT. |
-| **Node.js SDK** | [clients/node-api/](clients/node-api/) | Simple Node library to interface with ORBIT backend features. |
+| **ORBIT Chat** | [clients/orbitchat/](clients/orbitchat/) | React web chat client for ORBIT-backed conversations. |
+| **Node.js SDK** | [clients/node-api/](clients/node-api/) | Node library for integrating ORBIT backend features into apps. |
 
-To quick-start the chat client locally, run:
+Run the chat client against a local ORBIT adapter:
+
 ```bash
 ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' npx orbitchat
 ```
 
 ---
 
-## 🗺️ Roadmap & Next Steps
+## Compared to a Custom Stack
 
-Future roadmap items, planned features, and active developments are tracked directly on the [GitHub Issues](https://github.com/schmitech/orbit/issues) page as `enhancement` tasks.
-
-Have an idea for a feature or want to see support for a new database/API provider? Feel free to **[open a new issue](https://github.com/schmitech/orbit/issues/new)** outlining your idea—we'd love to discuss it with you!
-
----
-
-## 🤝 Contributing & Support
-Contributions are what make the open-source community an amazing place to learn, inspire, and create.
-1. Read the [Contributing Guidelines](CONTRIBUTING.md).
-2. Report bugs or suggest features by opening an [Issue](https://github.com/schmitech/orbit/issues).
-3. If ORBIT helps your team build private RAG systems or agentic AI apps, **please consider giving the repository a Star (⭐)**! It helps other developers discover the toolkit.
+| Problem | Custom setup | ORBIT |
+| :--- | :--- | :--- |
+| **Provider lock-in** | One SDK and request shape per provider. | One OpenAI-compatible gateway across local and cloud providers. |
+| **Glue code sprawl** | Separate auth, RAG, model routing, file handling, metrics, and storage code. | Integrated gateway, adapters, session management, safety controls, and admin UI. |
+| **Narrow retrieval** | Vector search over static text chunks only. | Structured data, files, APIs, vector stores, Elasticsearch, DuckDB, and hybrid workflows. |
+| **Privacy gaps** | Sensitive data often flows through hosted services by default. | Self-hosted deployment with local models, local embeddings, API keys, RBAC, and audit logs. |
+| **Operational fragility** | Slow providers or broken adapters can affect the whole app. | Circuit breakers, fallback routing, rate limits, queues, and observability. |
 
 ---
 
-## 📄 License
+## Learn More
 
-ORBIT is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+- [Getting Started Tutorial](docs/tutorial.md)
+- [Docker Guide](docker/README.md)
+- [Cookbook](docs/cookbook/)
+- [Docs](docs/)
+- [API Keys](docs/api-keys.md)
+- [Pipeline Architecture](docs/pipeline-inference-architecture.md)
+
+---
+
+## Roadmap
+
+Roadmap items and active development tasks are tracked in [GitHub Issues](https://github.com/schmitech/orbit/issues). Requests for new adapters, model providers, deployment patterns, or examples are welcome.
+
+---
+
+## Contributing
+
+Contributions are welcome, especially:
+
+- New retrievers, adapters, and provider integrations.
+- Better examples and deployment guides.
+- Tests, bug fixes, and documentation improvements.
+- Real-world feedback from teams running private RAG or model gateway workloads.
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md), open an [issue](https://github.com/schmitech/orbit/issues), or send a pull request.
+
+If ORBIT is useful to you, please star the repository. It is the simplest way to support the project and helps other developers discover it.
+
+---
+
+## License
+
+ORBIT is licensed under the Apache 2.0 License. See [LICENSE](LICENSE) for details.
