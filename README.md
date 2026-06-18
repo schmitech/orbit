@@ -25,6 +25,8 @@
   <a href="docs/cookbook/"><strong>Cookbook</strong></a>
   &nbsp;•&nbsp;
   <a href="docs/"><strong>Docs</strong></a>
+  &nbsp;•&nbsp;
+  <a href="#-supported-providers--integrations"><strong>Integrations</strong></a>
 </p>
 
 <p align="center">
@@ -151,6 +153,79 @@ Expand the sections below to see ORBIT in action:
 * **🤖 Agentic MCP Tool Loops:** Connect outward to Model Context Protocol (MCP) servers to let LLMs perform multi-step, self-correcting tool operations inside chat sessions.
 * **🎭 Cross-Adapter Skills:** Generate text-to-image and text-to-video  dynamically as part of a conversation workflow.
 * **🛡️ Production-Grade Control Plane:** API key validation, request rate-limiting, token quotas, content moderation, circuit breakers, and detailed audit logging.
+
+---
+
+## 🧩 Supported Providers & Integrations
+
+Everything below is configured through YAML under [`config/`](config/) — swap any provider by editing a single file, no application code changes. ORBIT ships with **38 inference backends**, plus dedicated embedding, reranking, moderation, vision, speech, and media engines, all behind one OpenAI-compatible API.
+
+### 🤖 LLM Inference Backends
+
+> **☁️ Cloud & API:** OpenAI · Anthropic (Claude) · Google Gemini · Google Vertex AI · AWS Bedrock · Azure OpenAI · xAI (Grok) · Mistral · Cohere · Groq · DeepSeek · Together AI · OpenRouter · Hugging Face · Perplexity · Fireworks AI · Replicate · NVIDIA NIM · Cerebras · IBM watsonx · Z.AI (GLM) · Moonshot (Kimi) · MiniMax · DeepInfra · Nebius · NEAR AI · Venice AI · Scaleway
+
+> **🏠 Local & Self-Hosted:** Ollama · llama.cpp · vLLM · NVIDIA TensorRT-LLM · Hugging Face Transformers · LM Studio · BitNet · Shimmy
+
+### 🎛️ Capability Matrix
+
+Which providers cover which modalities — useful for picking a stack that does more than chat. A blank cell means "not wired up for that capability in ORBIT," not that the vendor lacks it.
+
+| Provider | 💬 Chat | 👁️ Vision | 🖼️ Image | 🎬 Video | 🔢 Embed | 🔀 Rerank | 🎙️ STT | 🔊 TTS | 🛡️ Moderation | 🏠 Local |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **OpenAI** | ✅ | ✅ | ✅ | – | ✅ | ✅ | ✅ | ✅ | ✅ | – |
+| **Google** (Gemini / Cloud) | ✅ | ✅ | ✅ | ✅ | ✅ | – | ✅ | ✅ | – | – |
+| **Anthropic** (Claude) | ✅ | ✅ | – | – | – | ✅ | – | – | ✅ | – |
+| **xAI** (Grok) | ✅ | – | ✅ | ✅ | – | – | ✅ | – | – | – |
+| **Cohere** | ✅ | ✅ | – | – | ✅ | ✅ | ✅ | – | – | – |
+| **Mistral** | ✅ | – | – | – | ✅ | – | – | – | – | – |
+| **NVIDIA** | ✅ | – | – | – | ✅ | – | – | – | – | – |
+| **OpenRouter** | ✅ | – | – | – | ✅ | – | – | – | – | – |
+| **Ollama** | ✅ | ✅ | ✅ | – | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **llama.cpp** | ✅ | ✅ | – | – | ✅ | – | – | – | – | ✅ |
+| **vLLM** | ✅ | ✅ | – | – | – | – | – | ✅ | – | ✅ |
+| **Jina AI** | – | – | – | – | ✅ | ✅ | – | – | – | – |
+| **Voyage AI** | – | – | – | – | ✅ | ✅ | – | – | – | – |
+| **ElevenLabs** | – | – | – | – | – | – | – | ✅ | – | – |
+| **Whisper** | – | – | – | – | – | – | ✅ | – | – | ✅ |
+| **Coqui** | – | – | – | – | – | – | – | ✅ | – | ✅ |
+| **Sentence-Transformers** | – | – | – | – | ✅ | – | – | – | – | ✅ |
+
+### 🗄️ Data Sources (Intent SQL / NoSQL RAG)
+
+Natural-language queries are matched to intent templates that compile to native queries against these engines:
+
+| Data Source | Type | 🏠 Self-Hosted | ☁️ Managed / Cloud |
+| :--- | :--- | :---: | :---: |
+| **PostgreSQL** | Relational | ✅ | ✅ |
+| **MySQL** | Relational | ✅ | ✅ |
+| **MariaDB** | Relational | ✅ | ✅ |
+| **SQL Server** | Relational | ✅ | ✅ |
+| **Oracle** | Relational | ✅ | ✅ |
+| **SQLite** | Embedded | ✅ | – |
+| **DuckDB** | Embedded / Analytics | ✅ | – |
+| **Supabase** | Relational (Postgres) | – | ✅ |
+| **AWS Athena** | Serverless SQL / Lakehouse | – | ✅ |
+| **MongoDB** | Document (NoSQL) | ✅ | ✅ |
+| **Redis** | Key-Value / Vector | ✅ | ✅ |
+| **Cassandra** | Wide-Column (NoSQL) | ✅ | ✅ |
+| **Elasticsearch** | Search / Analytics | ✅ | ✅ |
+
+### 🧠 Vector Databases (Semantic / Embedding RAG)
+
+| Vector Store | 🏠 Self-Hosted | ☁️ Managed / Cloud |
+| :--- | :---: | :---: |
+| **Chroma** | ✅ | ✅ |
+| **Qdrant** | ✅ | ✅ |
+| **Pinecone** | – | ✅ |
+| **Milvus** | ✅ | ✅ |
+| **Weaviate** | ✅ | ✅ |
+| **FAISS** | ✅ | – |
+| **Marqo** | ✅ | – |
+| **pgvector** | ✅ | ✅ |
+| **Redis** | ✅ | ✅ |
+| **Elasticsearch** (kNN) | ✅ | ✅ |
+
+> Beyond databases, ORBIT also treats **HTTP/REST & GraphQL APIs**, **file uploads** (PDF, DOCX, CSV, images), and **web crawling** as first-class retrieval sources.
 
 ---
 
