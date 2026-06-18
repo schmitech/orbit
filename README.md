@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square" alt="License"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-blue.svg?style=flat-square&logo=python&logoColor=white" alt="Python"></a>
-  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.7.5-blue?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.7.6-blue?style=flat-square" alt="Version"></a>
   <a href="https://github.com/schmitech/orbit/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs Welcome"></a>
 
 </p>
@@ -46,15 +46,82 @@ Many organizations need to connect AI to their business data without:
 
 ---
 
-## 🏗️ Architecture
+### 🚀 Key Capabilities:
+* **🔒 100% Private & Self-Hosted:** Run offline workloads on local servers using Ollama, llama.cpp, or vLLM.
+* **🔌 Universal Data Retrievers:** Out-of-the-box adapters for PostgreSQL, MongoDB, Elasticsearch, REST APIs, GraphQL, DuckDB, vector databases, files, and web scraping.
+* **🤖 Agentic MCP Tool Loops:** Connect outward to Model Context Protocol (MCP) servers to let LLMs perform multi-step, self-correcting tool operations inside chat sessions.
+* **🎭 Cross-Adapter Skills:** Generate text-to-image and text-to-video  dynamically as part of a conversation workflow.
+* **🛡️ Production-Grade Control Plane:** API key validation, request rate-limiting, token quotas, content moderation, circuit breakers, and detailed audit logging.
 
-ORBIT acts as a router and orchestration layer sitting directly between your applications, your local or hosted AI models, and your internal data repositories:
+---
 
-<div align="center">
-  <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/1590d45a-39f2-4a96-b305-b96e7bc8c7e2" alt="ORBIT Logo" width="800"/>
-  </a>
-</div>
+## ⚡ Quick Start
+
+### 📦 Option A: Release Tarball (Manual Linux/macOS Install — Preferred)
+
+To install ORBIT directly into your local Python environment:
+
+```bash
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.6/orbit-2.7.6.tar.gz
+
+tar -xzf orbit-2.7.6.tar.gz && cd orbit-2.7.6
+
+./install/setup.sh  # add --wizard for interactive setup
+
+./bin/orbit.sh start
+
+tail -f ./logs/orbit.log
+```
+
+Refer to the [Getting Started Tutorial](docs/tutorial.md) to learn how to configure and customize ORBIT.
+
+---
+
+### 🐳 Option B: Docker Compose
+
+Clone the repository and boot the service:
+
+```bash
+git clone https://github.com/schmitech/orbit.git && cd orbit/docker
+docker compose up -d
+```
+
+This starts ORBIT configured with a local Ollama instance and the lightweight `SmolLM2` model, auto-pulling it on startup. 
+
+> [!TIP]
+> **GPU Acceleration:** If you have an NVIDIA GPU, spin it up using the GPU compose file:
+> ```bash
+> docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+> ```
+
+See the [Docker Guide](docker/README.md) for detailed information on GPU setup, and custom configurations.
+
+---
+
+### ⚙️ Verify & Access the Gateway
+
+After running either installation method above:
+
+#### 1. Query the OpenAI-Compatible API
+Test the API gateway by sending a chat completion payload:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: local-test' \
+  -d '{
+    "messages": [{"role": "user", "content": "Summarize ORBIT in one sentence."}],
+    "stream": false
+  }'
+```
+
+#### 2. Access the Admin UI
+Open your browser and navigate to **[http://localhost:3000/admin](http://localhost:3000/admin)**.
+* **Username:** `admin`
+* **Password:** `admin123`
+
+The dashboard allows you to monitor API metrics, system latency, active sessions, and verify configured adapter states in real-time.
 
 ---
 
@@ -147,162 +214,6 @@ Expand the sections below to see ORBIT in action:
 
 ---
 
-### 🚀 Key Capabilities:
-* **🔒 100% Private & Self-Hosted:** Run offline workloads on local servers using Ollama, llama.cpp, or vLLM.
-* **🔌 Universal Data Retrievers:** Out-of-the-box adapters for PostgreSQL, MongoDB, Elasticsearch, REST APIs, GraphQL, DuckDB, vector databases, files, and web scraping.
-* **🤖 Agentic MCP Tool Loops:** Connect outward to Model Context Protocol (MCP) servers to let LLMs perform multi-step, self-correcting tool operations inside chat sessions.
-* **🎭 Cross-Adapter Skills:** Generate text-to-image and text-to-video  dynamically as part of a conversation workflow.
-* **🛡️ Production-Grade Control Plane:** API key validation, request rate-limiting, token quotas, content moderation, circuit breakers, and detailed audit logging.
-
----
-
-## 🧩 Supported Providers & Integrations
-
-Everything below is configured through YAML under [`config/`](config/) — swap any provider by editing a single file, no application code changes. ORBIT ships with **38 inference backends**, plus dedicated embedding, reranking, moderation, vision, speech, and media engines, all behind one OpenAI-compatible API.
-
-### 🤖 LLM Inference Backends
-
-> **☁️ Cloud & API:** OpenAI · Anthropic (Claude) · Google Gemini · Google Vertex AI · AWS Bedrock · Azure OpenAI · xAI (Grok) · Mistral · Cohere · Groq · DeepSeek · Together AI · OpenRouter · Hugging Face · Perplexity · Fireworks AI · Replicate · NVIDIA NIM · Cerebras · IBM watsonx · Z.AI (GLM) · Moonshot (Kimi) · MiniMax · DeepInfra · Nebius · NEAR AI · Venice AI · Scaleway
-
-> **🏠 Local & Self-Hosted:** Ollama · llama.cpp · vLLM · NVIDIA TensorRT-LLM · Hugging Face Transformers · LM Studio · BitNet · Shimmy
-
-### 🎛️ Capability Matrix
-
-Which providers cover which modalities — useful for picking a stack that does more than chat. A blank cell means "not wired up for that capability in ORBIT," not that the vendor lacks it.
-
-| Provider | 💬 Chat | 👁️ Vision | 🖼️ Image | 🎬 Video | 🔢 Embed | 🔀 Rerank | 🎙️ STT | 🔊 TTS | 🛡️ Moderation | 🏠 Local |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **OpenAI** | ✅ | ✅ | ✅ | – | ✅ | ✅ | ✅ | ✅ | ✅ | – |
-| **Google** (Gemini / Cloud) | ✅ | ✅ | ✅ | ✅ | ✅ | – | ✅ | ✅ | – | – |
-| **Anthropic** (Claude) | ✅ | ✅ | – | – | – | ✅ | – | – | ✅ | – |
-| **xAI** (Grok) | ✅ | – | ✅ | ✅ | – | – | ✅ | – | – | – |
-| **Cohere** | ✅ | ✅ | – | – | ✅ | ✅ | ✅ | – | – | – |
-| **Mistral** | ✅ | – | – | – | ✅ | – | – | – | – | – |
-| **NVIDIA** | ✅ | – | – | – | ✅ | – | – | – | – | – |
-| **OpenRouter** | ✅ | – | – | – | ✅ | – | – | – | – | – |
-| **Ollama** | ✅ | ✅ | ✅ | – | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **llama.cpp** | ✅ | ✅ | – | – | ✅ | – | – | – | – | ✅ |
-| **vLLM** | ✅ | ✅ | – | – | – | – | – | ✅ | – | ✅ |
-| **Jina AI** | – | – | – | – | ✅ | ✅ | – | – | – | – |
-| **Voyage AI** | – | – | – | – | ✅ | ✅ | – | – | – | – |
-| **ElevenLabs** | – | – | – | – | – | – | – | ✅ | – | – |
-| **Whisper** | – | – | – | – | – | – | ✅ | – | – | ✅ |
-| **Coqui** | – | – | – | – | – | – | – | ✅ | – | ✅ |
-| **Sentence-Transformers** | – | – | – | – | ✅ | – | – | – | – | ✅ |
-
-### 🗄️ Data Sources (Intent SQL / NoSQL RAG)
-
-Natural-language queries are matched to intent templates that compile to native queries against these engines:
-
-| Data Source | Type | 🏠 Self-Hosted | ☁️ Managed / Cloud |
-| :--- | :--- | :---: | :---: |
-| **PostgreSQL** | Relational | ✅ | ✅ |
-| **MySQL** | Relational | ✅ | ✅ |
-| **MariaDB** | Relational | ✅ | ✅ |
-| **SQL Server** | Relational | ✅ | ✅ |
-| **Oracle** | Relational | ✅ | ✅ |
-| **SQLite** | Embedded | ✅ | – |
-| **DuckDB** | Embedded / Analytics | ✅ | – |
-| **Supabase** | Relational (Postgres) | – | ✅ |
-| **AWS Athena** | Serverless SQL / Lakehouse | – | ✅ |
-| **MongoDB** | Document (NoSQL) | ✅ | ✅ |
-| **Redis** | Key-Value / Vector | ✅ | ✅ |
-| **Cassandra** | Wide-Column (NoSQL) | ✅ | ✅ |
-| **Elasticsearch** | Search / Analytics | ✅ | ✅ |
-
-### 🧠 Vector Databases (Semantic / Embedding RAG)
-
-| Vector Store | 🏠 Self-Hosted | ☁️ Managed / Cloud |
-| :--- | :---: | :---: |
-| **Chroma** | ✅ | ✅ |
-| **Qdrant** | ✅ | ✅ |
-| **Pinecone** | – | ✅ |
-| **Milvus** | ✅ | ✅ |
-| **Weaviate** | ✅ | ✅ |
-| **FAISS** | ✅ | – |
-| **Marqo** | ✅ | – |
-| **pgvector** | ✅ | ✅ |
-| **Redis** | ✅ | ✅ |
-| **Elasticsearch** (kNN) | ✅ | ✅ |
-
-> Beyond databases, ORBIT also treats **HTTP/REST & GraphQL APIs**, **file uploads** (PDF, DOCX, CSV, images), and **web crawling** as first-class retrieval sources.
-
----
-
-## ⚡ Quick Start
-
-ORBIT supports two main deployment methods:
-1. **Manual Installation via Release Tarball** (Preferred option for bare-metal & local execution)
-2. **Containerized Deployment via Docker Compose** (Preferred option for quick containerized environments)
-
-### 📦 Option A: Release Tarball (Manual Linux/macOS Install — Preferred)
-
-To install ORBIT directly into your local Python environment:
-
-```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.5/orbit-2.7.5.tar.gz
-
-tar -xzf orbit-2.7.5.tar.gz && cd orbit-2.7.5
-
-./install/setup.sh --wizard   # guided setup: choose your AI provider interactively
-
-./bin/orbit.sh start
-
-tail -f ./logs/orbit.log
-```
-
-Refer to the [Getting Started Tutorial](docs/tutorial.md) to learn how to configure and customize ORBIT.
-
----
-
-### 🐳 Option B: Docker Compose
-
-Clone the repository and boot the service:
-
-```bash
-git clone https://github.com/schmitech/orbit.git && cd orbit/docker
-docker compose up -d
-```
-
-This starts ORBIT configured with a local Ollama instance and the lightweight `SmolLM2` model, auto-pulling it on startup. 
-
-> [!TIP]
-> **GPU Acceleration:** If you have an NVIDIA GPU, spin it up using the GPU compose file:
-> ```bash
-> docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
-> ```
-
-See the [Docker Guide](docker/README.md) for detailed information on GPU setup, and custom configurations.
-
----
-
-### ⚙️ Verify & Access the Gateway
-
-After running either installation method above:
-
-#### 1. Query the OpenAI-Compatible API
-Test the API gateway by sending a chat completion payload:
-
-```bash
-curl -X POST http://localhost:3000/v1/chat \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: default-key' \
-  -H 'X-Session-ID: local-test' \
-  -d '{
-    "messages": [{"role": "user", "content": "Summarize ORBIT in one sentence."}],
-    "stream": false
-  }'
-```
-
-#### 2. Access the Admin UI
-Open your browser and navigate to **[http://localhost:3000/admin](http://localhost:3000/admin)**.
-* **Username:** `admin`
-* **Password:** `admin123`
-
-The dashboard allows you to monitor API metrics, system latency, active sessions, and verify configured adapter states in real-time.
-
----
-
 ## ⚖️ Why ORBIT? (Compared to custom setups)
 
 | Challenge | Standard Approach | What ORBIT Provides |
@@ -312,14 +223,6 @@ The dashboard allows you to monitor API metrics, system latency, active sessions
 | **Limited RAG** | Vector search over standard text chunks only. No connection to live relational data. | **Universal Context:** Structured SQL/NoSQL retrievers, JSON REST API scraping, GraphQL queries, and vector store hybrid searches. |
 | **Data Privacy** | Sensitive internal data processed and sent through public APIs by default. | **Self-Hosted Control:** Run 100% offline with local Ollama/llama.cpp instances, local embeddings, RBAC, and secure logging. |
 | **Cascading Failures** | Slow or offline third-party APIs cause global application downtime. | **Production Resilience:** Integrated circuit breakers, fallback model routing, request queuing, and rate limits. |
-
-<div align="center">
-  <a href="https://github.com/schmitech/orbit">
-    <img src="https://github.com/user-attachments/assets/5e3bfafe-c182-4237-991c-8d2e3d5fe5d7" alt="ORBIT Logo" width="800"/>
-  </a>
-  <br />
-  <em>Inference segregation based on data classification, giving you the flexibility to dynamicaly route workloads across local, private, or public models.</em>
-</div>
 
 ---
 

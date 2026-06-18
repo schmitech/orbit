@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.7.6] - 2026-06-18
+
+### Bug Fixes & Technical Improvements
+- **Anthropic Reranker**: Fixed model override being ignored — `AnthropicRerankingService` now unconditionally applies the reranker-specific model instead of deferring to the base class default (`claude-sonnet-4-20250514`); corrected model ID in `config/rerankers.yaml` from `claude-haiku-4-5` to `claude-haiku-4-5-20251001`.
+
+### Core System Updates
+- **Install Wizard**: Added an interactive setup wizard via `./install/setup.sh --wizard` to configure common use cases, AI providers, API keys, and related config files non-destructively.
+- **Document Generation**: Split the monolithic document renderer into per-format modules for PDF, DOCX, XLSX, PPTX, Markdown, and CSV, with a thin dispatcher preserving existing import paths.
+- **Rewrite Model Overrides**: Added `rewrite_model` support for document generation adapters so spec-generation models can be overridden independently from the selected provider.
+- **Provider Caching**: Fixed stale OpenAI-compatible provider client reuse by rebuilding lost SDK clients, resetting verification state, and avoiding cache retention for failed initializations.
+
+### Audio & STT
+- **Whisper Service**: Moved synchronous transcription work into a thread pool, preserved MIME-derived file extensions for FFmpeg, and hardened cleanup behavior.
+- **Cohere STT**: Fixed multipart field ordering so Cohere receives `model` and `language` before the uploaded file.
+
+### Chat-app & UI Improvements
+- **orbitchat v3.9.9**: Published the latest chat client package and enabled Markdown and CSV document adapters by default.
+- **Document Previews**: Added Markdown and CSV preview/download support, including Markdown modal rendering and capped CSV table previews.
+
+### Documentation & Configuration
+- **Provider Matrix**: Added README matrices for inference providers, capabilities, data sources, vector databases, and integration types.
+- **Adapter Configs**: Registered Markdown and CSV generator adapters and added `rewrite_model` comments across document generator adapter configs.
+
 ## [2.7.5] - 2026-06-17
 
 ### Core System Updates

@@ -43,9 +43,8 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
         # Get reranking-specific configuration
         provider_config = self._extract_provider_config()
 
-        # Use fast Haiku model by default for cost-effectiveness
-        if not self.model:
-            self.model = provider_config.get('model', 'claude-3-haiku-20240307')
+        # Use the reranker-specific model, overriding the base class default
+        self.model = provider_config.get('model', 'claude-haiku-4-5-20251001')
 
         self.temperature = provider_config.get('temperature', 0.0)
         self.max_tokens = provider_config.get('max_tokens', 100)
