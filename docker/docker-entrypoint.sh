@@ -35,8 +35,10 @@ detect_gpu() {
         fi
     fi
 
-    # Method 4: Check for AMD ROCm GPU
-    if [ -e /dev/kfd ] && [ -e /dev/dri ]; then
+    # Method 4: Check for AMD ROCm GPU. Require ROCm-specific signals so
+    # generic /dev/dri devices from integrated graphics do not select GPU mode.
+    if { command -v rocminfo &> /dev/null && rocminfo &> /dev/null; } || \
+       { [ -e /dev/kfd ] && [ -d /sys/class/kfd ] && ls /dev/dri/renderD* > /dev/null 2>&1; }; then
         echo "amd"
         return 0
     fi
@@ -87,16 +89,32 @@ fi
 echo "  Selected Preset: $SELECTED_PRESET"
 echo ""
 
-# Update inference.yaml with selected preset
-if [ -f /orbit/config/inference.yaml ]; then
+CONFIG_SOURCE_DIR="/orbit/config"
+RUNTIME_CONFIG_DIR="/orbit/config-runtime"
+
+echo "Preparing runtime configuration in: $RUNTIME_CONFIG_DIR"
+mkdir -p "$RUNTIME_CONFIG_DIR"
+find "$RUNTIME_CONFIG_DIR" -mindepth 1 -delete
+cp -a "$CONFIG_SOURCE_DIR/." "$RUNTIME_CONFIG_DIR/"
+
+if [ ! -f /orbit/data/orbit.db ]; then
+    echo "Initializing database from bundled default seed"
+    cp /orbit/orbit.db.default /orbit/data/orbit.db
+    chmod 660 /orbit/data/orbit.db
+fi
+
+# Update inference.yaml with selected preset. Source templates under /orbit/config
+# are never changed; this keeps restarts idempotent when env vars or hardware change.
+if [ -f "$RUNTIME_CONFIG_DIR/inference.yaml" ]; then
     echo "Configuring inference with preset: $SELECTED_PRESET"
-    sed -i "s/use_preset: \".*\"/use_preset: \"$SELECTED_PRESET\"/" /orbit/config/inference.yaml
+    sed -i "s/use_preset: \".*\"/use_preset: \"$SELECTED_PRESET\"/" "$RUNTIME_CONFIG_DIR/inference.yaml"
 fi
 
 # Update adapter configs with selected preset
-for adapter_file in /orbit/config/adapters/*.yaml; do
+for adapter_file in "$RUNTIME_CONFIG_DIR"/adapters/*.yaml; do
     if [ -f "$adapter_file" ]; then
-        # Replace model references for smollm2 presets (cpu <-> gpu)
+        # Replace model references for smollm2 presets (cpu <-> gpu). Both
+        # presets use the smollm2 Ollama tag pulled by ollama-init.
         if echo "$SELECTED_PRESET" | grep -q "gpu"; then
             sed -i 's/model: "smollm2-1.7b-cpu"/model: "smollm2-1.7b-gpu"/' "$adapter_file"
         else
@@ -109,9 +127,22 @@ echo "Updated adapter configs with preset: $SELECTED_PRESET"
 # ═══════════════════════════════════════════════════════════════════════════
 # Rewrite Ollama URLs for docker-compose networking
 # ═══════════════════════════════════════════════════════════════════════════
-OLLAMA_URL="http://${OLLAMA_HOST:-localhost:11434}"
+OLLAMA_HOST_VALUE="${OLLAMA_HOST:-localhost:11434}"
+case "$OLLAMA_HOST_VALUE" in
+    http://*|https://*) OLLAMA_URL="$OLLAMA_HOST_VALUE" ;;
+    *) OLLAMA_URL="http://$OLLAMA_HOST_VALUE" ;;
+esac
 echo "Rewriting Ollama URLs to: $OLLAMA_URL"
-find /orbit/config -name '*.yaml' -exec sed -i "s|http://localhost:11434|${OLLAMA_URL}|g" {} +
+find "$RUNTIME_CONFIG_DIR" -name '*.yaml' -exec sed -i "s|http://localhost:11434|${OLLAMA_URL}|g" {} +
+
+if [ "${ORBIT_ALLOW_DEFAULT_CREDENTIALS:-false}" != "true" ]; then
+    echo ""
+    echo "SECURITY WARNING:"
+    echo "  This image includes the default database and API key for first-run convenience."
+    echo "  Rotate the default API key/admin password before exposing ORBIT beyond localhost."
+    echo "  Set ORBIT_ALLOW_DEFAULT_CREDENTIALS=true to acknowledge this warning."
+    echo ""
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Wait for Ollama to be ready
@@ -149,4 +180,4 @@ echo "════════════════════════�
 echo ""
 
 # Run ORBIT server as PID 1 for proper signal handling
-exec python /orbit/server/main.py --config /orbit/config/config.yaml
+exec python /orbit/server/main.py --config "$RUNTIME_CONFIG_DIR/config.yaml"

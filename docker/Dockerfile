@@ -58,10 +58,6 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
-# Install additional dependencies for basic server functionality
-# Pillow is required by ai_services/vision_service (imported even if not used)
-RUN pip install --no-cache-dir requests tqdm pyyaml Pillow httpx
-
 # Copy the application code
 COPY server/ /orbit/server/
 COPY bin/ /orbit/bin/
@@ -86,10 +82,11 @@ COPY env.example /orbit/.env
 RUN chmod +x /orbit/bin/orbit.py /orbit/bin/orbit.sh
 
 # Create necessary directories
-RUN mkdir -p /orbit/logs /orbit/data /orbit/models
+RUN mkdir -p /orbit/logs /orbit/data /orbit/models /orbit/config-runtime
 
-# Copy default database file (so user won't need to create a default key)
-COPY install/orbit.db.default /orbit/orbit.db
+# Copy default database seed. The entrypoint copies this into /orbit/data on
+# first boot so SQLite can write journals as the non-root orbit user.
+COPY install/orbit.db.default /orbit/orbit.db.default
 
 # Set environment variables
 ENV PYTHONPATH=/orbit:/orbit/server
@@ -103,6 +100,7 @@ ENV ENVIRONMENT=production
 #   - "auto" (default): Detect GPU and select smollm2-1.7b-gpu or smollm2-1.7b-cpu
 #   - "smollm2-1.7b-gpu": Force GPU preset
 #   - "smollm2-1.7b-cpu": Force CPU preset
+#     These presets map to the Ollama smollm2 tag pulled by docker-compose.
 #   - Any other preset name from ollama.yaml
 # ═══════════════════════════════════════════════════════════════════════════
 ENV ORBIT_PRESET=auto
@@ -116,7 +114,13 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
 
 # Copy entrypoint script
 COPY docker/docker-entrypoint.sh /orbit/docker-entrypoint.sh
-RUN chmod +x /orbit/docker-entrypoint.sh
+RUN chmod +x /orbit/docker-entrypoint.sh && \
+    useradd -r -u 1001 -g root orbit && \
+    chown -R orbit:root /orbit/logs /orbit/data /orbit/models /orbit/config-runtime && \
+    chown orbit:root /orbit/orbit.db.default && \
+    chmod 640 /orbit/orbit.db.default
+
+USER orbit
 
 # Run the entrypoint script
 ENTRYPOINT ["/orbit/docker-entrypoint.sh"]

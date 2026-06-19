@@ -27,11 +27,13 @@ services:
       ollama:
         condition: service_healthy
     environment:
+      # Host:port only; docker-entrypoint.sh adds http:// when building URLs.
       - OLLAMA_HOST=ollama:11434
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         echo "Pulling models..."
+        # smollm2 is the Ollama tag used by ORBIT's smollm2-1.7b-cpu/gpu presets.
         ollama pull smollm2
         ollama pull nomic-embed-text:latest
         echo "Models pulled successfully."
@@ -50,10 +52,15 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
     environment:
+      # Host:port only; docker-entrypoint.sh adds http:// when building URLs.
       - OLLAMA_HOST=ollama:11434
       - ORBIT_PRESET=auto
       - ENVIRONMENT=production
+      # This image includes install/orbit.db.default for first-run convenience.
+      # Rotate the default API key/admin password before exposing this service.
     volumes:
       - orbit-data:/orbit/data
       - orbit-logs:/orbit/logs

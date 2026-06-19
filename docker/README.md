@@ -155,7 +155,11 @@ Set these in `docker-compose.yml` under the `orbit` service:
   - `smollm2-1.7b-cpu` - force CPU preset
   - Any preset name from `ollama.yaml`
 - `OLLAMA_HOST` - Ollama service address (default: `ollama:11434`)
+  - Use host:port such as `ollama:11434`; `http://` and `https://` URLs are also accepted.
 - `ORBIT_DEFAULT_ADMIN_PASSWORD` - Admin password for CLI access (default: `admin123`)
+- `ORBIT_ALLOW_DEFAULT_CREDENTIALS` - Set to `true` to acknowledge and silence the startup warning about the bundled default database/API key.
+  - Leave unset for the warning to print on each start.
+  - Rotate the default API key/admin password before exposing ORBIT beyond localhost.
 
 ### Persistent Data
 
@@ -169,27 +173,7 @@ Models are only pulled once by `ollama-init`. Subsequent `docker compose down &&
 
 ## Using the CLI
 
-### Using the Helper Script (Recommended)
-
-```bash
-# Login as admin (will prompt for password, default: admin123)
-./docker/orbit-docker.sh --container orbit-server login
-
-# Create a default API key with a simple prompt
-./docker/orbit-docker.sh --container orbit-server cli key create \
-  --adapter simple-chat \
-  --name "Default Chat Key" \
-  --prompt-name "Default Assistant Prompt" \
-  --prompt-text "You are a helpful assistant. Be concise and friendly."
-
-# List API keys
-./docker/orbit-docker.sh --container orbit-server cli key list
-
-# Check status
-./docker/orbit-docker.sh --container orbit-server status
-```
-
-### Direct Docker Exec
+Run CLI commands inside the `orbit-server` container:
 
 ```bash
 # Login as admin
@@ -204,6 +188,9 @@ docker exec -it orbit-server python /orbit/bin/orbit.py key create \
 
 # List API keys
 docker exec -it orbit-server python /orbit/bin/orbit.py key list
+
+# Check server status
+docker exec -it orbit-server python /orbit/bin/orbit.py status
 ```
 
 The CLI supports both `--prompt-text` (direct string) and `--prompt-file` (file path).

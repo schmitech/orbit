@@ -93,17 +93,6 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Check if user is logged into Docker Hub (only if publishing)
-if [ "$PUBLISH" = true ]; then
-    if ! docker info | grep -q "Username"; then
-        echo -e "${YELLOW}Not logged into Docker Hub. Attempting to login...${NC}"
-        if ! docker login; then
-            echo -e "${RED}Failed to login to Docker Hub. Please login manually: docker login${NC}"
-            exit 1
-        fi
-    fi
-fi
-
 # Change to project root
 cd "$PROJECT_ROOT"
 
