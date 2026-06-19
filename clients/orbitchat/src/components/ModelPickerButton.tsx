@@ -83,7 +83,7 @@ export function ModelPickerButton({
             <div
               role="listbox"
               aria-label={listboxLabel}
-              className="absolute right-0 bottom-full z-50 mb-1.5 min-w-[200px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-[#2f303d] dark:bg-[#111111]"
+              className="absolute right-0 bottom-full z-50 mb-1.5 min-w-[200px] max-h-60 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg dark:border-[#2f303d] dark:bg-[#111111]"
             >
               {availableModels.map(model => {
                 const isActive = effectiveModel === model.name;
