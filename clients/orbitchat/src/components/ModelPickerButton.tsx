@@ -50,9 +50,14 @@ export function ModelPickerButton({
     });
   }, []);
 
+  const closeDropdown = useCallback(() => {
+    setOpen(false);
+    setQuery('');
+  }, []);
+
   const toggleDropdown = () => {
     if (open) {
-      setOpen(false);
+      closeDropdown();
       return;
     }
     recalcPos();
@@ -60,10 +65,7 @@ export function ModelPickerButton({
   };
 
   useEffect(() => {
-    if (!open) {
-      setQuery('');
-      return;
-    }
+    if (!open) return;
 
     const id = setTimeout(() => searchRef.current?.focus(), 10);
 
@@ -72,13 +74,13 @@ export function ModelPickerButton({
       const inWrapper = wrapperRef.current?.contains(target) ?? false;
       const inDropdown = dropdownRef.current?.contains(target) ?? false;
       if (!inWrapper && !inDropdown) {
-        setOpen(false);
+        closeDropdown();
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        setOpen(false);
+        closeDropdown();
         triggerRef.current?.focus();
       }
     };
@@ -99,7 +101,7 @@ export function ModelPickerButton({
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open, recalcPos]);
+  }, [closeDropdown, open, recalcPos]);
 
   if (!defaultModel && availableModels.length === 0) {
     return null;
@@ -122,7 +124,7 @@ export function ModelPickerButton({
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="Search models…"
-                className="flex-1 bg-transparent text-xs text-gray-700 placeholder-gray-400 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#6b6f7a]"
+                className="flex-1 bg-transparent pl-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#6b6f7a]"
                 aria-label="Search models"
               />
             </div>
@@ -149,7 +151,7 @@ export function ModelPickerButton({
                     type="button"
                     onClick={() => {
                       onSelect(model.name);
-                      setOpen(false);
+                      closeDropdown();
                       triggerRef.current?.focus();
                     }}
                     className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors ${
