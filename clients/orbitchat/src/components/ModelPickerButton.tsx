@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronDown, Search } from 'lucide-react';
 import type { AllowedModel } from '../types';
 
 interface ModelPickerButtonProps {
@@ -21,22 +22,56 @@ export function ModelPickerButton({
   selectedModel,
   onSelect,
   wrapperClassName = 'relative hidden md:block',
-  maxWidthClass = 'max-w-[140px]',
+  maxWidthClass = 'max-w-[200px]',
   triggerTitle = 'Select model',
   listboxLabel = 'Select model',
-  staticPaddingClass = 'px-2.5 py-1',
-  triggerPaddingClass = 'px-2.5 py-1',
+  staticPaddingClass = 'px-3 py-1.5',
+  triggerPaddingClass = 'px-3 py-1.5',
 }: ModelPickerButtonProps) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [dropdownPos, setDropdownPos] = useState<{ bottom: number; right: number } | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const effectiveModel = selectedModel ?? defaultModel;
 
+  const filtered = query.trim()
+    ? availableModels.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase()))
+    : availableModels;
+
+  const recalcPos = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setDropdownPos({
+      bottom: window.innerHeight - rect.top + 8,
+      right: window.innerWidth - rect.right,
+    });
+  }, []);
+
+  const toggleDropdown = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    recalcPos();
+    setOpen(true);
+  };
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setQuery('');
+      return;
+    }
+
+    const id = setTimeout(() => searchRef.current?.focus(), 10);
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const inWrapper = wrapperRef.current?.contains(target) ?? false;
+      const inDropdown = dropdownRef.current?.contains(target) ?? false;
+      if (!inWrapper && !inDropdown) {
         setOpen(false);
       }
     };
@@ -48,44 +83,63 @@ export function ModelPickerButton({
       }
     };
 
+    // Keep position in sync while open
+    const resizeObserver = new ResizeObserver(recalcPos);
+    if (triggerRef.current) resizeObserver.observe(triggerRef.current);
+    window.addEventListener('resize', recalcPos, { passive: true });
+    document.addEventListener('scroll', recalcPos, { capture: true, passive: true });
+
     document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
+      clearTimeout(id);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', recalcPos);
+      document.removeEventListener('scroll', recalcPos, { capture: true });
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open]);
+  }, [open, recalcPos]);
 
   if (!defaultModel && availableModels.length === 0) {
     return null;
   }
 
-  return (
-    <div ref={wrapperRef} className={wrapperClassName}>
-      {availableModels.length > 1 ? (
-        <>
-          <button
-            ref={triggerRef}
-            type="button"
-            onClick={() => setOpen(value => !value)}
-            className={`inline-flex ${maxWidthClass} items-center gap-1 rounded-full border border-gray-200 bg-gray-100 ${triggerPaddingClass} text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] dark:hover:bg-[#3a3b48]`}
-            aria-haspopup="listbox"
-            aria-expanded={open}
-            title={triggerTitle}
+  const dropdown = open && dropdownPos && typeof document !== 'undefined'
+    ? createPortal(
+        <div
+          ref={dropdownRef}
+          style={{ position: 'fixed', bottom: dropdownPos.bottom, right: dropdownPos.right, width: 288, zIndex: 9999 }}
+          className="rounded-xl border border-gray-200 bg-white shadow-xl dark:border-[#2f303d] dark:bg-[#111111]"
+        >
+          {/* Search bar */}
+          <div className="p-2 border-b border-gray-100 dark:border-[#222222]">
+            <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-1.5 dark:bg-[#1a1a1a]">
+              <Search className="h-3.5 w-3.5 flex-shrink-0 text-gray-400 dark:text-[#6b6f7a]" aria-hidden="true" />
+              <input
+                ref={searchRef}
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search models…"
+                className="flex-1 bg-transparent text-xs text-gray-700 placeholder-gray-400 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#6b6f7a]"
+                aria-label="Search models"
+              />
+            </div>
+          </div>
+
+          {/* Model list */}
+          <div
+            role="listbox"
+            aria-label={listboxLabel}
+            className="max-h-60 overflow-y-auto py-1"
           >
-            <span className="truncate">{effectiveModel}</span>
-            <ChevronDown
-              className={`h-3 w-3 flex-shrink-0 text-gray-400 transition-transform duration-150 dark:text-[#6b6f7a] ${open ? 'rotate-180' : ''}`}
-              aria-hidden="true"
-            />
-          </button>
-          {open && (
-            <div
-              role="listbox"
-              aria-label={listboxLabel}
-              className="absolute right-0 bottom-full z-50 mb-1.5 min-w-[200px] max-h-60 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg dark:border-[#2f303d] dark:bg-[#111111]"
-            >
-              {availableModels.map(model => {
+            {filtered.length === 0 ? (
+              <div className="px-3 py-5 text-center text-xs text-gray-400 dark:text-[#6b6f7a]">
+                No models match &ldquo;{query}&rdquo;
+              </div>
+            ) : (
+              filtered.map(model => {
                 const isActive = effectiveModel === model.name;
                 return (
                   <button
@@ -116,13 +170,47 @@ export function ModelPickerButton({
                     <span className="truncate font-medium normal-case tracking-normal">{model.name}</span>
                   </button>
                 );
-              })}
+              })
+            )}
+          </div>
+
+          {/* Count hint when list is long */}
+          {availableModels.length > 8 && (
+            <div className="border-t border-gray-100 px-3 py-1.5 dark:border-[#222222]">
+              <span className="text-[10px] text-gray-400 dark:text-[#6b6f7a]">
+                {filtered.length} of {availableModels.length} models
+              </span>
             </div>
           )}
+        </div>,
+        document.body
+      )
+    : null;
+
+  return (
+    <div ref={wrapperRef} className={wrapperClassName}>
+      {availableModels.length > 1 ? (
+        <>
+          <button
+            ref={triggerRef}
+            type="button"
+            onClick={toggleDropdown}
+            className={`inline-flex min-w-[100px] ${maxWidthClass} items-center gap-1.5 rounded-full border border-gray-200 bg-gray-100 ${triggerPaddingClass} text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] dark:hover:bg-[#3a3b48]`}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            title={triggerTitle}
+          >
+            <span className="truncate flex-1">{effectiveModel}</span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 flex-shrink-0 text-gray-400 transition-transform duration-150 dark:text-[#6b6f7a] ${open ? 'rotate-180' : ''}`}
+              aria-hidden="true"
+            />
+          </button>
+          {dropdown}
         </>
       ) : (
         <div
-          className={`inline-flex ${maxWidthClass} items-center rounded-full border border-gray-200 bg-gray-100 ${staticPaddingClass} text-xs text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]`}
+          className={`inline-flex min-w-[100px] ${maxWidthClass} items-center rounded-full border border-gray-200 bg-gray-100 ${staticPaddingClass} text-xs text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]`}
           title={effectiveModel ?? undefined}
         >
           <span className="truncate">{effectiveModel}</span>
