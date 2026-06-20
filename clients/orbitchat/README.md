@@ -1,6 +1,6 @@
 # ORBIT Chat App
 
-A standalone chat application for ORBIT that can be installed as an npm package and run as a CLI tool. All API communication is routed through a built-in Express proxy that maps adapter names to backend API keys, so **no secrets ever reach the browser**. Uses the open-source [`@schmitech/markdown-renderer`](https://github.com/schmitech/markdown-renderer) for rich content display including math and charts.
+A standalone chat application for ORBIT that can be installed as an npm package and run as a CLI tool. All API communication is routed through a built-in Express proxy that maps adapter names to backend API keys, so **no secrets ever reach the browser**.
 
 ## Installation
 

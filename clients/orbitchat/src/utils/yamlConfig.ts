@@ -89,6 +89,9 @@ export interface OrbitChatYamlConfig {
   };
   auth?: {
     enabled?: boolean;
+    provider?: 'auth0' | 'entra';
+    tenantId?: string;
+    scopes?: string[];
   };
   header?: {
     enabled?: boolean;

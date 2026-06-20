@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
+import { useMsal } from '@azure/msal-react';
 import { useLoginPromptStore } from '../stores/loginPromptStore';
-import { getEnableAuth, getIsAuthConfigured } from '../utils/runtimeConfig';
+import { getEnableAuth, getIsAuthConfigured, getAuthProvider, getAuthScopes } from '../utils/runtimeConfig';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { LogIn, X } from 'lucide-react';
 
@@ -19,12 +20,37 @@ export function LoginPromptModal() {
 
   if (!enableAuth || !isAuthConfigured || isAuthenticated || !showLoginPrompt) return null;
 
-  return <LoginPromptModalInner message={promptMessage} onClose={closeLoginPrompt} />;
+  if (getAuthProvider() === 'entra') {
+    return <EntraLoginPromptModalInner message={promptMessage} onClose={closeLoginPrompt} />;
+  }
+  return <Auth0LoginPromptModalInner message={promptMessage} onClose={closeLoginPrompt} />;
 }
 
-function LoginPromptModalInner({ message, onClose }: { message: string; onClose: () => void }) {
+function Auth0LoginPromptModalInner({ message, onClose }: { message: string; onClose: () => void }) {
   const { loginWithRedirect } = useAuth0();
+  return <LoginPromptModalLayout message={message} onClose={onClose} onLogin={() => loginWithRedirect()} />;
+}
 
+function EntraLoginPromptModalInner({ message, onClose }: { message: string; onClose: () => void }) {
+  const { instance } = useMsal();
+  return (
+    <LoginPromptModalLayout
+      message={message}
+      onClose={onClose}
+      onLogin={() => instance.loginRedirect({ scopes: getAuthScopes() }).catch(() => {})}
+    />
+  );
+}
+
+function LoginPromptModalLayout({
+  message,
+  onClose,
+  onLogin,
+}: {
+  message: string;
+  onClose: () => void;
+  onLogin: () => void;
+}) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
       {/* Backdrop */}
@@ -58,7 +84,7 @@ function LoginPromptModalInner({ message, onClose }: { message: string; onClose:
 
         <div className="flex gap-3">
           <button
-            onClick={() => loginWithRedirect()}
+            onClick={onLogin}
             className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600"
           >
             Sign in

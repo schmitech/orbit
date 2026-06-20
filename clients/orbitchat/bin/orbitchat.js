@@ -155,7 +155,7 @@ const DEFAULTS = {
     conversations: { maxConversations: 1, messagesPerConversation: 10, messagesPerThread: 10, totalMessages: 10 },
     messages: { maxLength: 500 },
   },
-  auth: { enabled: false, domain: '', clientId: '', audience: '' },
+  auth: { enabled: false, provider: 'auth0', domain: '', clientId: '', audience: '', tenantId: '', scopes: [] },
   header: { enabled: false, logoUrl: '', logoUrlLight: '', logoUrlDark: '', logoHeight: '', logoWidth: '', bgColor: '', textColor: '', showBorder: true, navLinks: [] },
   footer: { enabled: false, text: '', bgColor: '', textColor: '', showBorder: false, layout: 'stacked', align: 'center', topPadding: 'large', navLinks: [] },
   startupScripts: [],
@@ -271,6 +271,19 @@ function loadYamlConfig(configPath) {
     process.exit(1);
   }
   return null;
+}
+
+function parseAuthScopes(raw) {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('[')) {
+    try {
+      const p = JSON.parse(trimmed);
+      return Array.isArray(p) ? p.filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+  return trimmed.split(/\s+/).filter(Boolean);
 }
 
 // ---- Local asset handling ----
@@ -609,6 +622,12 @@ function main() {
   if (process.env.VITE_AUTH_DOMAIN) config.auth.domain = process.env.VITE_AUTH_DOMAIN;
   if (process.env.VITE_AUTH_CLIENT_ID) config.auth.clientId = process.env.VITE_AUTH_CLIENT_ID;
   if (process.env.VITE_AUTH_AUDIENCE) config.auth.audience = process.env.VITE_AUTH_AUDIENCE;
+  if (process.env.VITE_AUTH_PROVIDER) config.auth.provider = process.env.VITE_AUTH_PROVIDER;
+  if (process.env.VITE_AUTH_TENANT_ID) config.auth.tenantId = process.env.VITE_AUTH_TENANT_ID;
+  if (process.env.VITE_AUTH_SCOPES) {
+    const raw = process.env.VITE_AUTH_SCOPES.trim();
+    config.auth.scopes = parseAuthScopes(raw);
+  }
 
   const localAssets = {};
   const mapHeaderLogoAsset = (fieldName, assetId) => {
@@ -656,4 +675,4 @@ function main() {
 
 const isMainModule = process.argv[1] && (import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/')) || path.basename(process.argv[1]) === 'orbitchat');
 if (isMainModule) main();
-export { main, createServer };
+export { main, createServer, parseAuthScopes };

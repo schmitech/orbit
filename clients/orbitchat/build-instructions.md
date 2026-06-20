@@ -48,6 +48,32 @@ The build outputs are located in `dist/`:
 
 ---
 
+### Test a Local Pack Before Publishing
+
+```bash
+# 1. Build and pack (from the orbitchat directory)
+npm run build
+npm pack
+# creates orbitchat-x.x.x.tgz in the current directory
+
+# 2. Create a clean test directory somewhere else
+mkdir ~/orbitchat-test && cd ~/orbitchat-test
+
+# 3. Install from the tarball (adjust version as needed)
+npm install /path/to/orbitchat-x.x.x.tgz
+
+# 4. Copy your config and env files into the test directory
+cp /path/to/orbitchat-local.yaml .
+cp /path/to/.env.local .
+
+# 5. Run it
+./node_modules/.bin/orbitchat-daemon --config orbitchat-local.yaml --start
+```
+
+> **Note:** `loadDotEnv` reads `.env.local` from the directory where you invoke the daemon,
+> so both `orbitchat-local.yaml` and `.env.local` must be present in the test directory.
+
+---
 ## 🚀 Usage
 
 ### As an npm Package (CLI Tool)

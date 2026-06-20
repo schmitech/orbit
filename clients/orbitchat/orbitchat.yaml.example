@@ -110,9 +110,18 @@ server:
   trustProxy: false
 
 # ---- Authentication ----
-# Credentials (domain, clientId, audience) go in .env as VITE_AUTH_* vars
+# Non-secret settings go here. Secrets (client IDs, tenant IDs, domain) go in .env.
+#
+# Priority (highest wins): env vars > this file > built-in defaults.
+# If VITE_AUTH_PROVIDER is set in .env, it overrides `provider` below.
+#
+# Auth0 (.env secrets):    VITE_AUTH_DOMAIN, VITE_AUTH_CLIENT_ID, VITE_AUTH_AUDIENCE
+# Entra ID (.env secrets): VITE_AUTH_CLIENT_ID, VITE_AUTH_TENANT_ID
+#                          Optional: VITE_AUTH_SCOPES (space-separated, e.g. "openid profile email User.Read")
 auth:
   enabled: false
+  # provider: "auth0"   # "auth0" | "entra" — defaults to "auth0"
+  #                     # Can also be set via VITE_AUTH_PROVIDER in .env (env takes precedence)
 
 # ---- Header ----
 header:

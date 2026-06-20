@@ -99,9 +99,12 @@ export interface RuntimeConfig {
   };
   auth: {
     enabled: boolean;
+    provider: 'auth0' | 'entra';
     domain: string;
     clientId: string;
     audience: string;
+    tenantId: string;
+    scopes: string[];
   };
   header: {
     enabled: boolean;
@@ -214,9 +217,12 @@ export const DEFAULTS: RuntimeConfig = {
   },
   auth: {
     enabled: false,
+    provider: 'auth0',
     domain: '',
     clientId: '',
     audience: '',
+    tenantId: '',
+    scopes: [],
   },
   header: {
     enabled: false,
@@ -284,6 +290,19 @@ function normalizeAgentMode(value: unknown): 'single' | 'multi' {
   return value === 'single' ? 'single' : 'multi';
 }
 
+function parseScopes(raw: string): string[] {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('[')) {
+    try {
+      const p = JSON.parse(trimmed);
+      return Array.isArray(p) ? p.filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+  return trimmed.split(/\s+/).filter(Boolean);
+}
+
 /**
  * Build the runtime config by merging sources.
  *
@@ -319,6 +338,15 @@ function buildRuntimeConfig(): RuntimeConfig {
   }
   if (!hasRuntimeInjectedConfig || !merged.auth.audience) {
     if (import.meta.env.VITE_AUTH_AUDIENCE) merged.auth.audience = import.meta.env.VITE_AUTH_AUDIENCE;
+  }
+  if (!hasRuntimeInjectedConfig || !merged.auth.provider) {
+    if (import.meta.env.VITE_AUTH_PROVIDER) merged.auth.provider = import.meta.env.VITE_AUTH_PROVIDER as 'auth0' | 'entra';
+  }
+  if (!hasRuntimeInjectedConfig || !merged.auth.tenantId) {
+    if (import.meta.env.VITE_AUTH_TENANT_ID) merged.auth.tenantId = import.meta.env.VITE_AUTH_TENANT_ID;
+  }
+  if (!hasRuntimeInjectedConfig || merged.auth.scopes.length === 0) {
+    if (import.meta.env.VITE_AUTH_SCOPES) merged.auth.scopes = parseScopes(import.meta.env.VITE_AUTH_SCOPES);
   }
 
   // Normalize outOfServiceMessage
@@ -530,7 +558,10 @@ export function getEnableAuth(): boolean {
 }
 
 export function getIsAuthConfigured(): boolean {
-  return Boolean(runtimeConfig.auth.enabled && runtimeConfig.auth.domain && runtimeConfig.auth.clientId);
+  const { enabled, provider, domain, clientId, tenantId } = runtimeConfig.auth;
+  if (!enabled || !clientId) return false;
+  if (provider === 'entra') return Boolean(tenantId);
+  return Boolean(domain);
 }
 
 export function getAuthDomain(): string {
@@ -543,6 +574,19 @@ export function getAuthClientId(): string {
 
 export function getAuthAudience(): string {
   return runtimeConfig.auth.audience;
+}
+
+export function getAuthProvider(): 'auth0' | 'entra' {
+  return runtimeConfig.auth.provider;
+}
+
+export function getAuthTenantId(): string {
+  return runtimeConfig.auth.tenantId;
+}
+
+export function getAuthScopes(): string[] {
+  const s = runtimeConfig.auth.scopes;
+  return s.length > 0 ? s : ['openid', 'profile', 'email'];
 }
 
 export function getEnableHeader(): boolean {

@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
-import { getIsAuthConfigured } from '../utils/runtimeConfig';
+import { getIsAuthConfigured, getAuthProvider } from '../utils/runtimeConfig';
 import { setTokenGetter, clearTokenGetter } from '../auth/tokenStore';
 import { setAuthenticatedUserId, setIsAuthenticated } from '../auth/authState';
+import { EntraAuthGate } from '../auth/EntraAuthGate';
 
 function AuthGateInner({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated, getAccessTokenSilently, user } = useAuth0();
@@ -61,6 +62,9 @@ function AuthGateBypass({ children }: { children: React.ReactNode }) {
 export function AuthGate({ children }: { children: React.ReactNode }) {
   if (!getIsAuthConfigured()) {
     return <AuthGateBypass>{children}</AuthGateBypass>;
+  }
+  if (getAuthProvider() === 'entra') {
+    return <EntraAuthGate>{children}</EntraAuthGate>;
   }
   return <AuthGateInner>{children}</AuthGateInner>;
 }
