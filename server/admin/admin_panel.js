@@ -64,6 +64,7 @@
     adapterCapabilities: "/admin/adapters/capabilities",
     jobs: "/admin/jobs",
     logsTail: "/admin/logs/tail",
+    logsFiles: "/admin/logs/files",
     renderMarkdown: "/admin/render-markdown",
     reloadAdapters: "/admin/reload-adapters",
     reloadTemplates: "/admin/reload-templates",
@@ -3693,8 +3694,52 @@
     var rawLogLines = [];
     var userNearBottom = true;
     var pendingNewLines = 0;
+    var selectedLogFile = null; // null = always load latest
 
-    var logFilename = el("span", { className: "log-filename" }, "orbit.log");
+    var logFileSelect = el("select", { className: "log-file-select", "aria-label": "Select log file" },
+      el("option", { value: "" }, "Loading files…")
+    );
+    logFileSelect.addEventListener("change", function () {
+      selectedLogFile = logFileSelect.value || null;
+      rawLogLines = [];
+      loadLogs(false);
+    });
+
+    async function loadLogFiles() {
+      try {
+        var result = await api("GET", ENDPOINTS.logsFiles);
+        var files = result.files || [];
+        logFileSelect.innerHTML = "";
+        files.forEach(function (f) {
+          var label = f.filename + (f.is_current ? " (current)" : "") +
+            " — " + formatLogFileSize(f.size);
+          var opt = el("option", { value: f.is_current ? "" : f.filename }, label);
+          logFileSelect.appendChild(opt);
+        });
+        if (!files.length) {
+          logFileSelect.appendChild(el("option", { value: "" }, "No log files found"));
+        }
+      } catch (_) {
+        logFileSelect.innerHTML = "";
+        logFileSelect.appendChild(el("option", { value: "" }, "orbit.log"));
+      }
+    }
+
+    function formatLogDate(iso) {
+      var d = new Date(iso);
+      if (isNaN(d)) return iso;
+      return d.toLocaleString(undefined, {
+        month: "short", day: "numeric", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+      });
+    }
+
+    function formatLogFileSize(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / 1048576).toFixed(1) + " MB";
+    }
+
     var logUpdated = el("span", { className: "log-updated" }, "");
     var logCount = el("span", { className: "log-count" }, "");
 
@@ -3792,7 +3837,7 @@
 
     function updateLogCount() {
       var visible = logBody.querySelectorAll(".log-line").length;
-      logCount.textContent = visible + " / " + rawLogLines.length + " lines";
+      logCount.textContent = visible < rawLogLines.length ? visible + " / " + rawLogLines.length + " lines" : "";
     }
 
     /** Full re-render — used for filter/search changes. */
@@ -3855,9 +3900,9 @@
       if (logsInFlight) return;
       logsInFlight = true;
       try {
-        var result = await api("GET", ENDPOINTS.logsTail + "?lines=500");
-        logFilename.textContent = result.filename || "orbit.log";
-        logUpdated.textContent = result.updated_at ? "Updated " + result.updated_at : "";
+        var url = ENDPOINTS.logsTail + "?lines=500" + (selectedLogFile ? "&file=" + encodeURIComponent(selectedLogFile) : "");
+        var result = await api("GET", url);
+        logUpdated.textContent = result.updated_at ? "Updated " + formatLogDate(result.updated_at) : "";
         var incoming = result.lines || [];
 
         if (rawLogLines.length === 0) {
@@ -3882,7 +3927,7 @@
         if (!silent) showError(err.message);
       } finally {
         logsInFlight = false;
-        scheduleLogRefresh();
+        if (!selectedLogFile) scheduleLogRefresh();
       }
     }
 
@@ -3920,7 +3965,7 @@
     var logHeader = el("div", { className: "log-header" },
       el("div", { className: "log-header-left" },
         el("h2", { style: "margin:0;font-size:var(--text-md)" }, "Server Logs"),
-        logFilename,
+        logFileSelect,
         logUpdated,
         logCount
       ),
@@ -3935,6 +3980,7 @@
     logPanel.appendChild(jumpBanner);
     container.appendChild(logPanel);
 
+    loadLogFiles();
     loadLogs(false);
   }
 

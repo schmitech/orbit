@@ -1727,30 +1727,56 @@ async def restart_server(
     }
 
 
+def _resolve_log_dir_and_candidates(request: Request):
+    config = request.app.state.config or {}
+    file_config = config.get("logging", {}).get("handlers", {}).get("file", {})
+    log_dir = Path(file_config.get("directory", "logs")).resolve()
+    base_filename = file_config.get("filename", "orbit.log")
+    candidates = sorted(
+        [p for p in log_dir.glob(base_filename + "*") if p.is_file()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return log_dir, candidates
+
+
+@admin_router.get("/logs/files", dependencies=[Depends(admin_auth_check)])
+def list_log_files(request: Request):
+    """Return all available log files sorted newest-first."""
+    log_dir, candidates = _resolve_log_dir_and_candidates(request)
+    files = []
+    for i, path in enumerate(candidates):
+        stat = path.stat()
+        files.append({
+            "filename": path.name,
+            "size": stat.st_size,
+            "updated_at": datetime.utcfromtimestamp(stat.st_mtime).isoformat() + "Z",
+            "is_current": i == 0,
+        })
+    return {"files": files}
+
+
 @admin_router.get("/logs/tail", dependencies=[Depends(admin_auth_check)])
 def tail_log_file(
     request: Request,
     lines: int = Query(200, ge=10, le=500),
+    file: str = Query(None),
 ):
     """
-    Return the most recently updated ORBIT log file contents.
+    Return ORBIT log file contents. With no `file` param returns the most
+    recently updated file. Pass `file=<filename>` to read a specific rotated file.
     """
-    config = request.app.state.config or {}
-    file_config = config.get("logging", {}).get("handlers", {}).get("file", {})
-    log_dir = Path(file_config.get("directory", "logs"))
-    base_filename = file_config.get("filename", "orbit.log")
-    log_prefix = base_filename + "*"
-
-    candidates = sorted(
-        [path for path in log_dir.glob(log_prefix) if path.is_file()],
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    )
+    log_dir, candidates = _resolve_log_dir_and_candidates(request)
 
     if not candidates:
         raise HTTPException(status_code=404, detail="No log files found")
 
-    log_path = candidates[0]
+    if file:
+        log_path = (log_dir / Path(file).name).resolve()
+        if log_path not in candidates:
+            raise HTTPException(status_code=404, detail="Log file not found")
+    else:
+        log_path = candidates[0]
 
     try:
         mtime = log_path.stat().st_mtime

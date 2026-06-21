@@ -1231,6 +1231,20 @@ tbody tr:nth-child(even) {
   border-radius: var(--radius-pill);
 }
 
+.log-file-select {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: var(--sp-1) var(--sp-8) var(--sp-1) var(--sp-3);
+  min-height: 30px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--ink);
+  max-width: 280px;
+  width: auto;
+  cursor: pointer;
+}
+
 .log-level-bar {
   display: flex;
   gap: 2px;
