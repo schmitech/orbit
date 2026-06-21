@@ -109,6 +109,7 @@ export interface Conversation {
   audioSettings?: AudioSettings; // Audio configuration for this conversation
   currentThreadId?: string; // Current thread ID if in thread mode
   currentThreadSessionId?: string; // Current thread session ID if in thread mode
+  isPinned?: boolean; // Whether the conversation is pinned to the top
 }
 
 export interface ChatState {

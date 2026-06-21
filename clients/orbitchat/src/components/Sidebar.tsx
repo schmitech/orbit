@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, Trash2, Edit2, Trash, PanelLeftClose } from 'lucide-react';
+import { Search, X, Trash2, Edit2, Trash, PanelLeftClose, Pin } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -71,6 +71,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
     deleteConversation,
     deleteAllConversations,
     updateConversationTitle,
+    togglePinConversation,
     getConversationCount,
     configureApiSettings,
     clearError
@@ -132,7 +133,8 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
     );
   }, [conversationsWithHistory, searchQuery]);
 
-  const timeGroups = useMemo(() => groupConversationsByTime(filteredConversations), [filteredConversations]);
+  const timeGroups = useMemo(() => groupConversationsByTime(filteredConversations.filter(c => !c.isPinned)), [filteredConversations]);
+  const pinnedConversations = useMemo(() => filteredConversations.filter(c => c.isPinned), [filteredConversations]);
 
   const totalConversations = getConversationCount();
   const isSearching = searchQuery.length > 0;
@@ -330,6 +332,16 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
               {/* Actions: hidden until hover/focus, then fade in */}
               <div className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover:opacity-100 group-focus-within:opacity-100">
                 <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePinConversation(conversation.id);
+                  }}
+                  className={`rounded p-1 transition-colors hover:bg-slate-200/80 hover:text-slate-600 dark:hover:bg-[#3c3f4a] dark:hover:text-[#c5c8d6] ${conversation.isPinned ? 'text-sky-500 opacity-100' : 'text-slate-400 dark:text-[#6b6f7a]'}`}
+                  aria-label={`${conversation.isPinned ? 'Unpin' : 'Pin'} conversation: ${conversation.title}`}
+                >
+                  <Pin className="h-3 w-3" />
+                </button>
+                <button
                   onClick={(e) => handleEditStart(e, conversation)}
                   className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-600 dark:text-[#6b6f7a] dark:hover:bg-[#3c3f4a] dark:hover:text-[#c5c8d6]"
                   aria-label={`Rename conversation: ${conversation.title}`}
@@ -503,8 +515,23 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
               {filteredConversations.map(renderConversationCard)}
             </div>
           ) : (
-            // Grouped by time
+            // Grouped by pinned and time
             <div className="space-y-4">
+              {pinnedConversations.length > 0 && (
+                <section aria-label="Pinned">
+                  <h4 className="sticky top-0 z-10 mb-1 bg-transparent px-1 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 backdrop-blur-sm dark:text-[#6e7490]">
+                    Pinned
+                  </h4>
+                  <div className="space-y-1">
+                    {pinnedConversations.map(renderConversationCard)}
+                  </div>
+                </section>
+              )}
+              {hasSearchableConversations && timeGroups.length > 0 && (
+                <div className="px-1 pt-2 pb-1">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-[#ececf1]">Recent Conversations</h3>
+                </div>
+              )}
               {timeGroups.map((group) => (
                 <section key={group.label} aria-label={group.label}>
                   <h4 className="sticky top-0 z-10 mb-1 bg-transparent px-1 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 backdrop-blur-sm dark:text-[#6e7490]">

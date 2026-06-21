@@ -18,6 +18,7 @@ export interface Adapter {
   notes?: string; // Longer markdown notes/description when available
   model?: string; // Optional model label from /api/adapters
   inputPlaceholder?: string;
+  icon?: string; // Optional lucide-react icon name
 }
 
 export interface AdaptersResponse {
@@ -46,6 +47,7 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
     notes?: unknown;
     model?: unknown;
     inputPlaceholder?: unknown;
+    icon?: unknown;
   };
 
   const name = toTrimmedString(candidate.name);
@@ -87,6 +89,11 @@ const normalizeAdapter = (input: unknown): Adapter | null => {
   }
   if (inputPlaceholder) {
     normalized.inputPlaceholder = inputPlaceholder;
+  }
+  
+  const icon = toTrimmedString(candidate.icon);
+  if (icon) {
+    normalized.icon = icon;
   }
 
   return normalized;

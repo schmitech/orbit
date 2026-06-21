@@ -131,6 +131,7 @@ interface ExtendedChatState extends ChatState {
   appendToLastMessage: (content: string, conversationId?: string) => void;
   regenerateResponse: (messageId: string, model?: string) => Promise<void>;
   updateConversationTitle: (id: string, title: string) => void;
+  togglePinConversation: (id: string) => void;
   clearError: () => void;
   configureApiSettings: (apiUrl: string, sessionId?: string, adapterName?: string) => Promise<void>;
   getSessionId: () => string;
@@ -1326,6 +1327,15 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     set(state => ({
       conversations: state.conversations.map(conv =>
         conv.id === id ? { ...conv, title, updatedAt: new Date() } : conv
+      ),
+    }));
+    debouncedSaveToLocalStorage(get);
+  },
+
+  togglePinConversation: (id: string) => {
+    set(state => ({
+      conversations: state.conversations.map(conv =>
+        conv.id === id ? { ...conv, isPinned: !conv.isPinned, updatedAt: new Date() } : conv
       ),
     }));
     debouncedSaveToLocalStorage(get);
