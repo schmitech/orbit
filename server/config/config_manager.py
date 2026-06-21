@@ -61,7 +61,7 @@ def _load_config_from_disk(config_path: Optional[str] = None) -> Optional[Dict[s
     
     for path in config_paths:
         try:
-            with open(path, 'r') as file:
+            with open(path, 'r', encoding='utf-8') as file:
                 config = yaml.safe_load(file)
                 logger.info(f"Successfully loaded configuration from {os.path.abspath(path)}")
 
@@ -178,7 +178,7 @@ def _load_imported_config(import_path: str, config_dir: str) -> Dict[str, Any]:
         logger.debug(f"Using cached imported configuration from {os.path.abspath(import_path)}")
         return copy.deepcopy(cached[1])
 
-    with open(import_path, 'r') as file:
+    with open(import_path, 'r', encoding='utf-8') as file:
         imported_config = yaml.safe_load(file)
         logger.debug(f"Successfully imported configuration from {os.path.abspath(import_path)}")
 
