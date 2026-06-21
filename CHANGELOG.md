@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.7.7] - 2026-06-21
+
+### Core System Updates
+- **Circuit Breakers**: Hardened adapter circuit breaker resilience with safer event dispatching, locking, half-open probe gating, and added admin panel controls to view backoff states and reset circuits.
+- **Log Tailing**: Added an admin endpoint to list and select specific rotated log files for tailing, with a fallback to the newest log file.
+- **Admin Panel**: Added the ORBIT version number to the interface and introduced general UX refinements.
+
+### Orbitchat
+- **Authentication**: Added Microsoft Entra ID (Azure AD) as an authentication provider alongside Auth0, including a new `auth.provider` configuration field, MSAL integration, and support for Microsoft Entra ID environment variables.
+- **Model Picker**: Redesigned the model dropdown with a wider trigger, live search/filter input, and a `createPortal`-based menu that escapes parent overflow clipping and dynamically aligns using a `ResizeObserver`.
+- **Auth Controls**: Disassociated authentication controls from the header-enabled state, ensuring login/logout options render whenever authentication is enabled, and prevented duplicate controls on mobile.
+- **orbitchat v3.10.2**: Published latest client package releases.
+
 ## [2.7.6] - 2026-06-18
 
 ### Bug Fixes & Technical Improvements

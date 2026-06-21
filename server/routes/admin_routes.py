@@ -1587,7 +1587,7 @@ async def get_server_info(
     
     return {
         "pid": os.getpid(),
-        "version": "2.7.6",
+        "version": "2.7.7",
         "status": "running"
     }
 
