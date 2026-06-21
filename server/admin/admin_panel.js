@@ -10,6 +10,7 @@
   let authToken = null;
   let currentUser = null;
   let activeTab = "overview";
+  let serverVersion = null;
 
   // Cached data
   let cachedAdapters = null;
@@ -73,6 +74,7 @@
     config: "/admin/config",
     adapterConfigs: "/admin/adapters/config",
     auditEvents: "/admin/audit/events",
+    serverInfo: "/admin/info",
   };
 
   // ------------------------------------------------------------------
@@ -220,8 +222,8 @@
   }
 
   function syncBulkActionButton(button, count, label) {
-    button.disabled = count === 0;
-    button.textContent = count > 0 ? "Delete " + count + " " + label : "Delete Selected";
+    button.style.display = count === 0 ? "none" : "";
+    button.textContent = "Delete " + count + " " + label;
   }
 
   function wrapTable(table) {
@@ -795,6 +797,10 @@
       var data = await resp.json();
       authToken = data.token;
       currentUser = data.user;
+      try {
+        var infoResp = await fetch(ENDPOINTS.serverInfo, { headers: { "Authorization": "Bearer " + authToken }, credentials: "same-origin" });
+        if (infoResp.ok) { var infoData = await infoResp.json(); serverVersion = infoData.version || null; }
+      } catch (_) {}
       renderShell();
     } catch (err) {
       document.getElementById("app").textContent = "Failed to initialize: " + err.message;
@@ -852,11 +858,14 @@
 
     var topbar = el("header", { className: "topbar", role: "banner" },
       el("div", { className: "brand-block" },
-        el("img", {
-          src: "/static/orbit-logo-dark.png",
-          alt: "",
-          className: "brand-logo",
-        })
+        el("a", { href: "/admin" },
+          el("img", {
+            src: "/static/orbit-logo-dark.png",
+            alt: "ORBIT home",
+            className: "brand-logo",
+          })
+        ),
+        serverVersion ? el("p", null, "v" + serverVersion) : null
       ),
       nav,
       el("div", { className: "topbar-actions" },
@@ -1761,7 +1770,8 @@
       placeholder: "Search users",
       "aria-label": "Search users"
     });
-    var bulkDeleteBtn = el("button", { className: "danger", type: "button", disabled: "true" }, "Delete Selected");
+    var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
+    bulkDeleteBtn.style.display = "none";
     var userPaginator = createPaginator({
       pageSize: ITEMS_PER_PAGE,
       onPageChange: function (pageItems) {
@@ -1781,33 +1791,33 @@
     layout.appendChild(createPanel);
     container.appendChild(layout);
 
-    listPanel.appendChild(el("h2", null, "Users"));
+    var usersRefreshBtn = el("button", { type: "button", className: "secondary" }, "Refresh");
+    usersRefreshBtn.addEventListener("click", function () { loadUsers({}); });
+    listPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "Users"),
+      usersRefreshBtn
+    ));
     listPanel.appendChild(field("Search", searchInput));
-    listPanel.appendChild(el("div", { className: "bulk-action-row" }, bulkDeleteBtn));
-    listPanel.appendChild(tableWrap);
-    listPanel.appendChild(userPaginator.getControlsEl());
-
     var createLaunchBtn = el("button", {
       className: "secondary create-launch-btn",
       type: "button",
       "aria-label": "Create user"
     }, svgIcon(ICON_PLUS), el("span", null, "Create User"));
-    listPanel.appendChild(el("div", { className: "create-launch-row" }, createLaunchBtn));
+    listPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
+    listPanel.appendChild(tableWrap);
+    listPanel.appendChild(userPaginator.getControlsEl());
 
     var usernameInput = el("input", {
       type: "text",
-      required: "true",
       maxlength: String(USERNAME_MAX_LENGTH),
       placeholder: "3-50 chars. Alphanumeric and ., _, - allowed.",
       autocomplete: "off",
       autocapitalize: "none",
       autocorrect: "off",
-      spellcheck: "false",
-      pattern: "[A-Za-z0-9._-]+"
+      spellcheck: "false"
     });
     var passwordInput = el("input", {
       type: "password",
-      required: "true",
       maxlength: String(PASSWORD_MAX_LENGTH),
       placeholder: "8-128 chars. No spaces.",
       autocomplete: "new-password",
@@ -2302,7 +2312,12 @@
     layout.appendChild(createPanel);
     container.appendChild(layout);
 
-    listPanel.appendChild(el("h2", null, "API Keys"));
+    var keysRefreshBtn = el("button", { type: "button", className: "secondary" }, "Refresh");
+    keysRefreshBtn.addEventListener("click", function () { loadKeys(); });
+    listPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "API Keys"),
+      keysRefreshBtn
+    ));
 
     // Fetch adapters and prompts for dropdowns
     await loadAdaptersAndPrompts();
@@ -2369,8 +2384,15 @@
       "aria-label": "Search API keys"
     });
     listPanel.appendChild(field("Search", keySearchInput));
-    var bulkDeleteBtn = el("button", { className: "danger", type: "button", disabled: "true" }, "Delete Selected");
-    listPanel.appendChild(el("div", { className: "bulk-action-row" }, bulkDeleteBtn));
+    var createLaunchBtn = el("button", {
+      className: "secondary create-launch-btn",
+      type: "button",
+      "aria-label": "Create API key"
+    }, svgIcon(ICON_PLUS), el("span", null, "Create API Key"));
+    createLaunchBtn.addEventListener("click", openCreatePanel);
+    var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
+    bulkDeleteBtn.style.display = "none";
+    listPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
 
     var tableWrap = el("div", null, skeleton());
     listPanel.appendChild(tableWrap);
@@ -2388,13 +2410,6 @@
       }
     });
     listPanel.appendChild(keyPaginator.getControlsEl());
-    var createLaunchBtn = el("button", {
-      className: "secondary create-launch-btn",
-      type: "button",
-      "aria-label": "Create API key"
-    }, svgIcon(ICON_PLUS), el("span", null, "Create API Key"));
-    createLaunchBtn.addEventListener("click", openCreatePanel);
-    listPanel.appendChild(el("div", { className: "create-launch-row" }, createLaunchBtn));
 
     function showEmptyKeyDetail() {
       clear(detailPanel);
@@ -3178,7 +3193,12 @@
     layout.appendChild(createPanel);
     container.appendChild(layout);
 
-    listPanel.appendChild(el("h2", null, "Personas"));
+    var personasRefreshBtn = el("button", { type: "button", className: "secondary" }, "Refresh");
+    personasRefreshBtn.addEventListener("click", function () { refreshPrompts(); });
+    listPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "Personas"),
+      personasRefreshBtn
+    ));
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "100" });
     var versionInput = el("input", { type: "text", value: "1.0", maxlength: "25" });
@@ -3233,8 +3253,15 @@
       "aria-label": "Search personas"
     });
     listPanel.appendChild(field("Search", promptSearchInput));
-    var bulkDeleteBtn = el("button", { className: "danger", type: "button", disabled: "true" }, "Delete Selected");
-    listPanel.appendChild(el("div", { className: "bulk-action-row" }, bulkDeleteBtn));
+    var createLaunchBtn = el("button", {
+      className: "secondary create-launch-btn",
+      type: "button",
+      "aria-label": "Create persona"
+    }, svgIcon(ICON_PLUS), el("span", null, "Create Persona"));
+    createLaunchBtn.addEventListener("click", openCreatePanel);
+    var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
+    bulkDeleteBtn.style.display = "none";
+    listPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
 
     var tableWrap = el("div", null, skeleton());
     listPanel.appendChild(tableWrap);
@@ -3252,13 +3279,6 @@
       }
     });
     listPanel.appendChild(promptPaginator.getControlsEl());
-    var createLaunchBtn = el("button", {
-      className: "secondary create-launch-btn",
-      type: "button",
-      "aria-label": "Create persona"
-    }, svgIcon(ICON_PLUS), el("span", null, "Create Persona"));
-    createLaunchBtn.addEventListener("click", openCreatePanel);
-    listPanel.appendChild(el("div", { className: "create-launch-row" }, createLaunchBtn));
 
     createBtn.addEventListener("click", function () {
       var n = nameInput.value.trim();
@@ -3402,7 +3422,7 @@
     var thead = el("thead", null,
       el("tr", null,
         el("th", { className: "selection-col" }, selectAllBox),
-        el("th", null, "ID"),
+        el("th", { className: "persona-id-col" }, "ID"),
         el("th", null, "Name"),
         el("th", null, "Version")
       )
@@ -3429,7 +3449,7 @@
         "aria-selected": isSelected ? "true" : "false",
       },
         el("td", { className: "selection-col" }, checkbox),
-        el("td", null, el("code", { className: "plain-code" }, promptId)),
+        el("td", { className: "persona-id-col" }, el("code", { className: "plain-code", title: promptId }, promptId ? promptId.slice(0, 8) : "")),
         el("td", null, p.name),
         el("td", null, p.version || "")
       );
@@ -4821,7 +4841,7 @@
 
   function renderAuditDossierEmpty(panel) {
     clear(panel);
-    panel.appendChild(el("h2", null, "Dossier"));
+    panel.appendChild(el("h2", null, "Details"));
     panel.appendChild(el("div", { className: "empty-state" },
       el("p", null, "Select an entry from the register."),
       el("p", { className: "muted" }, "A dossier shows the actor, request metadata, origin details, and the captured payload or summary for the selected audit record.")
@@ -4835,7 +4855,7 @@
     var closeBtn = el("button", { type: "button", className: "secondary audit-dossier__close" }, "Close");
     closeBtn.addEventListener("click", onClose);
     panel.appendChild(el("div", { className: "panel-header-row" },
-      el("h2", null, "Dossier"),
+      el("h2", null, "Details"),
       closeBtn
     ));
 

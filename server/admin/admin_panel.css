@@ -873,8 +873,9 @@ tbody tr:nth-child(even) {
 
 .bulk-action-row {
   display: flex;
-  justify-content: flex-end;
-  padding: 0 0 var(--sp-2);
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-3) 0 var(--sp-2);
 }
 
 .selection-col {
@@ -2571,6 +2572,11 @@ code.plain-code {
 .adapter-toggle-cell {
   text-align: center;
   vertical-align: middle;
+}
+
+.persona-id-col {
+  width: 110px;
+  white-space: nowrap;
 }
 
 /* ============================================================
